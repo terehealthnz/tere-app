@@ -21,8 +21,8 @@ const ROUTES = {
 }
 
 export default async function handler(req, res) {
-  const segments = req.query.path
-  const route = Array.isArray(segments) ? segments.join('/') : segments
+  const segments = req.query.route
+  const route = Array.isArray(segments) ? segments[0] || segments.join('/') : segments
   const loader = ROUTES[route]
   if (!loader) return res.status(404).json({ error: 'Not found', route })
   try {
