@@ -30,7 +30,7 @@ const apis = [
 
 for (const name of apis) {
   try {
-    const mod = await import(`./api/${name}.js`)
+    const mod = await import(`./api/_${name}.js`)
     app.post(`/api/${name}`, mod.default)
     console.log(`✓ /api/${name}`)
   } catch (e) {
