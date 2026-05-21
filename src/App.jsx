@@ -1,0 +1,48 @@
+import React from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import IntakeForm        from './components/patient/IntakeForm'
+import AITriage          from './components/patient/AITriage'
+import AvailabilityCheck from './components/patient/AvailabilityCheck'
+import VitalsCapture     from './components/patient/VitalsCapture'
+import WaitingRoom       from './components/patient/WaitingRoom'
+import PatientCall       from './components/patient/PatientCall'
+import PostConsult       from './components/patient/PostConsult'
+import ClinicianLogin    from './components/clinician/Login'
+import Dashboard         from './components/clinician/Dashboard'
+import ConsultView       from './components/clinician/ConsultView'
+import Admin             from './components/clinician/Admin'
+import NotesCompletion   from './pages/clinician/NotesCompletion'
+import Payment           from './components/patient/Payment'
+import ConsultationType  from './pages/patient/ConsultationType'
+import MessageSent       from './pages/patient/MessageSent'
+import Waitlisted        from './pages/patient/Waitlisted'
+import ResumePayment     from './pages/patient/ResumePayment'
+import PrivacyPolicy     from './pages/PrivacyPolicy'
+import Landing           from './pages/Landing'
+import Terms             from './pages/Terms'
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/"                      element={<AITriage />} />
+      <Route path="/vitals"                element={<VitalsCapture />} />
+      <Route path="/consultation-type"       element={<ConsultationType />} />
+      <Route path="/payment"               element={<Payment />} />
+      <Route path="/message-sent"          element={<MessageSent />} />
+      <Route path="/waiting"               element={<WaitingRoom />} />
+      <Route path="/call"                  element={<PatientCall />} />
+      <Route path="/waitlisted/:id"          element={<Waitlisted />} />
+      <Route path="/resume/:id"              element={<ResumePayment />} />
+      <Route path="/done"                  element={<PostConsult />} />
+      <Route path="/clinician"             element={<ClinicianLogin />} />
+      <Route path="/clinician/dashboard"   element={<Dashboard />} />
+      <Route path="/clinician/admin"       element={<Admin />} />
+      <Route path="/clinician/consult/:id" element={<ConsultView />} />
+      <Route path="/clinician/notes/:id"  element={<NotesCompletion />} />
+      <Route path="/privacy"               element={<PrivacyPolicy />} />
+      <Route path="/landing"               element={<Landing />} />
+      <Route path="/terms"                 element={<Terms />} />
+      <Route path="*"                      element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}

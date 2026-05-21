@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(open *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('livekit-server-sdk'\\); console.log\\('livekit-server-sdk OK'\\)\")",
+      "Bash(node --input-type=module)",
+      "Bash(curl -s http://localhost:3002/api/health)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl *)",
+      "Bash(node server.js)",
+      "Bash(python3 -m json.tool)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\)[0]; print\\(list\\(d.keys\\(\\)\\)\\)\")",
+      "Bash(node -e \"const c=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const d=JSON.parse\\(c\\)[0]; console.log\\(Object.keys\\(d\\).join\\('\\\\n'\\)\\)\")",
+      "Bash(npx vite *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('dependencies',{}\\), indent=2\\)\\)\")",
+      "Bash(node *)",
+      "Bash(supabase --version)",
+      "Bash(psql --version)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(list\\(d[0].keys\\(\\)\\) if d else 'empty'\\)\")",
+      "Bash(npx --yes vite build --mode development)",
+      "Bash(kill 93176 97966)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
