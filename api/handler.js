@@ -27,7 +27,8 @@ export default async function handler(req, res) {
   if (!loader) return res.status(404).json({ error: 'Not found', route })
   try {
     const mod = await loader()
-    return await mod.default(req, res)
+    const fn = typeof mod.default === 'function' ? mod.default : mod
+    return await fn(req, res)
   } catch (e) {
     console.error(`[${route}]`, e)
     return res.status(500).json({ error: e.message })
