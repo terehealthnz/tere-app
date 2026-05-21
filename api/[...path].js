@@ -1,48 +1,35 @@
-// Single Vercel serverless function — routes all /api/* requests
-import approveHandler          from './_approve-draft.js'
-import cancelHandler           from './_cancel-payment.js'
-import captureHandler          from './_capture-payment.js'
-import createPaymentHandler    from './_create-payment-intent.js'
-import createRoomHandler       from './_create-room.js'
-import employerCheckHandler    from './_employer-check.js'
-import generateNotesHandler    from './_generate-notes.js'
-import generateRxHandler       from './_generate-prescription-pdf.js'
-import generateRefHandler      from './_generate-referral-pdf.js'
-import hpiHandler              from './_hpi-search.js'
-import joinRoomHandler         from './_join-room.js'
-import notifyWaitlistHandler   from './_notify-waitlist.js'
-import providerAuthHandler     from './_provider-auth.js'
-import sendEmailHandler        from './_send-email.js'
-import sendToGpHandler         from './_send-to-gp.js'
-import transcribeHandler       from './_transcribe.js'
-import translateHandler        from './_translate.js'
-import verifyAccHandler        from './_verify-acc.js'
-
+// Single Vercel serverless function — lazy-loads only the requested handler
 const ROUTES = {
-  'approve-draft':               approveHandler,
-  'cancel-payment':              cancelHandler,
-  'capture-payment':             captureHandler,
-  'create-payment-intent':       createPaymentHandler,
-  'create-room':                 createRoomHandler,
-  'employer-check':              employerCheckHandler,
-  'generate-notes':              generateNotesHandler,
-  'generate-prescription-pdf':   generateRxHandler,
-  'generate-referral-pdf':       generateRefHandler,
-  'hpi-search':                  hpiHandler,
-  'join-room':                   joinRoomHandler,
-  'notify-waitlist':             notifyWaitlistHandler,
-  'provider-auth':               providerAuthHandler,
-  'send-email':                  sendEmailHandler,
-  'send-to-gp':                  sendToGpHandler,
-  'transcribe':                  transcribeHandler,
-  'translate':                   translateHandler,
-  'verify-acc':                  verifyAccHandler,
+  'approve-draft':             () => import('./_approve-draft.js'),
+  'cancel-payment':            () => import('./_cancel-payment.js'),
+  'capture-payment':           () => import('./_capture-payment.js'),
+  'create-payment-intent':     () => import('./_create-payment-intent.js'),
+  'create-room':               () => import('./_create-room.js'),
+  'employer-check':            () => import('./_employer-check.js'),
+  'generate-notes':            () => import('./_generate-notes.js'),
+  'generate-prescription-pdf': () => import('./_generate-prescription-pdf.js'),
+  'generate-referral-pdf':     () => import('./_generate-referral-pdf.js'),
+  'hpi-search':                () => import('./_hpi-search.js'),
+  'join-room':                 () => import('./_join-room.js'),
+  'notify-waitlist':           () => import('./_notify-waitlist.js'),
+  'provider-auth':             () => import('./_provider-auth.js'),
+  'send-email':                () => import('./_send-email.js'),
+  'send-to-gp':                () => import('./_send-to-gp.js'),
+  'transcribe':                () => import('./_transcribe.js'),
+  'translate':                 () => import('./_translate.js'),
+  'verify-acc':                () => import('./_verify-acc.js'),
 }
 
 export default async function handler(req, res) {
   const segments = req.query.path
   const route = Array.isArray(segments) ? segments.join('/') : segments
-  const fn = ROUTES[route]
-  if (!fn) return res.status(404).json({ error: 'Not found' })
-  return fn(req, res)
+  const loader = ROUTES[route]
+  if (!loader) return res.status(404).json({ error: 'Not found', route })
+  try {
+    const mod = await loader()
+    return await mod.default(req, res)
+  } catch (e) {
+    console.error(`[${route}]`, e)
+    return res.status(500).json({ error: e.message })
+  }
 }
