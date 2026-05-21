@@ -20,6 +20,10 @@ import ResumePayment     from './pages/patient/ResumePayment'
 import PrivacyPolicy     from './pages/PrivacyPolicy'
 import Landing           from './pages/Landing'
 import Terms             from './pages/Terms'
+import DemoLanding       from './pages/demo/DemoLanding'
+import DemoPatient       from './pages/demo/DemoPatient'
+import DemoProvider      from './pages/demo/DemoProvider'
+import DemoAdmin         from './pages/demo/DemoAdmin'
 
 export default function App() {
   return (
@@ -42,6 +46,10 @@ export default function App() {
       <Route path="/privacy"               element={<PrivacyPolicy />} />
       <Route path="/landing"               element={<Landing />} />
       <Route path="/terms"                 element={<Terms />} />
+      <Route path="/demo"                  element={<DemoLanding />} />
+      <Route path="/demo/patient"          element={<DemoPatient />} />
+      <Route path="/demo/provider"         element={<DemoProvider />} />
+      <Route path="/demo/admin"            element={<DemoAdmin />} />
       <Route path="*"                      element={<Navigate to="/" replace />} />
     </Routes>
   )
