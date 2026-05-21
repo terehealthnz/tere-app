@@ -10,11 +10,10 @@ export default function TereIntro({ onStart }) {
     setLang(code)
     sessionStorage.setItem('patient_language', code)
   }
-  const t = (delay, extra='') => ({
+  const anim = (delay) => ({
     opacity: v ? 1 : 0,
     transform: v ? 'translateY(0)' : 'translateY(12px)',
     transition: `all 0.6s ${delay}`,
-    ...extra && {}
   })
 
   return (
@@ -30,11 +29,11 @@ export default function TereIntro({ onStart }) {
       </svg>
 
       {/* Logo */}
-      <div style={{ ...t('0.2s'), fontFamily:'Cormorant Garamond, Georgia, serif', fontStyle:'italic', fontSize:'2.8rem', color:'#D4EEF0', letterSpacing:'0.05em', marginBottom:2 }}>Tere Health</div>
-      <div style={{ ...t('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.45)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>He tere, he ora</div>
+      <div style={{ ...anim('0.2s'), fontFamily:'Cormorant Garamond, Georgia, serif', fontStyle:'italic', fontSize:'2.8rem', color:'#D4EEF0', letterSpacing:'0.05em', marginBottom:2 }}>Tere Health</div>
+      <div style={{ ...anim('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.45)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>He tere, he ora</div>
 
       {/* Stage */}
-      <div style={{ ...t('0.8s'), display:'flex', alignItems:'flex-end', justifyContent:'center', gap:'1.5rem', marginBottom:'1rem' }}>
+      <div style={{ ...anim('0.8s'), display:'flex', alignItems:'flex-end', justifyContent:'center', gap:'1.5rem', marginBottom:'1rem' }}>
         {/* Kiwi */}
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
           <div style={{ background:'rgba(11,110,118,.25)', border:'1px solid rgba(11,110,118,.5)', borderRadius:'12px 12px 12px 2px', padding:'6px 10px', fontSize:'0.7rem', color:'#D4EEF0', marginBottom:4, opacity: v?1:0, transition:'opacity 0.5s 1.6s' }}>
@@ -111,7 +110,7 @@ export default function TereIntro({ onStart }) {
       </div>
 
       {/* Language selector */}
-      <div style={{ ...t('2s'), marginBottom:'1.25rem', width:'100%', maxWidth:360 }}>
+      <div style={{ ...anim('2s'), marginBottom:'1.25rem', width:'100%', maxWidth:360 }}>
         <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,.45)', textAlign:'center', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:'.625rem' }}>
           {t('choose_language', lang)}
         </div>
@@ -127,7 +126,7 @@ export default function TereIntro({ onStart }) {
       </div>
 
       {/* Steps */}
-      <div style={{ ...t('2.5s'), display:'flex', gap:'.75rem', marginBottom:'1.25rem', width:'100%', maxWidth:320 }}>
+      <div style={{ ...anim('2.5s'), display:'flex', gap:'.75rem', marginBottom:'1.25rem', width:'100%', maxWidth:320 }}>
         {[['1','step_1'],['2','step_2'],['3','step_3'],['4','step_4']].map(([n,key]) => (
           <div key={n} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
             <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(11,110,118,.3)', border:'1px solid rgba(11,110,118,.6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.75rem', color:'#D4EEF0', fontWeight:600 }}>{n}</div>
@@ -137,13 +136,13 @@ export default function TereIntro({ onStart }) {
       </div>
 
       {/* Button */}
-      <button onClick={onStart} style={{ ...t('2.8s'), background:'#0B6E76', color:'white', border:'none', padding:'.8rem 2.25rem', borderRadius:50, fontSize:'.9375rem', fontWeight:600, cursor:'pointer' }}
+      <button onClick={onStart} style={{ ...anim('2.8s'), background:'#0B6E76', color:'white', border:'none', padding:'.8rem 2.25rem', borderRadius:50, fontSize:'.9375rem', fontWeight:600, cursor:'pointer' }}
         onMouseEnter={e=>{e.target.style.background='#0d8490';e.target.style.transform='scale(1.04)'}}
         onMouseLeave={e=>{e.target.style.background='#0B6E76';e.target.style.transform='scale(1)'}}>
         {t('get_started', lang)}
       </button>
 
-      <div style={{ ...t('3s'), position:'absolute', bottom:'1rem', fontSize:'.65rem', color:'rgba(255,255,255,.2)' }}>
+      <div style={{ ...anim('3s'), position:'absolute', bottom:'1rem', fontSize:'.65rem', color:'rgba(255,255,255,.2)' }}>
         Marlborough Sounds, New Zealand · terehealth.co.nz
       </div>
 
