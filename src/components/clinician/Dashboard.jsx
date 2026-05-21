@@ -28,7 +28,7 @@ function statusLabel(status) {
   return map[status] || { label: status, color: 'var(--muted)' }
 }
 
-async function getDailyConsultations() {
+async function getTodaysConsultations() {
   const { supabase } = await import('../../lib/supabase')
   const today = new Date()
   today.setHours(0,0,0,0)
@@ -645,7 +645,7 @@ export default function Dashboard() {
   const [consultations, setConsultations] = useState([])
   const [loading, setLoading]             = useState(true)
   const [joiningId, setJoiningId]         = useState(null)
-  const [daily, setDaily]                 = useState([])
+  const [todaysConsults, setTodaysConsults] = useState([])
   const [provIsAvail, setProvIsAvail]     = useState(false)
   const [savingProvAvail, setSavingProvAvail] = useState(false)
   const [referralBadge, setReferralBadge] = useState(0)
@@ -670,7 +670,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     load()
-    getDailyConsultations().then(setDaily)
+    getTodaysConsultations().then(setTodaysConsults)
     // Load this provider's availability + referral badge
     const pid = sessionStorage.getItem('providerId')
     if (pid) {
@@ -700,7 +700,7 @@ export default function Dashboard() {
     }
     const interval = setInterval(() => {
       load()
-      getDailyConsultations().then(setDaily)
+      getTodaysConsultations().then(setTodaysConsults)
     }, 15000)
     const sub = subscribeToQueue(() => load())
     return () => { clearInterval(interval); sub?.unsubscribe?.() }
@@ -874,15 +874,15 @@ export default function Dashboard() {
                 <h2 style={{fontSize:'1.125rem',marginBottom:'.125rem'}}>Today's consultations</h2>
                 <p style={{fontSize:'.875rem'}}>{new Date().toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long'})}</p>
               </div>
-              <div style={{background:'var(--navy)',color:'white',borderRadius:'var(--radius-sm)',padding:'.5rem 1rem',fontSize:'1.25rem',fontWeight:700}}>{daily.length}</div>
+              <div style={{background:'var(--navy)',color:'white',borderRadius:'var(--radius-sm)',padding:'.5rem 1rem',fontSize:'1.25rem',fontWeight:700}}>{todaysConsults.length}</div>
             </div>
-            {daily.length === 0 ? (
+            {todaysConsults.length === 0 ? (
               <div style={{background:'white',borderRadius:'var(--radius-sm)',padding:'1.25rem',border:'1px solid var(--border)',textAlign:'center',color:'var(--muted)'}}>
                 No completed consultations today yet.
               </div>
             ) : (
               <div style={{display:'flex',flexDirection:'column',gap:'.625rem'}}>
-                {daily.map(c => {
+                {todaysConsults.map(c => {
                   const acts = c.clinical_notes?.actions || []
                   return (
                     <div key={c.id} style={{background:'white',borderRadius:'var(--radius-sm)',padding:'1rem 1.25rem',border:'1px solid var(--border)',display:'grid',gridTemplateColumns:'1fr auto',gap:'1rem',alignItems:'center'}}>
@@ -903,10 +903,10 @@ export default function Dashboard() {
                 <div style={{background:'var(--navy)',borderRadius:'var(--radius-sm)',padding:'1rem 1.25rem',display:'flex',gap:'2rem',flexWrap:'wrap'}}>
                   <div style={{color:'rgba(255,255,255,.4)',fontSize:'.75rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',width:'100%',marginBottom:'.25rem'}}>Day total</div>
                   {[
-                    ['Consultations', daily.length],
-                    ['Prescriptions', daily.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='prescription').length,0)],
-                    ['Imaging', daily.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='radiology').length,0)],
-                    ['ACC claims', daily.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='acc45').length,0)],
+                    ['Consultations', todaysConsults.length],
+                    ['Prescriptions', todaysConsults.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='prescription').length,0)],
+                    ['Imaging', todaysConsults.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='radiology').length,0)],
+                    ['ACC claims', todaysConsults.reduce((s,c)=>s+(c.clinical_notes?.actions||[]).filter(a=>a.type==='acc45').length,0)],
                   ].map(([label,count]) => (
                     <div key={label}>
                       <div style={{fontSize:'1.25rem',fontWeight:700,color:'#C8A882'}}>{count}</div>

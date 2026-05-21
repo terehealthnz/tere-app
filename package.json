@@ -8,8 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@daily-co/daily-js": "^0.65.0",
-    "@livekit/components-react": "^2.9.21",
+"@livekit/components-react": "^2.9.21",
     "@livekit/components-styles": "^1.2.0",
     "@stripe/react-stripe-js": "^6.4.0",
     "@stripe/stripe-js": "^9.6.0",

@@ -443,9 +443,7 @@ export default function ConsultView() {
         const data = await getConsultation(id)
         setConsult(data)
 
-        // Create LiveKit room if missing or if it's an old Daily.co URL
-        const isOldDailyUrl = data.daily_room_url?.includes('daily.co')
-        if (!data.daily_room_url || isOldDailyUrl) {
+        if (!data.daily_room_url) {
           try {
             const res = await fetch('/api/create-room', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
