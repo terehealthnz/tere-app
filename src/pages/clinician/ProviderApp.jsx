@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import ProviderSchedule from './ProviderSchedule'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,7 @@ function BottomNav({ tab, setTab, queueBadge, msgBadge, notesBadge }) {
   const items = [
     { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
     { id:'messages', icon:'💬', label:'Messages', badge:msgBadge },
+    { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'notes',    icon:'📋', label:'Notes',    badge:notesBadge },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
@@ -491,6 +493,7 @@ export default function ProviderApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} />}
         {tab === 'messages' && <MessagesTab />}
+        {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'notes'    && <NotesTab navigate={navigate} />}
         {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
       </div>

@@ -14,6 +14,11 @@ const NOTIFICATION_TYPES = {
   new_message:           (d) => ({ title: `New message — ${d.patientName}`,       body: d.chiefComplaint,                                                                 requireInteraction: false, url: '/provider', tag: `msg-${d.consultationId}` }),
   waitlist_open:         (d) => ({ title: 'Clinic opened — waitlist notified',    body: `${d.count} patient${d.count !== 1 ? 's' : ''} emailed`,                          requireInteraction: false, url: '/admin', tag: 'waitlist-open' }),
   new_employer_enquiry:  (d) => ({ title: `New employer enquiry — ${d.company}`,  body: d.contact ? `From ${d.contact}` : 'Check the employers tab',                      requireInteraction: true,  url: '/admin', tag: `employer-${d.company}` }),
+  shift_started:         (d) => ({ title: 'Your shift has started — clinic open', body: d.providerNames ? `${d.providerNames.join(', ')} now available` : 'Clinic is now open', requireInteraction: false, url: '/provider', tag: 'shift-started' }),
+  clinic_closed:         (d) => ({ title: 'Clinic closed automatically',           body: d.nextAvail ? `Next: ${d.nextAvail}` : 'No providers scheduled',                  requireInteraction: false, url: '/admin',   tag: 'clinic-closed' }),
+  no_coverage:           (d) => ({ title: 'Coverage gap — no provider scheduled',  body: (d.days || []).join(', '),                                                          requireInteraction: true,  url: '/admin/schedule', tag: 'no-coverage' }),
+  shift_offer:           (d) => ({ title: `Shift offered by ${d.fromName}`,        body: `${d.shiftDate} ${d.startTime?.slice(0,5)}–${d.endTime?.slice(0,5)}`,              requireInteraction: true,  url: '/provider/schedule', tag: `offer-${d.shiftDate}` }),
+  shift_reminder:        (d) => ({ title: `Shift in 1 hour — ${d.startTime}`,      body: 'Your shift starts soon. Clinic will open automatically.',                         requireInteraction: false, url: '/provider', tag: `reminder-${d.shiftDate}` }),
 }
 
 export default async function handler(req, res) {

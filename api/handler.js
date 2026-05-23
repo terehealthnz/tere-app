@@ -86,6 +86,8 @@ const ROUTES = {
   'transcribe':                () => import('./_transcribe.js'),
   'translate':                 () => import('./_translate.js'),
   'verify-acc':                () => import('./_verify-acc.js'),
+  'schedule':                  () => import('./_schedule.js'),
+  'cron-availability':         () => import('./_cron-availability.js'),
 }
 
 export default async function handler(req, res) {
@@ -95,10 +97,10 @@ export default async function handler(req, res) {
 
   setSecurityHeaders(res)
 
-  // ── API key check ───────────────────────────────────────────────────────────
+  // ── API key check (cron-availability uses its own auth) ─────────────────────
   const expectedKey = process.env.TERE_API_KEY
   const providedKey = req.headers['x-tere-api-key']
-  if (expectedKey && providedKey !== expectedKey) {
+  if (route !== 'cron-availability' && expectedKey && providedKey !== expectedKey) {
     logRequest(ip, route, 401, 'api_key_invalid')
     return res.status(401).json({ error: 'Unauthorized' })
   }

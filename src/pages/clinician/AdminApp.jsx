@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import AdminSchedule from './AdminSchedule'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -669,6 +670,7 @@ function BottomNav({ tab, setTab, dashBadge }) {
   const items = [
     { id:'dashboard', icon:'🏠', label:'Dashboard', badge:dashBadge },
     { id:'analytics', icon:'📊', label:'Analytics',  badge:0 },
+    { id:'schedule',  icon:'📅', label:'Schedule',   badge:0 },
     { id:'employers', icon:'🏢', label:'Employers',  badge:0 },
     { id:'settings',  icon:'⚙️', label:'Settings',   badge:0 },
   ]
@@ -799,6 +801,7 @@ export default function AdminApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'dashboard' && <DashboardTab isOpen={isOpen} setIsOpen={setIsOpen} availMsg={availMsg} setAvailMsg={setAvailMsg} onSaveAvail={saveAvail} savingAvail={savingAvail} availSaved={availSaved} />}
         {tab === 'analytics' && <AnalyticsTab />}
+        {tab === 'schedule'  && <AdminSchedule embedded />}
         {tab === 'employers' && <EmployersTab />}
         {tab === 'settings'  && <SettingsTab navigate={navigate} displayName={displayName} />}
       </div>
