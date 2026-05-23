@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
+import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -796,6 +797,7 @@ export default function Dashboard() {
             ['queue','Queue'],
             ['messages','💬 Messages'],
             ['notes','Notes'],
+            ['schedule','📅 Schedule'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
           ].map(([t,label]) => (
             <button key={t} onClick={() => setDashTab(t)}
@@ -921,6 +923,7 @@ export default function Dashboard() {
         </>)}
 
         {dashTab === 'notes' && <NotesTab navigate={navigate} />}
+        {dashTab === 'schedule' && <ProviderSchedule embedded />}
         {dashTab === 'approvals' && isSupervisor && <ApprovalsTab onBadgeChange={setApprovalBadge} />}
 
       </div>
