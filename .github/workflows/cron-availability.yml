@@ -1,0 +1,15 @@
+name: Availability cron
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping cron-availability
+        run: |
+          curl -sf -X POST https://tere.co.nz/api/cron-availability \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
