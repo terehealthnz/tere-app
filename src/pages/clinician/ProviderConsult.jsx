@@ -218,7 +218,7 @@ export default function ProviderConsult() {
     <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:'1.25rem', fontWeight:700, color:NAVY }}>Consultation not found</div>
-        <button onClick={() => navigate('/provider')} style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'10px 20px', borderRadius:8, fontFamily:FF, cursor:'pointer' }}>← Back</button>
+        <button onClick={() => navigate('/provider')} style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 20px', borderRadius:8, fontFamily:FF, cursor:'pointer', minHeight:44 }}>← Back</button>
       </div>
     </div>
   )
@@ -308,7 +308,7 @@ export default function ProviderConsult() {
         <button
           onClick={endCall}
           disabled={endingCall}
-          style={{ minHeight:56, flex:2, borderRadius:12, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:endingCall?'not-allowed':'pointer', opacity:endingCall?.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+          style={{ minHeight:56, flex:2, borderRadius:12, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:endingCall?'not-allowed':'pointer', opacity:endingCall?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           {endingCall ? 'Ending…' : '🔴 End call'}
         </button>
       </div>
@@ -446,7 +446,7 @@ export default function ProviderConsult() {
           <button
             onClick={admit}
             disabled={admitting}
-            style={{ width:'100%', minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:admitting?'not-allowed':'pointer', opacity:admitting?.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+            style={{ width:'100%', minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:admitting?'not-allowed':'pointer', opacity:admitting?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
             {admitting ? 'Connecting…' : '→ Admit patient to call'}
           </button>
         )}
