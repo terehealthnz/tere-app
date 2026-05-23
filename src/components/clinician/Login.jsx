@@ -125,14 +125,14 @@ export default function ClinicianLogin() {
   }
 
   if (providers === null) return (
-    <div className="page" style={{background:'var(--navy)',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div className="spinner" style={{borderColor:'rgba(255,255,255,.2)',borderTopColor:'var(--teal-light)'}} />
     </div>
   )
 
   // "Welcome back" screen — remembered device
   if (savedDevice && !showSavePrompt) return (
-    <div className="page" style={{background:'var(--navy)',minHeight:'100vh',alignItems:'center',justifyContent:'center',display:'flex'}}>
+    <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
       <div style={{width:'100%',maxWidth:360,padding:'1.5rem',textAlign:'center'}}>
         <div style={{fontFamily:'Cormorant Garamond, Georgia, serif',fontSize:'2.5rem',fontStyle:'italic',color:'var(--teal-light)',letterSpacing:'.08em',marginBottom:'2rem'}}>
           Tere
@@ -165,7 +165,7 @@ export default function ClinicianLogin() {
     const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
     const dest = params.get('redirect') || defaultDest(isAdmin)
     return (
-      <div className="page" style={{background:'var(--navy)',minHeight:'100vh',alignItems:'center',justifyContent:'center',display:'flex'}}>
+      <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
         <div style={{width:'100%',maxWidth:360,padding:'1.5rem',textAlign:'center'}}>
           <div style={{background:'white',borderRadius:16,padding:'2rem'}}>
             <div style={{fontSize:'2rem',marginBottom:'1rem'}}>📱</div>
@@ -196,7 +196,7 @@ export default function ClinicianLogin() {
   const showPasswordStep = selected || providers.length === 0
 
   return (
-    <div className="page" style={{background:'var(--navy)',minHeight:'100vh',alignItems:'center',justifyContent:'center',display:'flex'}}>
+    <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
       <div style={{width:'100%',maxWidth: showPasswordStep ? '380px' : '480px',padding:'1.5rem',transition:'max-width .2s'}}>
         <div style={{textAlign:'center',marginBottom:'2rem'}}>
           <div style={{fontFamily:'Cormorant Garamond, Georgia, serif',fontSize:'2.5rem',fontStyle:'italic',color:'var(--teal-light)',letterSpacing:'.08em',marginBottom:'.375rem'}}>

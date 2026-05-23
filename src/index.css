@@ -25,8 +25,9 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overscroll-behavior: none; }
-/* Prevent iOS input zoom */
-input, select, textarea { font-size: max(16px, 1rem); }
+/* Prevent iOS input zoom + double-tap zoom on interactive elements */
+input, select, textarea { font-size: max(16px, 1em) !important; }
+button, a, input, select, textarea { touch-action: manipulation; }
 /* Smooth momentum scrolling on iOS */
 .scroll-touch { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 /* Safe area insets for iPhone notch/home bar */
