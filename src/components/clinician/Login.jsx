@@ -19,6 +19,13 @@ function restoreDevice(d) {
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }
 
+function defaultDest(isAdmin) {
+  const isPWA    = window.matchMedia('(display-mode: standalone)').matches
+  const isMobile = window.innerWidth < 768
+  if (isPWA || isMobile) return isAdmin ? '/admin' : '/provider'
+  return '/clinician/dashboard'
+}
+
 export default function ClinicianLogin() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -39,7 +46,7 @@ export default function ClinicianLogin() {
   function loginWithDevice() {
     restoreDevice(savedDevice)
     const params = new URLSearchParams(location.search)
-    navigate(params.get('redirect') || '/clinician/dashboard')
+    navigate(params.get('redirect') || defaultDest(savedDevice?.providerIsAdmin === 'true'))
   }
 
   useEffect(() => {
@@ -109,7 +116,7 @@ export default function ClinicianLogin() {
           return
         }
         const params = new URLSearchParams(location.search)
-        navigate(params.get('redirect') || '/clinician/dashboard')
+        navigate(params.get('redirect') || defaultDest(p.is_admin))
       }
     } catch {
       setError('Connection error. Please try again.')
@@ -155,7 +162,8 @@ export default function ClinicianLogin() {
   // "Save device?" prompt — shown after successful login
   if (showSavePrompt) {
     const params = new URLSearchParams(location.search)
-    const dest = params.get('redirect') || '/clinician/dashboard'
+    const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
+    const dest = params.get('redirect') || defaultDest(isAdmin)
     return (
       <div className="page" style={{background:'var(--navy)',minHeight:'100vh',alignItems:'center',justifyContent:'center',display:'flex'}}>
         <div style={{width:'100%',maxWidth:360,padding:'1.5rem',textAlign:'center'}}>
