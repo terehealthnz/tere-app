@@ -310,7 +310,7 @@ function BottomNav({ tab, setTab, queueBadge, msgBadge, notesBadge }) {
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
   return (
-    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:NAVY, display:'flex', minHeight:60, paddingBottom:'env(safe-area-inset-bottom)', zIndex:200, borderTop:'1px solid rgba(255,255,255,.08)' }}>
+    <div style={{ background:NAVY, display:'flex', flexShrink:0, minHeight:60, paddingBottom:'env(safe-area-inset-bottom)', borderTop:'1px solid rgba(255,255,255,.08)' }}>
       {items.map(item => (
         <button key={item.id} onClick={() => setTab(item.id)}
           style={{ flex:1, background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'8px 4px', position:'relative', color: tab===item.id ? '#D4EEF0' : 'rgba(255,255,255,.4)', minHeight:60 }}>
@@ -461,7 +461,7 @@ export default function ProviderApp() {
   const queueCount = consultations.filter(c => c.consultation_type !== 'message').length
 
   return (
-    <div style={{ minHeight:'100vh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none' }}>
+    <div style={{ height:'100dvh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none', position:'relative', overflow:'hidden' }}>
       {/* Offline banner */}
       {!isOnline && (
         <div style={{ background:'#DC2626', color:'white', textAlign:'center', padding:'.625rem', fontSize:'.875rem', fontWeight:600, zIndex:300 }}>
@@ -488,7 +488,7 @@ export default function ProviderApp() {
       </div>
 
       {/* Content */}
-      <div style={{ flex:1, overflowY:'auto', paddingBottom:80 }}>
+      <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} />}
         {tab === 'messages' && <MessagesTab />}
         {tab === 'notes'    && <NotesTab navigate={navigate} />}
@@ -497,7 +497,7 @@ export default function ProviderApp() {
 
       {/* Save device prompt */}
       {showSaveDevice && (
-        <div style={{ position:'fixed', bottom:80, left:0, right:0, zIndex:250, padding:'0 1rem' }}>
+        <div style={{ position:'absolute', bottom:60, left:0, right:0, zIndex:250, padding:'0 1rem' }}>
           <div style={{ background:NAVY, borderRadius:16, padding:'1.25rem', boxShadow:'0 8px 32px rgba(0,0,0,.4)', border:'1px solid rgba(255,255,255,.1)' }}>
             <div style={{ fontWeight:700, color:'white', marginBottom:'.375rem', fontFamily:FF }}>🔐 Remember this device?</div>
             <div style={{ fontSize:'.8125rem', color:'rgba(255,255,255,.6)', marginBottom:'.875rem', fontFamily:FF }}>Stay signed in for 30 days. Protected by your device lock screen.</div>
