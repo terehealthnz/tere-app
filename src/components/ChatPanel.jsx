@@ -172,7 +172,7 @@ export default function ChatPanel({
   return (
     <>
       {/* Toggle button */}
-      <button onClick={() => setOpen(o => !o)} style={btnStyle} title={t('chat_label', myLang)}>
+      <button onClick={() => setOpen(o => !o)} style={btnStyle} aria-label={t('chat_label', myLang)}>
         💬
         {unread > 0 && !open && (
           <span style={{
@@ -203,7 +203,7 @@ export default function ChatPanel({
                 </span>
               )}
             </div>
-            <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: '1rem' }}>✕</button>
+            <button onClick={() => setOpen(false)} aria-label="Close chat" style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.6)', cursor: 'pointer', fontSize: '1rem', minWidth: 44, minHeight: 44, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
           </div>
 
           {/* Translation disclaimer */}
@@ -214,7 +214,7 @@ export default function ChatPanel({
           )}
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+          <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.8125rem', marginTop: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 No messages yet
@@ -275,8 +275,8 @@ export default function ChatPanel({
           {/* Input */}
           <div style={{ padding: '.625rem', borderTop: '1px solid #E5E7EB', display: 'flex', gap: 6, alignItems: 'flex-end', flexShrink: 0 }}>
             <button onClick={() => fileRef.current?.click()}
-              style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '7px 9px', cursor: 'pointer', fontSize: '1rem', flexShrink: 0 }}
-              title="Send photo">
+              aria-label="Send photo"
+              style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '7px 9px', cursor: 'pointer', fontSize: '1rem', flexShrink: 0, minWidth: 44, minHeight: 44, display:'flex', alignItems:'center', justifyContent:'center' }}>
               📷
             </button>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
@@ -284,10 +284,12 @@ export default function ChatPanel({
               value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
               placeholder="Type a message…" rows={1}
-              style={{ flex: 1, resize: 'none', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '7px 10px', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none', maxHeight: 80 }}
+              autoComplete="off" autoCorrect="off" spellCheck="false"
+              style={{ flex: 1, resize: 'none', border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '7px 10px', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem', outline: 'none', maxHeight: 80 }}
             />
             <button onClick={handleSend} disabled={sending || (!input.trim() && !photoData)}
-              style={{ background: 'var(--teal)', border: 'none', color: 'white', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontWeight: 700, opacity: (sending || (!input.trim() && !photoData)) ? 0.5 : 1, flexShrink: 0 }}>
+              aria-label="Send message"
+              style={{ background: 'var(--teal)', border: 'none', color: 'white', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontWeight: 700, opacity: (sending || (!input.trim() && !photoData)) ? 0.5 : 1, flexShrink: 0, minWidth: 44, minHeight: 44, display:'flex', alignItems:'center', justifyContent:'center' }}>
               {sending ? t('translating', myLang).split('…')[0] + '…' : '↑'}
             </button>
           </div>

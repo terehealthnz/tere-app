@@ -36,7 +36,15 @@ export default function IntakeForm() {
   })
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}))
-  const val = e => set(e.target.name, e.target.value)
+  const val = e => {
+    let v = e.target.value
+    if (e.target.name === 'phone') v = v.replace(/[^\d+]/g, '')
+    if (e.target.name === 'nhi')   v = v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7)
+    set(e.target.name, v)
+  }
+
+  const NHI_RE = /^[A-Z]{3}\d{2}(\d{2}|[A-Z]{2})$/
+  const nhiValid = !form.nhi || NHI_RE.test(form.nhi)
 
   if (form.redFlag === 'yes') return (
     <div className="page" style={{background:'#FEE2E2'}}>
@@ -153,7 +161,8 @@ export default function IntakeForm() {
               <div className="form-row">
                 <div className="form-group">
                   <label>NHI number</label>
-                  <input name="nhi" value={form.nhi} onChange={val} required placeholder="ZZZ0016" />
+                  <input name="nhi" value={form.nhi} onChange={val} required placeholder="ZZZ0016" maxLength={7} autoComplete="off" style={!nhiValid ? {borderColor:'#DC2626'} : {}} />
+                  {!nhiValid && <div style={{color:'#DC2626',fontSize:'.75rem',marginTop:3}}>Format: 3 letters + 4 characters (e.g. ZZZ0016)</div>}
                 </div>
                 <div className="form-group">
                   <label>Date of birth</label>
@@ -163,7 +172,7 @@ export default function IntakeForm() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Mobile number</label>
-                  <input name="phone" type="tel" value={form.phone} onChange={val} required placeholder="021 000 0000" />
+                  <input name="phone" type="tel" value={form.phone} onChange={val} required placeholder="0210000000" autoComplete="tel" inputMode="tel" />
                 </div>
               </div>
               <div className="form-row">

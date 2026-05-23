@@ -391,7 +391,7 @@ export default function AITriage() {
   if (showIntro) return <TereIntro onStart={() => setShowIntro(false)} />
 
   if (emergency === 'physical') return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'#991B1B',padding:'.875rem 1.25rem'}}>
         <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'white',fontSize:'1.3rem'}}>Tere</span>
       </div>
@@ -408,7 +408,7 @@ export default function AITriage() {
   )
 
   if (emergency === 'mental') return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#F0F9FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#F0F9FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'var(--navy)',padding:'.875rem 1.25rem'}}>
         <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem'}}>Tere</span>
       </div>
@@ -440,7 +440,7 @@ export default function AITriage() {
   )
 
   if (emergency === 'addiction') return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#F5F3FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#F5F3FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'var(--navy)',padding:'.875rem 1.25rem'}}>
         <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem'}}>Tere</span>
       </div>
@@ -468,7 +468,7 @@ export default function AITriage() {
   )
 
   if (done) return (
-    <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
       <div style={{textAlign:'center',color:'var(--muted)'}}>
         <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
         <div style={{fontSize:'.9375rem'}}>Setting you up…</div>
@@ -478,7 +478,7 @@ export default function AITriage() {
   )
 
   return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto'}}>
           <div>
@@ -489,7 +489,7 @@ export default function AITriage() {
         </div>
       </div>
 
-      <div style={{flex:1,overflowY:'auto',padding:'1rem',maxWidth:600,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
+      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',padding:'1rem',maxWidth:600,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
         {messages.map((m,i)=>(
           <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start',marginBottom:'.875rem'}}>
             {m.role==='tere'&&<div style={{width:32,height:32,borderRadius:'50%',background:'var(--teal)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0,marginRight:8,marginTop:2}}>🩺</div>}
@@ -526,7 +526,7 @@ export default function AITriage() {
         </div>
       )}
 
-      <div style={{padding:'1rem',background:'white',borderTop:'1px solid var(--border)',flexShrink:0}}>
+      <div style={{padding:'1rem',paddingBottom:'max(1rem, env(safe-area-inset-bottom))',background:'white',borderTop:'1px solid var(--border)',flexShrink:0}}>
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
@@ -537,7 +537,8 @@ export default function AITriage() {
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}}}
             placeholder={waitingForPhoto?"Tap 📷 for photo, or type 'skip'…":"Type your reply…"}
-            rows={1} style={{flex:1,padding:'.75rem 1rem',border:'1.5px solid var(--border)',borderRadius:12,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9375rem',resize:'none',outline:'none',lineHeight:1.5,maxHeight:120,overflowY:'auto'}}
+            rows={1} autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck="false"
+            style={{flex:1,padding:'.75rem 1rem',border:'1.5px solid var(--border)',borderRadius:12,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'1rem',resize:'none',outline:'none',lineHeight:1.5,maxHeight:120,overflowY:'auto'}}
           />
           <button onClick={handleSend} disabled={!input.trim()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'white',fontWeight:700,fontSize:'1rem',opacity:!input.trim()?0.5:1}}>↑</button>
         </div>

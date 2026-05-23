@@ -23,12 +23,19 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-font-smoothing: antialiased; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overscroll-behavior: none; }
 /* Prevent iOS input zoom */
 input, select, textarea { font-size: max(16px, 1rem); }
+/* Smooth momentum scrolling on iOS */
+.scroll-touch { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 /* Safe area insets for iPhone notch/home bar */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
 
 /* ── Layout ── */
 .page { min-height: 100vh; display: flex; flex-direction: column; }

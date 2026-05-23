@@ -14,6 +14,21 @@ export default function PatientCall() {
   const consultationType = sessionStorage.getItem('consultationType') || 'video'
   const isPhone = consultationType === 'phone'
 
+  // Keep screen awake during consultation
+  useEffect(() => {
+    let wakeLock = null
+    async function acquire() {
+      try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen') } catch {}
+    }
+    acquire()
+    const reacquire = () => { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('visibilitychange', reacquire)
+    return () => {
+      document.removeEventListener('visibilitychange', reacquire)
+      wakeLock?.release().catch(() => {})
+    }
+  }, [])
+
   useEffect(() => {
     if (!consultationId) { navigate('/triage'); return }
 
@@ -42,7 +57,7 @@ export default function PatientCall() {
   }, [consultationId, navigate])
 
   if (error) return (
-    <div style={{height:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',color:'white',gap:'1rem',padding:'2rem',textAlign:'center'}}>
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',color:'white',gap:'1rem',padding:'2rem',textAlign:'center'}}>
       <div style={{fontSize:'2rem'}}>⚠️</div>
       <p style={{color:'rgba(255,255,255,.7)',maxWidth:360,lineHeight:1.6}}>{error}</p>
       <button onClick={() => navigate('/waiting')}
@@ -53,7 +68,7 @@ export default function PatientCall() {
   )
 
   if (!token || !serverUrl) return (
-    <div style={{height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
       <div style={{textAlign:'center',color:'rgba(255,255,255,.6)'}}>
         <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
         <div>Connecting to {isPhone ? 'call' : 'video call'}…</div>
