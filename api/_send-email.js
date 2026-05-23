@@ -1,7 +1,7 @@
 // api/send-email.js — patient post-consultation summary email
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const { to, name, sections = {}, notes = {}, actions = [], consult = {} } = req.body
+  const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId } = req.body
 
   const apiKey    = process.env.ANTHROPIC_API_KEY
   const resendKey = process.env.RESEND_API_KEY
@@ -105,6 +105,12 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
     <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:24px">
       ⚠️ <strong>If your condition worsens or you're concerned, call 111 or go to your nearest emergency department straight away.</strong>
     </div>
+
+    ${consultationId ? `<div style="margin-top:28px;background:#F0F9FA;border:1px solid #D4EEF0;border-radius:8px;padding:16px;text-align:center">
+      <div style="font-size:13px;color:#374151;margin-bottom:10px">How was your consultation today?</div>
+      <a href="https://terehealth.co.nz/rate/${consultationId}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:8px 20px;border-radius:99px;font-size:13px;font-weight:700">Rate my consultation ★</a>
+      <div style="font-size:11px;color:#9CA3AF;margin-top:8px">Takes 30 seconds. Your feedback helps us improve.</div>
+    </div>` : ''}
   </div>
 
   <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">

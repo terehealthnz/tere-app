@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RppgMeasurement } from '../../lib/rppg'
 import { updateVitals } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 const STATES = {
   REQUESTING: 'requesting',
@@ -70,7 +71,15 @@ export default function VitalsCapture() {
         // Save vitals and set status: vitals_complete
         const id = sessionStorage.getItem('consultationId')
         if (id && !id.startsWith('demo')) {
-          try { await updateVitals(id, result) } catch {}
+          try {
+            await updateVitals(id, result)
+            // Notify provider that vitals are ready
+            apiFetch('/api/push-notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type:'vitals_ready', consultationId:id }),
+            }).catch(() => {})
+          } catch {}
         } else {
           sessionStorage.setItem('vitals', JSON.stringify(result))
         }
@@ -97,7 +106,14 @@ export default function VitalsCapture() {
     }
     const cId = sessionStorage.getItem('consultationId')
     if (cId && !cId.startsWith('demo')) {
-      try { await updateVitals(cId, result) } catch {}
+      try {
+        await updateVitals(cId, result)
+        apiFetch('/api/push-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type:'vitals_ready', consultationId:cId }),
+        }).catch(() => {})
+      } catch {}
     } else {
       sessionStorage.setItem('vitals', JSON.stringify(result))
     }
@@ -257,7 +273,7 @@ export default function VitalsCapture() {
               {uiState !== STATES.MEASURING && (
                 <button className="btn btn-secondary btn-full" onClick={() => {
                   streamRef.current?.getTracks().forEach(t => t.stop())
-                  navigate('/')
+                  navigate('/triage')
                 }}>
                   ← Back to intake form
                 </button>

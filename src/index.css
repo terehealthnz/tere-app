@@ -25,6 +25,10 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-font-smoothing: antialiased; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; }
+/* Prevent iOS input zoom */
+input, select, textarea { font-size: max(16px, 1rem); }
+/* Safe area insets for iPhone notch/home bar */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 
 /* ── Layout ── */
 .page { min-height: 100vh; display: flex; flex-direction: column; }
@@ -132,4 +136,7 @@ textarea { resize: vertical; min-height: 80px; }
   .form-row { grid-template-columns: 1fr; }
   .card { padding: 1.25rem; }
   h1 { font-size: 1.5rem; }
+  .nav-links-desktop { display: none !important; }
+  .employers-1col-mobile { grid-template-columns: 1fr !important; }
+  .employers-tagline { display: none !important; }
 }

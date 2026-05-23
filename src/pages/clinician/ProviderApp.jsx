@@ -1,0 +1,516 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const NAVY = '#0D2B45'
+const TEAL = '#0B6E76'
+const FF   = 'Plus Jakarta Sans, sans-serif'
+const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+const STATUS_COLOR = { waiting:'#F59E0B', vitals_requested:'#0B6E76', vitals_complete:'#059669', ready:'#059669', in_progress:'#7C3AED' }
+const STATUS_LABEL = { waiting:'Waiting', vitals_requested:'Vitals pending', vitals_complete:'Vitals ready', ready:'Ready', in_progress:'In progress' }
+const TYPE_CFG     = { video:{icon:'📹',label:'Video',c:'#0B6E76'}, phone:{icon:'📞',label:'Phone',c:'#7C3AED'}, message:{icon:'💬',label:'Message',c:'#D97706'} }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function timeAgo(d) {
+  const s = Math.floor((Date.now() - new Date(d)) / 1000)
+  if (s < 60) return `${s}s`
+  if (s < 3600) return `${Math.floor(s/60)}m`
+  return `${Math.floor(s/3600)}h`
+}
+
+function urlBase64ToUint8Array(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4)
+  const raw = window.atob((b64 + pad).replace(/-/g,'+').replace(/_/g,'/'))
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
+
+async function registerPush(providerId) {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_KEY) return
+    if (Notification.permission === 'denied') return
+    const perm = await Notification.requestPermission()
+    if (perm !== 'granted') return
+    const reg = await navigator.serviceWorker.ready
+    const existing = await reg.pushManager.getSubscription()
+    const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_KEY) })
+    await apiFetch('/api/push-subscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ providerId, subscription: sub.toJSON() }) })
+  } catch {}
+}
+
+function getSaved() {
+  try {
+    const s = localStorage.getItem('tere_device')
+    if (!s) return null
+    const d = JSON.parse(s)
+    if (!d.savedAt || Date.now() - d.savedAt > 30 * 86400000) { localStorage.removeItem('tere_device'); return null }
+    return d
+  } catch { return null }
+}
+
+export function saveDevice() {
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const d = { savedAt: Date.now() }
+  keys.forEach(k => { const v = sessionStorage.getItem(k); if (v) d[k] = v })
+  localStorage.setItem('tere_device', JSON.stringify(d))
+}
+
+function restoreDevice(d) {
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  sessionStorage.setItem('clinicianAuth', 'true')
+  keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
+}
+
+// ── Install prompt ─────────────────────────────────────────────────────────────
+
+function InstallBanner({ onDismiss }) {
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+  if (isStandalone) return null
+  return (
+    <div style={{ background:'#0B6E76', color:'white', padding:'1rem 1.25rem', display:'flex', alignItems:'flex-start', gap:'1rem', fontFamily:FF }}>
+      <div style={{ fontSize:'2rem', lineHeight:1 }}>📲</div>
+      <div style={{ flex:1 }}>
+        <div style={{ fontWeight:700, fontSize:'.9375rem', marginBottom:'.25rem' }}>Add Tere to your home screen</div>
+        {isIos
+          ? <div style={{ fontSize:'.8125rem', opacity:.85 }}>Tap the share button <strong>⬆</strong> then "Add to Home Screen"</div>
+          : <div style={{ fontSize:'.8125rem', opacity:.85 }}>Tap your browser menu → "Add to Home Screen" for instant access</div>
+        }
+      </div>
+      <button onClick={onDismiss} style={{ background:'none', border:'none', color:'rgba(255,255,255,.6)', fontSize:'1.375rem', cursor:'pointer', padding:4, minWidth:44, minHeight:44, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+    </div>
+  )
+}
+
+// ── Queue card ────────────────────────────────────────────────────────────────
+
+function QueueCard({ c, onStart, onDismiss, starting }) {
+  const sc = STATUS_COLOR[c.status] || '#6B7280'
+  const sl = STATUS_LABEL[c.status] || c.status
+  const tc = TYPE_CFG[c.consultation_type || 'video'] || TYPE_CFG.video
+  const v  = c.vitals
+  return (
+    <div style={{ background:'white', borderRadius:16, borderLeft:`4px solid ${sc}`, border:`1px solid #E2E8F0`, borderLeftWidth:4, padding:'1.25rem', marginBottom:'.875rem', fontFamily:FF }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'.625rem' }}>
+        <div>
+          <div style={{ fontWeight:700, fontSize:'1.0625rem', color:NAVY, marginBottom:'.375rem' }}>
+            {c.patient_first_name} {c.patient_last_name}
+          </div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            <span style={{ background:sc+'18', color:sc, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{sl}</span>
+            <span style={{ background:tc.c+'18', color:tc.c, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{tc.icon} {tc.label}</span>
+            {c.acc_eligible==='yes' && <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>✓ ACC</span>}
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+          <span style={{ fontSize:'.8125rem', color:'#9CA3AF', whiteSpace:'nowrap' }}>{timeAgo(c.created_at)}</span>
+          <button onClick={() => onDismiss(c.id)} style={{ background:'none', border:'none', color:'#D1D5DB', fontSize:'1.125rem', cursor:'pointer', padding:0, minWidth:44, minHeight:44, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+        </div>
+      </div>
+
+      {/* Complaint */}
+      <div style={{ fontSize:'.9375rem', color:'#374151', lineHeight:1.5, marginBottom:'.625rem', fontStyle:'italic', borderLeft:'3px solid #F3F4F6', paddingLeft:'.75rem' }}>
+        {c.chief_complaint}
+      </div>
+
+      {/* Vitals + location */}
+      <div style={{ display:'flex', gap:'.75rem', flexWrap:'wrap', marginBottom:'1rem', fontSize:'.8125rem' }}>
+        {v && !v.skipped && v.hr  && <span style={{ color:'#059669', fontWeight:600 }}>❤️ {v.hr} bpm</span>}
+        {v && !v.skipped && v.rr  && <span style={{ color:TEAL, fontWeight:600 }}>🫁 {v.rr}/min</span>}
+        {v && !v.skipped && v.spo2 && <span style={{ color:'#7C3AED', fontWeight:600 }}>SpO₂ {v.spo2}%</span>}
+        {c.patient_location && <span style={{ color:'#6B7280' }}>📍 {c.patient_location}</span>}
+        {c.patient_allergies && c.patient_allergies !== 'None' && <span style={{ color:'#DC2626', fontWeight:600 }}>⚠️ {c.patient_allergies}</span>}
+      </div>
+
+      {/* Start button */}
+      <button
+        onClick={() => onStart(c)}
+        disabled={starting === c.id}
+        style={{ width:'100%', background: starting===c.id ? '#9CA3AF' : TEAL, color:'white', border:'none', borderRadius:12, padding:'16px', fontSize:'1.0625rem', fontWeight:700, cursor: starting===c.id ? 'not-allowed' : 'pointer', fontFamily:FF, minHeight:56, letterSpacing:'.01em' }}
+      >
+        {starting === c.id ? 'Starting…' : 'Start consultation →'}
+      </button>
+    </div>
+  )
+}
+
+// ── Queue tab ─────────────────────────────────────────────────────────────────
+
+function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
+  const videoQueue = consultations.filter(c => c.consultation_type !== 'message')
+  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
+  if (!videoQueue.length) return (
+    <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
+      <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✓</div>
+      <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>Queue is clear</div>
+      <div style={{ color:'#6B7280', fontSize:'.9375rem' }}>New patients will appear here</div>
+    </div>
+  )
+  return (
+    <div style={{ padding:'1rem' }}>
+      {videoQueue.map(c => <QueueCard key={c.id} c={c} onStart={onStart} onDismiss={onDismiss} starting={starting} />)}
+    </div>
+  )
+}
+
+// ── Messages tab ──────────────────────────────────────────────────────────────
+
+function MessagesTab() {
+  const [rows, setRows]   = useState([])
+  const [loading, setLoading] = useState(true)
+  const [responding, setResponding] = useState(null)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+
+  async function load() {
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const { data } = await supabase.from('consultations').select('*').eq('consultation_type','message').in('status',['waiting','in_progress']).order('created_at',{ascending:true})
+      setRows(data || [])
+    } catch {} finally { setLoading(false) }
+  }
+
+  async function send(c) {
+    setSending(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const pid = sessionStorage.getItem('providerId')
+      const pname = sessionStorage.getItem('providerDisplayName')
+      await supabase.from('consultations').update({ status:'complete', clinical_notes:{ S:c.chief_complaint, O:'', A:'', P:text }, notes_finalised:true, notes_finalised_at:new Date().toISOString(), outcome:'message_response', provider_display_name:pname, ...(pid?{provider_id:pid}:{}) }).eq('id',c.id)
+      if (c.payment_intent_id) apiFetch('/api/capture-payment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paymentIntentId:c.payment_intent_id})}).catch(()=>{})
+      setRows(rs => rs.filter(r => r.id !== c.id))
+      setResponding(null); setText('')
+    } catch {} finally { setSending(false) }
+  }
+
+  useEffect(() => { load() }, [])
+
+  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" /></div>
+
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+      {!rows.length ? (
+        <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+          <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>💬</div>
+          <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No pending messages</div>
+          <div style={{ color:'#6B7280' }}>Message consultations will appear here</div>
+        </div>
+      ) : rows.map(c => (
+        <div key={c.id} style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.875rem' }}>
+          <div style={{ fontWeight:700, fontSize:'1rem', color:NAVY, marginBottom:'.25rem' }}>{c.patient_first_name} {c.patient_last_name}</div>
+          <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.75rem' }}>{timeAgo(c.created_at)} · {c.patient_email}</div>
+          <div style={{ background:'#F9FAFB', borderRadius:8, padding:'.875rem', marginBottom:'.875rem', fontSize:'.9375rem', lineHeight:1.6 }}>{c.chief_complaint}</div>
+          {responding === c.id ? (
+            <>
+              <textarea value={text} onChange={e=>setText(e.target.value)} rows={5} placeholder="Type your response…" style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #D1D5DB', borderRadius:8, padding:'.75rem', fontFamily:FF, fontSize:16, resize:'none', lineHeight:1.6, outline:'none' }} />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem', marginTop:'.75rem' }}>
+                <button onClick={()=>{setResponding(null);setText('')}} style={{ background:'white', border:'1.5px solid #D1D5DB', color:'#6B7280', borderRadius:10, padding:'14px', fontWeight:600, fontSize:'.9375rem', cursor:'pointer', fontFamily:FF }}>Cancel</button>
+                <button onClick={()=>send(c)} disabled={sending||!text.trim()} style={{ background:TEAL, color:'white', border:'none', borderRadius:10, padding:'14px', fontWeight:700, fontSize:'.9375rem', cursor:'pointer', fontFamily:FF, opacity:sending||!text.trim()?0.5:1 }}>{sending?'Sending…':'Send'}</button>
+              </div>
+            </>
+          ) : (
+            <button onClick={()=>setResponding(c.id)} style={{ width:'100%', background:TEAL, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:56 }}>Respond →</button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Notes tab ─────────────────────────────────────────────────────────────────
+
+function NotesTab({ navigate }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase.from('consultations').select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible,notes_finalised').eq('status','complete').eq('notes_finalised',false).order('created_at',{ascending:false}).limit(50)
+        setRows(data || [])
+      } catch {} finally { setLoading(false) }
+    })()
+  }, [])
+
+  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" /></div>
+
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+      {!rows.length ? (
+        <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+          <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📋</div>
+          <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>All notes complete</div>
+          <div style={{ color:'#6B7280' }}>Consultations needing notes will appear here</div>
+        </div>
+      ) : rows.map(c => (
+        <div key={c.id} style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.875rem' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.5rem' }}>
+            <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
+            <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
+          </div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1rem', fontStyle:'italic' }}>{c.chief_complaint}</div>
+          <button onClick={() => navigate(`/provider/notes/${c.id}`)} style={{ width:'100%', background:NAVY, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:56 }}>
+            Complete notes →
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Menu tab ──────────────────────────────────────────────────────────────────
+
+function MenuTab({ navigate, displayName, isAdmin }) {
+  function signOut() {
+    localStorage.removeItem('tere_device')
+    sessionStorage.clear()
+    navigate('/clinician')
+  }
+  const items = [
+    ...(isAdmin ? [{ label:'Admin dashboard', icon:'⚙️', action:()=>navigate('/clinician/admin'), color:NAVY }] : []),
+    { label:'Provider dashboard (desktop)', icon:'🖥', action:()=>navigate('/clinician/dashboard'), color:'#374151' },
+    { label:'Change password', icon:'🔑', action:()=>navigate('/clinician/change-password'), color:'#374151' },
+    { label:'Sign out', icon:'→', action:signOut, color:'#DC2626' },
+  ]
+  return (
+    <div style={{ padding:'1.25rem', fontFamily:FF }}>
+      <div style={{ textAlign:'center', padding:'1.5rem 0 2rem' }}>
+        <div style={{ width:64, height:64, borderRadius:'50%', background:sessionStorage.getItem('providerColor')||TEAL, color:'white', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.5rem', fontWeight:700, margin:'0 auto .75rem' }}>
+          {(displayName||'?').split(' ').map(n=>n[0]).join('').slice(0,2)}
+        </div>
+        <div style={{ fontWeight:700, color:NAVY, fontSize:'1.0625rem' }}>{displayName}</div>
+        <div style={{ color:'#6B7280', fontSize:'.8125rem', marginTop:'.25rem' }}>Tere Provider</div>
+      </div>
+      <div style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', overflow:'hidden' }}>
+        {items.map((item,i) => (
+          <button key={item.label} onClick={item.action}
+            style={{ width:'100%', background:'none', border:'none', borderBottom: i<items.length-1 ? '1px solid #F3F4F6' : 'none', padding:'1rem 1.25rem', display:'flex', alignItems:'center', gap:'1rem', cursor:'pointer', fontFamily:FF, textAlign:'left', minHeight:56 }}>
+            <span style={{ fontSize:'1.25rem', width:28, textAlign:'center' }}>{item.icon}</span>
+            <span style={{ fontWeight:600, color:item.color, fontSize:'.9375rem' }}>{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Bottom nav ────────────────────────────────────────────────────────────────
+
+function BottomNav({ tab, setTab, queueBadge, msgBadge, notesBadge }) {
+  const items = [
+    { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
+    { id:'messages', icon:'💬', label:'Messages', badge:msgBadge },
+    { id:'notes',    icon:'📋', label:'Notes',    badge:notesBadge },
+    { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
+  ]
+  return (
+    <div style={{ position:'fixed', bottom:0, left:0, right:0, background:NAVY, display:'flex', minHeight:60, paddingBottom:'env(safe-area-inset-bottom)', zIndex:200, borderTop:'1px solid rgba(255,255,255,.08)' }}>
+      {items.map(item => (
+        <button key={item.id} onClick={() => setTab(item.id)}
+          style={{ flex:1, background:'none', border:'none', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, padding:'8px 4px', position:'relative', color: tab===item.id ? '#D4EEF0' : 'rgba(255,255,255,.4)', minHeight:60 }}>
+          {item.badge > 0 && (
+            <span style={{ position:'absolute', top:6, right:'50%', marginRight:-16, background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:99, minWidth:16, textAlign:'center', lineHeight:1.4 }}>
+              {item.badge > 9 ? '9+' : item.badge}
+            </span>
+          )}
+          <span style={{ fontSize:'1.375rem', lineHeight:1 }}>{item.icon}</span>
+          <span style={{ fontSize:'.625rem', fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', fontFamily:FF }}>
+            {item.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+export default function ProviderApp() {
+  const navigate = useNavigate()
+
+  // Auth check
+  useEffect(() => {
+    if (!sessionStorage.getItem('clinicianAuth')) {
+      // Try restoring from saved device
+      const saved = getSaved()
+      if (saved) { restoreDevice(saved) }
+      else { navigate('/clinician?redirect=/provider'); return }
+    }
+  }, [navigate])
+
+  const providerId    = sessionStorage.getItem('providerId')
+  const displayName   = sessionStorage.getItem('providerDisplayName') || 'Provider'
+  const isAdmin       = sessionStorage.getItem('providerIsAdmin') === 'true'
+  const provColor     = sessionStorage.getItem('providerColor') || TEAL
+
+  const [tab, setTab]             = useState('queue')
+  const [consultations, setConsultations] = useState([])
+  const [loading, setLoading]     = useState(true)
+  const [starting, setStarting]   = useState(null)
+  const [isAvail, setIsAvail]     = useState(false)
+  const [savingAvail, setSavingAvail] = useState(false)
+  const [isOnline, setIsOnline]   = useState(navigator.onLine)
+  const [showInstall, setShowInstall] = useState(false)
+  const [showSaveDevice, setShowSaveDevice] = useState(false)
+  const installPromptRef = useRef(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await getActiveConsultations()
+      setConsultations(data)
+    } catch { setConsultations([]) }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 15000)
+    const sub = subscribeToQueue(() => load())
+    return () => { clearInterval(interval); sub?.unsubscribe?.() }
+  }, [load])
+
+  // Load availability
+  useEffect(() => {
+    if (!providerId) return
+    import('../../lib/supabase').then(({ supabase }) => {
+      supabase.from('providers').select('is_available').eq('id', providerId).single()
+        .then(({ data }) => { if (data) setIsAvail(data.is_available) })
+        .catch(() => {})
+    })
+  }, [providerId])
+
+  // Register push + service worker
+  useEffect(() => {
+    if (providerId) registerPush(providerId)
+  }, [providerId])
+
+  // Capture install prompt (Android)
+  useEffect(() => {
+    const onPrompt = e => { e.preventDefault(); installPromptRef.current = e; setShowInstall(true) }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onPrompt)
+  }, [])
+
+  // Show install hint on iOS after a delay
+  useEffect(() => {
+    const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    const dismissed = localStorage.getItem('tere_install_dismissed')
+    if (isIos && !isStandalone && !dismissed) {
+      setTimeout(() => setShowInstall(true), 3000)
+    }
+  }, [])
+
+  // Show "remember device?" once per session
+  useEffect(() => {
+    if (getSaved()) return // already saved
+    const shown = sessionStorage.getItem('tere_save_prompt')
+    if (!shown) { setTimeout(() => setShowSaveDevice(true), 2000); sessionStorage.setItem('tere_save_prompt','1') }
+  }, [])
+
+  // Online/offline
+  useEffect(() => {
+    const on = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+
+  async function toggleAvail() {
+    if (!providerId) return
+    setSavingAvail(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const v = !isAvail
+      await supabase.from('providers').update({ is_available: v }).eq('id', providerId)
+      setIsAvail(v)
+    } catch {} finally { setSavingAvail(false) }
+  }
+
+  async function startConsult(c) {
+    setStarting(c.id)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('consultations').update({
+        status: 'vitals_requested',
+        vitals_requested_at: new Date().toISOString(),
+        ...(providerId ? { provider_id: providerId } : {}),
+        ...(displayName ? { provider_display_name: displayName } : {}),
+      }).eq('id', c.id)
+      navigate(`/provider/consult/${c.id}`)
+    } catch { navigate(`/provider/consult/${c.id}`) }
+    finally { setStarting(null) }
+  }
+
+  async function dismiss(id) {
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('consultations').update({ status:'expired' }).eq('id', id)
+      setConsultations(cs => cs.filter(c => c.id !== id))
+    } catch {}
+  }
+
+  const msgCount   = consultations.filter(c => c.consultation_type === 'message').length
+  const queueCount = consultations.filter(c => c.consultation_type !== 'message').length
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none' }}>
+      {/* Offline banner */}
+      {!isOnline && (
+        <div style={{ background:'#DC2626', color:'white', textAlign:'center', padding:'.625rem', fontSize:'.875rem', fontWeight:600, zIndex:300 }}>
+          ⚠️ No connection — data may be stale
+        </div>
+      )}
+
+      {/* Install prompt */}
+      {showInstall && !window.matchMedia('(display-mode: standalone)').matches && (
+        <InstallBanner onDismiss={() => { setShowInstall(false); localStorage.setItem('tere_install_dismissed','1') }} />
+      )}
+
+      {/* Top bar */}
+      <div style={{ background:NAVY, padding:'.875rem 1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, paddingTop:'max(.875rem, env(safe-area-inset-top))' }}>
+        <span style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.4rem', letterSpacing:'.06em' }}>Tere</span>
+        <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
+          <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.875rem', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{displayName}</span>
+          <button onClick={toggleAvail} disabled={savingAvail}
+            style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,.1)', border:'none', borderRadius:99, padding:'6px 12px', cursor:'pointer', minHeight:44 }}>
+            <div style={{ width:10, height:10, borderRadius:'50%', background: isAvail ? '#10B981' : '#6B7280', flexShrink:0 }} />
+            <span style={{ color:'rgba(255,255,255,.8)', fontSize:'.75rem', fontFamily:FF }}>{savingAvail ? '…' : isAvail ? 'Available' : 'Closed'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex:1, overflowY:'auto', paddingBottom:80 }}>
+        {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} />}
+        {tab === 'messages' && <MessagesTab />}
+        {tab === 'notes'    && <NotesTab navigate={navigate} />}
+        {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
+      </div>
+
+      {/* Save device prompt */}
+      {showSaveDevice && (
+        <div style={{ position:'fixed', bottom:80, left:0, right:0, zIndex:250, padding:'0 1rem' }}>
+          <div style={{ background:NAVY, borderRadius:16, padding:'1.25rem', boxShadow:'0 8px 32px rgba(0,0,0,.4)', border:'1px solid rgba(255,255,255,.1)' }}>
+            <div style={{ fontWeight:700, color:'white', marginBottom:'.375rem', fontFamily:FF }}>🔐 Remember this device?</div>
+            <div style={{ fontSize:'.8125rem', color:'rgba(255,255,255,.6)', marginBottom:'.875rem', fontFamily:FF }}>Stay signed in for 30 days. Protected by your device lock screen.</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.5rem' }}>
+              <button onClick={() => setShowSaveDevice(false)} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', borderRadius:10, padding:'12px', fontFamily:FF, fontWeight:600, cursor:'pointer' }}>Not now</button>
+              <button onClick={() => { saveDevice(); setShowSaveDevice(false) }} style={{ background:TEAL, border:'none', color:'white', borderRadius:10, padding:'12px', fontFamily:FF, fontWeight:700, cursor:'pointer' }}>Save 🔐</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom nav */}
+      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} msgBadge={msgCount} notesBadge={0} />
+    </div>
+  )
+}

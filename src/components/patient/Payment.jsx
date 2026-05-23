@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import { apiFetch } from '../../lib/api'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -31,7 +32,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
 
   useEffect(() => {
     async function createIntent() {
-      const res = await fetch('/api/create-payment-intent', {
+      const res = await apiFetch('/api/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ consultationId, accEligible, consultationType })
@@ -99,7 +100,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         ) : (
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.5rem',color:'#0D2B45'}}>About this fee</strong>
-            <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>This is a private urgent care consultation with an Emergency Medicine physician. The $65 fee covers your full consultation including any prescriptions and referrals.</div>
+            <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>This is a private acute telehealth consultation with an Emergency Medicine physician. The $65 fee covers your full consultation including any prescriptions and referrals.</div>
             <div style={{fontSize:'.8125rem',color:'#6B7280'}}>If your condition turns out to be ACC-eligible during the consultation, your clinician will lodge a claim and the difference will be refunded to your card.</div>
           </div>
         )}
@@ -148,7 +149,7 @@ export default function Payment() {
   const consultationType = sessionStorage.getItem('consultationType') || 'video'
 
   useEffect(() => {
-    if (!consultationId) navigate('/')
+    if (!consultationId) navigate('/triage')
   }, [consultationId, navigate])
 
   return (

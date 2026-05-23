@@ -24,9 +24,12 @@ function Nav() {
         <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.75rem', letterSpacing: '.1em', textTransform: 'uppercase' }}>He tere, he ora</span>
       </div>
       <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-        <a href="#pricing" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
-        <a href="#faq" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
-        <Link to="/" style={{
+        <div className="nav-links-desktop" style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
+          <a href="#pricing" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
+          <a href="#faq" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
+          <Link to="/employers" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
+        </div>
+        <Link to="/triage" style={{
           background: BRAND.teal, color: 'white', textDecoration: 'none',
           padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,
           fontFamily: 'Plus Jakarta Sans, sans-serif',
@@ -49,16 +52,17 @@ function Hero() {
           Marlborough Sounds, New Zealand
         </div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
-          Rural urgent care.<br />On your phone.
+          Acute telehealth care.<br />On your phone.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           See a New Zealand-registered doctor by video, phone, or message — from wherever you are in the Marlborough Sounds. ACC-registered. No waiting room.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/" style={{
+          <Link to="/triage" style={{
             background: BRAND.teal, color: 'white', textDecoration: 'none',
-            padding: '.9rem 2rem', borderRadius: 99, fontSize: '1rem', fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 4px 24px rgba(11,110,118,.4)',
+            padding: '1.1rem 2.75rem', borderRadius: 99, fontSize: '1.25rem', fontWeight: 700,
+            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 6px 32px rgba(11,110,118,.5)',
+            letterSpacing: '.01em',
           }}>Start consultation</Link>
           <a href="#how-it-works" style={{
             background: 'rgba(255,255,255,.1)', color: 'white', textDecoration: 'none',
@@ -168,7 +172,7 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <Link to="/" style={{
+              <Link to="/triage" style={{
                 display: 'block', textAlign: 'center', textDecoration: 'none',
                 background: p.highlight ? BRAND.teal : 'white',
                 color: p.highlight ? 'white' : BRAND.teal,
@@ -210,52 +214,26 @@ function ForEmployers() {
             </div>
           ))}
         </div>
-        <a href="mailto:hello@terehealth.co.nz" style={{
+        <Link to="/employers" style={{
           display: 'inline-block', background: BRAND.teal, color: 'white', textDecoration: 'none',
           padding: '.875rem 2rem', borderRadius: 99, fontWeight: 700, fontSize: '1rem',
           fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 4px 20px rgba(11,110,118,.4)',
-        }}>Get in touch about employer plans</a>
+        }}>Learn about employer plans</Link>
       </div>
     </section>
   )
 }
 
 function About() {
-  const team = [
-    {
-      name: 'Dr Patrick Herling',
-      role: 'Medical Director',
-      bio: 'Emergency Medicine specialist with experience across New Zealand and internationally. Passionate about improving access to quality healthcare in rural communities.',
-      initials: 'PH',
-    },
-    {
-      name: 'Justin Thomas',
-      role: 'Operations',
-      bio: 'Focused on building the systems and partnerships that make rural telehealth actually work — from technology infrastructure to ACC processes.',
-      initials: 'JT',
-    },
-  ]
   return (
     <section style={{ background: 'white', padding: '5rem 1.5rem' }}>
-      <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
           Built for the Sounds
         </h2>
-        <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, marginBottom: '3rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Tere Health was founded in Marlborough to address a simple problem: when you live an hour from the nearest town, a GP appointment takes a whole day. We built the service we wish existed.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem' }}>
-          {team.map(person => (
-            <div key={person.name} style={{ background: BRAND.bg, borderRadius: 16, padding: '2rem', textAlign: 'left' }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: BRAND.navy, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                {person.initials}
-              </div>
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: BRAND.navy, marginBottom: '.2rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{person.name}</div>
-              <div style={{ fontSize: '.8125rem', color: BRAND.teal, fontWeight: 600, marginBottom: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{person.role}</div>
-              <div style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.65, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{person.bio}</div>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   )
@@ -270,7 +248,7 @@ function FAQ() {
     },
     {
       q: 'What can Tere Health treat?',
-      a: 'Most urgent care conditions: infections, lacerations, sprains, musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. We cannot treat true emergencies — if your life is at risk, call 111.',
+      a: 'Most acute care conditions: infections, lacerations, sprains, musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. We cannot treat true emergencies — if your life is at risk, call 111.',
     },
     {
       q: 'How do I pay?',
@@ -288,7 +266,7 @@ function FAQ() {
           Common questions
         </h2>
         <p style={{ fontSize: '1rem', color: '#6B7280', textAlign: 'center', marginBottom: '2.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Still unsure? <a href="mailto:hello@terehealth.co.nz" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>Email us</a>
+          Still unsure? <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>Email us</a>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
           {faqs.map((faq, i) => (
@@ -321,7 +299,7 @@ function Footer() {
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.25rem' }}>Tere Health</div>
       <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
       <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Employers', '#employers']].map(([label, href]) => (
+        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Careers', '/careers'], ['Employers', '/employers']].map(([label, href]) => (
           href.startsWith('/') ? (
             <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
           ) : (
@@ -334,6 +312,17 @@ function Footer() {
       </div>
       <div style={{ marginTop: '.75rem', fontSize: '.75rem', color: 'rgba(255,255,255,.2)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
         In an emergency, call <strong style={{ color: 'rgba(255,255,255,.4)' }}>111</strong>
+      </div>
+      <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        {[['🩺 Provider login', '/clinician'], ['⚙️ Admin login', '/clinician/admin']].map(([label, to]) => (
+          <Link key={to} to={to} style={{
+            display: 'inline-flex', alignItems: 'center', gap: '.5rem',
+            color: 'rgba(255,255,255,.25)', textDecoration: 'none',
+            fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+            border: '1px solid rgba(255,255,255,.12)', borderRadius: 99,
+            padding: '.45rem 1rem',
+          }}>{label}</Link>
+        ))}
       </div>
     </footer>
   )

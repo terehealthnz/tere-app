@@ -66,7 +66,7 @@ export default function AvailabilityCheck({ onAvailable }) {
 
           <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.9375rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.25rem'}}>Need urgent help now?</strong>
-            Call your nearest urgent care clinic or <strong>111</strong> in an emergency.
+            Call your nearest telehealth clinic or <strong>111</strong> in an emergency.
           </div>
 
           <button className="btn btn-secondary btn-full" disabled={checking}

@@ -3,6 +3,7 @@
  * Proprietary AI clinical documentation engine.
  * Whisper (OpenAI) → transcript → Claude (Anthropic) → structured SOAP notes
  */
+import { apiFetch } from './api'
 
 // ── Transcription via Whisper ─────────────────────────────────────────────────
 export async function transcribeAudio(audioBlob) {
@@ -12,7 +13,7 @@ export async function transcribeAudio(audioBlob) {
   form.append('language', 'en')
   form.append('prompt', 'Medical consultation in New Zealand. Clinical terminology, ACC (Accident Compensation Corporation), NHI number, patient and doctor speaking.')
 
-  const res = await fetch('/api/transcribe', {
+  const res = await apiFetch('/api/transcribe', {
     method: 'POST',
     body: form,
   })
@@ -23,7 +24,7 @@ export async function transcribeAudio(audioBlob) {
 
 // ── Note generation via Claude ────────────────────────────────────────────────
 export async function generateNotes(transcript, context) {
-  const res = await fetch('/api/generate-notes', {
+  const res = await apiFetch('/api/generate-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ transcript, context }),

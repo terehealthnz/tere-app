@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getConsultation, subscribeToQueue } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 export default function WaitingRoom() {
   const navigate = useNavigate()
   const [status, setStatus] = useState('waiting')
   const [providerName, setProviderName] = useState(null)
   const consultationId = sessionStorage.getItem('consultationId')
+  const pushFiredRef = useRef(false)
 
   async function cancelConsultation() {
     try {
@@ -15,7 +17,7 @@ export default function WaitingRoom() {
       // Release payment hold
       const paymentIntentId = sessionStorage.getItem('paymentIntentId')
       if (paymentIntentId) {
-        await fetch('/api/cancel-payment', {
+        await apiFetch('/api/cancel-payment', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentIntentId })
@@ -23,8 +25,27 @@ export default function WaitingRoom() {
       }
     } catch {}
     sessionStorage.clear()
-    navigate('/')
+    navigate('/triage')
   }
+
+  // Fire push notification to all available providers once when patient enters queue
+  useEffect(() => {
+    if (!consultationId || consultationId.startsWith('demo') || pushFiredRef.current) return
+    pushFiredRef.current = true
+    getConsultation(consultationId).then(c => {
+      apiFetch('/api/push-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'new_patient',
+          consultationId,
+          patientName: `${c.patient_first_name || ''} ${c.patient_last_name || ''}`.trim(),
+          chiefComplaint: c.chief_complaint || '',
+          accEligible: c.acc_eligible === 'yes',
+        }),
+      }).catch(() => {})
+    }).catch(() => {})
+  }, [consultationId])
 
   useEffect(() => {
     const poll = async () => {

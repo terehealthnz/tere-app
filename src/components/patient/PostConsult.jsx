@@ -20,7 +20,7 @@ export default function PostConsult() {
               the referral details by SMS.
             </p>
           </div>
-          <a href="/" className="btn btn-primary btn-full">
+          <a href="/triage" className="btn btn-primary btn-full">
             Start a new consultation
           </a>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { LANGUAGES, t } from '../../lib/i18n'
 
 export default function TereIntro({ onStart }) {
@@ -142,7 +143,17 @@ export default function TereIntro({ onStart }) {
         {t('get_started', lang)}
       </button>
 
-      <div style={{ ...anim('3s'), position:'absolute', bottom:'1rem', fontSize:'.65rem', color:'rgba(255,255,255,.2)' }}>
+      <div style={{ ...anim('3s'), display:'flex', gap:'1.25rem', marginTop:'.875rem', justifyContent:'center' }}>
+        <Link to="/clinician" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>
+        <Link to="/clinician/admin" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Admin</Link>
+        <Link to="/employers" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
+      </div>
+
+      <Link to="/careers" style={{ ...anim('3.1s'), display:'inline-block', background:'#F59E0B', color:'white', textDecoration:'none', padding:'5px 14px', borderRadius:99, fontSize:'.75rem', fontWeight:600, marginTop:'.625rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+        We're hiring →
+      </Link>
+
+      <div style={{ ...anim('3.2s'), position:'absolute', bottom:'1rem', fontSize:'.65rem', color:'rgba(255,255,255,.2)' }}>
         Marlborough Sounds, New Zealand · terehealth.co.nz
       </div>
 

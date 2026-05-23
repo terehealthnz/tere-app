@@ -1,0 +1,34 @@
+{
+  "name": "Tere Provider",
+  "short_name": "Tere",
+  "description": "Tere Health — Provider dashboard",
+  "theme_color": "#0D2B45",
+  "background_color": "#0D2B45",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/provider",
+  "id": "/provider",
+  "categories": ["medical", "health"],
+  "icons": [
+    {
+      "src": "/tere-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/tere-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/tere-preview.png",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ]
+}

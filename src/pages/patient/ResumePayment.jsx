@@ -25,7 +25,7 @@ export default function ResumePayment() {
         navigate('/payment')
       } catch(e) {
         console.error(e)
-        navigate('/')
+        navigate('/triage')
       }
     }
     resume()

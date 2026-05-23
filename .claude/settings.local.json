@@ -38,7 +38,25 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(k,v\\) for k,v in d.get\\('dependencies',{}\\).items\\(\\)]\")",
       "Bash(cp \"/Users/patrickherling/Downloads/tere-app/api/[...path].js\" \"/Users/patrickherling/Downloads/tere-app/api/handler.js\")",
       "Bash(sed -i '' 's/const segments = req.query.path/const segments = req.query.route/' \"/Users/patrickherling/Downloads/tere-app/api/handler.js\")",
-      "Bash(sed -i '' 's/Array.isArray\\(segments\\) ? segments.join/Array.isArray\\(segments\\) ? segments[0] || segments.join/' \"/Users/patrickherling/Downloads/tere-app/api/handler.js\")"
+      "Bash(sed -i '' 's/Array.isArray\\(segments\\) ? segments.join/Array.isArray\\(segments\\) ? segments[0] || segments.join/' \"/Users/patrickherling/Downloads/tere-app/api/handler.js\")",
+      "Bash(vercel *)",
+      "WebFetch(domain:tere-app-three.vercel.app)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('token',''\\)[:20]\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k\\) for k in ['id','protectionBypass','passwordProtection','ssoProtection','public']}, indent=2\\)\\)\")",
+      "Bash(grep \"\\\\.\\\\\\(jsx\\\\|js\\\\|tsx\\\\|ts\\\\\\)$\")",
+      "Bash(/usr/bin/curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/api/availability)",
+      "Bash(/usr/bin/curl *)",
+      "Bash(pkill -f \"vercel dev\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(data[0]['id'] if data else 'none'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(list\\(d[0].keys\\(\\)\\) if d else 'empty table'\\)\")",
+      "Bash(pkill -f \"node.*vite\")",
+      "Bash(grep -v \"^#\\\\|^$\" /Users/patrickherling/Downloads/tere-app/.env.local)",
+      "Bash(npm audit *)",
+      "Bash(xargs sed -i '' \"s/await fetch\\('\\\\/api\\\\//await apiFetch\\('\\\\/api\\\\//g; s/ fetch\\('\\\\/api\\\\// apiFetch\\('\\\\/api\\\\//g\")",
+      "Bash(npm show *)",
+      "Bash(npx supabase *)",
+      "Bash(python3 -c \"import cairosvg; print\\('cairosvg ok'\\)\")",
+      "Bash(python3 -c \"from PIL import Image; print\\('pillow ok'\\)\")"
     ]
   }
 }

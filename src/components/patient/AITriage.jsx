@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
 import TereIntro from './TereIntro'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
+import { apiFetch } from '../../lib/api'
 
 const PHYSICAL_EMERGENCY_KEYWORDS = [
   'chest pain','chest tightness','cant breathe','cannot breathe','difficulty breathing',
@@ -60,7 +61,9 @@ const STEPS = [
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'nhi' },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234. Say skip if you don't have it.", field:'patient_nhi', validate:()=>true, next:'pharmacy', transform:v=>v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')||'' },
-  { id:'pharmacy', message:"What's your preferred pharmacy? (e.g. Havelock Pharmacy)", field:'pharmacy', validate:()=>true, next:'complaint' },
+  { id:'pharmacy', message:"What's your preferred pharmacy? (e.g. Havelock Pharmacy)", field:'pharmacy', validate:()=>true, next:'gp_name' },
+  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name and clinic? We'll send them a copy of your notes today. (Say 'skip' if not.)", field:'gp_name', validate:()=>true, next:'gp_email', transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_email', message:"And their email address if you have it? (Say 'skip' if not.)", field:'gp_email', validate:()=>true, next:'complaint', transform:v=>['skip','no','none','n/a','nope'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
@@ -86,7 +89,7 @@ function parseDate(raw) {
 async function translateToEnglish(text, sourceLang) {
   if (sourceLang === 'en') return text
   try {
-    const res = await fetch('/api/translate', {
+    const res = await apiFetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, source_lang: sourceLang, target_lang: 'en' }),
@@ -218,7 +221,7 @@ export default function AITriage() {
             .in('status', ['complete', 'waiting', 'waitlisted', 'in_progress'])
             .order('created_at', { ascending: false })
             .limit(1),
-          fetch('/api/employer-check', {
+          apiFetch('/api/employer-check', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ firstName, lastName, dob }),
@@ -363,6 +366,9 @@ export default function AITriage() {
         employerPaid: data.employer_paid || false,
         employerId: data.employer_id || null,
         employerName: data.employer_name || null,
+        gpName: data.gp_name || '',
+        gpEmail: data.gp_email || '',
+        gpClinic: '',
         status: av.is_open ? 'waiting' : 'waitlisted',
       })
       sessionStorage.setItem('consultationId', consultation.id)

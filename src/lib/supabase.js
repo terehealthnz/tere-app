@@ -12,20 +12,55 @@ export const supabase = createClient(
   key || 'placeholder'
 )
 
+// ── Input validation & sanitisation ─────────────────────────────────────────
+
+const INJECTION_PATTERNS = [/<script/i, /SELECT\s+\*/i, /DROP\s+TABLE/i, /INSERT\s+INTO/i]
+
+function sanitizeString(val) {
+  if (typeof val !== 'string') return val
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(val)) throw new Error('Invalid input detected')
+  }
+  return val.trim()
+}
+
+function validateNHI(nhi) {
+  if (!nhi) return null
+  const clean = String(nhi).trim().toUpperCase()
+  // NZ NHI: 3 letters + 4 digits (old) or 3 letters + 5 digits (new)
+  if (!/^[A-Z]{3}\d{4,5}$/.test(clean)) throw new Error('Invalid NHI format')
+  return clean
+}
+
+function validatePhone(phone) {
+  if (!phone) return null
+  const clean = String(phone).replace(/\s/g, '')
+  // NZ mobile/landline: starts with 0 (local) or +64
+  if (!/^(\+64|0)\d{8,10}$/.test(clean)) throw new Error('Invalid NZ phone number')
+  return clean
+}
+
+function validateEmail(email) {
+  if (!email) return null
+  const clean = String(email).trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error('Invalid email address')
+  return clean
+}
+
 // ── Consultation helpers ─────────────────────────────────────────────────────
 
 export async function createConsultation(data) {
   const { data: consult, error } = await supabase
     .from('consultations')
     .insert({
-      patient_first_name: data.firstName,
-      patient_last_name:  data.lastName,
-      patient_nhi:        data.nhi,
+      patient_first_name: sanitizeString(data.firstName),
+      patient_last_name:  sanitizeString(data.lastName),
+      patient_nhi:        validateNHI(data.nhi),
       patient_dob:        data.dob || null,
-      patient_phone:      (data.phone||'').replace(/\s/g,'').replace(/^0+/,''),
-      patient_email:      data.email || null,
-      patient_location:   data.location,
-      chief_complaint:    data.complaint,
+      patient_phone:      validatePhone(data.phone),
+      patient_email:      validateEmail(data.email),
+      patient_location:   sanitizeString(data.location),
+      chief_complaint:    sanitizeString(data.complaint),
       pharmacy:           data.pharmacy || null,
       acc_eligible:       data.accEligible,
       acc_employer:       data.employer,
@@ -40,6 +75,9 @@ export async function createConsultation(data) {
       employer_paid:      data.employerPaid || false,
       employer_id:        data.employerId || null,
       employer_name:      data.employerName || null,
+      gp_name:            data.gpName || null,
+      gp_email:           data.gpEmail || null,
+      gp_clinic:          data.gpClinic || null,
       status:             data.status || 'waiting',
       vitals:             null,
       daily_room_url:     null,

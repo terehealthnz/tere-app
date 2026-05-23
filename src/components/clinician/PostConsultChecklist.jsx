@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { apiFetch } from '../../lib/api'
 
 const STEPS = [
   { id: 'rx',      label: 'Prescription',     icon: '💊' },
@@ -33,7 +34,7 @@ export default function PostConsultChecklist({ consult, notes, actions, onComple
   async function sendSummary() {
     setSending(true)
     try {
-      const res = await fetch('/api/send-email', {
+      const res = await apiFetch('/api/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

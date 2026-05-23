@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
+import { apiFetch } from '../../lib/api'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -226,7 +227,7 @@ function MessagesTab() {
       // Capture the payment hold (message consultations use manual capture)
       if (consultation.payment_intent_id) {
         try {
-          await fetch('/api/capture-payment', {
+          await apiFetch('/api/capture-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ paymentIntentId: consultation.payment_intent_id }),
@@ -236,7 +237,7 @@ function MessagesTab() {
 
       // Try to send email response
       try {
-        await fetch('/api/send-email', {
+        await apiFetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -369,7 +370,7 @@ function ApprovalsTab({ onBadgeChange }) {
     const st = getState(id)
     patchState(id, { saving: true, error: null })
     try {
-      const res = await fetch('/api/approve-draft', {
+      const res = await apiFetch('/api/approve-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { t, getLangMeta } from '../lib/i18n'
+import { apiFetch } from '../lib/api'
 
 async function resizeImageToBase64(file, maxWidth = 900) {
   return new Promise((resolve, reject) => {
@@ -22,7 +23,7 @@ async function resizeImageToBase64(file, maxWidth = 900) {
 
 async function translateText(text, targetLang, sourceLang) {
   try {
-    const res = await fetch('/api/translate', {
+    const res = await apiFetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, target_lang: targetLang, source_lang: sourceLang }),

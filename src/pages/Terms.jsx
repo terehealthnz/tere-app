@@ -16,10 +16,10 @@ export default function Terms() {
   return (
     <div style={{ minHeight: '100vh', background: '#F0F2F5', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       <nav style={{ background: BRAND.navy, padding: '.875rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link to="/landing" style={{ textDecoration: 'none' }}>
+        <Link to="/" style={{ textDecoration: 'none' }}>
           <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.4rem' }}>Tere Health</span>
         </Link>
-        <Link to="/" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
+        <Link to="/triage" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
           Book consultation
         </Link>
       </nav>
@@ -39,7 +39,7 @@ export default function Terms() {
 
         <Section title="1. What Tere Health is">
           <p>Tere Health provides telehealth consultations with New Zealand-registered doctors via video call, phone, or written message. We serve patients primarily in the Marlborough region and rural New Zealand.</p>
-          <p style={{ marginTop: '.75rem' }}>Our service is designed for urgent care — conditions that need prompt attention but are not life-threatening emergencies. We can issue prescriptions, ACC claims, referrals, and medical certificates where clinically appropriate.</p>
+          <p style={{ marginTop: '.75rem' }}>Our service is designed for acute telehealth care — conditions that need prompt attention but are not life-threatening emergencies. We can issue prescriptions, ACC claims, referrals, and medical certificates where clinically appropriate.</p>
         </Section>
 
         <Section title="2. What we are not">
@@ -104,7 +104,7 @@ export default function Terms() {
         <Section title="Contact us">
           <p>Questions about these terms?</p>
           <p style={{ marginTop: '.5rem' }}>
-            <a href="mailto:hello@terehealth.co.nz" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>hello@terehealth.co.nz</a><br />
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>terehealthnz@gmail.com</a><br />
             <span style={{ color: '#9CA3AF' }}>Tere Health · Marlborough Sounds, New Zealand</span>
           </p>
         </Section>

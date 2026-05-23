@@ -12,6 +12,8 @@ import Dashboard         from './components/clinician/Dashboard'
 import ConsultView       from './components/clinician/ConsultView'
 import Admin             from './components/clinician/Admin'
 import NotesCompletion   from './pages/clinician/NotesCompletion'
+import ChangePassword    from './pages/clinician/ChangePassword'
+import Employers         from './pages/Employers'
 import Payment           from './components/patient/Payment'
 import ConsultationType  from './pages/patient/ConsultationType'
 import MessageSent       from './pages/patient/MessageSent'
@@ -20,15 +22,21 @@ import ResumePayment     from './pages/patient/ResumePayment'
 import PrivacyPolicy     from './pages/PrivacyPolicy'
 import Landing           from './pages/Landing'
 import Terms             from './pages/Terms'
+import Careers           from './pages/Careers'
+import Rate              from './pages/Rate'
 import DemoLanding       from './pages/demo/DemoLanding'
 import DemoPatient       from './pages/demo/DemoPatient'
 import DemoProvider      from './pages/demo/DemoProvider'
 import DemoAdmin         from './pages/demo/DemoAdmin'
+import ProviderApp       from './pages/clinician/ProviderApp'
+import ProviderConsult   from './pages/clinician/ProviderConsult'
+import ProviderNotes     from './pages/clinician/ProviderNotes'
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/"                      element={<AITriage />} />
+      <Route path="/"                      element={<Landing />} />
+      <Route path="/triage"                element={<AITriage />} />
       <Route path="/vitals"                element={<VitalsCapture />} />
       <Route path="/consultation-type"       element={<ConsultationType />} />
       <Route path="/payment"               element={<Payment />} />
@@ -38,13 +46,20 @@ export default function App() {
       <Route path="/waitlisted/:id"          element={<Waitlisted />} />
       <Route path="/resume/:id"              element={<ResumePayment />} />
       <Route path="/done"                  element={<PostConsult />} />
+      <Route path="/provider"              element={<ProviderApp />} />
+      <Route path="/provider/consult/:id"  element={<ProviderConsult />} />
+      <Route path="/provider/notes/:id"    element={<ProviderNotes />} />
       <Route path="/clinician"             element={<ClinicianLogin />} />
-      <Route path="/clinician/dashboard"   element={<Dashboard />} />
+      <Route path="/clinician/dashboard"       element={<Dashboard />} />
+      <Route path="/clinician/change-password" element={<ChangePassword />} />
       <Route path="/clinician/admin"       element={<Admin />} />
       <Route path="/clinician/consult/:id" element={<ConsultView />} />
       <Route path="/clinician/notes/:id"  element={<NotesCompletion />} />
+      <Route path="/careers"               element={<Careers />} />
+      <Route path="/employers"             element={<Employers />} />
+      <Route path="/rate/:id"              element={<Rate />} />
       <Route path="/privacy"               element={<PrivacyPolicy />} />
-      <Route path="/landing"               element={<Landing />} />
+      <Route path="/landing"               element={<Navigate to="/" replace />} />
       <Route path="/terms"                 element={<Terms />} />
       <Route path="/demo"                  element={<DemoLanding />} />
       <Route path="/demo/patient"          element={<DemoPatient />} />

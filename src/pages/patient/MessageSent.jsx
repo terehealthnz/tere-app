@@ -39,7 +39,7 @@ export default function MessageSent() {
           </div>
 
           <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '1.5rem', fontSize: '.875rem', color: '#92400E', lineHeight: 1.6 }}>
-            If your symptoms get <strong>worse</strong> or you feel this needs urgent attention, please call your nearest urgent care or <strong>111</strong>.
+            If your symptoms get <strong>worse</strong> or you feel this needs urgent attention, please call your nearest medical centre or <strong>111</strong>.
           </div>
 
           <button

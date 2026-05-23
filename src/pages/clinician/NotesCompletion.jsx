@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -300,6 +301,16 @@ export default function NotesCompletion() {
   const [gpEmail, setGpEmail]           = useState('')
   const [sendingGp, setSendingGp]       = useState(false)
   const [gpSent, setGpSent]             = useState(false)
+  const [sendGpOnFinalise, setSendGpOnFinalise] = useState(false)
+
+  // Medical certificate
+  const [showMedCertModal, setShowMedCertModal] = useState(false)
+  const [medCertFrom, setMedCertFrom]   = useState(new Date().toISOString().slice(0, 10))
+  const [medCertTo, setMedCertTo]       = useState('')
+  const [medCertRestrictions, setMedCertRestrictions] = useState('')
+  const [medCertDiagnosis, setMedCertDiagnosis] = useState('')
+  const [generatingMedCert, setGeneratingMedCert] = useState(false)
+  const [medCertIssued, setMedCertIssued] = useState(false)
 
   // Refs for auto-save
   const draftRef = useRef({})
@@ -321,6 +332,9 @@ export default function NotesCompletion() {
         const data = await getConsultation(id)
         setConsult(data)
         consultRef.current = data
+        if (data.gp_name)  setGpName(data.gp_name)
+        if (data.gp_email) { setGpEmail(data.gp_email); setSendGpOnFinalise(true) }
+        if (data.medical_certificate_issued) setMedCertIssued(true)
 
         // Actions from route state or notes_draft
         const rs = location.state
@@ -423,7 +437,7 @@ export default function NotesCompletion() {
     setGenerationError(null)
     try {
       const body = await buildContext(consultData, transcript, actions)
-      const res = await fetch('/api/generate-notes', {
+      const res = await apiFetch('/api/generate-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -478,7 +492,7 @@ export default function NotesCompletion() {
     setRegenerating(r => ({ ...r, [sectionKey]: true }))
     try {
       const body = await buildContext(consultRef.current, transcriptRef.current, actionsRef.current)
-      const res = await fetch('/api/generate-notes', {
+      const res = await apiFetch('/api/generate-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -568,9 +582,9 @@ export default function NotesCompletion() {
         is_acc:              consult.acc_eligible === 'yes',
       }).eq('id', id)
 
-      // Auto-send patient summary email
+      // Auto-send patient summary email with rating link
       if (consult.patient_email) {
-        fetch('/api/send-email', {
+        apiFetch('/api/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -580,8 +594,30 @@ export default function NotesCompletion() {
             notes: {},
             actions: actionsRef.current,
             consult: { chief_complaint: consult.chief_complaint },
+            consultationId: id,
           }),
         }).catch(e => console.error('Email error:', e))
+      }
+
+      // Auto-send GP letter if toggled on
+      if (sendGpOnFinalise && gpEmail.trim()) {
+        apiFetch('/api/send-to-gp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultationId: id,
+            gpName: gpName.trim(),
+            gpEmail: gpEmail.trim(),
+            patientName: `${consult.patient_first_name} ${consult.patient_last_name}`,
+            patientNhi: consult.patient_nhi,
+            patientDob: consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
+            consultationDate: consult.created_at,
+            providerName: sessionStorage.getItem('providerDisplayName') || '',
+            providerCredentials: sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : '',
+            chiefComplaint: consult.chief_complaint,
+            noteContent: { ...sections, examination: exam },
+          }),
+        }).then(() => setGpSent(true)).catch(e => console.error('GP letter error:', e))
       }
 
       navigate('/clinician/dashboard')
@@ -594,7 +630,7 @@ export default function NotesCompletion() {
     if (!gpEmail.trim()) return
     setSendingGp(true)
     try {
-      const res = await fetch('/api/send-to-gp', {
+      const res = await apiFetch('/api/send-to-gp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -616,6 +652,39 @@ export default function NotesCompletion() {
       else alert('Failed to send: ' + data.error)
     } catch (e) { alert('Error: ' + e.message) }
     setSendingGp(false)
+  }
+
+  // ── Medical certificate ───────────────────────────────────────────────────
+
+  async function generateMedCert() {
+    if (!consult.patient_email) { alert('No patient email on file'); return }
+    setGeneratingMedCert(true)
+    try {
+      const res = await apiFetch('/api/generate-med-cert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: id,
+          patientName:  `${consult.patient_first_name} ${consult.patient_last_name}`,
+          patientDob:   consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
+          patientEmail: consult.patient_email,
+          patientNhi:   consult.patient_nhi,
+          employer:     consult.acc_employer || consult.employer_name || '',
+          consultationDate: consult.created_at,
+          providerName: sessionStorage.getItem('providerDisplayName') || providerName,
+          providerReg:  providerReg,
+          workCapacity,
+          certFrom: medCertFrom,
+          certTo:   medCertTo,
+          restrictions: medCertRestrictions,
+          diagnosis: medCertDiagnosis || consult.chief_complaint,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) { setMedCertIssued(true); setShowMedCertModal(false) }
+      else alert('Failed: ' + data.error)
+    } catch (e) { alert('Error: ' + e.message) }
+    setGeneratingMedCert(false)
   }
 
   // ── Render helpers ────────────────────────────────────────────────────────
@@ -666,6 +735,57 @@ export default function NotesCompletion() {
           <div style={{ color: 'white', fontSize: '1.125rem', fontWeight: 600 }}>Generating clinical notes…</div>
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.875rem', textAlign: 'center', maxWidth: 360 }}>
             Tere Scribe is parsing the transcript and triage data.<br />This takes about 20 seconds.
+          </div>
+        </div>
+      )}
+
+      {/* Medical certificate modal */}
+      {showMedCertModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', borderRadius: 16, padding: '1.5rem', width: 440, boxShadow: '0 20px 40px rgba(0,0,0,.2)' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '1rem' }}>Medical certificate</h3>
+            <div style={{ marginBottom: '.75rem' }}>
+              <label style={label}>Work capacity</label>
+              <div style={{ fontWeight: 700, color: workCapacity === 'unfit' ? '#DC2626' : '#D97706', fontSize: '.9375rem' }}>
+                {workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.75rem' }}>
+              <div>
+                <label style={label}>From date</label>
+                <input type="date" value={medCertFrom} onChange={e => setMedCertFrom(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
+              </div>
+              <div>
+                <label style={label}>To date</label>
+                <input type="date" value={medCertTo} onChange={e => setMedCertTo(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
+              </div>
+            </div>
+            <div style={{ marginBottom: '.75rem' }}>
+              <label style={label}>Diagnosis (general terms)</label>
+              <input value={medCertDiagnosis} onChange={e => setMedCertDiagnosis(e.target.value)}
+                placeholder={consult.chief_complaint || 'e.g. Acute musculoskeletal injury'}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
+            </div>
+            {workCapacity === 'modified' && (
+              <div style={{ marginBottom: '.75rem' }}>
+                <label style={label}>Restrictions</label>
+                <textarea value={medCertRestrictions} onChange={e => setMedCertRestrictions(e.target.value)}
+                  rows={2} placeholder="e.g. No heavy lifting, limited standing"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none', resize: 'vertical' }} />
+              </div>
+            )}
+            <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginBottom: '1rem' }}>
+              Certificate will be emailed to <strong>{consult.patient_email}</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setShowMedCertModal(false)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, color: '#6B7280' }}>Cancel</button>
+              <button onClick={generateMedCert} disabled={generatingMedCert}
+                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: '#0B6E76', color: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
+                {generatingMedCert ? 'Sending…' : 'Generate & email'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -917,16 +1037,42 @@ export default function NotesCompletion() {
             {consult.patient_email && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 4, paddingLeft: 28 }}>{consult.patient_email}</div>}
           </div>
 
+          {/* Medical certificate */}
+          {(workCapacity === 'modified' || workCapacity === 'unfit') && (
+            <div style={card}>
+              <span style={label}>Medical certificate</span>
+              {medCertIssued || consult.medical_certificate_issued ? (
+                <div style={{ fontSize: '.875rem', color: '#059669', fontWeight: 600 }}>✓ Certificate emailed to patient</div>
+              ) : (
+                <button onClick={() => setShowMedCertModal(true)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #D97706', borderRadius: 8, background: '#FFFBEB', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: '#92400E', fontWeight: 600 }}>
+                  📄 Generate medical certificate
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Send to GP */}
           <div style={card}>
             <span style={label}>GP letter</span>
             {gpSent || consult.gp_letter_sent_at ? (
-              <div style={{ fontSize: '.875rem', color: '#059669', fontWeight: 600 }}>✓ Sent {consult.gp_email || gpEmail}</div>
+              <div style={{ fontSize: '.875rem', color: '#059669', fontWeight: 600 }}>✓ Sent to {consult.gp_email || gpEmail}</div>
             ) : (
-              <button onClick={() => setShowGpModal(true)} disabled={isFinalised && false}
-                style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: '#374151', fontWeight: 600 }}>
-                ✉ Send to GP
-              </button>
+              <>
+                {gpEmail && !isFinalised && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: '.625rem' }}>
+                    <Checkbox checked={sendGpOnFinalise} onChange={setSendGpOnFinalise} />
+                    <span style={{ fontSize: '.8125rem', color: '#374151' }}>Auto-send on finalise</span>
+                  </label>
+                )}
+                {gpEmail && (
+                  <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginBottom: '.625rem' }}>{gpEmail}</div>
+                )}
+                <button onClick={() => setShowGpModal(true)}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: '#374151', fontWeight: 600 }}>
+                  ✉ {gpEmail ? 'Edit & send to GP' : 'Send to GP'}
+                </button>
+              </>
             )}
           </div>
 

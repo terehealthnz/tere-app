@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
+import { apiFetch } from '../../lib/api'
 
 export default function PatientCall() {
   const navigate = useNavigate()
@@ -14,11 +15,11 @@ export default function PatientCall() {
   const isPhone = consultationType === 'phone'
 
   useEffect(() => {
-    if (!consultationId) { navigate('/'); return }
+    if (!consultationId) { navigate('/triage'); return }
 
     async function fetchToken() {
       try {
-        const res = await fetch('/api/join-room', {
+        const res = await apiFetch('/api/join-room', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

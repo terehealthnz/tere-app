@@ -8,6 +8,7 @@ import ChatPanel from '../ChatPanel'
 import HpiSearch from '../HpiSearch'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
+import { apiFetch } from '../../lib/api'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
     setSending(true)
     setResult(null)
     try {
-      const res = await fetch('/api/generate-prescription-pdf', {
+      const res = await apiFetch('/api/generate-prescription-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -206,7 +207,7 @@ function XrayModal({ open, onClose, consult, onDone }) {
     setSending(true)
     setResult(null)
     try {
-      const res = await fetch('/api/generate-referral-pdf', {
+      const res = await apiFetch('/api/generate-referral-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -308,7 +309,7 @@ function XrayModal({ open, onClose, consult, onDone }) {
         )}
         {canRefer && (
           <div className="alert alert-success" style={{fontSize:'.8125rem'}}>
-            ✓ CRR eligible as urgent care doctor. ACC-funded for injury presentations.
+            ✓ CRR eligible as telehealth doctor. ACC-funded for injury presentations.
           </div>
         )}
         {result && (
@@ -445,7 +446,7 @@ export default function ConsultView() {
 
         if (!data.daily_room_url) {
           try {
-            const res = await fetch('/api/create-room', {
+            const res = await apiFetch('/api/create-room', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ consultationId: id })
             })
@@ -460,7 +461,7 @@ export default function ConsultView() {
 
         // Get clinician token (always — covers page refreshes too)
         try {
-          const tr = await fetch('/api/join-room', {
+          const tr = await apiFetch('/api/join-room', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ consultationId: id, identity: `clinician-${id.slice(0,8)}` })
           })
@@ -673,7 +674,7 @@ export default function ConsultView() {
                     await supabase.from('consultations').update({ status: 'in_progress', started_at: startedAt }).eq('id', consult.id)
                     setConsult(d => ({...d, status: 'in_progress', started_at: startedAt}))
                     if (consult.payment_intent_id) {
-                      fetch('/api/capture-payment', {
+                      apiFetch('/api/capture-payment', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ paymentIntentId: consult.payment_intent_id })

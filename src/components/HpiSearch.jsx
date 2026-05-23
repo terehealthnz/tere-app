@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { apiFetch } from '../lib/api'
 
 export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, value }) {
   const [query, setQuery] = useState(value || '')
@@ -32,7 +33,7 @@ export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, va
   async function search(q) {
     setLoading(true)
     try {
-      const res = await fetch('/api/hpi-search', {
+      const res = await apiFetch('/api/hpi-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: q, type }),

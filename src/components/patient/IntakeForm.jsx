@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 const RED_FLAGS = [
   'Chest pain or pressure',
@@ -61,7 +62,7 @@ export default function IntakeForm() {
     if (form.accEligible !== 'yes') return
     setAccVerifying(true)
     try {
-      const res = await fetch('/api/verify-acc', {
+      const res = await apiFetch('/api/verify-acc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

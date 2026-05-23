@@ -2,13 +2,12 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
 import ScheduleEditor, { getScheduleSlots, getUseSchedule, shouldBeOpen } from './ScheduleEditor'
+import { apiFetch } from '../../lib/api'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
-  useEffect(() => { if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician') }, [navigate])
+  useEffect(() => { if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician?redirect=/clinician/admin') }, [navigate])
 }
-
-const ADMIN_PIN = 'admin2026'
 
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
@@ -453,6 +452,104 @@ function OutstandingPrescriptions() {
   )
 }
 
+function RatingsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase
+          .from('consultations')
+          .select('id, patient_first_name, patient_last_name, provider_display_name, rating, rating_comment, rated_at, created_at')
+          .not('rating', 'is', null)
+          .order('rated_at', { ascending: false })
+          .limit(100)
+        setRows(data || [])
+      } catch { setRows([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const avg = rows.length ? (rows.reduce((a, r) => a + r.rating, 0) / rows.length).toFixed(1) : '—'
+  const flagged = rows.filter(r => r.rating <= 2)
+
+  const byProvider = {}
+  rows.forEach(r => {
+    const p = r.provider_display_name || 'Unknown'
+    if (!byProvider[p]) byProvider[p] = { total: 0, count: 0 }
+    byProvider[p].total += r.rating
+    byProvider[p].count++
+  })
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>★ Patient ratings</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Post-consultation satisfaction scores</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ background: '#FFFBEB', color: '#92400E', fontWeight: 700, fontSize: '1.5rem', padding: '.25rem .875rem', borderRadius: 8 }}>{avg} ★</div>
+          <div style={{ fontSize: '.8125rem', color: '#9CA3AF' }}>{rows.length} reviews</div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF' }}>No ratings yet — rating link is included in every patient summary email.</div>
+      ) : (
+        <>
+          {/* Per-provider averages */}
+          {Object.keys(byProvider).length > 1 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+              {Object.entries(byProvider).map(([name, { total, count }]) => (
+                <div key={name} style={{ background: '#F8FAFC', borderRadius: 8, padding: '.5rem .875rem', fontSize: '.8125rem' }}>
+                  <span style={{ fontWeight: 600, color: '#0D2B45' }}>{name.split(' ').pop()}</span>
+                  <span style={{ color: '#9CA3AF' }}> — </span>
+                  <span style={{ fontWeight: 700, color: '#D97706' }}>{(total/count).toFixed(1)} ★</span>
+                  <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}> ({count})</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Flagged low ratings */}
+          {flagged.length > 0 && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, fontSize: '.875rem', color: '#DC2626', marginBottom: '.5rem' }}>⚠ {flagged.length} low rating{flagged.length > 1 ? 's' : ''} (1-2 stars) — review recommended</div>
+              {flagged.map(r => (
+                <div key={r.id} style={{ fontSize: '.8125rem', color: '#7F1D1D', marginBottom: '.25rem' }}>
+                  <strong>{r.patient_first_name} {r.patient_last_name}</strong> — {r.rating}★{r.rating_comment ? `: "${r.rating_comment}"` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Recent comments */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.625rem' }}>
+            {rows.filter(r => r.rating_comment).slice(0, 8).map(r => (
+              <div key={r.id} style={{ background: r.rating <= 2 ? '#FFF5F5' : '#F8FAFC', borderRadius: 8, padding: '.75rem 1rem', border: `1px solid ${r.rating <= 2 ? '#FECACA' : '#E2E8F0'}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
+                  <span style={{ fontWeight: 600, fontSize: '.8125rem', color: '#0D2B45' }}>{r.patient_first_name} {r.patient_last_name}</span>
+                  <span style={{ color: '#F59E0B', fontSize: '.875rem' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
+                  {r.provider_display_name && <span style={{ fontSize: '.75rem', color: '#9CA3AF' }}>· {r.provider_display_name}</span>}
+                </div>
+                <div style={{ fontSize: '.8125rem', color: '#374151', lineHeight: 1.5 }}>"{r.rating_comment}"</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function AnalyticsPanel() {
   const [range, setRange] = React.useState(7) // days
   const [data, setData] = React.useState([])
@@ -744,6 +841,155 @@ function PendingApprovalsPanel() {
   )
 }
 
+function CareersPanel() {
+  const [listings, setListings] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [showForm, setShowForm] = React.useState(false)
+  const [editId, setEditId] = React.useState(null)
+  const [saving, setSaving] = React.useState(false)
+  const blank = { title: '', location: '', employment_type: 'contractor', short_description: '', full_description: '', requirements: '', is_active: true }
+  const [form, setForm] = React.useState(blank)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const { data } = await supabase.from('job_listings').select('*').order('created_at', { ascending: false })
+      setListings(data || [])
+    } catch { setListings([]) }
+    setLoading(false)
+  }
+
+  async function save() {
+    if (!form.title.trim()) return
+    setSaving(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const payload = {
+        title: form.title, location: form.location, employment_type: form.employment_type,
+        short_description: form.short_description, full_description: form.full_description,
+        is_active: form.is_active,
+        requirements: form.requirements ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean) : [],
+      }
+      if (editId) {
+        await supabase.from('job_listings').update(payload).eq('id', editId)
+      } else {
+        await supabase.from('job_listings').insert(payload)
+      }
+      setForm(blank); setEditId(null); setShowForm(false)
+      await load()
+    } catch(e) { console.error(e) }
+    setSaving(false)
+  }
+
+  async function toggleActive(id, val) {
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('job_listings').update({ is_active: val }).eq('id', id)
+      setListings(ls => ls.map(l => l.id === id ? { ...l, is_active: val } : l))
+    } catch {}
+  }
+
+  async function remove(id) {
+    if (!window.confirm('Delete this listing?')) return
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('job_listings').delete().eq('id', id)
+      setListings(ls => ls.filter(l => l.id !== id))
+    } catch {}
+  }
+
+  function startEdit(listing) {
+    setForm({ ...listing, requirements: (listing.requirements || []).join('\n') })
+    setEditId(listing.id)
+    setShowForm(true)
+  }
+
+  React.useEffect(() => { load() }, [])
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const inp = { border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' }
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Job listings</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Active listings appear on the public /careers page</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
+          <button onClick={() => { setForm(blank); setEditId(null); setShowForm(s => !s) }} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+            {showForm && !editId ? 'Cancel' : '+ New listing'}
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1.25rem', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>{editId ? 'Edit listing' : 'New listing'}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.5rem' }}>
+            <input style={inp} placeholder="Job title *" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            <input style={inp} placeholder="Location (e.g. Remote/Nationwide)" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
+            <select style={inp} value={form.employment_type} onChange={e => setForm(f => ({ ...f, employment_type: e.target.value }))}>
+              <option value="contractor">Contractor</option>
+              <option value="part-time">Part-time</option>
+              <option value="full-time">Full-time</option>
+            </select>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.875rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))} />
+              Active (visible on /careers)
+            </label>
+          </div>
+          <input style={{ ...inp, marginBottom: '.5rem' }} placeholder="Short description" value={form.short_description} onChange={e => setForm(f => ({ ...f, short_description: e.target.value }))} />
+          <textarea style={{ ...inp, resize: 'vertical', minHeight: 80, marginBottom: '.5rem' }} placeholder="Full description" value={form.full_description} onChange={e => setForm(f => ({ ...f, full_description: e.target.value }))} />
+          <textarea style={{ ...inp, resize: 'vertical', minHeight: 80, marginBottom: '.75rem' }} placeholder="Requirements — one per line" value={form.requirements} onChange={e => setForm(f => ({ ...f, requirements: e.target.value }))} />
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button onClick={save} disabled={saving || !form.title.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              {saving ? 'Saving…' : editId ? 'Update' : 'Create'}
+            </button>
+            <button onClick={() => { setShowForm(false); setEditId(null); setForm(blank) }} style={{ background: 'none', border: '1px solid #E2E8F0', color: '#6B7280', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+      ) : listings.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>No job listings yet. Create one above or run the careers migration SQL.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+          {listings.map(l => (
+            <div key={l.id} style={{ background: l.is_active ? '#F8FAFC' : '#FFF5F5', borderRadius: 8, padding: '1rem 1.25rem', border: `1px solid ${l.is_active ? '#E2E8F0' : '#FECACA'}`, opacity: l.is_active ? 1 : 0.75 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
+                    <span style={{ fontWeight: 700, fontSize: '.9375rem', color: '#0D2B45' }}>{l.title}</span>
+                    <span style={{ background: l.is_active ? '#D1FAE5' : '#FEE2E2', color: l.is_active ? '#065F46' : '#991B1B', fontSize: '.6875rem', fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}>
+                      {l.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                    <span style={{ background: '#F3F4F6', color: '#6B7280', fontSize: '.6875rem', fontWeight: 600, padding: '1px 7px', borderRadius: 99 }}>{l.employment_type}</span>
+                  </div>
+                  <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>
+                    {l.location}{l.short_description ? ` · ${l.short_description}` : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '.375rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={() => startEdit(l)} style={{ background: '#F0F9FA', color: '#0B6E76', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Edit</button>
+                  <button onClick={() => toggleActive(l.id, !l.is_active)} style={{ background: 'none', border: `1px solid ${l.is_active ? '#FECACA' : '#BBF7D0'}`, color: l.is_active ? '#DC2626' : '#059669', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    {l.is_active ? 'Deactivate' : 'Activate'}
+                  </button>
+                  <button onClick={() => remove(l.id)} style={{ background: 'none', border: '1px solid #FECACA', color: '#DC2626', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Delete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EmployersPanel() {
   const [employers, setEmployers] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -980,7 +1226,7 @@ function AdminBody() {
       // If opening clinic, notify waitlisted patients
       if (isOpen) {
         try {
-          const res = await fetch('/api/notify-waitlist', { method:'POST', headers:{'Content-Type':'application/json'} })
+          const res = await apiFetch('/api/notify-waitlist', { method:'POST', headers:{'Content-Type':'application/json'} })
           const { sent } = await res.json()
           if (sent > 0) alert(`✓ ${sent} waitlisted patient${sent>1?'s':''} notified by email`)
         } catch(e) { console.error('Waitlist notify error:', e) }
@@ -1001,7 +1247,7 @@ function AdminBody() {
     setNotifying(true)
     try {
       for (const p of waitlist) {
-        try { await fetch('/api/send-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to:p.email, name:p.name, isOpenNotification:true, schedule:nextTimes }) }) } catch {}
+        try { await apiFetch('/api/send-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to:p.email, name:p.name, isOpenNotification:true, schedule:nextTimes }) }) } catch {}
       }
       await markWaitlistNotified()
       setWaitlist([])
@@ -1035,7 +1281,7 @@ function AdminBody() {
 
         {/* Tabs */}
         <div style={{ display:'flex', gap:6, marginBottom:'1.5rem', borderBottom:'2px solid #E2E8F0', paddingBottom:'.125rem' }}>
-          {[['overview','Overview'],['employers','Employers']].map(([id, label]) => (
+          {[['overview','Overview'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
             <button key={id} onClick={() => setAdminTab(id)} style={{
               background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
               fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
@@ -1046,7 +1292,7 @@ function AdminBody() {
           ))}
         </div>
 
-        {adminTab === 'employers' ? <EmployersPanel /> : <>
+        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : <>
 
         {/* Availability */}
         <div style={card}>
@@ -1154,43 +1400,17 @@ function AdminBody() {
 export default function Admin() {
   useClinicianAuth()
   const navigate = useNavigate()
-  const [pinOk, setPinOk] = React.useState(
-    sessionStorage.getItem('providerIsAdmin') === 'true' || sessionStorage.getItem('adminAuth') === '1'
-  )
-  const [pinInput, setPinInput] = React.useState('')
-  const [pinError, setPinError] = React.useState(false)
+  const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
 
-  if (pinOk) return <AdminBody />
-
-  return (
+  if (!isAdmin) return (
     <div style={{ minHeight:'100vh', background:'#F0F2F5', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-      <div style={{ background:'white', borderRadius:12, padding:'2rem', width:'100%', maxWidth:360, border:'1px solid #E2E8F0' }}>
-        <h2 style={{ fontSize:'1.2rem', fontWeight:700, color:'#0D2B45', marginBottom:'.5rem' }}>Admin access</h2>
-        <p style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.25rem' }}>Enter the admin PIN to continue.</p>
-        <input
-          type="password" autoFocus
-          style={{ width:'100%', padding:'.75rem 1rem', border:`1.5px solid ${pinError ? '#DC2626' : '#E2E8F0'}`, borderRadius:8, fontSize:'1rem', marginBottom:'.75rem', boxSizing:'border-box', fontFamily:'Plus Jakarta Sans, sans-serif' }}
-          value={pinInput}
-          onChange={e => { setPinInput(e.target.value); setPinError(false) }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              if (pinInput === ADMIN_PIN) { sessionStorage.setItem('adminAuth','1'); setPinOk(true) }
-              else { setPinError(true); setPinInput('') }
-            }
-          }}
-          placeholder="Enter PIN"
-        />
-        {pinError && <p style={{ color:'#DC2626', fontSize:'.8125rem', marginBottom:'.75rem' }}>Incorrect PIN</p>}
-        <button
-          style={{ background:'#0B6E76', color:'white', border:'none', padding:'10px 20px', borderRadius:8, fontWeight:600, fontSize:'.9375rem', cursor:'pointer', width:'100%' }}
-          onClick={() => {
-            if (pinInput === ADMIN_PIN) { sessionStorage.setItem('adminAuth','1'); setPinOk(true) }
-            else { setPinError(true); setPinInput('') }
-          }}>
-          Enter
-        </button>
-        <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'none', border:'none', color:'#6B7280', fontSize:'.8125rem', cursor:'pointer', marginTop:'.75rem', width:'100%' }}>← Back to dashboard</button>
+      <div style={{ background:'white', borderRadius:12, padding:'2rem', width:'100%', maxWidth:360, border:'1px solid #E2E8F0', textAlign:'center' }}>
+        <h2 style={{ fontSize:'1.2rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem' }}>Access denied</h2>
+        <p style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.5rem' }}>This area is restricted to admin accounts.</p>
+        <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'#0B6E76', color:'white', border:'none', padding:'10px 20px', borderRadius:8, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>← Back to dashboard</button>
       </div>
     </div>
   )
+
+  return <AdminBody />
 }
