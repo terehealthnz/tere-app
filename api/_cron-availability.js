@@ -68,16 +68,14 @@ async function computeNextAvailable(supabase, schedules, fromDate) {
 }
 
 export default async function handler(req, res) {
-  // Auth: Vercel sends Authorization: Bearer <CRON_SECRET>; Railway uses x-tere-api-key
+  // Auth: Bearer CRON_SECRET (Vercel cron / GitHub Actions) or x-tere-api-key (existing key)
   const cronSecret = process.env.CRON_SECRET
   const apiKey     = process.env.TERE_API_KEY
-  const authBearer = req.headers.authorization?.replace('Bearer ', '')
+  const authBearer = req.headers.authorization?.replace('Bearer ', '').trim()
   const apiKeyHdr  = req.headers['x-tere-api-key']
 
-  if (cronSecret || apiKey) {
-    const ok = (cronSecret && authBearer === cronSecret) || (apiKey && apiKeyHdr === apiKey)
-    if (!ok) return res.status(401).json({ error: 'Unauthorized' })
-  }
+  if (cronSecret && authBearer !== cronSecret) return res.status(401).json({ error: 'Unauthorized' })
+  if (!cronSecret && apiKey && apiKeyHdr !== apiKey) return res.status(401).json({ error: 'Unauthorized' })
 
   try {
     const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
