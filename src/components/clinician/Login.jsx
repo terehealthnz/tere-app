@@ -67,9 +67,10 @@ export default function ClinicianLogin() {
       const res = await apiFetch('/api/provider-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerId: selected.id, pin: password })
+        body: JSON.stringify({ providerId: selected?.id, pin: password })
       })
-      const data = await res.json()
+      let data
+      try { data = await res.json() } catch { data = {} }
       if (!res.ok || !data.provider) {
         setError(data.error || 'Incorrect password. Please try again.')
         setLoading(false)
