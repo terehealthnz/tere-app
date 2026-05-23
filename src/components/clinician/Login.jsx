@@ -46,11 +46,19 @@ export default function ClinicianLogin() {
     async function loadProviders() {
       try {
         const { supabase } = await import('../../lib/supabase')
-        const { data, error: err } = await supabase
+        let { data, error: err } = await supabase
           .from('providers')
           .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
           .eq('is_active', true)
           .order('first_name')
+        // Fallback: retry with base columns only if newer columns don't exist yet
+        if (err) {
+          ;({ data, error: err } = await supabase
+            .from('providers')
+            .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider')
+            .eq('is_active', true)
+            .order('first_name'))
+        }
         if (err || !data?.length) { setProviders([]); return }
         setProviders(data)
       } catch {
