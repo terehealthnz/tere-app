@@ -11,5 +11,4 @@ jobs:
     steps:
       - name: Ping cron-availability
         run: |
-          curl -sf -X POST https://tere.co.nz/api/cron-availability \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -sf -X POST https://tere.co.nz/api/cron-availability
