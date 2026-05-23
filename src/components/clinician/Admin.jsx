@@ -1270,6 +1270,7 @@ function AdminBody() {
           <span style={{ color:'rgba(255,255,255,.4)', fontSize:'.8125rem' }}>Admin</span>
         </div>
         <div style={{ display:'flex', gap:'.75rem' }}>
+          <button onClick={() => navigate('/admin')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>📱 Mobile</button>
           <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Dashboard</button>
           <button onClick={() => { sessionStorage.clear(); navigate('/clinician') }} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>Sign out</button>
         </div>

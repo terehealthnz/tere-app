@@ -10,8 +10,10 @@ webpush.setVapidDetails(
 const NOTIFICATION_TYPES = {
   new_patient:           (d) => ({ title: `New patient — ${d.patientName}`, body: d.chiefComplaint + (d.accEligible ? ' · ACC likely' : ''), requireInteraction: true,  url: '/provider', tag: `new-${d.consultationId}` }),
   vitals_ready:          (d) => ({ title: `Vitals ready — ${d.patientName}`,     body: d.vitals || 'Patient has completed vitals scan',                                   requireInteraction: false, url: `/provider/consult/${d.consultationId}`, tag: `vitals-${d.consultationId}` }),
-  prescription_approval: (d) => ({ title: 'Prescription approval needed',         body: `${d.drug} for ${d.patientName}`,                                                 requireInteraction: true,  url: '/clinician/dashboard', tag: `rx-${d.draftId}` }),
+  prescription_approval: (d) => ({ title: 'Prescription approval needed',         body: `${d.drug} for ${d.patientName}`,                                                 requireInteraction: true,  url: '/admin', tag: `rx-${d.draftId}` }),
   new_message:           (d) => ({ title: `New message — ${d.patientName}`,       body: d.chiefComplaint,                                                                 requireInteraction: false, url: '/provider', tag: `msg-${d.consultationId}` }),
+  waitlist_open:         (d) => ({ title: 'Clinic opened — waitlist notified',    body: `${d.count} patient${d.count !== 1 ? 's' : ''} emailed`,                          requireInteraction: false, url: '/admin', tag: 'waitlist-open' }),
+  new_employer_enquiry:  (d) => ({ title: `New employer enquiry — ${d.company}`,  body: d.contact ? `From ${d.contact}` : 'Check the employers tab',                      requireInteraction: true,  url: '/admin', tag: `employer-${d.company}` }),
 }
 
 export default async function handler(req, res) {
