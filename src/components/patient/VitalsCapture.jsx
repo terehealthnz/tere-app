@@ -328,7 +328,6 @@ export default function VitalsCapture() {
           </div>
         )}
       </div>
-      </div>
 
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(255,255,255,.95)',borderTop:'1px solid var(--border)',padding:'.5rem 1rem',display:'flex',gap:'1.5rem',justifyContent:'center',fontSize:'.8125rem',color:'var(--muted)'}}>
         <span>Emergency? Call <strong>111</strong></span>
