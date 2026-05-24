@@ -6,7 +6,8 @@ async function notifyComplaintsInbox(complaint) {
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
       from: 'Tere Health <noreply@terehealth.co.nz>',
-      to: ['complaints@terehealth.co.nz', 'patrick@terehealth.co.nz'],
+      replyTo: 'terehealthnz@gmail.com',
+      to: ['terehealthnz@gmail.com'],
       subject: `[Complaint logged] ${complaint.complaint_type || 'General'} — ${complaint.patient_name || 'Anonymous'}`,
       text: [
         `A new complaint has been logged in Tere Health.`,

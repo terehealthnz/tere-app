@@ -87,7 +87,7 @@ export default async function handler(req, res) {
   <div style="margin-top:20px;border-top:1px solid #E2E8F0;padding-top:16px">
     <div style="font-size:14px;font-weight:700;color:#0D2B45">${providerName}</div>
     ${providerReg ? `<div style="font-size:12px;color:#6B7280">${providerReg}</div>` : ''}
-    <div style="font-size:12px;color:#6B7280">Tere Health · clinical@terehealth.co.nz</div>
+    <div style="font-size:12px;color:#6B7280">Tere Health · terehealthnz@gmail.com</div>
     <div style="font-size:12px;color:#6B7280">Issued: ${dateStr}</div>
   </div>
 </div>
@@ -104,6 +104,7 @@ export default async function handler(req, res) {
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: 'Tere Health <consultations@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Medical Certificate — ${patientName} — ${dateStr}`,
         html,

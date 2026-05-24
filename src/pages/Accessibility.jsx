@@ -73,7 +73,7 @@ export default function Accessibility() {
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
             <li style={{ marginBottom: '.375rem' }}>
               <strong>Email:</strong>{' '}
-              <a href="mailto:hello@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>hello@terehealth.co.nz</a>
+              <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
             </li>
           </ul>
           <p style={{ marginTop: '.75rem' }}>We will respond within 2 working days and work with you to find a way to access our service.</p>
@@ -82,7 +82,7 @@ export default function Accessibility() {
         <Section title="Feedback">
           <p>We welcome feedback on the accessibility of Tere Health. If you find any barriers to access, please tell us so we can improve.</p>
           <p style={{ marginTop: '.75rem' }}>
-            <a href="mailto:hello@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>hello@terehealth.co.nz</a>
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
           </p>
         </Section>
 

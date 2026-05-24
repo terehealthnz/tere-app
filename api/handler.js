@@ -34,7 +34,8 @@ async function trackAuthFailure(ip) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'security@terehealth.co.nz',
-        to: 'admin@terehealth.co.nz',
+        replyTo: 'terehealthnz@gmail.com',
+        to: 'terehealthnz@gmail.com',
         subject: '[ALERT] 10+ failed auth attempts in the last hour',
         text: `Security alert: ${AUTH_FAILURES.count} failed provider auth attempts from IPs including ${ip} in the last hour. Please review access logs.`,
       })

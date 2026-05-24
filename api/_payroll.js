@@ -252,7 +252,7 @@ export default async function handler(req, res) {
         <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
       </table>
     </div>
-    <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:admin@terehealth.co.nz" style="color:#0B6E76">admin@terehealth.co.nz</a></p>
+    <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>
     <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:14px 16px;font-size:12px;color:#78350F;line-height:1.6">
       This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.
     </div>
@@ -267,6 +267,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
         body: JSON.stringify({
           from: 'Tere Health <payroll@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
           to: [s.provider_email],
           subject: `Your Tere Health earnings — ${periodStr}`,
           html,

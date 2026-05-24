@@ -61,7 +61,7 @@ export default function PrivacyPolicy() {
         <Section title="1. Who we are">
           <p><strong>Tere Health Limited</strong> is a New Zealand telehealth company. We provide acute telehealth consultations via video, phone, and written message.</p>
           <p style={{ marginTop: '.75rem' }}><strong>Privacy Officer:</strong> Patrick Herling<br />
-          <strong>Email:</strong> <a href="mailto:privacy@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>privacy@terehealth.co.nz</a><br />
+          <strong>Email:</strong> <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a><br />
           <strong>General:</strong> <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal }}>terehealthnz@gmail.com</a><br />
           <strong>Address:</strong> Tere Health Limited, Marlborough Sounds, New Zealand</p>
         </Section>
@@ -73,7 +73,7 @@ export default function PrivacyPolicy() {
           <Rule num="3" title="Collection from individual" content="Before you provide health information, we tell you what we collect, why we collect it, who can access it, and your rights. This is disclosed at the start of your consultation." />
           <Rule num="4" title="Manner of collection" content="We do not collect information by unlawful, unfair, or intrusive means. We do not use misleading forms or deceptive practices." />
           <Rule num="5" title="Storage and security" content="All health data is stored in an encrypted database (AES-256 at rest, TLS 1.3 in transit) hosted in Sydney, Australia by Supabase. Video is end-to-end encrypted via LiveKit WebRTC. Access is restricted to authorised staff only." />
-          <Rule num="6" title="Access to your information" content="You have the right to access your health records held by Tere Health. Email privacy@terehealth.co.nz. We will respond within 20 working days. Your consultation summary is available via a secure link sent after your consultation." />
+          <Rule num="6" title="Access to your information" content="You have the right to access your health records held by Tere Health. Email terehealthnz@gmail.com. We will respond within 20 working days. Your consultation summary is available via a secure link sent after your consultation." />
           <Rule num="7" title="Correction" content="If you believe information we hold about you is incorrect, you have the right to request a correction. We will correct errors promptly or attach a note of disagreement if we do not agree with the requested correction." />
           <Rule num="8" title="Accuracy" content="We take reasonable steps to ensure health information is accurate, up to date, complete, and not misleading. Clinical notes are prepared by a registered doctor and reviewed before finalisation." />
           <Rule num="9" title="Retention" content="Health records are retained for a minimum of 10 years from the date of last consultation in accordance with the Health (Retention of Health Information) Regulations 1996. After the retention period, records are securely deleted. Anonymised analytics data is deleted after 24 months." />
@@ -168,7 +168,7 @@ export default function PrivacyPolicy() {
             <li style={{ marginBottom: '.375rem' }}>Tell you what information was affected, how it happened, and what we are doing to fix it</li>
             <li style={{ marginBottom: '.375rem' }}>Take immediate steps to contain and remediate the breach</li>
           </ol>
-          <p style={{ marginTop: '.75rem' }}>To report a suspected breach: <a href="mailto:privacy@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>privacy@terehealth.co.nz</a></p>
+          <p style={{ marginTop: '.75rem' }}>To report a suspected breach: <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a></p>
         </Section>
 
         <Section title="10. Your rights">
@@ -180,7 +180,7 @@ export default function PrivacyPolicy() {
             <li style={{ marginBottom: '.375rem' }}><strong>Withdraw consent</strong> to recording or AI processing at any time</li>
             <li style={{ marginBottom: '.375rem' }}><strong>Complain</strong> about how we handle your information</li>
           </ul>
-          <p style={{ marginTop: '.75rem' }}>Contact our Privacy Officer: <a href="mailto:privacy@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>privacy@terehealth.co.nz</a></p>
+          <p style={{ marginTop: '.75rem' }}>Contact our Privacy Officer: <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a></p>
         </Section>
 
         <Section title="11. How to complain about privacy">
@@ -194,7 +194,7 @@ export default function PrivacyPolicy() {
         <div style={{ borderTop: '1px solid #E2E8F0', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
           <p style={{ fontSize: '.8125rem', color: '#9CA3AF' }}>
             <strong style={{ color: '#6B7280' }}>Tere Health Limited</strong> · Marlborough Sounds, New Zealand ·{' '}
-            <a href="mailto:privacy@terehealth.co.nz" style={{ color: BRAND.teal }}>privacy@terehealth.co.nz</a>
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal }}>terehealthnz@gmail.com</a>
           </p>
           <p style={{ fontSize: '.8125rem', color: '#9CA3AF', marginTop: '.25rem', fontStyle: 'italic' }}>He tere, he ora — swift action, healthy lives.</p>
         </div>

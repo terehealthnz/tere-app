@@ -24,6 +24,7 @@ async function notifySupervisors(supabase, subject, html) {
     try {
       await resend.emails.send({
         from: 'Tere Health <noreply@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: sup.email,
         subject,
         html,
@@ -112,6 +113,7 @@ export default async function handler(req, res) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'Tere Health <noreply@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: pharmacyEmail,
         subject: `Prescription for ${patientName} — Tere Health`,
         html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>`,
@@ -125,6 +127,7 @@ export default async function handler(req, res) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'Tere Health <noreply@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Your prescription from Tere Health`,
         html: `<p>Hi ${patientName},</p><p>Your prescription has been sent to <strong>${pharmacyName || 'your pharmacy'}</strong>. A copy is attached.</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}</p><p>Tere Health Team</p>`,

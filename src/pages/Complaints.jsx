@@ -37,7 +37,7 @@ export default function Complaints() {
         <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '2.5rem' }}>
           <strong style={{ color: '#065F46', display: 'block', marginBottom: '.375rem' }}>We respond within 5 working days.</strong>
           <span style={{ fontSize: '.9rem', color: '#374151' }}>Email us at{' '}
-            <a href="mailto:complaints@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>complaints@terehealth.co.nz</a>
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
             {' '}and we will acknowledge your complaint within 1 working day and provide a full response within 5 working days.
           </span>
         </div>
@@ -47,7 +47,7 @@ export default function Complaints() {
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
             <li style={{ marginBottom: '.375rem' }}>
               <strong>Email:</strong>{' '}
-              <a href="mailto:complaints@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>complaints@terehealth.co.nz</a>
+              <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
             </li>
             <li style={{ marginBottom: '.375rem' }}>
               <strong>Post:</strong> Tere Health Limited, Marlborough Sounds, New Zealand
@@ -123,7 +123,7 @@ export default function Complaints() {
         <Section title="5. Complaints about privacy">
           <p>
             If you believe Tere Health has mishandled your personal or health information, please contact our Privacy Officer:{' '}
-            <a href="mailto:privacy@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>privacy@terehealth.co.nz</a>
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
           </p>
           <p style={{ marginTop: '.75rem' }}>You may also contact the Office of the Privacy Commissioner directly at any time — you do not need to contact us first.</p>
         </Section>
@@ -132,7 +132,7 @@ export default function Complaints() {
           <div style={{ fontSize: '.875rem', color: '#6B7280' }}>
             <strong style={{ color: BRAND.navy }}>Tere Health Limited</strong><br />
             Marlborough Sounds, New Zealand<br />
-            <a href="mailto:complaints@terehealth.co.nz" style={{ color: BRAND.teal }}>complaints@terehealth.co.nz</a>
+            <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal }}>terehealthnz@gmail.com</a>
           </div>
         </div>
       </div>

@@ -161,7 +161,7 @@ export function buildPayslipPdf(data) {
     doc.rect(0, 0, W, 70).fill('#0D2B45')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 16)
     doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 42)
-    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('GST No: [Your GST]  ·  admin@terehealth.co.nz', 50, 56)
+    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('GST No: [Your GST]  ·  terehealthnz@gmail.com', 50, 56)
 
     // Title
     const fmtDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })

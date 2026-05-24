@@ -118,7 +118,7 @@ export default function Terms() {
         <Section title="10. Your rights to complain">
           <p>If you are unhappy with your care or our service, you have the right to complain. We take all complaints seriously and will respond within 5 working days.</p>
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
-            <li style={{ marginBottom: '.375rem' }}><strong>Email:</strong> <a href="mailto:complaints@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>complaints@terehealth.co.nz</a></li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Email:</strong> <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a></li>
             <li style={{ marginBottom: '.375rem' }}><strong>HDC (independent):</strong> <a href="https://hdc.org.nz/complaints" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>hdc.org.nz/complaints</a> · 0800 11 22 33</li>
             <li style={{ marginBottom: '.375rem' }}><strong>Privacy Commissioner:</strong> <a href="https://privacy.org.nz" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>privacy.org.nz</a> · 0800 803 909</li>
             <li style={{ marginBottom: '.375rem' }}><strong>MCNZ (doctor conduct):</strong> <a href="https://mcnz.org.nz" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>mcnz.org.nz</a> · 0800 286 801</li>

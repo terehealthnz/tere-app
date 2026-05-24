@@ -12,7 +12,7 @@ function supabaseAdmin() {
 async function sendEmail(to, subject, html, attachments) {
   if (!process.env.RESEND_API_KEY || !to) return
   const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', to, subject, html, attachments })
+  await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to, subject, html, attachments })
 }
 
 export default async function handler(req, res) {

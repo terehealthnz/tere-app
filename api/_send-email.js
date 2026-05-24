@@ -128,6 +128,7 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
         body: JSON.stringify({
           from: 'Tere Health <consultations@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
           to: [to],
           subject: `Your Tere Health consultation summary — ${dateStr}`,
           html,

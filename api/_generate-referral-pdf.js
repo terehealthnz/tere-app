@@ -22,7 +22,7 @@ async function notifySupervisors(supabase, subject, html) {
   const resend = new Resend(resendKey)
   for (const sup of supervisors) {
     try {
-      await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', to: sup.email, subject, html })
+      await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to: sup.email, subject, html })
     } catch {}
   }
 }
@@ -106,6 +106,7 @@ export default async function handler(req, res) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'Tere Health <noreply@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: facilityEmail,
         subject: `Radiology Referral — ${patientName} (${urgency || 'Routine'}) — Tere Health`,
         html: `<p>Please find attached a radiology referral from Tere Health.</p><p><strong>Patient:</strong> ${patientName}<br><strong>Investigation:</strong> ${investigation}${bodyPart ? ' — ' + bodyPart : ''}<br><strong>Urgency:</strong> ${urgency || 'Routine'}<br><strong>Clinician:</strong> ${providerName}</p>`,
@@ -119,6 +120,7 @@ export default async function handler(req, res) {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'Tere Health <noreply@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Your radiology referral from Tere Health`,
         html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${facilityName || 'the imaging centre'}</strong>.</p><p>Urgency: ${urgency || 'Routine'}</p><p>Tere Health Team</p>`,
