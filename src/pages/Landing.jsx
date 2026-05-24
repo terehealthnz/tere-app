@@ -297,21 +297,20 @@ function Footer() {
   return (
     <footer style={{ background: BRAND.navy, padding: '2.5rem 1.5rem', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.25rem' }}>Tere Health</div>
-      <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
-      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Careers', '/careers'], ['Employers', '/employers']].map(([label, href]) => (
-          href.startsWith('/') ? (
-            <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
-          ) : (
-            <a key={label} href={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</a>
-          )
+      <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
+      <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>
+        Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>terehealthnz@gmail.com</a>
+      </div>
+      <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility'], ['Careers', '/careers'], ['Employers', '/employers'], ['Status', '/status']].map(([label, href]) => (
+          <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
         ))}
       </div>
-      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.3)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-        Marlborough Sounds, New Zealand · <a href="https://terehealth.co.nz" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>terehealth.co.nz</a>
+      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.25)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '.5rem' }}>
+        🇳🇿 New Zealand patients only · Services provided by MCNZ-registered doctors
       </div>
-      <div style={{ marginTop: '.75rem', fontSize: '.75rem', color: 'rgba(255,255,255,.2)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-        In an emergency, call <strong style={{ color: 'rgba(255,255,255,.4)' }}>111</strong>
+      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.35)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>
+        In an emergency, call <strong style={{ color: 'rgba(255,100,100,.7)' }}>111</strong> · Mental health crisis: call or text <strong style={{ color: 'rgba(255,255,255,.5)' }}>1737</strong>
       </div>
       <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
         {[['🩺 Provider login', '/clinician'], ['⚙️ Admin login', '/clinician/admin']].map(([label, to]) => (

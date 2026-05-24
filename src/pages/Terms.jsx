@@ -38,13 +38,35 @@ export default function Terms() {
         </div>
 
         <Section title="1. What Tere Health is">
-          <p>Tere Health provides telehealth consultations with New Zealand-registered doctors via video call, phone, or written message. We serve patients primarily in the Marlborough region and rural New Zealand.</p>
+          <p>Tere Health Limited (company number to be registered) provides telehealth consultations with New Zealand-registered doctors via video call, phone, or written message. We serve patients in New Zealand, primarily in rural and remote areas.</p>
           <p style={{ marginTop: '.75rem' }}>Our service is designed for acute telehealth care — conditions that need prompt attention but are not life-threatening emergencies. We can issue prescriptions, ACC claims, referrals, and medical certificates where clinically appropriate.</p>
+          <p style={{ marginTop: '.75rem' }}><strong>Service is available to patients in New Zealand only.</strong> Consultations are conducted by doctors physically located in New Zealand at the time of the consultation.</p>
         </Section>
 
         <Section title="2. What we are not">
           <p>Tere Health is <strong>not an emergency service</strong> and is not a substitute for emergency care. We do not provide ongoing general practice care or chronic disease management as a primary care provider.</p>
           <p style={{ marginTop: '.75rem' }}>Consultations are provided by independent registered clinicians. Tere Health is the platform operator. The treating clinician is responsible for the clinical care provided.</p>
+          <p style={{ marginTop: '.75rem' }}><strong>Tere Health is not suitable for:</strong></p>
+          <ul style={{ marginTop: '.375rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.25rem' }}>Chest pain, suspected heart attack, or stroke — call 111</li>
+            <li style={{ marginBottom: '.25rem' }}>Difficulty breathing or severe allergic reaction — call 111</li>
+            <li style={{ marginBottom: '.25rem' }}>Major trauma, unconsciousness, or severe blood loss — call 111</li>
+            <li style={{ marginBottom: '.25rem' }}>Active suicidal crisis — call or text 1737 (mental health support line)</li>
+            <li style={{ marginBottom: '.25rem' }}>Suspected poisoning or overdose — call 0800 764 766 (Poisons Centre) or 111</li>
+          </ul>
+        </Section>
+
+        <Section title="2a. Telehealth limitations — informed consent">
+          <p>By using Tere Health, you acknowledge and accept the following limitations of remote consultation:</p>
+          <ul style={{ marginTop: '.375rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}>Your doctor cannot physically examine you — some conditions require in-person assessment</li>
+            <li style={{ marginBottom: '.375rem' }}>Diagnoses made via telehealth are based on the information you provide and visible findings only</li>
+            <li style={{ marginBottom: '.375rem' }}>Your doctor may determine during or after triage that you need to be seen in person and may refer you to an ED, GP, or specialist</li>
+            <li style={{ marginBottom: '.375rem' }}>Controlled drugs (Class A, B, and C) cannot be prescribed via telehealth</li>
+            <li style={{ marginBottom: '.375rem' }}>Technical failures (poor internet, video drop) may affect the quality of the consultation — your doctor will advise if a different modality is needed</li>
+            <li style={{ marginBottom: '.375rem' }}>Vital signs measured by the Tere Vitals camera function are indicative screening estimates only — not a substitute for medical-grade devices</li>
+          </ul>
+          <p style={{ marginTop: '.75rem' }}>If your video connection drops during a consultation, your doctor will attempt to continue by phone. If the connection cannot be restored, you will receive a full refund.</p>
         </Section>
 
         <Section title="3. Payment and fees">
@@ -90,22 +112,50 @@ export default function Terms() {
 
         <Section title="9. Limitation of liability">
           <p>To the extent permitted by New Zealand law, Tere Health's liability is limited to the amount you paid for the consultation in question. We are not liable for indirect, consequential, or special damages.</p>
-          <p style={{ marginTop: '.75rem' }}>Nothing in these terms limits your rights under the Consumer Guarantees Act 1993 or the Fair Trading Act 1986.</p>
+          <p style={{ marginTop: '.75rem' }}>Nothing in these terms limits your rights under the Consumer Guarantees Act 1993 or the Fair Trading Act 1986. Under the Consumer Guarantees Act, services must be provided with reasonable care and skill. If we fail to meet this standard, you are entitled to a remedy.</p>
         </Section>
 
-        <Section title="10. Changes to these terms">
+        <Section title="10. Your rights to complain">
+          <p>If you are unhappy with your care or our service, you have the right to complain. We take all complaints seriously and will respond within 5 working days.</p>
+          <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}><strong>Email:</strong> <a href="mailto:complaints@terehealth.co.nz" style={{ color: BRAND.teal, fontWeight: 600 }}>complaints@terehealth.co.nz</a></li>
+            <li style={{ marginBottom: '.375rem' }}><strong>HDC (independent):</strong> <a href="https://hdc.org.nz/complaints" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>hdc.org.nz/complaints</a> · 0800 11 22 33</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Privacy Commissioner:</strong> <a href="https://privacy.org.nz" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>privacy.org.nz</a> · 0800 803 909</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>MCNZ (doctor conduct):</strong> <a href="https://mcnz.org.nz" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>mcnz.org.nz</a> · 0800 286 801</li>
+          </ul>
+          <p style={{ marginTop: '.75rem' }}>See our full <Link to="/complaints" style={{ color: BRAND.teal, fontWeight: 600 }}>Complaints Policy</Link> for more detail.</p>
+        </Section>
+
+        <Section title="11. Cancellation and refunds">
+          <p>You may cancel and receive a full refund at any time before a clinician has meaningfully begun reviewing your consultation (i.e., before clinical notes have been opened). If you cancel after meaningful clinical review has begun, no refund is available — the clinician's time has been committed.</p>
+          <p style={{ marginTop: '.75rem' }}>If a technical failure (dropped video, server error) prevents your consultation from proceeding, you will receive a full refund within 5 working days. Refunds are processed via the original payment method by Stripe, which typically takes 3–5 business days to appear in your account.</p>
+          <p style={{ marginTop: '.75rem' }}>If a clinician determines they cannot assist with your query and ends the consultation without providing clinical care, you will receive a full refund.</p>
+        </Section>
+
+        <Section title="12. Changes to these terms">
           <p>We may update these terms from time to time. Material changes will be communicated via email if you have an account with us. Continued use of Tere Health after changes are published constitutes acceptance.</p>
         </Section>
 
-        <Section title="11. Governing law">
-          <p>These terms are governed by the laws of New Zealand. Any disputes will be resolved in the courts of New Zealand. If a dispute cannot be resolved directly, we are happy to engage in mediation before formal proceedings.</p>
+        <Section title="13. Governing law and dispute resolution">
+          <p>These terms are governed by the laws of New Zealand. Any disputes will be resolved in the courts of New Zealand.</p>
+          <p style={{ marginTop: '.75rem' }}>Before commencing formal proceedings, we encourage you to contact us directly. If a dispute cannot be resolved directly, we are happy to engage in mediation. You may also refer fee disputes to the Disputes Tribunal (claims up to NZD 30,000).</p>
+        </Section>
+
+        <Section title="14. Mental health and crisis resources">
+          <p>If you are experiencing a mental health crisis, please contact:</p>
+          <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}><strong>1737</strong> — Free call or text, 24/7 mental health support</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Lifeline:</strong> 0800 543 354</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Youthline:</strong> 0800 376 633</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>111</strong> — For immediate risk to life</li>
+          </ul>
         </Section>
 
         <Section title="Contact us">
           <p>Questions about these terms?</p>
           <p style={{ marginTop: '.5rem' }}>
             <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>terehealthnz@gmail.com</a><br />
-            <span style={{ color: '#9CA3AF' }}>Tere Health · Marlborough Sounds, New Zealand</span>
+            <span style={{ color: '#9CA3AF' }}>Tere Health Limited · Marlborough Sounds, New Zealand</span>
           </p>
         </Section>
       </div>

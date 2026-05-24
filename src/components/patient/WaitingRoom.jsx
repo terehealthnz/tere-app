@@ -104,9 +104,14 @@ export default function WaitingRoom() {
             Cancel and start over
           </button>
         </div>
-        <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem'}}>
-          Emergency? Call <strong>111</strong> immediately.
-        </p>
+        <div style={{marginTop:'1.25rem',display:'flex',flexDirection:'column',gap:'.375rem'}}>
+          <p style={{fontSize:'.8125rem',color:'var(--muted)',margin:0}}>
+            Emergency? Call <strong>111</strong> immediately.
+          </p>
+          <p style={{fontSize:'.8125rem',color:'var(--muted)',margin:0}}>
+            Mental health crisis? Call or text <strong>1737</strong> (free, 24/7).
+          </p>
+        </div>
       </div>
     </div>
   )

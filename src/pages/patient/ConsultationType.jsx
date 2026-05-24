@@ -182,9 +182,20 @@ export default function ConsultationType() {
           {loading ? 'Setting up…' : selected ? (employerPaid ? `Continue with ${TYPE_CONFIG[selected].title} — Covered` : `Continue with ${TYPE_CONFIG[selected].title} — $${getPrice(selected)}`) : 'Select a consultation type'}
         </button>
 
-        <p style={{ fontSize: '.8125rem', color: 'var(--muted)', marginTop: '1rem', textAlign: 'center' }}>
-          Emergency? Call <strong>111</strong> immediately.
-        </p>
+        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.875rem', marginTop: '1rem', fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.6 }}>
+          <strong style={{ color: '#374151', display: 'block', marginBottom: '.25rem' }}>Telehealth limitations — please note</strong>
+          Your doctor cannot physically examine you. Some conditions require in-person assessment. Your doctor may refer you to an ED or GP if needed. Controlled drugs cannot be prescribed via telehealth. By continuing, you accept these limitations.{' '}
+          <a href="/terms" style={{ color: '#0B6E76' }}>Full terms</a>
+        </div>
+
+        <div style={{ marginTop: '.75rem', textAlign: 'center', display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+          <p style={{ fontSize: '.8125rem', color: 'var(--muted)', margin: 0 }}>
+            Emergency? Call <strong>111</strong>
+          </p>
+          <p style={{ fontSize: '.8125rem', color: 'var(--muted)', margin: 0 }}>
+            Mental health crisis? Call or text <strong>1737</strong>
+          </p>
+        </div>
       </div>
     </div>
   )

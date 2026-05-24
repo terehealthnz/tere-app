@@ -40,6 +40,8 @@ import BookAppointment   from './pages/patient/BookAppointment'
 import StatusPage        from './pages/StatusPage'
 import ConsultationSummary from './pages/patient/ConsultationSummary'
 import RepeatPrescription from './pages/patient/RepeatPrescription'
+import Complaints        from './pages/Complaints'
+import Accessibility     from './pages/Accessibility'
 
 export default function App() {
   return (
@@ -59,6 +61,8 @@ export default function App() {
       <Route path="/status"                element={<StatusPage />} />
       <Route path="/my-consultation/:token" element={<ConsultationSummary />} />
       <Route path="/repeat-rx"             element={<RepeatPrescription />} />
+      <Route path="/complaints"            element={<Complaints />} />
+      <Route path="/accessibility"         element={<Accessibility />} />
       <Route path="/provider"              element={<ProviderApp />} />
       <Route path="/provider/consult/:id"  element={<ProviderConsult />} />
       <Route path="/provider/notes/:id"    element={<ProviderNotes />} />
