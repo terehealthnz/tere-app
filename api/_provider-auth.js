@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 
 const LOCKOUTS = new Map()
-const MAX_FAILS = 5
+const MAX_FAILS = 6
 const LOCKOUT_MS = 15 * 60 * 1000
 
 export default async function handler(req, res) {

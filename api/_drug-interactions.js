@@ -32,10 +32,55 @@ function normaliseSeverity(s) {
   return 'unknown'
 }
 
+// Known allergy cross-reactivity rules: allergy keyword → drugs that are contraindicated
+const ALLERGY_RULES = [
+  {
+    allergyKeywords: ['penicillin', 'amoxicillin', 'ampicillin', 'flucloxacillin'],
+    contraindicated: ['amoxicillin', 'ampicillin', 'flucloxacillin', 'amoxiclav', 'co-amoxiclav', 'piperacillin', 'phenoxymethylpenicillin', 'benzylpenicillin', 'phenoxypenicillin'],
+    warning: 'ALLERGY WARNING: Patient has a documented penicillin allergy. This drug is a penicillin or cross-reactive beta-lactam. Do not prescribe without specialist review.',
+  },
+  {
+    allergyKeywords: ['sulfa', 'sulfonamide', 'sulphonamide', 'bactrim', 'trimethoprim'],
+    contraindicated: ['bactrim', 'trimethoprim', 'co-trimoxazole', 'sulfamethoxazole'],
+    warning: 'ALLERGY WARNING: Patient has a documented sulfonamide allergy.',
+  },
+  {
+    allergyKeywords: ['aspirin', 'nsaid', 'ibuprofen', 'naproxen'],
+    contraindicated: ['ibuprofen', 'naproxen', 'diclofenac', 'celecoxib', 'aspirin', 'indomethacin', 'ketoprofen'],
+    warning: 'ALLERGY WARNING: Patient has a documented NSAID/aspirin allergy or intolerance.',
+  },
+]
+
+function checkAllergyContraindication(drugName, allergies) {
+  const drugLower = drugName.toLowerCase()
+  const allergyLower = (allergies || '').toLowerCase()
+  for (const rule of ALLERGY_RULES) {
+    const allergyMatched = rule.allergyKeywords.some(kw => allergyLower.includes(kw))
+    const drugMatched = rule.contraindicated.some(d => drugLower.includes(d) || d.includes(drugLower))
+    if (allergyMatched && drugMatched) {
+      return { warning: rule.warning, severity: 'major' }
+    }
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const { drug, patientMedications, consultationId, providerId, override, overrideReason } = req.body
+  const { drug, patientMedications, patientAllergies, consultationId, providerId, override, overrideReason } = req.body
   if (!drug) return res.status(400).json({ error: 'drug required' })
+
+  // Check allergy contraindications first (before RxNorm lookup)
+  const allergyWarning = checkAllergyContraindication(drug, patientAllergies)
+  if (allergyWarning && !override) {
+    return res.status(200).json({
+      drug,
+      rxcuis: [],
+      interactions: [{ description: allergyWarning.warning, severity: allergyWarning.severity, drug1: drug, drug2: 'Patient allergy', isAllergyWarning: true }],
+      maxSeverity: 'major',
+      safe: false,
+      allergyContraindication: true,
+    })
+  }
 
   try {
     // Parse patient meds into individual drug names

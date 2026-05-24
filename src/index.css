@@ -73,7 +73,7 @@ select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 textarea { resize: vertical; min-height: 80px; }
 
 /* ── Buttons ── */
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: .8rem 1.5rem; border-radius: 100px; font-family: var(--font); font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: all .15s; text-decoration: none; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: .8rem 1.5rem; border-radius: 100px; font-family: var(--font); font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: all .15s; text-decoration: none; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { background: var(--teal); color: var(--white); box-shadow: 0 4px 16px rgba(11,110,118,.25); }
 .btn-primary:hover:not(:disabled) { background: var(--teal-dark); transform: translateY(-1px); }

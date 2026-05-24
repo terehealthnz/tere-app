@@ -114,6 +114,11 @@ export default function PatientCall() {
           </div>
         </div>
       )}
+      <div style={{position:'absolute',top:0,left:0,right:0,zIndex:4,pointerEvents:'none',display:'flex',justifyContent:'center'}}>
+        <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',color:'rgba(255,255,255,.7)',fontSize:'.75rem',padding:'3px 10px',borderRadius:'0 0 6px 6px'}}>
+          Emergency? <a href="tel:111" style={{color:'white',fontWeight:700,pointerEvents:'auto'}}>Call 111</a>
+        </div>
+      </div>
     </div>
   )
 }

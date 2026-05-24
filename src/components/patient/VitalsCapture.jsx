@@ -151,7 +151,7 @@ export default function VitalsCapture() {
         <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>Vital signs</span>
       </nav>
 
-      <div className="container" style={{paddingTop:'1.75rem',paddingBottom:'3rem'}}>
+      <div className="container" style={{paddingTop:'1.75rem',paddingBottom:'5rem'}}>
 
         {!manualMode ? (
           <div className="card">
@@ -327,6 +327,12 @@ export default function VitalsCapture() {
             </button>
           </div>
         )}
+      </div>
+      </div>
+
+      <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(255,255,255,.95)',borderTop:'1px solid var(--border)',padding:'.5rem 1rem',display:'flex',gap:'1.5rem',justifyContent:'center',fontSize:'.8125rem',color:'var(--muted)'}}>
+        <span>Emergency? Call <strong>111</strong></span>
+        <span>Mental health crisis? Call or text <strong>1737</strong></span>
       </div>
     </div>
   )

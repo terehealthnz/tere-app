@@ -86,7 +86,7 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
   const providerId = sessionStorage.getItem('providerId')
 
   async function checkDrugInteractions(drugName) {
-    if (!drugName || !consult?.medications) return
+    if (!drugName) return
     setCheckingInteractions(true)
     setInteractions(null)
     try {
@@ -95,8 +95,9 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           drug: drugName,
-          patientMedications: consult.medications,
-          consultationId: consult.id,
+          patientMedications: consult?.medications || '',
+          patientAllergies: consult?.patient_allergies || '',
+          consultationId: consult?.id,
           providerId,
         }),
       })

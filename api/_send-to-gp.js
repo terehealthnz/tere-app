@@ -18,6 +18,8 @@ export default async function handler(req, res) {
 
   if (!gpEmail || !consultationId) return res.status(400).json({ error: 'gpEmail and consultationId required' })
 
+  const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) return res.status(500).json({ error: 'Resend not configured' })
 
@@ -40,6 +42,20 @@ export default async function handler(req, res) {
     exam.heent       && exam.heent !== 'Not clinically indicated — N/A' && `<tr><td style="padding:4px 8px;color:#6B7280">HEENT</td><td style="padding:4px 8px">${exam.heent}</td></tr>`,
   ].filter(Boolean).join('')
 
+  const safePatientName = esc(patientName)
+  const safePatientNhi = esc(patientNhi)
+  const safePatientDob = esc(patientDob)
+  const safeGpName = esc(gpName)
+  const safeProvider = esc(providerName)
+  const safeProviderCreds = esc(providerCredentials)
+  const safeComplaint = esc(chiefComplaint)
+  const safeHistory = esc(n.presentingHistory)
+  const safeMedHistory = esc(n.medicalHistory)
+  const safeAllergies = esc(n.allergies)
+  const safeSocial = esc(n.socialHistory)
+  const safeMdm = esc(n.mdm)
+  const safePlan = esc(n.plan)
+
   const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><style>
@@ -61,41 +77,41 @@ export default async function handler(req, res) {
 </div>
 
 <div class="patient-bar">
-  <strong>${patientName}</strong> &nbsp;·&nbsp; NHI: ${patientNhi || '—'} &nbsp;·&nbsp; DOB: ${patientDob || '—'}<br>
+  <strong>${safePatientName}</strong> &nbsp;·&nbsp; NHI: ${safePatientNhi || '—'} &nbsp;·&nbsp; DOB: ${safePatientDob || '—'}<br>
   <span style="font-size:13px;color:#6B7280">Telehealth consultation — ${date}</span>
 </div>
 
 <div class="body">
-  <p style="margin-top:16px">Dear ${gpName ? 'Dr ' + gpName : 'Colleague'},</p>
-  <p>I am writing to provide a summary of a telehealth consultation conducted via the Tere Health platform on ${date} with your patient, <strong>${patientName}</strong> (NHI: ${patientNhi || '—'}).</p>
-  <p><strong>Presenting complaint:</strong> ${chiefComplaint || '—'}</p>
+  <p style="margin-top:16px">Dear ${safeGpName ? 'Dr ' + safeGpName : 'Colleague'},</p>
+  <p>I am writing to provide a summary of a telehealth consultation conducted via the Tere Health platform on ${date} with your patient, <strong>${safePatientName}</strong> (NHI: ${safePatientNhi || '—'}).</p>
+  <p><strong>Presenting complaint:</strong> ${safeComplaint || '—'}</p>
 
   <h3>Presenting History</h3>
-  <p>${n.presentingHistory || '—'}</p>
+  <p>${safeHistory || '—'}</p>
 
   <h3>Medical History</h3>
-  <p>${n.medicalHistory || '—'}</p>
+  <p>${safeMedHistory || '—'}</p>
 
   <h3>Allergies</h3>
-  <p>${n.allergies || 'NKDA'}</p>
+  <p>${safeAllergies || 'NKDA'}</p>
 
   <h3>Social History</h3>
-  <p>${n.socialHistory || '—'}</p>
+  <p>${safeSocial || '—'}</p>
 
-  <h3>Examination — performed by ${providerName}${providerCredentials ? ', ' + providerCredentials : ''}</h3>
+  <h3>Examination — performed by ${safeProvider}${safeProviderCreds ? ', ' + safeProviderCreds : ''}</h3>
   <table>${examHtml}</table>
 
   <h3>Medical Decision Making</h3>
-  <p style="white-space:pre-line">${n.mdm || '—'}</p>
+  <p style="white-space:pre-line">${safeMdm || '—'}</p>
 
   <h3>Plan</h3>
-  <p style="white-space:pre-line">${n.plan || '—'}</p>
+  <p style="white-space:pre-line">${safePlan || '—'}</p>
 
   <p style="margin-top:24px">Please do not hesitate to contact us if you have any questions regarding this patient's care.</p>
 
   <p style="margin-top:16px">
     Kind regards,<br>
-    <strong>${providerName}</strong>${providerCredentials ? '<br><span style="font-size:13px;color:#6B7280">' + providerCredentials + '</span>' : ''}
+    <strong>${safeProvider}</strong>${safeProviderCreds ? '<br><span style="font-size:13px;color:#6B7280">' + safeProviderCreds + '</span>' : ''}
   </p>
 </div>
 
