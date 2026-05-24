@@ -4,6 +4,7 @@ import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist
 import ScheduleEditor, { getScheduleSlots, getUseSchedule, shouldBeOpen } from './ScheduleEditor'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from '../../pages/clinician/AdminSchedule'
+import AdminPayroll  from '../../pages/clinician/AdminPayroll'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1283,7 +1284,7 @@ function AdminBody() {
 
         {/* Tabs */}
         <div style={{ display:'flex', gap:6, marginBottom:'1.5rem', borderBottom:'2px solid #E2E8F0', paddingBottom:'.125rem' }}>
-          {[['overview','Overview'],['schedule','📅 Schedule'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
+          {[['overview','Overview'],['schedule','📅 Schedule'],['payroll','💰 Payroll'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
             <button key={id} onClick={() => setAdminTab(id)} style={{
               background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
               fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
@@ -1294,7 +1295,7 @@ function AdminBody() {
           ))}
         </div>
 
-        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : <>
+        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : <>
 
         {/* Availability */}
         <div style={card}>

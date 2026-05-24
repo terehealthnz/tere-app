@@ -146,3 +146,120 @@ export function buildReferralPdf(data) {
     doc.end()
   })
 }
+
+export function buildPayslipPdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+
+    // Header
+    doc.rect(0, 0, W, 70).fill('#0D2B45')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 16)
+    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 42)
+    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('GST No: [Your GST]  ·  admin@terehealth.co.nz', 50, 56)
+
+    // Title
+    const fmtDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('EARNINGS STATEMENT', 50, 90)
+    doc.moveTo(50, 112).lineTo(W - 50, 112).strokeColor('#0B6E76').lineWidth(1.5).stroke()
+
+    // Provider & period details
+    const provName = [data.provider?.first_name, data.provider?.last_name, data.provider?.credential].filter(Boolean).join(' ') || 'Provider'
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Contractor', 50, 124)
+    doc.font('Helvetica').fontSize(11).fillColor('#1A2A33').text(provName, 50, 138)
+    if (data.provider?.email) doc.fontSize(9).fillColor('#6B7280').text(data.provider.email, 50, 152)
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Pay Period', 320, 124)
+    doc.font('Helvetica').fontSize(11).fillColor('#1A2A33')
+      .text(`${fmtDate(data.period_start)}`, 320, 138)
+      .text(`to ${fmtDate(data.period_end)}`, 320, 152)
+    doc.fontSize(9).fillColor('#6B7280').text(`Issued: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 320, 166)
+
+    doc.moveTo(50, 186).lineTo(W - 50, 186).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
+
+    // Earnings summary box
+    let y = 200
+    doc.rect(50, y, W - 100, 110).fill('#F0F9FA').stroke('#D4EEF0')
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Earnings Summary', 66, y + 12)
+
+    const row = (label, value, bold = false, yOff = 0) => {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).fillColor(bold ? '#0D2B45' : '#374151')
+        .text(label, 66, y + yOff)
+        .text(value, W - 160, y + yOff, { width: 110, align: 'right' })
+    }
+    row(`Base pay (${data.consultation_count} consultations × $${Number(data.base_rate).toFixed(2)})`, `$${Number(data.base_amount).toFixed(2)}`, false, 32)
+    row(`Holiday pay in lieu (${(data.holiday_pay_rate * 100).toFixed(0)}%)`, `$${Number(data.holiday_pay_amount).toFixed(2)}`, false, 50)
+    doc.moveTo(66, y + 68).lineTo(W - 66, y + 68).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+    row('Total payment', `$${Number(data.total_amount).toFixed(2)}`, true, 76)
+    y += 126
+
+    // Consultation breakdown
+    if ((data.consultations || []).length > 0) {
+      doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Consultation Breakdown', 50, y)
+      y += 18
+
+      // Table header
+      doc.rect(50, y, W - 100, 18).fill('#0D2B45')
+      doc.fillColor('white').font('Helvetica-Bold').fontSize(8)
+        .text('Date', 58, y + 5)
+        .text('Type', 150, y + 5)
+        .text('Patient', 230, y + 5)
+        .text('Base', W - 160, y + 5, { width: 55, align: 'right' })
+        .text('Hol Pay', W - 100, y + 5, { width: 46, align: 'right' })
+      y += 18
+
+      let shade = false
+      for (const c of data.consultations) {
+        if (y > doc.page.height - 120) {
+          doc.addPage()
+          y = 50
+        }
+        if (shade) doc.rect(50, y, W - 100, 16).fill('#F8FAFC')
+        shade = !shade
+        const dateStr = new Date(c.created_at).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' })
+        const initials = `${(c.patient_first_name || '').charAt(0)}${(c.patient_last_name || '').charAt(0)}.`
+        const type = (c.consultation_type || 'video').charAt(0).toUpperCase() + (c.consultation_type || 'video').slice(1)
+        doc.fillColor('#374151').font('Helvetica').fontSize(8)
+          .text(dateStr, 58, y + 4)
+          .text(type, 150, y + 4)
+          .text(initials, 230, y + 4)
+          .text(`$${Number(data.base_rate).toFixed(2)}`, W - 160, y + 4, { width: 55, align: 'right' })
+          .text(`$${(Number(data.base_rate) * data.holiday_pay_rate).toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
+        y += 16
+      }
+
+      // Totals row
+      doc.rect(50, y, W - 100, 18).fill('#E8F4F5')
+      doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(8)
+        .text(`Total: ${data.consultation_count} consultations`, 58, y + 5)
+        .text(`$${Number(data.base_amount).toFixed(2)}`, W - 160, y + 5, { width: 55, align: 'right' })
+        .text(`$${Number(data.holiday_pay_amount).toFixed(2)}`, W - 100, y + 5, { width: 46, align: 'right' })
+      y += 30
+    }
+
+    // Disclaimers
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50 }
+    y = Math.max(y, doc.page.height - 170)
+
+    doc.moveTo(50, y).lineTo(W - 50, y).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
+    y += 10
+
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text('Contractor services', 50, y)
+    y += 12
+    doc.font('Helvetica').fontSize(7.5).fillColor('#777')
+      .text('This is a record of casual contractor earnings including 8% holiday pay in lieu of annual leave as per the Holidays Act 2003.', 50, y, { width: W - 100 })
+    y += 14
+    doc.text('This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.', 50, y, { width: W - 100 })
+    y += 28
+
+    doc.fillColor('#AAA').fontSize(7.5)
+      .text('Tere Health Limited  ·  terehealth.co.nz  ·  He tere, he ora', 50, y, { align: 'center', width: W - 100 })
+
+    doc.end()
+  })
+}

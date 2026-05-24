@@ -34,6 +34,8 @@ import ProviderNotes     from './pages/clinician/ProviderNotes'
 import ProviderSchedule  from './pages/clinician/ProviderSchedule'
 import AdminApp          from './pages/clinician/AdminApp'
 import AdminSchedule     from './pages/clinician/AdminSchedule'
+import AdminPayroll      from './pages/clinician/AdminPayroll'
+import ProviderEarnings  from './pages/clinician/ProviderEarnings'
 
 export default function App() {
   return (
@@ -55,6 +57,8 @@ export default function App() {
       <Route path="/provider/schedule"     element={<ProviderSchedule />} />
       <Route path="/admin"                 element={<AdminApp />} />
       <Route path="/admin/schedule"        element={<AdminSchedule />} />
+      <Route path="/admin/payroll"         element={<AdminPayroll />} />
+      <Route path="/provider/earnings"     element={<ProviderEarnings embedded={false} />} />
       <Route path="/clinician"             element={<ClinicianLogin />} />
       <Route path="/clinician/dashboard"       element={<Dashboard />} />
       <Route path="/clinician/change-password" element={<ChangePassword />} />

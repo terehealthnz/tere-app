@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from './ProviderSchedule'
+import ProviderEarnings from './ProviderEarnings'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -309,6 +310,7 @@ function BottomNav({ tab, setTab, queueBadge, msgBadge, notesBadge }) {
     { id:'messages', icon:'💬', label:'Messages', badge:msgBadge },
     { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'notes',    icon:'📋', label:'Notes',    badge:notesBadge },
+    { id:'earnings', icon:'💰', label:'Earnings', badge:0 },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
   return (
@@ -495,6 +497,7 @@ export default function ProviderApp() {
         {tab === 'messages' && <MessagesTab />}
         {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'notes'    && <NotesTab navigate={navigate} />}
+        {tab === 'earnings' && <ProviderEarnings embedded />}
         {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
       </div>
 

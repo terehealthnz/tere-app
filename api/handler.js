@@ -88,6 +88,7 @@ const ROUTES = {
   'verify-acc':                () => import('./_verify-acc.js'),
   'schedule':                  () => import('./_schedule.js'),
   'cron-availability':         () => import('./_cron-availability.js'),
+  'payroll':                   () => import('./_payroll.js'),
 }
 
 export default async function handler(req, res) {

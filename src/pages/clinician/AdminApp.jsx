@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
+import AdminPayroll  from './AdminPayroll'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -590,6 +591,7 @@ function SettingsTab({ navigate, displayName }) {
   }
 
   const links = [
+    { label:'Payroll',                icon:'💰',  sub:'Calculate & approve provider earnings',   action:()=>navigate('/admin/payroll') },
     { label:'Full admin (desktop)',   icon:'🖥',  sub:'All features including schedule & notes', action:()=>navigate('/clinician/admin') },
     { label:'Provider dashboard',     icon:'📊',  sub:'Clinician consultation view',             action:()=>navigate('/clinician/dashboard') },
     { label:'Change password',        icon:'🔑',  sub:'Update your PIN',                         action:()=>navigate('/clinician/change-password') },
