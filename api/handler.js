@@ -89,6 +89,9 @@ const ROUTES = {
   'schedule':                  () => import('./_schedule.js'),
   'cron-availability':         () => import('./_cron-availability.js'),
   'payroll':                   () => import('./_payroll.js'),
+  'sms':                       () => import('./_sms.js'),
+  'appointments':              () => import('./_appointments.js'),
+  'audit':                     () => import('./_audit.js'),
 }
 
 export default async function handler(req, res) {

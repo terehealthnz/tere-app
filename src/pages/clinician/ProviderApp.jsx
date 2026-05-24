@@ -141,21 +141,64 @@ function QueueCard({ c, onStart, onDismiss, starting }) {
   )
 }
 
+// ── Today's appointments strip ────────────────────────────────────────────────
+
+function TodayAppointments() {
+  const [appts, setAppts] = useState([])
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const pid = sessionStorage.getItem('providerId')
+        const { supabase } = await import('../../lib/supabase')
+        const today = new Date().toISOString().slice(0, 10)
+        const q = supabase.from('appointments').select('*').eq('appointment_date', today).in('status', ['pending', 'confirmed']).order('slot_time').limit(10)
+        if (pid) q.eq('provider_id', pid)
+        const { data } = await q
+        setAppts(data || [])
+      } catch {}
+    }
+    load()
+  }, [])
+
+  if (!appts.length) return null
+
+  return (
+    <div style={{ margin:'1rem 1rem 0', background:'white', borderRadius:12, border:'1px solid #BFDBFE', padding:'.875rem 1rem' }}>
+      <div style={{ fontSize:'.75rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#1D4ED8', marginBottom:'.5rem' }}>Today's appointments</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:'.375rem' }}>
+        {appts.map(a => (
+          <div key={a.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'.8125rem' }}>
+            <span style={{ fontWeight:600, color:NAVY }}>{a.slot_time?.slice(0,5)} — {a.patient_name}</span>
+            <span style={{ color:'#6B7280' }}>{a.reason || 'General'}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Queue tab ─────────────────────────────────────────────────────────────────
 
 function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
   const videoQueue = consultations.filter(c => c.consultation_type !== 'message')
   if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
   if (!videoQueue.length) return (
-    <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
-      <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✓</div>
-      <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>Queue is clear</div>
-      <div style={{ color:'#6B7280', fontSize:'.9375rem' }}>New patients will appear here</div>
-    </div>
+    <>
+      <TodayAppointments />
+      <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
+        <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✓</div>
+        <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>Queue is clear</div>
+        <div style={{ color:'#6B7280', fontSize:'.9375rem' }}>New patients will appear here</div>
+      </div>
+    </>
   )
   return (
-    <div style={{ padding:'1rem' }}>
-      {videoQueue.map(c => <QueueCard key={c.id} c={c} onStart={onStart} onDismiss={onDismiss} starting={starting} />)}
+    <div>
+      <TodayAppointments />
+      <div style={{ padding:'1rem' }}>
+        {videoQueue.map(c => <QueueCard key={c.id} c={c} onStart={onStart} onDismiss={onDismiss} starting={starting} />)}
+      </div>
     </div>
   )
 }

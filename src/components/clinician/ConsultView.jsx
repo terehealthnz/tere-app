@@ -72,8 +72,37 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
   const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
+  const [templates, setTemplates] = useState([])
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
+  const providerId = sessionStorage.getItem('providerId')
+
+  useEffect(() => {
+    if (!open || !providerId) return
+    apiFetch('/api/appointments', {
+      method: 'POST', body: JSON.stringify({ action:'get_templates', provider_id: providerId })
+    }).then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {})
+  }, [open, providerId])
+
+  function loadTemplate(t) {
+    setRx({ drug:t.drug||'', dose:t.dose||'', directions:t.directions||'', qty:t.quantity||'', repeats:t.repeats||0 })
+  }
+
+  async function saveTemplate() {
+    if (!templateName.trim() || !rx.drug) return
+    setSavingTemplate(true)
+    try {
+      const r = await apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({
+        action:'save_template', provider_id:providerId, name:templateName.trim(),
+        drug:rx.drug, dose:rx.dose, directions:rx.directions, quantity:rx.qty, repeats:rx.repeats,
+      })})
+      const d = await r.json()
+      if (d.ok) { setTemplates(ts => [...ts, d.template]); setShowSaveTemplate(false); setTemplateName('') }
+    } catch {} finally { setSavingTemplate(false) }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -123,6 +152,17 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
 
   return (
     <Modal open={open} onClose={onClose} title="💊 Prescribe">
+      {/* Template picker */}
+      {templates.length > 0 && (
+        <div style={{marginBottom:'1rem'}}>
+          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.25rem'}}>Load template</label>
+          <select onChange={e => { const t = templates.find(x=>x.id===e.target.value); if(t) loadTemplate(t); e.target.value='' }}
+            style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',cursor:'pointer'}}>
+            <option value=''>— Select a saved prescription —</option>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      )}
       <form onSubmit={handleSubmit}>
         {!canPrescribe && (
           <div className="alert" style={{background:'#FEF3C7',borderColor:'#D97706',color:'#92400E',fontSize:'.8125rem',marginBottom:'1rem'}}>
@@ -190,6 +230,26 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
           </button>
         </div>
       </form>
+      {/* Save as template */}
+      {rx.drug && (
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem',marginTop:'.75rem'}}>
+          {showSaveTemplate ? (
+            <div style={{display:'flex',gap:'.5rem',alignItems:'center'}}>
+              <input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Template name e.g. Ibuprofen standard"
+                style={{flex:1,padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontSize:'.875rem',fontFamily:'Plus Jakarta Sans, sans-serif'}} />
+              <button onClick={saveTemplate} disabled={savingTemplate||!templateName.trim()}
+                style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'.5rem .875rem',cursor:'pointer',fontSize:'.875rem',fontWeight:600}}>
+                {savingTemplate?'…':'Save'}
+              </button>
+              <button onClick={()=>setShowSaveTemplate(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',padding:'.5rem'}}>✕</button>
+            </div>
+          ) : (
+            <button onClick={()=>setShowSaveTemplate(true)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',padding:0}}>
+              ★ Save as template
+            </button>
+          )}
+        </div>
+      )}
     </Modal>
   )
 }
@@ -435,6 +495,7 @@ export default function ConsultView() {
   const [vitalsConfirmed, setVitalsConfirmed] = useState(false)
   const [lkToken, setLkToken] = useState(null)
   const [lkUrl, setLkUrl] = useState(null)
+  const [supervisorLinkCopied, setSupervisorLinkCopied] = useState(false)
   const recorderRef = useRef(null)
 
   useEffect(() => {
@@ -578,10 +639,24 @@ export default function ConsultView() {
         <div style={{background:'var(--navy)',padding:'.875rem 1rem',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.2rem'}}>Tere</span>
-            <button onClick={() => navigate('/clinician/dashboard')}
-              style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'4px 10px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
-              ← Queue
-            </button>
+            <div style={{display:'flex',gap:'.375rem',alignItems:'center'}}>
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/clinician/consult/${id}`
+                  navigator.clipboard.writeText(url).then(() => {
+                    setSupervisorLinkCopied(true)
+                    setTimeout(() => setSupervisorLinkCopied(false), 2500)
+                  })
+                }}
+                title="Copy supervisor join link"
+                style={{background:'rgba(255,255,255,.12)',border:'none',color:'rgba(255,255,255,.75)',padding:'4px 8px',borderRadius:'6px',cursor:'pointer',fontSize:'.75rem',whiteSpace:'nowrap'}}>
+                {supervisorLinkCopied ? '✓ Copied' : '👥 Supervise'}
+              </button>
+              <button onClick={() => navigate('/clinician/dashboard')}
+                style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'4px 10px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
+                ← Queue
+              </button>
+            </div>
           </div>
           <div style={{color:'white',fontWeight:600,marginTop:'.375rem',fontSize:'1rem'}}>
             {consult.patient_first_name} {consult.patient_last_name}

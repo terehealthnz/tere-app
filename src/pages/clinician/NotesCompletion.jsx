@@ -303,6 +303,14 @@ export default function NotesCompletion() {
   const [gpSent, setGpSent]             = useState(false)
   const [sendGpOnFinalise, setSendGpOnFinalise] = useState(false)
 
+  // Recall / follow-up
+  const [recallDate, setRecallDate]         = useState('')
+  const [recallNote, setRecallNote]         = useState('')
+
+  // Discharge letter (free-text to GP)
+  const [dischargeLetter, setDischargeLetter] = useState('')
+  const [sendDischargeOnFinalise, setSendDischargeOnFinalise] = useState(false)
+
   // Medical certificate
   const [showMedCertModal, setShowMedCertModal] = useState(false)
   const [medCertFrom, setMedCertFrom]   = useState(new Date().toISOString().slice(0, 10))
@@ -580,6 +588,8 @@ export default function NotesCompletion() {
         consultation_duration_seconds: durSec,
         payment_amount:      consult.payment_amount || (consult.acc_eligible === 'yes' ? 2500 : 6500),
         is_acc:              consult.acc_eligible === 'yes',
+        ...(recallDate ? { recall_date: recallDate, recall_note: recallNote || null } : {}),
+        ...(dischargeLetter ? { discharge_letter: dischargeLetter } : {}),
       }).eq('id', id)
 
       // Auto-send patient summary email with rating link
@@ -618,6 +628,28 @@ export default function NotesCompletion() {
             noteContent: { ...sections, examination: exam },
           }),
         }).then(() => setGpSent(true)).catch(e => console.error('GP letter error:', e))
+      }
+
+      // Auto-send discharge letter to GP if toggled on (and not already sending GP letter above)
+      if (sendDischargeOnFinalise && dischargeLetter && gpEmail.trim() && !sendGpOnFinalise) {
+        apiFetch('/api/send-to-gp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultationId: id,
+            gpName: gpName.trim(),
+            gpEmail: gpEmail.trim(),
+            patientName: `${consult.patient_first_name} ${consult.patient_last_name}`,
+            patientNhi: consult.patient_nhi,
+            patientDob: consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
+            consultationDate: consult.created_at,
+            providerName: sessionStorage.getItem('providerDisplayName') || '',
+            providerCredentials: sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : '',
+            chiefComplaint: consult.chief_complaint,
+            noteContent: { ...sections, examination: exam },
+            dischargeLetter,
+          }),
+        }).then(() => setGpSent(true)).catch(e => console.error('Discharge letter error:', e))
       }
 
       navigate('/clinician/dashboard')
@@ -1073,6 +1105,39 @@ export default function NotesCompletion() {
                   ✉ {gpEmail ? 'Edit & send to GP' : 'Send to GP'}
                 </button>
               </>
+            )}
+          </div>
+
+          {/* Recall / follow-up */}
+          <div style={card}>
+            <span style={label}>Recall / follow-up</span>
+            <div style={{ marginBottom: '.625rem' }}>
+              <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Follow-up date</div>
+              <input type="date" value={recallDate} onChange={e => setRecallDate(e.target.value)} readOnly={isFinalised}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: `1.5px solid ${recallDate ? '#0B6E76' : '#E2E8F0'}`, borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Follow-up note</div>
+              <textarea value={recallNote} onChange={e => setRecallNote(e.target.value)} readOnly={isFinalised}
+                rows={2} placeholder="e.g. Review blood pressure in 2 weeks"
+                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', resize: 'vertical', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
+            </div>
+          </div>
+
+          {/* Discharge letter */}
+          <div style={card}>
+            <span style={label}>Discharge letter</span>
+            <textarea value={dischargeLetter} onChange={e => setDischargeLetter(e.target.value)} readOnly={isFinalised}
+              rows={4} placeholder="Optional free-text letter to GP on discharge…"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', lineHeight: 1.6, resize: 'vertical', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white', marginBottom: '.625rem' }} />
+            {dischargeLetter && gpEmail && !isFinalised && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <Checkbox checked={sendDischargeOnFinalise} onChange={setSendDischargeOnFinalise} />
+                <span style={{ fontSize: '.8125rem', color: '#374151' }}>Email discharge letter to GP on finalise</span>
+              </label>
+            )}
+            {dischargeLetter && !gpEmail && !isFinalised && (
+              <div style={{ fontSize: '.75rem', color: '#9CA3AF' }}>Add GP email above to auto-send on finalise</div>
             )}
           </div>
 

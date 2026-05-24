@@ -132,7 +132,7 @@ function ConsultationLog() {
         const { supabase } = await import('../../lib/supabase')
         const { data } = await supabase
           .from('consultations')
-          .select('id, created_at, completed_at, patient_first_name, patient_last_name, chief_complaint, status, payment_amount, acc_eligible, consultation_duration_seconds')
+          .select('id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, payment_amount_nzd, acc_eligible, acc_read_code, consultation_duration_seconds')
           .order('created_at', { ascending: false })
           .limit(100)
         setRows(data || [])
@@ -141,6 +141,24 @@ function ConsultationLog() {
     }
     load()
   }, [])
+
+  function exportAccCsv() {
+    const accRows = rows.filter(r => r.acc_eligible === 'yes' && r.status === 'complete')
+    if (!accRows.length) { alert('No completed ACC consultations found'); return }
+    const header = 'Date,Patient NHI,Chief Complaint,Read Code,Duration (min),Amount NZD'
+    const csv = [header, ...accRows.map(r => [
+      new Date(r.created_at).toLocaleDateString('en-NZ'),
+      r.patient_nhi || '',
+      `"${(r.chief_complaint || '').replace(/"/g, '""')}"`,
+      r.acc_read_code || '',
+      r.consultation_duration_seconds ? Math.round(r.consultation_duration_seconds / 60) : '',
+      (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : '')).toString(),
+    ].join(','))].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `acc-export-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+  }
 
   const filtered = rows.filter(r => {
     const q = search.toLowerCase()
@@ -157,11 +175,14 @@ function ConsultationLog() {
           <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Consultation log</div>
           <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Last 100 consultations</div>
         </div>
-        <input
-          placeholder="Search patient or complaint…"
-          value={search} onChange={e => setSearch(e.target.value)}
-          style={{ padding:'7px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:220 }}
-        />
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <button onClick={exportAccCsv} style={{ background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', padding:'7px 12px', borderRadius:8, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>↓ ACC export</button>
+          <input
+            placeholder="Search patient or complaint…"
+            value={search} onChange={e => setSearch(e.target.value)}
+            style={{ padding:'7px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:200 }}
+          />
+        </div>
       </div>
       {loading ? (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
@@ -1184,6 +1205,260 @@ function EmployersPanel() {
   )
 }
 
+function AppointmentsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase
+          .from('appointments')
+          .select('*')
+          .gte('appointment_date', new Date().toISOString().slice(0, 10))
+          .in('status', ['pending', 'confirmed'])
+          .order('appointment_date').order('slot_time')
+          .limit(50)
+        setRows(data || [])
+      } catch { setRows([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+
+  async function updateStatus(id, status) {
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('appointments').update({ status }).eq('id', id)
+      setRows(rs => rs.filter(r => r.id !== id))
+    } catch {}
+  }
+
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+        <div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Upcoming appointments</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Next 7 days — pending and confirmed</div>
+        </div>
+        <span style={{ background:'#EFF6FF', color:'#1D4ED8', fontWeight:700, fontSize:'.875rem', padding:'3px 10px', borderRadius:99 }}>{rows.length}</span>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No upcoming appointments</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+          {rows.map(r => (
+            <div key={r.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.75rem 1rem', background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0', gap:'1rem', flexWrap:'wrap' }}>
+              <div>
+                <div style={{ fontWeight:600, fontSize:'.9rem', color:'#0D2B45' }}>{r.patient_name}</div>
+                <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>{new Date(r.appointment_date).toLocaleDateString('en-NZ', { weekday:'short', day:'numeric', month:'short' })} at {r.slot_time?.slice(0,5)} · {r.reason || 'General'}</div>
+              </div>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <span style={{ background: r.status === 'confirmed' ? '#F0FDF4' : '#FEF3C7', color: r.status === 'confirmed' ? '#059669' : '#D97706', fontWeight:600, fontSize:'.75rem', padding:'2px 8px', borderRadius:99 }}>{r.status}</span>
+                {r.status === 'pending' && (
+                  <button onClick={() => updateStatus(r.id, 'confirmed')} style={{ background:'#0B6E76', color:'white', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>Confirm</button>
+                )}
+                <button onClick={() => updateStatus(r.id, 'cancelled')} style={{ background:'#FEE2E2', color:'#DC2626', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RecallsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase
+          .from('consultations')
+          .select('id, patient_first_name, patient_last_name, patient_phone, chief_complaint, recall_date, recall_note, recall_completed')
+          .not('recall_date', 'is', null)
+          .eq('recall_completed', false)
+          .order('recall_date')
+          .limit(50)
+        setRows(data || [])
+      } catch { setRows([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const today = new Date().toISOString().slice(0, 10)
+
+  async function markDone(id) {
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('consultations').update({ recall_completed: true }).eq('id', id)
+      setRows(rs => rs.filter(r => r.id !== id))
+    } catch {}
+  }
+
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+        <div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Patient recalls</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Follow-up dates set during consultations</div>
+        </div>
+        <span style={{ background: rows.some(r => r.recall_date <= today) ? '#FEF3C7' : '#F0F9FA', color: rows.some(r => r.recall_date <= today) ? '#92400E' : '#0B6E76', fontWeight:700, fontSize:'.875rem', padding:'3px 10px', borderRadius:99 }}>{rows.length}</span>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>✓ No outstanding recalls</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+          {rows.map(r => {
+            const overdue = r.recall_date < today
+            const due = r.recall_date === today
+            return (
+              <div key={r.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.75rem 1rem', background: overdue ? '#FEF2F2' : due ? '#FFFBEB' : '#F8FAFC', borderRadius:8, border:`1px solid ${overdue ? '#FECACA' : due ? '#FDE68A' : '#E2E8F0'}`, gap:'1rem', flexWrap:'wrap' }}>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:'.9rem', color:'#0D2B45' }}>{r.patient_first_name} {r.patient_last_name}</div>
+                  <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>
+                    {overdue ? '⚠ Overdue — ' : due ? '● Due today — ' : ''}{new Date(r.recall_date).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' })}
+                    {r.recall_note && ` · ${r.recall_note}`}
+                  </div>
+                  {r.patient_phone && <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>{r.patient_phone}</div>}
+                </div>
+                <button onClick={() => markDone(r.id)} style={{ background:'#F0FDF4', color:'#059669', border:'1px solid #BBF7D0', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>Mark done</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RevenuePanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+        const { data } = await supabase
+          .from('consultations')
+          .select('created_at, payment_amount_nzd, payment_amount, acc_eligible, status')
+          .gte('created_at', thirtyDaysAgo)
+          .eq('status', 'complete')
+          .order('created_at', { ascending: false })
+        setRows(data || [])
+      } catch { setRows([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+
+  const total = rows.reduce((s, r) => s + (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)), 0)
+  const accCount = rows.filter(r => r.acc_eligible === 'yes').length
+  const privateCount = rows.length - accCount
+
+  return (
+    <div style={card}>
+      <div style={{ marginBottom:'1.25rem' }}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Revenue — last 30 days</div>
+        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Completed consultations with captured payments</div>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : (
+        <>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
+            {[
+              ['Total revenue', `$${total.toFixed(2)}`, '#059669'],
+              ['Private consults', privateCount, '#0B6E76'],
+              ['ACC consults', accCount, '#1D4ED8'],
+            ].map(([label, value, color]) => (
+              <div key={label} style={{ background:'#F8FAFC', borderRadius:8, padding:'.875rem', textAlign:'center' }}>
+                <div style={{ fontSize:'1.25rem', fontWeight:700, color }}>{value}</div>
+                <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          {rows.length > 0 && (
+            <button onClick={() => {
+              const csv = ['Date,Type,Amount NZD', ...rows.map(r => [
+                new Date(r.created_at).toLocaleDateString('en-NZ'),
+                r.acc_eligible === 'yes' ? 'ACC' : 'Private',
+                (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)).toFixed(2),
+              ].join(','))].join('\n')
+              const a = document.createElement('a')
+              a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+              a.download = `revenue-${new Date().toISOString().slice(0,10)}.csv`
+              a.click()
+            }} style={{ background:'#F0F9FA', color:'#0B6E76', border:'1px solid #0B6E76', padding:'7px 14px', borderRadius:8, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+              ↓ Export CSV
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function AuditLogPanel() {
+  const [logs, setLogs] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/audit?limit=50', { headers: { 'x-tere-api-key': import.meta.env.VITE_TERE_API_KEY || '' } })
+        const { logs } = await res.json()
+        setLogs(logs || [])
+      } catch { setLogs([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const EVENT_COLOR = { view_notes:'#0B6E76', finalise_notes:'#059669', prescribe:'#7C3AED', login:'#6B7280', payment:'#D97706' }
+
+  return (
+    <div style={card}>
+      <div style={{ marginBottom:'1.25rem' }}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Audit log</div>
+        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Recent provider activity (last 50 events)</div>
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : logs.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No audit events yet</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+          {logs.map(l => (
+            <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.5rem .75rem', borderRadius:6, background:'#FAFAFA', fontSize:'.8125rem' }}>
+              <span style={{ fontWeight:700, color: EVENT_COLOR[l.event_type] || '#9CA3AF', minWidth:120, flexShrink:0 }}>{l.event_type}</span>
+              <span style={{ color:'#374151', flex:1 }}>{l.provider_name || '—'}</span>
+              <span style={{ color:'#9CA3AF', whiteSpace:'nowrap' }}>{new Date(l.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AdminBody() {
   const navigate = useNavigate()
   const [adminTab, setAdminTab] = useState('overview')
@@ -1345,6 +1620,12 @@ function AdminBody() {
         {/* Providers */}
         <ProvidersPanel />
 
+        {/* Upcoming appointments */}
+        <AppointmentsPanel />
+
+        {/* Patient recalls */}
+        <RecallsPanel />
+
         {/* Pending approvals */}
         <PendingApprovalsPanel />
 
@@ -1357,6 +1638,9 @@ function AdminBody() {
         {/* Analytics */}
         <AnalyticsPanel />
 
+        {/* Revenue */}
+        <RevenuePanel />
+
         {/* Consultation Log */}
         <ConsultationLog />
 
@@ -1365,6 +1649,9 @@ function AdminBody() {
 
         {/* Flagged Notes */}
         <FlaggedNotes />
+
+        {/* Audit log */}
+        <AuditLogPanel />
 
         {/* Waitlist */}
 
