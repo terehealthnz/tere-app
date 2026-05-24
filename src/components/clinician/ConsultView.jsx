@@ -6,6 +6,7 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import HpiSearch from '../HpiSearch'
+import ClinicalTools from './ClinicalTools'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
@@ -76,9 +77,34 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  const [interactions, setInteractions] = useState(null)
+  const [checkingInteractions, setCheckingInteractions] = useState(false)
+  const [interactionOverride, setInteractionOverride] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
   const providerId = sessionStorage.getItem('providerId')
+
+  async function checkDrugInteractions(drugName) {
+    if (!drugName || !consult?.medications) return
+    setCheckingInteractions(true)
+    setInteractions(null)
+    try {
+      const res = await apiFetch('/api/drug-interactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          drug: drugName,
+          patientMedications: consult.medications,
+          consultationId: consult.id,
+          providerId,
+        }),
+      })
+      const data = await res.json()
+      if (!data.error) setInteractions(data)
+    } catch {}
+    setCheckingInteractions(false)
+  }
 
   useEffect(() => {
     if (!open || !providerId) return
@@ -172,7 +198,38 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
         <div className="form-group">
           <label>Medication</label>
-          <input value={rx.drug} onChange={e=>setRx(r=>({...r,drug:e.target.value}))} required placeholder="e.g. Ibuprofen 400mg tablets" />
+          <input value={rx.drug} onChange={e=>setRx(r=>({...r,drug:e.target.value}))} onBlur={e=>checkDrugInteractions(e.target.value)} required placeholder="e.g. Ibuprofen 400mg tablets" />
+          {checkingInteractions && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:3}}>Checking interactions…</div>}
+          {interactions && interactions.interactions?.length > 0 && (
+            <div style={{marginTop:'.5rem',borderRadius:8,border:`1.5px solid ${interactions.maxSeverity==='major'?'#DC2626':interactions.maxSeverity==='moderate'?'#D97706':'#E2E8F0'}`,padding:'.75rem',background:interactions.maxSeverity==='major'?'#FEF2F2':interactions.maxSeverity==='moderate'?'#FFFBEB':'#F8FAFC'}}>
+              <div style={{fontWeight:700,fontSize:'.8125rem',color:interactions.maxSeverity==='major'?'#DC2626':interactions.maxSeverity==='moderate'?'#D97706':'#374151',marginBottom:'.375rem'}}>
+                {interactions.maxSeverity==='major'?'⛔ Major interaction detected':interactions.maxSeverity==='moderate'?'⚠ Moderate interaction':'ℹ Minor interaction'}
+              </div>
+              {interactions.interactions.map((ix,i)=>(
+                <div key={i} style={{fontSize:'.75rem',color:'#374151',marginBottom:3}}>
+                  <strong>{ix.drug1} + {ix.drug2}:</strong> {ix.description}
+                </div>
+              ))}
+              {interactions.maxSeverity==='major' && !interactionOverride && (
+                <div style={{marginTop:'.5rem'}}>
+                  <div style={{fontSize:'.75rem',color:'#DC2626',marginBottom:4,fontWeight:600}}>Major interaction — document reason to proceed</div>
+                  <input value={overrideReason} onChange={e=>setOverrideReason(e.target.value)} placeholder="Clinical reason for prescribing despite interaction…"
+                    style={{width:'100%',boxSizing:'border-box',padding:'6px 8px',border:'1.5px solid #FECACA',borderRadius:6,fontSize:'.8125rem',fontFamily:'Plus Jakarta Sans, sans-serif'}} />
+                  <button onClick={()=>{if(overrideReason.trim()){setInteractionOverride(true);apiFetch('/api/drug-interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({drug:rx.drug,patientMedications:consult?.medications,consultationId:consult?.id,providerId,override:true,overrideReason})})}}}
+                    disabled={!overrideReason.trim()}
+                    style={{marginTop:'.375rem',background:'#DC2626',color:'white',border:'none',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontSize:'.75rem',fontWeight:700,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+                    Override — proceed with prescription
+                  </button>
+                </div>
+              )}
+              {interactions.maxSeverity==='major' && interactionOverride && (
+                <div style={{fontSize:'.75rem',color:'#059669',marginTop:4,fontWeight:600}}>✓ Override documented</div>
+              )}
+            </div>
+          )}
+          {interactions && interactions.interactions?.length === 0 && (
+            <div style={{fontSize:'.75rem',color:'#059669',marginTop:3}}>✓ No known interactions with current medications</div>
+          )}
         </div>
         <div className="form-group">
           <label>Dose</label>
@@ -225,7 +282,8 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
         )}
         <div className="modal-footer">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending}>Cancel</button>
-          <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={sending}>
+          <button type="submit" className="btn btn-primary" style={{flex:1}}
+            disabled={sending || (interactions?.maxSeverity==='major' && !interactionOverride)}>
             {sending ? 'Sending…' : canPrescribe ? 'Send to pharmacy' : 'Submit for approval'}
           </button>
         </div>
@@ -496,6 +554,12 @@ export default function ConsultView() {
   const [lkToken, setLkToken] = useState(null)
   const [lkUrl, setLkUrl] = useState(null)
   const [supervisorLinkCopied, setSupervisorLinkCopied] = useState(false)
+  const [showClinicalTools, setShowClinicalTools] = useState(false)
+  const [patientFlags, setPatientFlags] = useState([])
+  const [showIncidentModal, setShowIncidentModal] = useState(false)
+  const [incidentForm, setIncidentForm] = useState({ incident_type:'Clinical', severity:'low', description:'', immediate_actions:'', contributing_factors:'' })
+  const [submittingIncident, setSubmittingIncident] = useState(false)
+  const [incidentDone, setIncidentDone] = useState(false)
   const recorderRef = useRef(null)
 
   useEffect(() => {
@@ -534,6 +598,11 @@ export default function ConsultView() {
 
         if (data?.vitals) {
           setNotes(n => ({...n, O: `Vitals (Tere rPPG): HR ${data.vitals.hr||'—'} bpm, RR ${data.vitals.rr||'—'} br/min${data.vitals.spo2?`, SpO₂ ${data.vitals.spo2}%`:''}${data.vitals.bp?`, BP ${data.vitals.bp}`:''}. `}))
+        }
+        // Load patient flags if NHI available
+        if (data?.patient_nhi) {
+          apiFetch(`/api/patient-flags?patient_nhi=${data.patient_nhi}`)
+            .then(r => r.json()).then(d => setPatientFlags(d.flags || [])).catch(() => {})
         }
       } catch {
         // Demo mode
@@ -614,6 +683,24 @@ export default function ConsultView() {
     setActions(a => [...a, action])
   }
 
+  async function submitIncident() {
+    setSubmittingIncident(true)
+    try {
+      await apiFetch('/api/incidents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...incidentForm,
+          consultation_id: id,
+          provider_id: sessionStorage.getItem('providerId'),
+          provider_name: sessionStorage.getItem('providerDisplayName'),
+          patient_nhi: consult?.patient_nhi,
+        }),
+      })
+      setIncidentDone(true)
+    } catch {}
+    setSubmittingIncident(false)
+  }
+
   async function endConsult() {
     const durationSec = consult.started_at
       ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null
@@ -651,6 +738,14 @@ export default function ConsultView() {
                 title="Copy supervisor join link"
                 style={{background:'rgba(255,255,255,.12)',border:'none',color:'rgba(255,255,255,.75)',padding:'4px 8px',borderRadius:'6px',cursor:'pointer',fontSize:'.75rem',whiteSpace:'nowrap'}}>
                 {supervisorLinkCopied ? '✓ Copied' : '👥 Supervise'}
+              </button>
+              <button onClick={() => setShowClinicalTools(true)} title="Clinical decision tools"
+                style={{background:'rgba(255,255,255,.12)',border:'none',color:'rgba(255,255,255,.75)',padding:'4px 8px',borderRadius:'6px',cursor:'pointer',fontSize:'.75rem',whiteSpace:'nowrap'}}>
+                🔬 Tools
+              </button>
+              <button onClick={() => setShowIncidentModal(true)} title="Report incident"
+                style={{background:'rgba(220,38,38,.25)',border:'none',color:'rgba(255,180,180,.9)',padding:'4px 8px',borderRadius:'6px',cursor:'pointer',fontSize:'.75rem',whiteSpace:'nowrap'}}>
+                ⚠ Incident
               </button>
               <button onClick={() => navigate('/clinician/dashboard')}
                 style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'4px 10px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
@@ -695,6 +790,19 @@ export default function ConsultView() {
           ))}
         </div>
 
+        {/* Patient flags banner */}
+        {patientFlags.length > 0 && (
+          <div style={{background:'#FEF2F2',borderBottom:'2px solid #DC2626',padding:'.5rem 1rem',flexShrink:0}}>
+            <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'#DC2626',marginBottom:'.25rem'}}>Patient flags</div>
+            {patientFlags.map((f,i) => (
+              <div key={i} style={{fontSize:'.8125rem',color:'#7F1D1D',display:'flex',gap:'.375rem',alignItems:'flex-start',marginBottom:2}}>
+                <span style={{color:'#DC2626',fontWeight:700}}>⚑</span>
+                <span><strong>{f.flag_type}:</strong> {f.description}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Tab content */}
         <div style={{flex:1,overflowY:'auto',padding:'1rem'}}>
           {tab === 'vitals' && (
@@ -721,6 +829,7 @@ export default function ConsultView() {
                   ['ACC', consult.acc_eligible === 'yes' ? '✓ Eligible' : 'Not eligible'],
                   ['Employer', consult.acc_employer],
                   ['Allergies', consult.patient_allergies || 'None documented'],
+                  ['Interpreter', consult.interpreter_requested ? '🌐 Requested' : null],
                 ].filter(([,v]) => v).map(([k,v]) => (
                   <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--border)',fontSize:'.8125rem'}}>
                     <span style={{color:'var(--muted)'}}>{k}</span>
@@ -926,6 +1035,86 @@ export default function ConsultView() {
       <PrescribeModal open={modals.rx} onClose={() => setModals(m=>({...m,rx:false}))} consult={consult} onDone={addAction} />
       <XrayModal open={modals.xr} onClose={() => setModals(m=>({...m,xr:false}))} consult={consult} onDone={addAction} />
       <ACCModal open={modals.acc} onClose={() => setModals(m=>({...m,acc:false}))} consult={consult} onDone={addAction} />
+
+      {/* Clinical tools modal */}
+      {showClinicalTools && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowClinicalTools(false)}>
+          <div className="modal" style={{maxWidth:520,width:'100%',maxHeight:'90vh',overflowY:'auto'}}>
+            <div className="modal-header">
+              <h3 className="modal-title">🔬 Clinical Decision Tools</h3>
+              <button className="modal-close" onClick={() => setShowClinicalTools(false)}>✕</button>
+            </div>
+            <ClinicalTools
+              onAddToMdm={(result) => {
+                setNotes(n => ({ ...n, A: (n.A ? n.A + '\n' : '') + result }))
+                setShowClinicalTools(false)
+              }}
+              onClose={() => setShowClinicalTools(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Incident report modal */}
+      <Modal open={showIncidentModal} onClose={() => { setShowIncidentModal(false); setIncidentDone(false) }} title="⚠ Report Incident">
+        {incidentDone ? (
+          <div>
+            <div className="alert alert-success" style={{marginBottom:'1rem'}}>
+              <strong>Incident reported.</strong> Management have been notified. Ref: {new Date().getTime().toString(36).toUpperCase()}
+            </div>
+            <button className="btn btn-secondary btn-full" onClick={() => { setShowIncidentModal(false); setIncidentDone(false) }}>Close</button>
+          </div>
+        ) : (
+          <div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Incident type</label>
+                <select value={incidentForm.incident_type} onChange={e => setIncidentForm(f=>({...f,incident_type:e.target.value}))}
+                  style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem'}}>
+                  <option>Clinical</option><option>Medication</option><option>Falls</option><option>Equipment</option><option>Privacy / Data</option><option>Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Severity</label>
+                <select value={incidentForm.severity} onChange={e => setIncidentForm(f=>({...f,severity:e.target.value}))}
+                  style={{width:'100%',padding:'.5rem .75rem',border:`1.5px solid ${incidentForm.severity==='critical'||incidentForm.severity==='high'?'#DC2626':'var(--border)'}`,borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',background:incidentForm.severity==='critical'?'#FEF2F2':incidentForm.severity==='high'?'#FFF7ED':'white'}}>
+                  <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+                </select>
+              </div>
+            </div>
+            {(incidentForm.severity === 'high' || incidentForm.severity === 'critical') && (
+              <div className="alert" style={{background:'#FEF2F2',borderColor:'#DC2626',color:'#7F1D1D',fontSize:'.8125rem',marginBottom:'1rem'}}>
+                ⛔ High/critical incidents are immediately escalated to management and the clinical lead.
+              </div>
+            )}
+            <div className="form-group">
+              <label>Description</label>
+              <textarea value={incidentForm.description} onChange={e => setIncidentForm(f=>({...f,description:e.target.value}))}
+                rows={3} placeholder="Describe what happened…"
+                style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'.625rem .75rem',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',resize:'vertical',lineHeight:1.6}} />
+            </div>
+            <div className="form-group">
+              <label>Immediate actions taken</label>
+              <textarea value={incidentForm.immediate_actions} onChange={e => setIncidentForm(f=>({...f,immediate_actions:e.target.value}))}
+                rows={2} placeholder="What was done immediately after the incident…"
+                style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'.625rem .75rem',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',resize:'vertical',lineHeight:1.6}} />
+            </div>
+            <div className="form-group">
+              <label>Contributing factors <span style={{color:'var(--muted)',fontWeight:400}}>(optional)</span></label>
+              <textarea value={incidentForm.contributing_factors} onChange={e => setIncidentForm(f=>({...f,contributing_factors:e.target.value}))}
+                rows={2} placeholder="System, environmental, or human factors…"
+                style={{width:'100%',border:'1.5px solid var(--border)',borderRadius:8,padding:'.625rem .75rem',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',resize:'vertical',lineHeight:1.6}} />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowIncidentModal(false)} disabled={submittingIncident}>Cancel</button>
+              <button className="btn btn-primary" style={{flex:1,background:'#DC2626',borderColor:'#DC2626'}}
+                onClick={submitIncident} disabled={submittingIncident || !incidentForm.description.trim()}>
+                {submittingIncident ? 'Submitting…' : 'Submit incident report'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>

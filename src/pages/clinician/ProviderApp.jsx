@@ -107,6 +107,7 @@ function QueueCard({ c, onStart, onDismiss, starting }) {
             <span style={{ background:sc+'18', color:sc, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{sl}</span>
             <span style={{ background:tc.c+'18', color:tc.c, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{tc.icon} {tc.label}</span>
             {c.acc_eligible==='yes' && <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>✓ ACC</span>}
+            {c.interpreter_requested && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>🌐 Interpreter</span>}
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -178,6 +179,52 @@ function TodayAppointments() {
   )
 }
 
+// ── Handover notes banner ─────────────────────────────────────────────────────
+
+function HandoverBanner() {
+  const [notes, setNotes] = useState([])
+  const [dismissed, setDismissed] = useState([])
+
+  useEffect(() => {
+    apiFetch('/api/handover?action=get')
+      .then(r => r.json())
+      .then(d => setNotes(d.notes || []))
+      .catch(() => {})
+  }, [])
+
+  async function acknowledge(noteId) {
+    const pid = sessionStorage.getItem('providerId')
+    await apiFetch('/api/handover', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'acknowledge', id: noteId, providerId: pid })
+    }).catch(() => {})
+    setDismissed(d => [...d, noteId])
+  }
+
+  const visible = notes.filter(n => !dismissed.includes(n.id))
+  if (!visible.length) return null
+
+  return (
+    <div style={{ margin:'1rem 1rem 0', borderRadius:12, overflow:'hidden', border:'1px solid #FDE68A' }}>
+      <div style={{ background:'#FEF3C7', padding:'.5rem .875rem', display:'flex', alignItems:'center', gap:'.5rem' }}>
+        <span style={{ fontSize:'.75rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#92400E' }}>📋 Handover notes</span>
+      </div>
+      {visible.map(n => (
+        <div key={n.id} style={{ background:'white', borderTop:'1px solid #FDE68A', padding:'.75rem .875rem', display:'flex', alignItems:'flex-start', gap:'.75rem' }}>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:'.75rem', color:'#92400E', fontWeight:600, marginBottom:2 }}>{n.provider_name} · {new Date(n.created_at).toLocaleTimeString('en-NZ',{hour:'2-digit',minute:'2-digit'})}</div>
+            <div style={{ fontSize:'.875rem', color:'#374151', lineHeight:1.5 }}>{n.content}</div>
+          </div>
+          <button onClick={() => acknowledge(n.id)}
+            style={{ background:'#FEF3C7', border:'1px solid #FDE68A', color:'#92400E', borderRadius:8, padding:'4px 8px', fontSize:'.75rem', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', flexShrink:0 }}>
+            Acknowledged ✓
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Queue tab ─────────────────────────────────────────────────────────────────
 
 function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
@@ -185,6 +232,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
   if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
   if (!videoQueue.length) return (
     <>
+      <HandoverBanner />
       <TodayAppointments />
       <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
         <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✓</div>
@@ -195,6 +243,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
   )
   return (
     <div>
+      <HandoverBanner />
       <TodayAppointments />
       <div style={{ padding:'1rem' }}>
         {videoQueue.map(c => <QueueCard key={c.id} c={c} onStart={onStart} onDismiss={onDismiss} starting={starting} />)}

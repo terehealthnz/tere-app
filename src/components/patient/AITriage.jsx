@@ -2,8 +2,23 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
 import TereIntro from './TereIntro'
+import HDCRightsGate from './HDCRightsGate'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
+
+// ── Anonymous analytics helper ─────────────────────────────────────────────────
+function trackEvent(event_name, metadata = {}) {
+  let sessionId = sessionStorage.getItem('tere_session_id')
+  if (!sessionId) {
+    sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36)
+    sessionStorage.setItem('tere_session_id', sessionId)
+  }
+  apiFetch('/api/analytics-events', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_name, session_id: sessionId, metadata }),
+  }).catch(() => {})
+}
 
 const PHYSICAL_EMERGENCY_KEYWORDS = [
   'chest pain','chest tightness','cant breathe','cannot breathe','difficulty breathing',
@@ -67,7 +82,8 @@ const STEPS = [
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'photo' },
+  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'interpreter' },
+  { id:'interpreter', message:"Would you like a professional interpreter on your call? (recommended if English is not your first language)", field:'interpreter_raw', type:'yesno', next:'photo' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'photo' },
@@ -128,6 +144,7 @@ export default function AITriage() {
   const [waitingForPhoto, setWaitingForPhoto] = useState(false)
   const [clinicOpen, setClinicOpen] = useState(null)
   const [showIntro, setShowIntro] = useState(true)
+  const [showHdcRights, setShowHdcRights] = useState(false)
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
   const inputRef = useRef(null)
@@ -137,6 +154,9 @@ export default function AITriage() {
   useEffect(() => {
     if (done) handleConfirm()
   }, [done])
+
+  // Track triage_started when first message is sent
+  const hasTrackedStart = useRef(false)
 
   useEffect(() => {
     async function init() {
@@ -278,9 +298,21 @@ export default function AITriage() {
       return
     }
 
-    // Route allergies to ACC questions or photo based on complaint detection
+    // Route allergies to ACC questions or interpreter step based on complaint detection
     if (step.id === 'allergies') {
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'photo', newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'interpreter', newData)
+      return
+    }
+
+    // After interpreter question, go to photo
+    if (step.id === 'interpreter') {
+      advanceToStep('photo', newData)
+      return
+    }
+
+    // After acc_employer, go to interpreter
+    if (step.id === 'acc_employer') {
+      advanceToStep('interpreter', newData)
       return
     }
 
@@ -316,6 +348,10 @@ export default function AITriage() {
     if (!input.trim()) return
     const value = input.trim()
     setInput('')
+    if (!hasTrackedStart.current) {
+      hasTrackedStart.current = true
+      trackEvent('triage_started', { lang })
+    }
     await handleSendValue(value)
     inputRef.current?.focus()
   }
@@ -339,6 +375,7 @@ export default function AITriage() {
 
   const handleConfirm = async () => {
     setSaving(true)
+    trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
       const { getAvailability } = await import('../../lib/supabase')
@@ -369,9 +406,21 @@ export default function AITriage() {
         gpName: data.gp_name || '',
         gpEmail: data.gp_email || '',
         gpClinic: '',
+        interpreterRequested: data.interpreter_raw==='yes',
+        hdcRightsAccepted: true,
         status: av.is_open ? 'waiting' : 'waitlisted',
       })
       sessionStorage.setItem('consultationId', consultation.id)
+
+      // Log consent events
+      const patientName = `${nameParts[0]} ${nameParts.slice(1).join(' ')}`.trim()
+      const consentBase = { consultation_id: consultation.id, patient_name: patientName }
+      await Promise.allSettled([
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'hdc_code_of_rights', granted:true }) }),
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'recording_consent', granted: data.recording_consent_raw==='yes' }) }),
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'privacy_policy', granted:true }) }),
+        ...(data.is_acc_raw==='yes' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'acc_three_part_consent', granted:true }) })] : []),
+      ])
       sessionStorage.setItem('accEligible', data.is_acc_raw==='yes'?'yes':'no')
       sessionStorage.setItem('triage_complaint', data.chief_complaint||'')
       sessionStorage.setItem('triage_returning', data.returning ? 'true' : 'false')
@@ -388,7 +437,8 @@ export default function AITriage() {
 
   const step = STEPS[currentStep]
 
-  if (showIntro) return <TereIntro onStart={() => setShowIntro(false)} />
+  if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowHdcRights(true); trackEvent('intro_viewed', { lang }) }} />
+  if (showHdcRights) return <HDCRightsGate onAccepted={() => setShowHdcRights(false)} lang={lang} patientName={data?.patient_name} />
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>

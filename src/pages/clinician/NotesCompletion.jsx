@@ -652,6 +652,31 @@ export default function NotesCompletion() {
         }).then(() => setGpSent(true)).catch(e => console.error('Discharge letter error:', e))
       }
 
+      // Generate shareable consultation summary token for patient
+      if (consult.patient_email) {
+        apiFetch('/api/consultation-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultationId: id }),
+        }).then(r => r.json()).then(d => {
+          if (d.token) {
+            const summaryUrl = `${window.location.origin}/my-consultation/${d.token}`
+            apiFetch('/api/send-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: consult.patient_email,
+                name: `${consult.patient_first_name} ${consult.patient_last_name}`,
+                subject: 'Your consultation summary — Tere Health',
+                summaryUrl,
+                isSummaryLink: true,
+                consultationId: id,
+              }),
+            }).catch(() => {})
+          }
+        }).catch(() => {})
+      }
+
       navigate('/clinician/dashboard')
     } catch (e) { console.error(e); setFinalising(false) }
   }

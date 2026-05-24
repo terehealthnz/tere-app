@@ -1459,6 +1459,312 @@ function AuditLogPanel() {
   )
 }
 
+function ComplaintsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [form, setForm] = React.useState({ patient_name:'', complaint_type:'Clinical', description:'', status:'open' })
+  const [saving, setSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
+  React.useEffect(() => {
+    apiFetch('/api/complaints').then(r=>r.json()).then(d=>setRows(d.complaints||[])).catch(()=>{}).finally(()=>setLoading(false))
+  }, [])
+
+  async function addComplaint() {
+    if (!form.description.trim()) return
+    setSaving(true)
+    try {
+      const res = await apiFetch('/api/complaints', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(form) })
+      const d = await res.json()
+      if (d.complaint) setRows(r=>[d.complaint,...r])
+      setForm({ patient_name:'', complaint_type:'Clinical', description:'', status:'open' })
+      setSaved(true); setTimeout(()=>setSaved(false),2500)
+    } catch {} finally { setSaving(false) }
+  }
+
+  async function updateStatus(id, status) {
+    try {
+      await apiFetch('/api/complaints', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, status }) })
+      setRows(r=>r.map(c=>c.id===id?{...c,status}:c))
+    } catch {}
+  }
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const inp  = { width:'100%', padding:'.625rem .875rem', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.875rem', boxSizing:'border-box', outline:'none' }
+
+  return (
+    <div>
+      <div style={card}>
+        <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'.25rem'}}>Log a complaint</div>
+        <div style={{fontSize:'.875rem',color:'#6B7280',marginBottom:'1rem'}}>Record patient complaints under the HDC Code of Rights</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.75rem',marginBottom:'.75rem'}}>
+          <div>
+            <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Patient name</label>
+            <input style={inp} value={form.patient_name} onChange={e=>setForm(f=>({...f,patient_name:e.target.value}))} placeholder="e.g. John Smith" />
+          </div>
+          <div>
+            <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Type</label>
+            <select style={{...inp,cursor:'pointer'}} value={form.complaint_type} onChange={e=>setForm(f=>({...f,complaint_type:e.target.value}))}>
+              <option>Clinical</option><option>Communication</option><option>Privacy</option><option>Access</option><option>Billing</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div style={{marginBottom:'.75rem'}}>
+          <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Description</label>
+          <textarea style={{...inp,resize:'vertical',minHeight:72}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What happened…" />
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={addComplaint} disabled={saving||!form.description.trim()}
+            style={{background:'#0B6E76',color:'white',border:'none',padding:'9px 18px',borderRadius:8,fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            {saving?'Saving…':'Log complaint'}
+          </button>
+          {saved && <span style={{fontSize:'.8125rem',color:'#059669',fontWeight:600}}>✓ Logged</span>}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'1rem'}}>Complaints register</div>
+        {loading ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>Loading…</div>
+        : rows.length===0 ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>No complaints logged</div>
+        : rows.map(c=>(
+          <div key={c.id} style={{borderRadius:8,border:'1px solid #E2E8F0',padding:'.875rem 1rem',marginBottom:'.5rem',background:c.status==='resolved'?'#F0FDF4':'white'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'.375rem'}}>
+              <div style={{fontWeight:600,color:'#0D2B45',fontSize:'.9375rem'}}>{c.patient_name||'Anonymous'} <span style={{fontSize:'.75rem',fontWeight:400,color:'#6B7280'}}>· {c.complaint_type}</span></div>
+              <span style={{fontSize:'.6875rem',fontWeight:700,padding:'2px 8px',borderRadius:99,background:c.status==='resolved'?'#D1FAE5':c.status==='investigating'?'#FEF3C7':'#FEE2E2',color:c.status==='resolved'?'#065F46':c.status==='investigating'?'#92400E':'#991B1B'}}>{c.status}</span>
+            </div>
+            <div style={{fontSize:'.875rem',color:'#374151',lineHeight:1.5,marginBottom:'.5rem'}}>{c.description}</div>
+            <div style={{fontSize:'.75rem',color:'#9CA3AF',marginBottom:'.5rem'}}>{new Date(c.created_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'})}</div>
+            {c.status !== 'resolved' && (
+              <div style={{display:'flex',gap:'.5rem'}}>
+                {c.status==='open' && <button onClick={()=>updateStatus(c.id,'investigating')} style={{background:'#FEF3C7',border:'none',color:'#92400E',padding:'4px 10px',borderRadius:6,fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>Investigating</button>}
+                <button onClick={()=>updateStatus(c.id,'resolved')} style={{background:'#D1FAE5',border:'none',color:'#065F46',padding:'4px 10px',borderRadius:6,fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>Resolve</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function BreachPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [form, setForm] = React.useState({ description:'', affected_count:1, data_types:'', severity:'medium' })
+  const [saving, setSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+
+  React.useEffect(() => {
+    apiFetch('/api/breach').then(r=>r.json()).then(d=>setRows(d.breaches||[])).catch(()=>{}).finally(()=>setLoading(false))
+  }, [])
+
+  async function logBreach() {
+    if (!form.description.trim()) return
+    setSaving(true)
+    try {
+      const res = await apiFetch('/api/breach', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(form) })
+      const d = await res.json()
+      if (d.breach) setRows(r=>[d.breach,...r])
+      setForm({ description:'', affected_count:1, data_types:'', severity:'medium' })
+      setSaved(true); setTimeout(()=>setSaved(false),2500)
+    } catch {} finally { setSaving(false) }
+  }
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const inp  = { width:'100%', padding:'.625rem .875rem', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.875rem', boxSizing:'border-box', outline:'none' }
+
+  const OBLIGATIONS = [
+    'Notify affected individuals within 72 hours of discovery',
+    'Notify Office of the Privacy Commissioner (OPC) if harm likely',
+    'Notify Health and Disability Commissioner if health data involved',
+    'Preserve logs and evidence — do not delete',
+    'Document all notifications sent and dates',
+    'Review and remediate the cause of the breach',
+  ]
+
+  return (
+    <div>
+      <div style={{...card, borderColor:'#FECACA', background:'#FEF2F2'}}>
+        <div style={{fontSize:'.875rem',fontWeight:700,color:'#991B1B',marginBottom:'.75rem'}}>⛔ NZ Privacy Act 2020 — Reporting obligations</div>
+        {OBLIGATIONS.map((o,i)=>(
+          <div key={i} style={{display:'flex',gap:'.5rem',alignItems:'flex-start',marginBottom:'.375rem',fontSize:'.8125rem',color:'#7F1D1D'}}>
+            <span style={{fontWeight:700,flexShrink:0}}>{i+1}.</span><span>{o}</span>
+          </div>
+        ))}
+        <div style={{marginTop:'.75rem',fontSize:'.75rem',color:'#9CA3AF'}}>
+          OPC: <strong>privacy.org.nz</strong> or 0800 803 909 · HDC: <strong>hdc.org.nz</strong> or 0800 11 22 33
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'.25rem'}}>Log a breach</div>
+        <div style={{fontSize:'.875rem',color:'#6B7280',marginBottom:'1rem'}}>Logging triggers an immediate alert to clinic management</div>
+        <div style={{marginBottom:'.75rem'}}>
+          <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Description of the breach</label>
+          <textarea style={{...inp,resize:'vertical',minHeight:72}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What data was accessed, when, by whom…" />
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.75rem',marginBottom:'.75rem'}}>
+          <div>
+            <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Severity</label>
+            <select style={{...inp,cursor:'pointer',borderColor:form.severity==='critical'?'#DC2626':form.severity==='high'?'#D97706':'#E2E8F0'}} value={form.severity} onChange={e=>setForm(f=>({...f,severity:e.target.value}))}>
+              <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option>
+            </select>
+          </div>
+          <div>
+            <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Affected individuals</label>
+            <input type="number" min="1" style={inp} value={form.affected_count} onChange={e=>setForm(f=>({...f,affected_count:parseInt(e.target.value)||1}))} />
+          </div>
+          <div>
+            <label style={{fontSize:'.8125rem',fontWeight:600,color:'#374151',display:'block',marginBottom:3}}>Data types involved</label>
+            <input style={inp} value={form.data_types} onChange={e=>setForm(f=>({...f,data_types:e.target.value}))} placeholder="e.g. NHI, clinical notes" />
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button onClick={logBreach} disabled={saving||!form.description.trim()}
+            style={{background:'#DC2626',color:'white',border:'none',padding:'9px 18px',borderRadius:8,fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            {saving?'Logging…':'Log breach — alerts management'}
+          </button>
+          {saved && <span style={{fontSize:'.8125rem',color:'#059669',fontWeight:600}}>✓ Logged + admins alerted</span>}
+        </div>
+      </div>
+
+      <div style={card}>
+        <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'1rem'}}>Breach register</div>
+        {loading ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>Loading…</div>
+        : rows.length===0 ? <div style={{textAlign:'center',padding:'1.5rem',color:'#059669'}}>✓ No breaches on record</div>
+        : rows.map(b=>(
+          <div key={b.id} style={{borderRadius:8,border:'1px solid #FECACA',padding:'.875rem 1rem',marginBottom:'.5rem',background:'#FEF2F2'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'.375rem'}}>
+              <span style={{fontWeight:600,color:'#991B1B',fontSize:'.9375rem'}}>{b.severity?.toUpperCase()} — {b.affected_count} affected</span>
+              <span style={{fontSize:'.75rem',color:'#9CA3AF'}}>{new Date(b.created_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'})}</span>
+            </div>
+            <div style={{fontSize:'.875rem',color:'#374151',lineHeight:1.5}}>{b.description}</div>
+            {b.data_types && <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:4}}>Data: {b.data_types}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function IncidentsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    apiFetch('/api/incidents').then(r=>r.json()).then(d=>setRows(d.incidents||[])).catch(()=>{}).finally(()=>setLoading(false))
+  }, [])
+
+  async function updateStatus(id, status) {
+    try {
+      await apiFetch('/api/incidents', { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id, status }) })
+      setRows(r=>r.map(i=>i.id===id?{...i,status}:i))
+    } catch {}
+  }
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const SEV_COLOR = { critical:'#DC2626', high:'#D97706', medium:'#0B6E76', low:'#6B7280' }
+
+  return (
+    <div style={card}>
+      <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'1rem'}}>Incident register</div>
+      {loading ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>Loading…</div>
+      : rows.length===0 ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>No incidents reported</div>
+      : rows.map(i=>(
+        <div key={i.id} style={{borderRadius:8,border:`1px solid ${SEV_COLOR[i.severity]||'#E2E8F0'}20`,borderLeft:`4px solid ${SEV_COLOR[i.severity]||'#E2E8F0'}`,padding:'.875rem 1rem',marginBottom:'.5rem',background:i.status==='resolved'?'#F0FDF4':'white'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'.375rem'}}>
+            <div>
+              <span style={{fontWeight:700,color:SEV_COLOR[i.severity]||'#374151',fontSize:'.8125rem',textTransform:'uppercase'}}>{i.severity}</span>
+              <span style={{color:'#6B7280',fontSize:'.8125rem'}}> · {i.incident_type} · {i.provider_name||'Unknown'}</span>
+            </div>
+            <span style={{fontSize:'.75rem',color:'#9CA3AF'}}>{new Date(i.created_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>
+          </div>
+          <div style={{fontSize:'.875rem',color:'#374151',lineHeight:1.5,marginBottom:'.375rem'}}>{i.description}</div>
+          {i.immediate_actions && <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.375rem'}}><strong>Actions:</strong> {i.immediate_actions}</div>}
+          <div style={{display:'flex',gap:'.5rem',marginTop:'.5rem'}}>
+            <span style={{fontSize:'.6875rem',fontWeight:700,padding:'2px 8px',borderRadius:99,background:i.status==='resolved'?'#D1FAE5':i.status==='investigating'?'#FEF3C7':'#FEE2E2',color:i.status==='resolved'?'#065F46':i.status==='investigating'?'#92400E':'#991B1B'}}>{i.status}</span>
+            {i.status==='open' && <button onClick={()=>updateStatus(i.id,'investigating')} style={{background:'#FEF3C7',border:'none',color:'#92400E',padding:'2px 8px',borderRadius:6,fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>Investigate</button>}
+            {i.status!=='resolved' && <button onClick={()=>updateStatus(i.id,'resolved')} style={{background:'#D1FAE5',border:'none',color:'#065F46',padding:'2px 8px',borderRadius:6,fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>Resolve</button>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ProviderMetricsPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    async function load() {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
+        const { data } = await supabase
+          .from('consultations')
+          .select('provider_display_name, provider_id, status, acc_eligible, payment_amount_nzd, payment_amount, consultation_duration_seconds, notes_finalised, created_at')
+          .gte('created_at', thirtyDaysAgo)
+          .eq('status', 'complete')
+        const grouped = {}
+        for (const c of data || []) {
+          const key = c.provider_display_name || c.provider_id || 'Unknown'
+          if (!grouped[key]) grouped[key] = { name:key, total:0, acc:0, private:0, revenue:0, avgDuration:0, durations:[], notesPending:0 }
+          grouped[key].total++
+          if (c.acc_eligible==='yes') grouped[key].acc++ ; else grouped[key].private++
+          grouped[key].revenue += c.payment_amount_nzd || (c.payment_amount ? c.payment_amount/100 : 0)
+          if (c.consultation_duration_seconds) grouped[key].durations.push(c.consultation_duration_seconds)
+          if (!c.notes_finalised) grouped[key].notesPending++
+        }
+        for (const k of Object.keys(grouped)) {
+          const d = grouped[k].durations
+          grouped[k].avgDuration = d.length ? Math.round(d.reduce((s,v)=>s+v,0)/d.length) : 0
+        }
+        setRows(Object.values(grouped).sort((a,b)=>b.total-a.total))
+      } catch { setRows([]) }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+
+  return (
+    <div style={card}>
+      <div style={{fontSize:'1rem',fontWeight:700,color:'#0D2B45',marginBottom:'.25rem'}}>Provider performance — last 30 days</div>
+      <div style={{fontSize:'.875rem',color:'#6B7280',marginBottom:'1.25rem'}}>Completed consultations per clinician</div>
+      {loading ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>Loading…</div>
+      : rows.length===0 ? <div style={{textAlign:'center',padding:'1.5rem',color:'#9CA3AF'}}>No data yet</div>
+      : (
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.8125rem'}}>
+            <thead>
+              <tr style={{borderBottom:'2px solid #E2E8F0'}}>
+                {['Provider','Total','ACC','Private','Revenue','Avg mins','Notes due'].map(h=>(
+                  <th key={h} style={{padding:'6px 10px',textAlign:h==='Provider'?'left':'right',color:'#6B7280',fontWeight:700,fontSize:'.75rem',whiteSpace:'nowrap'}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r=>(
+                <tr key={r.name} style={{borderBottom:'1px solid #F3F4F6'}}>
+                  <td style={{padding:'8px 10px',fontWeight:600,color:'#0D2B45'}}>{r.name}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',fontWeight:700,color:'#0B6E76'}}>{r.total}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',color:'#1D4ED8'}}>{r.acc}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',color:'#374151'}}>{r.private}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',color:'#059669',fontWeight:600}}>${r.revenue.toFixed(0)}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',color:'#6B7280'}}>{r.avgDuration ? `${Math.round(r.avgDuration/60)}m` : '—'}</td>
+                  <td style={{padding:'8px 10px',textAlign:'right',color:r.notesPending>0?'#D97706':'#9CA3AF',fontWeight:r.notesPending>0?700:400}}>{r.notesPending||'—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AdminBody() {
   const navigate = useNavigate()
   const [adminTab, setAdminTab] = useState('overview')
@@ -1559,7 +1865,7 @@ function AdminBody() {
 
         {/* Tabs */}
         <div style={{ display:'flex', gap:6, marginBottom:'1.5rem', borderBottom:'2px solid #E2E8F0', paddingBottom:'.125rem' }}>
-          {[['overview','Overview'],['schedule','📅 Schedule'],['payroll','💰 Payroll'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
+          {[['overview','Overview'],['schedule','📅 Schedule'],['payroll','💰 Payroll'],['safety','⚠ Safety'],['performance','📊 Performance'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
             <button key={id} onClick={() => setAdminTab(id)} style={{
               background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
               fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
@@ -1570,7 +1876,7 @@ function AdminBody() {
           ))}
         </div>
 
-        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : <>
+        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
 
         {/* Availability */}
         <div style={card}>

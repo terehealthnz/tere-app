@@ -37,6 +37,9 @@ import AdminSchedule     from './pages/clinician/AdminSchedule'
 import AdminPayroll      from './pages/clinician/AdminPayroll'
 import ProviderEarnings  from './pages/clinician/ProviderEarnings'
 import BookAppointment   from './pages/patient/BookAppointment'
+import StatusPage        from './pages/StatusPage'
+import ConsultationSummary from './pages/patient/ConsultationSummary'
+import RepeatPrescription from './pages/patient/RepeatPrescription'
 
 export default function App() {
   return (
@@ -53,6 +56,9 @@ export default function App() {
       <Route path="/resume/:id"              element={<ResumePayment />} />
       <Route path="/done"                  element={<PostConsult />} />
       <Route path="/book"                  element={<BookAppointment />} />
+      <Route path="/status"                element={<StatusPage />} />
+      <Route path="/my-consultation/:token" element={<ConsultationSummary />} />
+      <Route path="/repeat-rx"             element={<RepeatPrescription />} />
       <Route path="/provider"              element={<ProviderApp />} />
       <Route path="/provider/consult/:id"  element={<ProviderConsult />} />
       <Route path="/provider/notes/:id"    element={<ProviderNotes />} />

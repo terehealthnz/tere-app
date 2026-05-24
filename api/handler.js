@@ -92,6 +92,16 @@ const ROUTES = {
   'sms':                       () => import('./_sms.js'),
   'appointments':              () => import('./_appointments.js'),
   'audit':                     () => import('./_audit.js'),
+  'drug-interactions':         () => import('./_drug-interactions.js'),
+  'incidents':                 () => import('./_incidents.js'),
+  'consents':                  () => import('./_consents.js'),
+  'complaints':                () => import('./_complaints.js'),
+  'breach':                    () => import('./_breach.js'),
+  'handover':                  () => import('./_handover.js'),
+  'patient-flags':             () => import('./_patient-flags.js'),
+  'consultation-token':        () => import('./_consultation-token.js'),
+  'analytics-events':          () => import('./_analytics-events.js'),
+  'status':                    () => import('./_status.js'),
 }
 
 export default async function handler(req, res) {

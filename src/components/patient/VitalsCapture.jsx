@@ -229,8 +229,8 @@ export default function VitalsCapture() {
                     <div className="vital-unit">breaths/min</div>
                   </div>
                 </div>
-                <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'1.25rem',fontStyle:'italic'}}>
-                  Indicative screening only · Not a substitute for medical-grade devices · {vitals.frames} frames captured
+                <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'1.25rem',background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.625rem .875rem',fontStyle:'normal'}}>
+                  <strong>Tere Vitals</strong> provides indicative screening estimates only. Results are not a substitute for medical-grade devices and must be interpreted by a registered clinician.
                 </div>
               </>
             )}
