@@ -22,7 +22,7 @@ async function notifySupervisors(supabase, subject, html) {
   const resend = new Resend(resendKey)
   for (const sup of supervisors) {
     try {
-      await resend.emails.send({ from: 'Tere Health <noreply@teremedicine.co.nz>', to: sup.email, subject, html })
+      await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', to: sup.email, subject, html })
     } catch {}
   }
 }
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
          <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Facility</td><td>${facilityName || '—'}</td></tr>
        </table>
        <p>Please log in to the Tere dashboard to approve, modify, or reject this referral.</p>
-       <p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+       <p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
     )
 
     return res.json({ ok: true, referralId, pending: true })
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@teremedicine.co.nz>',
+        from: 'Tere Health <noreply@terehealth.co.nz>',
         to: facilityEmail,
         subject: `Radiology Referral — ${patientName} (${urgency || 'Routine'}) — Tere Health`,
         html: `<p>Please find attached a radiology referral from Tere Health.</p><p><strong>Patient:</strong> ${patientName}<br><strong>Investigation:</strong> ${investigation}${bodyPart ? ' — ' + bodyPart : ''}<br><strong>Urgency:</strong> ${urgency || 'Routine'}<br><strong>Clinician:</strong> ${providerName}</p>`,
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@teremedicine.co.nz>',
+        from: 'Tere Health <noreply@terehealth.co.nz>',
         to: patientEmail,
         subject: `Your radiology referral from Tere Health`,
         html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${facilityName || 'the imaging centre'}</strong>.</p><p>Urgency: ${urgency || 'Routine'}</p><p>Tere Health Team</p>`,

@@ -10,7 +10,7 @@ export function buildPrescriptionPdf(data) {
 
     doc.rect(0, 0, doc.page.width, 70).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', 50, 20)
-    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  teremedicine.co.nz', 50, 46)
+    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 46)
 
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('PRESCRIPTION', 50, 90)
     doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
@@ -19,7 +19,7 @@ export function buildPrescriptionPdf(data) {
     doc.font('Helvetica').fontSize(10)
       .text(data.providerName || 'Tere Clinician', 50, 134)
       .text(`Prescriber No: ${data.prescriberNumber || '—'}`, 50, 148)
-      .text('Tere Health Limited · teremedicine.co.nz', 50, 162)
+      .text('Tere Health Limited · terehealth.co.nz', 50, 162)
 
     if (data.approvedByName) {
       doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)
@@ -73,7 +73,7 @@ export function buildReferralPdf(data) {
 
     doc.rect(0, 0, doc.page.width, 70).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', 50, 20)
-    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  teremedicine.co.nz', 50, 46)
+    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 46)
 
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('RADIOLOGY REFERRAL', 50, 90)
     doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
@@ -82,7 +82,7 @@ export function buildReferralPdf(data) {
     doc.font('Helvetica').fontSize(10)
       .text(data.providerName || 'Tere Clinician', 50, 134)
       .text(`CPN: ${data.providerCpn || '—'}`, 50, 148)
-      .text('Tere Health Limited · teremedicine.co.nz', 50, 162)
+      .text('Tere Health Limited · terehealth.co.nz', 50, 162)
 
     if (data.approvedByName) {
       doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)

@@ -12,7 +12,7 @@ function supabaseAdmin() {
 async function sendEmail(to, subject, html, attachments) {
   if (!process.env.RESEND_API_KEY || !to) return
   const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({ from: 'Tere Health <noreply@teremedicine.co.nz>', to, subject, html, attachments })
+  await resend.emails.send({ from: 'Tere Health <noreply@terehealth.co.nz>', to, subject, html, attachments })
 }
 
 export default async function handler(req, res) {
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
         if (drafter?.email) {
           await sendEmail(drafter.email,
             `Prescription rejected — ${rx.patient_name} (${rx.drug})`,
-            `<p>Hi ${drafter.first_name},</p><p>Your prescription draft for <strong>${rx.patient_name}</strong> — <strong>${rx.drug}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p>Please review and re-submit if appropriate, or discuss with your supervisor.</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+            `<p>Hi ${drafter.first_name},</p><p>Your prescription draft for <strong>${rx.patient_name}</strong> — <strong>${rx.drug}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p>Please review and re-submit if appropriate, or discuss with your supervisor.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
           )
         }
       }
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
         await sendEmail(
           drafter.email,
           `Prescription approved — ${rx.patient_name} (${rx.drug})`,
-          `<p>Hi ${drafter.first_name},</p><p>Your prescription draft for <strong>${rx.patient_name}</strong> — <strong>${rx.drug}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong> and sent to ${data.pharmacy_name || 'the pharmacy'}.</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+          `<p>Hi ${drafter.first_name},</p><p>Your prescription draft for <strong>${rx.patient_name}</strong> — <strong>${rx.drug}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong> and sent to ${data.pharmacy_name || 'the pharmacy'}.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
         )
       }
     }
@@ -167,7 +167,7 @@ export default async function handler(req, res) {
         if (drafter?.email) {
           await sendEmail(drafter.email,
             `Referral rejected — ${ref.patient_name} (${ref.investigation})`,
-            `<p>Hi ${drafter.first_name},</p><p>Your referral draft for <strong>${ref.patient_name}</strong> — <strong>${ref.investigation}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+            `<p>Hi ${drafter.first_name},</p><p>Your referral draft for <strong>${ref.patient_name}</strong> — <strong>${ref.investigation}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
           )
         }
       }
@@ -239,7 +239,7 @@ export default async function handler(req, res) {
         await sendEmail(
           drafter.email,
           `Referral approved — ${ref.patient_name} (${ref.investigation})`,
-          `<p>Hi ${drafter.first_name},</p><p>Your referral for <strong>${ref.patient_name}</strong> — <strong>${ref.investigation}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong>.</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+          `<p>Hi ${drafter.first_name},</p><p>Your referral for <strong>${ref.patient_name}</strong> — <strong>${ref.investigation}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong>.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
         )
       }
     }
@@ -277,7 +277,7 @@ export default async function handler(req, res) {
         if (drafter?.email) {
           await sendEmail(drafter.email,
             `ACC claim rejected — ${consult.patient_first_name} ${consult.patient_last_name}`,
-            `<p>Hi ${drafter.first_name},</p><p>Your ACC claim draft for <strong>${consult.patient_first_name} ${consult.patient_last_name}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+            `<p>Hi ${drafter.first_name},</p><p>Your ACC claim draft for <strong>${consult.patient_first_name} ${consult.patient_last_name}</strong> has been rejected by <strong>${supervisorName}</strong>.</p><p><strong>Reason:</strong> ${rejectionReason || 'No reason provided'}</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
           )
         }
       }
@@ -296,7 +296,7 @@ export default async function handler(req, res) {
       if (drafter?.email) {
         await sendEmail(drafter.email,
           `ACC claim approved — ${consult.patient_first_name} ${consult.patient_last_name}`,
-          `<p>Hi ${drafter.first_name},</p><p>Your ACC claim draft for <strong>${consult.patient_first_name} ${consult.patient_last_name}</strong> has been approved by <strong>${supervisorName}</strong>. The claim is ready to lodge via ProviderHub.</p><p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+          `<p>Hi ${drafter.first_name},</p><p>Your ACC claim draft for <strong>${consult.patient_first_name} ${consult.patient_last_name}</strong> has been approved by <strong>${supervisorName}</strong>. The claim is ready to lodge via ProviderHub.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
         )
       }
     }

@@ -23,7 +23,7 @@ async function notifySupervisors(supabase, subject, html) {
   for (const sup of supervisors) {
     try {
       await resend.emails.send({
-        from: 'Tere Health <noreply@teremedicine.co.nz>',
+        from: 'Tere Health <noreply@terehealth.co.nz>',
         to: sup.email,
         subject,
         html,
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
          <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Pharmacy</td><td>${pharmacyName || '—'}</td></tr>
        </table>
        <p>Please log in to the Tere dashboard to approve, modify, or reject this prescription.</p>
-       <p style="color:#6B7280;font-size:12px">Tere Health · teremedicine.co.nz</p>`
+       <p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
     )
 
     return res.json({ ok: true, prescriptionId, pending: true })
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@teremedicine.co.nz>',
+        from: 'Tere Health <noreply@terehealth.co.nz>',
         to: pharmacyEmail,
         subject: `Prescription for ${patientName} — Tere Health`,
         html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>`,
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@teremedicine.co.nz>',
+        from: 'Tere Health <noreply@terehealth.co.nz>',
         to: patientEmail,
         subject: `Your prescription from Tere Health`,
         html: `<p>Hi ${patientName},</p><p>Your prescription has been sent to <strong>${pharmacyName || 'your pharmacy'}</strong>. A copy is attached.</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}</p><p>Tere Health Team</p>`,
