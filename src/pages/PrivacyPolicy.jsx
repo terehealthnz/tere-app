@@ -59,7 +59,7 @@ export default function PrivacyPolicy() {
         </div>
 
         <Section title="1. Who we are">
-          <p><strong>Tere Health Limited</strong> is a New Zealand telehealth company. We provide acute telehealth consultations via video, phone, and written message.</p>
+          <p><strong>Tere Health Limited</strong> is a New Zealand tele-emergency care company. We provide emergency medicine consultations via video, phone, and written message, led by <strong>Dr Rachel Thomas FACEM</strong> (Medical Director).</p>
           <p style={{ marginTop: '.75rem' }}><strong>Privacy Officer:</strong> Patrick Herling<br />
           <strong>Email:</strong> <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a><br />
           <strong>General:</strong> <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal }}>terehealthnz@gmail.com</a><br />
@@ -206,11 +206,14 @@ export default function PrivacyPolicy() {
         </div>
       </div>
 
-      <footer style={{ background: BRAND.navy, padding: '1.5rem', textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <footer style={{ background: BRAND.navy, padding: '1.5rem 1.5rem 2rem', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '.875rem' }}>
           {[['Home', '/'], ['Terms', '/terms'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility']].map(([label, path]) => (
             <Link key={label} to={path} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem' }}>{label}</Link>
           ))}
+        </div>
+        <div style={{ fontSize: '.7rem', color: 'rgba(212,238,240,.3)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          Practising in accordance with MCNZ Telehealth Standards August 2023 · All doctors MCNZ registered with current APC
         </div>
       </footer>
     </div>

@@ -26,7 +26,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   const [error, setError]       = useState('')
   const [clientSecret, setClientSecret] = useState(null)
   const storedAmount = parseInt(sessionStorage.getItem('paymentAmount') || '0', 10)
-  const PRICES = { video: { private:65, acc:25 }, phone: { private:45, acc:15 }, message: { private:25, acc:25 } }
+  const PRICES = { video: { private:65, acc:25 }, phone: { private:45, acc:25 }, message: { private:25, acc:25 } }
   const priceSet = PRICES[consultationType] || PRICES.video
   const amount = storedAmount || (accEligible === 'yes' && consultationType !== 'message' ? priceSet.acc : priceSet.private)
 
@@ -132,11 +132,18 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         <div style={{fontSize:'.75rem',color:'var(--muted)',marginBottom:'.5rem'}}>
           🔒 Secured by Stripe · Card details are never stored by Tere
         </div>
-        <button type="button"
-          onClick={() => navigate('/')}
-          style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
-          Cancel and start over
-        </button>
+        <div style={{display:'flex',justifyContent:'center',gap:'1.25rem',flexWrap:'wrap'}}>
+          <button type="button"
+            onClick={() => navigate('/consultation-type')}
+            style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
+            ← Change consultation type
+          </button>
+          <button type="button"
+            onClick={() => navigate('/')}
+            style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
+            Cancel and start over
+          </button>
+        </div>
       </div>
     </form>
   )
@@ -155,7 +162,10 @@ export default function Payment() {
   return (
     <div className="page">
       <nav className="navbar">
-        <span className="navbar-brand">Tere</span>
+        <div style={{display:'flex',alignItems:'center',gap:'1rem'}}>
+          <button onClick={() => navigate('/consultation-type')} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:'1.1rem',padding:'0',lineHeight:1}} aria-label="Go back">←</button>
+          <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
+        </div>
         <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem',fontStyle:'italic'}}>He tere, he ora</span>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>

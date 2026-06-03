@@ -88,16 +88,25 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
   const [notifying, setNotifying] = useState(false)
   const [notified, setNotified] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [accConversions, setAccConversions] = useState([])
+  const [lodgingId, setLodgingId] = useState(null)
 
   const load = useCallback(async () => {
     try {
       const { supabase } = await import('../../lib/supabase')
-      const [qRes, flagRes] = await Promise.all([
-        supabase.from('consultations').select('id,status,patient_first_name,patient_last_name,chief_complaint,created_at,acc_eligible').in('status',['waiting','vitals_requested','vitals_complete','ready','in_progress']).order('created_at'),
+      const [qRes, flagRes, accRes] = await Promise.all([
+        apiFetch('/api/get-queue').then(r => r.json()),
         supabase.from('consultations').select('*', { count:'exact', head:true }).eq('notes_flagged', true),
+        supabase.from('consultations')
+          .select('id,patient_first_name,patient_last_name,acc_converted_at,acc_injury_details,acc_body_part,acc_read_code,notes_flagged,acc_converted_by')
+          .eq('acc_converted_by_provider', true)
+          .eq('notes_flagged', true)
+          .order('acc_converted_at', { ascending: false })
+          .limit(20),
       ])
-      setQueue(qRes.data || [])
+      setQueue(qRes.consultations || [])
       setFlagged(flagRes.count || 0)
+      setAccConversions(accRes.data || [])
     } catch {}
     // Pending approvals — may not exist, so catch separately
     try {
@@ -123,7 +132,7 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
     const count = waitlist.length
     try {
       for (const p of waitlist) {
-        try { await apiFetch('/api/send-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to:p.email, name:p.name, isOpenNotification:true }) }) } catch {}
+        try { await apiFetch('/api/send-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to:p.email, name:p.name, isOpenNotification:true, resumeId:p.id }) }) } catch {}
       }
       await markWaitlistNotified()
       setWaitlist([])
@@ -132,6 +141,16 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
       apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'waitlist_open', count }) }).catch(() => {})
     } catch {}
     setNotifying(false)
+  }
+
+  async function markLodged(id) {
+    setLodgingId(id)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      await supabase.from('consultations').update({ notes_flagged: false }).eq('id', id)
+      setAccConversions(prev => prev.filter(c => c.id !== id))
+    } catch {}
+    setLodgingId(null)
   }
 
   const waiting    = queue.filter(c => c.status === 'waiting')
@@ -144,11 +163,13 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
   return (
     <div style={{ padding:'1rem', fontFamily:FF }}>
 
-      {/* Big toggle */}
-      <BigToggle isOpen={isOpen} onChange={setIsOpen} saving={savingAvail} />
+      {/* Big toggle — auto-saves on tap */}
+      <BigToggle isOpen={isOpen} onChange={v => { setIsOpen(v); onSaveAvail(v) }} saving={savingAvail} />
+      {availSaved && <div style={{ textAlign:'center', color:'#059669', fontSize:'.8125rem', marginTop:'.5rem', fontFamily:FF }}>✓ Saved</div>}
 
-      {/* Save card */}
+      {/* Custom message card */}
       <div style={{ background:'white', borderRadius:12, padding:'1rem', marginTop:'.75rem', border:'1px solid #E2E8F0' }}>
+        <div style={{ fontSize:'.8125rem', fontWeight:600, color:'#6B7280', marginBottom:'.5rem', fontFamily:FF }}>Closed message (optional)</div>
         <input
           value={availMsg}
           onChange={e => setAvailMsg(e.target.value)}
@@ -156,11 +177,11 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
           style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', outline:'none', marginBottom:'.75rem' }}
         />
         <button
-          onClick={onSaveAvail}
+          onClick={() => onSaveAvail()}
           disabled={savingAvail}
-          style={{ width:'100%', background:isOpen?'#059669':'#DC2626', color:'white', border:'none', borderRadius:10, padding:'14px', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:'pointer', minHeight:52, opacity:savingAvail?0.6:1, transition:'background .25s' }}
+          style={{ width:'100%', background:TEAL, color:'white', border:'none', borderRadius:10, padding:'11px', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', opacity:savingAvail?0.6:1 }}
         >
-          {savingAvail ? 'Saving…' : availSaved ? '✓ Saved' : isOpen ? 'Save — clinic is open' : 'Save — clinic is closed'}
+          {savingAvail ? 'Saving…' : 'Save message'}
         </button>
       </div>
 
@@ -242,6 +263,37 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
               </div>
             ))}
           </div>
+
+          {/* ACC conversions pending ProviderHub lodgement */}
+          {accConversions.length > 0 && (
+            <div style={{ background:'white', borderRadius:12, border:'1px solid #FDE68A', overflow:'hidden', marginTop:'.75rem' }}>
+              <div style={{ padding:'.875rem 1rem', borderBottom:'1px solid #FEF3C7', background:'#FFFBEB' }}>
+                <span style={{ fontWeight:700, color:'#92400E', fontSize:'.9375rem' }}>⚡ ACC lodgements pending ({accConversions.length})</span>
+                <div style={{ fontSize:'.75rem', color:'#B45309', marginTop:2 }}>Lodge each ACC45 claim via ProviderHub, then mark as done.</div>
+              </div>
+              {accConversions.map((c, i) => (
+                <div key={c.id} style={{ padding:'.875rem 1rem', borderBottom:i<accConversions.length-1?'1px solid #FEF9EE':'none' }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'.75rem' }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:700, color:NAVY, fontSize:'.875rem' }}>{c.patient_first_name} {c.patient_last_name}</div>
+                      <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                        {c.acc_injury_details || '—'}{c.acc_body_part ? ` · ${c.acc_body_part}` : ''}{c.acc_read_code ? ` · ${c.acc_read_code}` : ''}
+                      </div>
+                      {c.acc_converted_at && (
+                        <div style={{ fontSize:'.7rem', color:'#9CA3AF', marginTop:1 }}>
+                          Converted {new Date(c.acc_converted_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => markLodged(c.id)} disabled={lodgingId === c.id}
+                      style={{ flexShrink:0, padding:'6px 12px', border:'none', borderRadius:8, background:lodgingId===c.id?'#9CA3AF':'#059669', color:'white', cursor:lodgingId===c.id?'default':'pointer', fontFamily:FF, fontWeight:700, fontSize:'.75rem', minHeight:36 }}>
+                      {lodgingId === c.id ? '…' : '✓ Lodged'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -264,7 +316,7 @@ function AnalyticsTab() {
         since.setDate(since.getDate() - range)
         const { data: rows } = await supabase
           .from('consultations')
-          .select('created_at,started_at,consultation_duration_seconds,payment_amount,acc_eligible')
+          .select('created_at,started_at,consultation_duration_seconds,payment_amount,acc_eligible,consultation_subtype')
           .gte('created_at', since.toISOString())
           .eq('status','complete')
           .order('created_at', { ascending:true })
@@ -278,7 +330,10 @@ function AnalyticsTab() {
   const total    = data.length
   const revenue  = data.reduce((a,r) => a + (r.payment_amount||0)/100, 0)
   const accCount = data.filter(r => r.acc_eligible === 'yes').length
-  const accEst   = accCount * 62
+  // Async message ACC: $37.50 (patient $25 already in payment_amount as part of $62.50 total)
+  // Video/phone ACC: $62 ACC subsidy (patient co-payment already in payment_amount)
+  const accEst   = data.filter(r => r.acc_eligible === 'yes').reduce((sum, r) =>
+    sum + (r.consultation_subtype === 'async_message' ? 37.5 : 62), 0)
   const waits    = data.filter(r => r.started_at).map(r => (new Date(r.started_at) - new Date(r.created_at))/60000)
   const avgWait  = waits.length ? Math.round(waits.reduce((a,b)=>a+b,0)/waits.length) : 0
   const durs     = data.filter(r => r.consultation_duration_seconds).map(r => r.consultation_duration_seconds/60)
@@ -291,7 +346,7 @@ function AnalyticsTab() {
     if (!byDay[day]) byDay[day] = { count:0, revenue:0, acc:0 }
     byDay[day].count++
     byDay[day].revenue += (r.payment_amount||0)/100
-    if (r.acc_eligible === 'yes') byDay[day].acc += 62
+    if (r.acc_eligible === 'yes') byDay[day].acc += r.consultation_subtype === 'async_message' ? 37.5 : 62
   })
   const days = Object.keys(byDay).sort().reverse()
 
@@ -570,10 +625,13 @@ function SettingsTab({ navigate, displayName }) {
   async function toggleProviderAvail(id, val) {
     setSaving(id)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('providers').update({ is_available:val }).eq('id',id)
+      const res = await apiFetch('/api/set-provider-avail', {
+        method: 'POST',
+        body: JSON.stringify({ providerId: id, isAvailable: val }),
+      })
+      if (!res.ok) throw new Error('Failed')
       setProviders(ps => ps.map(p => p.id===id ? {...p,is_available:val} : p))
-    } catch {}
+    } catch (e) { console.error('toggleProviderAvail error:', e) }
     setSaving(null)
   }
 
@@ -586,15 +644,15 @@ function SettingsTab({ navigate, displayName }) {
 
   function signOut() {
     localStorage.removeItem('tere_device')
+    localStorage.removeItem('tere_portal')
     sessionStorage.clear()
     navigate('/clinician')
   }
 
   const links = [
-    { label:'Payroll',                icon:'💰',  sub:'Calculate & approve provider earnings',   action:()=>navigate('/admin/payroll') },
-    { label:'Full admin (desktop)',   icon:'🖥',  sub:'All features including schedule & notes', action:()=>navigate('/clinician/admin') },
-    { label:'Provider dashboard',     icon:'📊',  sub:'Clinician consultation view',             action:()=>navigate('/clinician/dashboard') },
-    { label:'Change password',        icon:'🔑',  sub:'Update your PIN',                         action:()=>navigate('/clinician/change-password') },
+    { label:'Payroll',               icon:'💰',  sub:'Calculate & approve provider earnings', action:()=>navigate('/admin/payroll') },
+    { label:'Provider dashboard',    icon:'📊',  sub:'Clinician consultation view',           action:()=>navigate('/clinician/dashboard') },
+    { label:'Change password',       icon:'🔑',  sub:'Update your PIN',                       action:()=>navigate('/clinician/change-password') },
   ]
 
   return (
@@ -666,14 +724,368 @@ function SettingsTab({ navigate, displayName }) {
   )
 }
 
+// ── Bookings tab ──────────────────────────────────────────────────────────────
+
+function BookingsTab() {
+  const [bookings, setBookings] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('upcoming')
+  const [cancelling, setCancelling] = useState(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const params = filter === 'today'
+        ? `action=list&date=${new Date().toISOString().slice(0,10)}`
+        : 'action=list'
+      const res = await apiFetch(`/api/bookings?${params}`)
+      const data = await res.json()
+      setBookings(data.bookings || [])
+    } catch {}
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [filter])
+
+  async function cancelBooking(id) {
+    if (!window.confirm('Cancel this booking and notify the patient?')) return
+    setCancelling(id)
+    try {
+      await apiFetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel', id, cancelled_by: 'admin', reason: 'admin_cancelled' }),
+      })
+      await load()
+    } catch {}
+    setCancelling(null)
+  }
+
+  const STATUS_COLOR = { confirmed:'#059669', cancelled:'#DC2626', completed:'#6B7280', no_show:'#F59E0B', schedule_change:'#7C3AED' }
+  const STATUS_LABEL = { confirmed:'Confirmed', cancelled:'Cancelled', completed:'Done', no_show:'No show', schedule_change:'Schedule change' }
+
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+      <div style={{ display:'flex', gap:6, marginBottom:'1rem' }}>
+        {['upcoming','today','all'].map(f => (
+          <button key={f} onClick={() => setFilter(f)}
+            style={{ flex:1, padding:'8px 4px', border:`1.5px solid ${filter===f?TEAL:'#E2E8F0'}`, borderRadius:8, background:filter===f?'#EFF9F9':'white', color:filter===f?TEAL:'#6B7280', fontFamily:FF, fontWeight:700, fontSize:'.8125rem', cursor:'pointer', textTransform:'capitalize' }}>
+            {f === 'upcoming' ? 'All upcoming' : f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : bookings.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF', background:'white', borderRadius:12 }}>No bookings found</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+          {bookings.map(b => (
+            <div key={b.id} style={{ background:'white', borderRadius:12, padding:'1rem', border:'1px solid #E2E8F0' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'.375rem' }}>
+                <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{b.patient_name}</div>
+                <span style={{ background:STATUS_COLOR[b.status]||'#E2E8F0', color:'white', fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>
+                  {STATUS_LABEL[b.status]||b.status}
+                </span>
+              </div>
+              <div style={{ fontSize:'.8125rem', color:'#6B7280', display:'flex', gap:'1rem', flexWrap:'wrap' }}>
+                <span>{b.consultation_type === 'video' ? '📹' : '📞'} {b.consultation_type}</span>
+                <span>📅 {b.appointment_date} {b.appointment_time}</span>
+                {b.provider_name && <span>👤 {b.provider_name}</span>}
+              </div>
+              {b.reason && <div style={{ fontSize:'.8125rem', color:'#374151', marginTop:'.375rem' }}>{b.reason}</div>}
+              {b.status === 'confirmed' && (
+                <button onClick={() => cancelBooking(b.id)} disabled={cancelling === b.id}
+                  style={{ marginTop:'.5rem', background:'#FEF2F2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:6, padding:'5px 12px', fontSize:'.75rem', fontWeight:700, cursor:'pointer', fontFamily:FF }}>
+                  {cancelling === b.id ? 'Cancelling…' : 'Cancel booking'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Research tab ──────────────────────────────────────────────────────────────
+
+function ResearchTab() {
+  const [data, setData]           = useState([])
+  const [totalComplete, setTotalComplete] = useState(0)
+  const [loading, setLoading]     = useState(true)
+  const [exporting, setExporting] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const [allRes, consentRes] = await Promise.all([
+          supabase.from('consultations').select('*', { count:'exact', head:true }).eq('status','complete'),
+          supabase.from('consultations')
+            .select('id,created_at,patient_dob,patient_location,acc_eligible,chief_complaint,consultation_type,consultation_duration_seconds,work_capacity')
+            .eq('research_consent', true)
+            .eq('status', 'complete')
+            .order('created_at', { ascending:false }),
+        ])
+        setTotalComplete(allRes.count || 0)
+        setData(consentRes.data || [])
+      } catch {}
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  function ageBucket(dob) {
+    if (!dob) return 'Unknown'
+    const age = Math.floor((Date.now() - new Date(dob)) / (365.25 * 86400000))
+    if (age < 18) return '<18'
+    if (age < 30) return '18–29'
+    if (age < 45) return '30–44'
+    if (age < 60) return '45–59'
+    if (age < 75) return '60–74'
+    return '75+'
+  }
+
+  function tally(arr, keyFn) {
+    const map = {}
+    arr.forEach(r => {
+      const k = keyFn(r) || 'Unknown'
+      map[k] = (map[k] || 0) + 1
+    })
+    return Object.entries(map).sort((a, b) => b[1] - a[1])
+  }
+
+  const n = data.length
+  const consentRate = totalComplete > 0 ? Math.round((n / totalComplete) * 100) : 0
+  const accCount    = data.filter(r => r.acc_eligible === 'yes').length
+  const avgDur      = data.filter(r => r.consultation_duration_seconds).length
+    ? Math.round(data.filter(r => r.consultation_duration_seconds).reduce((a, r) => a + r.consultation_duration_seconds / 60, 0) / data.filter(r => r.consultation_duration_seconds).length)
+    : 0
+
+  const ageRows     = tally(data, r => ageBucket(r.patient_dob))
+  const locationRows = tally(data, r => r.patient_location || null)
+  const typeRows    = tally(data, r => r.consultation_type ? r.consultation_type.replace(/_/g,' ') : null)
+
+  const complaintRows = tally(data, r => {
+    const c = (r.chief_complaint || '').toLowerCase()
+    if (!c) return 'Unknown'
+    if (c.includes('cold') || c.includes('flu') || c.includes('cough') || c.includes('throat') || c.includes('sinus')) return 'Cold / flu / URTI'
+    if (c.includes('pain')) return 'Pain'
+    if (c.includes('certificate') || c.includes('sick note') || c.includes('fit note')) return 'Sick certificate'
+    if (c.includes('script') || c.includes('prescri') || c.includes('medication') || c.includes('refill')) return 'Prescription / repeat'
+    if (c.includes('rash') || c.includes('skin') || c.includes('itch')) return 'Skin / rash'
+    if (c.includes('mental') || c.includes('anxiety') || c.includes('depress') || c.includes('stress')) return 'Mental health'
+    if (c.includes('uti') || c.includes('urin')) return 'UTI / urinary'
+    if (c.includes('injury') || c.includes('wound') || c.includes('sprain')) return 'Injury'
+    if (c.includes('referral')) return 'Referral'
+    return 'Other'
+  })
+
+  const workRows = tally(data, r => {
+    const w = r.work_capacity
+    if (!w) return null
+    const map = { fit:'Fit for work', fit_with_restrictions:'Fit with restrictions', unfit:'Unfit for work', not_applicable:'Not applicable' }
+    return map[w] || w
+  }).filter(([k]) => k !== 'Unknown')
+
+  function Bar({ rows, total, color }) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+        {rows.slice(0, 6).map(([label, count]) => {
+          const pct = total ? Math.round((count / total) * 100) : 0
+          return (
+            <div key={label}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3, fontSize:'.75rem', fontFamily:FF }}>
+                <span style={{ color:'#374151', fontWeight:500 }}>{label}</span>
+                <span style={{ color:'#6B7280' }}>{count} ({pct}%)</span>
+              </div>
+              <div style={{ height:6, borderRadius:3, background:'#F3F4F6', overflow:'hidden' }}>
+                <div style={{ height:'100%', borderRadius:3, background:color, width:`${pct}%`, transition:'width .5s' }} />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  async function exportCsv() {
+    setExporting(true)
+    try {
+      const header = 'Record ID,Date,Age Bucket,Location,Type,Chief Complaint,ACC,Duration (min),Work Capacity'
+      const rows = data.map(r => {
+        const rawComplaint = (r.chief_complaint || '').replace(/"/g, "'").substring(0, 80)
+        const dur = r.consultation_duration_seconds ? Math.round(r.consultation_duration_seconds / 60) : ''
+        return [
+          r.id.slice(0, 8),
+          r.created_at ? r.created_at.slice(0, 10) : '',
+          ageBucket(r.patient_dob),
+          r.patient_location || '',
+          r.consultation_type || '',
+          `"${rawComplaint}"`,
+          r.acc_eligible === 'yes' ? 'Yes' : 'No',
+          dur,
+          r.work_capacity || '',
+        ].join(',')
+      })
+      const csv = [header, ...rows].join('\n')
+      const filename = `tere_research_${new Date().toISOString().slice(0,10)}_confidential.csv`
+      const url = URL.createObjectURL(new Blob([csv], { type:'text/csv' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+      // Audit log
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        await supabase.from('audit_log').insert({
+          action: 'research_data_export',
+          actor_id: sessionStorage.getItem('providerId'),
+          metadata: { record_count: data.length, filename },
+        })
+      } catch {}
+    } catch {}
+    setExporting(false)
+  }
+
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+
+      {/* Privacy notice */}
+      <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:12, padding:'1rem', marginBottom:'1rem', display:'flex', gap:10 }}>
+        <span style={{ fontSize:'1.125rem', flexShrink:0 }}>🔒</span>
+        <div style={{ fontSize:'.8125rem', color:'#78350F', lineHeight:1.6 }}>
+          <strong style={{ display:'block', marginBottom:2 }}>De-identified data only</strong>
+          All records on this page are anonymised. No names, NHI numbers, or direct identifiers are shown. Access is restricted to authorised Tere Health administrators.
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'3rem' }}>
+          <div className="spinner" style={{ borderColor:'rgba(11,110,118,.15)', borderTopColor:TEAL }} />
+        </div>
+      ) : (
+        <>
+          {/* Consent overview */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.5rem', marginBottom:'1rem' }}>
+            {[
+              { label:'Consented',   value:n,            color:TEAL,      icon:'✓' },
+              { label:'Consent rate', value:`${consentRate}%`, color:'#059669', icon:'📊' },
+              { label:'Avg duration', value:`${avgDur}m`, color:'#7C3AED', icon:'⏱' },
+            ].map(s => (
+              <div key={s.label} style={{ background:'white', borderRadius:12, padding:'.875rem .5rem', textAlign:'center', border:`1px solid ${s.color}22` }}>
+                <div style={{ fontSize:'1.625rem', fontWeight:800, color:s.color, lineHeight:1 }}>{s.value}</div>
+                <div style={{ fontSize:'.5875rem', color:'#6B7280', fontWeight:600, textTransform:'uppercase', marginTop:4, letterSpacing:'.04em' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ACC quick pill */}
+          <div style={{ display:'flex', gap:'.5rem', marginBottom:'1rem', flexWrap:'wrap' }}>
+            <span style={{ background:'#D4EEF0', color:TEAL, fontWeight:700, fontSize:'.75rem', padding:'4px 10px', borderRadius:99 }}>
+              ACC {n > 0 ? Math.round((accCount/n)*100) : 0}% ({accCount})
+            </span>
+          </div>
+
+          {/* Demographics */}
+          <div style={{ background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'.75rem' }}>
+            <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Age distribution</div>
+            <Bar rows={ageRows} total={n} color={TEAL} />
+          </div>
+
+          {/* Chief complaints */}
+          <div style={{ background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'.75rem' }}>
+            <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Chief complaints</div>
+            <Bar rows={complaintRows} total={n} color='#7C3AED' />
+          </div>
+
+          {/* Consultation type */}
+          {typeRows.length > 0 && (
+            <div style={{ background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'.75rem' }}>
+              <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Consultation type</div>
+              <Bar rows={typeRows} total={n} color='#059669' />
+            </div>
+          )}
+
+          {/* Work capacity */}
+          {workRows.length > 0 && (
+            <div style={{ background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'.75rem' }}>
+              <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Work capacity outcomes</div>
+              <Bar rows={workRows} total={workRows.reduce((a,[,c])=>a+c,0)} color='#F59E0B' />
+            </div>
+          )}
+
+          {/* Location / region */}
+          {locationRows.filter(([k])=>k!=='Unknown').length > 0 && (
+            <div style={{ background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'.75rem' }}>
+              <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Patient location</div>
+              <Bar rows={locationRows.filter(([k])=>k!=='Unknown')} total={locationRows.filter(([k])=>k!=='Unknown').reduce((a,[,c])=>a+c,0)} color='#D97706' />
+            </div>
+          )}
+
+          {/* Recent records — anonymised */}
+          <div style={{ background:'white', borderRadius:12, border:'1px solid #E2E8F0', overflow:'hidden', marginBottom:'.75rem' }}>
+            <div style={{ padding:'.875rem 1rem', borderBottom:'1px solid #F3F4F6', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>Anonymised records ({n})</span>
+              <button onClick={exportCsv} disabled={exporting || n === 0}
+                style={{ background:TEAL, border:'none', color:'white', borderRadius:8, padding:'6px 12px', fontFamily:FF, fontWeight:700, fontSize:'.75rem', cursor:'pointer', minHeight:36, opacity:(exporting||n===0)?0.5:1 }}>
+                {exporting ? '…' : '↓ CSV'}
+              </button>
+            </div>
+            {data.slice(0, 20).map((r, i) => (
+              <div key={r.id} style={{ padding:'.75rem 1rem', borderBottom:i<Math.min(data.length,20)-1?'1px solid #F9FAFB':'none', display:'flex', alignItems:'center', gap:'.5rem', flexWrap:'wrap' }}>
+                <span style={{ fontFamily:'monospace', fontSize:'.75rem', color:'#9CA3AF', flexShrink:0 }}>{r.id.slice(0,8)}</span>
+                <span style={{ fontSize:'.75rem', color:'#6B7280' }}>{r.created_at?.slice(0,10)}</span>
+                <span style={{ background:'#F3F4F6', color:'#374151', fontSize:'.6875rem', padding:'2px 6px', borderRadius:4 }}>{ageBucket(r.patient_dob)}</span>
+                {r.patient_location && <span style={{ fontSize:'.6875rem', color:'#6B7280' }}>{r.patient_location}</span>}
+                {r.acc_eligible === 'yes' && <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.6875rem', fontWeight:700, padding:'1px 5px', borderRadius:4 }}>ACC</span>}
+                <span style={{ fontSize:'.75rem', color:'#374151', flex:1, minWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {(r.chief_complaint || '—').substring(0, 60)}
+                </span>
+              </div>
+            ))}
+            {n > 20 && (
+              <div style={{ padding:'.75rem 1rem', textAlign:'center', color:'#9CA3AF', fontSize:'.75rem', borderTop:'1px solid #F3F4F6' }}>
+                + {n - 20} more records — export CSV for full dataset
+              </div>
+            )}
+          </div>
+
+          {/* Research partnership */}
+          <div style={{ background:'linear-gradient(135deg, #0D2B45, #0B6E76)', borderRadius:12, padding:'1.25rem', marginBottom:'1rem', textAlign:'center' }}>
+            <div style={{ fontSize:'1.5rem', marginBottom:'.5rem' }}>🔬</div>
+            <div style={{ fontWeight:700, color:'white', fontSize:'.9375rem', marginBottom:'.375rem' }}>Research partnerships</div>
+            <div style={{ color:'rgba(212,238,240,.75)', fontSize:'.8125rem', lineHeight:1.6, marginBottom:'1rem' }}>
+              Our anonymised dataset covers primary care telehealth consultations across New Zealand. Interested in partnering for research?
+            </div>
+            <a href="mailto:research@tere.health" style={{ display:'inline-block', background:'rgba(255,255,255,.15)', color:'white', borderRadius:8, padding:'8px 18px', fontSize:'.875rem', fontWeight:600, textDecoration:'none', fontFamily:FF }}>
+              research@tere.health
+            </a>
+          </div>
+
+          {n === 0 && (
+            <div style={{ textAlign:'center', padding:'2rem', background:'white', borderRadius:12, border:'1px solid #E2E8F0' }}>
+              <div style={{ fontSize:'2rem', marginBottom:'.75rem' }}>🔬</div>
+              <div style={{ fontWeight:700, color:NAVY, marginBottom:'.25rem' }}>No consented records yet</div>
+              <div style={{ color:'#9CA3AF', fontSize:'.875rem' }}>Patients who consent to research during triage will appear here after their consultation is finalised.</div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
 function BottomNav({ tab, setTab, dashBadge }) {
   const items = [
     { id:'dashboard', icon:'🏠', label:'Dashboard', badge:dashBadge },
     { id:'analytics', icon:'📊', label:'Analytics',  badge:0 },
+    { id:'bookings',  icon:'📆', label:'Bookings',   badge:0 },
     { id:'schedule',  icon:'📅', label:'Schedule',   badge:0 },
-    { id:'employers', icon:'🏢', label:'Employers',  badge:0 },
+    { id:'research',  icon:'🔬', label:'Research',   badge:0 },
     { id:'settings',  icon:'⚙️', label:'Settings',   badge:0 },
   ]
   return (
@@ -686,8 +1098,8 @@ function BottomNav({ tab, setTab, dashBadge }) {
               {item.badge > 9 ? '9+' : item.badge}
             </span>
           )}
-          <span style={{ fontSize:'1.375rem', lineHeight:1 }}>{item.icon}</span>
-          <span style={{ fontSize:'.625rem', fontWeight:tab===item.id?700:400, letterSpacing:'.02em', fontFamily:FF }}>{item.label}</span>
+          <span style={{ fontSize:'1.2rem', lineHeight:1 }}>{item.icon}</span>
+          <span style={{ fontSize:'.5625rem', fontWeight:tab===item.id?700:400, letterSpacing:'.01em', fontFamily:FF, whiteSpace:'nowrap', overflow:'hidden', maxWidth:'100%' }}>{item.label}</span>
         </button>
       ))}
     </div>
@@ -721,9 +1133,12 @@ export default function AdminApp() {
   const [isOnline, setIsOnline]     = useState(navigator.onLine)
   const [dashBadge, setDashBadge]   = useState(0)
 
-  // Load clinic availability
+  // Load clinic availability + poll for changes
   useEffect(() => {
-    getAvailability().then(av => { setIsOpen(av.is_open); setAvailMsg(av.message||'') }).catch(()=>{})
+    const poll = () => getAvailability().then(av => { setIsOpen(av.is_open); setAvailMsg(m => m || av.message || '') }).catch(()=>{})
+    poll()
+    const interval = setInterval(poll, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   // Register push
@@ -744,14 +1159,17 @@ export default function AdminApp() {
   useEffect(() => {
     async function loadBadge() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { count: qCount } = await supabase.from('consultations').select('*',{count:'exact',head:true}).in('status',['waiting','vitals_requested','vitals_complete','ready'])
+        const [qRes] = await Promise.all([
+          apiFetch('/api/get-queue').then(r => r.json()),
+        ])
+        const qCount = (qRes.consultations || []).filter(c => ['waiting','vitals_requested','vitals_complete','ready'].includes(c.status)).length
         let rxCount = 0
         try {
+          const { supabase } = await import('../../lib/supabase')
           const { count } = await supabase.from('prescriptions').select('*',{count:'exact',head:true}).eq('approval_status','pending_approval')
           rxCount = count || 0
         } catch {}
-        setDashBadge((qCount||0) + rxCount)
+        setDashBadge(qCount + rxCount)
       } catch {}
     }
     loadBadge()
@@ -759,13 +1177,26 @@ export default function AdminApp() {
     return () => clearInterval(interval)
   }, [])
 
-  async function saveAvail() {
+  async function saveAvail(overrideValue) {
+    const value = overrideValue !== undefined ? overrideValue : isOpen
     setSavingAvail(true)
     try {
-      await setAvailability(isOpen, availMsg)
+      // Use server-side endpoint (service role key) to bypass RLS on availability table
+      const r = await apiFetch('/api/set-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isOpen: value, message: availMsg }),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        console.error('Failed to update availability:', err)
+        setIsOpen(!value) // revert toggle
+        setSavingAvail(false)
+        return
+      }
       setAvailSaved(true)
       setTimeout(() => setAvailSaved(false), 2500)
-      if (isOpen) {
+      if (value) {
         try {
           const res = await apiFetch('/api/notify-waitlist', { method:'POST', headers:{'Content-Type':'application/json'} })
           const { sent } = await res.json()
@@ -774,7 +1205,10 @@ export default function AdminApp() {
           }
         } catch {}
       }
-    } catch {}
+    } catch (e) {
+      console.error('saveAvail error:', e)
+      setIsOpen(!value) // revert toggle
+    }
     setSavingAvail(false)
   }
 
@@ -788,14 +1222,20 @@ export default function AdminApp() {
       )}
 
       {/* Top bar */}
-      <div style={{ background:NAVY, padding:'.875rem 1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, paddingTop:'max(.875rem, env(safe-area-inset-top))' }}>
+      <div style={{ background:NAVY, paddingTop:'calc(.875rem + env(safe-area-inset-top))', paddingBottom:'.875rem', paddingLeft:'1.25rem', paddingRight:'1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'.75rem' }}>
           <span style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.4rem', letterSpacing:'.06em' }}>Tere</span>
           <span style={{ background:'rgba(255,255,255,.12)', color:'rgba(255,255,255,.75)', fontSize:'.6875rem', fontWeight:700, padding:'3px 9px', borderRadius:99, letterSpacing:'.06em', textTransform:'uppercase' }}>Admin</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10B981':'#6B7280' }} />
-          <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.8125rem', fontFamily:FF }}>{isOpen?'Open':'Closed'}</span>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button onClick={() => navigate('/provider')}
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.18)', color:'rgba(255,255,255,.85)', fontSize:'.75rem', cursor:'pointer', fontFamily:FF, minHeight:34 }}>
+            🩺 Provider
+          </button>
+          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+            <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10B981':'#6B7280' }} />
+            <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.8125rem', fontFamily:FF }}>{isOpen?'Open':'Closed'}</span>
+          </div>
         </div>
       </div>
 
@@ -803,8 +1243,10 @@ export default function AdminApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'dashboard' && <DashboardTab isOpen={isOpen} setIsOpen={setIsOpen} availMsg={availMsg} setAvailMsg={setAvailMsg} onSaveAvail={saveAvail} savingAvail={savingAvail} availSaved={availSaved} />}
         {tab === 'analytics' && <AnalyticsTab />}
+        {tab === 'bookings'  && <BookingsTab />}
         {tab === 'schedule'  && <AdminSchedule embedded />}
         {tab === 'employers' && <EmployersTab />}
+        {tab === 'research'  && <ResearchTab />}
         {tab === 'settings'  && <SettingsTab navigate={navigate} displayName={displayName} />}
       </div>
 

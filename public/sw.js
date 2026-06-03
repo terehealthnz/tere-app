@@ -1,6 +1,6 @@
 /* Tere Health Service Worker — push notifications + offline shell */
 
-const CACHE = 'tere-v2'
+const CACHE = 'tere-v4'
 const SHELL = ['/', '/provider', '/tere-logo.png', '/manifest.json']
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
@@ -32,7 +32,10 @@ self.addEventListener('fetch', event => {
     fetch(request)
       .then(response => {
         if (response.ok) {
-          caches.open(CACHE).then(c => c.put(request, response.clone()))
+          try {
+            const clone = response.clone()
+            caches.open(CACHE).then(c => c.put(request, clone).catch(() => {}))
+          } catch {}
         }
         return response
       })

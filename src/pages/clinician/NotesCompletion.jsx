@@ -3,1203 +3,937 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+const FF   = 'Plus Jakarta Sans, sans-serif'
+const TEAL = '#0B6E76'
+const NAVY = '#0D2B45'
+const GREEN = '#059669'
+const today = new Date().toISOString().slice(0, 10)
 
 const ACC_READ_CODES = [
-  { code: 'S30', label: 'Ankle sprain' },
-  { code: 'S39', label: 'Other ankle injury' },
-  { code: 'M13', label: 'Laceration' },
-  { code: 'M10', label: 'Contusion / bruise' },
-  { code: 'N17', label: 'UTI' },
-  { code: 'H05', label: 'URTI' },
-  { code: 'H06', label: 'Tonsillitis' },
-  { code: 'K22', label: 'Chest pain' },
-  { code: 'A84', label: 'Back pain' },
-  { code: 'S20', label: 'Wrist sprain' },
-  { code: 'F29', label: 'Eye injury' },
-  { code: 'S60', label: 'Finger injury' },
-  { code: 'T14', label: 'Burn' },
-  { code: 'A09', label: 'Headache' },
-  { code: 'R05', label: 'Cough' },
-  { code: 'J06', label: 'Nausea / vomiting' },
+  { code:'S30', label:'Ankle sprain' }, { code:'S39', label:'Other ankle injury' },
+  { code:'M13', label:'Laceration' },   { code:'M10', label:'Contusion / bruise' },
+  { code:'N17', label:'UTI' },          { code:'H05', label:'URTI' },
+  { code:'H06', label:'Tonsillitis' },  { code:'K22', label:'Chest pain' },
+  { code:'A84', label:'Back pain' },    { code:'S20', label:'Wrist sprain' },
+  { code:'F29', label:'Eye injury' },   { code:'S60', label:'Finger injury' },
+  { code:'T14', label:'Burn' },         { code:'A09', label:'Headache' },
+  { code:'R05', label:'Cough' },        { code:'J06', label:'Nausea / vomiting' },
 ]
 
-const EXAM_SUBSECTIONS = [
-  { key: 'general',      label: 'General',      hint: 'Appearance, distress, orientation' },
-  { key: 'vitals',       label: 'Vitals',        hint: 'HR, RR, SpO2, BP, Temp' },
-  { key: 'heent',        label: 'HEENT',         hint: 'Head, eyes, ears, nose, throat' },
-  { key: 'cardiac',      label: 'Cardiac',       hint: 'Heart sounds, rhythm, perfusion' },
-  { key: 'respiratory',  label: 'Respiratory',   hint: 'Breath sounds, work of breathing' },
-  { key: 'abdomen',      label: 'Abdomen',       hint: 'Inspection, palpation, bowel sounds' },
-  { key: 'skin',         label: 'Skin',          hint: 'Colour, rashes, wounds, lesions' },
-  { key: 'msk',          label: 'MSK',           hint: 'ROM, tenderness, swelling, neurovascular' },
-  { key: 'neurological', label: 'Neurological',  hint: 'GCS, focal deficits, coordination' },
-]
+const MCNZ_STATEMENT = 'This examination was conducted via video telehealth in accordance with MCNZ telehealth standards. Physical palpation, auscultation, and percussion were not performed. Clinical findings are based on visual assessment and patient-reported symptoms.'
+const MCNZ_FOOTER = 'Telehealth consultation conducted via Tere Health (tere.co.nz) in accordance with MCNZ Statement on Telehealth (August 2023). Video platform: LiveKit WebRTC. Patient and provider both located in New Zealand at time of consultation.'
 
-const SECTION_LABELS = {
-  presentingHistory: '1. Presenting History',
-  medicalHistory:    '2. Medical History',
-  allergies:         '3. Allergies',
-  socialHistory:     '4. Social History',
-  examination:       '5. Examination',
-  mdm:               '6. Medical Decision Making',
-  plan:              '7. Plan',
-}
+// source: 'transcript' | 'triage' | 'none' | undefined (undefined = not yet generated, show no badge)
+// confidence: 'high' | 'medium' | 'low' | null (only applies when source === 'transcript')
+function SectionCard({ num, title, source, confidence, children }) {
+  let badge = null
+  if (source === 'transcript') {
+    if (!confidence || confidence === 'high') {
+      badge = { text:'TERE SCRIBE ✓',       bg:'rgba(11,110,118,.35)', color:'#7ECFD4' }
+    } else if (confidence === 'medium') {
+      badge = { text:'TERE SCRIBE ⚠ REVIEW', bg:'rgba(217,119,6,.30)',  color:'#FCD34D' }
+    } else {
+      badge = { text:'TERE SCRIBE ✗ COMPLETE', bg:'rgba(220,38,38,.28)', color:'#FCA5A5' }
+    }
+  } else if (source === 'triage') {
+    badge = { text:'TRIAGE ✓',    bg:'rgba(5,150,105,.20)',  color:'#6EE7B7' }
+  } else if (source === 'none') {
+    badge = { text:'NEEDS INPUT', bg:'rgba(220,38,38,.12)',   color:'#FCA5A5' }
+  }
 
-const SECTION_SOURCES = {
-  presentingHistory: 'auto-populated from triage + transcript',
-  medicalHistory:    'auto-populated from triage',
-  allergies:         'auto-populated from triage',
-  socialHistory:     'auto-populated from triage',
-  examination:       'auto-populated from transcript',
-  mdm:               'auto-populated from transcript',
-  plan:              'auto-populated from transcript + actions',
-}
-
-const SECTION_ROWS = {
-  presentingHistory: 6,
-  medicalHistory:    4,
-  allergies:         2,
-  socialHistory:     3,
-  mdm:               7,
-  plan:              6,
-}
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function NoteSection({ sectionKey, value, onChange, disabled, onRegenerate, regenerating }) {
   return (
-    <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', marginBottom: '1rem', overflow: 'hidden' }}>
-      <div style={{ padding: '.875rem 1.25rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAFAFA' }}>
-        <div>
-          <span style={{ fontSize: '.8125rem', fontWeight: 700, color: '#0D2B45' }}>{SECTION_LABELS[sectionKey]}</span>
-          <span style={{ fontSize: '.7rem', color: '#9CA3AF', marginLeft: 8 }}>{SECTION_SOURCES[sectionKey]}</span>
+    <div style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', marginBottom:'1rem', overflow:'hidden' }}>
+      <div style={{ background:NAVY, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span style={{ width:24, height:24, borderRadius:'50%', background:TEAL, color:'white', fontWeight:800, fontSize:'.75rem', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{num}</span>
+          <span style={{ fontWeight:700, fontSize:'.9rem', color:'white' }}>{title}</span>
         </div>
-        {!disabled && onRegenerate && (
-          <button onClick={() => onRegenerate(sectionKey)} disabled={regenerating}
-            style={{ background: 'none', border: '1px solid #E2E8F0', color: regenerating ? '#9CA3AF' : '#0B6E76', padding: '3px 10px', borderRadius: 6, cursor: regenerating ? 'default' : 'pointer', fontSize: '.7rem', fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {regenerating ? '⟳ Regenerating…' : '↺ Regenerate'}
-          </button>
-        )}
+        {badge && <span style={{ fontSize:'.65rem', background:badge.bg, color:badge.color, borderRadius:99, padding:'2px 8px', fontWeight:700, letterSpacing:'.05em' }}>{badge.text}</span>}
       </div>
-      <textarea
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        rows={SECTION_ROWS[sectionKey] || 4}
-        readOnly={disabled}
-        style={{ width: '100%', boxSizing: 'border-box', border: 'none', padding: '1rem 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem', lineHeight: 1.7, resize: 'vertical', outline: 'none', background: disabled ? '#F8FAFC' : 'white', color: '#1A2A33' }}
+      <div style={{ padding:'1rem' }}>{children}</div>
+    </div>
+  )
+}
+
+function TA({ value, onChange, rows = 4, placeholder = '', disabled }) {
+  return (
+    <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows}
+      placeholder={placeholder} readOnly={disabled}
+      style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', lineHeight:1.7, resize:'vertical', outline:'none', background:disabled?'#F8FAFC':'white', color:'#1A2A33' }}
+    />
+  )
+}
+
+function Input({ label, value, onChange, disabled, placeholder = '' }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+      {label && <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280' }}>{label}</label>}
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} readOnly={disabled}
+        style={{ border:'1.5px solid #E2E8F0', borderRadius:8, padding:'9px 12px', fontFamily:FF, fontSize:'.9375rem', outline:'none', color:'#1A2A33', background:disabled?'#F8FAFC':'white', width:'100%', boxSizing:'border-box' }}
       />
     </div>
   )
 }
 
-function ExamCard({ exam, setExam, highlighted, disabled, onRegenerate, regenerating }) {
-  const [expanded, setExpanded] = useState({})
-
-  function toggle(key) {
-    setExpanded(e => ({ ...e, [key]: !e[key] }))
-  }
-
-  const isVisible = key => highlighted.includes(key) || expanded[key]
-
+function ProgressDots({ progress }) {
   return (
-    <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', marginBottom: '1rem', overflow: 'hidden' }}>
-      <div style={{ padding: '.875rem 1.25rem', borderBottom: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#FAFAFA' }}>
-        <div>
-          <span style={{ fontSize: '.8125rem', fontWeight: 700, color: '#0D2B45' }}>{SECTION_LABELS.examination}</span>
-          <span style={{ fontSize: '.7rem', color: '#9CA3AF', marginLeft: 8 }}>{SECTION_SOURCES.examination}</span>
-        </div>
-        {!disabled && onRegenerate && (
-          <button onClick={() => onRegenerate('examination')} disabled={regenerating}
-            style={{ background: 'none', border: '1px solid #E2E8F0', color: regenerating ? '#9CA3AF' : '#0B6E76', padding: '3px 10px', borderRadius: 6, cursor: regenerating ? 'default' : 'pointer', fontSize: '.7rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            {regenerating ? '⟳ Regenerating…' : '↺ Regenerate'}
-          </button>
-        )}
-      </div>
-      <div style={{ padding: '.75rem 1.25rem' }}>
-        {highlighted.length > 0 && (
-          <div style={{ marginBottom: '.75rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {highlighted.map(k => {
-              const s = EXAM_SUBSECTIONS.find(s => s.key === k)
-              return s ? (
-                <span key={k} style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: 4, padding: '1px 7px', fontSize: '.7rem', fontWeight: 600 }}>
-                  {s.label} — clinically relevant
-                </span>
-              ) : null
-            })}
-          </div>
-        )}
-
-        {EXAM_SUBSECTIONS.map(({ key, label, hint }) => {
-          const isHighlighted = highlighted.includes(key)
-          const isOpen = isVisible(key)
-          const content = exam[key] || ''
-          const isNA = content.includes('N/A') || content.includes('not clinically indicated')
-
-          return (
-            <div key={key} style={{ marginBottom: '.5rem', borderRadius: 8, border: `1.5px solid ${isHighlighted ? '#BFDBFE' : '#F3F4F6'}`, background: isHighlighted ? '#F8FBFF' : 'white', overflow: 'hidden' }}>
-              <button
-                onClick={() => !isHighlighted && toggle(key)}
-                style={{ width: '100%', padding: '.5rem .875rem', background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: isHighlighted ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: '.8125rem', fontWeight: 700, color: isHighlighted ? '#1D4ED8' : '#374151' }}>{label}</span>
-                  <span style={{ fontSize: '.7rem', color: '#9CA3AF' }}>{hint}</span>
-                </div>
-                {!isHighlighted && (
-                  <span style={{ fontSize: '.8125rem', color: '#9CA3AF' }}>{isOpen ? '▲' : (isNA ? 'N/A ▼' : '▼')}</span>
-                )}
-              </button>
-              {isOpen && (
-                <textarea
-                  value={content}
-                  onChange={e => !disabled && setExam(ex => ({ ...ex, [key]: e.target.value }))}
-                  rows={key === 'vitals' ? 1 : 3}
-                  readOnly={disabled}
-                  style={{ width: '100%', boxSizing: 'border-box', border: 'none', borderTop: '1px solid #F3F4F6', padding: '.625rem .875rem', fontFamily: key === 'vitals' ? 'monospace' : 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', lineHeight: 1.6, resize: 'vertical', outline: 'none', background: disabled ? '#F8FAFC' : 'white', color: '#1A2A33' }}
-                />
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function ReadCodePicker({ value, onChange, disabled }) {
-  const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  const selected = ACC_READ_CODES.find(c => c.code === value)
-  const filtered = ACC_READ_CODES.filter(c =>
-    !search || c.code.toLowerCase().includes(search.toLowerCase()) || c.label.toLowerCase().includes(search.toLowerCase())
-  )
-
-  useEffect(() => {
-    if (selected) setSearch(`${selected.code} — ${selected.label}`)
-  }, [value])
-
-  useEffect(() => {
-    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  function select(code) {
-    onChange(code)
-    const c = ACC_READ_CODES.find(x => x.code === code)
-    setSearch(c ? `${c.code} — ${c.label}` : code)
-    setOpen(false)
-  }
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <input
-        value={search}
-        onChange={e => { setSearch(e.target.value); setOpen(true) }}
-        onFocus={() => { setSearch(''); setOpen(true) }}
-        readOnly={disabled}
-        placeholder="Search Read codes…"
-        style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: `1.5px solid ${value ? '#0B6E76' : '#E2E8F0'}`, borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none', background: disabled ? '#F8FAFC' : 'white' }}
-      />
-      {open && !disabled && filtered.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #E2E8F0', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.1)', zIndex: 100, maxHeight: 200, overflowY: 'auto', marginTop: 2 }}>
-          {filtered.map(c => (
-            <button key={c.code} onClick={() => select(c.code)}
-              style={{ width: '100%', padding: '8px 12px', border: 'none', background: c.code === value ? '#EFF6FF' : 'white', color: '#1A2A33', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', cursor: 'pointer', display: 'flex', gap: 8, textAlign: 'left' }}>
-              <span style={{ fontWeight: 700, color: '#0B6E76', width: 36, flexShrink: 0 }}>{c.code}</span>
-              <span>{c.label}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function WorkCapacityPicker({ value, onChange, disabled }) {
-  const options = [
-    { val: 'fit',      label: 'Fit for work',    color: '#059669', bg: '#F0FDF4', border: '#BBF7D0' },
-    { val: 'modified', label: 'Modified duties', color: '#D97706', bg: '#FFFBEB', border: '#FDE68A' },
-    { val: 'unfit',    label: 'Unfit for work',  color: '#DC2626', bg: '#FEF2F2', border: '#FECACA' },
-  ]
-  return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {options.map(o => (
-        <button key={o.val} onClick={() => !disabled && onChange(o.val)}
-          style={{ flex: 1, padding: '8px 4px', borderRadius: 8, border: `1.5px solid ${value === o.val ? o.border : '#E2E8F0'}`, background: value === o.val ? o.bg : 'white', color: value === o.val ? o.color : '#9CA3AF', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', fontWeight: 700, cursor: disabled ? 'default' : 'pointer', transition: 'all .15s' }}>
-          {o.label}
-        </button>
+    <div style={{ display:'flex', gap:6, alignItems:'center', justifyContent:'center', padding:'10px 0 2px' }}>
+      {progress.map((done, i) => (
+        <div key={i} style={{ width:done?10:8, height:done?10:8, borderRadius:'50%', background:done?TEAL:'#D1D5DB', transition:'all .2s' }} title={`Section ${i+1}`} />
       ))}
     </div>
   )
 }
 
-function Checkbox({ checked, onChange, disabled }) {
-  return (
-    <div onClick={() => !disabled && onChange(!checked)}
-      style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, border: `2px solid ${checked ? '#059669' : '#D1D5DB'}`, background: checked ? '#059669' : 'white', cursor: disabled ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {checked && <span style={{ color: 'white', fontSize: 12, fontWeight: 700, lineHeight: 1 }}>✓</span>}
-    </div>
-  )
+function formatTimer(sec) {
+  return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+function formatVitals(vitals) {
+  if (!vitals) return 'No vitals recorded via Tere Vitals'
+  return [
+    vitals.hr    ? `HR: ${vitals.hr} bpm`   : null,
+    vitals.rr    ? `RR: ${vitals.rr} brpm`  : null,
+    vitals.spo2  ? `SpO2: ${vitals.spo2}%`  : null,
+    vitals.bp    ? `BP: ${vitals.bp} mmHg`  : null,
+    vitals.temp  ? `Temp: ${vitals.temp}°C` : null,
+  ].filter(Boolean).join('  |  ')
+}
 
 export default function NotesCompletion() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const { id }    = useParams()
+  const navigate  = useNavigate()
+  const location  = useLocation()
 
-  const [consult, setConsult]           = useState(null)
-  const [loading, setLoading]           = useState(true)
-  const [generating, setGenerating]     = useState(false)
-  const [generationError, setGenerationError] = useState(null)
-  const [saving, setSaving]             = useState(false)
-  const [lastSaved, setLastSaved]       = useState(null)
-  const [finalising, setFinalising]     = useState(false)
+  const [consult, setConsult]         = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [generating, setGenerating]   = useState(false)
+  const [genError, setGenError]       = useState(null)
+  const [finalising, setFinalising]   = useState(false)
+  const [lastSaved, setLastSaved]     = useState(null)
 
-  // Note sections
-  const [sections, setSections] = useState({
-    presentingHistory: '',
-    medicalHistory:    '',
-    allergies:         '',
-    socialHistory:     '',
-    mdm:               '',
-    plan:              '',
-  })
-  const [exam, setExam] = useState({
-    general: '', vitals: '', heent: '', cardiac: '',
-    respiratory: '', abdomen: '', skin: '', msk: '', neurological: '',
-  })
-  const [examHighlighted, setExamHighlighted] = useState(['general', 'vitals'])
-
-  // ACC fields
-  const [accReadCode, setAccReadCode]   = useState('')
-  const [accSection, setAccSection]     = useState({
-    claimType: 'New injury', mechanism: '', bodyPart: '',
-    injuryDate: '', incapacityForWork: false, returnToWorkDate: '', restrictions: '',
-  })
-
-  // Billing (display only)
-  const [billing, setBilling]           = useState({ serviceCode: '', durationMinutes: 0, consultationType: 'Video' })
+  // ── Note state ───────────────────────────────────────────────────────────────
+  const [s1, setS1] = useState('')   // presenting history
+  const [medHistory, setMedHistory]     = useState('')
+  const [medications, setMedications]   = useState('')
+  const [allergies, setAllergies]       = useState('')
+  const [tobacco, setTobacco]           = useState('Not disclosed')
+  const [alcohol, setAlcohol]           = useState('Not disclosed')
+  const [occupation, setOccupation]     = useState('')
+  const [generalAppearance, setGA]      = useState('')
+  const [visibleFindings, setVF]        = useState('')
+  const [mdm, setMdm]                   = useState('')
+  const [planItems, setPlanItems]       = useState([]) // [{id, text, locked, type}]
+  const [returnPrecautions, setReturnP] = useState('')
+  const [outcome, setOutcome]           = useState('')
 
   // Work capacity
-  const [workCapacity, setWorkCapacity] = useState('fit')
-  const [returnToWorkDate, setReturnToWorkDate] = useState('')
+  const [workCapacity, setWorkCapacity] = useState('')
+  const [wcFrom, setWcFrom]             = useState(today)
+  const [wcTo, setWcTo]                 = useState('')
+  const [wcLimitations, setWcLimits]    = useState('')
+  const [wcReview, setWcReview]         = useState('')
 
-  // Workflow
-  const [outcome, setOutcome]           = useState('')
-  const [emailDone, setEmailDone]       = useState(null)
+  // ACC
+  const [accReadCode, setAccReadCode]   = useState('')
+  const [accMechanism, setAccMech]      = useState('')
+  const [accBodyPart, setAccBody]       = useState('')
+
+  // Attestation
   const [attested, setAttested]         = useState(false)
-  const [regenerating, setRegenerating] = useState({})
 
-  // GP send
-  const [showGpModal, setShowGpModal]   = useState(false)
-  const [gpName, setGpName]             = useState('')
-  const [gpEmail, setGpEmail]           = useState('')
-  const [sendingGp, setSendingGp]       = useState(false)
-  const [gpSent, setGpSent]             = useState(false)
-  const [sendGpOnFinalise, setSendGpOnFinalise] = useState(false)
+  // Source tracking — where each section's content came from
+  const [sources, setSources]           = useState({})
+  // Confidence per section from Scribe
+  const [confidence, setConfidence]     = useState({})
+  // Red flags from Scribe
+  const [redFlags, setRedFlags]         = useState(null)
+  const [flagsAcknowledged, setFlagsAcknowledged] = useState(false)
+  // Note comparison: triage snapshot vs scribe additions
+  const [showComparison, setShowComparison]   = useState(false)
+  const [triageSnapshot, setTriageSnapshot]   = useState({})
+  const [additions, setAdditions]             = useState({})
+  // ICD-10
+  const [icd10Code, setIcd10Code]       = useState('')
+  const [icd10Label, setIcd10Label]     = useState('')
 
-  // Recall / follow-up
-  const [recallDate, setRecallDate]         = useState('')
-  const [recallNote, setRecallNote]         = useState('')
-
-  // Discharge letter (free-text to GP)
-  const [dischargeLetter, setDischargeLetter] = useState('')
-  const [sendDischargeOnFinalise, setSendDischargeOnFinalise] = useState(false)
-
-  // Medical certificate
-  const [showMedCertModal, setShowMedCertModal] = useState(false)
-  const [medCertFrom, setMedCertFrom]   = useState(new Date().toISOString().slice(0, 10))
-  const [medCertTo, setMedCertTo]       = useState('')
-  const [medCertRestrictions, setMedCertRestrictions] = useState('')
-  const [medCertDiagnosis, setMedCertDiagnosis] = useState('')
-  const [generatingMedCert, setGeneratingMedCert] = useState(false)
-  const [medCertIssued, setMedCertIssued] = useState(false)
-
-  // Refs for auto-save
-  const draftRef = useRef({})
-  const consultRef = useRef(null)
-  const actionsRef = useRef([])
+  const actionsRef    = useRef([])
   const transcriptRef = useRef('')
+  const startTimeRef  = useRef(Date.now())
+  const [elapsed, setElapsed] = useState(0)
+  const draftKey = `tere_notes2_${id}`
 
+  // Timer
   useEffect(() => {
-    draftRef.current = { sections, exam, examHighlighted, accReadCode, accSection, billing, workCapacity, returnToWorkDate, outcome, emailDone }
-  }, [sections, exam, examHighlighted, accReadCode, accSection, billing, workCapacity, returnToWorkDate, outcome, emailDone])
+    if (attested) return
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [attested])
 
-  // ── Load & auto-generate ──────────────────────────────────────────────────
-
+  // Auth
   useEffect(() => {
-    if (!sessionStorage.getItem('clinicianAuth')) { navigate('/clinician'); return }
+    if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician')
+  }, [navigate])
 
+  // ── Load ─────────────────────────────────────────────────────────────────────
+  useEffect(() => {
     async function load() {
       try {
         const data = await getConsultation(id)
         setConsult(data)
-        consultRef.current = data
-        if (data.gp_name)  setGpName(data.gp_name)
-        if (data.gp_email) { setGpEmail(data.gp_email); setSendGpOnFinalise(true) }
-        if (data.medical_certificate_issued) setMedCertIssued(true)
 
-        // Actions from route state or notes_draft
         const rs = location.state
-        const actions = rs?.actions || data.notes_draft?.actions || []
-        actionsRef.current = actions
+        actionsRef.current  = rs?.actions   || data.notes_draft?.actions || []
+        transcriptRef.current = rs?.transcript || data.transcript || ''
 
-        // Transcript from route state or DB column
-        const transcript = rs?.transcript || data.transcript || ''
-        transcriptRef.current = transcript
-
-        // If already finalised, load final note
+        // Already finalised
         if (data.notes_finalised && data.notes_final) {
           try {
             const final = typeof data.notes_final === 'string' ? JSON.parse(data.notes_final) : data.notes_final
-            restoreFromSaved(final, data)
+            restoreDraft(final, data)
+            setAttested(true)
           } catch {}
           setLoading(false)
           return
         }
 
-        // If previously drafted, restore
-        if (data.notes_draft && data.note_generated_at) {
-          const draft = data.notes_draft
-          if (draft.sections) restoreFromSaved(draft, data)
+        // Existing draft
+        if (data.notes_draft?.v === 2) {
+          restoreDraft(data.notes_draft, data)
           setLoading(false)
           return
         }
 
-        // Otherwise auto-generate
+        // Local draft fallback
+        try {
+          const local = localStorage.getItem(draftKey)
+          if (local) {
+            const d = JSON.parse(local)
+            if (d.v === 2) { restoreDraft(d, data); setLoading(false); return }
+          }
+        } catch {}
+
+        // Generate fresh
         setLoading(false)
-        await runGenerateNotes(data, transcript, actions)
+        await runGenerate(data, transcriptRef.current, actionsRef.current)
       } catch (e) { console.error(e); setLoading(false) }
     }
     load()
-  }, [id, navigate])
+  }, [id])
 
-  function restoreFromSaved(saved, data) {
-    if (saved.sections)  setSections(s => ({ ...s, ...saved.sections }))
-    if (saved.exam)      setExam(e => ({ ...e, ...saved.exam }))
-    if (saved.examHighlighted) setExamHighlighted(saved.examHighlighted)
-    if (saved.accReadCode)     setAccReadCode(saved.accReadCode)
-    if (saved.accSection)      setAccSection(a => ({ ...a, ...saved.accSection }))
-    if (saved.billing)         setBilling(saved.billing)
-    if (saved.workCapacity)    setWorkCapacity(saved.workCapacity)
-    if (saved.returnToWorkDate) setReturnToWorkDate(saved.returnToWorkDate)
-    if (saved.outcome || data?.outcome) setOutcome(saved.outcome || data?.outcome || '')
-    if (saved.emailDone !== undefined)  setEmailDone(saved.emailDone)
+  function restoreDraft(d, data) {
+    if (d.s1 !== undefined)          setS1(d.s1)
+    if (d.medHistory !== undefined)  setMedHistory(d.medHistory)
+    if (d.medications !== undefined) setMedications(d.medications)
+    if (d.allergies !== undefined)   setAllergies(d.allergies)
+    if (d.tobacco !== undefined)     setTobacco(d.tobacco)
+    if (d.alcohol !== undefined)     setAlcohol(d.alcohol)
+    if (d.occupation !== undefined)  setOccupation(d.occupation)
+    if (d.generalAppearance !== undefined) setGA(d.generalAppearance)
+    if (d.visibleFindings !== undefined)   setVF(d.visibleFindings)
+    if (d.mdm !== undefined)         setMdm(d.mdm)
+    if (d.planItems !== undefined)   setPlanItems(d.planItems)
+    if (d.returnPrecautions !== undefined) setReturnP(d.returnPrecautions)
+    if (d.outcome !== undefined)     setOutcome(d.outcome || data?.outcome || '')
+    if (d.workCapacity !== undefined) setWorkCapacity(d.workCapacity)
+    if (d.wcFrom !== undefined)      setWcFrom(d.wcFrom)
+    if (d.wcTo !== undefined)        setWcTo(d.wcTo)
+    if (d.wcLimitations !== undefined) setWcLimits(d.wcLimitations)
+    if (d.wcReview !== undefined)    setWcReview(d.wcReview)
+    if (d.accReadCode !== undefined) setAccReadCode(d.accReadCode)
+    if (d.accMechanism !== undefined) setAccMech(d.accMechanism)
+    if (d.accBodyPart !== undefined) setAccBody(d.accBodyPart)
+    if (!d.workCapacity && data?.work_capacity) setWorkCapacity(data.work_capacity)
+    if (!d.outcome && data?.outcome) setOutcome(data.outcome)
+    if (d._sources)     setSources(d._sources)
+    if (d._confidence)  setConfidence(d._confidence)
+    if (d._redFlags)    setRedFlags(d._redFlags)
+    if (d._triage)      setTriageSnapshot(d._triage)
+    if (d._additions)   setAdditions(d._additions)
+    if (d.icd10Code)    setIcd10Code(d.icd10Code)
+    if (d.icd10Label)   setIcd10Label(d.icd10Label)
   }
 
-  async function buildContext(consultData, transcript, actions) {
-    const prescriptions = (actions || []).filter(a => a.type === 'prescription')
-    const referrals     = (actions || []).filter(a => a.type === 'radiology')
-
-    let chatMessages = []
+  async function runGenerate(consultData, transcript, actions) {
+    setGenerating(true); setGenError(null)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data: msgs } = await supabase.from('messages').select('sender, message').eq('consultation_id', consultData.id).order('created_at')
-      chatMessages = msgs || []
-    } catch {}
-
-    const durationMinutes = consultData.consultation_duration_seconds
-      ? Math.round(consultData.consultation_duration_seconds / 60)
-      : 0
-
-    return {
-      transcript: transcript || '',
-      triage: {
-        patientName:          `${consultData.patient_first_name} ${consultData.patient_last_name}`,
-        patientDob:           consultData.patient_dob,
-        patientNhi:           consultData.patient_nhi,
-        patientPhone:         consultData.patient_phone,
-        patientEmail:         consultData.patient_email,
-        patientLocation:      consultData.patient_location,
-        chiefComplaint:       consultData.chief_complaint,
-        medicalHistory:       consultData.medical_history,
-        medications:          consultData.medications,
-        allergies:            consultData.patient_allergies,
-        pharmacy:             consultData.pharmacy,
-        accEligible:          consultData.acc_eligible === 'yes',
-        accInjuryDescription: consultData.acc_injury_details,
-        accInjuryDate:        consultData.acc_injury_date,
-        accEmployer:          consultData.acc_employer,
-      },
-      vitals:         consultData.vitals,
-      prescriptions,
-      referrals,
-      chatMessages,
-      durationMinutes,
-      providerName:        sessionStorage.getItem('providerDisplayName') || consultData.provider_display_name || '',
-      providerCredentials: [
-        sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : null,
-        sessionStorage.getItem('providerCpn')       ? `HPI CPN: ${sessionStorage.getItem('providerCpn')}` : null,
-      ].filter(Boolean).join(' | '),
-      consultationDate: consultData.created_at,
-    }
-  }
-
-  async function runGenerateNotes(consultData, transcript, actions) {
-    setGenerating(true)
-    setGenerationError(null)
-    try {
-      const body = await buildContext(consultData, transcript, actions)
+      const prescriptions = (actions || []).filter(a => a.type === 'prescription')
+      const referrals     = (actions || []).filter(a => a.type === 'radiology')
       const res = await apiFetch('/api/generate-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method: 'POST', headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          transcript: transcript || '',
+          triage: {
+            patientName:    `${consultData.patient_first_name} ${consultData.patient_last_name}`,
+            patientDob:     consultData.patient_dob,
+            patientNhi:     consultData.patient_nhi,
+            chiefComplaint: consultData.chief_complaint,
+            medicalHistory: consultData.medical_history,
+            medications:    consultData.medications,
+            allergies:      consultData.patient_allergies,
+            accEligible:    consultData.acc_eligible === 'yes',
+            accInjuryDescription: consultData.acc_injury_details,
+            accInjuryDate:  consultData.acc_injury_date,
+            accEmployer:    consultData.acc_employer,
+          },
+          vitals:         consultData.vitals,
+          prescriptions,
+          referrals,
+          providerName: sessionStorage.getItem('providerDisplayName') || '',
+          consultationDate: consultData.created_at,
+        }),
       })
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
+      const d = await res.json()
+      if (!res.ok || d.error) throw new Error(d.error || 'Generation failed')
 
-      populateFromGenerated(data)
+      if (d.presentingHistory) setS1(d.presentingHistory)
+      if (d.medicalHistory)    setMedHistory(d.medicalHistory)
+      if (d.medications)       setMedications(d.medications)
+      if (d.allergies)         setAllergies(d.allergies)
+      if (d.social) {
+        if (d.social.tobacco)    setTobacco(d.social.tobacco)
+        if (d.social.alcohol)    setAlcohol(d.social.alcohol)
+        if (d.social.occupation) setOccupation(d.social.occupation)
+      }
+      if (d.generalAppearance) setGA(d.generalAppearance)
+      if (d.visibleFindings)   setVF(d.visibleFindings)
+      if (d.mdm)               setMdm(d.mdm)
+      if (d.returnPrecautions) setReturnP(d.returnPrecautions)
+      if (d.workCapacity)      setWorkCapacity(d.workCapacity)
+      if (d.accSection) {
+        if (d.accSection.mechanism)         setAccMech(d.accSection.mechanism)
+        if (d.accSection.bodyPart)          setAccBody(d.accSection.bodyPart)
+        if (d.accSection.readCodeSuggestion) setAccReadCode(d.accSection.readCodeSuggestion)
+      }
+      if (d.suggestedReadCode) setAccReadCode(prev => prev || d.suggestedReadCode)
+      if (d.icd10Code)         setIcd10Code(d.icd10Code)
+      if (d.icd10Label)        setIcd10Label(d.icd10Label)
+      if (d._sources)          setSources(d._sources)
+      if (d._confidence)       setConfidence(d._confidence)
+      if (d._redFlags)         setRedFlags(d._redFlags)
+      if (d._triage)           setTriageSnapshot(d._triage)
+      if (d._additions)        setAdditions(d._additions)
+
+      // Build editable plan items from AI (locked items built from actions separately)
+      if (Array.isArray(d.planItems)) {
+        setPlanItems(prev => {
+          const locked = prev.filter(p => p.locked)
+          const editable = d.planItems.map((text, i) => ({ id: `ai-${i}`, text, locked: false }))
+          return [...locked, ...editable]
+        })
+      }
 
       const { supabase } = await import('../../lib/supabase')
       await supabase.from('consultations').update({ note_generated_at: new Date().toISOString() }).eq('id', id)
-    } catch (e) {
-      console.error(e)
-      setGenerationError(e.message)
-    }
+    } catch (e) { console.error(e); setGenError(e.message) }
     setGenerating(false)
   }
 
-  function populateFromGenerated(data) {
-    setSections(s => ({
-      ...s,
-      presentingHistory: data.presentingHistory || s.presentingHistory,
-      medicalHistory:    data.medicalHistory    || s.medicalHistory,
-      allergies:         data.allergies         || s.allergies,
-      socialHistory:     data.socialHistory     || s.socialHistory,
-      mdm:               data.mdm               || s.mdm,
-      plan:              data.plan              || s.plan,
-    }))
-    if (data.examination) {
-      const { highlighted = [], ...examFields } = data.examination
-      setExam(e => ({ ...e, ...examFields }))
-      setExamHighlighted(highlighted.length ? highlighted : ['general', 'vitals'])
+  // Build locked plan items from actions on mount
+  useEffect(() => {
+    const actions = actionsRef.current || []
+    const locked = []
+    actions.filter(a => a.type === 'prescription').forEach(p => {
+      locked.push({ id: `rx-${p.drug}`, locked: true, type:'rx', text: `Prescription: ${p.drug}${p.dose?' '+p.dose:''}${p.frequency?' '+p.frequency:''}${p.pharmacy?' — '+p.pharmacy:''}` })
+    })
+    actions.filter(a => a.type === 'radiology').forEach(r => {
+      locked.push({ id: `ref-${r.investigation}`, locked: true, type:'ref', text: `Referral: ${r.investigation||'Imaging'} — ${r.bodyPart||''}${r.priority?' ['+r.priority+']':''}` })
+    })
+    if (locked.length) {
+      setPlanItems(prev => [...locked, ...prev.filter(p => !p.locked)])
     }
-    if (data.accSection) {
-      setAccSection(a => ({
-        ...a,
-        claimType:        data.accSection.claimType        || a.claimType,
-        mechanism:        data.accSection.mechanism        || a.mechanism,
-        bodyPart:         data.accSection.bodyPart         || a.bodyPart,
-        injuryDate:       data.accSection.injuryDate       || a.injuryDate,
-        incapacityForWork: data.accSection.incapacityForWork ?? a.incapacityForWork,
-        returnToWorkDate:  data.accSection.returnToWorkDate || a.returnToWorkDate,
-        restrictions:     data.accSection.restrictions     || a.restrictions,
-      }))
-    }
-    if (data.billing)          setBilling(data.billing)
-    if (data.suggestedReadCode) setAccReadCode(data.suggestedReadCode)
-    if (data.workCapacity)     setWorkCapacity(data.workCapacity)
-  }
+  }, [])
 
-  async function regenerateSection(sectionKey) {
-    setRegenerating(r => ({ ...r, [sectionKey]: true }))
-    try {
-      const body = await buildContext(consultRef.current, transcriptRef.current, actionsRef.current)
-      const res = await apiFetch('/api/generate-notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await res.json()
-      if (!res.ok || data.error) throw new Error(data.error)
-      if (sectionKey === 'examination') {
-        if (data.examination) {
-          const { highlighted = [], ...examFields } = data.examination
-          setExam(e => ({ ...e, ...examFields }))
-          if (highlighted.length) setExamHighlighted(highlighted)
-        }
-      } else if (data[sectionKey] !== undefined) {
-        setSections(s => ({ ...s, [sectionKey]: data[sectionKey] }))
-      }
-    } catch (e) { alert('Regeneration failed: ' + e.message) }
-    setRegenerating(r => ({ ...r, [sectionKey]: false }))
-  }
-
-  // ── Auto-save ─────────────────────────────────────────────────────────────
+  // Auto-save every 30 seconds
+  const getDraft = useCallback(() => ({
+    v: 2, s1, medHistory, medications, allergies, tobacco, alcohol, occupation,
+    generalAppearance, visibleFindings, mdm, planItems, returnPrecautions, outcome,
+    workCapacity, wcFrom, wcTo, wcLimitations, wcReview, accReadCode, accMechanism, accBodyPart,
+    icd10Code, icd10Label,
+    actions: actionsRef.current,
+    _sources: sources,
+    _confidence: confidence,
+    _redFlags: redFlags,
+    _triage: triageSnapshot,
+    _additions: additions,
+  }), [s1, medHistory, medications, allergies, tobacco, alcohol, occupation,
+       generalAppearance, visibleFindings, mdm, planItems, returnPrecautions, outcome,
+       workCapacity, wcFrom, wcTo, wcLimitations, wcReview, accReadCode, accMechanism, accBodyPart,
+       icd10Code, icd10Label,
+       sources, confidence, redFlags, triageSnapshot, additions])
 
   useEffect(() => {
-    const timer = setInterval(async () => {
-      if (!id || consult?.notes_finalised) return
-      setSaving(true)
+    if (!consult) return
+    const t = setInterval(async () => {
+      const draft = getDraft()
+      localStorage.setItem(draftKey, JSON.stringify(draft))
       try {
         const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({ notes_draft: draftRef.current }).eq('id', id)
+        await supabase.from('consultations').update({ notes_draft: draft }).eq('id', id)
         setLastSaved(new Date())
       } catch {}
-      setSaving(false)
     }, 30000)
-    return () => clearInterval(timer)
-  }, [id, consult?.notes_finalised])
+    return () => clearInterval(t)
+  }, [consult, getDraft, id])
 
-  async function saveDraft() {
-    setSaving(true)
-    try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ notes_draft: draftRef.current }).eq('id', id)
-      setLastSaved(new Date())
-    } catch {}
-    setSaving(false)
-  }
-
-  // ── Finalise ──────────────────────────────────────────────────────────────
-
+  // ── Finalise ─────────────────────────────────────────────────────────────────
   async function finalise() {
-    if (!attested || !outcome) return
     setFinalising(true)
     try {
-      const now = new Date().toISOString()
-      const { supabase } = await import('../../lib/supabase')
+      const now    = new Date().toISOString()
+      const completedSec = Math.floor((Date.now() - startTimeRef.current) / 1000)
+      const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
+      const providerId   = sessionStorage.getItem('providerId') || null
+      const regNum       = sessionStorage.getItem('providerCpn') || sessionStorage.getItem('prescriberNumber') || ''
+      const patientName  = consult ? `${consult.patient_first_name} ${consult.patient_last_name}` : ''
+      const dob          = consult?.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '—'
+      const nhi          = consult?.patient_nhi || '—'
+      const consultDate  = consult ? new Date(consult.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' }) : ''
+      const consultTime  = consult ? new Date(consult.created_at).toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' }) : ''
+
+      const allPlanLines = [
+        ...planItems.map(p => `• ${p.text}`),
+        returnPrecautions ? `• Return precautions: ${returnPrecautions}` : null,
+        workCapacity === 'fit' ? '• Work capacity: Fit for work' :
+        workCapacity === 'modified' ? `• Work capacity: Modified duties — ${wcLimitations}${wcFrom?' from '+wcFrom:''}${wcTo?' to '+wcTo:''}` :
+        `• Work capacity: Unfit for work${wcFrom?' from '+wcFrom:''}${wcTo?' to '+wcTo:''}${wcReview?' Review '+wcReview:''}`,
+        outcome ? `• Outcome: ${outcome}` : null,
+      ].filter(Boolean).join('\n')
 
       const finalNote = {
-        sections, exam, examHighlighted,
-        accSection, billing, accReadCode,
-        workCapacity, returnToWorkDate, outcome,
-        providerName:        sessionStorage.getItem('providerDisplayName') || '',
-        providerCredentials: [
-          sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : null,
-          sessionStorage.getItem('providerCpn') ? `HPI CPN: ${sessionStorage.getItem('providerCpn')}` : null,
-        ].filter(Boolean).join(' | '),
-        attestedAt: now,
+        v: 2, attestedAt: now, providerName, providerId,
+        s1, medHistory, medications, allergies,
+        social: { tobacco, alcohol, occupation },
+        generalAppearance, visibleFindings,
+        mdm, planItems, returnPrecautions, outcome,
+        workCapacity, wcFrom, wcTo, wcLimitations, wcReview,
+        accReadCode, accMechanism, accBodyPart,
         actions: actionsRef.current,
       }
 
-      const durSec = consult.consultation_duration_seconds ||
-        (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
+      const noteText = [
+        `CLINICAL NOTES — ${consultDate} ${consultTime}`,
+        `Patient: ${patientName} | DOB: ${dob} | NHI: ${nhi}`,
+        `Provider: ${providerName}${regNum ? ' (Reg: ' + regNum + ')' : ''}`,
+        '',
+        '1. PRESENTING COMPLAINT AND HISTORY',
+        s1,
+        '',
+        '2. MEDICAL HISTORY, ALLERGIES AND SOCIAL HISTORY',
+        `Medical history: ${medHistory}`,
+        `Current medications: ${medications}`,
+        `Allergies: ${allergies}`,
+        `Social: Tobacco — ${tobacco} | Alcohol — ${alcohol} | Occupation — ${occupation}`,
+        '',
+        '3. TELEHEALTH EXAMINATION',
+        `Vitals: ${formatVitals(consult?.vitals)}`,
+        `General appearance: ${generalAppearance || 'Not assessed'}`,
+        `Visible findings: ${visibleFindings || 'Not assessed'}`,
+        MCNZ_STATEMENT,
+        '',
+        '4. MEDICAL DECISION MAKING',
+        mdm,
+        '',
+        '5. PLAN',
+        allPlanLines,
+        ...(consult?.acc_eligible === 'yes' ? [
+          '',
+          `ACC: Read code ${accReadCode} | Mechanism: ${accMechanism} | Body part: ${accBodyPart}`,
+        ] : []),
+        '',
+        '6. ATTESTATION',
+        `I, ${providerName}${regNum ? ' (' + regNum + ')' : ''}, confirm that these notes accurately reflect the telehealth consultation I conducted on ${consultDate} at ${consultTime} with ${patientName} (NHI: ${nhi}). I conducted this consultation in accordance with MCNZ telehealth standards and accept clinical responsibility for this record.`,
+        '',
+        MCNZ_FOOTER,
+      ].join('\n')
 
+      const durationSec = consult?.consultation_duration_seconds ||
+        (consult?.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
+
+      const { supabase } = await import('../../lib/supabase')
       await supabase.from('consultations').update({
-        notes_final:         JSON.stringify(finalNote),
-        notes_draft:         null,
-        notes_finalised:     true,
-        notes_finalised_at:  now,
-        note_finalised_at:   now,
-        note_finalised_by:   sessionStorage.getItem('providerDisplayName') || '',
-        acc_read_code:       accReadCode,
-        work_capacity:       workCapacity,
-        return_to_work_date: (workCapacity !== 'fit' && returnToWorkDate) ? returnToWorkDate : null,
-        billing_code:        billing.serviceCode || (durSec >= 1800 ? 'CS2T' : 'CS1T'),
-        outcome,
-        status:              'complete',
-        completed_at:        consult.completed_at || now,
-        consultation_duration_seconds: durSec,
-        payment_amount:      consult.payment_amount || (consult.acc_eligible === 'yes' ? 2500 : 6500),
-        is_acc:              consult.acc_eligible === 'yes',
-        ...(recallDate ? { recall_date: recallDate, recall_note: recallNote || null } : {}),
-        ...(dischargeLetter ? { discharge_letter: dischargeLetter } : {}),
+        notes_final:             JSON.stringify(finalNote),
+        notes_draft:             null,
+        notes_finalised:         true,
+        notes_finalised_at:      now,
+        note_finalised_at:       now,
+        note_finalised_by:       providerName,
+        notes_finalised_by:      providerId,
+        notes_completed_seconds: completedSec,
+        acc_read_code:           accReadCode || null,
+        work_capacity:           workCapacity || null,
+        return_to_work_date:     workCapacity !== 'fit' && wcTo ? wcTo : null,
+        billing_code:            durationSec >= 1800 ? 'CS2T' : 'CS1T',
+        outcome:                 outcome || null,
+        status:                  'complete',
+        completed_at:            consult?.completed_at || now,
+        consultation_duration_seconds: durationSec,
+        payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
+        is_acc:                  consult?.acc_eligible === 'yes',
       }).eq('id', id)
 
-      // Auto-send patient summary email with rating link
-      if (consult.patient_email) {
+      // Patient summary email
+      if (consult?.patient_email) {
         apiFetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({
             to: consult.patient_email,
-            name: `${consult.patient_first_name} ${consult.patient_last_name}`,
-            sections,
+            name: patientName,
+            sections: { presentingHistory: s1, mdm, plan: allPlanLines },
             notes: {},
             actions: actionsRef.current,
             consult: { chief_complaint: consult.chief_complaint },
             consultationId: id,
           }),
-        }).catch(e => console.error('Email error:', e))
-      }
-
-      // Auto-send GP letter if toggled on
-      if (sendGpOnFinalise && gpEmail.trim()) {
-        apiFetch('/api/send-to-gp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            consultationId: id,
-            gpName: gpName.trim(),
-            gpEmail: gpEmail.trim(),
-            patientName: `${consult.patient_first_name} ${consult.patient_last_name}`,
-            patientNhi: consult.patient_nhi,
-            patientDob: consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
-            consultationDate: consult.created_at,
-            providerName: sessionStorage.getItem('providerDisplayName') || '',
-            providerCredentials: sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : '',
-            chiefComplaint: consult.chief_complaint,
-            noteContent: { ...sections, examination: exam },
-          }),
-        }).then(() => setGpSent(true)).catch(e => console.error('GP letter error:', e))
-      }
-
-      // Auto-send discharge letter to GP if toggled on (and not already sending GP letter above)
-      if (sendDischargeOnFinalise && dischargeLetter && gpEmail.trim() && !sendGpOnFinalise) {
-        apiFetch('/api/send-to-gp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            consultationId: id,
-            gpName: gpName.trim(),
-            gpEmail: gpEmail.trim(),
-            patientName: `${consult.patient_first_name} ${consult.patient_last_name}`,
-            patientNhi: consult.patient_nhi,
-            patientDob: consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
-            consultationDate: consult.created_at,
-            providerName: sessionStorage.getItem('providerDisplayName') || '',
-            providerCredentials: sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : '',
-            chiefComplaint: consult.chief_complaint,
-            noteContent: { ...sections, examination: exam },
-            dischargeLetter,
-          }),
-        }).then(() => setGpSent(true)).catch(e => console.error('Discharge letter error:', e))
-      }
-
-      // Generate shareable consultation summary token for patient
-      if (consult.patient_email) {
-        apiFetch('/api/consultation-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultationId: id }),
-        }).then(r => r.json()).then(d => {
-          if (d.token) {
-            const summaryUrl = `${window.location.origin}/my-consultation/${d.token}`
-            apiFetch('/api/send-email', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: consult.patient_email,
-                name: `${consult.patient_first_name} ${consult.patient_last_name}`,
-                subject: 'Your consultation summary — Tere Health',
-                summaryUrl,
-                isSummaryLink: true,
-                consultationId: id,
-              }),
-            }).catch(() => {})
-          }
         }).catch(() => {})
       }
 
+      localStorage.removeItem(draftKey)
       navigate('/clinician/dashboard')
     } catch (e) { console.error(e); setFinalising(false) }
   }
 
-  // ── Send to GP ────────────────────────────────────────────────────────────
+  // ── Derived ───────────────────────────────────────────────────────────────────
+  const isAcc       = consult?.acc_eligible === 'yes'
+  const isFinalised = !!consult?.notes_finalised
+  const disabled    = isFinalised
+  const patientName = consult ? `${consult.patient_first_name} ${consult.patient_last_name}` : '…'
+  const regNum      = sessionStorage.getItem('providerCpn') || sessionStorage.getItem('prescriberNumber') || ''
+  const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
 
-  async function sendToGp() {
-    if (!gpEmail.trim()) return
-    setSendingGp(true)
-    try {
-      const res = await apiFetch('/api/send-to-gp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          consultationId: id,
-          gpName: gpName.trim(),
-          gpEmail: gpEmail.trim(),
-          patientName:    `${consult.patient_first_name} ${consult.patient_last_name}`,
-          patientNhi:     consult.patient_nhi,
-          patientDob:     consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
-          consultationDate: consult.created_at,
-          providerName:   sessionStorage.getItem('providerDisplayName') || '',
-          providerCredentials: sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : '',
-          chiefComplaint: consult.chief_complaint,
-          noteContent: { ...sections, examination: exam },
-        }),
-      })
-      const data = await res.json()
-      if (data.ok) { setGpSent(true); setShowGpModal(false) }
-      else alert('Failed to send: ' + data.error)
-    } catch (e) { alert('Error: ' + e.message) }
-    setSendingGp(false)
-  }
+  const criticalFlags = redFlags?.flags?.filter(f => f.severity === 'critical') || []
+  const canFinalise = !isFinalised && s1.trim().length > 0 && !!workCapacity && attested &&
+    (criticalFlags.length === 0 || flagsAcknowledged)
 
-  // ── Medical certificate ───────────────────────────────────────────────────
-
-  async function generateMedCert() {
-    if (!consult.patient_email) { alert('No patient email on file'); return }
-    setGeneratingMedCert(true)
-    try {
-      const res = await apiFetch('/api/generate-med-cert', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          consultationId: id,
-          patientName:  `${consult.patient_first_name} ${consult.patient_last_name}`,
-          patientDob:   consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '',
-          patientEmail: consult.patient_email,
-          patientNhi:   consult.patient_nhi,
-          employer:     consult.acc_employer || consult.employer_name || '',
-          consultationDate: consult.created_at,
-          providerName: sessionStorage.getItem('providerDisplayName') || providerName,
-          providerReg:  providerReg,
-          workCapacity,
-          certFrom: medCertFrom,
-          certTo:   medCertTo,
-          restrictions: medCertRestrictions,
-          diagnosis: medCertDiagnosis || consult.chief_complaint,
-        }),
-      })
-      const data = await res.json()
-      if (data.ok) { setMedCertIssued(true); setShowMedCertModal(false) }
-      else alert('Failed: ' + data.error)
-    } catch (e) { alert('Error: ' + e.message) }
-    setGeneratingMedCert(false)
-  }
-
-  // ── Render helpers ────────────────────────────────────────────────────────
-
-  if (loading) return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F0F2F5' }}>
-      <div className="spinner" />
-    </div>
-  )
-
-  if (!consult) return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-      Consultation not found.
-    </div>
-  )
-
-  const isFinalised   = !!consult.notes_finalised
-  const isAcc         = consult.acc_eligible === 'yes'
-  const canFinalise   = attested && !!outcome
-  const durationMin   = consult.consultation_duration_seconds ? Math.round(consult.consultation_duration_seconds / 60) : billing.durationMinutes || 0
-  const serviceCode   = billing.serviceCode || (durationMin >= 30 ? 'CS2T' : 'CS1T')
-  const providerName  = sessionStorage.getItem('providerDisplayName') || consult.provider_display_name || 'Treating clinician'
-  const providerReg   = [
-    sessionStorage.getItem('prescriberNumber') ? `Prescriber #${sessionStorage.getItem('prescriberNumber')}` : null,
-    sessionStorage.getItem('providerCpn') ? `HPI CPN: ${sessionStorage.getItem('providerCpn')}` : null,
-  ].filter(Boolean).join(' · ')
-
-  const card = { background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1rem 1.25rem', marginBottom: '1rem' }
-  const label = { fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#6B7280', marginBottom: '.625rem', display: 'block' }
-
-  const OUTCOMES = [
-    { value: 'discharged',        label: 'Discharged — no further action' },
-    { value: 'prescription_only', label: 'Prescription only' },
-    { value: 'acc_lodged',        label: 'ACC claim lodged' },
-    { value: 'referred_gp',       label: 'Referred to GP' },
-    { value: 'referred_ed',       label: 'Referred to ED' },
-    { value: 'follow_up',         label: 'Follow-up arranged' },
-    { value: 'watchful_waiting',  label: 'Watchful waiting' },
+  const progress = [
+    !!s1.trim(),
+    !!(medHistory.trim() || medications.trim() || allergies.trim()),
+    true,
+    !!mdm.trim(),
+    !!workCapacity,
+    attested,
   ]
 
+  const timerColor = elapsed < 60 ? GREEN : elapsed < 120 ? '#D97706' : '#DC2626'
+
+  // ── Loading ───────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
+      <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
   return (
-    <div style={{ minHeight: '100vh', background: '#F0F2F5', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF }}>
 
       {/* Generating overlay */}
       {generating && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.85)', zIndex: 999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
-          <div className="spinner" style={{ width: 40, height: 40, borderWidth: 4 }} />
-          <div style={{ color: 'white', fontSize: '1.125rem', fontWeight: 600 }}>Generating clinical notes…</div>
-          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.875rem', textAlign: 'center', maxWidth: 360 }}>
-            Tere Scribe is parsing the transcript and triage data.<br />This takes about 20 seconds.
-          </div>
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.92)', zIndex:999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1rem' }}>
+          <div style={{ width:44, height:44, border:'4px solid rgba(255,255,255,.2)', borderTopColor:'#D4EEF0', borderRadius:'50%', animation:'spin .8s linear infinite' }} />
+          <div style={{ color:'white', fontSize:'1.1rem', fontWeight:700 }}>Tere Scribe generating notes…</div>
+          <div style={{ color:'rgba(255,255,255,.5)', fontSize:'.875rem', textAlign:'center', maxWidth:300 }}>Analysing transcript and triage data<br />~20 seconds</div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         </div>
       )}
 
-      {/* Medical certificate modal */}
-      {showMedCertModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 16, padding: '1.5rem', width: 440, boxShadow: '0 20px 40px rgba(0,0,0,.2)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '1rem' }}>Medical certificate</h3>
-            <div style={{ marginBottom: '.75rem' }}>
-              <label style={label}>Work capacity</label>
-              <div style={{ fontWeight: 700, color: workCapacity === 'unfit' ? '#DC2626' : '#D97706', fontSize: '.9375rem' }}>
-                {workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.75rem' }}>
-              <div>
-                <label style={label}>From date</label>
-                <input type="date" value={medCertFrom} onChange={e => setMedCertFrom(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
-              </div>
-              <div>
-                <label style={label}>To date</label>
-                <input type="date" value={medCertTo} onChange={e => setMedCertTo(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
-              </div>
-            </div>
-            <div style={{ marginBottom: '.75rem' }}>
-              <label style={label}>Diagnosis (general terms)</label>
-              <input value={medCertDiagnosis} onChange={e => setMedCertDiagnosis(e.target.value)}
-                placeholder={consult.chief_complaint || 'e.g. Acute musculoskeletal injury'}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none' }} />
-            </div>
-            {workCapacity === 'modified' && (
-              <div style={{ marginBottom: '.75rem' }}>
-                <label style={label}>Restrictions</label>
-                <textarea value={medCertRestrictions} onChange={e => setMedCertRestrictions(e.target.value)}
-                  rows={2} placeholder="e.g. No heavy lifting, limited standing"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', outline: 'none', resize: 'vertical' }} />
-              </div>
-            )}
-            <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginBottom: '1rem' }}>
-              Certificate will be emailed to <strong>{consult.patient_email}</strong>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowMedCertModal(false)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, color: '#6B7280' }}>Cancel</button>
-              <button onClick={generateMedCert} disabled={generatingMedCert}
-                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: '#0B6E76', color: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
-                {generatingMedCert ? 'Sending…' : 'Generate & email'}
-              </button>
-            </div>
-          </div>
+      {/* Top bar */}
+      <div style={{ background:NAVY, padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10 }}>
+        <button onClick={() => navigate('/clinician/dashboard')}
+          style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'8px 12px', borderRadius:8, cursor:'pointer', fontFamily:FF, fontSize:'.875rem', minHeight:44 }}>
+          ← Queue
+        </button>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontWeight:700, fontSize:'.9rem', color:'white' }}>{patientName}</div>
+          <div style={{ fontSize:'.7rem', color:'rgba(255,255,255,.45)' }}>Clinical notes</div>
         </div>
-      )}
-
-      {/* GP modal */}
-      {showGpModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'white', borderRadius: 16, padding: '1.5rem', width: 420, boxShadow: '0 20px 40px rgba(0,0,0,.2)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '1rem' }}>Send to GP</h3>
-            <div style={{ marginBottom: '.75rem' }}>
-              <label style={{ ...label }}>GP Name</label>
-              <input value={gpName} onChange={e => setGpName(e.target.value)} placeholder="Smith"
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem', outline: 'none' }} />
-            </div>
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ ...label }}>GP Email <span style={{ color: '#DC2626' }}>*</span></label>
-              <input value={gpEmail} onChange={e => setGpEmail(e.target.value)} placeholder="dr.smith@practice.co.nz" type="email"
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem', outline: 'none' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setShowGpModal(false)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, color: '#6B7280' }}>Cancel</button>
-              <button onClick={sendToGp} disabled={!gpEmail.trim() || sendingGp}
-                style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 8, background: !gpEmail.trim() ? '#E2E8F0' : '#0B6E76', color: !gpEmail.trim() ? '#9CA3AF' : 'white', cursor: !gpEmail.trim() ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
-                {sendingGp ? 'Sending…' : 'Send letter'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Navbar */}
-      <nav style={{ background: '#0D2B45', padding: '.875rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem' }}>Tere</span>
-          <span style={{ color: 'rgba(255,255,255,.45)', fontSize: '.8125rem' }}>
-            Clinical notes — {consult.patient_first_name} {consult.patient_last_name}
-          </span>
-          {isFinalised && <span style={{ background: '#065F46', color: '#6EE7B7', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>FINALISED</span>}
-          {generating && <span style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem' }}>Tere Scribe generating…</span>}
-        </div>
-        <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-          {saving && <span style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.35)' }}>Saving…</span>}
-          {lastSaved && !saving && <span style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.35)' }}>Saved {lastSaved.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>}
-          {!isFinalised && (
-            <button onClick={async () => { await saveDraft(); navigate('/clinician/dashboard') }}
-              style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: 'rgba(255,255,255,.7)', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem' }}>
-              Save draft & return
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {Object.keys(triageSnapshot).length > 0 && (
+            <button onClick={() => setShowComparison(v => !v)}
+              style={{ fontSize:'.7rem', fontWeight:700, background:showComparison?'rgba(11,110,118,.25)':'rgba(255,255,255,.1)', color:showComparison?'#7ECFD4':'rgba(255,255,255,.55)', border:'none', borderRadius:99, padding:'4px 10px', cursor:'pointer', fontFamily:FF, whiteSpace:'nowrap' }}>
+              {showComparison ? '✕ Changes' : '⊕ Changes'}
             </button>
           )}
-          {isFinalised && (
-            <button onClick={() => navigate('/clinician/dashboard')}
-              style={{ background: 'rgba(255,255,255,.1)', border: 'none', color: 'rgba(255,255,255,.7)', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem' }}>
-              ← Dashboard
-            </button>
-          )}
-        </div>
-      </nav>
-
-      <div style={{ maxWidth: 1160, margin: '0 auto', padding: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 340px', gap: '1.5rem', alignItems: 'start' }}>
-
-        {/* ── Left: Clinical document ── */}
-        <div>
-
-          {/* Document header */}
-          <div style={{ background: 'white', borderRadius: 12, padding: '1.5rem 2rem', marginBottom: '1rem', border: '1px solid #E2E8F0', borderTop: '4px solid #0B6E76' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
-              <div>
-                <div style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: '#0B6E76', fontSize: '1rem', marginBottom: '.25rem' }}>Tere Health — Clinical Record</div>
-                <h2 style={{ fontSize: '1.375rem', fontWeight: 700, color: '#0D2B45', margin: '0 0 .25rem' }}>
-                  {consult.patient_first_name} {consult.patient_last_name}
-                </h2>
-                <div style={{ fontSize: '.875rem', color: '#6B7280' }}>
-                  NHI: {consult.patient_nhi || '—'} &nbsp;·&nbsp; DOB: {consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '—'}
-                  {consult.patient_allergies && consult.patient_allergies.toLowerCase() !== 'none' && (
-                    <span style={{ color: '#DC2626', fontWeight: 600, marginLeft: '.75rem' }}>⚠ {consult.patient_allergies}</span>
-                  )}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', fontSize: '.8125rem', color: '#6B7280' }}>
-                <div style={{ fontWeight: 600, color: '#0D2B45' }}>{new Date(consult.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-                <div>{new Date(consult.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</div>
-                <div style={{ marginTop: 4 }}>Video telehealth · {durationMin > 0 ? `${durationMin} min` : '—'}</div>
-                {consult.notes_finalised_at && <div style={{ color: '#059669', fontWeight: 600, marginTop: 4 }}>Finalised {new Date(consult.notes_finalised_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</div>}
-              </div>
-            </div>
-            <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '.875rem', fontSize: '.9375rem', color: '#374151', lineHeight: 1.6 }}>
-              <strong>Presenting complaint:</strong> {consult.chief_complaint}
-            </div>
-
-            {generationError && (
-              <div style={{ marginTop: '.75rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '.75rem 1rem', fontSize: '.8125rem', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span>Note generation failed: {generationError}</span>
-                <button onClick={() => runGenerateNotes(consult, transcriptRef.current, actionsRef.current)}
-                  style={{ background: '#DC2626', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', fontWeight: 600 }}>Retry</button>
-              </div>
-            )}
-          </div>
-
-          {/* Note sections 1–4 */}
-          {(['presentingHistory', 'medicalHistory', 'allergies', 'socialHistory']).map(key => (
-            <NoteSection key={key} sectionKey={key}
-              value={sections[key]}
-              onChange={v => setSections(s => ({ ...s, [key]: v }))}
-              disabled={isFinalised}
-              onRegenerate={regenerateSection}
-              regenerating={regenerating[key]}
-            />
-          ))}
-
-          {/* Section 5: Examination */}
-          <ExamCard
-            exam={exam} setExam={setExam}
-            highlighted={examHighlighted}
-            disabled={isFinalised}
-            onRegenerate={regenerateSection}
-            regenerating={regenerating.examination}
-          />
-
-          {/* Sections 6–7: MDM + Plan */}
-          {(['mdm', 'plan']).map(key => (
-            <NoteSection key={key} sectionKey={key}
-              value={sections[key]}
-              onChange={v => setSections(s => ({ ...s, [key]: v }))}
-              disabled={isFinalised}
-              onRegenerate={regenerateSection}
-              regenerating={regenerating[key]}
-            />
-          ))}
-
-          {/* Footer attestation text */}
-          <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '.875rem 1.25rem', fontSize: '.75rem', color: '#9CA3AF', lineHeight: 1.6, marginBottom: '1rem' }}>
-            Record created {new Date(consult.created_at).toLocaleString('en-NZ')} · {providerName}{providerReg ? ` · ${providerReg}` : ''}
-            {consult.notes_finalised_at && ` · Finalised ${new Date(consult.notes_finalised_at).toLocaleString('en-NZ')}`}
-          </div>
-        </div>
-
-        {/* ── Right sidebar ── */}
-        <div>
-
-          {/* Patient info */}
-          <div style={card}>
-            <span style={label}>Patient</span>
-            {[
-              ['Phone',    consult.patient_phone],
-              ['Email',    consult.patient_email],
-              ['Location', consult.patient_location],
-              ['Allergies', consult.patient_allergies || 'None documented'],
-              ['Pharmacy', consult.pharmacy || '—'],
-            ].filter(([, v]) => v && v !== '—').map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #F9FAFB', fontSize: '.8125rem' }}>
-                <span style={{ color: '#9CA3AF' }}>{k}</span>
-                <span style={{ fontWeight: 500, color: k === 'Allergies' && v !== 'None documented' ? '#DC2626' : '#1A2A33' }}>{v}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* 8. ACC Section */}
-          {isAcc && (
-            <div style={{ ...card, borderColor: '#BFDBFE' }}>
-              <span style={{ ...label, color: '#1D4ED8' }}>8. ACC Section</span>
-              <div style={{ marginBottom: '.625rem' }}>
-                <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Claim type</div>
-                <select value={accSection.claimType} onChange={e => setAccSection(a => ({ ...a, claimType: e.target.value }))} disabled={isFinalised}
-                  style={{ width: '100%', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }}>
-                  <option>New injury</option>
-                  <option>Gradual process</option>
-                  <option>Treatment injury</option>
-                </select>
-              </div>
-              {[
-                { key: 'mechanism', label: 'Injury mechanism' },
-                { key: 'bodyPart',  label: 'Body part injured' },
-              ].map(({ key, label: lbl }) => (
-                <div key={key} style={{ marginBottom: '.625rem' }}>
-                  <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>{lbl}</div>
-                  <input value={accSection[key] || ''} onChange={e => setAccSection(a => ({ ...a, [key]: e.target.value }))} readOnly={isFinalised}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
-                </div>
-              ))}
-              <div style={{ marginBottom: '.625rem' }}>
-                <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>ACC Read code</div>
-                <ReadCodePicker value={accReadCode} onChange={setAccReadCode} disabled={isFinalised} />
-              </div>
-              <div style={{ marginBottom: '.625rem' }}>
-                <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Injury date</div>
-                <input type="date" value={accSection.injuryDate || ''} onChange={e => setAccSection(a => ({ ...a, injuryDate: e.target.value }))} readOnly={isFinalised}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
-              </div>
-              <div style={{ marginBottom: '.625rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: isFinalised ? 'default' : 'pointer' }}>
-                  <Checkbox checked={accSection.incapacityForWork} onChange={v => !isFinalised && setAccSection(a => ({ ...a, incapacityForWork: v }))} disabled={isFinalised} />
-                  <span style={{ fontSize: '.8125rem', color: '#374151' }}>Incapacity for work</span>
-                </label>
-              </div>
-              <div style={{ marginBottom: 0 }}>
-                <div style={{ fontSize: '.7rem', color: '#6B7280', marginBottom: 4 }}>Consent recorded</div>
-                <div style={{ fontSize: '.8125rem', color: '#059669', fontWeight: 600 }}>✓ Three-part ACC consent at triage</div>
-              </div>
-            </div>
-          )}
-
-          {/* Work capacity */}
-          <div style={card}>
-            <span style={label}>Work capacity</span>
-            <WorkCapacityPicker value={workCapacity} onChange={setWorkCapacity} disabled={isFinalised} />
-            {workCapacity !== 'fit' && (
-              <div style={{ marginTop: '.625rem' }}>
-                <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Return to work date</div>
-                <input type="date" value={returnToWorkDate} onChange={e => setReturnToWorkDate(e.target.value)} readOnly={isFinalised}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
-              </div>
-            )}
-          </div>
-
-          {/* 9. Billing */}
-          <div style={{ ...card, background: '#F8FAFC', borderStyle: 'dashed' }}>
-            <span style={label}>9. Billing (auto-populated)</span>
-            {[
-              ['Service date', new Date(consult.created_at).toLocaleDateString('en-NZ')],
-              ['Duration',     durationMin > 0 ? `${durationMin} min` : '—'],
-              ['Service code', serviceCode],
-              ['Consult type', 'Video telehealth'],
-              ['Patient NHI',  consult.patient_nhi || '—'],
-              ['Provider CPN', sessionStorage.getItem('providerCpn') || '—'],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '.8125rem' }}>
-                <span style={{ color: '#9CA3AF' }}>{k}</span>
-                <span style={{ fontWeight: 600, color: '#374151' }}>{v}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Outcome */}
-          <div style={{ ...card, borderColor: !outcome && !isFinalised ? '#FDE68A' : '#E2E8F0' }}>
-            <span style={label}>Consultation outcome <span style={{ color: '#DC2626' }}>*</span></span>
-            <select value={outcome} onChange={e => setOutcome(e.target.value)} disabled={isFinalised}
-              style={{ width: '100%', padding: '.75rem', border: `1.5px solid ${!outcome && !isFinalised ? '#FDE68A' : '#E2E8F0'}`, borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: outcome ? '#1A2A33' : '#9CA3AF', background: isFinalised ? '#F8FAFC' : 'white', outline: 'none' }}>
-              <option value="">Select outcome…</option>
-              {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {/* Patient email confirmation */}
-          <div style={card}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: isFinalised ? 'default' : 'pointer' }}>
-              <Checkbox checked={emailDone === true} onChange={v => !isFinalised && setEmailDone(v ? true : null)} disabled={isFinalised} />
-              <span style={{ fontSize: '.875rem', color: '#374151' }}>Patient summary email sent</span>
-            </label>
-            {consult.patient_email && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 4, paddingLeft: 28 }}>{consult.patient_email}</div>}
-          </div>
-
-          {/* Medical certificate */}
-          {(workCapacity === 'modified' || workCapacity === 'unfit') && (
-            <div style={card}>
-              <span style={label}>Medical certificate</span>
-              {medCertIssued || consult.medical_certificate_issued ? (
-                <div style={{ fontSize: '.875rem', color: '#059669', fontWeight: 600 }}>✓ Certificate emailed to patient</div>
-              ) : (
-                <button onClick={() => setShowMedCertModal(true)}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #D97706', borderRadius: 8, background: '#FFFBEB', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: '#92400E', fontWeight: 600 }}>
-                  📄 Generate medical certificate
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Send to GP */}
-          <div style={card}>
-            <span style={label}>GP letter</span>
-            {gpSent || consult.gp_letter_sent_at ? (
-              <div style={{ fontSize: '.875rem', color: '#059669', fontWeight: 600 }}>✓ Sent to {consult.gp_email || gpEmail}</div>
-            ) : (
-              <>
-                {gpEmail && !isFinalised && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: '.625rem' }}>
-                    <Checkbox checked={sendGpOnFinalise} onChange={setSendGpOnFinalise} />
-                    <span style={{ fontSize: '.8125rem', color: '#374151' }}>Auto-send on finalise</span>
-                  </label>
-                )}
-                {gpEmail && (
-                  <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginBottom: '.625rem' }}>{gpEmail}</div>
-                )}
-                <button onClick={() => setShowGpModal(true)}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: '#374151', fontWeight: 600 }}>
-                  ✉ {gpEmail ? 'Edit & send to GP' : 'Send to GP'}
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Recall / follow-up */}
-          <div style={card}>
-            <span style={label}>Recall / follow-up</span>
-            <div style={{ marginBottom: '.625rem' }}>
-              <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Follow-up date</div>
-              <input type="date" value={recallDate} onChange={e => setRecallDate(e.target.value)} readOnly={isFinalised}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: `1.5px solid ${recallDate ? '#0B6E76' : '#E2E8F0'}`, borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
-            </div>
-            <div>
-              <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginBottom: 4 }}>Follow-up note</div>
-              <textarea value={recallNote} onChange={e => setRecallNote(e.target.value)} readOnly={isFinalised}
-                rows={2} placeholder="e.g. Review blood pressure in 2 weeks"
-                style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', resize: 'vertical', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white' }} />
-            </div>
-          </div>
-
-          {/* Discharge letter */}
-          <div style={card}>
-            <span style={label}>Discharge letter</span>
-            <textarea value={dischargeLetter} onChange={e => setDischargeLetter(e.target.value)} readOnly={isFinalised}
-              rows={4} placeholder="Optional free-text letter to GP on discharge…"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', lineHeight: 1.6, resize: 'vertical', outline: 'none', background: isFinalised ? '#F8FAFC' : 'white', marginBottom: '.625rem' }} />
-            {dischargeLetter && gpEmail && !isFinalised && (
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <Checkbox checked={sendDischargeOnFinalise} onChange={setSendDischargeOnFinalise} />
-                <span style={{ fontSize: '.8125rem', color: '#374151' }}>Email discharge letter to GP on finalise</span>
-              </label>
-            )}
-            {dischargeLetter && !gpEmail && !isFinalised && (
-              <div style={{ fontSize: '.75rem', color: '#9CA3AF' }}>Add GP email above to auto-send on finalise</div>
-            )}
-          </div>
-
-          {/* Attestation + Finalise */}
-          {!isFinalised && (
-            <div style={{ ...card, background: attested ? '#F0FDF4' : 'white', borderColor: attested ? '#BBF7D0' : '#E2E8F0' }}>
-              <label style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '1rem' }}>
-                <Checkbox checked={attested} onChange={setAttested} />
-                <span style={{ fontSize: '.8125rem', lineHeight: 1.6, color: '#374151' }}>
-                  I, <strong>{providerName}</strong>{providerReg ? `, ${providerReg},` : ','} confirm these notes accurately reflect the telehealth consultation I conducted on <strong>{new Date(consult.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}</strong> with <strong>{consult.patient_first_name} {consult.patient_last_name}</strong>{consult.patient_nhi ? ` (NHI: ${consult.patient_nhi})` : ''}. I accept clinical and legal responsibility for this record. Consultation conducted via Tere Health telehealth platform in accordance with MCNZ/Paramedicine Council telehealth standards.
-                </span>
-              </label>
-              <button onClick={finalise} disabled={!canFinalise || finalising}
-                style={{ width: '100%', padding: '.875rem', borderRadius: 8, border: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.9375rem', cursor: canFinalise ? 'pointer' : 'default', background: canFinalise ? '#059669' : '#E2E8F0', color: canFinalise ? 'white' : '#9CA3AF', transition: 'all .2s' }}>
-                {finalising ? 'Finalising…' : '✓ Finalise & complete'}
-              </button>
-              {!outcome && <div style={{ fontSize: '.75rem', color: '#D97706', marginTop: '.5rem', textAlign: 'center' }}>Select an outcome to enable finalise</div>}
-              {!attested && outcome && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.5rem', textAlign: 'center' }}>Tick the attestation to enable finalise</div>}
-            </div>
-          )}
-
-          {/* Finalised state */}
-          {isFinalised && (
-            <div style={{ ...card, background: '#F0FDF4', borderColor: '#BBF7D0', textAlign: 'center' }}>
-              <div style={{ fontSize: '1.25rem', marginBottom: '.5rem' }}>✓</div>
-              <div style={{ fontWeight: 700, color: '#059669', marginBottom: '.25rem' }}>Notes finalised</div>
-              {consult.notes_finalised_at && (
-                <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>{new Date(consult.notes_finalised_at).toLocaleString('en-NZ')}</div>
-              )}
-            </div>
-          )}
-
-          <div style={{ fontSize: '.75rem', color: '#9CA3AF', textAlign: 'center' }}>
-            {isFinalised ? 'Notes are finalised and locked' : lastSaved ? `Draft saved ${lastSaved.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}` : 'Auto-saves every 30 seconds'}
-          </div>
+          {isFinalised
+            ? <span style={{ background:'#065F46', color:'#6EE7B7', fontSize:'.65rem', fontWeight:700, padding:'4px 10px', borderRadius:99 }}>DONE</span>
+            : <span style={{ fontWeight:800, fontSize:'.875rem', color:timerColor, fontVariantNumeric:'tabular-nums', minWidth:44, textAlign:'right' }}>{formatTimer(elapsed)}</span>
+          }
         </div>
       </div>
+
+      <div style={{ padding:'0 1rem 2rem' }}>
+
+        {/* Progress */}
+        <ProgressDots progress={progress} />
+
+        {/* Patient header */}
+        <div style={{ background:'white', borderRadius:14, padding:'1rem', margin:'10px 0 1rem', border:'1px solid #E2E8F0', borderTop:`4px solid ${TEAL}` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:6 }}>
+            <div>
+              <div style={{ fontWeight:800, fontSize:'1.1rem', color:NAVY }}>{patientName}</div>
+              <div style={{ fontSize:'.8rem', color:'#6B7280' }}>
+                NHI: {consult?.patient_nhi || '—'} ·{' '}
+                {consult ? new Date(consult.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' }) : '—'}
+              </div>
+            </div>
+            {isFinalised && <span style={{ fontSize:'.75rem', fontWeight:700, color:GREEN }}>✓ Notes finalised</span>}
+          </div>
+          <div style={{ background:'#F8FAFC', borderRadius:8, padding:'8px 12px', marginTop:10, fontSize:'.9375rem', color:'#374151', fontWeight:600 }}>
+            {consult?.chief_complaint}
+          </div>
+          {consult?.vitals && (
+            <div style={{ background:'#F0F9FA', borderRadius:8, padding:'8px 12px', marginTop:8, fontSize:'.8125rem', color:TEAL, fontFamily:'monospace' }}>
+              {formatVitals(consult.vitals)}
+            </div>
+          )}
+          {genError && (
+            <div style={{ marginTop:10, background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 12px', fontSize:'.8125rem', color:'#DC2626', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <span>Generation failed: {genError}</span>
+              <button onClick={() => runGenerate(consult, transcriptRef.current, actionsRef.current)}
+                style={{ background:'#DC2626', color:'white', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontFamily:FF, fontSize:'.75rem', fontWeight:700, marginLeft:8 }}>Retry</button>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Section 1: Presenting Complaint ─── */}
+        <SectionCard num={1} title="Presenting Complaint and History" source={sources.presentingHistory} confidence={confidence.presentingHistory}>
+          {showComparison && triageSnapshot.presentingHistory && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:4 }}>TRIAGE (original)</div>
+              <div style={{ background:'#F8FAFC', borderRadius:8, padding:'8px 12px', fontSize:'.8rem', color:'#6B7280', lineHeight:1.6, borderLeft:'3px solid #D1D5DB' }}>
+                {triageSnapshot.presentingHistory}
+              </div>
+              {additions.presentingHistory && (
+                <>
+                  <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:TEAL, marginBottom:4, marginTop:8 }}>ADDED BY TERE SCRIBE</div>
+                  <div style={{ background:'rgba(11,110,118,.07)', borderRadius:8, padding:'8px 12px', fontSize:'.8rem', color:TEAL, lineHeight:1.6, borderLeft:`3px solid ${TEAL}` }}>
+                    {additions.presentingHistory}
+                  </div>
+                </>
+              )}
+              <div style={{ borderTop:'1px solid #E2E8F0', margin:'10px 0 6px' }} />
+            </div>
+          )}
+          <TA value={s1} onChange={setS1} rows={5} disabled={disabled}
+            placeholder="Generating from triage and transcript…" />
+        </SectionCard>
+
+        {/* ─── Section 2: Medical History ─── */}
+        <SectionCard num={2} title="Medical History, Allergies and Social History"
+          source={
+            sources.social === 'transcript' ? 'transcript'
+            : (sources.medicalHistory === 'triage' || sources.medications === 'triage' || sources.allergies === 'triage') ? 'triage'
+            : sources.medicalHistory
+          }
+        >
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Medical history</label>
+              <TA value={medHistory} onChange={setMedHistory} rows={3} disabled={disabled} placeholder="Past medical conditions, surgical history, hospitalisations…" />
+            </div>
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Current medications</label>
+              <TA value={medications} onChange={setMedications} rows={2} disabled={disabled} placeholder="Medication, dose, frequency…" />
+            </div>
+            <Input label="Allergies" value={allergies} onChange={setAllergies} disabled={disabled} placeholder="NKDA or Drug — reaction type" />
+            <div style={{ borderTop:'1px solid #F3F4F6', paddingTop:10 }}>
+              <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:8 }}>Social history</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
+                <Input label="Tobacco" value={tobacco} onChange={setTobacco} disabled={disabled} />
+                <Input label="Alcohol" value={alcohol} onChange={setAlcohol} disabled={disabled} />
+              </div>
+              <Input label="Occupation" value={occupation} onChange={setOccupation} disabled={disabled} placeholder="Role, employer, location…" />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ─── Section 3: Examination ─── */}
+        <SectionCard num={3} title="Telehealth Examination"
+          source={
+            sources.visibleFindings === 'transcript' || sources.generalAppearance === 'transcript' ? 'transcript'
+            : sources.visibleFindings !== undefined ? (consult?.vitals ? 'triage' : 'none')
+            : undefined
+          }
+          confidence={
+            confidence.visibleFindings === 'low' || confidence.generalAppearance === 'low' ? 'low'
+            : confidence.visibleFindings === 'medium' || confidence.generalAppearance === 'medium' ? 'medium'
+            : confidence.visibleFindings || confidence.generalAppearance
+          }
+        >
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+            {/* Vitals — locked */}
+            <div style={{ background:'#F0F9FA', borderRadius:10, padding:'10px 14px', border:'1px solid #D4EEF0' }}>
+              <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:TEAL, marginBottom:4 }}>Vitals — Tere Vitals rPPG</div>
+              <div style={{ fontSize:'.875rem', fontFamily:'monospace', color:NAVY }}>
+                {formatVitals(consult?.vitals)}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>General appearance</label>
+              <TA value={generalAppearance} onChange={setGA} rows={2} disabled={disabled} placeholder="Alert and oriented. Appears comfortable/distressed/pale — from video assessment" />
+            </div>
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Visible findings</label>
+              <TA value={visibleFindings} onChange={setVF} rows={2} disabled={disabled} placeholder="Visible injury, swelling, skin changes, MSK inspection findings visible on camera…" />
+            </div>
+            <div style={{ background:'#F8FAFC', borderRadius:8, padding:'10px 12px', fontSize:'.8125rem', color:'#6B7280', lineHeight:1.5, borderLeft:'3px solid #E2E8F0' }}>
+              {MCNZ_STATEMENT}
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ─── Section 4: MDM ─── */}
+        <SectionCard num={4} title="Medical Decision Making" source={sources.mdm} confidence={confidence.mdm}>
+          <TA value={mdm} onChange={setMdm} rows={6} disabled={disabled}
+            placeholder="Differentials considered, clinical decision rules applied, risk stratification, reason for investigations and prescriptions, red flags excluded…" />
+        </SectionCard>
+
+        {/* ─── Section 5: Plan ─── */}
+        <SectionCard num={5} title="Plan"
+          source={
+            sources.planItems === 'transcript' || sources.returnPrecautions === 'transcript' ? 'transcript'
+            : sources.planItems !== undefined ? 'none'
+            : undefined
+          }
+          confidence={
+            confidence.planItems === 'low' || confidence.returnPrecautions === 'low' ? 'low'
+            : confidence.planItems === 'medium' || confidence.returnPrecautions === 'medium' ? 'medium'
+            : confidence.planItems || confidence.returnPrecautions
+          }
+        >
+          <div style={{ display:'flex', flexDirection:'column', gap:'0.75rem' }}>
+            {/* Locked auto items */}
+            {planItems.filter(p => p.locked).length > 0 && (
+              <div>
+                <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:6 }}>Auto-filled from consultation</div>
+                {planItems.filter(p => p.locked).map(p => (
+                  <div key={p.id} style={{ display:'flex', alignItems:'center', gap:8, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'8px 12px', marginBottom:6, fontSize:'.875rem', color:'#065F46' }}>
+                    <span style={{ fontWeight:700, flexShrink:0 }}>
+                      {p.type==='rx'?'Rx':p.type==='ref'?'Ref':'ACC'}
+                    </span>
+                    <span>{p.text.replace(/^(Prescription|Referral): /,'')}</span>
+                    <span style={{ marginLeft:'auto', fontSize:'.65rem', color:'#6EE7B7', fontWeight:700 }}>LOCKED</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ACC auto-fill if eligible */}
+            {isAcc && (
+              <div style={{ background:'#F0F9FA', border:'1px solid #D4EEF0', borderRadius:8, padding:'8px 12px', fontSize:'.875rem', color:TEAL }}>
+                ✓ ACC claim lodged — three-part consent obtained at triage
+              </div>
+            )}
+
+            {/* Editable plan items */}
+            <div>
+              <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:6 }}>Plan items</div>
+              {planItems.filter(p => !p.locked).map((p, i) => (
+                <div key={p.id} style={{ display:'flex', gap:6, marginBottom:6 }}>
+                  <input value={p.text} onChange={e => {
+                    setPlanItems(prev => prev.map(x => x.id === p.id ? { ...x, text: e.target.value } : x))
+                  }} readOnly={disabled}
+                    style={{ flex:1, border:'1.5px solid #E2E8F0', borderRadius:8, padding:'8px 10px', fontFamily:FF, fontSize:'.9rem', outline:'none', color:'#1A2A33' }}
+                  />
+                  {!disabled && (
+                    <button onClick={() => setPlanItems(prev => prev.filter(x => x.id !== p.id))}
+                      style={{ background:'none', border:'1.5px solid #FECACA', color:'#DC2626', borderRadius:8, padding:'8px 10px', cursor:'pointer', fontFamily:FF, fontSize:'.8rem' }}>✕</button>
+                  )}
+                </div>
+              ))}
+              {!disabled && (
+                <button onClick={() => setPlanItems(prev => [...prev, { id:`custom-${Date.now()}`, text:'', locked:false }])}
+                  style={{ background:'none', border:'1.5px dashed #D1D5DB', borderRadius:8, padding:'8px 14px', cursor:'pointer', fontFamily:FF, fontSize:'.875rem', color:'#9CA3AF', width:'100%' }}>
+                  + Add plan item
+                </button>
+              )}
+            </div>
+
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Return precautions</label>
+              <TA value={returnPrecautions} onChange={setReturnP} rows={2} disabled={disabled}
+                placeholder="Symptoms to watch for, when to seek immediate care…" />
+            </div>
+
+            {/* Work capacity */}
+            <div>
+              <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:8 }}>
+                Work capacity <span style={{ color:'#DC2626' }}>*</span>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                {[
+                  { val:'fit',      label:'Fit for work',    color:GREEN,     bg:'#F0FDF4', border:'#BBF7D0' },
+                  { val:'modified', label:'Modified duties', color:'#D97706', bg:'#FFFBEB', border:'#FDE68A' },
+                  { val:'unfit',    label:'Unfit for work',  color:'#DC2626', bg:'#FEF2F2', border:'#FECACA' },
+                ].map(o => (
+                  <button key={o.val} onClick={() => !disabled && setWorkCapacity(o.val)}
+                    style={{ flex:1, minHeight:48, borderRadius:10, border:`1.5px solid ${workCapacity===o.val?o.border:'#E2E8F0'}`, background:workCapacity===o.val?o.bg:'white', color:workCapacity===o.val?o.color:'#9CA3AF', fontFamily:FF, fontSize:'.8rem', fontWeight:700, cursor:disabled?'default':'pointer', transition:'all .15s' }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {workCapacity === 'modified' && (
+                <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:8 }}>
+                  <Input label="Limitations" value={wcLimitations} onChange={setWcLimits} disabled={disabled} placeholder="Hours per day, restrictions…" />
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <Input label="From" value={wcFrom} onChange={setWcFrom} disabled={disabled} />
+                    <Input label="To" value={wcTo} onChange={setWcTo} disabled={disabled} />
+                  </div>
+                </div>
+              )}
+              {workCapacity === 'unfit' && (
+                <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:8 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+                    <Input label="From" value={wcFrom} onChange={setWcFrom} disabled={disabled} />
+                    <Input label="To (max 14 days)" value={wcTo} onChange={setWcTo} disabled={disabled} />
+                    <Input label="Review date" value={wcReview} onChange={setWcReview} disabled={disabled} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ACC fields */}
+            {isAcc && (
+              <div style={{ background:'#EFF6FF', borderRadius:10, padding:'0.875rem', border:'1px solid #BFDBFE' }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                  <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#1D4ED8' }}>ACC</div>
+                  {icd10Code && (
+                    <span style={{ background:'#F0FDF4', color:'#065F46', borderRadius:6, padding:'2px 8px', fontSize:'.7rem', fontWeight:700 }}>
+                      ICD-10 {icd10Code} — {icd10Label}
+                    </span>
+                  )}
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                  <div>
+                    <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#3B82F6', display:'block', marginBottom:4 }}>Read code</label>
+                    <select value={accReadCode} onChange={e => setAccReadCode(e.target.value)} disabled={disabled}
+                      style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${accReadCode?'#3B82F6':'#BFDBFE'}`, borderRadius:8, fontFamily:FF, fontSize:'.9rem', outline:'none', background:disabled?'#F0F6FF':'white', color:'#1A2A33' }}>
+                      <option value="">Select Read code…</option>
+                      {ACC_READ_CODES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <Input label="Mechanism" value={accMechanism} onChange={setAccMech} disabled={disabled} placeholder="How the injury occurred" />
+                    <Input label="Body part" value={accBodyPart} onChange={setAccBody} disabled={disabled} placeholder="e.g. Right lateral malleolus" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ICD-10 (non-ACC) */}
+            {!isAcc && icd10Code && (
+              <div style={{ background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'8px 12px', fontSize:'.8rem', color:'#065F46', fontWeight:600 }}>
+                ICD-10 {icd10Code} — {icd10Label}
+              </div>
+            )}
+
+            {/* Outcome */}
+            <div>
+              <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:6 }}>Consultation outcome</label>
+              <select value={outcome} onChange={e => setOutcome(e.target.value)} disabled={disabled}
+                style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${outcome?'#0B6E76':'#E2E8F0'}`, borderRadius:8, fontFamily:FF, fontSize:'.9rem', color:outcome?'#1A2A33':'#9CA3AF', background:disabled?'#F8FAFC':'white', outline:'none' }}>
+                <option value="">Select outcome…</option>
+                {[['discharged','Discharged'],['prescription_only','Prescription only'],['acc_lodged','ACC claim lodged'],
+                  ['referred_gp','Referred to GP'],['referred_ed','Referred to ED'],['follow_up','Follow-up arranged'],
+                  ['watchful_waiting','Watchful waiting']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ─── Red flags panel ─── */}
+        {redFlags?.flags?.length > 0 && (
+          <div style={{ marginBottom:'1rem' }}>
+            <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:8 }}>
+              Tere Scribe — Clinical Alerts
+            </div>
+            {redFlags.flags.map((flag, i) => {
+              const isC = flag.severity === 'critical'
+              const isH = flag.severity === 'high'
+              return (
+                <div key={i} style={{ background:isC?'#FEF2F2':isH?'#FFFBEB':'#FEFCE8', border:`1px solid ${isC?'#FECACA':isH?'#FDE68A':'#FEF08A'}`, borderRadius:10, padding:'10px 14px', marginBottom:8 }}>
+                  <div style={{ fontWeight:700, fontSize:'.8125rem', color:isC?'#DC2626':isH?'#D97706':'#CA8A04', marginBottom:3 }}>
+                    {isC ? '⛔' : isH ? '⚠' : 'ℹ'} {flag.concern}
+                  </div>
+                  <div style={{ fontSize:'.8rem', color:'#6B7280', lineHeight:1.5 }}>{flag.recommendation}</div>
+                </div>
+              )
+            })}
+            {criticalFlags.length > 0 && (
+              <label style={{ display:'flex', gap:10, alignItems:'center', cursor:'pointer', background:flagsAcknowledged?'#F0FDF4':'#FEF2F2', borderRadius:10, padding:'10px 14px', border:`1.5px solid ${flagsAcknowledged?'#BBF7D0':'#FECACA'}`, marginTop:4 }}
+                onClick={() => setFlagsAcknowledged(v => !v)}>
+                <div style={{ width:20, height:20, borderRadius:4, flexShrink:0, border:`2px solid ${flagsAcknowledged?GREEN:'#DC2626'}`, background:flagsAcknowledged?GREEN:'white', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {flagsAcknowledged && <span style={{ color:'white', fontSize:13, fontWeight:700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:'.8125rem', color:flagsAcknowledged?GREEN:'#DC2626', fontWeight:600, lineHeight:1.4 }}>
+                  {flagsAcknowledged ? '✓ Critical flags reviewed and addressed' : 'I have reviewed and addressed all critical flags above'}
+                </span>
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* ─── Section 6: Attestation ─── */}
+        <SectionCard num={6} title="Attestation">
+          {isFinalised ? (
+            <div style={{ background:'#F0FDF4', borderRadius:10, padding:'1rem', border:'1px solid #BBF7D0', textAlign:'center' }}>
+              <div style={{ fontSize:'1.5rem', marginBottom:6 }}>✓</div>
+              <div style={{ fontWeight:800, color:GREEN }}>Notes finalised</div>
+              {consult?.notes_finalised_at && <div style={{ fontSize:'.8rem', color:'#6B7280', marginTop:4 }}>{new Date(consult.notes_finalised_at).toLocaleString('en-NZ')}</div>}
+              {consult?.notes_completed_seconds && (
+                <div style={{ fontSize:'.8rem', color:'#9CA3AF', marginTop:4 }}>Completed in {formatTimer(consult.notes_completed_seconds)}</div>
+              )}
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+              <label style={{ display:'flex', gap:12, alignItems:'flex-start', cursor:'pointer' }} onClick={() => setAttested(v => !v)}>
+                <div style={{ width:24, height:24, borderRadius:6, flexShrink:0, border:`2px solid ${attested?GREEN:'#D1D5DB'}`, background:attested?GREEN:'white', display:'flex', alignItems:'center', justifyContent:'center', marginTop:2 }}>
+                  {attested && <span style={{ color:'white', fontSize:14, fontWeight:700 }}>✓</span>}
+                </div>
+                <span style={{ fontSize:'.875rem', lineHeight:1.65, color:'#374151' }}>
+                  I, <strong>{providerName}</strong>{regNum ? ` (${regNum})` : ''}, confirm that these notes accurately reflect
+                  the telehealth consultation I conducted on{' '}
+                  <strong>{consult ? new Date(consult.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' }) : '—'}</strong>{' '}
+                  at{' '}
+                  <strong>{consult ? new Date(consult.created_at).toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' }) : '—'}</strong>{' '}
+                  with <strong>{patientName}</strong> (NHI: {consult?.patient_nhi || '—'}). I conducted this consultation in accordance with MCNZ telehealth standards and accept clinical responsibility for this record.
+                </span>
+              </label>
+
+              {/* Validation hints */}
+              {!s1.trim() && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Section 1 (Presenting History) cannot be empty</div>}
+              {!workCapacity && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Work capacity must be selected</div>}
+
+              {attested && (
+                <button onClick={finalise} disabled={!canFinalise || finalising}
+                  style={{ width:'100%', minHeight:60, borderRadius:12, border:'none', background:canFinalise?GREEN:'#E2E8F0', color:canFinalise?'white':'#9CA3AF', fontFamily:FF, fontWeight:800, fontSize:'1.1rem', cursor:canFinalise?'pointer':'not-allowed', boxShadow:canFinalise?'0 4px 20px rgba(5,150,105,.35)':'none', transition:'all .2s' }}>
+                  {finalising ? 'Finalising…' : '✓ Finalise notes'}
+                </button>
+              )}
+
+              <div style={{ fontSize:'.75rem', color:'#9CA3AF', lineHeight:1.5 }}>
+                {MCNZ_FOOTER}
+              </div>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Auto-save indicator */}
+        {lastSaved && !isFinalised && (
+          <div style={{ textAlign:'center', fontSize:'.75rem', color:'#9CA3AF', marginTop:'-0.5rem', marginBottom:'1rem' }}>
+            Saved {lastSaved.toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit' })}
+          </div>
+        )}
+
+        {isFinalised && (
+          <button onClick={() => navigate('/clinician/dashboard')}
+            style={{ width:'100%', background:TEAL, color:'white', border:'none', borderRadius:12, padding:'14px', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:'pointer', minHeight:52 }}>
+            ← Back to dashboard
+          </button>
+        )}
+      </div>
+
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 }

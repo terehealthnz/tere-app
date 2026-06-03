@@ -491,8 +491,8 @@ export default function ProviderSchedule({ embedded = false }) {
   if (embedded) return content
 
   return (
-    <div style={{ minHeight:'100vh', background:'#F7F5F0', fontFamily:FF }}>
-      <div style={{ background:NAVY, padding:'.875rem 1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:'max(.875rem, env(safe-area-inset-top))' }}>
+    <div style={{ minHeight:'100dvh', background:'#F7F5F0', fontFamily:FF }}>
+      <div style={{ background:NAVY, padding:'.875rem 1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))' }}>
         <button onClick={() => navigate('/provider')} style={{ background:'none', border:'none', color:'rgba(255,255,255,.7)', fontSize:'1.25rem', cursor:'pointer', minWidth:44, minHeight:44, display:'flex', alignItems:'center' }}>‹</button>
         <span style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.3rem' }}>My Schedule</span>
         <div style={{ width:44 }} />

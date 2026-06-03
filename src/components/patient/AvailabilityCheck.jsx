@@ -38,7 +38,7 @@ export default function AvailabilityCheck({ onAvailable }) {
   }
 
   if (status === null) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100dvh'}}>
       <div className="spinner" />
     </div>
   )

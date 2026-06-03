@@ -453,7 +453,7 @@ export default function AdminPayroll({ embedded = false }) {
   return (
     <div style={{ minHeight:'100dvh', background:'#F7F5F0', fontFamily:FF }}>
       {/* Nav header */}
-      <div style={{ background:NAVY, padding:'.875rem 1.5rem', display:'flex', alignItems:'center', gap:'.875rem', paddingTop:'max(.875rem, env(safe-area-inset-top))' }}>
+      <div style={{ background:NAVY, padding:'.875rem 1.5rem', display:'flex', alignItems:'center', gap:'.875rem', paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))' }}>
         <button onClick={() => navigate(-1)} style={{ background:'none', border:'none', color:'rgba(255,255,255,.7)', fontSize:'1.375rem', cursor:'pointer', minWidth:44, minHeight:44, display:'flex', alignItems:'center', justifyContent:'center', padding:0 }}>‹</button>
         <div>
           <div style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.25rem', letterSpacing:'.06em' }}>Tere</div>

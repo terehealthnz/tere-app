@@ -17,6 +17,9 @@ export default async function handler(req, res) {
     certTo,
     restrictions,
     diagnosis,
+    modifiedHours,
+    modifiedDays,
+    reviewDate,
   } = req.body || {}
 
   if (!consultationId || !patientEmail) return res.status(400).json({ error: 'consultationId and patientEmail required' })
@@ -28,8 +31,9 @@ export default async function handler(req, res) {
     ? new Date(consultationDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const certFromStr = certFrom ? new Date(certFrom).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : dateStr
-  const certToStr   = certTo   ? new Date(certTo).toLocaleDateString('en-NZ',   { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
+  const certFromStr   = certFrom   ? new Date(certFrom).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : dateStr
+  const certToStr     = certTo     ? new Date(certTo).toLocaleDateString('en-NZ',   { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
+  const reviewDateStr = reviewDate ? new Date(reviewDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
 
   const capacityLabel = workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'
   const capacityColor = workCapacity === 'unfit' ? '#DC2626' : '#D97706'
@@ -76,7 +80,9 @@ export default async function handler(req, res) {
   <div style="margin-bottom:16px">
     <div class="row"><span class="row-label">From</span><span class="row-value">${certFromStr}</span></div>
     <div class="row"><span class="row-label">To</span><span class="row-value">${certToStr}</span></div>
+    ${workCapacity === 'modified' && modifiedHours && modifiedDays ? `<div class="row"><span class="row-label">Hours / days</span><span class="row-value">${modifiedHours} hours/day · ${modifiedDays} days/week</span></div>` : ''}
     ${restrictions ? `<div class="row"><span class="row-label">Restrictions</span><span class="row-value">${restrictions}</span></div>` : ''}
+    ${reviewDateStr ? `<div class="row"><span class="row-label">Review date</span><span class="row-value">${reviewDateStr}</span></div>` : ''}
   </div>
 
   <p style="font-size:13px;color:#6B7280;line-height:1.7;margin-top:20px">
@@ -103,7 +109,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Tere Health <consultations@terehealth.co.nz>',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Medical Certificate — ${patientName} — ${dateStr}`,

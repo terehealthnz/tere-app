@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const isAcc = accEligible === 'yes'
   const PRICES = {
     video:   { private: 6500, acc: 2500 },
-    phone:   { private: 4500, acc: 1500 },
+    phone:   { private: 4500, acc: 2500 },
     message: { private: 2500, acc: 2500 },
   }
   const amount = (PRICES[type] || PRICES.video)[isAcc && type !== 'message' ? 'acc' : 'private']

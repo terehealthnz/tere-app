@@ -1,21 +1,16 @@
 /**
  * Tere Scribe
  * Proprietary AI clinical documentation engine.
- * Whisper (OpenAI) → transcript → Claude (Anthropic) → structured SOAP notes
+ * Deepgram Nova-3 Medical → transcript → Claude (Anthropic) → structured SOAP notes
  */
 import { apiFetch } from './api'
 
-// ── Transcription via Whisper ─────────────────────────────────────────────────
+// ── Transcription via Deepgram ────────────────────────────────────────────────
 export async function transcribeAudio(audioBlob) {
-  const form = new FormData()
-  form.append('file', audioBlob, 'consultation.webm')
-  form.append('model', 'whisper-1')
-  form.append('language', 'en')
-  form.append('prompt', 'Medical consultation in New Zealand. Clinical terminology, ACC (Accident Compensation Corporation), NHI number, patient and doctor speaking.')
-
   const res = await apiFetch('/api/transcribe', {
     method: 'POST',
-    body: form,
+    headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
+    body: audioBlob,
   })
   if (!res.ok) throw new Error('Transcription failed')
   const { text } = await res.json()
@@ -23,11 +18,12 @@ export async function transcribeAudio(audioBlob) {
 }
 
 // ── Note generation via Claude ────────────────────────────────────────────────
-export async function generateNotes(transcript, context) {
+// body should match _generate-notes.js shape: { triage, vitals, prescriptions, ... }
+export async function generateNotes(transcript, body = {}) {
   const res = await apiFetch('/api/generate-notes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ transcript, context }),
+    body: JSON.stringify({ transcript, ...body }),
   })
   if (!res.ok) throw new Error('Note generation failed')
   return res.json()

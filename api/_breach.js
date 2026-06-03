@@ -5,7 +5,7 @@ async function alertAdmin(breach) {
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
-      from: 'security@terehealth.co.nz',
+      from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: ['terehealthnz@gmail.com'],
       subject: '[URGENT] Data breach reported — Tere Health',

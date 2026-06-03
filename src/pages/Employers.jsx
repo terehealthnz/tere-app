@@ -34,8 +34,8 @@ function Hero() {
     <section style={{
       background: `linear-gradient(160deg, ${BRAND.navy} 0%, #0a3d52 100%)`,
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      padding: '6rem 1.5rem 4rem', textAlign: 'center',
+      alignItems: 'center', justifyContent: 'flex-start',
+      padding: '7rem 1.5rem 4rem', textAlign: 'center',
     }}>
       <div style={{ maxWidth: 680 }}>
         <div style={{ display: 'inline-block', background: 'rgba(11,110,118,.3)', border: '1px solid rgba(212,238,240,.2)', borderRadius: 99, padding: '5px 14px', fontSize: '.8rem', color: BRAND.tealLight, letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1.5rem', fontFamily: FF }}>
@@ -45,7 +45,7 @@ function Hero() {
           Healthcare for your workforce — wherever they work
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: FF }}>
-          Keep your team healthy and on the job with on-demand telehealth care built for rural and maritime New Zealand.
+          Keep your team healthy and on the job with on-demand tele-emergency care — FACEM-led emergency medicine for rural and maritime New Zealand.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={`mailto:${CONTACT}?subject=Employer enquiry — get a quote`} style={{
@@ -372,10 +372,13 @@ function Footer() {
       <p style={{ color: 'rgba(255,255,255,.45)', fontSize: '.8125rem', fontFamily: FF, marginBottom: '1rem' }}>
         Marlborough Sounds, New Zealand · <a href="https://terehealth.co.nz" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>terehealth.co.nz</a>
       </p>
-      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '.875rem' }}>
         {[['Home', '/'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Careers', '/careers']].map(([label, href]) => (
           <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none', fontSize: '.8125rem', fontFamily: FF }}>{label}</Link>
         ))}
+      </div>
+      <div style={{ fontSize: '.7rem', color: 'rgba(212,238,240,.3)', fontFamily: FF }}>
+        Practising in accordance with MCNZ Telehealth Standards August 2023 · All doctors MCNZ registered with current APC
       </div>
     </footer>
   )

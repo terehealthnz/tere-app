@@ -1,5 +1,6 @@
 // Appointments CRUD — booking, confirmation, cancellation
 import { createClient } from '@supabase/supabase-js'
+import Stripe from 'stripe'
 
 const TZ = 'Pacific/Auckland'
 const SLOT_MINUTES = 15
@@ -8,6 +9,8 @@ function getNZTDate(d = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year:'numeric', month:'2-digit', day:'2-digit' })
     .format(d)
 }
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -105,10 +108,25 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { action } = req.body
 
+    // Create $15 reservation fee payment intent (immediate capture)
+    if (action === 'create_reservation_intent') {
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: 1500,
+          currency: 'nzd',
+          description: 'Tere Health — appointment reservation fee',
+        })
+        return res.status(200).json({ clientSecret: paymentIntent.client_secret })
+      } catch (e) {
+        return res.status(500).json({ error: e.message })
+      }
+    }
+
     // Book an appointment (patient-initiated)
     if (action === 'book') {
       const { patient_first_name, patient_last_name, patient_email, patient_phone,
-              patient_dob, patient_nhi, provider_id, slot_start, slot_end, reason } = req.body
+              patient_dob, patient_nhi, provider_id, slot_start, slot_end, reason,
+              reservation_payment_intent_id } = req.body
       if (!patient_first_name || !slot_start || !slot_end) {
         return res.status(400).json({ error: 'Missing required fields' })
       }
@@ -128,19 +146,56 @@ export default async function handler(req, res) {
       }).select().single()
       if (error) return res.status(500).json({ error: error.message })
 
+      // Save reservation payment intent ID (requires migration: see supabase/reservation-fee-migration.sql)
+      if (data?.id && reservation_payment_intent_id) {
+        supabase.from('appointments')
+          .update({ reservation_payment_intent_id })
+          .eq('id', data.id)
+          .then(() => {}).catch(() => {})
+      }
+
+      const slotStr = new Date(slot_start).toLocaleString('en-NZ', { timeZone: TZ, weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+      const cancelDeadline = new Date(new Date(slot_start).getTime() - 24*60*60*1000)
+        .toLocaleString('en-NZ', { timeZone: TZ, weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+
       // Confirmation SMS to patient
       if (patient_phone) {
-        const slotStr = new Date(slot_start).toLocaleString('en-NZ', { timeZone: TZ, weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
         try {
           await fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/sms`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
             body: JSON.stringify({
               to: patient_phone, type: 'appointment_booked',
-              message: `Your Tere Health appointment is confirmed for ${slotStr}. Reply STOP to cancel.`
+              message: `Your Tere Health appointment is confirmed for ${slotStr}. Your $15 reservation fee has been charged. Full consultation fee charged on the day. Free cancellation until ${cancelDeadline}.`
             })
           })
         } catch {}
+      }
+
+      // Confirmation email to patient
+      if (patient_email && process.env.RESEND_API_KEY) {
+        let providerName = 'your provider'
+        if (provider_id) {
+          const { data: prov } = await supabase.from('providers').select('first_name,last_name').eq('id', provider_id).single()
+          if (prov) providerName = `Dr ${prov.first_name} ${prov.last_name}`
+        }
+        fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
+          body: JSON.stringify({
+            from: 'Tere Health <hello@terehealth.co.nz>',
+            replyTo: 'terehealthnz@gmail.com',
+            to: patient_email,
+            subject: `Appointment confirmed — ${slotStr}`,
+            html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
+<p>Kia ora ${patient_first_name},</p>
+<p>Your appointment with <strong>${providerName}</strong> on <strong>${slotStr}</strong> is confirmed. Your <strong>$15 reservation fee</strong> has been charged.</p>
+<p>On the day of your appointment, your full consultation fee will be charged separately ($65 video / $45 phone).</p>
+<p>Free cancellation until <strong>${cancelDeadline}</strong>. To cancel, please call us.</p>
+<p style="margin-top:1.5rem">Ngā mihi,<br><strong>Tere Health</strong></p>
+</div>`,
+          })
+        }).catch(() => {})
       }
 
       // Notify admin via push (best-effort)

@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
-import { ConsultationRecorder, transcribeAudio, generateNotes } from '../../lib/tereScribe'
+// Live transcription via Deepgram WebSocket — no SDK required
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import HpiSearch from '../HpiSearch'
 import ClinicalTools from './ClinicalTools'
+import ConvertToAccModal from './ConvertToAccModal'
+import VirtualBgControls from './VirtualBgControls'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
@@ -68,6 +70,21 @@ function Modal({ open, onClose, title, children }) {
   )
 }
 
+// NZ paediatric dose calculator — weight in kg, returns { dose, volume, directions }
+const PAED_DRUGS = {
+  'paracetamol': { mgPerKg:15, maxMg:1000, concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'every 4–6 hours (max 4 doses/24h)', maxRepeats:0 },
+  'ibuprofen':   { mgPerKg:10, maxMg:400,  concentration:{ mg:100, mL:5 }, form:'oral suspension 100mg/5mL', freq:'every 6–8 hours with food',        maxRepeats:0 },
+  'amoxicillin': { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'three times daily for 5 days',      maxRepeats:0 },
+  'cefalexin':   { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'four times daily for 5 days',       maxRepeats:0 },
+}
+function calcPaedDose(drug, weightKg) {
+  const d = PAED_DRUGS[drug?.toLowerCase().split(' ')[0]]
+  if (!d || !weightKg) return null
+  const mg = Math.min(Math.round(d.mgPerKg * weightKg / 5) * 5, d.maxMg) // round to nearest 5mg
+  const mL = Math.round((mg / d.concentration.mg) * d.concentration.mL * 10) / 10
+  return { dose:`${mg}mg (${mL}mL)`, directions:`${mL}mL ${d.form} ${d.freq}`, qty:`100mL` }
+}
+
 function PrescribeModal({ open, onClose, consult, onDone }) {
   const [rx, setRx] = useState({ drug:'', dose:'', directions:'', qty:'', repeats:0 })
   const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
@@ -81,6 +98,8 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
   const [checkingInteractions, setCheckingInteractions] = useState(false)
   const [interactionOverride, setInteractionOverride] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const [isPaediatric, setIsPaediatric] = useState(false)
+  const [paedWeight, setPaedWeight] = useState('')
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
   const providerId = sessionStorage.getItem('providerId')
@@ -116,6 +135,8 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
 
   function loadTemplate(t) {
     setRx({ drug:t.drug||'', dose:t.dose||'', directions:t.directions||'', qty:t.quantity||'', repeats:t.repeats||0 })
+    setIsPaediatric(!!t.paediatric)
+    setPaedWeight('')
   }
 
   async function saveTemplate() {
@@ -179,6 +200,10 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
 
   return (
     <Modal open={open} onClose={onClose} title="💊 Prescribe">
+      <div style={{background:'#FEF3C7',border:'1px solid #D97706',borderRadius:8,padding:'.625rem .875rem',marginBottom:'1rem',fontSize:'.8125rem',color:'#92400E',lineHeight:1.5}}>
+        <strong>Prescribing reminder:</strong> Controlled drugs (opioids, benzodiazepines, stimulants) and GLP-1 weight loss injections (e.g. Ozempic/Wegovy) cannot be prescribed via telehealth under NZ law.
+        {consult?.controlled_medication_mentioned && <span style={{display:'block',marginTop:3,fontWeight:700}}>⚠ Patient mentioned a controlled medication during triage.</span>}
+      </div>
       {/* Template picker */}
       {templates.length > 0 && (
         <div style={{marginBottom:'1rem'}}>
@@ -232,6 +257,40 @@ function PrescribeModal({ open, onClose, consult, onDone }) {
             <div style={{fontSize:'.75rem',color:'#059669',marginTop:3}}>✓ No known interactions with current medications</div>
           )}
         </div>
+        {/* Paediatric weight-based dosing */}
+        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:'.75rem'}}>
+          <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:'.8125rem',color:'#374151',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            <input type="checkbox" checked={isPaediatric} onChange={e=>{ setIsPaediatric(e.target.checked); setPaedWeight('') }} style={{width:16,height:16,cursor:'pointer'}} />
+            Paediatric dosing (weight-based)
+          </label>
+        </div>
+        {isPaediatric && (
+          <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'.75rem',marginBottom:'.75rem'}}>
+            <div style={{fontSize:'.75rem',fontWeight:700,color:'#1D4ED8',marginBottom:6,textTransform:'uppercase',letterSpacing:'.05em'}}>Weight-based dose calculator</div>
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <input type="number" min={1} max={100} value={paedWeight} onChange={e => {
+                const w = parseFloat(e.target.value)
+                setPaedWeight(e.target.value)
+                if (w > 0 && rx.drug) {
+                  const calc = calcPaedDose(rx.drug, w)
+                  if (calc) setRx(r => ({...r, dose:calc.dose, directions:calc.directions, qty:calc.qty}))
+                }
+              }}
+                placeholder="Weight (kg)"
+                style={{width:130,padding:'7px 10px',border:'1.5px solid #93C5FD',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
+              />
+              <span style={{fontSize:'.8rem',color:'#6B7280'}}>kg</span>
+              {paedWeight && calcPaedDose(rx.drug, parseFloat(paedWeight)) && (
+                <span style={{fontSize:'.8rem',color:'#1D4ED8',fontWeight:700}}>
+                  → {calcPaedDose(rx.drug, parseFloat(paedWeight)).dose}
+                </span>
+              )}
+              {paedWeight && !calcPaedDose(rx.drug, parseFloat(paedWeight)) && (
+                <span style={{fontSize:'.8rem',color:'#D97706'}}>No auto-calc for this drug — enter dose manually</span>
+              )}
+            </div>
+          </div>
+        )}
         <div className="form-group">
           <label>Dose</label>
           <input value={rx.dose} onChange={e=>setRx(r=>({...r,dose:e.target.value}))} placeholder="400mg" />
@@ -557,11 +616,17 @@ export default function ConsultView() {
   const [supervisorLinkCopied, setSupervisorLinkCopied] = useState(false)
   const [showClinicalTools, setShowClinicalTools] = useState(false)
   const [patientFlags, setPatientFlags] = useState([])
+  const [showAccConvert, setShowAccConvert] = useState(false)
   const [showIncidentModal, setShowIncidentModal] = useState(false)
   const [incidentForm, setIncidentForm] = useState({ incident_type:'Clinical', severity:'low', description:'', immediate_actions:'', contributing_factors:'' })
   const [submittingIncident, setSubmittingIncident] = useState(false)
   const [incidentDone, setIncidentDone] = useState(false)
-  const recorderRef = useRef(null)
+  const [liveTranscript, setLiveTranscript] = useState('')
+  const [showTranscript, setShowTranscript] = useState(false)
+  const wsRef              = useRef(null)
+  const mediaRecorderRef   = useRef(null)
+  const streamRef          = useRef(null)
+  const transcriptPanelRef = useRef(null)
 
   useEffect(() => {
     if (!sessionStorage.getItem('clinicianAuth')) { navigate('/clinician'); return }
@@ -644,40 +709,101 @@ export default function ConsultView() {
     return () => clearInterval(interval)
   }, [id])
 
+  // Auto-scroll live transcript panel
+  useEffect(() => {
+    if (transcriptPanelRef.current) {
+      transcriptPanelRef.current.scrollTop = transcriptPanelRef.current.scrollHeight
+    }
+  }, [liveTranscript])
+
+  // Cleanup live transcription on unmount
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      wsRef.current?.close()
+    }
+  }, [])
+
+  const NZ_DRUG_KEYTERMS = [
+    'paracetamol','ibuprofen','amoxicillin','flucloxacillin','metformin','atorvastatin',
+    'omeprazole','salbutamol','prednisone','cephalexin','trimethoprim','nitrofurantoin',
+    'azithromycin','doxycycline','diclofenac','naproxen','levothyroxine','amlodipine',
+    'lisinopril','warfarin','aspirin','dabigatran','sertraline','fluoxetine',
+  ]
+
   async function startScribe() {
-    setScribeState('recording')
-    recorderRef.current = new ConsultationRecorder()
+    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
+    if (!apiKey) { alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return }
     try {
-      await recorderRef.current.start()
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      streamRef.current = stream
+
+      const keyterms = NZ_DRUG_KEYTERMS.map(k => `keyterm=${encodeURIComponent(k)}`).join('&')
+      const url = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-NZ&diarize=true&punctuate=true&smart_format=true&interim_results=false&${keyterms}`
+      const ws = new WebSocket(url, ['token', apiKey])
+      wsRef.current = ws
+
+      ws.onopen = () => {
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+        const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
+        mediaRecorderRef.current = mr
+        mr.ondataavailable = e => {
+          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) ws.send(e.data)
+        }
+        mr.start(250)
+      }
+
+      ws.onmessage = e => {
+        try {
+          const data = JSON.parse(e.data)
+          if (data.type !== 'Results' || !data.is_final) return
+          const alt = data.channel?.alternatives?.[0]
+          if (!alt?.transcript?.trim()) return
+
+          const words = alt.words || []
+          let text = alt.transcript
+          if (words.length > 0 && words[0].speaker !== undefined) {
+            let labeled = ''
+            let curSpeaker = null
+            words.forEach(w => {
+              if (w.speaker !== curSpeaker) {
+                curSpeaker = w.speaker
+                labeled += (labeled ? '\n' : '') + (w.speaker === 0 ? '[PROVIDER]' : '[PATIENT]') + ' '
+              } else {
+                labeled += ' '
+              }
+              labeled += (w.punctuated_word || w.word)
+            })
+            text = labeled
+          }
+          setLiveTranscript(prev => prev + (prev ? '\n' : '') + text)
+        } catch {}
+      }
+
+      ws.onerror = () => {}
+      setLiveTranscript('')
+      setScribeState('recording')
+      setShowTranscript(true)
     } catch (e) {
-      alert(e.message)
+      alert(e.message || 'Microphone access denied')
       setScribeState('idle')
     }
   }
 
-  async function stopScribe() {
-    setScribeState('transcribing')
-    try {
-      const blob = await recorderRef.current.stop()
-      const text = await transcribeAudio(blob)
-      setTranscript(text)
-      setTab('notes')
-
-      const context = {
-        patientName: `${consult.patient_first_name} ${consult.patient_last_name}`,
-        complaint: consult.chief_complaint,
-        vitals: consult.vitals,
-        accEligible: consult.acc_eligible === 'yes',
-      }
-      const generated = await generateNotes(text, context)
-      setAiNotes(generated)
-      setNotes(generated.soap || notes)
-      setScribeState('done')
-    } catch (e) {
-      console.error(e)
-      setScribeState('idle')
-      alert('Transcription failed. Check your API keys or enter notes manually.')
+  function stopScribe() {
+    mediaRecorderRef.current?.stop()
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'CloseStream' }))
+      wsRef.current.close()
     }
+    wsRef.current = null
+    mediaRecorderRef.current = null
+    streamRef.current = null
+    setScribeState('done')
+    setTab('notes')
   }
 
   function addAction(action) {
@@ -703,30 +829,31 @@ export default function ConsultView() {
   }
 
   async function endConsult() {
+    if (scribeState === 'recording') stopScribe()
     const durationSec = consult.started_at
       ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null
     try {
       const { supabase } = await import('../../lib/supabase')
       await supabase.from('consultations').update({
         notes_draft: { actions },
-        transcript: transcript || null,
+        transcript: liveTranscript || null,
         consultation_duration_seconds: durationSec,
       }).eq('id', id)
     } catch {}
-    navigate(`/clinician/notes/${id}`, { state: { actions, transcript: transcript || '' } })
+    navigate(`/clinician/notes/${id}`, { state: { actions, transcript: liveTranscript || '' } })
   }
 
-  if (!consult) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh'}}><div className="spinner" /></div>
+  if (!consult) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100dvh'}}><div className="spinner" /></div>
 
   return (
-    <div style={{display:'grid',gridTemplateColumns:'360px 1fr',height:'100vh',overflow:'hidden',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+    <div style={{display:'grid',gridTemplateColumns:'360px 1fr',height:'100dvh',overflow:'hidden',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
 
       {/* ── Left panel ── */}
       <div style={{background:'white',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
         {/* Top bar */}
         <div style={{background:'var(--navy)',padding:'.875rem 1rem',flexShrink:0}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.2rem'}}>Tere</span>
+            <span onClick={() => navigate('/clinician/dashboard')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.2rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to dashboard">Tere</span>
             <div style={{display:'flex',gap:'.375rem',alignItems:'center'}}>
               <button
                 onClick={() => {
@@ -839,6 +966,21 @@ export default function ConsultView() {
                 ))}
               </div>
 
+              {/* Convert to ACC — only when not already ACC */}
+              {consult.acc_eligible !== 'yes' && !consult.acc_converted_by_provider && (
+                <button
+                  onClick={() => setShowAccConvert(true)}
+                  style={{ width:'100%', marginTop:'.75rem', padding:'8px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'.875rem' }}
+                >
+                  ⚡ Convert to ACC claim
+                </button>
+              )}
+              {consult.acc_converted_by_provider && (
+                <div style={{ marginTop:'.75rem', padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
+                  ✓ Converted to ACC — pending admin lodgement
+                </div>
+              )}
+
               {/* Step 2: Vitals received (or skipped) — clinician confirms review */}
               {consult.status === 'vitals_complete' && !vitalsConfirmed && (
                 <button
@@ -856,8 +998,23 @@ export default function ConsultView() {
                   onClick={async () => {
                     const { supabase } = await import('../../lib/supabase')
                     const startedAt = new Date().toISOString()
-                    await supabase.from('consultations').update({ status: 'in_progress', started_at: startedAt }).eq('id', consult.id)
-                    setConsult(d => ({...d, status: 'in_progress', started_at: startedAt}))
+                    // Ensure room exists before admitting (guard against silent create-room failure at load time)
+                    let roomName = consult.daily_room_url
+                    if (!roomName) {
+                      try {
+                        const rr = await apiFetch('/api/create-room', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ consultationId: consult.id }),
+                        })
+                        if (rr.ok) { const rd = await rr.json(); roomName = rd.roomName }
+                      } catch {}
+                    }
+                    const patch = { status: 'in_progress', started_at: startedAt }
+                    if (roomName) patch.daily_room_url = roomName
+                    const { error } = await supabase.from('consultations').update(patch).eq('id', consult.id)
+                    if (error) { console.error('Admit update failed:', error); return }
+                    setConsult(d => ({...d, ...patch}))
                     if (consult.payment_intent_id) {
                       apiFetch('/api/capture-payment', {
                         method: 'POST',
@@ -903,9 +1060,8 @@ export default function ConsultView() {
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
                     {scribeState==='recording' && <div style={{width:8,height:8,borderRadius:'50%',background:'#DC2626',animation:'blink 1s infinite'}} />}
-                    {scribeState==='transcribing' && <div style={{width:18,height:18,border:'2px solid var(--teal-light)',borderTopColor:'var(--teal)',borderRadius:'50%',animation:'spin .7s linear infinite'}} />}
                     <span style={{fontSize:'.8125rem',fontWeight:600,color: scribeState==='recording'?'#DC2626':scribeState==='done'?'var(--success)':'var(--muted)'}}>
-                      {scribeState==='idle'?'Tere Scribe':scribeState==='recording'?'Recording…':scribeState==='transcribing'?'Generating notes…':'Notes ready'}
+                      {scribeState==='idle'?'Tere Scribe':scribeState==='recording'?'Recording…':'Transcript ready'}
                     </span>
                   </div>
                   {scribeState==='idle' && <button onClick={startScribe} style={{background:'var(--teal)',color:'white',border:'none',padding:'4px 10px',borderRadius:'99px',fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>▶ Start</button>}
@@ -981,6 +1137,12 @@ export default function ConsultView() {
                 </span>
                 <span style={{color:'rgba(255,255,255,.35)',fontSize:'.75rem'}}>· encrypted · Scribe {scribeState==='recording'?'on':'ready'}</span>
               </div>
+              {(scribeState === 'recording' || liveTranscript) && (
+                <button onClick={() => setShowTranscript(v => !v)}
+                  style={{background:showTranscript?'rgba(11,110,118,.5)':'rgba(255,255,255,.12)',border:'none',color:'rgba(255,255,255,.8)',padding:'3px 9px',borderRadius:6,cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+                  📝 {showTranscript ? 'Hide transcript' : 'Transcript'}
+                </button>
+              )}
             </div>
 
             {/* Audio-only banner */}
@@ -1002,12 +1164,35 @@ export default function ConsultView() {
                   style={{width:'100%',height:'100%'}}
                 >
                   <VideoConference />
+                  {!isPhone && <VirtualBgControls />}
                 </LiveKitRoom>
               ) : (
                 <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>
                   <div style={{textAlign:'center',color:'rgba(255,255,255,.5)'}}>
                     <div style={{width:32,height:32,border:'3px solid rgba(255,255,255,.2)',borderTopColor:'var(--teal)',borderRadius:'50%',animation:'spin .8s linear infinite',margin:'0 auto 1rem'}}/>
                     <div style={{fontSize:'.9375rem',color:'rgba(255,255,255,.4)'}}>Connecting…</div>
+                  </div>
+                </div>
+              )}
+              {/* Live transcript panel */}
+              {showTranscript && (
+                <div style={{position:'absolute',bottom:0,left:0,right:0,height:'38%',background:'rgba(0,0,0,.88)',backdropFilter:'blur(4px)',borderTop:'1px solid rgba(255,255,255,.12)',display:'flex',flexDirection:'column',zIndex:5}}>
+                  <div style={{padding:'5px 12px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,.1)',flexShrink:0}}>
+                    <span style={{color:'rgba(255,255,255,.6)',fontSize:'.75rem',fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
+                      {scribeState==='recording' && <span style={{display:'inline-block',width:7,height:7,borderRadius:'50%',background:'#EF4444',animation:'blink 1s infinite'}} />}
+                      Live Transcript {scribeState==='recording' ? '· live' : '· stopped'}
+                    </span>
+                    <button onClick={() => setShowTranscript(false)} style={{background:'none',border:'none',color:'rgba(255,255,255,.4)',cursor:'pointer',fontSize:'.875rem',padding:'2px 6px',lineHeight:1}}>✕</button>
+                  </div>
+                  <div ref={transcriptPanelRef} style={{flex:1,overflowY:'auto',padding:'8px 12px',fontFamily:'monospace',fontSize:'.8125rem',lineHeight:1.8,whiteSpace:'pre-wrap',wordBreak:'break-word'}}>
+                    {liveTranscript
+                      ? liveTranscript.split('\n').map((line, i) => (
+                          <div key={i} style={{color: line.startsWith('[PROVIDER]') ? '#7ECFD4' : line.startsWith('[PATIENT]') ? '#86EFAC' : 'rgba(255,255,255,.75)', marginBottom:2}}>
+                            {line}
+                          </div>
+                        ))
+                      : <span style={{color:'rgba(255,255,255,.3)',fontFamily:'Plus Jakarta Sans, sans-serif',fontStyle:'italic',fontSize:'.8rem'}}>Waiting for speech…</span>
+                    }
                   </div>
                 </div>
               )}
@@ -1036,6 +1221,16 @@ export default function ConsultView() {
       <PrescribeModal open={modals.rx} onClose={() => setModals(m=>({...m,rx:false}))} consult={consult} onDone={addAction} />
       <XrayModal open={modals.xr} onClose={() => setModals(m=>({...m,xr:false}))} consult={consult} onDone={addAction} />
       <ACCModal open={modals.acc} onClose={() => setModals(m=>({...m,acc:false}))} consult={consult} onDone={addAction} />
+      {showAccConvert && (
+        <ConvertToAccModal
+          consult={consult}
+          onClose={() => setShowAccConvert(false)}
+          onSuccess={() => {
+            setConsult(c => ({ ...c, acc_eligible: 'yes', is_acc: true, acc_converted_by_provider: true }))
+            setShowAccConvert(false)
+          }}
+        />
+      )}
 
       {/* Clinical tools modal */}
       {showClinicalTools && (

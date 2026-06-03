@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EAE5DE"/>
+      <stop offset="55%" stop-color="#F4F0EB"/>
+      <stop offset="100%" stop-color="#DDD9D2"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C8DFF0"/>
+      <stop offset="60%" stop-color="#E4F0FA"/>
+      <stop offset="100%" stop-color="#F0F8FF"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C8C0B6"/>
+      <stop offset="100%" stop-color="#B8B0A4"/>
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9C8268"/>
+      <stop offset="100%" stop-color="#7A6450"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Wall -->
+  <rect width="1280" height="720" fill="url(#wall)"/>
+
+  <!-- Wainscoting panel line -->
+  <rect x="0" y="480" width="1280" height="3" fill="#D0CBC4" opacity="0.7"/>
+  <rect x="0" y="477" width="1280" height="3" fill="#E0DBD4" opacity="0.5"/>
+
+  <!-- Floor -->
+  <rect x="0" y="640" width="1280" height="80" fill="url(#floor)"/>
+  <rect x="0" y="636" width="1280" height="6" fill="#C0B8AC"/>
+
+  <!-- Window — right side -->
+  <rect x="890" y="40" width="300" height="420" fill="url(#win)" rx="6"/>
+  <rect x="890" y="40" width="300" height="420" fill="none" stroke="#C4BDB5" stroke-width="14" rx="6"/>
+  <rect x="892" y="42" width="296" height="416" fill="none" stroke="#D8D2CC" stroke-width="3" rx="5"/>
+  <!-- Window cross -->
+  <rect x="1036" y="40" width="10" height="420" fill="#C4BDB5"/>
+  <rect x="890" y="245" width="300" height="10" fill="#C4BDB5"/>
+  <!-- Window sill -->
+  <rect x="876" y="457" width="328" height="18" fill="#C8C2BA" rx="2"/>
+  <!-- Window light spill on wall -->
+  <ellipse cx="1040" cy="470" rx="180" ry="12" fill="#DDD6CC" opacity="0.6"/>
+
+  <!-- Small plant on window sill -->
+  <rect x="1120" y="430" width="28" height="32" fill="#7A6450" rx="3"/>
+  <ellipse cx="1134" cy="426" rx="22" ry="30" fill="#2D6B2D" opacity="0.9"/>
+  <ellipse cx="1118" cy="408" rx="14" ry="20" fill="#256025" opacity="0.85"/>
+  <ellipse cx="1150" cy="412" rx="16" ry="22" fill="#347034" opacity="0.85"/>
+
+  <!-- Bookshelf — left side -->
+  <rect x="48" y="80" width="240" height="540" fill="#7A5C2E" rx="4"/>
+  <rect x="48" y="80" width="240" height="18" fill="#8C6A38" rx="4"/>
+  <!-- Shelf boards -->
+  <rect x="48" y="290" width="240" height="12" fill="#8C6A38"/>
+  <rect x="48" y="490" width="240" height="12" fill="#8C6A38"/>
+  <rect x="48" y="590" width="240" height="12" fill="#8C6A38"/>
+
+  <!-- Books — Row 1 (y: 98–290) -->
+  <rect x="56"  y="100" width="20" height="182" fill="#1E5C9A" rx="2"/>
+  <rect x="78"  y="112" width="16" height="170" fill="#8C1E1E" rx="2"/>
+  <rect x="96"  y="104" width="22" height="178" fill="#1A6B2E" rx="2"/>
+  <rect x="120" y="116" width="18" height="166" fill="#5E3A94" rx="2"/>
+  <rect x="140" y="100" width="20" height="182" fill="#8C6A20" rx="2"/>
+  <rect x="162" y="108" width="24" height="174" fill="#1E6B7A" rx="2"/>
+  <rect x="188" y="100" width="18" height="182" fill="#7A1E5E" rx="2"/>
+  <rect x="208" y="114" width="16" height="168" fill="#4A6A1E" rx="2"/>
+  <rect x="226" y="100" width="20" height="182" fill="#6A3E20" rx="2"/>
+  <rect x="248" y="106" width="28" height="176" fill="#3A3A3A" rx="2" opacity="0.8"/>
+
+  <!-- Books — Row 2 (y: 302–490) -->
+  <rect x="56"  y="304" width="18" height="178" fill="#7A3A1E" rx="2"/>
+  <rect x="76"  y="314" width="22" height="168" fill="#2A4A8C" rx="2"/>
+  <rect x="100" y="304" width="20" height="178" fill="#8C8020" rx="2"/>
+  <rect x="122" y="318" width="16" height="164" fill="#5A1E6A" rx="2"/>
+  <rect x="140" y="302" width="24" height="180" fill="#1A6A6A" rx="2"/>
+  <rect x="166" y="310" width="18" height="172" fill="#4A7A1E" rx="2"/>
+  <rect x="186" y="304" width="22" height="178" fill="#8C2A4A" rx="2"/>
+  <rect x="210" y="316" width="20" height="166" fill="#2A5A2A" rx="2"/>
+  <rect x="232" y="304" width="44" height="178" fill="#4A4A4A" rx="2" opacity="0.8"/>
+
+  <!-- Books — Row 3 (y: 502–590) — shorter paperbacks -->
+  <rect x="56"  y="516" width="18" height="66" fill="#1E5C9A" rx="2"/>
+  <rect x="76"  y="510" width="20" height="72" fill="#8C1E1E" rx="2"/>
+  <rect x="98"  y="518" width="16" height="64" fill="#1A6B2E" rx="2"/>
+  <rect x="116" y="512" width="22" height="70" fill="#8C6A20" rx="2"/>
+  <rect x="140" y="516" width="18" height="66" fill="#5E3A94" rx="2"/>
+  <rect x="160" y="510" width="20" height="72" fill="#1E6B7A" rx="2"/>
+  <rect x="182" y="518" width="16" height="64" fill="#7A3A1E" rx="2"/>
+  <!-- Small ornament/frame -->
+  <rect x="200" y="506" width="74" height="76" fill="#C8C0B6" rx="3"/>
+  <rect x="204" y="510" width="66" height="68" fill="#E8E3DC" rx="2"/>
+  <rect x="208" y="514" width="58" height="60" fill="#B0C8D8" rx="1" opacity="0.7"/>
+
+  <!-- Framed certificate/artwork on wall — center-left -->
+  <rect x="360" y="70" width="210" height="160" fill="white" rx="5" opacity="0.92"/>
+  <rect x="364" y="74" width="202" height="152" fill="#F0EBE4" rx="3"/>
+  <rect x="372" y="82" width="186" height="136" fill="none" stroke="#C8C3BC" stroke-width="2" rx="1"/>
+  <text x="465" y="155" font-family="Georgia, serif" font-size="18" fill="#8C8078" text-anchor="middle" opacity="0.7">Certificate of Practice</text>
+  <rect x="400" y="168" width="130" height="2" fill="#C8C3BC" opacity="0.5"/>
+  <text x="465" y="194" font-family="Georgia, serif" font-size="12" fill="#A09890" text-anchor="middle">Medical Council NZ</text>
+
+  <!-- Small framed photo — right of certificate -->
+  <rect x="590" y="90" width="130" height="100" fill="white" rx="4" opacity="0.88"/>
+  <rect x="594" y="94" width="122" height="92" fill="#D8E8D0" rx="2"/>
+
+  <!-- Desk surface — lower right -->
+  <rect x="560" y="640" width="720" height="80" fill="url(#desk)" rx="4"/>
+  <rect x="560" y="634" width="720" height="14" fill="#AC9278" rx="2"/>
+  <!-- Laptop silhouette on desk -->
+  <rect x="780" y="590" width="200" height="6" fill="#6A6A6A" rx="3"/>
+  <rect x="790" y="596" width="180" height="3" fill="#5A5A5A" rx="1"/>
+
+  <!-- Subtle shadow at bottom of wall -->
+  <rect x="0" y="620" width="1280" height="24" fill="#C0BAB2" opacity="0.35"/>
+</svg>

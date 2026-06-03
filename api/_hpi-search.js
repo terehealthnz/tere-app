@@ -1,4 +1,4 @@
-import fetch from 'node-fetch'
+// node-fetch not needed — using built-in fetch
 
 let cachedToken = null
 let tokenExpiry = 0
@@ -18,7 +18,7 @@ async function getHpiToken() {
     scope: 'openid',
   })
 
-  const res = await fetch('https://auth.digital.health.nz/oauth2/token', {
+  const res = await globalThis.fetch('https://auth.digital.health.nz/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
@@ -62,6 +62,18 @@ const MOCK_PHARMACIES = [
   { name: 'Unichem Blenheim', hpiId: 'FAC0000105', address: '120 High Street, Blenheim 7201', phone: '03 578 3200', email: 'blenheim@unichem.co.nz', fax: '' },
 ]
 
+const MOCK_GPS = [
+  { name: 'Dr Sarah Mitchell',  clinic: 'Havelock Medical Centre',    email: 'reception@havelockmedical.co.nz',    hpiId: 'G00012345' },
+  { name: 'Dr James Chen',      clinic: 'Blenheim Family Health',      email: 'reception@blenheimfh.co.nz',         hpiId: 'G00012346' },
+  { name: 'Dr Emma Wilson',     clinic: 'Marlborough Family Practice', email: 'admin@marlboroughfp.co.nz',          hpiId: 'G00012347' },
+  { name: 'Dr Mike Tane',       clinic: 'Picton Medical Centre',       email: 'reception@pictonmed.co.nz',          hpiId: 'G00012348' },
+  { name: 'Dr Lisa Park',       clinic: 'Nelson Bays Primary Health',  email: 'reception@nbph.co.nz',              hpiId: 'G00012349' },
+  { name: 'Dr Anna Lawson',     clinic: 'Rai Valley Health',           email: 'info@raivalleyhealth.co.nz',         hpiId: 'G00012350' },
+  { name: 'Dr Tom Stevenson',   clinic: 'Renwick Health Centre',       email: 'reception@renwickhealth.co.nz',     hpiId: 'G00012351' },
+  { name: 'Dr Priya Sharma',    clinic: 'Blenheim Health Centre',      email: 'admin@blenheimhealthcentre.co.nz',  hpiId: 'G00012352' },
+  { name: 'Dr Peter Herling',   clinic: 'Tere Health',                 email: 'terehealthnz@gmail.com',            hpiId: 'G00012353' },
+]
+
 const MOCK_RADIOLOGY = [
   { name: 'Marlborough Medical Imaging', hpiId: 'FAC0001001', address: '25 Alma Road, Blenheim 7201', phone: '03 579 8050', email: 'referrals@mmi.co.nz', fax: '03 579 8051' },
   { name: 'Pacific Radiology Nelson', hpiId: 'FAC0001002', address: '98 Waimea Road, Nelson 7010', phone: '03 546 9100', email: 'nelson@pacificradiology.co.nz', fax: '03 546 9101' },
@@ -72,6 +84,44 @@ const MOCK_RADIOLOGY = [
 export default async function handler(req, res) {
   const { query, type } = req.body || {}
   if (!query || query.length < 2) return res.json({ results: [] })
+
+  // GP practitioner search — uses HPI sandbox Practitioner endpoint
+  if (type === 'gp') {
+    const q = query.toLowerCase().replace(/^dr\.?\s*/i, '')
+    const mockResults = MOCK_GPS.filter(g =>
+      g.name.toLowerCase().replace(/^dr\.?\s*/i, '').includes(q) ||
+      g.clinic.toLowerCase().includes(q)
+    ).slice(0, 4)
+
+    const token = await getHpiToken()
+    if (!token) return res.json({ results: mockResults, mock: true })
+
+    try {
+      // Sandbox HPI Practitioner search
+      const url = `https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
+      const hpiRes = await globalThis.fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/fhir+json' },
+      })
+      if (!hpiRes.ok) return res.json({ results: mockResults, mock: true })
+
+      const bundle = await hpiRes.json()
+      const hpiResults = (bundle.entry || []).map(e => {
+        const r = e.resource
+        const nameObj = r.name?.[0] || {}
+        const displayName = [
+          nameObj.prefix?.[0],
+          ...(nameObj.given || []),
+          nameObj.family,
+        ].filter(Boolean).join(' ')
+        const email = r.telecom?.find(t => t.system === 'email')?.value || ''
+        return { name: displayName, clinic: '', email, hpiId: r.id || '' }
+      }).filter(r => r.name)
+
+      return res.json({ results: hpiResults.length ? hpiResults : mockResults, mock: !hpiResults.length })
+    } catch {
+      return res.json({ results: mockResults, mock: true })
+    }
+  }
 
   const locationType = type === 'radiology' ? 'RADDX' : 'PHARM'
   const mockData = type === 'radiology' ? MOCK_RADIOLOGY : MOCK_PHARMACIES
@@ -87,7 +137,7 @@ export default async function handler(req, res) {
 
   try {
     const url = `https://hpi.digital.health.nz/fhir/v1/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
-    const hpiRes = await fetch(url, {
+    const hpiRes = await globalThis.fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/fhir+json',

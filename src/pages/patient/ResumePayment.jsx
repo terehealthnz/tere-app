@@ -10,8 +10,6 @@ export default function ResumePayment() {
     async function resume() {
       try {
         const c = await getConsultation(id)
-        sessionStorage.setItem('consultationId', id)
-        sessionStorage.setItem('accEligible', c?.acc_eligible || 'no')
 
         // Check 15 minute window
         const notifiedAt = c?.waitlist_notified_at
@@ -22,6 +20,16 @@ export default function ResumePayment() {
             return
           }
         }
+
+        // Restore full session so payment page has all context
+        sessionStorage.setItem('consultationId', id)
+        sessionStorage.setItem('accEligible', c?.acc_eligible || 'no')
+        sessionStorage.setItem('consultationType', c?.consultation_type || 'video')
+        sessionStorage.setItem('patientName', `${c?.patient_first_name || ''} ${c?.patient_last_name || ''}`.trim())
+        sessionStorage.setItem('patientEmail', c?.patient_email || '')
+        sessionStorage.setItem('triage_complaint', c?.chief_complaint || '')
+        sessionStorage.setItem('patient_language', c?.patient_language || 'en')
+        if (c?.consultation_type) sessionStorage.setItem('paymentAmount', '')
         navigate('/payment')
       } catch(e) {
         console.error(e)
@@ -32,7 +40,7 @@ export default function ResumePayment() {
   }, [id, navigate])
 
   return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh' }}>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100dvh' }}>
       <div style={{ textAlign:'center' }}>
         <div className="spinner spinner-lg" style={{ margin:'0 auto 1rem' }}></div>
         <p style={{ color:'var(--muted)' }}>Getting you sorted…</p>

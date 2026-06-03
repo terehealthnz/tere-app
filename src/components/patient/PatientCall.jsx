@@ -78,11 +78,12 @@ export default function PatientCall() {
   )
 
   return (
-    <div style={{ position: 'relative', height: '100vh' }}>
+    <div style={{ position: 'relative', height: '100dvh' }}>
       {isPhone && (
         <div style={{
           position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
           background: 'rgba(11,110,118,.9)', padding: '.5rem 1rem',
+          paddingTop: 'calc(.5rem + env(safe-area-inset-top, 0px))',
           display: 'flex', alignItems: 'center', gap: '.5rem',
           fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: 'white',
         }}>
@@ -97,7 +98,7 @@ export default function PatientCall() {
         video={!isPhone}
         audio={true}
         data-lk-theme="default"
-        style={{ height: '100vh' }}
+        style={{ height: '100dvh' }}
         onDisconnected={() => navigate('/done')}
       >
         <VideoConference />

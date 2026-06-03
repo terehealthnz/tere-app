@@ -328,14 +328,14 @@ export default function ProviderNotes() {
   }
 
   if (loading) return (
-    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
       <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
   if (!consult) return (
-    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
       <button onClick={() => navigate('/provider')} style={{ background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer' }}>← Back to queue</button>
     </div>
   )
@@ -346,7 +346,7 @@ export default function ProviderNotes() {
   const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
 
   return (
-    <div style={{ minHeight:'100vh', background:'#F0F2F5', fontFamily:FF }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF }}>
 
       {/* Generating overlay */}
       {generating && (
@@ -365,7 +365,7 @@ export default function ProviderNotes() {
           ← Queue
         </button>
         <div style={{ textAlign:'center' }}>
-          <div style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.1rem', lineHeight:1 }}>Tere</div>
+          <div onClick={() => navigate('/clinician/dashboard')} style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.1rem', lineHeight:1, cursor:'pointer', userSelect:'none', transition:'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to dashboard">Tere</div>
           <div style={{ color:'rgba(255,255,255,.45)', fontSize:'.6875rem' }}>Clinical notes</div>
         </div>
         {isFinalised

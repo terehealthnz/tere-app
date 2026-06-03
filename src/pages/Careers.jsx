@@ -28,7 +28,7 @@ function Hero() {
         Join the Tere Health team
       </h1>
       <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1rem', fontFamily: FF, maxWidth: 580 }}>
-        We're building the future of rural telehealth in Aotearoa.
+        We're building Aotearoa's tele-emergency care service — emergency medicine, on your phone.
       </p>
       <p style={{ fontSize: '1.25rem', color: 'rgba(212,238,240,.55)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>
         He tere, he ora — swift action, healthy lives
@@ -45,10 +45,10 @@ function About() {
           Who we are
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', lineHeight: 1.8, marginBottom: '1rem', fontFamily: FF }}>
-          Tere Health is a telehealth service built for rural New Zealand. We serve communities across the Marlborough Sounds and beyond — people who face long drives, limited GP access, and uncertain weather just to see a doctor.
+          Tere Health is Aotearoa's tele-emergency care service — FACEM-led emergency medicine consultations delivered by video and phone. We serve communities across New Zealand: people who face long drives, limited access, and uncertain weather just to see a doctor.
         </p>
         <p style={{ fontSize: '1rem', color: '#374151', lineHeight: 1.8, fontFamily: FF }}>
-          Our platform connects patients with registered New Zealand clinicians by video, phone, or message — from wherever they are. We handle ACC, prescriptions, referrals, and clinical notes automatically, so you can focus entirely on the patient in front of you.
+          Our platform connects patients with MCNZ-registered doctors by video, phone, or message — from wherever they are. We handle ACC, prescriptions, referrals, and clinical notes automatically, so you can focus entirely on the patient in front of you. All clinical work is conducted under the supervision of our Medical Director, <strong>Dr Rachel Thomas FACEM</strong>.
         </p>
       </div>
     </section>
@@ -213,12 +213,15 @@ function Footer() {
     <footer style={{ background: NAVY, padding: '2rem 1.5rem', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: TEAL_LIGHT, fontSize: '1.3rem', marginBottom: '.25rem' }}>Tere Health</div>
       <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', marginTop: '.875rem', flexWrap: 'wrap' }}>
-        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Landing', '/landing']].map(([label, href]) => (
+        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Home', '/']].map(([label, href]) => (
           <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem', fontFamily: FF }}>{label}</Link>
         ))}
       </div>
       <div style={{ marginTop: '.875rem', fontSize: '.75rem', color: 'rgba(255,255,255,.25)', fontFamily: FF }}>
         Marlborough Sounds, New Zealand · terehealthnz@gmail.com
+      </div>
+      <div style={{ marginTop: '.625rem', fontSize: '.7rem', color: 'rgba(212,238,240,.3)', fontFamily: FF }}>
+        Practising in accordance with MCNZ Telehealth Standards August 2023 · All doctors MCNZ registered with current APC
       </div>
     </footer>
   )

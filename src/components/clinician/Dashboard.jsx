@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
+import { subscribeToQueue } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
@@ -656,17 +656,13 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const data = await getActiveConsultations()
-      setConsultations(data)
-    } catch {
-      setConsultations([{
-        id: 'demo-1',
-        patient_first_name: 'James', patient_last_name: 'Taitoko',
-        chief_complaint: 'Right ankle injury', patient_location: 'Pelorus Sound',
-        acc_eligible: 'yes', status: 'vitals_complete',
-        created_at: new Date(Date.now() - 4*60000).toISOString(),
-        vitals: { hr: 88, rr: 16 },
-      }])
+      const res = await apiFetch('/api/get-queue')
+      if (!res.ok) throw new Error('queue fetch failed')
+      const { consultations: data } = await res.json()
+      setConsultations(data || [])
+    } catch (e) {
+      console.error('Queue load error:', e)
+      setConsultations([])
     } finally { setLoading(false) }
   }, [])
 
@@ -713,11 +709,14 @@ export default function Dashboard() {
     if (!pid) return
     setSavingProvAvail(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
       const newVal = !provIsAvail
-      await supabase.from('providers').update({ is_available: newVal }).eq('id', pid)
+      const res = await apiFetch('/api/set-provider-avail', {
+        method: 'POST',
+        body: JSON.stringify({ providerId: pid, isAvailable: newVal }),
+      })
+      if (!res.ok) throw new Error('Failed')
       setProvIsAvail(newVal)
-    } catch {}
+    } catch (e) { console.error('toggleProviderAvail error:', e) }
     setSavingProvAvail(false)
   }
 
@@ -754,7 +753,7 @@ export default function Dashboard() {
         <span className="navbar-brand">Tere</span>
         <div className="navbar-right">
           <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>{sessionStorage.getItem('providerDisplayName') || 'Clinician'}</span>
-          <button onClick={() => { sessionStorage.clear(); navigate('/clinician') }}
+          <button onClick={() => { localStorage.removeItem('tere_portal'); sessionStorage.clear(); navigate('/clinician') }}
             style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'6px 12px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
             Sign out
           </button>

@@ -90,10 +90,10 @@ export default async function handler(req, res) {
       .select('provider_id, shift_type, start_time, end_time')
       .eq('shift_date', nzt.date)
 
-    // Load all providers for display names
+    // Load all providers (names + manual availability)
     const { data: providers } = await supabase
       .from('providers')
-      .select('id, first_name, last_name')
+      .select('id, first_name, last_name, is_available, is_provider')
       .eq('is_active', true)
     const provMap = {}
     ;(providers || []).forEach(p => { provMap[p.id] = p })
@@ -126,6 +126,16 @@ export default async function handler(req, res) {
       })
 
     const uniqueNames = [...new Set(availableNames)]
+
+    // Also respect manual availability toggles — providers who manually set themselves
+    // available override the schedule, so the cron won't close the clinic on them
+    ;(providers || [])
+      .filter(p => p.is_provider && p.is_available)
+      .forEach(p => {
+        const name = `Dr ${p.last_name}`
+        if (!uniqueNames.includes(name)) uniqueNames.push(name)
+      })
+
     const shouldBeOpen = uniqueNames.length > 0
     const wasOpen = avail?.is_open
 

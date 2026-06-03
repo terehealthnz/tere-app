@@ -1,38 +1,100 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RppgMeasurement } from '../../lib/rppg'
+import { MultiPassMeasurement, inspectDevice, calibrateRPPG } from '../../lib/rppg'
 import { updateVitals } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
 const STATES = {
   REQUESTING: 'requesting',
+  INSPECTING: 'inspecting',
+  CHECKLIST:  'checklist',
   READY:      'ready',
   MEASURING:  'measuring',
   DONE:       'done',
   ERROR:      'error',
 }
 
+const CHECKLIST_ITEMS = [
+  'Good lighting — facing a window or lamp',
+  'Phone at arm\'s length from my face',
+  'Ready to stay still for the scan',
+  'Glasses removed (if applicable)',
+  'I\'ll breathe normally',
+]
+
+function QualityIndicator({ deviceInfo }) {
+  if (!deviceInfo) return null
+  const { fps, brightness, quality } = deviceInfo
+  const issues = []
+  if (fps < 20)         issues.push('Low frame rate detected — results may be less accurate')
+  if (brightness < 60)  issues.push('Too dark — face a window or turn on more lights')
+  if (brightness > 200) issues.push('Overexposed — avoid direct sunlight behind you')
+  if (quality < 50)     issues.push('Camera quality is low — results may be less accurate')
+
+  if (issues.length === 0) {
+    return (
+      <div style={{ background:'#D1FAE5', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#065F46', fontSize:'0.875rem' }}>
+        ✓ Camera quality is good — ready to scan
+      </div>
+    )
+  }
+  return (
+    <div style={{ background:'#FEF3C7', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#92400E', fontSize:'0.875rem' }}>
+      ⚠️ For best results:
+      <ul style={{ margin:'4px 0 0 16px', padding:0 }}>
+        {issues.map((issue, i) => <li key={i}>{issue}</li>)}
+      </ul>
+    </div>
+  )
+}
+
+function ConfidenceBadge({ numericConfidence }) {
+  if (numericConfidence == null) return null
+  const high = numericConfidence >= 80
+  const mid  = numericConfidence >= 60
+  return (
+    <div style={{
+      background: high ? '#D1FAE5' : '#FEF3C7',
+      color:      high ? '#065F46' : '#92400E',
+      borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.875rem'
+    }}>
+      {high ? '✓ High quality reading' : mid ? '⚠️ Moderate quality — reading may vary slightly' : '⚠️ Low quality — consider retaking for accuracy'}
+      <span style={{ color:'var(--muted)', marginLeft:8, fontSize:'0.8rem' }}>({numericConfidence}/100)</span>
+    </div>
+  )
+}
+
 export default function VitalsCapture() {
   const navigate = useNavigate()
-  const videoRef  = useRef(null)
-  const canvasRef = useRef(null)
+  const videoRef   = useRef(null)
+  const canvasRef  = useRef(null)
   const measureRef = useRef(null)
   const streamRef  = useRef(null)
 
-  const [uiState, setUiState]   = useState(STATES.REQUESTING)
-  const [progress, setProgress] = useState(0)
-  const [liveHR, setLiveHR]     = useState(null)
-  const [vitals, setVitals]     = useState(null)
-  const [error, setError]       = useState('')
+  const [uiState,    setUiState]    = useState(STATES.REQUESTING)
+  const [progress,   setProgress]   = useState(0)
+  const [liveHR,     setLiveHR]     = useState(null)
+  const [vitals,     setVitals]     = useState(null)
+  const [error,      setError]      = useState('')
   const [manualMode, setManualMode] = useState(false)
-  const [manual, setManual]     = useState({ hr:'', rr:'', spo2:'', bp:'' })
+  const [manual,     setManual]     = useState({ hr:'', rr:'', spo2:'', bp:'' })
+  const [deviceInfo, setDeviceInfo] = useState(null)
+  const [scanLabel,  setScanLabel]  = useState('Start scan')
+  const [passNum,    setPassNum]    = useState(1)
+  const [totalPasses,setTotalPasses]= useState(3)
+  const [motionPct,  setMotionPct]  = useState(0)
+  const [checklist,  setChecklist]  = useState(CHECKLIST_ITEMS.map(() => false))
+  const [ovalColor,  setOvalColor]  = useState('#F59E0B')  // amber default
+  const [bpEstimate, setBpEstimate] = useState(null)
 
-  // Request camera
+  const allChecked = checklist.every(Boolean)
+
+  // Request camera → inspect → checklist
   useEffect(() => {
     async function requestCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: 640, height: 480, frameRate: 30 },
+          video: { facingMode:'user', width:640, height:480, frameRate:30 },
           audio: false,
         })
         streamRef.current = stream
@@ -40,8 +102,18 @@ export default function VitalsCapture() {
           videoRef.current.srcObject = stream
           await videoRef.current.play()
         }
-        setUiState(STATES.READY)
-      } catch (e) {
+        setUiState(STATES.INSPECTING)
+
+        try {
+          const info = await inspectDevice(videoRef.current)
+          setDeviceInfo(info)
+          const cal = calibrateRPPG(info)
+          setScanLabel(`Start ${cal.windowSec}-second scan (3 passes)`)
+        } catch {
+          setScanLabel('Start 30-second scan (3 passes)')
+        }
+        setUiState(STATES.CHECKLIST)
+      } catch {
         setError('Camera access denied. Please allow camera access and refresh, or use manual entry below.')
         setUiState(STATES.ERROR)
       }
@@ -57,23 +129,35 @@ export default function VitalsCapture() {
     setUiState(STATES.MEASURING)
     setProgress(0)
     setLiveHR(null)
+    setOvalColor('#0B6E76')
 
-    measureRef.current = new RppgMeasurement(
-      // onProgress
-      (pct, rawHR) => {
+    const calibration = deviceInfo ? { ...calibrateRPPG(deviceInfo), captureRaw: true } : { captureRaw: true }
+    const quality     = deviceInfo?.quality ?? 100
+
+    measureRef.current = new MultiPassMeasurement(
+      (pct, rawHR, pass, passes, mPct) => {
         setProgress(pct)
         if (rawHR) setLiveHR(rawHR)
+        setPassNum(pass)
+        setTotalPasses(passes)
+        setMotionPct(mPct)
+        // Turn oval red briefly on motion, back to green otherwise
+        setOvalColor(mPct > 30 ? '#EF4444' : '#0B6E76')
       },
-      // onComplete
       async (result) => {
         setVitals(result)
         setUiState(STATES.DONE)
-        // Save vitals and set status: vitals_complete
+        // Attempt BP estimate from locally trained model (dynamic import keeps TF.js out of main bundle)
+        if (result.rawFrames?.length) {
+          import('../../lib/bpModel').then(({ bpModelReady, predictBP }) => {
+            if (!bpModelReady()) return
+            return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+          }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
+        }
         const id = sessionStorage.getItem('consultationId')
         if (id && !id.startsWith('demo')) {
           try {
             await updateVitals(id, result)
-            // Notify provider that vitals are ready
             apiFetch('/api/push-notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -85,21 +169,41 @@ export default function VitalsCapture() {
         }
         streamRef.current?.getTracks().forEach(t => t.stop())
       },
-      // onError
       (msg) => {
         setError(msg)
         setUiState(STATES.ERROR)
       }
     )
 
-    await measureRef.current.start(videoRef.current, canvasRef.current)
+    await measureRef.current.start(videoRef.current, canvasRef.current, calibration, quality)
+  }
+
+  async function retake() {
+    setVitals(null)
+    setProgress(0)
+    setLiveHR(null)
+    setError('')
+    // Re-open camera if closed
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode:'user', width:640, height:480, frameRate:30 },
+        audio: false,
+      })
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        await videoRef.current.play()
+      }
+    } catch {}
+    setUiState(STATES.READY)
+    setOvalColor('#F59E0B')
   }
 
   async function saveManual() {
     const result = {
-      hr:   manual.hr   ? parseInt(manual.hr)  : null,
-      rr:   manual.rr   ? parseInt(manual.rr)  : null,
-      spo2: manual.spo2 ? parseInt(manual.spo2): null,
+      hr:   manual.hr   ? parseInt(manual.hr)   : null,
+      rr:   manual.rr   ? parseInt(manual.rr)   : null,
+      spo2: manual.spo2 ? parseInt(manual.spo2) : null,
       bp:   manual.bp   || null,
       source: 'manual',
       note: 'Manually entered by patient',
@@ -137,17 +241,27 @@ export default function VitalsCapture() {
     navigate('/waiting')
   }
 
-  const hrStatus = vitals?.hr
-    ? vitals.hr < 60 ? 'warning' : vitals.hr > 100 ? 'warning' : 'normal'
-    : 'normal'
-  const rrStatus = vitals?.rr
-    ? vitals.rr < 12 ? 'warning' : vitals.rr > 20 ? 'warning' : 'normal'
-    : 'normal'
+  const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
+  const rrStatus = vitals?.rr ? (vitals.rr < 12 || vitals.rr > 20 ? 'warning' : 'normal') : 'normal'
+  const isInspecting = uiState === STATES.INSPECTING
+  const isMeasuring  = uiState === STATES.MEASURING
+
+  // Face oval dimensions
+  const OVAL_STYLE = {
+    position:'absolute', top:'50%', left:'50%',
+    transform:'translate(-50%, -60%)',
+    width:'55%', paddingBottom:'70%',
+    border:`3px solid ${ovalColor}`,
+    borderRadius:'50%',
+    pointerEvents:'none',
+    transition:'border-color .4s',
+    zIndex:10,
+  }
 
   return (
     <div className="page">
       <nav className="navbar">
-        <span className="navbar-brand">Tere</span>
+        <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
         <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>Vital signs</span>
       </nav>
 
@@ -157,8 +271,7 @@ export default function VitalsCapture() {
           <div className="card">
             <h2 style={{marginBottom:'.375rem'}}>Measure your vital signs</h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem'}}>
-              Your phone camera will measure your heart rate and breathing rate in 30 seconds.
-              No attachments needed.
+              Your camera takes 3 quick passes to measure your heart rate and breathing rate accurately.
             </p>
 
             {/* Camera preview */}
@@ -166,10 +279,22 @@ export default function VitalsCapture() {
               <video ref={videoRef} style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}} muted playsInline />
               <canvas ref={canvasRef} width={640} height={480} style={{display:'none'}} />
 
-              {/* Progress overlay */}
-              {uiState === STATES.MEASURING && (
-                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.35)'}}>
-                  {/* Circular progress */}
+              {/* Positioning oval — shown in all pre-done states */}
+              {uiState !== STATES.DONE && uiState !== STATES.ERROR && <div style={OVAL_STYLE} />}
+
+              {/* Inspecting overlay */}
+              {isInspecting && (
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.45)',zIndex:5}}>
+                  <div style={{color:'white',fontSize:'.875rem',textAlign:'center'}}>
+                    <div style={{marginBottom:6,fontSize:'1.25rem'}}>🔍</div>
+                    Checking camera quality…
+                  </div>
+                </div>
+              )}
+
+              {/* Measuring overlay */}
+              {isMeasuring && (
+                <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.35)',zIndex:5}}>
                   <svg width="100" height="100" style={{marginBottom:'12px'}}>
                     <circle cx="50" cy="50" r="44" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="6" />
                     <circle cx="50" cy="50" r="44" fill="none" stroke="#0B6E76" strokeWidth="6"
@@ -182,41 +307,82 @@ export default function VitalsCapture() {
                       {progress}%
                     </text>
                   </svg>
+
+                  {/* Pass indicator */}
+                  <div style={{color:'white',fontSize:'.8125rem',marginBottom:8,opacity:.85}}>
+                    Pass {passNum} of {totalPasses}
+                  </div>
+
+                  {/* Live HR */}
                   {liveHR && (
-                    <div style={{color:'white',textAlign:'center'}}>
+                    <div style={{color:'white',textAlign:'center',marginBottom:8}}>
                       <div style={{fontSize:'1.5rem',fontWeight:'700'}}>❤️ {liveHR}</div>
                       <div style={{fontSize:'.75rem',color:'rgba(255,255,255,.6)'}}>bpm (live)</div>
                     </div>
                   )}
+
+                  {/* Motion indicator */}
+                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'.8125rem',color:'white',opacity:.85}}>
+                    <div style={{
+                      width:10, height:10, borderRadius:'50%',
+                      background: motionPct > 30 ? '#EF4444' : '#10B981',
+                      transition:'background .3s'
+                    }} />
+                    {motionPct > 30 ? 'Hold still' : 'Hold still — measuring'}
+                  </div>
                 </div>
               )}
 
-              {uiState === STATES.READY && (
-                <div style={{position:'absolute',bottom:'10px',left:0,right:0,textAlign:'center'}}>
-                  <div style={{background:'rgba(0,0,0,.5)',color:'white',fontSize:'.8125rem',padding:'4px 12px',borderRadius:'99px',display:'inline-block',backdropFilter:'blur(4px)'}}>
-                    Position your face in the frame
+              {/* Ready — alignment hint */}
+              {(uiState === STATES.READY || uiState === STATES.CHECKLIST) && (
+                <div style={{position:'absolute',bottom:'10px',left:0,right:0,textAlign:'center',zIndex:11}}>
+                  <div style={{background:'rgba(0,0,0,.55)',color:'white',fontSize:'.8125rem',padding:'4px 12px',borderRadius:'99px',display:'inline-block',backdropFilter:'blur(4px)'}}>
+                    Align your face with the oval
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Instructions */}
-            {(uiState === STATES.READY || uiState === STATES.REQUESTING) && (
-              <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem'}}>
-                <div style={{fontSize:'.875rem',color:'var(--muted)',lineHeight:1.6}}>
-                  <strong style={{color:'var(--text)',display:'block',marginBottom:'.375rem'}}>For best results:</strong>
-                  Good lighting on your face (facing a window works well) · Stay still during the scan · Remove glasses if possible
+            {/* Pre-scan checklist */}
+            {uiState === STATES.CHECKLIST && (
+              <div style={{marginBottom:'1.25rem'}}>
+                <QualityIndicator deviceInfo={deviceInfo} />
+                <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem'}}>
+                  <div style={{fontWeight:600,fontSize:'.9375rem',marginBottom:'.625rem',color:'var(--text)'}}>
+                    Before we start — tick each one:
+                  </div>
+                  {CHECKLIST_ITEMS.map((item, i) => (
+                    <label key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',cursor:'pointer',fontSize:'.875rem',color:'var(--text)'}}>
+                      <input
+                        type="checkbox"
+                        checked={checklist[i]}
+                        onChange={() => setChecklist(prev => prev.map((v, j) => j === i ? !v : v))}
+                        style={{width:18,height:18,cursor:'pointer',accentColor:'#0B6E76'}}
+                      />
+                      <span style={{color: checklist[i] ? '#0B6E76' : 'var(--text)', transition:'color .2s'}}>{item}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* Done — show results */}
+            {/* Quality indicator on READY */}
+            {uiState === STATES.READY && <QualityIndicator deviceInfo={deviceInfo} />}
+
+            {/* Instructions */}
+            {(uiState === STATES.REQUESTING || isInspecting) && (
+              <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem'}}>
+                <div style={{fontSize:'.875rem',color:'var(--muted)',lineHeight:1.6}}>
+                  <strong style={{color:'var(--text)',display:'block',marginBottom:'.375rem'}}>For best results:</strong>
+                  Good lighting on your face · Stay still during the scan · Remove glasses if possible
+                </div>
+              </div>
+            )}
+
+            {/* Done — results */}
             {uiState === STATES.DONE && vitals && (
               <>
-                <div className="alert alert-success" style={{marginBottom:'1.25rem'}}>
-                  <strong>Scan complete</strong>
-                  Your vital signs have been sent to your doctor. These are indicative screening measurements.
-                </div>
+                <ConfidenceBadge numericConfidence={vitals.numericConfidence} />
                 <div className="vitals-grid" style={{marginBottom:'1.25rem'}}>
                   <div className={`vital-card ${hrStatus}`}>
                     <div className="vital-label">Heart Rate</div>
@@ -228,8 +394,20 @@ export default function VitalsCapture() {
                     <div className={`vital-value ${rrStatus}`}>{vitals.rr ?? '—'}</div>
                     <div className="vital-unit">breaths/min</div>
                   </div>
+                  {bpEstimate && (
+                    <div className="vital-card" style={{gridColumn:'1 / -1'}}>
+                      <div className="vital-label">Blood Pressure (AI estimate)</div>
+                      <div className="vital-value">{bpEstimate.systolic}/{bpEstimate.diastolic}</div>
+                      <div className="vital-unit">mmHg · indicative only</div>
+                    </div>
+                  )}
                 </div>
-                <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'1.25rem',background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.625rem .875rem',fontStyle:'normal'}}>
+                {vitals.passes && (
+                  <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>
+                    {vitals.passes} passes · {vitals.frames} frames · {vitals.actualFps} fps
+                  </div>
+                )}
+                <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'1.25rem',background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.625rem .875rem'}}>
                   <strong>Tere Vitals</strong> provides indicative screening estimates only. Results are not a substitute for medical-grade devices and must be interpreted by a registered clinician.
                 </div>
               </>
@@ -238,38 +416,67 @@ export default function VitalsCapture() {
             {/* Error */}
             {uiState === STATES.ERROR && error && (
               <div className="alert alert-warning" style={{marginBottom:'1.25rem'}}>
-                <strong>Camera issue</strong>
-                {error}
+                <strong>Camera issue — </strong>{error}
               </div>
             )}
 
             {/* Actions */}
             <div style={{display:'flex',flexDirection:'column',gap:'.75rem'}}>
-              {uiState === STATES.READY && (
-                <button className="btn btn-primary btn-full" onClick={startMeasurement}>
-                  Start 30-second scan
+
+              {uiState === STATES.CHECKLIST && (
+                <button
+                  className="btn btn-primary btn-full"
+                  onClick={() => setUiState(STATES.READY)}
+                  disabled={!allChecked}
+                  style={{opacity: allChecked ? 1 : 0.5}}
+                >
+                  I'm ready — continue
                 </button>
               )}
-              {uiState === STATES.MEASURING && (
+
+              {uiState === STATES.READY && (
+                <button className="btn btn-primary btn-full" onClick={startMeasurement}>
+                  {scanLabel}
+                </button>
+              )}
+
+              {isInspecting && (
+                <button className="btn btn-primary btn-full" disabled style={{opacity:.5}}>
+                  Checking camera…
+                </button>
+              )}
+
+              {isMeasuring && (
                 <button className="btn btn-secondary btn-full" onClick={() => { measureRef.current?.stop(); setUiState(STATES.ERROR); setError('Measurement cancelled.') }}>
                   Cancel
                 </button>
               )}
+
               {uiState === STATES.DONE && (
-                <button className="btn btn-primary btn-full" onClick={() => navigate('/waiting')}>
-                  Continue to consultation
-                </button>
+                <>
+                  <button className="btn btn-primary btn-full" onClick={() => navigate('/waiting')}>
+                    Continue to consultation
+                  </button>
+                  {vitals?.numericConfidence < 50 && (
+                    <button className="btn btn-secondary btn-full" onClick={retake}>
+                      Retake for better accuracy
+                    </button>
+                  )}
+                </>
               )}
+
               {(uiState === STATES.ERROR || uiState === STATES.DONE) && (
                 <button className="btn btn-secondary btn-full" onClick={() => setManualMode(true)}>
                   Enter vitals manually instead
                 </button>
               )}
+
               {uiState !== STATES.MEASURING && uiState !== STATES.DONE && (
                 <button className="btn btn-secondary btn-full" style={{color:'var(--muted)'}} onClick={skip}>
                   Skip vital signs
                 </button>
               )}
+
               {uiState !== STATES.MEASURING && (
                 <button className="btn btn-secondary btn-full" onClick={() => {
                   streamRef.current?.getTracks().forEach(t => t.stop())
@@ -285,7 +492,6 @@ export default function VitalsCapture() {
             </button>
           </div>
         ) : (
-          /* Manual entry mode */
           <div className="card">
             <h2 style={{marginBottom:'.375rem'}}>Enter vital signs manually</h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem'}}>
@@ -329,7 +535,7 @@ export default function VitalsCapture() {
         )}
       </div>
 
-      <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(255,255,255,.95)',borderTop:'1px solid var(--border)',padding:'.5rem 1rem',display:'flex',gap:'1.5rem',justifyContent:'center',fontSize:'.8125rem',color:'var(--muted)'}}>
+      <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(255,255,255,.95)',borderTop:'1px solid var(--border)',padding:'.5rem 1rem',paddingBottom:'max(.5rem, env(safe-area-inset-bottom))',display:'flex',flexWrap:'wrap',gap:'.5rem 1rem',justifyContent:'center',fontSize:'.8125rem',color:'var(--muted)'}}>
         <span>Emergency? Call <strong>111</strong></span>
         <span>Mental health crisis? Call or text <strong>1737</strong></span>
       </div>

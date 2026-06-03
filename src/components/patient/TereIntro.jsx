@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { LANGUAGES, t } from '../../lib/i18n'
 
 export default function TereIntro({ onStart }) {
+  const navigate = useNavigate()
   const [v, setV] = useState(false)
   const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
   useEffect(() => { setTimeout(() => setV(true), 100) }, [])
@@ -18,20 +19,22 @@ export default function TereIntro({ onStart }) {
   })
 
   return (
-    <div style={{ background:'#0D2B45', minHeight:'100vh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'1.5rem', position:'relative', overflow:'hidden', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ background:'#0D2B45', minHeight:'100dvh', display:'flex', flexDirection:'column', paddingTop:'calc(1.5rem + env(safe-area-inset-top))', paddingBottom:'2rem', paddingLeft:'1.5rem', paddingRight:'1.5rem', position:'relative', overflowX:'hidden', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
       {/* Bg circles */}
       <div style={{ position:'absolute', width:300, height:300, borderRadius:'50%', background:'#0B6E76', opacity:.06, top:-80, right:-80 }} />
       <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'#0B6E76', opacity:.06, bottom:-60, left:-60 }} />
 
-      {/* Wave */}
+
+{/* Wave */}
       <svg style={{ position:'absolute', bottom:0, left:0, width:'100%', height:60, opacity:.08 }} viewBox="0 0 380 60" preserveAspectRatio="none">
         <path d="M0 40 Q95 20 190 40 Q285 60 380 40 L380 60 L0 60 Z" fill="#0B6E76"/>
         <path d="M0 50 Q95 30 190 50 Q285 70 380 50 L380 60 L0 60 Z" fill="#D4EEF0" opacity="0.3"/>
       </svg>
 
+      <div style={{ marginTop:'auto', marginBottom:'auto', display:'flex', flexDirection:'column', alignItems:'center', width:'100%' }}>
       {/* Logo */}
       <div style={{ ...anim('0.2s'), fontFamily:'Cormorant Garamond, Georgia, serif', fontStyle:'italic', fontSize:'2.8rem', color:'#D4EEF0', letterSpacing:'0.05em', marginBottom:2 }}>Tere Health</div>
-      <div style={{ ...anim('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.45)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>He tere, he ora</div>
+      <div style={{ ...anim('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.45)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>Emergency medicine. On your phone.</div>
 
       {/* Stage */}
       <div style={{ ...anim('0.8s'), display:'flex', alignItems:'flex-end', justifyContent:'center', gap:'1.5rem', marginBottom:'1rem' }}>
@@ -136,22 +139,28 @@ export default function TereIntro({ onStart }) {
         ))}
       </div>
 
-      {/* Button */}
-      <button onClick={onStart} style={{ ...anim('2.8s'), background:'#0B6E76', color:'white', border:'none', padding:'.8rem 2.25rem', borderRadius:50, fontSize:'.9375rem', fontWeight:600, cursor:'pointer' }}
-        onMouseEnter={e=>{e.target.style.background='#0d8490';e.target.style.transform='scale(1.04)'}}
-        onMouseLeave={e=>{e.target.style.background='#0B6E76';e.target.style.transform='scale(1)'}}>
-        {t('get_started', lang)}
-      </button>
+      {/* Buttons */}
+      <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
+        <button onClick={onStart} style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+          <div>{t('get_started', lang)} →</div>
+          <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.8, marginTop:2 }}>Join the queue — see a provider today</div>
+        </button>
+        <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+          <div>Book for later</div>
+          <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,.65)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
+        </button>
+      </div>
 
       <div style={{ ...anim('3s'), display:'flex', gap:'1.25rem', marginTop:'.875rem', justifyContent:'center' }}>
         <Link to="/clinician" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>
-        <Link to="/clinician/admin" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Admin</Link>
+        <Link to="/admin" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Admin</Link>
         <Link to="/employers" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
       </div>
 
       <Link to="/careers" style={{ ...anim('3.1s'), display:'inline-block', background:'#F59E0B', color:'white', textDecoration:'none', padding:'5px 14px', borderRadius:99, fontSize:'.75rem', fontWeight:600, marginTop:'.625rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
         We're hiring →
       </Link>
+      </div>
 
       <div style={{ ...anim('3.2s'), position:'absolute', bottom:'1rem', fontSize:'.65rem', color:'rgba(255,255,255,.2)' }}>
         Marlborough Sounds, New Zealand · terehealth.co.nz

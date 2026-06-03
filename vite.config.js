@@ -12,5 +12,17 @@ export default defineConfig({
       }
     }
   },
-  build: { outDir: 'dist' }
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':   ['react', 'react-dom', 'react-router-dom'],
+          'vendor-stripe':  ['@stripe/stripe-js', '@stripe/react-stripe-js'],
+          'vendor-livekit': ['@livekit/components-react', 'livekit-client'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
+  }
 })

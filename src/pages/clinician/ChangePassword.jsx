@@ -49,7 +49,7 @@ export default function ChangePassword() {
   }
 
   return (
-    <div className="page" style={{background:'var(--navy)',minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}>
+    <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',display:'flex',alignItems:'center',justifyContent:'center'}}>
       <div style={{width:'100%',maxWidth:400,padding:'1.5rem'}}>
         <div style={{textAlign:'center',marginBottom:'2rem'}}>
           <div style={{fontFamily:'Cormorant Garamond, Georgia, serif',fontSize:'2.5rem',fontStyle:'italic',color:'var(--teal-light)',letterSpacing:'.08em',marginBottom:'.375rem'}}>

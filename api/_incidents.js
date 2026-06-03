@@ -7,7 +7,7 @@ async function alertAdmin(incident) {
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
-      from: 'safety@terehealth.co.nz',
+      from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: ['terehealthnz@gmail.com'],
       subject: `[${incident.severity.toUpperCase()} INCIDENT] ${incident.incident_type} — Tere Health`,

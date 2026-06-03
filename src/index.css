@@ -20,11 +20,26 @@
   --shadow-lg: 0 8px 48px rgba(13,43,69,0.12);
   --font: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-serif: 'Cormorant Garamond', Georgia, serif;
+  /* iOS safe area insets */
+  --sat: env(safe-area-inset-top);
+  --sar: env(safe-area-inset-right);
+  --sab: env(safe-area-inset-bottom);
+  --sal: env(safe-area-inset-left);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overscroll-behavior: none; }
+body { font-family: var(--font); background: #0D2B45; color: var(--text); line-height: 1.6; overscroll-behavior: none; overflow-x: hidden; max-width: 100vw; }
+/* Dynamic Island / notch fill — solid navy block sits over the safe-area gap in standalone PWA mode */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: env(safe-area-inset-top, 0px);
+  background: #0D2B45;
+  z-index: 99999;
+  pointer-events: none;
+}
 /* Prevent iOS input zoom + double-tap zoom on interactive elements */
 input, select, textarea { font-size: max(16px, 1em) !important; }
 button, a, input, select, textarea { touch-action: manipulation; }
@@ -39,9 +54,9 @@ button, a, input, select, textarea { touch-action: manipulation; }
 }
 
 /* ── Layout ── */
-.page { min-height: 100vh; display: flex; flex-direction: column; }
-.container { max-width: 520px; margin: 0 auto; padding: 0 1.25rem; width: 100%; }
-.container-wide { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; width: 100%; }
+.page { min-height: 100dvh; display: flex; flex-direction: column; }
+.container { max-width: 520px; margin: 0 auto; padding: 0 1.25rem; width: 100%; box-sizing: border-box; }
+.container-wide { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; width: 100%; box-sizing: border-box; }
 
 /* ── Typography ── */
 .wordmark { font-family: var(--font-serif); font-size: 2rem; font-style: italic; color: var(--teal); letter-spacing: .08em; }
@@ -52,7 +67,7 @@ h3 { font-size: 1rem; font-weight: 600; color: var(--text); }
 p { color: var(--muted); line-height: 1.7; }
 
 /* ── Card ── */
-.card { background: var(--white); border-radius: var(--radius); padding: 1.75rem; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.card { background: var(--white); border-radius: var(--radius); padding: 1.75rem; box-shadow: var(--shadow); border: 1px solid var(--border); overflow: hidden; max-width: 100%; width: 100%; box-sizing: border-box; }
 .card-sm { padding: 1.25rem; }
 
 /* ── Form elements ── */
@@ -100,9 +115,10 @@ textarea { resize: vertical; min-height: 80px; }
 .alert-info { background: var(--teal-light); color: var(--teal-dark); border-left: 4px solid var(--teal); }
 
 /* ── Nav bar ── */
-.navbar { background: var(--navy); padding: .875rem 1.5rem; display: flex; align-items: center; justify-content: space-between; }
-.navbar-brand { font-family: var(--font-serif); font-size: 1.4rem; font-style: italic; color: var(--teal-light); letter-spacing: .06em; text-decoration: none; }
-.navbar-right { display: flex; align-items: center; gap: 1rem; }
+.navbar { background: var(--navy); padding: .875rem 1.5rem; padding-top: calc(.875rem + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 100vw; gap: .5rem; }
+.navbar-brand { font-family: var(--font-serif); font-size: 1.4rem; font-style: italic; color: var(--teal-light); letter-spacing: .06em; text-decoration: none; flex-shrink: 0; }
+.navbar-right { display: flex; align-items: center; gap: .75rem; min-width: 0; flex-shrink: 1; overflow: hidden; }
+.navbar-right span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 /* ── Progress steps ── */
 .progress-steps { display: flex; align-items: center; gap: 0; margin-bottom: 2rem; }
@@ -139,6 +155,12 @@ textarea { resize: vertical; min-height: 80px; }
 .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.25rem; }
 .modal-footer { display: flex; gap: .75rem; margin-top: 1.25rem; }
 
+/* ── PWA shell — safe-area-aware app chrome ── */
+.pwa-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+.pwa-header { flex-shrink: 0; padding-top: env(safe-area-inset-top, 0px); }
+.pwa-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; }
+.pwa-nav { flex-shrink: 0; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+
 /* ── Responsive ── */
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; }
@@ -147,4 +169,27 @@ textarea { resize: vertical; min-height: 80px; }
   .nav-links-desktop { display: none !important; }
   .employers-1col-mobile { grid-template-columns: 1fr !important; }
   .employers-tagline { display: none !important; }
+}
+
+/* ── Page-shell utilities (PWA-safe app chrome) ── */
+.page-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; max-width: 100vw; }
+.page-header { flex-shrink: 0; padding-top: calc(.875rem + env(safe-area-inset-top, 0px)); overflow: hidden; }
+.page-content { flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; -webkit-overflow-scrolling: touch; }
+.bottom-nav { flex-shrink: 0; padding-bottom: max(.75rem, env(safe-area-inset-bottom)); overflow: hidden; }
+.bottom-nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 3px; min-width: 0; }
+
+/* ── Table wrapper — horizontal scroll without page overflow ── */
+.table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.table-wrapper table { min-width: 500px; }
+
+/* ── Flex row — wraps and constrains on small screens ── */
+.flex-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; max-width: 100%; }
+
+/* ── Responsive tab navigation ── */
+.admin-tabs-desktop { display: flex; gap: 6px; border-bottom: 2px solid #E2E8F0; padding-bottom: 2px; margin-bottom: 1.5rem; }
+.admin-tabs-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .admin-tabs-desktop { display: none; }
+  .admin-tabs-mobile { display: flex; width: 100%; padding: 0 0 1rem; }
 }

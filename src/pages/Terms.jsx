@@ -38,9 +38,11 @@ export default function Terms() {
         </div>
 
         <Section title="1. What Tere Health is">
-          <p>Tere Health Limited (company number to be registered) provides telehealth consultations with New Zealand-registered doctors via video call, phone, or written message. We serve patients in New Zealand, primarily in rural and remote areas.</p>
-          <p style={{ marginTop: '.75rem' }}>Our service is designed for acute telehealth care — conditions that need prompt attention but are not life-threatening emergencies. We can issue prescriptions, ACC claims, referrals, and medical certificates where clinically appropriate.</p>
+          <p>Tere Health Limited provides tele-emergency care — emergency medicine consultations by video call, phone, or written message with New Zealand-registered doctors. We serve patients anywhere in New Zealand.</p>
+          <p style={{ marginTop: '.75rem' }}>Our service is led by <strong>Dr Rachel Thomas FACEM</strong> (Medical Director, Emergency Medicine). All consultations are conducted under FACEM-led oversight by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care is equivalent to an in-person emergency medicine consultation, within the limitations of the telehealth modality.</p>
+          <p style={{ marginTop: '.75rem' }}>We can issue prescriptions, ACC claims, referrals, and medical certificates where clinically appropriate.</p>
           <p style={{ marginTop: '.75rem' }}><strong>Service is available to patients in New Zealand only.</strong> Consultations are conducted by doctors physically located in New Zealand at the time of the consultation.</p>
+          <p style={{ marginTop: '.75rem' }}>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023).</p>
         </Section>
 
         <Section title="2. What we are not">
@@ -67,14 +69,31 @@ export default function Terms() {
             <li style={{ marginBottom: '.375rem' }}>Vital signs measured by the Tere Vitals camera function are indicative screening estimates only — not a substitute for medical-grade devices</li>
           </ul>
           <p style={{ marginTop: '.75rem' }}>If your video connection drops during a consultation, your doctor will attempt to continue by phone. If the connection cannot be restored, you will receive a full refund.</p>
+          <p style={{ marginTop: '.75rem' }}><strong>Physical examination:</strong> Tere Health has established pathways for arranging physical examinations when clinically required. If your presentation requires in-person assessment, your Tere provider will advise you of the most appropriate local service and arrange referral. In an emergency, always call 111.</p>
+        </Section>
+
+        <Section title="2b. Prescribing limitations">
+          <p>Tere Health doctors can prescribe many common medications via telehealth. However, the following <strong>cannot</strong> be prescribed through this service:</p>
+          <ul style={{ marginTop: '.375rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}><strong>Controlled drugs</strong> under the Misuse of Drugs Act 1975 — including opioids (codeine, tramadol, morphine, oxycodone, fentanyl), benzodiazepines (diazepam/Valium, temazepam, alprazolam/Xanax), and stimulants (methylphenidate/Ritalin, dexamphetamine)</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>GLP-1 weight loss injections</strong> (semaglutide/Ozempic/Wegovy and similar) — these require specialist-led programmes with ongoing clinical monitoring not available via this telehealth service</li>
+          </ul>
+          <p style={{ marginTop: '.75rem' }}>New Zealand law requires an in-person clinical relationship before controlled drugs may be prescribed. If you need these medications, please consult your GP or a specialist in person. By proceeding with a Tere Health consultation you acknowledge these limitations.</p>
+          <p style={{ marginTop: '.75rem' }}>Tere Health doctors can still help with many other medications and will advise you on appropriate alternatives or referral pathways if a requested treatment falls outside what can be provided via telehealth.</p>
         </Section>
 
         <Section title="3. Payment and fees">
-          <p>Consultation fees are charged at the time of booking:</p>
+          <p>Walk-in (unscheduled) consultation fees:</p>
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
             <li style={{ marginBottom: '.375rem' }}>Video consultation: $65 (or $25 ACC co-payment)</li>
-            <li style={{ marginBottom: '.375rem' }}>Phone consultation: $45 (or $15 ACC co-payment)</li>
+            <li style={{ marginBottom: '.375rem' }}>Phone consultation: $45 (or $25 ACC co-payment)</li>
             <li style={{ marginBottom: '.375rem' }}>Written response: $25 (ACC not applicable)</li>
+          </ul>
+          <p style={{ marginTop: '.75rem' }}>Scheduled appointments require a <strong>$15 non-refundable reservation fee</strong> in addition to the standard consultation fee. The reservation fee guarantees your time slot and is charged at the time of booking. The full consultation fee is charged separately on the day of your appointment.</p>
+          <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}>Scheduled video: $65 consultation + $15 reservation = $80 total</li>
+            <li style={{ marginBottom: '.375rem' }}>Scheduled phone: $45 consultation + $15 reservation = $70 total</li>
+            <li style={{ marginBottom: '.375rem' }}>Scheduled ACC video/phone: $25 co-payment + $15 reservation = $40 total</li>
           </ul>
           <p style={{ marginTop: '.75rem' }}>Prices are in New Zealand dollars and include GST. Payment is processed securely via Stripe. We do not store your card details.</p>
         </Section>
@@ -82,6 +101,7 @@ export default function Terms() {
         <Section title="4. Refund policy">
           <p>You may cancel and receive a full refund at any time before your consultation begins. Once a clinician has opened your consultation and started reviewing your notes, no refund is available — the clinician's time has been committed.</p>
           <p style={{ marginTop: '.75rem' }}>If a clinician determines they cannot assist with your query and closes the consultation without providing care, you will receive a full refund. We exercise this discretion fairly.</p>
+          <p style={{ marginTop: '.75rem' }}>The $15 appointment reservation fee is non-refundable if cancelled within 24 hours of the scheduled appointment time. Cancellations made more than 24 hours in advance will receive a full refund of the reservation fee.</p>
         </Section>
 
         <Section title="5. ACC claims">
@@ -102,7 +122,7 @@ export default function Terms() {
 
         <Section title="7. Privacy">
           <p>We collect and store health information about you to provide the service. Your information is handled in accordance with the Health Information Privacy Code 2020 and the Privacy Act 2020.</p>
-          <p style={{ marginTop: '.75rem' }}>Your consultation record may be shared with your regular GP if you request it or if clinically necessary. We do not sell or share your health information with third parties for commercial purposes.</p>
+          <p style={{ marginTop: '.75rem' }}>With your consent, Tere Health will share a summary of your consultation with your regular GP or health provider. If you do not have a regular provider, we will provide you with a written record of your care. We do not sell or share your health information with third parties for commercial purposes.</p>
           <p style={{ marginTop: '.75rem' }}>View our full <Link to="/privacy" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>Privacy Policy</Link> for details.</p>
         </Section>
 
@@ -160,11 +180,14 @@ export default function Terms() {
         </Section>
       </div>
 
-      <footer style={{ background: BRAND.navy, padding: '1.5rem', textAlign: 'center' }}>
-        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          {[['Landing', '/landing'], ['Privacy', '/privacy'], ['Home', '/']].map(([label, path]) => (
+      <footer style={{ background: BRAND.navy, padding: '1.5rem 1.5rem 2rem', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '.875rem' }}>
+          {[['Privacy', '/privacy'], ['Complaints', '/complaints'], ['Home', '/']].map(([label, path]) => (
             <Link key={label} to={path} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
           ))}
+        </div>
+        <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.35)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          Practising in accordance with MCNZ Telehealth Standards August 2023 · All doctors MCNZ registered with current APC
         </div>
       </footer>
     </div>

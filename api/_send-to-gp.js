@@ -126,7 +126,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: 'Tere Health <noreply@terehealth.co.nz>',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: gpEmail,
         subject: `Telehealth Consultation Summary — ${patientName}${patientNhi ? ' ' + patientNhi : ''} — ${date}`,

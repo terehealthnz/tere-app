@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /clinician/admin
+Disallow: /provider
+Disallow: /vitals
+Disallow: /waiting
+Disallow: /payment
+Disallow: /call
+Disallow: /done
+Disallow: /demo/
+
+Sitemap: https://tere.co.nz/sitemap.xml

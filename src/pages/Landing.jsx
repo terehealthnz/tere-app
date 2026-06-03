@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../lib/api'
 
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
 
@@ -19,10 +20,10 @@ function Nav() {
       padding: '.875rem 1.5rem',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem' }}>
-        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.5rem', fontWeight: 600 }}>Tere Health</span>
+      <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
+        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.5rem', fontWeight: 600, transition: 'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>Tere Health</span>
         <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.75rem', letterSpacing: '.1em', textTransform: 'uppercase' }}>He tere, he ora</span>
-      </div>
+      </Link>
       <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
         <div className="nav-links-desktop" style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
           <a href="#pricing" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
@@ -44,18 +45,18 @@ function Hero() {
     <section style={{
       background: `linear-gradient(160deg, ${BRAND.navy} 0%, #0a3d52 100%)`,
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      padding: '6rem 1.5rem 4rem', textAlign: 'center',
+      alignItems: 'center', justifyContent: 'flex-start',
+      padding: '7rem 1.5rem 4rem', textAlign: 'center',
     }}>
       <div style={{ maxWidth: 640 }}>
         <div style={{ display: 'inline-block', background: 'rgba(11,110,118,.3)', border: '1px solid rgba(212,238,240,.2)', borderRadius: 99, padding: '5px 14px', fontSize: '.8rem', color: BRAND.tealLight, letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Marlborough Sounds, New Zealand
         </div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
-          Acute telehealth care.<br />On your phone.
+          Tele-emergency care.<br />Anywhere in Aotearoa.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          See a New Zealand-registered doctor by video, phone, or message — from wherever you are in the Marlborough Sounds. ACC-registered. No waiting room.
+          FACEM-led Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link to="/triage" style={{
@@ -71,11 +72,43 @@ function Hero() {
           }}>How it works</a>
         </div>
         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-          {[['✓', 'ACC registered'], ['✓', 'NZ-licensed doctors'], ['✓', 'Open 7 days']].map(([tick, text]) => (
+          {[['✓', 'FACEM-led'], ['✓', 'ACC registered'], ['✓', 'MCNZ registered doctors']].map(([tick, text]) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '.375rem', color: 'rgba(255,255,255,.65)', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <span style={{ color: BRAND.tealLight, fontWeight: 700 }}>{tick}</span> {text}
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function UpcomingSlots() {
+  const [slots, setSlots] = useState([])
+  useEffect(() => {
+    apiFetch('/api/bookings?action=upcoming')
+      .then(r => r.json())
+      .then(d => setSlots(d.slots || []))
+      .catch(() => {})
+  }, [])
+  if (!slots.length) return null
+  return (
+    <section style={{ background: 'white', padding: '2rem 1.5rem', borderBottom: '1px solid #E2E8F0' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: BRAND.teal, marginBottom: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Next available appointments</div>
+        <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'stretch' }}>
+          {slots.map((s, i) => (
+            <Link key={i} to="/book" style={{ background: BRAND.bg, border: `1.5px solid ${BRAND.tealLight}`, borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130 }}>
+              <div style={{ fontWeight: 700, color: BRAND.navy, fontSize: '1.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.time}</div>
+              <div style={{ color: '#6B7280', fontSize: '.8125rem', marginTop: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                {new Date(s.date + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })}
+              </div>
+              {s.providerName && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.providerName}</div>}
+            </Link>
+          ))}
+          <Link to="/book" style={{ background: BRAND.teal, color: 'white', borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem' }}>
+            All times →
+          </Link>
         </div>
       </div>
     </section>
@@ -103,7 +136,7 @@ function HowItWorks() {
             <div key={s.n} style={{ background: BRAND.bg, borderRadius: 16, padding: '2rem 1.25rem', textAlign: 'center', position: 'relative' }}>
               <div style={{ width: 48, height: 48, borderRadius: '50%', background: BRAND.teal, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', margin: '0 auto 1rem', boxShadow: '0 4px 12px rgba(11,110,118,.25)' }}>{s.icon}</div>
               <div style={{ fontWeight: 700, fontSize: '1rem', color: BRAND.navy, marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.title}</div>
-              <div style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.desc}</div>
+              <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.desc}</div>
               <div style={{ position: 'absolute', top: 12, right: 14, fontWeight: 800, fontSize: '2rem', color: 'rgba(11,110,118,.08)', fontFamily: 'Cormorant Garamond, serif' }}>{s.n}</div>
             </div>
           ))}
@@ -123,7 +156,7 @@ function Pricing() {
     },
     {
       icon: '📞', title: 'Phone', subtitle: 'Audio call — no camera needed',
-      price: 45, accPrice: 15,
+      price: 45, accPrice: 25,
       features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims filed', 'Good for low-bandwidth'],
       highlight: false,
     },
@@ -140,9 +173,13 @@ function Pricing() {
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
           Clear, upfront pricing
         </h2>
-        <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '3rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           ACC-eligible injury? Your cost is reduced to the co-payment. No surprises.
         </p>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', background: 'white', border: '1px solid #E2E8F0', borderRadius: 99, padding: '.5rem 1rem', fontSize: '.875rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '3rem' }}>
+          <span style={{ color: '#0B6E76', fontWeight: 700 }}>+$15</span>
+          <span>reservation fee for scheduled appointments — guarantees your time slot</span>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {plans.map(p => (
             <div key={p.title} style={{
@@ -210,7 +247,7 @@ function ForEmployers() {
           ].map(([title, desc]) => (
             <div key={title} style={{ background: 'rgba(255,255,255,.07)', borderRadius: 12, padding: '1.25rem 1rem' }}>
               <div style={{ fontWeight: 700, color: BRAND.tealLight, fontSize: '.9rem', marginBottom: '.375rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{title}</div>
-              <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.55)', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{desc}</div>
+              <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.8)', lineHeight: 1.5, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{desc}</div>
             </div>
           ))}
         </div>
@@ -227,13 +264,21 @@ function ForEmployers() {
 function About() {
   return (
     <section style={{ background: 'white', padding: '5rem 1.5rem' }}>
-      <div style={{ maxWidth: 640, margin: '0 auto', textAlign: 'center' }}>
-        <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-          Built for the Sounds
-        </h2>
-        <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Tere Health was founded in Marlborough to address a simple problem: when you live an hour from the nearest town, a GP appointment takes a whole day. We built the service we wish existed.
-        </p>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
+            Emergency medicine. Wherever you are.
+          </h2>
+          <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 560, margin: '0 auto' }}>
+            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings FACEM-led emergency medicine to wherever you are — on the water, on the farm, or deep in the Sounds.
+          </p>
+        </div>
+        <div style={{ background: 'rgba(11,110,118,.06)', border: '1px solid rgba(11,110,118,.2)', borderRadius: 12, padding: '1.5rem 1.75rem', fontSize: '.875rem', color: '#374151', lineHeight: 1.8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          <div style={{ fontWeight: 700, color: BRAND.navy, marginBottom: '.5rem', fontSize: '.9375rem' }}>MCNZ Telehealth Standards</div>
+          <p>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023). All consultations are conducted by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care provided via Tere Health is equivalent to an in-person emergency medicine consultation, within the limitations of the telehealth modality.</p>
+          <p style={{ marginTop: '.75rem' }}>Tere Health has established pathways for arranging physical examinations when clinically required. If your presentation requires in-person assessment, your Tere provider will advise you of the most appropriate local service and arrange referral. <strong>In an emergency, always call 111.</strong></p>
+          <p style={{ marginTop: '.75rem' }}>With your consent, Tere Health will share a summary of your consultation with your regular GP or health provider. If you do not have a regular provider, we will provide you with a written record of your care.</p>
+        </div>
       </div>
     </section>
   )
@@ -248,7 +293,7 @@ function FAQ() {
     },
     {
       q: 'What can Tere Health treat?',
-      a: 'Most acute care conditions: infections, lacerations, sprains, musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. We cannot treat true emergencies — if your life is at risk, call 111.',
+      a: 'Tere Health provides tele-emergency care across a broad range of acute presentations: infections, lacerations, sprains and musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. Our FACEM-led team manages the same presentations seen in an emergency department — via your phone. We cannot treat true emergencies — if your life is at risk, call 111.',
     },
     {
       q: 'How do I pay?',
@@ -265,8 +310,8 @@ function FAQ() {
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.5rem', textAlign: 'center' }}>
           Common questions
         </h2>
-        <p style={{ fontSize: '1rem', color: '#6B7280', textAlign: 'center', marginBottom: '2.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Still unsure? <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, textDecoration: 'none', fontWeight: 600 }}>Email us</a>
+        <p style={{ fontSize: '1rem', color: '#374151', textAlign: 'center', marginBottom: '2.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          Still unsure? <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, textDecoration: 'underline', fontWeight: 600 }}>Email us</a>
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
           {faqs.map((faq, i) => (
@@ -297,28 +342,31 @@ function Footer() {
   return (
     <footer style={{ background: BRAND.navy, padding: '2.5rem 1.5rem', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.25rem' }}>Tere Health</div>
-      <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
-      <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>
-        Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>terehealthnz@gmail.com</a>
+      <div style={{ color: 'rgba(212,238,240,.6)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
+      <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.55)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>
+        Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: '#D4EEF0', textDecoration: 'underline' }}>terehealthnz@gmail.com</a>
       </div>
       <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
         {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility'], ['Careers', '/careers'], ['Employers', '/employers'], ['Status', '/status']].map(([label, href]) => (
-          <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.5)', textDecoration: 'none', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
+          <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
         ))}
       </div>
-      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.25)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '.5rem' }}>
+      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.55)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '.5rem' }}>
         🇳🇿 New Zealand patients only · Services provided by MCNZ-registered doctors
       </div>
-      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.35)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>
-        In an emergency, call <strong style={{ color: 'rgba(255,100,100,.7)' }}>111</strong> · Mental health crisis: call or text <strong style={{ color: 'rgba(255,255,255,.5)' }}>1737</strong>
+      <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.65)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, marginBottom: '.75rem' }}>
+        In an emergency, call <strong style={{ color: '#FF8080' }}>111</strong> · Mental health crisis: call or text <strong style={{ color: 'rgba(255,255,255,.85)' }}>1737</strong>
+      </div>
+      <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.35)', fontFamily: 'Plus Jakarta Sans, sans-serif', borderTop: '1px solid rgba(255,255,255,.08)', paddingTop: '.75rem', marginTop: '.25rem' }}>
+        Practising in accordance with MCNZ Telehealth Standards August 2023 · All doctors MCNZ registered with current APC
       </div>
       <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
         {[['🩺 Provider login', '/clinician'], ['⚙️ Admin login', '/clinician/admin']].map(([label, to]) => (
           <Link key={to} to={to} style={{
             display: 'inline-flex', alignItems: 'center', gap: '.5rem',
-            color: 'rgba(255,255,255,.25)', textDecoration: 'none',
+            color: 'rgba(255,255,255,.6)', textDecoration: 'none',
             fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
-            border: '1px solid rgba(255,255,255,.12)', borderRadius: 99,
+            border: '1px solid rgba(255,255,255,.25)', borderRadius: 99,
             padding: '.45rem 1rem',
           }}>{label}</Link>
         ))}
@@ -331,12 +379,15 @@ export default function Landing() {
   return (
     <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       <Nav />
-      <Hero />
-      <HowItWorks />
-      <Pricing />
-      <ForEmployers />
-      <About />
-      <FAQ />
+      <main>
+        <Hero />
+        <UpcomingSlots />
+        <HowItWorks />
+        <Pricing />
+        <ForEmployers />
+        <About />
+        <FAQ />
+      </main>
       <Footer />
     </div>
   )

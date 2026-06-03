@@ -45,6 +45,7 @@ export default function ClinicianLogin() {
 
   function loginWithDevice() {
     restoreDevice(savedDevice)
+    localStorage.setItem('tere_portal', savedDevice?.providerIsAdmin === 'true' ? 'admin' : 'provider')
     const params = new URLSearchParams(location.search)
     navigate(params.get('redirect') || defaultDest(savedDevice?.providerIsAdmin === 'true'))
   }
@@ -105,6 +106,7 @@ export default function ClinicianLogin() {
       if (p.prescriber_number) sessionStorage.setItem('prescriberNumber', p.prescriber_number)
       if (p.cpn) sessionStorage.setItem('providerCpn', p.cpn)
 
+      localStorage.setItem('tere_portal', p.is_admin ? 'admin' : 'provider')
       if (p.must_change_password) {
         navigate('/clinician/change-password')
       } else {

@@ -23,7 +23,7 @@ async function notifySupervisors(supabase, subject, html) {
   for (const sup of supervisors) {
     try {
       await resend.emails.send({
-        from: 'Tere Health <noreply@terehealth.co.nz>',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: sup.email,
         subject,
@@ -112,7 +112,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@terehealth.co.nz>',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: pharmacyEmail,
         subject: `Prescription for ${patientName} — Tere Health`,
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'Tere Health <noreply@terehealth.co.nz>',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Your prescription from Tere Health`,

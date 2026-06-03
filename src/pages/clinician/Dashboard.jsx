@@ -53,7 +53,7 @@ export default function Dashboard() {
   const inProgress = consultations.filter(c => c.status === 'in_progress')
 
   return (
-    <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
+    <div style={{ minHeight:'100dvh', background:'var(--bg)', display:'flex', flexDirection:'column' }}>
       {/* Top bar */}
       <div style={{
         background:'var(--navy)', padding:'0.875rem 1.5rem',

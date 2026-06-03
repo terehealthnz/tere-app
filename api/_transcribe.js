@@ -1,36 +1,51 @@
-// api/transcribe.js — Vercel serverless — Whisper transcription
-import formidable from "formidable"
-import fs from "fs"
-import fetch from "node-fetch"
-import FormData from "form-data"
-
-export const config = { api: { bodyParser: false } }
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).end()
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return res.status(500).json({ error: "OpenAI API key not configured" })
-  const form = formidable({ maxFileSize: 25 * 1024 * 1024 })
-  form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(400).json({ error: err.message })
-    const file = Array.isArray(files.file) ? files.file[0] : files.file
-    if (!file) return res.status(400).json({ error: "No audio file" })
-    try {
-      const form = new FormData()
-      form.append("file", fs.createReadStream(file.filepath), { filename: "consultation.webm", contentType: file.mimetype })
-      form.append("model", "whisper-1")
-      form.append("language", "en")
-      form.append("prompt", "Medical consultation in New Zealand. ACC, NHI, clinical terms.")
-      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, ...form.getHeaders() }, body: form
-      })
-      if (!r.ok) throw new Error(await r.text())
-      const { text } = await r.json()
-      fs.unlinkSync(file.filepath)
-      res.status(200).json({ text })
-    } catch (e) {
-      console.error(e)
-      res.status(500).json({ error: e.message })
+  if (req.method !== 'POST') return res.status(405).end()
+  const apiKey = process.env.DEEPGRAM_API_KEY
+  console.log('DEEPGRAM_API_KEY:', apiKey ? 'SET' : 'MISSING')
+  if (!apiKey) return res.status(500).json({ error: 'Deepgram API key not configured' })
+
+  try {
+    // Collect raw audio stream (bodyParser disabled in handler.js for audio/* content types)
+    const chunks = []
+    for await (const chunk of req) chunks.push(chunk)
+    const audio = Buffer.concat(chunks)
+    if (!audio.length) return res.status(400).json({ error: 'No audio data' })
+
+    const contentType = req.headers['content-type'] || 'audio/webm'
+
+    const params = new URLSearchParams({
+      model: 'nova-3-medical',
+      language: 'en-NZ',
+      smart_format: 'true',
+      punctuate: 'true',
+      diarize: 'true',
+      filler_words: 'false',
+      numerals: 'true',
+      keyterm: 'ACC,NHI,ibuprofen,paracetamol,amoxicillin,fracture,laceration,sprain,contusion,hypertension,diabetes,asthma,ankle,knee,wrist,shoulder,Tere',
+    })
+
+    const r = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${apiKey}`,
+        'Content-Type': contentType,
+      },
+      body: audio,
+    })
+
+    if (!r.ok) {
+      const err = await r.text()
+      console.error('[transcribe] Deepgram error:', err)
+      return res.status(500).json({ error: `Deepgram error: ${err}` })
     }
-  })
+
+    const data = await r.json()
+    const alternatives = data.results?.channels?.[0]?.alternatives?.[0]
+    const text = alternatives?.transcript || ''
+
+    res.status(200).json({ text })
+  } catch (e) {
+    console.error('[transcribe]', e.message)
+    res.status(500).json({ error: e.message })
+  }
 }

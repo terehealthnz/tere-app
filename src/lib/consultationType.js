@@ -41,10 +41,12 @@ export function scoreComplaint(complaint, isReturning = false) {
   }
 }
 
+export const RESERVATION_FEE = 15
+
 export const CONSULT_PRICES = {
   video:   { private: 65, acc: 25 },
-  phone:   { private: 45, acc: 15 },
-  message: { private: 25, acc: 25 }, // no ACC discount for message
+  phone:   { private: 45, acc: 25 },
+  message: { private: 25, acc: 25 },
 }
 
 export const CONSULT_TYPE_LABELS = {

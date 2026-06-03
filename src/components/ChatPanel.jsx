@@ -190,6 +190,7 @@ export default function ChatPanel({
           position: 'absolute', right: 0, top: 0, bottom: 0, width: 300,
           background: 'white', borderLeft: '1px solid rgba(255,255,255,.1)',
           display: 'flex', flexDirection: 'column', zIndex: 9,
+          overflow: 'hidden',
           boxShadow: '-4px 0 12px rgba(0,0,0,.2)',
           direction: patientLangMeta.rtl && sender === 'patient' ? 'rtl' : 'ltr',
         }}>
@@ -214,7 +215,7 @@ export default function ChatPanel({
           )}
 
           {/* Messages */}
-          <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch', padding: '.75rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
             {messages.length === 0 && (
               <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '.8125rem', marginTop: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 No messages yet

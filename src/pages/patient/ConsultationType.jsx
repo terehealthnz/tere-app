@@ -28,7 +28,7 @@ const TYPE_CONFIG = {
 
 export default function ConsultationType() {
   const navigate = useNavigate()
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(() => sessionStorage.getItem('consultationType') || null)
   const [loading, setLoading] = useState(false)
 
   const complaint = sessionStorage.getItem('triage_complaint') || ''
@@ -67,6 +67,12 @@ export default function ConsultationType() {
         updates.payment_amount = 0
       }
       await supabase.from('consultations').update(updates).eq('id', consultationId)
+      // Direct query so a DB error throws (getAvailability swallows errors as is_open:false)
+      const { data: av, error: avErr } = await supabase.from('availability').select('is_open').eq('id', 1).single()
+      if (!avErr && av?.is_open === false) {
+        navigate(`/async-message/${consultationId}`)
+        return
+      }
       navigate(employerPaid ? '/waiting' : '/payment')
     } catch (e) {
       console.error(e)
@@ -77,7 +83,10 @@ export default function ConsultationType() {
   return (
     <div className="page">
       <nav className="navbar">
-        <span className="navbar-brand">Tere</span>
+        <div style={{display:'flex',alignItems:'center',gap:'1rem'}}>
+          <button onClick={() => navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:'1.1rem',padding:'0',lineHeight:1,display:'flex',alignItems:'center'}} aria-label="Go back">←</button>
+          <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
+        </div>
         <span style={{ color: 'rgba(255,255,255,.5)', fontSize: '.875rem', fontStyle: 'italic' }}>He tere, he ora</span>
       </nav>
 
