@@ -19,5 +19,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ is_open: false, message: '' })
   }
 
+  res.setHeader('Cache-Control', 'no-store')
   res.status(200).json({ is_open: data.is_open, message: data.message || '' })
 }

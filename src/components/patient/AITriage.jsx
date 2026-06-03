@@ -554,7 +554,7 @@ export default function AITriage() {
       const nameParts = (data.patient_name||'').trim().split(' ')
       let av = { is_open: true }
       try {
-        const avRes = await apiFetch('/api/get-availability')
+        const avRes = await apiFetch('/api/get-availability?t=' + Date.now())
         if (avRes.ok) av = await avRes.json()
       } catch {}
       const consultation = await createConsultation({
