@@ -34,9 +34,11 @@ function validateNHI(nhi) {
 
 function validatePhone(phone) {
   if (!phone) return null
-  const clean = String(phone).replace(/\s/g, '')
+  const raw = String(phone).trim()
+  // Strip spaces, hyphens, brackets, dots — keep leading +
+  const clean = raw.startsWith('+') ? '+' + raw.slice(1).replace(/\D/g, '') : raw.replace(/\D/g, '')
   // NZ mobile/landline: starts with 0 (local) or +64
-  if (!/^(\+64|0)\d{8,10}$/.test(clean)) throw new Error('Invalid NZ phone number')
+  if (!/^(\+64|0)\d{8,10}$/.test(clean)) return raw // return original if not NZ format — DB stores as-is
   return clean
 }
 

@@ -647,7 +647,8 @@ export default function AITriage() {
       }))
       setSaving(false)
       setDone(false)
-      setTimeout(() => setMessages(prev => [...prev, { role:'tere', text:"Sorry, something went wrong saving your details. Please try sending your last answer again, or refresh the page to restart." }]), 100)
+      const errDetail = e?.message || String(e) || 'unknown error'
+      setTimeout(() => setMessages(prev => [...prev, { role:'tere', text:`Sorry, something went wrong saving your details (${errDetail}). Please refresh the page to try again.` }]), 100)
     }
   }
 
