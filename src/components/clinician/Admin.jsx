@@ -1813,7 +1813,11 @@ function AdminBody() {
       if (useSched) {
         const open = shouldBeOpen(slots)
         if (open !== av.is_open) {
-          await setAvailability(open, av.message || '')
+          await apiFetch('/api/set-availability', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isOpen: open, message: av.message || '' }),
+          })
           setIsOpen(open)
         }
       }
@@ -1825,7 +1829,11 @@ function AdminBody() {
   async function saveAvailability() {
     setSavingAvail(true)
     try {
-      await setAvailability(isOpen, availMsg)
+      await apiFetch('/api/set-availability', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isOpen, message: availMsg }),
+      })
       setAvailSaved(true)
       setTimeout(() => setAvailSaved(false), 2500)
       // If opening clinic, notify waitlisted patients
@@ -1963,7 +1971,14 @@ function AdminBody() {
           <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.25rem' }}>Set your regular hours and the clinic opens and closes automatically.</div>
           <ScheduleEditor onSaved={(slots, useSched) => {
             const open = useSched ? shouldBeOpen(slots) : isOpen
-            if (useSched) { setIsOpen(open); setAvailability(open, availMsg).catch(console.error) }
+            if (useSched) {
+              setIsOpen(open)
+              apiFetch('/api/set-availability', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isOpen: open, message: availMsg }),
+              }).catch(console.error)
+            }
           }} />
         </div>
 
