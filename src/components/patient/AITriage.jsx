@@ -855,6 +855,7 @@ export default function AITriage() {
           )}
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}}}
+            onFocus={()=>setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:'smooth'}),320)}
             placeholder={waitingForPhoto?"Tap 📷 to attach a photo…":"Type your reply…"}
             rows={1} autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck="false"
             style={{flex:1,padding:'.75rem 1rem',border:'1.5px solid var(--border)',borderRadius:12,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'1rem',resize:'none',outline:'none',lineHeight:1.5,maxHeight:120,overflowY:'auto'}}
