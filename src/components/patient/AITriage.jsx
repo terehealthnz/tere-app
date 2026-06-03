@@ -87,12 +87,12 @@ const STEPS = [
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'nhi' },
-  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234. Say skip if you don't have it.", field:'patient_nhi', validate:()=>true, next:'pharmacy', transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
+  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'pharmacy', message:"What's your preferred pharmacy? (e.g. Havelock Pharmacy)", field:'pharmacy', validate:()=>true, next:'gp_name' },
-  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name? (Say 'skip' if not.)", field:'gp_name', validate:()=>true, next:'gp_clinic', transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'complaint' },
   { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'gp_email' },
-  { id:'gp_email', message:"And their email address if you have it? (Say 'skip' if not.)", field:'gp_email', validate:()=>true, next:'complaint', transform:v=>['skip','no','none','n/a','nope'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_email', message:"And their email address if you have it?", field:'gp_email', validate:()=>true, next:'complaint', skippable:true, transform:v=>['skip','no','none','n/a','nope'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
@@ -781,6 +781,15 @@ export default function AITriage() {
               {t('no_label', lang)}{step.id === 'acc_check' && accSuggestion === 'no' ? ' ✓' : ''}
             </button>
           </div>
+        </div>
+      )}
+
+      {step?.skippable && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <button onClick={()=>handleSendValue('skip')} className="btn"
+            style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
+            Skip →
+          </button>
         </div>
       )}
 
