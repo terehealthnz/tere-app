@@ -112,6 +112,7 @@ const ROUTES = {
   'set-availability':          () => import('./_set-availability.js'),
   'set-provider-avail':        () => import('./_set-provider-avail.js'),
   'get-queue':                 () => import('./_get-queue.js'),
+  'get-availability':          () => import('./_get-availability.js'),
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
   'async-consult':             () => import('./_async-consult.js'),
   'async-overdue':             () => import('./_async-overdue.js'),

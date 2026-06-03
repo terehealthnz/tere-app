@@ -519,8 +519,8 @@ export default function AITriage() {
     trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
-      const { getAvailability } = await import('../../lib/supabase')
-      const av = await getAvailability().catch(() => ({ is_open: true }))
+      const avRes = await apiFetch('/api/get-availability').catch(() => null)
+      const av = avRes?.ok !== false && avRes ? await avRes.json().catch(() => ({ is_open: true })) : { is_open: true }
       const consultation = await createConsultation({
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
