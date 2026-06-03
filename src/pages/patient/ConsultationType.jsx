@@ -81,7 +81,7 @@ export default function ConsultationType() {
   }
 
   return (
-    <div className="page">
+    <div className="page" style={{ background: 'var(--bg)' }}>
       <nav className="navbar">
         <div style={{display:'flex',alignItems:'center',gap:'1rem'}}>
           <button onClick={() => navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:'1.1rem',padding:'0',lineHeight:1,display:'flex',alignItems:'center'}} aria-label="Go back">←</button>

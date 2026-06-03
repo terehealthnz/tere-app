@@ -114,15 +114,15 @@ const T = {
   },
 
   nhi: {
-    en: "Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234. Say skip if you don't have it.",
-    zh: "您知道您的NHI编号吗？它在您的社区服务卡或医院信件上，格式如ABC1234。没有的话请输入「跳过」。",
-    ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。わからない場合は「スキップ」と入力してください。",
-    ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234). 모르시면 '건너뛰기'라고 입력하세요.",
-    de: "Kennen Sie Ihre NHI-Nummer? Sie steht auf Ihrer Community Services Card oder einem Krankenhausbrief — sieht aus wie ABC1234. Geben Sie 'weiter' ein, wenn Sie sie nicht haben.",
-    fr: "Connaissez-vous votre numéro NHI ? Il figure sur votre carte de services communautaires ou toute lettre d'hôpital — ressemble à ABC1234. Dites 'ignorer' si vous ne l'avez pas.",
-    es: "¿Conoce su número NHI? Está en su Tarjeta de Servicios Comunitarios o en cualquier carta del hospital — parece ABC1234. Escriba 'omitir' si no lo tiene.",
-    ar: "هل تعرف رقم NHI الخاص بك؟ إنه موجود على بطاقة خدمات المجتمع أو أي رسالة مستشفى — يبدو مثل ABC1234. اكتب 'تخطي' إذا لم يكن لديك.",
-    hi: "क्या आप अपना NHI नंबर जानते हैं? यह आपके कम्युनिटी सर्विसेज कार्ड या किसी अस्पताल पत्र पर होता है — जैसे ABC1234। अगर नहीं है, तो 'छोड़ें' लिखें।",
+    en: "Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.",
+    zh: "您知道您的NHI编号吗？它在您的社区服务卡或医院信件上，格式如ABC1234。",
+    ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。",
+    ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234).",
+    de: "Kennen Sie Ihre NHI-Nummer? Sie steht auf Ihrer Community Services Card oder einem Krankenhausbrief — sieht aus wie ABC1234.",
+    fr: "Connaissez-vous votre numéro NHI ? Il figure sur votre carte de services communautaires ou toute lettre d'hôpital — ressemble à ABC1234.",
+    es: "¿Conoce su número NHI? Está en su Tarjeta de Servicios Comunitarios o en cualquier carta del hospital — parece ABC1234.",
+    ar: "هل تعرف رقم NHI الخاص بك؟ إنه موجود على بطاقة خدمات المجتمع أو أي رسالة مستشفى — يبدو مثل ABC1234.",
+    hi: "क्या आप अपना NHI नंबर जानते हैं? यह आपके कम्युनिटी सर्विसेज कार्ड या किसी अस्पताल पत्र पर होता है — जैसे ABC1234।",
   },
 
   pharmacy: {
