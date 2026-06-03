@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
 import TereIntro from './TereIntro'
-import HDCRightsGate from './HDCRightsGate'
+import ConsentGate from './ConsentGate'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 
@@ -38,6 +38,18 @@ const ADDICTION_KEYWORDS = [
   'drinking too much','alcohol problem',"can't stop drinking","cant stop drinking",
   'addiction','dependent on alcohol','alcoholic'
 ]
+
+const CONTROLLED_MED_KEYWORDS = [
+  'ozempic','wegovy','semaglutide','weight loss injection','weight loss medication',
+  'opiate','opioid','codeine','tramadol','morphine','oxycodone','fentanyl',
+  'diazepam','valium','xanax','benzodiazepine','benzo','zopiclone','temazepam',
+  'ritalin','adderall','dexamphetamine','sleeping pills',
+]
+
+function checkControlledMed(text) {
+  const lower = text.toLowerCase()
+  return CONTROLLED_MED_KEYWORDS.some(kw => lower.includes(kw))
+}
 
 function checkPhysicalEmergency(text) {
   const lower = text.toLowerCase()
@@ -75,30 +87,51 @@ const STEPS = [
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'nhi' },
-  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234. Say skip if you don't have it.", field:'patient_nhi', validate:()=>true, next:'pharmacy', transform:v=>v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')||'' },
+  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234. Say skip if you don't have it.", field:'patient_nhi', validate:()=>true, next:'pharmacy', transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'pharmacy', message:"What's your preferred pharmacy? (e.g. Havelock Pharmacy)", field:'pharmacy', validate:()=>true, next:'gp_name' },
-  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name and clinic? We'll send them a copy of your notes today. (Say 'skip' if not.)", field:'gp_name', validate:()=>true, next:'gp_email', transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name? (Say 'skip' if not.)", field:'gp_name', validate:()=>true, next:'gp_clinic', transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'complaint' },
+  { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'gp_email' },
   { id:'gp_email', message:"And their email address if you have it? (Say 'skip' if not.)", field:'gp_email', validate:()=>true, next:'complaint', transform:v=>['skip','no','none','n/a','nope'].includes(v.trim().toLowerCase())?'':v.trim() },
-  { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'history' },
+  { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
+  { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'interpreter' },
-  { id:'interpreter', message:"Would you like a professional interpreter on your call? (recommended if English is not your first language)", field:'interpreter_raw', type:'yesno', next:'photo' },
+  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'photo' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'photo' },
-  { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor. Or type skip.", field:'photo_response', type:'photo', validate:()=>true, next:'recording' },
-  { id:'recording', message:"Last one — do you consent to your consultation being AI-transcribed? The recording is deleted straight after.", field:'recording_consent_raw', type:'yesno', next:'done' },
+  { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor.", field:'photo_response', type:'photo', validate:()=>true, next:'recording' },
+  { id:'recording', message:"Do you consent to your consultation being AI-transcribed? The recording is deleted straight after.", field:'recording_consent_raw', type:'yesno', next:'research' },
+  { id:'research', message:"Last thing — would you be willing for your de-identified data (no name, no contact details) to contribute to NZ rural health research? This is completely optional and won't affect your care.", field:'research_consent_raw', type:'yesno', validate:()=>true, next:'done' },
 ]
 
 function parseDate(raw) {
   if (!raw) return ''
-  const d = new Date(raw)
-  if (!isNaN(d)) return d.toISOString().split('T')[0]
+  const s = raw.trim()
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  // DD/MM/YYYY
+  const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (slash) return `${slash[3]}-${slash[2].padStart(2,'0')}-${slash[1].padStart(2,'0')}`
+  // DD-MM-YYYY (day first, 2-digit day)
+  const dashDMY = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
+  if (dashDMY) return `${dashDMY[3]}-${dashDMY[2].padStart(2,'0')}-${dashDMY[1].padStart(2,'0')}`
+  // Natural language: "14 March 1986", "14th March 1986"
   const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11}
-  const m = raw.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/)
-  if (m) { const mo = months[m[2].slice(0,3)]; if (mo!==undefined) return new Date(parseInt(m[3]),mo,parseInt(m[1])).toISOString().split('T')[0] }
-  return raw
+  const m = s.toLowerCase().replace(/(\d+)(st|nd|rd|th)\b/,'$1').match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/)
+  if (m) {
+    const mo = months[m[2].slice(0,3)]
+    if (mo !== undefined) {
+      // Use local date parts to avoid UTC timezone shift in NZ (UTC+12/13)
+      const d = new Date(parseInt(m[3]), mo, parseInt(m[1]))
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+    }
+  }
+  // Last resort — extract local parts to avoid TZ shift
+  const d = new Date(s)
+  if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  return s
 }
 
 // Translate text to English via the server API (for keyword safety checks)
@@ -130,21 +163,35 @@ function getStepMessage(step, lang, data) {
   return msg
 }
 
+const TRIAGE_STATE_VERSION = 2
+
+function loadTriageState() {
+  try {
+    if (sessionStorage.getItem('consultationId')) return null
+    const s = JSON.parse(sessionStorage.getItem('tere_triage_state') || 'null')
+    if (!s || s.version !== TRIAGE_STATE_VERSION) {
+      sessionStorage.removeItem('tere_triage_state')
+      return null
+    }
+    return s
+  } catch { return null }
+}
+
 export default function AITriage() {
   const navigate = useNavigate()
   const [lang] = useState(() => getLang())
-  const [messages, setMessages] = useState([])
-  const [currentStep, setCurrentStep] = useState(0)
+  const [messages, setMessages] = useState(() => { const s = loadTriageState(); return s?.messages || [] })
+  const [currentStep, setCurrentStep] = useState(() => { const s = loadTriageState(); return s?.currentStep ?? 0 })
   const [input, setInput] = useState('')
-  const [data, setData] = useState({})
+  const [data, setData] = useState(() => { const s = loadTriageState(); return s?.data || {} })
+  const [stepHistory, setStepHistory] = useState(() => { const s = loadTriageState(); return s?.stepHistory || [] })
   const [photos, setPhotos] = useState([])
-  const [emergency, setEmergency] = useState(null) // null | 'physical' | 'mental' | 'addiction'
+  const [emergency, setEmergency] = useState(null)
   const [done, setDone] = useState(false)
   const [saving, setSaving] = useState(false)
   const [waitingForPhoto, setWaitingForPhoto] = useState(false)
-  const [clinicOpen, setClinicOpen] = useState(null)
-  const [showIntro, setShowIntro] = useState(true)
-  const [showHdcRights, setShowHdcRights] = useState(false)
+  const [showIntro, setShowIntro] = useState(() => { try { if (sessionStorage.getItem('consultationId')) return true; return !loadTriageState() } catch { return true } })
+  const [showConsentGate, setShowConsentGate] = useState(false)
   const bottomRef = useRef(null)
   const fileRef = useRef(null)
   const inputRef = useRef(null)
@@ -160,27 +207,45 @@ export default function AITriage() {
 
   useEffect(() => {
     async function init() {
-      const baseGreeting = t('greeting', lang)
-      try {
-        const { getAvailability } = await import('../../lib/supabase')
-        const av = await getAvailability()
-        setClinicOpen(av.is_open)
-        const greeting = av.is_open
-          ? baseGreeting
-          : baseGreeting + t('clinic_closed_suffix', lang)
-        setTimeout(() => setMessages([{ role:'tere', text:greeting }]), 400)
-      } catch {
-        setTimeout(() => setMessages([{ role:'tere', text:baseGreeting }]), 400)
+      const existingId = sessionStorage.getItem('consultationId')
+      if (existingId) {
+        try {
+          const { getConsultation } = await import('../../lib/supabase')
+          const c = await getConsultation(existingId)
+          const ACTIVE = ['waiting','vitals_requested','vitals_complete','ready','in_progress','waitlisted']
+          if (ACTIVE.includes(c?.status)) {
+            if (c.consultation_subtype === 'async_message') {
+              navigate(`/async-message/${existingId}`, { replace: true })
+            } else {
+              navigate('/consultation-type', { replace: true })
+            }
+            return
+          }
+        } catch {}
+        // Terminal or unknown status — clear stale session and start fresh
+        ;['consultationId','tere_triage_state','accEligible','consultationType','paymentAmount',
+          'patientName','patientEmail','triage_complaint','triage_returning','patient_language',
+          'paymentIntentId','employer_paid','employer_name','employer_id'].forEach(k => sessionStorage.removeItem(k))
       }
+      if (sessionStorage.getItem('tere_triage_state')) return
+      setTimeout(() => setMessages([{ role:'tere', text: t('greeting', lang) }]), 400)
     }
     init()
   }, [])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages])
 
+  useEffect(() => {
+    if (messages.length > 0 && !done) {
+      try { sessionStorage.setItem('tere_triage_state', JSON.stringify({ messages, currentStep, data, stepHistory, version: TRIAGE_STATE_VERSION })) } catch {}
+    }
+  }, [messages, currentStep, data, stepHistory, done])
+
   const getStepById = id => STEPS.find(s => s.id === id)
 
   const [tereTyping, setTereTyping] = useState(false)
+  const [accSuggestion, setAccSuggestion] = useState(null) // 'yes' | 'no' | null
+  const accAssessTimerRef = useRef(null)
 
   const advanceToStep = (stepId, newData) => {
     if (stepId === 'done') {
@@ -215,9 +280,24 @@ export default function AITriage() {
     if (step.transform) processed = step.transform(processed)
     let newData = { ...currentData, [step.field]: processed }
 
-    // Smart ACC detection from complaint text
+    // AI-powered ACC assessment — fires non-blocking, pre-selects button on acc_check step
     if (step.id === 'complaint') {
-      newData = { ...newData, is_acc_raw: checkAccEligible(processed) ? 'yes' : 'no' }
+      setData(newData)
+      setAccSuggestion(null)
+      clearTimeout(accAssessTimerRef.current)
+      accAssessTimerRef.current = setTimeout(() => setAccSuggestion(null), 2000)
+      apiFetch('/api/assess-acc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complaint: processed }),
+      }).then(r => r.json())
+        .then(({ isLikelyACC }) => {
+          clearTimeout(accAssessTimerRef.current)
+          setAccSuggestion(isLikelyACC ? 'yes' : 'no')
+        })
+        .catch(() => clearTimeout(accAssessTimerRef.current))
+      advanceToStep('acc_check', newData)
+      return
     }
 
     setData(newData)
@@ -231,14 +311,15 @@ export default function AITriage() {
         const firstName = nameParts[0]
         const lastName = nameParts.slice(1).join(' ') || ''
 
+        console.log('Looking up patient:', { firstName, lastName, dob })
         // Run patient lookup and employer check in parallel
         const [prevResult, empResult] = await Promise.allSettled([
           supabase
             .from('consultations')
             .select('*')
             .ilike('patient_first_name', firstName)
+            .ilike('patient_last_name', lastName)
             .eq('patient_dob', dob)
-            .in('status', ['complete', 'waiting', 'waitlisted', 'in_progress'])
             .order('created_at', { ascending: false })
             .limit(1),
           apiFetch('/api/employer-check', {
@@ -264,6 +345,7 @@ export default function AITriage() {
         }
 
         const prev = prevResult.status === 'fulfilled' ? prevResult.value?.data : null
+        console.log('Supabase result:', prev, prevResult.value?.error, { dob })
 
         if (prev && prev.length > 0) {
           const p = prev[0]
@@ -274,8 +356,14 @@ export default function AITriage() {
             patient_first_name: p.patient_first_name,
             patient_last_name: p.patient_last_name,
             patient_dob_raw: p.patient_dob,
+            patient_phone: p.patient_phone || '',
+            patient_email: p.patient_email || '',
             patient_nhi: p.patient_nhi || '',
-            patient_location: p.patient_location,
+            patient_location: p.patient_location || '',
+            pharmacy: p.pharmacy || '',
+            gp_name: p.gp_name || '',
+            gp_clinic: p.gp_clinic || '',
+            gp_email: p.gp_email || '',
             employer: p.employer || '',
             medical_history: p.medical_history || '',
             medications: p.medications || '',
@@ -298,21 +386,62 @@ export default function AITriage() {
       return
     }
 
-    // Route allergies to ACC questions or interpreter step based on complaint detection
+    // Clear AI suggestion once patient has answered the acc_check step
+    if (step.id === 'acc_check') {
+      setAccSuggestion(null)
+    }
+
+    // Route allergies to ACC questions or photo based on acc_check answer
     if (step.id === 'allergies') {
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'interpreter', newData)
+      setData(newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'photo', newData)
       return
     }
 
-    // After interpreter question, go to photo
-    if (step.id === 'interpreter') {
+    // After acc_employer, go to photo
+    if (step.id === 'acc_employer') {
+      setData(newData)
       advanceToStep('photo', newData)
       return
     }
 
-    // After acc_employer, go to interpreter
-    if (step.id === 'acc_employer') {
-      advanceToStep('interpreter', newData)
+    // GP name — HPI lookup
+    if (step.id === 'gp_name') {
+      if (!processed) {
+        advanceToStep('complaint', newData)
+        return
+      }
+      setTereTyping(true)
+      try {
+        const res = await apiFetch('/api/hpi-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: processed, type: 'gp' }),
+        })
+        const { results } = await res.json()
+        if (results?.length > 0) {
+          const match = results[0]
+          const updatedData = { ...newData, gp_clinic: match.clinic, gp_email: match.email || '' }
+          setData(updatedData)
+          setTereTyping(false)
+          advanceToStep('gp_confirm', updatedData)
+          return
+        }
+      } catch {}
+      setTereTyping(false)
+      advanceToStep('gp_clinic', newData)
+      return
+    }
+
+    // GP confirm (HPI match)
+    if (step.id === 'gp_confirm') {
+      if (processed === 'yes') {
+        advanceToStep('complaint', newData)
+      } else {
+        const cleared = { ...newData, gp_clinic: '', gp_email: '' }
+        setData(cleared)
+        advanceToStep('gp_clinic', cleared)
+      }
       return
     }
 
@@ -323,6 +452,7 @@ export default function AITriage() {
   const handleSendValue = async (value) => {
     const step = STEPS[currentStep]
     if (!step) return
+    setStepHistory(prev => [...prev, { stepIdx: currentStep, msgCount: messages.length }])
     setMessages(prev => [...prev, { role:'user', text:value }])
 
     // Translate to English for keyword safety checks when not English
@@ -334,6 +464,15 @@ export default function AITriage() {
     if (checkPhysicalEmergency(textForCheck)) { setTimeout(() => setEmergency('physical'), 500); return }
     if (checkMentalHealthCrisis(textForCheck)) { setTimeout(() => setEmergency('mental'), 500); return }
     if (checkAddiction(textForCheck)) { setTimeout(() => setEmergency('addiction'), 500); return }
+
+    if (checkControlledMed(textForCheck) && !data.controlled_medication_mentioned) {
+      setData(prev => ({ ...prev, controlled_medication_mentioned: true }))
+      setTimeout(() => setMessages(prev => [...prev, {
+        role: 'tere',
+        text: t('controlled_med_notice', lang),
+        style: 'amber',
+      }]), 500)
+    }
 
     if (step.validate && !step.validate(value)) {
       const errKey = `${step.id}_error`
@@ -361,6 +500,7 @@ export default function AITriage() {
     if (!files.length) return
     const newPhotos = files.map(f => URL.createObjectURL(f))
     setPhotos(prev => [...prev, ...newPhotos])
+    setStepHistory(prev => [...prev, { stepIdx: currentStep, msgCount: messages.length }])
     setMessages(prev => [...prev, { role:'user', text:`📷 ${files.length} photo${files.length>1?'s':''} attached` }])
     setWaitingForPhoto(false)
     const newData = { ...data, photo_response:'provided' }
@@ -375,6 +515,7 @@ export default function AITriage() {
 
   const handleConfirm = async () => {
     setSaving(true)
+    console.log('[handleConfirm] data snapshot:', JSON.stringify(Object.fromEntries(Object.entries(data).map(([k,v]) => [k, typeof v === 'string' ? v.slice(0,40) : v]))))
     trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
@@ -406,44 +547,92 @@ export default function AITriage() {
         gpName: data.gp_name || '',
         gpEmail: data.gp_email || '',
         gpClinic: '',
-        interpreterRequested: data.interpreter_raw==='yes',
         hdcRightsAccepted: true,
-        status: av.is_open ? 'waiting' : 'waitlisted',
+        researchConsent: data.research_consent_raw === 'yes',
+        status: 'waiting',
       })
       sessionStorage.setItem('consultationId', consultation.id)
+
+      console.log('Clinic status:', av.is_open)
+
+
+      // Flag controlled medication mention (requires migration: ALTER TABLE consultations ADD COLUMN controlled_medication_mentioned BOOLEAN DEFAULT false)
+      if (data.controlled_medication_mentioned) {
+        import('../../lib/supabase').then(({ supabase }) => {
+          supabase.from('consultations').update({ controlled_medication_mentioned: true }).eq('id', consultation.id)
+        }).catch(() => {})
+      }
+
+      // research_consent is now included in createConsultation payload
 
       // Log consent events
       const patientName = `${nameParts[0]} ${nameParts.slice(1).join(' ')}`.trim()
       const consentBase = { consultation_id: consultation.id, patient_name: patientName }
       await Promise.allSettled([
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'hdc_code_of_rights', granted:true }) }),
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'prescribing_limitations_acknowledged', granted:true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'recording_consent', granted: data.recording_consent_raw==='yes' }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'privacy_policy', granted:true }) }),
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'research_consent', granted: data.research_consent_raw === 'yes' }) }),
         ...(data.is_acc_raw==='yes' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'acc_three_part_consent', granted:true }) })] : []),
       ])
       sessionStorage.setItem('accEligible', data.is_acc_raw==='yes'?'yes':'no')
       sessionStorage.setItem('triage_complaint', data.chief_complaint||'')
       sessionStorage.setItem('triage_returning', data.returning ? 'true' : 'false')
       sessionStorage.setItem('patientEmail', data.patient_email||'')
+      sessionStorage.setItem('triage_email', data.patient_email||'')
+      sessionStorage.setItem('triage_first_name', nameParts[0]||'')
       sessionStorage.setItem('patientName', (nameParts[0]||'') + ' ' + (nameParts.slice(1).join(' ')||''))
       sessionStorage.setItem('patient_language', lang)
-      if (av.is_open) {
-        navigate('/consultation-type')
+      sessionStorage.removeItem('tere_triage_state')
+
+      if (!av.is_open) {
+        const { supabase } = await import('../../lib/supabase')
+        await supabase.from('consultations').update({
+          consultation_type: 'message',
+          consultation_subtype: 'async_message',
+        }).eq('id', consultation.id).catch(() => {})
+        navigate(`/async-message/${consultation.id}`)
       } else {
-        navigate(`/waitlisted/${consultation.id}`)
+        navigate('/consultation-type')
       }
-    } catch(e) { console.error(e); setSaving(false) }
+    } catch(e) {
+      console.error('[handleConfirm] Save failed: ' + JSON.stringify({
+        message: e.message,
+        details: e.details,
+        hint: e.hint,
+        code: e.code,
+      }))
+      setSaving(false)
+      setDone(false)
+      setTimeout(() => setMessages(prev => [...prev, { role:'tere', text:"Sorry, something went wrong saving your details. Please try sending your last answer again, or refresh the page to restart." }]), 100)
+    }
+  }
+
+  function handleBack() {
+    if (stepHistory.length === 0 || tereTyping || saving) return
+    const newHistory = [...stepHistory]
+    const { stepIdx, msgCount } = newHistory.pop()
+    setStepHistory(newHistory)
+    setCurrentStep(stepIdx)
+    setMessages(prev => prev.slice(0, msgCount))
+    const stepToRedo = STEPS[stepIdx]
+    if (stepToRedo?.field) {
+      setData(prev => { const d = { ...prev }; delete d[stepToRedo.field]; return d })
+    }
+    setWaitingForPhoto(stepToRedo?.type === 'photo')
+    setInput('')
   }
 
   const step = STEPS[currentStep]
 
-  if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowHdcRights(true); trackEvent('intro_viewed', { lang }) }} />
-  if (showHdcRights) return <HDCRightsGate onAccepted={() => setShowHdcRights(false)} lang={lang} patientName={data?.patient_name} />
+  if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowConsentGate(true); trackEvent('intro_viewed', { lang }) }} />
+  if (showConsentGate) return <ConsentGate onAccepted={() => setShowConsentGate(false)} lang={lang} patientName={data?.patient_name} />
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
-      <div style={{background:'#991B1B',padding:'.875rem 1.25rem'}}>
-        <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'white',fontSize:'1.3rem'}}>Tere</span>
+      <div style={{background:'#991B1B',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))'}}>
+        <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'white',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
       </div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
         <div style={{maxWidth:420,width:'100%',textAlign:'center'}}>
@@ -459,8 +648,8 @@ export default function AITriage() {
 
   if (emergency === 'mental') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#F0F9FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
-      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem'}}>
-        <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem'}}>Tere</span>
+      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))'}}>
+        <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
       </div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
         <div style={{maxWidth:420,width:'100%'}}>
@@ -491,8 +680,8 @@ export default function AITriage() {
 
   if (emergency === 'addiction') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#F5F3FF',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
-      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem'}}>
-        <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem'}}>Tere</span>
+      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))'}}>
+        <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
       </div>
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
         <div style={{maxWidth:420,width:'100%'}}>
@@ -529,10 +718,10 @@ export default function AITriage() {
 
   return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
-      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',flexShrink:0}}>
+      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto'}}>
           <div>
-            <span style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem'}}>Tere</span>
+            <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
             <span style={{color:'rgba(255,255,255,.4)',fontSize:'.8rem',marginLeft:8}}>Health Assistant</span>
           </div>
           <span style={{fontSize:'.75rem',color:'rgba(255,255,255,.35)'}}>🔒 Encrypted</span>
@@ -543,7 +732,7 @@ export default function AITriage() {
         {messages.map((m,i)=>(
           <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start',marginBottom:'.875rem'}}>
             {m.role==='tere'&&<div style={{width:32,height:32,borderRadius:'50%',background:'var(--teal)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0,marginRight:8,marginTop:2}}>🩺</div>}
-            <div style={{maxWidth:'80%',padding:'.75rem 1rem',borderRadius:m.role==='user'?'18px 18px 4px 18px':'18px 18px 18px 4px',background:m.role==='user'?'var(--teal)':'white',color:m.role==='user'?'white':'var(--text)',fontSize:'.9375rem',lineHeight:1.6,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:m.role==='tere'?'1px solid var(--border)':'none'}}>
+            <div style={{maxWidth:'80%',padding:'.75rem 1rem',borderRadius:m.role==='user'?'18px 18px 4px 18px':'18px 18px 18px 4px',background:m.role==='user'?'var(--teal)':m.style==='amber'?'#FEF3C7':'white',color:m.role==='user'?'white':m.style==='amber'?'#78350F':'var(--text)',fontSize:'.9375rem',lineHeight:1.6,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:m.role==='tere'?(m.style==='amber'?'1px solid #FDE68A':'1px solid var(--border)'):'none'}}>
               {m.text}
             </div>
           </div>
@@ -562,9 +751,36 @@ export default function AITriage() {
       </div>
 
       {step?.type==='yesno'&&(
-        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box',display:'flex',gap:8}}>
-          <button onClick={()=>handleSendValue('yes')} className="btn btn-primary" style={{flex:1}}>{t('yes_label', lang)}</button>
-          <button onClick={()=>handleSendValue('no')} className="btn btn-secondary" style={{flex:1}}>{t('no_label', lang)}</button>
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          {step.id === 'acc_check' && accSuggestion && (
+            <div style={{textAlign:'center',fontSize:'.75rem',color:'#6B7280',marginBottom:6,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+              Based on your description, we think this {accSuggestion === 'yes' ? 'is' : 'may not be'} injury related — please confirm
+            </div>
+          )}
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={()=>handleSendValue('yes')} className="btn"
+              style={{
+                flex:1,
+                background: step.id === 'acc_check' && accSuggestion === 'no' ? 'transparent' : 'var(--teal)',
+                color: step.id === 'acc_check' && accSuggestion === 'no' ? 'var(--muted)' : 'white',
+                border: step.id === 'acc_check' && accSuggestion === 'no' ? '1.5px solid var(--border)' : 'none',
+                boxShadow: step.id === 'acc_check' && accSuggestion === 'no' ? 'none' : undefined,
+                fontWeight: step.id === 'acc_check' && accSuggestion === 'yes' ? 700 : 600,
+              }}>
+              {t('yes_label', lang)}{step.id === 'acc_check' && accSuggestion === 'yes' ? ' ✓' : ''}
+            </button>
+            <button onClick={()=>handleSendValue('no')} className="btn"
+              style={{
+                flex:1,
+                background: step.id === 'acc_check' && accSuggestion === 'no' ? 'var(--teal)' : 'transparent',
+                color: step.id === 'acc_check' && accSuggestion === 'no' ? 'white' : 'var(--text)',
+                border: step.id === 'acc_check' && accSuggestion === 'no' ? 'none' : '1.5px solid var(--border)',
+                boxShadow: step.id === 'acc_check' && accSuggestion === 'no' ? '0 4px 16px rgba(11,110,118,.25)' : 'none',
+                fontWeight: step.id === 'acc_check' && accSuggestion === 'no' ? 700 : 600,
+              }}>
+              {t('no_label', lang)}{step.id === 'acc_check' && accSuggestion === 'no' ? ' ✓' : ''}
+            </button>
+          </div>
         </div>
       )}
 
@@ -577,16 +793,24 @@ export default function AITriage() {
       )}
 
       <div style={{padding:'1rem',paddingBottom:'max(1rem, env(safe-area-inset-bottom))',background:'white',borderTop:'1px solid var(--border)',flexShrink:0}}>
+        {stepHistory.length > 0 && !tereTyping && !saving && (
+          <div style={{maxWidth:600,margin:'0 auto 8px',display:'flex'}}>
+            <button onClick={handleBack} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',padding:'0',display:'flex',alignItems:'center',gap:3,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+              ← Undo last answer
+            </button>
+          </div>
+        )}
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
               <button onClick={()=>fileRef.current?.click()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 14px',cursor:'pointer',flexShrink:0,fontSize:'1.1rem',color:'white'}}>📷</button>
               <input ref={fileRef} type="file" accept="image/*" multiple capture="environment" style={{display:'none'}} onChange={handlePhoto}/>
+              <button onClick={()=>handleSendValue('skip')} style={{background:'white',border:'1.5px solid var(--border)',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'var(--muted)',fontWeight:600,fontSize:'.9rem',fontFamily:'Plus Jakarta Sans, sans-serif'}}>Skip</button>
             </>
           )}
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}}}
-            placeholder={waitingForPhoto?"Tap 📷 for photo, or type 'skip'…":"Type your reply…"}
+            placeholder={waitingForPhoto?"Tap 📷 to attach a photo…":"Type your reply…"}
             rows={1} autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck="false"
             style={{flex:1,padding:'.75rem 1rem',border:'1.5px solid var(--border)',borderRadius:12,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'1rem',resize:'none',outline:'none',lineHeight:1.5,maxHeight:120,overflowY:'auto'}}
           />
