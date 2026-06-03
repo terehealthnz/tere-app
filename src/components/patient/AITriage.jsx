@@ -239,6 +239,21 @@ export default function AITriage() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages])
 
+  // iOS: shrink container to visual viewport height when keyboard opens, then scroll to bottom
+  const triageContainerRef = useRef(null)
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+    const onResize = () => {
+      if (triageContainerRef.current) {
+        triageContainerRef.current.style.height = vv.height + 'px'
+      }
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }), 50)
+    }
+    vv.addEventListener('resize', onResize)
+    return () => vv.removeEventListener('resize', onResize)
+  }, [])
+
   useEffect(() => {
     if (messages.length > 0 && !done) {
       try { sessionStorage.setItem('tere_triage_state', JSON.stringify({ messages, currentStep, data, stepHistory, version: TRIAGE_STATE_VERSION })) } catch {}
@@ -742,7 +757,7 @@ export default function AITriage() {
   )
 
   return (
-    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div ref={triageContainerRef} style={{height:'100dvh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto'}}>
           <div>
