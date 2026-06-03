@@ -219,7 +219,9 @@ export default function AITriage() {
           const c = await getConsultation(existingId)
           const ACTIVE = ['waiting','vitals_requested','vitals_complete','ready','in_progress','waitlisted']
           if (ACTIVE.includes(c?.status)) {
-            if (c.consultation_subtype === 'async_message') {
+            const isAsync = c.consultation_subtype === 'async_message' ||
+                            sessionStorage.getItem('consultation_subtype') === 'async_message'
+            if (isAsync) {
               navigate(`/async-message/${existingId}`, { replace: true })
             } else {
               navigate('/consultation-type', { replace: true })
@@ -637,6 +639,7 @@ export default function AITriage() {
       sessionStorage.removeItem('tere_triage_state')
 
       if (!av.is_open) {
+        sessionStorage.setItem('consultation_subtype', 'async_message')
         try {
           const { supabase } = await import('../../lib/supabase')
           await supabase.from('consultations').update({
@@ -646,6 +649,7 @@ export default function AITriage() {
         } catch {}
         navigate(`/async-message/${consultation.id}`)
       } else {
+        sessionStorage.setItem('consultation_subtype', 'live')
         navigate('/consultation-type')
       }
     } catch(e) {
@@ -657,6 +661,8 @@ export default function AITriage() {
       }))
       setSaving(false)
       setDone(false)
+      sessionStorage.removeItem('consultationId')
+      sessionStorage.removeItem('consultation_subtype')
       const errDetail = e?.message || String(e) || 'unknown error'
       setTimeout(() => setMessages(prev => [...prev, { role:'tere', text:`Sorry, something went wrong saving your details (${errDetail}). Please refresh the page to try again.` }]), 100)
     }
