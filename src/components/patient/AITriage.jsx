@@ -167,7 +167,7 @@ function getStepMessage(step, lang, data) {
   return msg
 }
 
-const TRIAGE_STATE_VERSION = 2
+const TRIAGE_STATE_VERSION = 3
 
 function loadTriageState() {
   try {
