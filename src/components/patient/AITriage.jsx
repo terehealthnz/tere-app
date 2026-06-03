@@ -197,6 +197,7 @@ export default function AITriage() {
   const [showIntro, setShowIntro] = useState(() => { try { if (sessionStorage.getItem('consultationId')) return true; return !loadTriageState() } catch { return true } })
   const [showConsentGate, setShowConsentGate] = useState(false)
   const bottomRef = useRef(null)
+  const messagesRef = useRef(null)
   const fileRef = useRef(null)
   const inputRef = useRef(null)
   const langMeta = getLangMeta(lang)
@@ -237,21 +238,28 @@ export default function AITriage() {
     init()
   }, [])
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:'smooth' }) }, [messages])
+  useEffect(() => {
+    if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
+  }, [messages])
 
-  // iOS: shrink container to visual viewport height when keyboard opens, then scroll to bottom
+  // iOS: keep container anchored to visual viewport when keyboard opens
   const triageContainerRef = useRef(null)
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
-    const onResize = () => {
-      if (triageContainerRef.current) {
-        triageContainerRef.current.style.height = vv.height + 'px'
-      }
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'instant' }), 50)
+    const update = () => {
+      const el = triageContainerRef.current
+      if (!el) return
+      el.style.height = vv.height + 'px'
+      el.style.top = vv.offsetTop + 'px'
+      if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
     }
-    vv.addEventListener('resize', onResize)
-    return () => vv.removeEventListener('resize', onResize)
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
   }, [])
 
   useEffect(() => {
@@ -760,7 +768,7 @@ export default function AITriage() {
   )
 
   return (
-    <div ref={triageContainerRef} style={{height:'100dvh',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+    <div ref={triageContainerRef} style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto'}}>
           <div>
@@ -771,7 +779,7 @@ export default function AITriage() {
         </div>
       </div>
 
-      <div style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',padding:'1rem',maxWidth:600,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
+      <div ref={messagesRef} style={{flex:1,overflowY:'auto',WebkitOverflowScrolling:'touch',padding:'1rem',maxWidth:600,width:'100%',margin:'0 auto',boxSizing:'border-box'}}>
         {messages.map((m,i)=>(
           <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start',marginBottom:'.875rem'}}>
             {m.role==='tere'&&<div style={{width:32,height:32,borderRadius:'50%',background:'var(--teal)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0,marginRight:8,marginTop:2}}>🩺</div>}
@@ -873,7 +881,7 @@ export default function AITriage() {
           )}
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}}}
-            onFocus={()=>setTimeout(()=>bottomRef.current?.scrollIntoView({behavior:'smooth'}),320)}
+            onFocus={()=>setTimeout(()=>{if(messagesRef.current)messagesRef.current.scrollTop=messagesRef.current.scrollHeight},320)}
             placeholder={waitingForPhoto?"Tap 📷 to attach a photo…":"Type your reply…"}
             rows={1} autoComplete="off" autoCorrect="off" autoCapitalize="sentences" spellCheck="false"
             style={{flex:1,padding:'.75rem 1rem',border:'1.5px solid var(--border)',borderRadius:12,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'1rem',resize:'none',outline:'none',lineHeight:1.5,maxHeight:120,overflowY:'auto'}}

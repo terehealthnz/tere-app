@@ -45,7 +45,7 @@ function validatePhone(phone) {
 function validateEmail(email) {
   if (!email) return null
   const clean = String(email).trim().toLowerCase()
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) throw new Error('Invalid email address')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return email.trim()
   return clean
 }
 
