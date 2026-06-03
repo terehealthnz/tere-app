@@ -556,7 +556,9 @@ export default function AITriage() {
       try {
         const avRes = await apiFetch('/api/get-availability?t=' + Date.now())
         if (avRes.ok) av = await avRes.json()
-      } catch {}
+        else av = { is_open: false } // API error → assume closed
+      } catch { av = { is_open: false } } // network error → assume closed
+      console.log('[triage] av result:', JSON.stringify(av))
       const consultation = await createConsultation({
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
