@@ -208,14 +208,14 @@ export default function ProviderConsult() {
   const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
   if (loading) return (
-    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
       <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
   if (!consult) return (
-    <div style={{ height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:'1.25rem', fontWeight:700, color:NAVY }}>Consultation not found</div>
         <button onClick={() => navigate('/provider')} style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 20px', borderRadius:8, fontFamily:FF, cursor:'pointer', minHeight:44 }}>← Back</button>
@@ -230,7 +230,7 @@ export default function ProviderConsult() {
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────
   if (inCall) return (
-    <div style={{ height:'100vh', background:'#0D1117', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
+    <div style={{ height:'100dvh', background:'#0D1117', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
 
       {/* Top bar */}
       <div style={{ background:'rgba(0,0,0,.6)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:20 }}>
@@ -322,7 +322,7 @@ export default function ProviderConsult() {
 
   // ── PRE-CALL VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight:'100vh', background:'#F0F2F5', fontFamily:FF, display:'flex', flexDirection:'column' }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF, display:'flex', flexDirection:'column' }}>
 
       {/* Top bar */}
       <div style={{ background:NAVY, padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
@@ -330,7 +330,7 @@ export default function ProviderConsult() {
           style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontFamily:FF, fontSize:'.875rem', minHeight:44 }}>
           ← Queue
         </button>
-        <span style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.25rem' }}>Tere</span>
+        <span onClick={() => navigate('/clinician/dashboard')} style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.25rem', cursor:'pointer', userSelect:'none', transition:'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to dashboard">Tere</span>
         <div style={{ width:60 }} />
       </div>
 
@@ -427,8 +427,20 @@ export default function ProviderConsult() {
 
         {/* Step 1: Waiting for vitals */}
         {!vitalsReady && (
-          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'12px 16px', textAlign:'center', fontSize:'.875rem', color:'#92400E' }}>
-            ⏳ Patient completing vitals — you'll be notified when ready
+          <div>
+            <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'12px 16px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:10 }}>
+              ⏳ Patient completing vitals — you'll be notified when ready
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              <button onClick={() => navigate('/provider')}
+                style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+                ← Back to queue
+              </button>
+              <button onClick={confirmVitals}
+                style={{ minHeight:48, borderRadius:10, border:'none', background:TEAL, color:'white', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+                Proceed anyway →
+              </button>
+            </div>
           </div>
         )}
 
