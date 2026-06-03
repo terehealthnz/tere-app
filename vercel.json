@@ -1,10 +1,20 @@
 {
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api/:route*", "destination": "/api/handler?route=:route*" },
     { "source": "/((?!manifest\\.json|sw\\.js|tere-logo\\..+|tere-preview\\..+).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/handler.js": { "maxDuration": 30 }
+    "api/handler.js": { "maxDuration": 60 }
   },
-  "crons": []
+  "crons": [
+    { "path": "/api/async-overdue", "schedule": "0 * * * *" }
+  ]
 }

@@ -1,4 +1,6 @@
 // Single Vercel serverless function — lazy-loads only the requested handler
+// bodyParser disabled so multipart streams reach _transcribe.js intact via formidable
+export const config = { api: { bodyParser: false } }
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
@@ -33,7 +35,7 @@ async function trackAuthFailure(ip) {
       const { Resend } = await import('resend')
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
-        from: 'security@terehealth.co.nz',
+        from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: 'terehealthnz@gmail.com',
         subject: '[ALERT] 10+ failed auth attempts in the last hour',
@@ -57,7 +59,7 @@ function setSecurityHeaders(res) {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",
-      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://api.anthropic.com",
+      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://api.anthropic.com https://cdn.jsdelivr.net https://storage.googleapis.com",
       "frame-src 'none'",
       "object-src 'none'",
     ].join('; ')
@@ -65,7 +67,9 @@ function setSecurityHeaders(res) {
 }
 
 const ROUTES = {
+  'assess-acc':                () => import('./_assess-acc.js'),
   'approve-draft':             () => import('./_approve-draft.js'),
+  'convert-to-acc':            () => import('./_convert-to-acc.js'),
   'change-password':           () => import('./_change-password.js'),
   'cancel-payment':            () => import('./_cancel-payment.js'),
   'capture-payment':           () => import('./_capture-payment.js'),
@@ -79,6 +83,7 @@ const ROUTES = {
   'hpi-search':                () => import('./_hpi-search.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
+  'send-waitlist-email':       () => import('./_send-waitlist-email.js'),
   'push-subscribe':            () => import('./_push-subscribe.js'),
   'push-notify':               () => import('./_push-notify.js'),
   'provider-auth':             () => import('./_provider-auth.js'),
@@ -96,6 +101,7 @@ const ROUTES = {
   'drug-interactions':         () => import('./_drug-interactions.js'),
   'incidents':                 () => import('./_incidents.js'),
   'consents':                  () => import('./_consents.js'),
+  'bookings':                  () => import('./_bookings.js'),
   'complaints':                () => import('./_complaints.js'),
   'breach':                    () => import('./_breach.js'),
   'handover':                  () => import('./_handover.js'),
@@ -103,6 +109,12 @@ const ROUTES = {
   'consultation-token':        () => import('./_consultation-token.js'),
   'analytics-events':          () => import('./_analytics-events.js'),
   'status':                    () => import('./_status.js'),
+  'set-availability':          () => import('./_set-availability.js'),
+  'set-provider-avail':        () => import('./_set-provider-avail.js'),
+  'get-queue':                 () => import('./_get-queue.js'),
+  'confirm-waiting':           () => import('./_confirm-waiting.js'),
+  'async-consult':             () => import('./_async-consult.js'),
+  'async-overdue':             () => import('./_async-overdue.js'),
 }
 
 export default async function handler(req, res) {
@@ -112,10 +124,29 @@ export default async function handler(req, res) {
 
   setSecurityHeaders(res)
 
+  // Parse JSON bodies manually (bodyParser is disabled globally to allow raw audio/multipart streams)
+  const ct = req.headers['content-type'] || ''
+  if (req.method !== 'GET' && !ct.startsWith('multipart/form-data') && !ct.startsWith('audio/')) {
+    req.body = await new Promise((resolve, reject) => {
+      const chunks = []
+      req.on('data', c => chunks.push(c))
+      req.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf-8')
+        if (!raw) return resolve({})
+        if (ct.includes('application/json')) {
+          try { resolve(JSON.parse(raw)) } catch { resolve({}) }
+        } else {
+          resolve(raw)
+        }
+      })
+      req.on('error', reject)
+    })
+  }
+
   // ── API key check (cron-availability uses its own auth) ─────────────────────
   const expectedKey = process.env.TERE_API_KEY
   const providedKey = req.headers['x-tere-api-key']
-  if (route !== 'cron-availability' && expectedKey && providedKey !== expectedKey) {
+  if (route !== 'cron-availability' && route !== 'async-overdue' && expectedKey && providedKey !== expectedKey) {
     logRequest(ip, route, 401, 'api_key_invalid')
     return res.status(401).json({ error: 'Unauthorized' })
   }
