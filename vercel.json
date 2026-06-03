@@ -15,6 +15,6 @@
     "api/handler.js": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/async-overdue", "schedule": "0 * * * *" }
+    { "path": "/api/async-overdue", "schedule": "0 8 * * *" }
   ]
 }
