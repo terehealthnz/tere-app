@@ -322,7 +322,7 @@ export default function ProviderConsult() {
 
   // ── PRE-CALL VIEW ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF, display:'flex', flexDirection:'column' }}>
+    <div style={{ height:'100dvh', background:'#F0F2F5', fontFamily:FF, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
       {/* Top bar */}
       <div style={{ background:NAVY, padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
@@ -446,21 +446,30 @@ export default function ProviderConsult() {
 
         {/* Step 2: Confirm vitals */}
         {vitalsReady && !vitalsConfirmed && (
-          <button
-            onClick={confirmVitals}
-            style={{ width:'100%', minHeight:56, borderRadius:12, border:'none', background:TEAL, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:'pointer', boxShadow:'0 4px 16px rgba(11,110,118,.3)' }}>
-            ✓ Confirm vitals
-          </button>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
+            <button onClick={() => navigate('/provider')}
+              style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+              ← Queue
+            </button>
+            <button onClick={confirmVitals}
+              style={{ minHeight:56, borderRadius:12, border:'none', background:TEAL, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:'pointer', boxShadow:'0 4px 16px rgba(11,110,118,.3)' }}>
+              ✓ Confirm vitals
+            </button>
+          </div>
         )}
 
         {/* Step 3: Admit */}
         {vitalsConfirmed && !inCall && (
-          <button
-            onClick={admit}
-            disabled={admitting}
-            style={{ width:'100%', minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:admitting?'not-allowed':'pointer', opacity:admitting?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-            {admitting ? 'Connecting…' : '→ Admit patient to call'}
-          </button>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
+            <button onClick={() => navigate('/provider')}
+              style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+              ← Queue
+            </button>
+            <button onClick={admit} disabled={admitting}
+              style={{ minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:admitting?'not-allowed':'pointer', opacity:admitting?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+              {admitting ? 'Connecting…' : '→ Admit to call'}
+            </button>
+          </div>
         )}
       </div>
 

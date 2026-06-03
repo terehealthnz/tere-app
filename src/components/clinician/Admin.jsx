@@ -1346,6 +1346,7 @@ function RecallsPanel() {
 
 function RevenuePanel() {
   const [rows, setRows] = React.useState([])
+  const [reservationCount, setReservationCount] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
@@ -1353,13 +1354,21 @@ function RevenuePanel() {
       try {
         const { supabase } = await import('../../lib/supabase')
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
-        const { data } = await supabase
-          .from('consultations')
-          .select('created_at, payment_amount_nzd, payment_amount, acc_eligible, status')
-          .gte('created_at', thirtyDaysAgo)
-          .eq('status', 'complete')
-          .order('created_at', { ascending: false })
-        setRows(data || [])
+        const [consultResult, reservationResult] = await Promise.allSettled([
+          supabase
+            .from('consultations')
+            .select('created_at, payment_amount_nzd, payment_amount, acc_eligible, status')
+            .gte('created_at', thirtyDaysAgo)
+            .eq('status', 'complete')
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('appointments')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', thirtyDaysAgo)
+            .not('reservation_payment_intent_id', 'is', null),
+        ])
+        if (consultResult.status === 'fulfilled') setRows(consultResult.value.data || [])
+        if (reservationResult.status === 'fulfilled') setReservationCount(reservationResult.value.count || 0)
       } catch { setRows([]) }
       setLoading(false)
     }
@@ -1368,7 +1377,9 @@ function RevenuePanel() {
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
 
-  const total = rows.reduce((s, r) => s + (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)), 0)
+  const consultTotal = rows.reduce((s, r) => s + (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)), 0)
+  const reservationTotal = reservationCount * 15
+  const grandTotal = consultTotal + reservationTotal
   const accCount = rows.filter(r => r.acc_eligible === 'yes').length
   const privateCount = rows.length - accCount
 
@@ -1376,15 +1387,26 @@ function RevenuePanel() {
     <div style={card}>
       <div style={{ marginBottom:'1.25rem' }}>
         <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Revenue — last 30 days</div>
-        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Completed consultations with captured payments</div>
+        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Completed consultations + reservation fees</div>
       </div>
       {loading ? (
         <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
       ) : (
         <>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem', marginBottom:'.75rem' }}>
             {[
-              ['Total revenue', `$${total.toFixed(2)}`, '#059669'],
+              ['Total revenue', `$${grandTotal.toFixed(2)}`, '#059669'],
+              ['Consultation revenue', `$${consultTotal.toFixed(2)}`, '#0B6E76'],
+              ['Reservation fees', `$${reservationTotal.toFixed(2)}`, '#7C3AED'],
+            ].map(([label, value, color]) => (
+              <div key={label} style={{ background:'#F8FAFC', borderRadius:8, padding:'.875rem', textAlign:'center' }}>
+                <div style={{ fontSize:'1.25rem', fontWeight:700, color }}>{value}</div>
+                <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
+            {[
               ['Private consults', privateCount, '#0B6E76'],
               ['ACC consults', accCount, '#1D4ED8'],
             ].map(([label, value, color]) => (
@@ -1400,7 +1422,7 @@ function RevenuePanel() {
                 new Date(r.created_at).toLocaleDateString('en-NZ'),
                 r.acc_eligible === 'yes' ? 'ACC' : 'Private',
                 (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)).toFixed(2),
-              ].join(','))].join('\n')
+              ].join(',')), ...(reservationCount > 0 ? [`Last 30 days,Reservation fees,${reservationTotal.toFixed(2)}`] : [])].join('\n')
               const a = document.createElement('a')
               a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
               a.download = `revenue-${new Date().toISOString().slice(0,10)}.csv`
@@ -1846,16 +1868,16 @@ function AdminBody() {
   const saved = { fontSize:'.8125rem', color:'#059669', fontWeight:600 }
 
   return (
-    <div style={{ minHeight:'100vh', background:'#F0F2F5', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
       <nav style={{ background:'#0D2B45', padding:'.875rem 1.5rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <div style={{ display:'flex', alignItems:'center', gap:'1.5rem' }}>
-          <span style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.3rem' }}>Tere</span>
+          <span onClick={() => navigate('/admin')} style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.3rem', cursor:'pointer', userSelect:'none', transition:'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to admin">Tere</span>
           <span style={{ color:'rgba(255,255,255,.4)', fontSize:'.8125rem' }}>Admin</span>
         </div>
         <div style={{ display:'flex', gap:'.75rem' }}>
-          <button onClick={() => navigate('/admin')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>📱 Mobile</button>
+          <button onClick={() => navigate('/provider')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Queue</button>
           <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Dashboard</button>
-          <button onClick={() => { sessionStorage.clear(); navigate('/clinician') }} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>Sign out</button>
+          <button onClick={() => { localStorage.removeItem('tere_portal'); sessionStorage.clear(); navigate('/clinician') }} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>Sign out</button>
         </div>
       </nav>
 
@@ -1863,18 +1885,51 @@ function AdminBody() {
         <h1 style={{ fontSize:'1.5rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Clinic Admin</h1>
         <p style={{ fontSize:'.9375rem', color:'#6B7280', marginBottom:'1rem' }}>Manage availability, schedule, and clinic settings.</p>
 
-        {/* Tabs */}
-        <div style={{ display:'flex', gap:6, marginBottom:'1.5rem', borderBottom:'2px solid #E2E8F0', paddingBottom:'.125rem' }}>
-          {[['overview','Overview'],['schedule','📅 Schedule'],['payroll','💰 Payroll'],['safety','⚠ Safety'],['performance','📊 Performance'],['employers','Employers'],['careers','Careers']].map(([id, label]) => (
-            <button key={id} onClick={() => setAdminTab(id)} style={{
-              background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
-              fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
-              color: adminTab===id ? '#0B6E76' : '#6B7280',
-              borderBottom: adminTab===id ? '2px solid #0B6E76' : '2px solid transparent',
-              marginBottom:'-2px',
-            }}>{label}</button>
-          ))}
-        </div>
+        {/* Tabs — desktop: horizontal row, mobile: dropdown */}
+        {(() => {
+          const ADMIN_TABS = [
+            { id:'overview',     label:'📊 Overview' },
+            { id:'schedule',     label:'📅 Schedule' },
+            { id:'payroll',      label:'💰 Payroll' },
+            { id:'safety',       label:'⚠ Safety' },
+            { id:'performance',  label:'📈 Performance' },
+            { id:'employers',    label:'🏢 Employers' },
+            { id:'careers',      label:'💼 Careers' },
+          ]
+          return (<>
+            {/* Desktop horizontal tabs */}
+            <div className="admin-tabs-desktop">
+              {ADMIN_TABS.map(({ id, label }) => (
+                <button key={id} onClick={() => setAdminTab(id)} style={{
+                  background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
+                  fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
+                  color: adminTab===id ? '#0B6E76' : '#6B7280',
+                  borderBottom: adminTab===id ? '2px solid #0B6E76' : '2px solid transparent',
+                  marginBottom:'-2px', whiteSpace:'nowrap',
+                }}>{label}</button>
+              ))}
+            </div>
+            {/* Mobile dropdown */}
+            <div className="admin-tabs-mobile">
+              <div style={{ width:'100%', display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'relative' }}>
+                <select
+                  value={adminTab}
+                  onChange={e => setAdminTab(e.target.value)}
+                  style={{
+                    flex:1, background:'transparent', color:'#0D2B45', border:'none', outline:'none',
+                    borderRadius:10, padding:'10px 40px 10px 14px',
+                    fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700,
+                    appearance:'none', WebkitAppearance:'none', cursor:'pointer', minHeight:44,
+                  }}>
+                  {ADMIN_TABS.map(({ id, label }) => (
+                    <option key={id} value={id}>{label}</option>
+                  ))}
+                </select>
+                <span style={{ position:'absolute', right:12, color:'#6B7280', fontSize:'1.1rem', pointerEvents:'none' }}>▾</span>
+              </div>
+            </div>
+          </>)
+        })()}
 
         {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
 
@@ -1999,7 +2054,7 @@ export default function Admin() {
   const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
 
   if (!isAdmin) return (
-    <div style={{ minHeight:'100vh', background:'#F0F2F5', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
       <div style={{ background:'white', borderRadius:12, padding:'2rem', width:'100%', maxWidth:360, border:'1px solid #E2E8F0', textAlign:'center' }}>
         <h2 style={{ fontSize:'1.2rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem' }}>Access denied</h2>
         <p style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.5rem' }}>This area is restricted to admin accounts.</p>
