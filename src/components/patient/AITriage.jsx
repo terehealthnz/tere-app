@@ -97,7 +97,11 @@ const STEPS = [
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'photo' },
+  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'tobacco' },
+  { id:'tobacco', message:"Do you currently smoke or use tobacco?", field:'tobacco_use_raw', type:'yesno', validate:()=>true, next:'tobacco_amount' },
+  { id:'tobacco_amount', message:"How much would you say?", field:'tobacco_amount', type:'choices', choices:['Occasional (social smoker)','1–10 per day','10–20 per day','20+ per day'], validate:()=>true, next:'alcohol' },
+  { id:'alcohol', message:"Do you drink alcohol?", field:'alcohol_use_raw', type:'yesno', validate:()=>true, next:'alcohol_amount' },
+  { id:'alcohol_amount', message:"Roughly how much per week?", field:'alcohol_amount', type:'choices', choices:['Occasional (1–2 drinks/week)','Moderate (3–7 drinks/week)','Heavy (8–14 drinks/week)','Very heavy (15+ drinks/week)'], validate:()=>true, next:'photo' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'photo' },
@@ -391,17 +395,31 @@ export default function AITriage() {
       setAccSuggestion(null)
     }
 
-    // Route allergies to ACC questions or photo based on acc_check answer
+    // Route allergies to ACC questions or tobacco based on acc_check answer
     if (step.id === 'allergies') {
       setData(newData)
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'photo', newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'tobacco', newData)
       return
     }
 
-    // After acc_employer, go to photo
+    // Skip tobacco_amount if patient doesn't smoke
+    if (step.id === 'tobacco') {
+      setData(newData)
+      advanceToStep(processed === 'yes' ? 'tobacco_amount' : 'alcohol', newData)
+      return
+    }
+
+    // Skip alcohol_amount if patient doesn't drink
+    if (step.id === 'alcohol') {
+      setData(newData)
+      advanceToStep(processed === 'yes' ? 'alcohol_amount' : 'photo', newData)
+      return
+    }
+
+    // After acc_employer, go to tobacco
     if (step.id === 'acc_employer') {
       setData(newData)
-      advanceToStep('photo', newData)
+      advanceToStep('tobacco', newData)
       return
     }
 
@@ -519,8 +537,11 @@ export default function AITriage() {
     trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
-      const avRes = await apiFetch('/api/get-availability').catch(() => null)
-      const av = avRes?.ok !== false && avRes ? await avRes.json().catch(() => ({ is_open: true })) : { is_open: true }
+      let av = { is_open: true }
+      try {
+        const avRes = await apiFetch('/api/get-availability')
+        if (avRes.ok) av = await avRes.json()
+      } catch {}
       const consultation = await createConsultation({
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
@@ -549,6 +570,10 @@ export default function AITriage() {
         gpClinic: '',
         hdcRightsAccepted: true,
         researchConsent: data.research_consent_raw === 'yes',
+        tobaccoUse: data.tobacco_use_raw === 'yes' ? 'yes' : (data.tobacco_use_raw === 'no' ? 'no' : null),
+        tobaccoAmount: data.tobacco_amount || null,
+        alcoholUse: data.alcohol_use_raw === 'yes' ? 'yes' : (data.alcohol_use_raw === 'no' ? 'no' : null),
+        alcoholAmount: data.alcohol_amount || null,
         status: 'waiting',
       })
       sessionStorage.setItem('consultationId', consultation.id)
@@ -781,6 +806,17 @@ export default function AITriage() {
               {t('no_label', lang)}{step.id === 'acc_check' && accSuggestion === 'no' ? ' ✓' : ''}
             </button>
           </div>
+        </div>
+      )}
+
+      {step?.type==='choices' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:6}}>
+          {step.choices.map(choice => (
+            <button key={choice} onClick={()=>handleSendValue(choice)} className="btn"
+              style={{width:'100%',background:'white',border:'1.5px solid var(--border)',color:'var(--text)',fontWeight:500,textAlign:'left',justifyContent:'flex-start'}}>
+              {choice}
+            </button>
+          ))}
         </div>
       )}
 
