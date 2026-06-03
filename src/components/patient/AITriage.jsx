@@ -637,11 +637,13 @@ export default function AITriage() {
       sessionStorage.removeItem('tere_triage_state')
 
       if (!av.is_open) {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({
-          consultation_type: 'message',
-          consultation_subtype: 'async_message',
-        }).eq('id', consultation.id).catch(() => {})
+        try {
+          const { supabase } = await import('../../lib/supabase')
+          await supabase.from('consultations').update({
+            consultation_type: 'message',
+            consultation_subtype: 'async_message',
+          }).eq('id', consultation.id)
+        } catch {}
         navigate(`/async-message/${consultation.id}`)
       } else {
         navigate('/consultation-type')
