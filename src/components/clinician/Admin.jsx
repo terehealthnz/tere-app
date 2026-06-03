@@ -1829,11 +1829,17 @@ function AdminBody() {
   async function saveAvailability() {
     setSavingAvail(true)
     try {
-      await apiFetch('/api/set-availability', {
+      const r = await apiFetch('/api/set-availability', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isOpen, message: availMsg }),
       })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        alert(`Failed to save availability: ${body.error || r.status}`)
+        setSavingAvail(false)
+        return
+      }
       setAvailSaved(true)
       setTimeout(() => setAvailSaved(false), 2500)
       // If opening clinic, notify waitlisted patients

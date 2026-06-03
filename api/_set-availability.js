@@ -1,41 +1,32 @@
 import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end()
+
   const { isOpen, message } = req.body || {}
   if (typeof isOpen !== 'boolean') return res.status(400).json({ error: 'isOpen (boolean) required' })
 
   const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
   )
 
   const patch = {
+    id: 1,
     is_open: isOpen,
+    manual_override: true,
     updated_at: new Date().toISOString(),
     ...(message !== undefined ? { message } : {}),
   }
 
-  // Try with manual_override first (column may or may not exist)
+  // UPSERT so it works even if the row doesn't exist yet
   const { error } = await supabase
     .from('availability')
-    .update({ ...patch, manual_override: true })
-    .eq('id', 1)
+    .upsert(patch, { onConflict: 'id' })
 
   if (error) {
-    // Retry without manual_override if the column doesn't exist yet
-    if (error.message?.includes('manual_override')) {
-      const { error: e2 } = await supabase
-        .from('availability')
-        .update(patch)
-        .eq('id', 1)
-      if (e2) {
-        console.error('[set-availability]', e2)
-        return res.status(500).json({ error: e2.message })
-      }
-    } else {
-      console.error('[set-availability]', error)
-      return res.status(500).json({ error: error.message })
-    }
+    console.error('[set-availability]', error)
+    return res.status(500).json({ error: error.message })
   }
 
   res.json({ ok: true, isOpen })
