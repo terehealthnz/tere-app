@@ -214,8 +214,8 @@ function AsyncMessageInner() {
           method: 'POST', body: JSON.stringify({ action: 'check_suitability', complaint }),
         })
         const { suitable } = await res.json()
-        setPhase(suitable ? 'intro' : 'emergency')
-      } catch { setPhase('intro') }
+        setPhase(suitable ? 'form' : 'emergency')
+      } catch { setPhase('form') }
     }
     init()
   }, [id])
@@ -270,8 +270,6 @@ function AsyncMessageInner() {
           paymentIntentId,
           symptomDetail,
           symptomProgression: progression,
-          previousTreatment: prevTreatment,
-          previousEpisodes: prevEpisodes + (prevEpisodesDetail ? `: ${prevEpisodesDetail}` : ''),
           dailyImpact,
           photoUrls,
           requests,
@@ -332,74 +330,6 @@ function AsyncMessageInner() {
     </div>
   )
 
-  // ── Intro ──────────────────────────────────────────────────────────────────
-  if (phase === 'intro') {
-    return (
-      <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'calc(2rem + env(safe-area-inset-top)) 1.25rem calc(2rem + env(safe-area-inset-bottom))', fontFamily: FF, overflowX: 'hidden' }}>
-        <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: TEAL, opacity: .04, top: -100, right: -100, pointerEvents: 'none' }} />
-        <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          <div style={{ ...anim('0.05s'), textAlign: 'center' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '.75rem' }}>🌙</div>
-            <h1 style={{ color: 'white', fontWeight: 800, fontSize: '1.75rem', margin: '0 0 .5rem', lineHeight: 1.15 }}>
-              We're closed right now
-            </h1>
-            <p style={{ color: 'rgba(212,238,240,.6)', fontSize: '.9375rem', margin: 0, lineHeight: 1.6 }}>
-              But your provider can still help.
-            </p>
-          </div>
-
-          <div style={{ ...anim('0.15s'), background: 'rgba(11,110,118,.15)', border: `1px solid rgba(11,110,118,.4)`, borderRadius: 18, padding: '1.375rem' }}>
-            <div style={{ fontWeight: 700, color: TEAL_L, fontSize: '1.0625rem', marginBottom: '.625rem' }}>
-              ✉️ Your provider can still help
-            </div>
-            <p style={{ color: 'rgba(212,238,240,.8)', fontSize: '.9375rem', margin: '0 0 1rem', lineHeight: 1.65 }}>
-              Send your details and our provider will review your message and respond with advice, prescriptions, or referrals — even while the clinic is closed.
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '.625rem', background: 'rgba(0,0,0,.2)', borderRadius: 10, padding: '.75rem 1rem' }}>
-              <span style={{ fontSize: '1.125rem' }}>⏱️</span>
-              <div>
-                <div style={{ color: TEAL_L, fontWeight: 700, fontSize: '.875rem' }}>Expected response</div>
-                <div style={{ color: 'rgba(212,238,240,.65)', fontSize: '.8125rem' }}>Typically within 24 hours</div>
-              </div>
-            </div>
-          </div>
-
-          {complaint && (
-            <div style={{ ...anim('0.2s'), background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.09)', borderRadius: 12, padding: '.875rem 1rem' }}>
-              <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'rgba(212,238,240,.45)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '.375rem' }}>Your concern</div>
-              <div style={{ color: 'rgba(212,238,240,.8)', fontSize: '.9375rem', fontStyle: 'italic', lineHeight: 1.5 }}>{complaint}</div>
-            </div>
-          )}
-
-          <div style={{ ...anim('0.25s') }}>
-            <button
-              onClick={() => setPhase('form')}
-              style={{ width: '100%', background: TEAL, color: 'white', border: 'none', borderRadius: 14, padding: '18px 24px', fontWeight: 700, fontSize: '1.0625rem', cursor: 'pointer', fontFamily: FF, letterSpacing: '.01em', marginBottom: '.875rem' }}
-            >
-              Continue — $25 message fee applies →
-            </button>
-            <div style={{ textAlign: 'center' }}>
-              <button
-                onClick={() => navigate(`/waitlisted/${id}`)}
-                style={{ background: 'none', border: 'none', color: 'rgba(212,238,240,.45)', cursor: 'pointer', fontFamily: FF, fontSize: '.8125rem', textDecoration: 'underline' }}
-              >
-                Can't pay right now? Join the free waitlist →
-              </button>
-            </div>
-          </div>
-
-          <div style={{ ...anim('0.3s'), textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: '.8rem', color: 'rgba(255,255,255,.25)' }}>
-              Emergency? <a href="tel:111" style={{ color: '#EF4444', fontWeight: 700, textDecoration: 'none' }}>Call 111</a> immediately.
-            </p>
-          </div>
-        </div>
-        <style>{`@keyframes dotPulse{0%,100%{opacity:.4}50%{opacity:1}}`}</style>
-      </div>
-    )
-  }
-
   // ── Form ───────────────────────────────────────────────────────────────────
   if (phase === 'form') {
     const labelStyle = { fontSize: '.85rem', fontWeight: 700, color: NAVY, display: 'block', marginBottom: '.5rem' }
@@ -412,13 +342,14 @@ function AsyncMessageInner() {
     return (
       <div style={{ background: '#F7F5F0', minHeight: '100dvh', fontFamily: FF }}>
         <div style={{ background: NAVY, padding: 'calc(.875rem + env(safe-area-inset-top)) 1.25rem .875rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-          <button onClick={() => setPhase('intro')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}>←</button>
-          <span style={{ color: TEAL_L, fontWeight: 700, fontSize: '1rem' }}>Tell us more</span>
+          <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.1rem', padding: 0, lineHeight: 1 }}>←</button>
+          <span style={{ color: TEAL_L, fontWeight: 700, fontSize: '1rem' }}>Message consultation</span>
+          <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,.12)', color: 'rgba(212,238,240,.9)', fontSize: '.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 99 }}>$25</span>
         </div>
 
         <div style={{ maxWidth: 520, margin: '0 auto', padding: '1.5rem 1.25rem 4rem' }}>
           <p style={{ color: '#6B7280', fontSize: '.875rem', margin: '0 0 1.5rem', lineHeight: 1.6 }}>
-            Your provider needs a few more details to give you the best advice by message.
+            A few more details so your provider can give you the best response.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.375rem' }}>
@@ -443,33 +374,6 @@ function AsyncMessageInner() {
                   </label>
                 ))}
               </div>
-            </div>
-
-            {/* Previous treatment */}
-            <div>
-              <label style={labelStyle}>Have you tried anything to treat this?</label>
-              <input type="text" value={prevTreatment} onChange={e => setPrevTreatment(e.target.value)}
-                placeholder="e.g. paracetamol, ice pack, rest…"
-                style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: FF, color: NAVY, outline: 'none' }} />
-            </div>
-
-            {/* Previous episodes */}
-            <div>
-              <label style={labelStyle}>Have you had this before?</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                {['Yes', 'No', 'Not sure'].map(opt => (
-                  <label key={opt} style={radioStyle(prevEpisodes === opt)}>
-                    <input type="radio" name="prevEpisodes" value={opt} checked={prevEpisodes === opt}
-                      onChange={() => setPrevEpisodes(opt)} style={{ accentColor: TEAL }} />
-                    <span style={{ fontSize: '.9375rem', color: NAVY, fontWeight: prevEpisodes === opt ? 600 : 400 }}>{opt}</span>
-                  </label>
-                ))}
-              </div>
-              {prevEpisodes === 'Yes' && (
-                <input type="text" value={prevEpisodesDetail} onChange={e => setPrevEpisodesDetail(e.target.value)}
-                  placeholder="When and what happened?"
-                  style={{ marginTop: '.5rem', width: '100%', boxSizing: 'border-box', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: FF, color: NAVY, outline: 'none' }} />
-              )}
             </div>
 
             {/* Daily impact */}
