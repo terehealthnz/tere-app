@@ -16,37 +16,86 @@ const CARD_STYLE = {
     },
     invalid: { color: '#DC2626' },
   },
-  // NZ postcodes are 4 digits — set country so Stripe validates accordingly
   value: { postalCode: '' },
 }
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
+// Video $65 / Phone $45 — server mirrors these exactly
+const BASE_PRICES = { video: { private: 65, acc: 25 }, phone: { private: 45, acc: 25 } }
+const COUPON_DISCOUNT = 10
+
 function PaymentForm({ consultationId, accEligible, consultationType }) {
   const navigate   = useNavigate()
   const stripe     = useStripe()
   const elements   = useElements()
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
   const [clientSecret, setClientSecret] = useState(null)
-  const storedAmount = parseInt(sessionStorage.getItem('paymentAmount') || '0', 10)
-  const PRICES = { video: { private: 55, acc: 25 }, phone: { private: 55, acc: 25 } }
-  const priceSet = PRICES[consultationType] || PRICES.video
-  const amount = storedAmount || (accEligible === 'yes' ? priceSet.acc : priceSet.private)
+  const [couponInput, setCouponInput]   = useState('')
+  const [couponApplied, setCouponApplied] = useState(false)
+  const [couponError, setCouponError]   = useState('')
+  const [couponLoading, setCouponLoading] = useState(false)
 
+  const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
+  const baseAmount = accEligible === 'yes' ? priceSet.acc : priceSet.private
+  const discount = couponApplied ? COUPON_DISCOUNT : 0
+  const amount = Math.max(baseAmount - discount, 0)
+
+  // Create payment intent (re-create if coupon changes)
   useEffect(() => {
+    if (!consultationId) return
+    setClientSecret(null)
     async function createIntent() {
-      const res = await apiFetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId, accEligible, consultationType })
-      })
-      const data = await res.json()
-      if (data.clientSecret) setClientSecret(data.clientSecret)
-      else setError('Could not initialise payment. Please try again.')
+      try {
+        const res = await apiFetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultationId, accEligible, consultationType, couponDiscount: discount })
+        })
+        const data = await res.json()
+        if (data.clientSecret) setClientSecret(data.clientSecret)
+        else setError('Could not initialise payment. Please try again.')
+      } catch { setError('Could not initialise payment. Please try again.') }
     }
-    if (consultationId) createIntent()
-  }, [consultationId, accEligible])
+    createIntent()
+  }, [consultationId, accEligible, consultationType, discount])
+
+  async function applyCoupon() {
+    const code = couponInput.trim().toUpperCase()
+    if (!code) return
+    setCouponLoading(true)
+    setCouponError('')
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const now = new Date().toISOString()
+      const { data, error: dbErr } = await supabase
+        .from('coupons')
+        .select('id, code, discount_amount, used_at, expires_at')
+        .eq('code', code)
+        .is('used_at', null)
+        .single()
+      if (dbErr || !data) {
+        setCouponError('Invalid or expired coupon code.')
+      } else if (data.expires_at && data.expires_at < now) {
+        setCouponError('This coupon has expired.')
+      } else {
+        setCouponApplied(true)
+        sessionStorage.setItem('couponCode', code)
+      }
+    } catch {
+      setCouponError('Invalid or expired coupon code.')
+    } finally {
+      setCouponLoading(false)
+    }
+  }
+
+  function removeCoupon() {
+    setCouponApplied(false)
+    setCouponInput('')
+    setCouponError('')
+    sessionStorage.removeItem('couponCode')
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -65,7 +114,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
     }
     if (paymentIntent.status === 'requires_capture') {
       sessionStorage.setItem('paymentIntentId', paymentIntent.id)
-      navigate(consultationType === 'message' ? '/message-sent' : '/waiting')
+      navigate(consultationType === 'message' ? '/message-sent' : `/vitals/${consultationId}`)
     }
     setLoading(false)
   }
@@ -81,12 +130,19 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
               {accEligible === 'yes' && consultationType !== 'message' ? ' — ACC co-payment' : ''}
             </p>
           </div>
-          <div style={{fontSize:'2rem',fontWeight:700,color:'var(--navy)'}}>
-            ${amount}
+          <div style={{textAlign:'right'}}>
+            {couponApplied && (
+              <div style={{fontSize:'.875rem',color:'#6B7280',textDecoration:'line-through'}}>
+                ${baseAmount}
+              </div>
+            )}
+            <div style={{fontSize:'2rem',fontWeight:700,color: couponApplied ? '#059669' : 'var(--navy)'}}>
+              ${amount}
+            </div>
           </div>
         </div>
 
-{accEligible === 'yes' ? (
+        {accEligible === 'yes' ? (
           <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.5rem',color:'#065F46'}}>How ACC billing works</strong>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem',marginBottom:'.75rem'}}>
@@ -104,10 +160,57 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         ) : (
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.5rem',color:'#0D2B45'}}>About this fee</strong>
-            <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>This is a private acute telehealth consultation with an Emergency Medicine physician. The $65 fee covers your full consultation including any prescriptions and referrals.</div>
+            <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>
+              This is a private acute telehealth consultation with an Emergency Medicine physician. The ${amount} fee covers your full consultation including any prescriptions and referrals.
+            </div>
             <div style={{fontSize:'.8125rem',color:'#6B7280'}}>If your condition turns out to be ACC-eligible during the consultation, your clinician will lodge a claim and the difference will be refunded to your card.</div>
           </div>
         )}
+
+        {/* Coupon code */}
+        {accEligible !== 'yes' && (
+          <div style={{marginBottom:'1.25rem'}}>
+            {!couponApplied ? (
+              <div>
+                <label style={{display:'block',fontSize:'.8125rem',fontWeight:600,color:'var(--text)',marginBottom:'.5rem'}}>
+                  Have a coupon code?
+                </label>
+                <div style={{display:'flex',gap:'.5rem'}}>
+                  <input
+                    value={couponInput}
+                    onChange={e => { setCouponInput(e.target.value); setCouponError('') }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }}
+                    placeholder="Enter code"
+                    style={{flex:1,border:'1.5px solid var(--border)',borderRadius:'var(--radius-sm)',padding:'.625rem .875rem',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9375rem',outline:'none'}}
+                    autoCapitalize="characters"
+                  />
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    disabled={couponLoading || !couponInput.trim()}
+                    style={{background:'var(--navy)',color:'white',border:'none',borderRadius:'var(--radius-sm)',padding:'.625rem 1rem',fontWeight:700,fontSize:'.875rem',cursor:'pointer',whiteSpace:'nowrap',opacity: couponInput.trim() ? 1 : 0.5}}
+                  >
+                    {couponLoading ? '…' : 'Apply'}
+                  </button>
+                </div>
+                {couponError && (
+                  <div style={{fontSize:'.8125rem',color:'#DC2626',marginTop:'.375rem'}}>{couponError}</div>
+                )}
+              </div>
+            ) : (
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:'var(--radius-sm)',padding:'.75rem 1rem',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:'.8125rem',fontWeight:700,color:'#065F46'}}>✓ Coupon applied — ${COUPON_DISCOUNT} off</div>
+                  <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:'.125rem'}}>{couponInput.toUpperCase()}</div>
+                </div>
+                <button type="button" onClick={removeCoupon} style={{background:'none',border:'none',color:'#9CA3AF',cursor:'pointer',fontSize:'.8125rem',textDecoration:'underline'}}>
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'.875rem',marginBottom:'1.25rem',fontSize:'.8125rem',lineHeight:1.7,color:'#6B7280'}}>
           🔒 <strong>Card hold:</strong> Your card is held but <strong>not charged</strong> until your consultation begins. Cancel before it starts and the hold is released automatically.
         </div>

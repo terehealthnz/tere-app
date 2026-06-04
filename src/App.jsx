@@ -81,6 +81,7 @@ const Admin               = lazy(() => import('./components/clinician/Admin'))
 const NotesCompletion     = lazy(() => import('./pages/clinician/NotesCompletion'))
 const ChangePassword      = lazy(() => import('./pages/clinician/ChangePassword'))
 const ProviderApp         = lazy(() => import('./pages/clinician/ProviderApp'))
+const ClinicianPatient    = lazy(() => import('./pages/clinician/ClinicianPatient'))
 const ProviderConsult     = lazy(() => import('./pages/clinician/ProviderConsult'))
 const ProviderNotes       = lazy(() => import('./pages/clinician/ProviderNotes'))
 const ProviderSchedule    = lazy(() => import('./pages/clinician/ProviderSchedule'))
@@ -129,6 +130,8 @@ export default function App() {
         <Route path="/"                       element={<PwaRoot />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />
+        <Route path="/vitals/:id"             element={<VitalsCapture />} />
+        <Route path="/vitals-waiting/:id"     element={<WaitingRoom />} />
         <Route path="/consultation-type"      element={<ConsultationType />} />
         <Route path="/payment"                element={<Payment />} />
         <Route path="/message-sent"           element={<MessageSent />} />
@@ -149,6 +152,7 @@ export default function App() {
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/provider"               element={<ProviderApp />} />
         <Route path="/provider/consult/:id"   element={<ProviderConsult />} />
+        <Route path="/clinician/patient/:id"  element={<ClinicianPatient />} />
         <Route path="/provider/notes/:id"     element={<ProviderNotes />} />
         <Route path="/provider/schedule"      element={<ProviderSchedule />} />
         <Route path="/admin"                  element={<AdminApp />} />

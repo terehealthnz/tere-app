@@ -98,6 +98,7 @@ const ROUTES = {
   'sms':                       () => import('./_sms.js'),
   'appointments':              () => import('./_appointments.js'),
   'audit':                     () => import('./_audit.js'),
+  'dismiss-patient':           () => import('./_dismiss-patient.js'),
   'drug-interactions':         () => import('./_drug-interactions.js'),
   'incidents':                 () => import('./_incidents.js'),
   'consents':                  () => import('./_consents.js'),

@@ -1,7 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+
+function fmtCountdown(secs) {
+  if (secs <= 0) return '0:00:00'
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+}
 
 async function ensureWaiting(consultationId) {
   if (!consultationId || consultationId.startsWith('demo')) return
@@ -15,9 +23,12 @@ async function ensureWaiting(consultationId) {
 
 export default function WaitingRoom() {
   const navigate = useNavigate()
+  const { id: idParam } = useParams()
   const [providerName, setProviderName] = useState(null)
-  const consultationId = sessionStorage.getItem('consultationId')
+  const consultationId = idParam || sessionStorage.getItem('consultationId')
   const pushFiredRef = useRef(false)
+  const [createdAt, setCreatedAt] = useState(null)
+  const [secsLeft, setSecsLeft] = useState(null)
 
   const patientName = (sessionStorage.getItem('patientName') || '').split(' ')[0] || null
   const consultType = sessionStorage.getItem('consultationType') || 'video'
@@ -42,6 +53,24 @@ export default function WaitingRoom() {
   useEffect(() => {
     ensureWaiting(consultationId)
   }, [consultationId])
+
+  // Fetch created_at for the countdown
+  useEffect(() => {
+    if (!consultationId || consultationId.startsWith('demo')) return
+    getConsultation(consultationId).then(c => {
+      if (c?.created_at) setCreatedAt(c.created_at)
+    }).catch(() => {})
+  }, [consultationId])
+
+  // Countdown ticks every second
+  useEffect(() => {
+    if (!createdAt) return
+    const deadline = new Date(createdAt).getTime() + 2 * 60 * 60 * 1000
+    const tick = () => setSecsLeft(Math.max(0, Math.floor((deadline - Date.now()) / 1000)))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [createdAt])
 
   // Fire push notification to providers once
   useEffect(() => {
@@ -160,6 +189,24 @@ export default function WaitingRoom() {
           Request submitted
         </h1>
 
+        {/* 2-hour countdown */}
+        {secsLeft !== null && (
+          <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
+            <div style={{
+              fontFamily: 'monospace',
+              fontSize: '2.25rem',
+              fontWeight: 700,
+              letterSpacing: '.06em',
+              color: secsLeft <= 0 ? '#EF4444' : secsLeft < 1800 ? '#FBBF24' : 'rgba(212,238,240,.9)',
+            }}>
+              {secsLeft <= 0 ? 'Window closed' : fmtCountdown(secsLeft)}
+            </div>
+            <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
+              time remaining in your 2-hour window
+            </div>
+          </div>
+        )}
+
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
           {providerName ? `${providerName} will` : 'Dr Herling will'} review your notes and {consultType === 'phone' ? 'phone' : 'video call'} you <strong style={{ color: 'rgba(255,255,255,.8)' }}>within 2 hours</strong>.
         </p>
@@ -206,6 +253,22 @@ export default function WaitingRoom() {
             </div>
           </div>
         </div>
+
+        {/* Clinic hours */}
+        {(() => {
+          let open = true
+          try { const h = Number(new Intl.DateTimeFormat('en-NZ',{timeZone:'Pacific/Auckland',hour:'numeric',hour12:false}).format(new Date())); open = h >= 8 && h < 20 } catch {}
+          return (
+            <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '.75rem 1.125rem', marginBottom: '1.5rem', width: '100%', maxWidth: 360, animation: 'fadeUp .5s .65s both' }}>
+              <div style={{ fontSize: '.625rem', fontWeight: 700, color: 'rgba(212,238,240,.5)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem' }}>Clinic hours</div>
+              <div style={{ fontSize: '.8125rem', color: open ? 'rgba(212,238,240,.7)' : 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
+                {open
+                  ? '✓ Clinic is open now — 8am–8pm NZ time'
+                  : '⏰ Outside clinic hours (8am–8pm NZ). Dr Herling will call when the clinic reopens.'}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Step indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '2rem', animation: 'fadeUp .5s .7s both' }}>

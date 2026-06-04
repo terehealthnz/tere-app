@@ -5,7 +5,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { consultationId, accEligible, consultationType } = req.body
+  const { consultationId, accEligible, consultationType, couponDiscount } = req.body
   const type = consultationType || 'video'
   const isAcc = accEligible === 'yes'
   const PRICES = {
@@ -13,7 +13,9 @@ export default async function handler(req, res) {
     phone:   { private: 4500, acc: 2500 },
     message: { private: 2500, acc: 2500 },
   }
-  const amount = (PRICES[type] || PRICES.video)[isAcc && type !== 'message' ? 'acc' : 'private']
+  const baseAmount = (PRICES[type] || PRICES.video)[isAcc && type !== 'message' ? 'acc' : 'private']
+  const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
+  const amount = baseAmount - discountCents
   const label = `$${amount / 100}.00`
 
   try {

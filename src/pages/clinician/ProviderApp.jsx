@@ -26,6 +26,40 @@ function timeAgo(d) {
   return `${Math.floor(s/3600)}h`
 }
 
+function bufferInfo(createdAt, now) {
+  const deadline = new Date(createdAt).getTime() + 2 * 60 * 60 * 1000
+  const remaining = deadline - now
+  const absMs = Math.abs(remaining)
+  const totalMins = Math.floor(absMs / 60000)
+  const h = Math.floor(totalMins / 60)
+  const m = totalMins % 60
+  const mStr = String(m).padStart(2, '0')
+  if (remaining <= 0) return { label: `+ ${h} hr ${mStr} min`, color: '#DC2626', bg: '#FEE2E2' }
+  const label = `${h} hr ${mStr} min`
+  if (totalMins < 15) return { label, color: '#DC2626', bg: '#FEE2E2' }
+  if (totalMins < 60) return { label, color: '#D97706', bg: '#FEF3C7' }
+  return { label, color: '#059669', bg: '#D1FAE5' }
+}
+
+function queueStatus(c, now) {
+  const s = c.status
+  if (['complete', 'cancelled', 'dismissed'].includes(s)) return { label: 'Completed', color: '#065F46', bg: '#D1FAE5' }
+  if (s === 'no_answer')  return { label: 'No answer',  color: '#991B1B', bg: '#FEE2E2' }
+  if (s === 'expired')    return { label: 'Expired',    color: '#6B7280', bg: '#F3F4F6' }
+  if (s === 'in_progress') return { label: 'In Progress', color: '#7C3AED', bg: '#EDE9FE' }
+  const deadline = new Date(c.created_at).getTime() + 2 * 60 * 60 * 1000
+  const minsLeft = (deadline - now) / 60000
+  if (minsLeft <= 30) return { label: 'Upcoming', color: '#1E40AF', bg: '#DBEAFE' }
+  return { label: 'Pending', color: '#92400E', bg: '#FEF3C7' }
+}
+
+function fmtEnteredAt(iso) {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'short', year: 'numeric' })
+  const time = d.toLocaleTimeString('en-NZ', { timeZone: 'Pacific/Auckland', hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase()
+  return `${date}, ${time} NZST`
+}
+
 function urlBase64ToUint8Array(b64) {
   const pad = '='.repeat((4 - b64.length % 4) % 4)
   const raw = window.atob((b64 + pad).replace(/-/g,'+').replace(/_/g,'/'))
@@ -89,58 +123,10 @@ function InstallBanner({ onDismiss }) {
   )
 }
 
-// ── Queue card ────────────────────────────────────────────────────────────────
-
-function QueueCard({ c, onStart, onDismiss, starting }) {
-  const sc = STATUS_COLOR[c.status] || '#6B7280'
-  const sl = STATUS_LABEL[c.status] || c.status
-  const tc = TYPE_CFG[c.consultation_type || 'video'] || TYPE_CFG.video
-  const v  = c.vitals
-  return (
-    <div style={{ background:'white', borderRadius:16, borderLeft:`4px solid ${sc}`, border:`1px solid #E2E8F0`, borderLeftWidth:4, padding:'1.25rem', marginBottom:'.875rem', fontFamily:FF }}>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:'.625rem' }}>
-        <div>
-          <div style={{ fontWeight:700, fontSize:'1.0625rem', color:NAVY, marginBottom:'.375rem' }}>
-            {c.patient_first_name} {c.patient_last_name}
-          </div>
-          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-            <span style={{ background:sc+'18', color:sc, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{sl}</span>
-            <span style={{ background:tc.c+'18', color:tc.c, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{tc.icon} {tc.label}</span>
-            {c.acc_eligible==='yes' && <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>✓ ACC</span>}
-            {c.interpreter_requested && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>🌐 Interpreter</span>}
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-          <span style={{ fontSize:'.8125rem', color:'#9CA3AF', whiteSpace:'nowrap' }}>{timeAgo(c.created_at)}</span>
-          <button onClick={() => onDismiss(c.id)} style={{ background:'none', border:'none', color:'#D1D5DB', fontSize:'1.125rem', cursor:'pointer', padding:0, minWidth:44, minHeight:44, display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
-        </div>
-      </div>
-
-      {/* Complaint */}
-      <div style={{ fontSize:'.9375rem', color:'#374151', lineHeight:1.5, marginBottom:'.625rem', fontStyle:'italic', borderLeft:'3px solid #F3F4F6', paddingLeft:'.75rem' }}>
-        {c.chief_complaint}
-      </div>
-
-      {/* Vitals + location */}
-      <div style={{ display:'flex', gap:'.75rem', flexWrap:'wrap', marginBottom:'1rem', fontSize:'.8125rem' }}>
-        {v && !v.skipped && v.hr  && <span style={{ color:'#059669', fontWeight:600 }}>❤️ {v.hr} bpm</span>}
-        {v && !v.skipped && v.rr  && <span style={{ color:TEAL, fontWeight:600 }}>🫁 {v.rr}/min</span>}
-        {v && !v.skipped && v.spo2 && <span style={{ color:'#7C3AED', fontWeight:600 }}>SpO₂ {v.spo2}%</span>}
-        {c.patient_location && <span style={{ color:'#6B7280' }}>📍 {c.patient_location}</span>}
-        {c.patient_allergies && c.patient_allergies !== 'None' && <span style={{ color:'#DC2626', fontWeight:600 }}>⚠️ {c.patient_allergies}</span>}
-      </div>
-
-      {/* Start button */}
-      <button
-        onClick={() => onStart(c)}
-        disabled={starting === c.id}
-        style={{ width:'100%', background: starting===c.id ? '#9CA3AF' : TEAL, color:'white', border:'none', borderRadius:12, padding:'16px', fontSize:'1.0625rem', fontWeight:700, cursor: starting===c.id ? 'not-allowed' : 'pointer', fontFamily:FF, minHeight:56, letterSpacing:'.01em' }}
-      >
-        {starting === c.id ? 'Calling…' : '📞 Call patient →'}
-      </button>
-    </div>
-  )
+const TYPE_BADGE = {
+  video:   { icon:'📹', bg: TEAL,      color:'white', label:'Video' },
+  phone:   { icon:'📞', bg: NAVY,      color:'white', label:'Phone' },
+  message: { icon:'✉️', bg: '#D97706', color:'white', label:'Async' },
 }
 
 // ── Today's appointments strip ────────────────────────────────────────────────
@@ -239,9 +225,23 @@ function HandoverBanner() {
 
 // ── Queue tab ─────────────────────────────────────────────────────────────────
 
-function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
+const TH = { fontSize:'.6875rem', fontWeight:700, color:'#374151', padding:'.625rem .75rem', textAlign:'left', whiteSpace:'nowrap', background:'#F9FAFB', borderBottom:'1px solid #E2E8F0' }
+const TD = { padding:'.75rem .75rem', verticalAlign:'middle' }
+
+function QueueTab({ consultations, loading, starting, onStart, onDismiss, navigate }) {
+  const [now, setNow]             = useState(Date.now())
+  const [dismissTarget, setDismissTarget] = useState(null)
+  const [dismissing, setDismissing]       = useState(false)
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
   const videoQueue = consultations.filter(c => c.consultation_type !== 'message')
+
   if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
+
   if (!videoQueue.length) return (
     <>
       <HandoverBanner />
@@ -253,13 +253,152 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss }) {
       </div>
     </>
   )
+
+  const COLS = '44px 1.5fr 1.8fr 1.1fr 1.6fr 100px 72px'
+
   return (
     <div>
       <HandoverBanner />
       <TodayAppointments />
-      <div style={{ padding:'1rem' }}>
-        {videoQueue.map(c => <QueueCard key={c.id} c={c} onStart={onStart} onDismiss={onDismiss} starting={starting} />)}
+      <div style={{ padding:'1rem', overflowX:'auto' }}>
+        <div style={{ minWidth:680, borderRadius:14, overflow:'hidden', border:'1px solid #E2E8F0', background:'white', fontFamily:FF }}>
+
+          {/* Header */}
+          <div style={{ display:'grid', gridTemplateColumns:COLS }}>
+            {['','Patient','Date / Time','Buffer','Main Complaint','Status',''].map((h, i) => (
+              <div key={i} style={{ ...TH, textAlign: i === 0 ? 'center' : 'left' }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {videoQueue.map((c, i) => {
+            const buf  = bufferInfo(c.created_at, now)
+            const sta  = queueStatus(c, now)
+            const tb   = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
+            const isLast = i === videoQueue.length - 1
+            const isCalling = starting === c.id
+            const complaint = (c.chief_complaint || '').length > 20
+              ? c.chief_complaint.slice(0, 20) + '…'
+              : c.chief_complaint
+
+            return (
+              <div
+                key={c.id}
+                onClick={() => navigate(`/clinician/patient/${c.id}`)}
+                style={{
+                  display:'grid', gridTemplateColumns:COLS,
+                  borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
+                  cursor: 'pointer',
+                  background: 'white',
+                  transition:'background .1s',
+                  alignItems:'center',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background='#F9FAFB' }}
+                onMouseLeave={e => { e.currentTarget.style.background='white' }}
+              >
+                {/* Type icon */}
+                <div style={{ ...TD, display:'flex', justifyContent:'center' }}>
+                  <div style={{ width:40, height:40, borderRadius:10, background:tb.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.25rem', flexShrink:0 }}>
+                    {tb.icon}
+                  </div>
+                </div>
+
+                {/* Patient name */}
+                <div style={TD}>
+                  <div style={{ fontWeight:600, color:NAVY, fontSize:'.9375rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {c.patient_first_name} {c.patient_last_name}
+                  </div>
+                  {c.acc_eligible==='yes' && (
+                    <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'1px 5px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block', marginTop:3 }}>ACC</span>
+                  )}
+                </div>
+
+                {/* Date/time */}
+                <div style={TD}>
+                  <div style={{ fontSize:'.75rem', color:'#374151', lineHeight:1.5, whiteSpace:'nowrap' }}>{fmtEnteredAt(c.created_at)}</div>
+                </div>
+
+                {/* Buffer */}
+                <div style={TD}>
+                  <span style={{ background:buf.bg, color:buf.color, fontSize:'.6875rem', fontWeight:700, padding:'4px 8px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block' }}>
+                    {buf.label}
+                  </span>
+                </div>
+
+                {/* Complaint */}
+                <div style={TD}>
+                  <div style={{ fontSize:'.875rem', color:'#374151', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={c.chief_complaint}>
+                    {complaint}
+                  </div>
+                  {c.patient_allergies && c.patient_allergies !== 'None' && (
+                    <div style={{ fontSize:'.625rem', color:'#DC2626', fontWeight:700, marginTop:2 }}>⚠ Allergy</div>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div style={{ ...TD, paddingRight:'.5rem' }}>
+                  <span style={{ background:sta.bg, color:sta.color, fontSize:'.6875rem', fontWeight:700, padding:'4px 8px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block' }}>
+                    {isCalling ? 'Calling…' : sta.label}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div style={{ ...TD, display:'flex', gap:4, justifyContent:'flex-end', paddingRight:'.875rem' }}>
+                  {/* View */}
+                  <button
+                    onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
+                    title="View patient"
+                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
+                  >👁</button>
+                  {/* Dismiss */}
+                  <button
+                    onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
+                    title="Dismiss patient"
+                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
+                  >✕</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div style={{ textAlign:'center', padding:'.625rem 0 .25rem', fontSize:'.75rem', color:'#9CA3AF' }}>
+          {videoQueue.length} patient{videoQueue.length !== 1 ? 's' : ''} in queue · Click a row to view
+        </div>
       </div>
+
+      {/* Dismiss confirmation modal */}
+      {dismissTarget && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:500, display:'flex', alignItems:'flex-end', justifyContent:'center', padding:'0 0 calc(env(safe-area-inset-bottom) + .5rem)' }}
+          onClick={e => { if (e.target === e.currentTarget) setDismissTarget(null) }}>
+          <div style={{ background:'white', borderRadius:'20px 20px 0 0', padding:'1.5rem 1.25rem', width:'100%', maxWidth:480, fontFamily:FF }}>
+            <div style={{ fontWeight:700, fontSize:'1.0625rem', color:NAVY, marginBottom:'.5rem' }}>
+              Dismiss {dismissTarget.patient_first_name} {dismissTarget.patient_last_name}?
+            </div>
+            <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.25rem', lineHeight:1.6 }}>
+              They will be removed from the queue. <strong>No charge will be applied</strong> and they'll receive an email letting them know.
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }}>
+              <button onClick={() => setDismissTarget(null)}
+                style={{ background:'white', border:'1.5px solid #D1D5DB', color:'#374151', borderRadius:12, padding:'13px', fontWeight:600, fontSize:'.9375rem', cursor:'pointer', fontFamily:FF }}>
+                Cancel
+              </button>
+              <button
+                disabled={dismissing}
+                onClick={async () => {
+                  setDismissing(true)
+                  await onDismiss(dismissTarget)
+                  setDismissTarget(null)
+                  setDismissing(false)
+                }}
+                style={{ background:'#DC2626', color:'white', border:'none', borderRadius:12, padding:'13px', fontWeight:700, fontSize:'.9375rem', cursor: dismissing ? 'not-allowed' : 'pointer', fontFamily:FF, opacity: dismissing ? .7 : 1 }}
+              >
+                {dismissing ? 'Dismissing…' : 'Dismiss patient'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1190,12 +1329,20 @@ export default function ProviderApp() {
     navigate(`/provider/consult/${c.id}`)
   }
 
-  async function dismiss(id) {
+  async function dismiss(c) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ status:'expired' }).eq('id', id)
-      setConsultations(cs => cs.filter(c => c.id !== id))
+      await apiFetch('/api/dismiss-patient', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: c.id,
+          patientEmail: c.patient_email,
+          patientName: `${c.patient_first_name || ''} ${c.patient_last_name || ''}`.trim(),
+          paymentIntentId: c.payment_intent_id || undefined,
+        }),
+      })
     } catch {}
+    setConsultations(cs => cs.filter(x => x.id !== c.id))
   }
 
   const msgCount   = consultations.filter(c => c.consultation_type === 'message').length
@@ -1236,7 +1383,7 @@ export default function ProviderApp() {
 
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
-        {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} />}
+        {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
         {tab === 'messages' && <MessagesTab />}
         {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'notes'    && <NotesTab navigate={navigate} />}

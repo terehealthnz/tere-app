@@ -34,8 +34,8 @@ export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
 export const RESERVATION_FEE = 15
 
 export const CONSULT_PRICES = {
-  video: { private: 55, acc: 25 },
-  phone: { private: 55, acc: 25 },
+  video: { private: 65, acc: 25 },
+  phone: { private: 45, acc: 25 },
 }
 
 export const CONSULT_TYPE_LABELS = {
