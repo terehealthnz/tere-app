@@ -141,6 +141,7 @@ export default function App() {
         <Route path="/resume/:id"             element={<ResumePayment />} />
         <Route path="/triage-review"          element={<TriageReview />} />
         <Route path="/done"                   element={<PostConsult />} />
+        {/* BOOKING — currently disabled (VITE_BOOKING_ENABLED=false); routes kept for when re-enabled */}
         <Route path="/book"                   element={<BookAppointment />} />
         <Route path="/booking/change/:id"     element={<BookingChange />} />
         <Route path="/booking/cancel/:id"     element={<BookingCancel />} />

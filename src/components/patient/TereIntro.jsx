@@ -140,16 +140,21 @@ export default function TereIntro({ onStart }) {
       </div>
 
       {/* Buttons */}
+      {(() => { const bookingEnabled = import.meta.env.VITE_BOOKING_ENABLED === 'true'; return (
       <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
         <button onClick={onStart} style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
           <div>{t('get_started', lang)} →</div>
           <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.8, marginTop:2 }}>Join the queue — see a provider today</div>
         </button>
-        <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-          <div>Book for later</div>
-          <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,.65)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
-        </button>
+        {/* BOOKING DISABLED — set VITE_BOOKING_ENABLED=true in Vercel to re-enable */}
+        {bookingEnabled && (
+          <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+            <div>Book for later</div>
+            <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,.65)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
+          </button>
+        )}
       </div>
+      )})()}
 
       <div style={{ ...anim('3s'), display:'flex', gap:'1.25rem', marginTop:'.875rem', justifyContent:'center' }}>
         <Link to="/clinician" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>

@@ -176,10 +176,11 @@ function Pricing() {
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           ACC-eligible injury? Your cost is reduced to the co-payment. No surprises.
         </p>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', background: 'white', border: '1px solid #E2E8F0', borderRadius: 99, padding: '.5rem 1rem', fontSize: '.875rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '3rem' }}>
+        {/* BOOKING DISABLED — reservation fee badge hidden */}
+        {/* <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', background: 'white', border: '1px solid #E2E8F0', borderRadius: 99, padding: '.5rem 1rem', fontSize: '.875rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '3rem' }}>
           <span style={{ color: '#0B6E76', fontWeight: 700 }}>+$15</span>
           <span>reservation fee for scheduled appointments — guarantees your time slot</span>
-        </div>
+        </div> */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {plans.map(p => (
             <div key={p.title} style={{
@@ -381,7 +382,8 @@ export default function Landing() {
       <Nav />
       <main>
         <Hero />
-        <UpcomingSlots />
+        {/* BOOKING DISABLED — uncomment when VITE_BOOKING_ENABLED=true */}
+        {/* <UpcomingSlots /> */}
         <HowItWorks />
         <Pricing />
         <ForEmployers />
