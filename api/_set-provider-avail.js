@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     let clinicIsOpen = isAvailable
     if (isAvailable) {
       const { error: availErr } = await supabase.from('availability')
-        .update({ is_open: true, updated_at: new Date().toISOString() })
+        .update({ is_open: true, manual_override: true, updated_at: new Date().toISOString() })
         .eq('id', 1)
       if (availErr) throw availErr
       // Promote any waitlisted consultations into the active queue
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       clinicIsOpen = !!(remaining?.length)
       if (!clinicIsOpen) {
         const { error: availErr } = await supabase.from('availability')
-          .update({ is_open: false, updated_at: new Date().toISOString() })
+          .update({ is_open: false, manual_override: false, updated_at: new Date().toISOString() })
           .eq('id', 1)
         if (availErr) throw availErr
       }
