@@ -96,7 +96,7 @@ const STEPS = [
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'nhi' },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
-  { id:'pharmacy', message:"What's your preferred pharmacy? You can search nearby or type the name.", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
+  { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
   { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
   { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'tobacco' },
@@ -683,93 +683,8 @@ export default function AITriage() {
 
   const step = STEPS[currentStep]
 
-  // ── Pharmacy search widget state ────────────────────────────────────────────
-  const [pharmacyQuery, setPharmacyQuery]       = useState('')
-  const [pharmacyResults, setPharmacyResults]   = useState([])
-  const [pharmacySearching, setPharmacySearching] = useState(false)
-  const [pharmacyGeoError, setPharmacyGeoError] = useState('')
-
-  async function searchNearbyPharmacies() {
-    setPharmacyGeoError('')
-    setPharmacySearching(true)
-    setPharmacyResults([])
-    if (!navigator.geolocation) {
-      setPharmacyGeoError('Geolocation not supported — type your pharmacy name below.')
-      setPharmacySearching(false)
-      return
-    }
-    try {
-      const pos = await new Promise((res, rej) =>
-        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
-      )
-      const { latitude: lat, longitude: lon } = pos.coords
-
-      // Try Overpass with correct Content-Type and a hard 10s abort
-      let results = []
-      try {
-        const ac = new AbortController()
-        const t = setTimeout(() => ac.abort(), 10000)
-        const q = `[out:json][timeout:10];node["amenity"="pharmacy"](around:5000,${lat},${lon});out 8;`
-        const r = await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `data=${encodeURIComponent(q)}`,
-          signal: ac.signal,
-        })
-        clearTimeout(t)
-        if (r.ok) {
-          const d = await r.json()
-          results = (d.elements || []).map(el => ({
-            name: el.tags?.name || '',
-            address: [el.tags?.['addr:housenumber'], el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(' '),
-          })).filter(p => p.name)
-        }
-      } catch {}
-
-      // Nominatim viewbox fallback if Overpass returned nothing
-      if (!results.length) {
-        const delta = 0.08
-        const url = `https://nominatim.openstreetmap.org/search?q=pharmacy&format=json&countrycodes=nz&addressdetails=1&limit=8&viewbox=${lon - delta},${lat + delta},${lon + delta},${lat - delta}&bounded=1`
-        const r = await fetch(url, { headers: { 'Accept-Language': 'en' } })
-        const d = await r.json()
-        results = d.map(item => ({
-          name: item.namedetails?.name || item.display_name?.split(',')[0] || '',
-          address: [item.address?.road, item.address?.suburb, item.address?.city || item.address?.town].filter(Boolean).join(', '),
-        })).filter(p => p.name)
-      }
-
-      setPharmacyResults(results.slice(0, 6))
-      if (!results.length) setPharmacyGeoError('No pharmacies found nearby. Try typing a name below.')
-    } catch (e) {
-      setPharmacyGeoError(e.code === 1 ? 'Location access denied — type your pharmacy name below.' : 'Location unavailable — type your pharmacy name below.')
-    } finally { setPharmacySearching(false) }
-  }
-
-  async function searchPharmacyByName(q) {
-    if (!q.trim()) return
-    setPharmacySearching(true)
-    setPharmacyResults([])
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=pharmacy+${encodeURIComponent(q)}&format=json&countrycodes=nz&addressdetails=1&limit=6`
-      const r = await fetch(url, { headers: { 'Accept-Language': 'en' } })
-      const d = await r.json()
-      const results = d.map(item => ({
-        name: item.namedetails?.name || item.display_name?.split(',')[0] || 'Pharmacy',
-        address: [item.address?.road, item.address?.suburb, item.address?.city || item.address?.town].filter(Boolean).join(', '),
-      }))
-      setPharmacyResults(results)
-      if (!results.length) setPharmacyGeoError('No results found — try a different name or suburb.')
-    } catch { setPharmacyGeoError('Search unavailable — type the pharmacy name and press Send.') }
-    finally { setPharmacySearching(false) }
-  }
-
-  function selectPharmacy(p) {
-    const val = p.address ? `${p.name} — ${p.address}` : p.name
-    setPharmacyResults([])
-    setPharmacyQuery('')
-    setPharmacyGeoError('')
-    handleSendValue(val)
-  }
+  // ── Pharmacy input state ─────────────────────────────────────────────────────
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
 
   if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowConsentGate(true); trackEvent('intro_viewed', { lang }) }} />
   if (showConsentGate) return <ConsentGate onAccepted={() => setShowConsentGate(false)} lang={lang} patientName={data?.patient_name} />
@@ -945,36 +860,24 @@ export default function AITriage() {
 
       {step?.type==='pharmacy' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
-          {/* Nearby search button */}
-          <button onClick={searchNearbyPharmacies} disabled={pharmacySearching}
-            style={{width:'100%',background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'11px',fontWeight:700,fontSize:'.9rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',marginBottom:6,opacity:pharmacySearching?.7:1}}>
-            {pharmacySearching ? '🔍 Searching…' : '📍 Find nearby pharmacies'}
-          </button>
-          {/* Text search */}
           <div style={{display:'flex',gap:6,marginBottom:6}}>
-            <input value={pharmacyQuery} onChange={e=>setPharmacyQuery(e.target.value)}
-              onKeyDown={e=>{if(e.key==='Enter')searchPharmacyByName(pharmacyQuery)}}
-              placeholder="Or type pharmacy name…"
-              style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}} />
-            <button onClick={()=>searchPharmacyByName(pharmacyQuery)} disabled={pharmacySearching||!pharmacyQuery.trim()}
+            <input
+              value={pharmacyQuery}
+              onChange={e => setPharmacyQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
+              placeholder="e.g. Unichem Whanganui, Life Pharmacy…"
+              autoFocus
+              style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
+            />
+            <button
+              onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
+              disabled={!pharmacyQuery.trim()}
               style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
-              Search
+              Send
             </button>
           </div>
-          {pharmacyGeoError && <div style={{fontSize:'.8rem',color:'#6B7280',marginBottom:4}}>{pharmacyGeoError}</div>}
-          {pharmacyResults.length>0 && (
-            <div style={{display:'flex',flexDirection:'column',gap:5,maxHeight:220,overflowY:'auto'}}>
-              {pharmacyResults.map((p,i)=>(
-                <button key={i} onClick={()=>selectPharmacy(p)}
-                  style={{background:'white',border:'1.5px solid var(--border)',borderRadius:10,padding:'.625rem .875rem',textAlign:'left',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
-                  <div style={{fontWeight:600,fontSize:'.9rem',color:'var(--navy)'}}>{p.name}</div>
-                  {p.address&&<div style={{fontSize:'.775rem',color:'#6B7280',marginTop:2}}>{p.address}</div>}
-                </button>
-              ))}
-            </div>
-          )}
-          <button onClick={()=>handleSendValue('skip')}
-            style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',marginTop:6}}>
+          <button onClick={() => handleSendValue('skip')}
+            style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
             Skip →
           </button>
         </div>

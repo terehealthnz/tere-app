@@ -15,8 +15,12 @@ const CARD_STYLE = {
       '::placeholder': { color: '#9CA3AF' },
     },
     invalid: { color: '#DC2626' },
-  }
+  },
+  // NZ postcodes are 4 digits — set country so Stripe validates accordingly
+  value: { postalCode: '' },
 }
+
+const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
 function PaymentForm({ consultationId, accEligible, consultationType }) {
   const navigate   = useNavigate()
@@ -26,9 +30,9 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   const [error, setError]       = useState('')
   const [clientSecret, setClientSecret] = useState(null)
   const storedAmount = parseInt(sessionStorage.getItem('paymentAmount') || '0', 10)
-  const PRICES = { video: { private:65, acc:25 }, phone: { private:45, acc:25 }, message: { private:25, acc:25 } }
+  const PRICES = { video: { private: 55, acc: 25 }, phone: { private: 55, acc: 25 } }
   const priceSet = PRICES[consultationType] || PRICES.video
-  const amount = storedAmount || (accEligible === 'yes' && consultationType !== 'message' ? priceSet.acc : priceSet.private)
+  const amount = storedAmount || (accEligible === 'yes' ? priceSet.acc : priceSet.private)
 
   useEffect(() => {
     async function createIntent() {
@@ -169,7 +173,7 @@ export default function Payment() {
         <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem',fontStyle:'italic'}}>He tere, he ora</span>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>
-        <Elements stripe={stripePromise}>
+        <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
           <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
         </Elements>
         <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem',textAlign:'center'}}>
