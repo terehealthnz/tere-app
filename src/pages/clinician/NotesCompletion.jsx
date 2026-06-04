@@ -456,7 +456,6 @@ export default function NotesCompletion() {
         notes_draft:             null,
         notes_finalised:         true,
         notes_finalised_at:      now,
-        note_finalised_at:       now,
         note_finalised_by:       providerName,
         notes_finalised_by:      providerId,
         notes_completed_seconds: completedSec,
@@ -469,7 +468,6 @@ export default function NotesCompletion() {
         completed_at:            consult?.completed_at || now,
         consultation_duration_seconds: durationSec,
         payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
-        is_acc:                  consult?.acc_eligible === 'yes',
       }).eq('id', id)
 
       // Patient summary email
