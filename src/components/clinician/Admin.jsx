@@ -1791,6 +1791,23 @@ function ProviderMetricsPanel() {
 function AdminBody() {
   const navigate = useNavigate()
   const [adminTab, setAdminTab] = useState('overview')
+  const [waitlist, setWaitlist]   = useState([])
+  const [notified, setNotified]   = useState(false)
+  const [notifying, setNotifying] = useState(false)
+
+  useEffect(() => {
+    getWaitlist().then(data => setWaitlist(data || [])).catch(() => {})
+  }, [])
+
+  async function notifyWaitlist() {
+    setNotifying(true)
+    try {
+      await markWaitlistNotified(waitlist.map(w => w.id))
+      setNotified(true)
+      setWaitlist([])
+    } catch {}
+    setNotifying(false)
+  }
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
   const inp  = { width:'100%', padding:'.75rem 1rem', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.9375rem', color:'#1A2A33', outline:'none', boxSizing:'border-box' }

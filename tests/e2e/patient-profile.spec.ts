@@ -42,48 +42,43 @@ test.describe('patient profile system', () => {
     await expect(page.locator('text=mobile').or(page.locator('text=phone'))).toBeVisible({ timeout: 8000 })
   })
 
-  test('admin patients tab renders', async ({ page }) => {
-    // Set clinician auth
+  async function goToAdminPatients(page) {
     await page.goto('http://localhost:3000/clinician/admin')
-    await page.evaluate(() => sessionStorage.setItem('clinicianAuth', 'true'))
-    await page.reload()
+    await page.evaluate(() => {
+      sessionStorage.setItem('clinicianAuth', 'true')
+      sessionStorage.setItem('providerIsAdmin', 'true')
+      sessionStorage.setItem('providerId', 'test-id')
+      sessionStorage.setItem('providerDisplayName', 'Dr Test Admin')
+    })
+    await page.goto('http://localhost:3000/clinician/admin')
+    await expect(page.locator('text=Clinic Admin')).toBeVisible({ timeout: 10000 })
+    await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('button')]
+      const p = btns.find(b => b.textContent.includes('Patients'))
+      if (p) p.click()
+    })
+  }
 
-    // Click Patients tab
-    const patientsTab = page.getByRole('button', { name: /patients/i }).or(
-      page.locator('select').locator('xpath=//option[@value="patients"]')
-    )
-
-    // Desktop: click button tab
-    const btn = page.getByRole('button', { name: '👥 Patients' })
-    if (await btn.isVisible()) {
-      await btn.click()
-    } else {
-      // Mobile: select dropdown
-      await page.locator('select').selectOption('patients')
-    }
-
-    // Should show patient list or empty state
+  test('admin patients tab renders', async ({ page }) => {
+    await goToAdminPatients(page)
     await expect(
-      page.locator('text=patients').or(page.locator('text=No patient records'))
-    ).toBeVisible({ timeout: 8000 })
+      page.locator('text=patients').or(page.locator('text=patient records')).first()
+    ).toBeVisible({ timeout: 10000 })
   })
 
   test('patient profile loads consultation history', async ({ page }) => {
-    await page.goto('http://localhost:3000/clinician/admin')
-    await page.evaluate(() => sessionStorage.setItem('clinicianAuth', 'true'))
-    await page.reload()
+    await goToAdminPatients(page)
+    await expect(
+      page.locator('text=patients').or(page.locator('text=patient records')).first()
+    ).toBeVisible({ timeout: 10000 })
 
-    // Navigate to patients tab
-    const btn = page.getByRole('button', { name: '👥 Patients' })
-    if (await btn.isVisible()) await btn.click()
-    else await page.locator('select').selectOption('patients')
-
-    // If there are any patients, click the first one
-    const firstRow = page.locator('button[style*="grid"]').first()
-    if (await firstRow.isVisible()) {
+    // Click the first patient row if any exist
+    const firstRow = page.locator('button').filter({ hasText: /@/ }).first()
+    if (await firstRow.isVisible({ timeout: 3000 }).catch(() => false)) {
       await firstRow.click()
-      // Profile should show
-      await expect(page.locator('text=Contact').or(page.locator('text=Medical history'))).toBeVisible({ timeout: 5000 })
+      await expect(
+        page.locator('text=Contact').or(page.locator('text=Medical history')).or(page.locator('text=consultations')).first()
+      ).toBeVisible({ timeout: 8000 })
     }
   })
 

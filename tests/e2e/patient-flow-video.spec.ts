@@ -15,8 +15,8 @@ test('consent page shows all three sections', async ({ page }) => {
   await expect(page.locator('[data-testid="hdc-consent-checkbox"]')).toBeVisible()
 
   // Section 2
-  await expect(page.locator('text=Prescribing limitations')).toBeVisible()
-  await expect(page.locator('text=Opioid')).toBeVisible()
+  await expect(page.locator('text=Prescribing limitations').first()).toBeVisible()
+  await expect(page.locator('text=Opioid').first()).toBeVisible()
   await expect(page.locator('[data-testid="prescribing-acknowledge"]')).toBeVisible()
 
   // Section 3 — research optional

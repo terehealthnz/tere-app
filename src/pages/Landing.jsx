@@ -113,7 +113,7 @@ function UpcomingSlots() {
                 {new Date(s.date + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })}
               </div>
               {s.providerName && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.providerName}</div>}
-            </Link>
+            </a>
           ))}
           <a href={CONSULT_URL} style={{ background: BRAND.teal, color: 'white', borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem' }}>
             All times →
