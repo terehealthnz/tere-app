@@ -27,8 +27,11 @@ const VIDEO_FORCE_KEYWORDS = [
   'seizure','fit','convuls',
 ]
 
-export function scoreComplaint(complaint, isReturning = false) {
+export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
   const lower = (complaint || '').toLowerCase()
+
+  // ACC claims require a live consultation (video or phone) for billing
+  if (isAcc) return { allowVideo: true, allowPhone: true, allowMessage: false }
 
   const needsVideo = VIDEO_FORCE_KEYWORDS.some(kw => lower.includes(kw))
   if (needsVideo) return { allowVideo: true, allowPhone: true, allowMessage: false }

@@ -38,7 +38,7 @@ export default function ConsultationType() {
   const employerPaid = sessionStorage.getItem('employer_paid') === 'true'
   const employerName = sessionStorage.getItem('employer_name') || ''
 
-  const { allowVideo, allowPhone, allowMessage } = scoreComplaint(complaint, isReturning)
+  const { allowVideo, allowPhone, allowMessage } = scoreComplaint(complaint, isReturning, isAcc)
 
   const availableTypes = [
     allowVideo && 'video',
@@ -98,9 +98,11 @@ export default function ConsultationType() {
         <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ marginBottom: '.375rem' }}>How would you like to consult?</h1>
           <p style={{ fontSize: '.9375rem' }}>
-            {allowMessage
-              ? 'Based on your query, all three options are available.'
-              : 'Based on your query, an in-person consultation is recommended.'}
+            {isAcc
+              ? 'ACC claims require a live consultation — video or phone only.'
+              : allowMessage
+                ? 'Based on your query, all three options are available.'
+                : 'Based on your query, a live consultation is recommended.'}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>
