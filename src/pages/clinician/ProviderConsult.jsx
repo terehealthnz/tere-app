@@ -63,8 +63,7 @@ export default function ProviderConsult() {
 
   const [consult, setConsult]           = useState(null)
   const [loading, setLoading]           = useState(true)
-  const [vitalsConfirmed, setVitalsConfirmed] = useState(false)
-  const [admitting, setAdmitting]       = useState(false)
+  const [calling, setCalling]           = useState(false)
   const [inCall, setInCall]             = useState(false)
   const [lkToken, setLkToken]           = useState(null)
   const [lkUrl, setLkUrl]               = useState(null)
@@ -96,7 +95,6 @@ export default function ProviderConsult() {
         setConsult(data)
         if (data.status === 'in_progress') {
           setInCall(true)
-          setVitalsConfirmed(true)
           await fetchToken()
         }
       } catch (e) {
@@ -107,19 +105,18 @@ export default function ProviderConsult() {
     load()
   }, [id])
 
-  // Poll for vitals / status changes
+  // Poll for status changes
   useEffect(() => {
     pollRef.current = setInterval(async () => {
       try {
         const data = await getConsultation(id)
         setConsult(prev => {
           if (!prev) return data
-          if (data.status !== prev.status || JSON.stringify(data.vitals) !== JSON.stringify(prev.vitals)) return data
+          if (data.status !== prev.status) return data
           return prev
         })
         if (data.status === 'in_progress' && !inCall) {
           setInCall(true)
-          setVitalsConfirmed(true)
         }
       } catch {}
     }, 4000)
@@ -147,28 +144,23 @@ export default function ProviderConsult() {
     } catch {}
   }
 
-  async function confirmVitals() {
-    setVitalsConfirmed(true)
-  }
-
-  async function admit() {
-    setAdmitting(true)
+  async function initiateCall() {
+    setCalling(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const startedAt = new Date().toISOString()
-      await supabase.from('consultations').update({ status:'in_progress', started_at:startedAt }).eq('id', id)
-      setConsult(d => ({ ...d, status:'in_progress', started_at:startedAt }))
-      if (consult?.payment_intent_id) {
-        apiFetch('/api/capture-payment', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ paymentIntentId: consult.payment_intent_id })
-        }).catch(() => {})
-      }
-      await fetchToken()
+      const providerId   = sessionStorage.getItem('providerId')
+      const providerName = sessionStorage.getItem('providerDisplayName')
+      const res = await apiFetch('/api/initiate-call', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId: id, providerId, providerName }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      setConsult(d => ({ ...d, status: 'in_progress' }))
+      if (data.token) { setLkToken(data.token); setLkUrl(data.serverUrl) }
       setCallStart(Date.now())
       setInCall(true)
     } catch (e) { console.error(e) }
-    setAdmitting(false)
+    setCalling(false)
   }
 
   async function startScribe() {
@@ -223,9 +215,7 @@ export default function ProviderConsult() {
     </div>
   )
 
-  const isAcc      = consult.acc_eligible === 'yes'
-  const hasVitals  = consult.vitals && !consult.vitals.skipped
-  const vitalsReady = ['vitals_complete','ready','in_progress'].includes(consult.status)
+  const isAcc       = consult.acc_eligible === 'yes'
   const patientName = `${consult.patient_first_name} ${consult.patient_last_name}`
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────
@@ -382,25 +372,6 @@ export default function ProviderConsult() {
           ))}
         </div>
 
-        {/* Vitals card */}
-        <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
-          <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>Vital signs</div>
-
-          {!vitalsReady ? (
-            <div style={{ textAlign:'center', padding:'12px 0' }}>
-              <div style={{ fontSize:'1.5rem', marginBottom:8 }}>⏳</div>
-              <div style={{ fontSize:'.875rem', color:'#9CA3AF' }}>Waiting for patient to complete vitals scan…</div>
-            </div>
-          ) : (
-            <>
-              <VitalsRow vitals={consult.vitals} />
-              {hasVitals && <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:8, textAlign:'right' }}>
-                {consult.vitals.source === 'manual' ? 'Manually entered' : 'Tere rPPG — indicative screening only'}
-              </div>}
-            </>
-          )}
-        </div>
-
         {/* Medical history */}
         {consult.medical_history && (
           <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
@@ -424,53 +395,16 @@ export default function ProviderConsult() {
 
       {/* Fixed bottom action area */}
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'white', borderTop:'1px solid #E2E8F0', padding:'12px 16px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))' }}>
-
-        {/* Step 1: Waiting for vitals */}
-        {!vitalsReady && (
-          <div>
-            <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'12px 16px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:10 }}>
-              ⏳ Patient completing vitals — you'll be notified when ready
-            </div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-              <button onClick={() => navigate('/provider')}
-                style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
-                ← Back to queue
-              </button>
-              <button onClick={confirmVitals}
-                style={{ minHeight:48, borderRadius:10, border:'none', background:TEAL, color:'white', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
-                Proceed anyway →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Confirm vitals */}
-        {vitalsReady && !vitalsConfirmed && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
-            <button onClick={() => navigate('/provider')}
-              style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
-              ← Queue
-            </button>
-            <button onClick={confirmVitals}
-              style={{ minHeight:56, borderRadius:12, border:'none', background:TEAL, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:'pointer', boxShadow:'0 4px 16px rgba(11,110,118,.3)' }}>
-              ✓ Confirm vitals
-            </button>
-          </div>
-        )}
-
-        {/* Step 3: Admit */}
-        {vitalsConfirmed && !inCall && (
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
-            <button onClick={() => navigate('/provider')}
-              style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
-              ← Queue
-            </button>
-            <button onClick={admit} disabled={admitting}
-              style={{ minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:admitting?'not-allowed':'pointer', opacity:admitting?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-              {admitting ? 'Connecting…' : '→ Admit to call'}
-            </button>
-          </div>
-        )}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
+          <button onClick={() => navigate('/provider')}
+            style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+            ← Queue
+          </button>
+          <button onClick={initiateCall} disabled={calling}
+            style={{ minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+            {calling ? 'Connecting…' : `📞 Call patient now`}
+          </button>
+        </div>
       </div>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

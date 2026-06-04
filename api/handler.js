@@ -116,6 +116,7 @@ const ROUTES = {
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
   'async-consult':             () => import('./_async-consult.js'),
   'async-overdue':             () => import('./_async-overdue.js'),
+  'initiate-call':             () => import('./_initiate-call.js'),
 }
 
 export default async function handler(req, res) {

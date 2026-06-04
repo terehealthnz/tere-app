@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001', max_tokens: 5,
-          messages: [{ role: 'user', content: `NZ patient health complaint: "${complaint.slice(0, 500)}"\n\nCan this be handled by async message consultation (provider replies within 4 hours, no live call)?\n\nSUITABLE (reply YES): cough, cold, flu, sore throat, runny nose, ear pain, eye infection, skin rash or condition, repeat or ongoing prescription, uncomplicated UTI (adult female), minor wound or injury, referral or imaging request, medical certificate, non-urgent advice, known condition follow-up, gastro symptoms without red flags, mild headache, mild back pain, minor sports injury.\n\nNOT SUITABLE (reply NO) — only if clearly urgent or emergency: chest pain or tightness, acute shortness of breath or inability to breathe, severe crushing pain, suspected stroke or sudden neurological deficit, severe allergic reaction or anaphylaxis, active mental health crisis or suicidal ideation, high fever with stiff neck or rash, major trauma or uncontrolled bleeding.\n\nWhen in doubt, reply YES. Only reply NO if the complaint is clearly an emergency.\n\nReply YES or NO only.` }],
+          messages: [{ role: 'user', content: `NZ patient health complaint: "${complaint.slice(0, 500)}"\n\nCan this be handled by async message consultation (provider replies within business hours, no live call)?\n\nSUITABLE (reply YES): cough, cold, flu, sore throat, runny nose, ear pain, eye infection, skin rash or condition, repeat or ongoing prescription, uncomplicated UTI (adult female), minor wound or injury, referral or imaging request, medical certificate, non-urgent advice, known condition follow-up, gastro symptoms without red flags, mild headache, mild back pain, minor sports injury.\n\nNOT SUITABLE (reply NO) — only if clearly urgent or emergency: chest pain or tightness, acute shortness of breath or inability to breathe, severe crushing pain, suspected stroke or sudden neurological deficit, severe allergic reaction or anaphylaxis, active mental health crisis or suicidal ideation, high fever with stiff neck or rash, major trauma or uncontrolled bleeding.\n\nWhen in doubt, reply YES. Only reply NO if the complaint is clearly an emergency.\n\nReply YES or NO only.` }],
         }),
       })
       const d = await r.json()
@@ -268,6 +268,351 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ ok: true })
+  }
+
+  // ── AI polish of provider draft message ──────────────────────────────────────
+  if (action === 'polish_response') {
+    const { draft, consultationId } = req.body
+    if (!draft?.trim()) return res.status(400).json({ error: 'draft required' })
+    const key = process.env.ANTHROPIC_API_KEY
+    if (!key) return res.status(200).json({ polished: draft })
+
+    let context = ''
+    if (consultationId) {
+      const { data: consult } = await supabase.from('consultations')
+        .select('chief_complaint, patient_first_name, patient_allergies, medications').eq('id', consultationId).single()
+      if (consult) {
+        context = `Patient: ${consult.patient_first_name || 'Patient'}\nComplaint: ${consult.chief_complaint || ''}`
+        if (consult.patient_allergies && consult.patient_allergies !== 'None') context += `\nAllergies: ${consult.patient_allergies}`
+        if (consult.medications) context += `\nCurrent medications: ${consult.medications}`
+      }
+    }
+
+    const prompt = `You are a medical communications specialist helping a New Zealand telehealth provider polish their patient message.
+
+Rewrite the following draft as a warm, professional, clear response. Rules:
+- Warm and empathetic tone — not cold or overly formal
+- Plain English (NZ English spelling) — explain medical terms if used
+- Correct any grammar or spelling errors
+- Preserve every clinical fact and instruction exactly — do not add or remove clinical content
+- Keep appropriate length — do not pad or truncate meaning
+- Do NOT add a greeting or sign-off — those are added automatically
+- Return ONLY the rewritten message body, nothing else
+
+${context ? `Context:\n${context}\n\n` : ''}Draft to polish:
+${draft}`
+
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
+      })
+      const data = await r.json()
+      const polished = data.content?.[0]?.text?.trim() || draft
+      return res.status(200).json({ polished })
+    } catch {
+      return res.status(200).json({ polished: draft })
+    }
+  }
+
+  // ── Provider refers patient to GP or ER (no charge) ─────────────────────────
+  if (action === 'in_person') {
+    const { consultationId, referralType, notes, providerId, providerName } = req.body
+    if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+    const { data: consult, error: cErr } = await supabase
+      .from('consultations').select('*').eq('id', consultationId).single()
+    if (cErr || !consult) return res.status(404).json({ error: 'Not found' })
+
+    const now = new Date().toISOString()
+    const venueLabel = referralType === 'er' ? 'nearest Emergency Department' : 'GP'
+    const responseNote = `${providerName || 'Your provider'} recommends you be seen in person at your ${venueLabel}. No charge has been applied.${notes ? ' ' + notes : ''}`
+    const { error } = await supabase.from('consultations').update({
+      status: 'complete',
+      outcome: 'in_person_referral',
+      async_response: responseNote,
+      async_responded_at: now,
+      async_responded_by: providerId || null,
+      provider_display_name: providerName || null,
+      notes_finalised: true,
+      notes_finalised_at: now,
+      completed_at: now,
+      updated_at: now,
+    }).eq('id', consultationId)
+    if (error) return res.status(500).json({ error: error.message })
+
+    // Cancel payment — no charge for in-person referral
+    if (consult.payment_intent_id) {
+      try {
+        await stripe.paymentIntents.cancel(consult.payment_intent_id)
+      } catch (e) {
+        console.error('[async-consult] Stripe cancel failed:', e.message)
+      }
+    }
+
+    // Email patient
+    if (consult.patient_email) {
+      const firstName = consult.patient_first_name || 'there'
+      const dateStr = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      const notesHtml = notes ? `<div style="font-size:14px;line-height:1.7;color:#374151;margin-top:8px">${notes.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>` : ''
+      const erWarning = referralType === 'er'
+        ? '🚨 <strong>If you are feeling very unwell, call 111 or go directly to your nearest Emergency Department now.</strong>'
+        : '⚠️ <strong>If your condition worsens before you can see your GP — call 111 or go to your nearest Emergency Department.</strong>'
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        await resend.emails.send({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: [consult.patient_email],
+          subject: `Action needed — your provider recommends in-person care`,
+          html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+<div style="background:#0D2B45;padding:20px 28px">
+  <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+  <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
+</div>
+<div style="padding:24px 28px">
+  <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
+  <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 20px">${providerName || 'Your Tere Health provider'} has reviewed your message and recommends you be seen <strong>in person</strong>.</p>
+  <div style="background:#FEF9EC;border-left:4px solid #D97706;border-radius:4px;padding:16px 18px;margin:0 0 20px">
+    <div style="font-size:13px;font-weight:700;color:#92400E;margin-bottom:4px">Recommendation: visit your ${venueLabel}</div>
+    ${notesHtml}
+  </div>
+  <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px 16px;font-size:13px;color:#065F46;margin-bottom:20px">
+    ✅ <strong>No charge has been applied.</strong> Your payment authorisation has been released.
+  </div>
+  <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B">${erWarning}</div>
+</div>
+<div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
+  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
+  This message does not constitute ongoing medical advice. In an emergency, call 111.
+</div>
+</body></html>`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} recommends you be seen in person at your ${venueLabel}.\n${notes ? notes + '\n' : ''}\nNO CHARGE: Your payment authorisation has been released.\n\n${referralType === 'er' ? 'If very unwell, call 111 now.' : 'If condition worsens before seeing your GP, call 111.'}\n\nHe tere, he ora.\nTere Health`,
+        })
+      } catch (e) {
+        console.error('[async-consult] in_person email failed:', e.message)
+      }
+    }
+
+    // SMS patient
+    if (consult.patient_phone) {
+      fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
+        body: JSON.stringify({ to: consult.patient_phone, type: 'in_person',
+          message: `Tere Health: Your provider recommends in-person care at your ${venueLabel}. No charge applied. Check your email.` }),
+      }).catch(() => {})
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Upgrade message consultation to live video/phone ──────────────────────
+  if (action === 'upgrade_to_live') {
+    const { consultationId, consultationType, message, providerId, providerName } = req.body
+    if (!consultationId || !consultationType) return res.status(400).json({ error: 'consultationId and consultationType required' })
+
+    const { data: consult, error: cErr } = await supabase
+      .from('consultations').select('*').eq('id', consultationId).single()
+    if (cErr || !consult) return res.status(404).json({ error: 'Not found' })
+
+    const { error } = await supabase.from('consultations').update({
+      consultation_type: consultationType,
+      consultation_subtype: 'live',
+      status: 'waiting',
+      updated_at: new Date().toISOString(),
+    }).eq('id', consultationId)
+    if (error) return res.status(500).json({ error: error.message })
+
+    const typeLabel = consultationType === 'phone' ? 'phone call' : 'video call'
+    const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
+
+    // Email patient
+    if (consult.patient_email) {
+      const firstName = consult.patient_first_name || 'there'
+      const dateStr = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      const messageHtml = message ? `<div style="background:#F0F9FA;border-left:4px solid #0B6E76;border-radius:4px;padding:16px 18px;margin:0 0 20px;font-size:14px;line-height:1.7;color:#1A2A33">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>` : ''
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        await resend.emails.send({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: [consult.patient_email],
+          subject: `Your provider would like a ${typeLabel} with you`,
+          html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+<div style="background:#0D2B45;padding:20px 28px">
+  <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+  <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
+</div>
+<div style="padding:24px 28px">
+  <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
+  <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 20px">${providerName || 'Your Tere Health provider'} would like to speak with you directly on a <strong>${typeLabel}</strong>.</p>
+  ${messageHtml}
+  <div style="text-align:center;margin:28px 0">
+    <a href="${appUrl}/triage" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">Rejoin for ${typeLabel} →</a>
+  </div>
+  <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B">
+    ⚠️ <strong>If your condition worsens before we connect — call 111 or go to your nearest Emergency Department.</strong>
+  </div>
+</div>
+<div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
+  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
+  In an emergency, call 111.
+</div>
+</body></html>`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} would like a ${typeLabel} with you.\n\nPlease return to ${appUrl}/triage to join the queue.\n\n${message || ''}\n\nIf your condition worsens, call 111.\n\nHe tere, he ora.\nTere Health`,
+        })
+      } catch (e) {
+        console.error('[async-consult] upgrade email failed:', e.message)
+      }
+    }
+
+    // SMS patient
+    if (consult.patient_phone) {
+      fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
+        body: JSON.stringify({ to: consult.patient_phone, type: 'upgrade_to_live',
+          message: `Tere Health: Your provider would like a ${typeLabel} with you. Please return to ${appUrl}/triage to join.` }),
+      }).catch(() => {})
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Notify patient that provider has a question ───────────────────────────────
+  if (action === 'notify_question') {
+    const { consultationId, providerName, questionText } = req.body
+    if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+    const { data: consult } = await supabase.from('consultations').select('patient_email,patient_first_name,patient_phone').eq('id', consultationId).single()
+    if (!consult) return res.status(404).json({ error: 'Not found' })
+
+    const firstName = consult.patient_first_name || 'there'
+    const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
+    const safeQ = (questionText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+
+    if (consult.patient_email) {
+      try {
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY)
+        await resend.emails.send({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: [consult.patient_email],
+          subject: `Your provider has a question — please reply`,
+          html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+<div style="background:#0D2B45;padding:20px 28px">
+  <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+</div>
+<div style="padding:24px 28px">
+  <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
+  <p style="font-size:14px;color:#6B7280;margin:0 0 20px">${providerName || 'Your Tere Health provider'} is reviewing your message and has a question for you.</p>
+  <div style="background:#F0F9FA;border-left:4px solid #0B6E76;border-radius:4px;padding:16px 18px;margin:0 0 20px">
+    <div style="font-size:11px;font-weight:700;color:#0B6E76;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Question from your provider</div>
+    <div style="font-size:15px;line-height:1.8;color:#1A2A33">${safeQ}</div>
+  </div>
+  <div style="text-align:center;margin:24px 0">
+    <a href="${appUrl}/async-message/${consultationId}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 28px;border-radius:99px;font-size:15px;font-weight:700">Reply to your provider →</a>
+  </div>
+  <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B">
+    ⚠️ If your condition worsens while waiting — call <strong>111</strong> or go to your nearest emergency department.
+  </div>
+</div>
+<div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
+  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
+</div>
+</body></html>`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} has a question:\n\n${questionText || ''}\n\nReply at: ${appUrl}/async-message/${consultationId}\n\nIf condition worsens, call 111.\n\nHe tere, he ora.\nTere Health`,
+        })
+      } catch (e) {
+        console.error('[async-consult] notify_question email failed:', e.message)
+      }
+    }
+
+    if (consult.patient_phone) {
+      fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
+        body: JSON.stringify({ to: consult.patient_phone, type: 'provider_question',
+          message: `Tere Health: Your provider has a question about your message — check your email to reply.` }),
+      }).catch(() => {})
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Auto-generate draft response from patient data + provider messages ───────
+  if (action === 'generate_summary') {
+    const { consultationId, providerMessages = [] } = req.body
+    if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+    const { data: c } = await supabase.from('consultations')
+      .select('chief_complaint,async_symptom_detail,async_urgency,async_requests,patient_first_name,patient_allergies,medications,medical_history,acc_eligible')
+      .eq('id', consultationId).single()
+    if (!c) return res.status(404).json({ error: 'Consultation not found' })
+
+    const providerText = providerMessages
+      .filter(m => m.sender === 'provider' && m.message?.trim())
+      .map(m => m.message.trim())
+      .join('\n\n')
+
+    // No AI key or no provider messages — return structured template
+    const key = process.env.ANTHROPIC_API_KEY
+    if (!key || !providerText) {
+      const lines = []
+      if (c.chief_complaint) lines.push(`Thank you for contacting us regarding your ${c.chief_complaint}.`)
+      if (providerText) lines.push(providerText)
+      return res.status(200).json({ summary: lines.join('\n\n') })
+    }
+
+    const patientLines = [
+      `Chief complaint: ${c.chief_complaint || 'Not specified'}`,
+      c.async_symptom_detail ? `Symptom detail: ${c.async_symptom_detail}` : null,
+      c.async_urgency ? `Urgency: ${c.async_urgency}` : null,
+      c.medical_history && c.medical_history !== 'None' ? `Medical history: ${c.medical_history}` : null,
+      c.medications && c.medications !== 'None' ? `Current medications: ${c.medications}` : null,
+      c.patient_allergies && c.patient_allergies !== 'None' && c.patient_allergies !== 'NKDA' ? `Allergies: ${c.patient_allergies}` : null,
+      c.acc_eligible === 'yes' ? 'ACC: eligible injury' : null,
+    ].filter(Boolean).join('\n')
+
+    const prompt = `You are a New Zealand GP writing a final response to a patient after an async message consultation.
+
+Patient information:
+${patientLines}
+
+The provider sent the following messages to the patient during the consultation:
+${providerText}
+
+Write a concise, warm, professional closing response (3–5 sentences) that:
+1. Briefly states your assessment of what is going on
+2. Summarises the management plan based on what the provider communicated
+3. States clearly when to seek further care (use NZ-appropriate language)
+
+Rules:
+- Address the patient directly ("I" / "you") — do not use third person
+- Plain English, NZ spelling
+- Do NOT add a greeting or sign-off — those are added separately
+- Do NOT add information not already in the provider messages
+- Return ONLY the response body, nothing else`
+
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
+      })
+      const d = await r.json()
+      const summary = d.content?.[0]?.text?.trim() || providerText
+      return res.status(200).json({ summary })
+    } catch {
+      return res.status(200).json({ summary: providerText })
+    }
   }
 
   return res.status(400).json({ error: 'Invalid action' })

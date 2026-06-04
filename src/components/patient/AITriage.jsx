@@ -86,28 +86,26 @@ const STEPS = [
   { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
-  { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'nhi' },
-  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
-  { id:'pharmacy', message:"What's your preferred pharmacy? (e.g. Havelock Pharmacy)", field:'pharmacy', validate:()=>true, next:'gp_name' },
-  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
-  { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'complaint' },
-  { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'gp_email' },
-  { id:'gp_email', message:"And their email address if you have it?", field:'gp_email', validate:()=>true, next:'complaint', skippable:true, transform:v=>['skip','no','none','n/a','nope'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'complaint' },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'tobacco' },
+  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'nhi' },
+  { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
+  { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
+  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'nhi' },
+  { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
+  { id:'pharmacy', message:"What's your preferred pharmacy? You can search nearby or type the name.", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
+  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
+  { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'tobacco' },
   { id:'tobacco', message:"Do you currently smoke or use tobacco?", field:'tobacco_use_raw', type:'yesno', validate:()=>true, next:'tobacco_amount' },
   { id:'tobacco_amount', message:"How much would you say?", field:'tobacco_amount', type:'choices', choices:['Occasional (social smoker)','1–10 per day','10–20 per day','20+ per day'], validate:()=>true, next:'alcohol' },
   { id:'alcohol', message:"Do you drink alcohol?", field:'alcohol_use_raw', type:'yesno', validate:()=>true, next:'alcohol_amount' },
   { id:'alcohol_amount', message:"Roughly how much per week?", field:'alcohol_amount', type:'choices', choices:['Occasional (1–2 drinks/week)','Moderate (3–7 drinks/week)','Heavy (8–14 drinks/week)','Very heavy (15+ drinks/week)'], validate:()=>true, next:'photo' },
-  { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
-  { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
-  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'photo' },
   { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor.", field:'photo_response', type:'photo', validate:()=>true, next:'recording' },
-  { id:'recording', message:"Do you consent to your consultation being AI-transcribed? The recording is deleted straight after.", field:'recording_consent_raw', type:'yesno', next:'research' },
-  { id:'research', message:"Last thing — would you be willing for your de-identified data (no name, no contact details) to contribute to NZ rural health research? This is completely optional and won't affect your care.", field:'research_consent_raw', type:'yesno', validate:()=>true, next:'done' },
+  { id:'recording', message:"Last thing — do you consent to your consultation being AI-transcribed? The recording is deleted straight after.", field:'recording_consent_raw', type:'yesno', next:'done' },
 ]
 
 function parseDate(raw) {
@@ -420,10 +418,10 @@ export default function AITriage() {
       setAccSuggestion(null)
     }
 
-    // Route allergies to ACC questions or tobacco based on acc_check answer
+    // Route allergies: always go to admin questions (nhi); ACC description comes after acc_employer
     if (step.id === 'allergies') {
       setData(newData)
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'tobacco', newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'nhi', newData)
       return
     }
 
@@ -441,17 +439,17 @@ export default function AITriage() {
       return
     }
 
-    // After acc_employer, go to tobacco
+    // After acc_employer, go to admin questions (nhi/pharmacy/gp)
     if (step.id === 'acc_employer') {
       setData(newData)
-      advanceToStep('tobacco', newData)
+      advanceToStep('nhi', newData)
       return
     }
 
     // GP name — HPI lookup
     if (step.id === 'gp_name') {
       if (!processed) {
-        advanceToStep('complaint', newData)
+        advanceToStep('tobacco', newData)
         return
       }
       setTereTyping(true)
@@ -479,7 +477,7 @@ export default function AITriage() {
     // GP confirm (HPI match)
     if (step.id === 'gp_confirm') {
       if (processed === 'yes') {
-        advanceToStep('complaint', newData)
+        advanceToStep('tobacco', newData)
       } else {
         const cleared = { ...newData, gp_clinic: '', gp_email: '' }
         setData(cleared)
@@ -594,9 +592,9 @@ export default function AITriage() {
         employerName: data.employer_name || null,
         gpName: data.gp_name || '',
         gpEmail: data.gp_email || '',
-        gpClinic: '',
+        gpClinic: data.gp_clinic || '',
         hdcRightsAccepted: true,
-        researchConsent: data.research_consent_raw === 'yes',
+        researchConsent: data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes',
         tobaccoUse: data.tobacco_use_raw === 'yes' ? 'yes' : (data.tobacco_use_raw === 'no' ? 'no' : null),
         tobaccoAmount: data.tobacco_amount || null,
         alcoholUse: data.alcohol_use_raw === 'yes' ? 'yes' : (data.alcohol_use_raw === 'no' ? 'no' : null),
@@ -625,7 +623,7 @@ export default function AITriage() {
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'prescribing_limitations_acknowledged', granted:true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'recording_consent', granted: data.recording_consent_raw==='yes' }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'privacy_policy', granted:true }) }),
-        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'research_consent', granted: data.research_consent_raw === 'yes' }) }),
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'research_consent', granted: data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes' }) }),
         ...(data.is_acc_raw==='yes' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'acc_three_part_consent', granted:true }) })] : []),
       ])
       sessionStorage.setItem('accEligible', data.is_acc_raw==='yes'?'yes':'no')
@@ -634,7 +632,7 @@ export default function AITriage() {
       sessionStorage.setItem('patientEmail', data.patient_email||'')
       sessionStorage.setItem('triage_email', data.patient_email||'')
       sessionStorage.setItem('triage_first_name', nameParts[0]||'')
-      sessionStorage.setItem('patientName', (nameParts[0]||'') + ' ' + (nameParts.slice(1).join(' ')||''))
+      sessionStorage.setItem('patientName', [nameParts[0]||'', nameParts.slice(1).join(' ')].filter(Boolean).join(' '))
       sessionStorage.setItem('patient_language', lang)
       sessionStorage.removeItem('tere_triage_state')
 
@@ -684,6 +682,94 @@ export default function AITriage() {
   }
 
   const step = STEPS[currentStep]
+
+  // ── Pharmacy search widget state ────────────────────────────────────────────
+  const [pharmacyQuery, setPharmacyQuery]       = useState('')
+  const [pharmacyResults, setPharmacyResults]   = useState([])
+  const [pharmacySearching, setPharmacySearching] = useState(false)
+  const [pharmacyGeoError, setPharmacyGeoError] = useState('')
+
+  async function searchNearbyPharmacies() {
+    setPharmacyGeoError('')
+    setPharmacySearching(true)
+    setPharmacyResults([])
+    if (!navigator.geolocation) {
+      setPharmacyGeoError('Geolocation not supported — type your pharmacy name below.')
+      setPharmacySearching(false)
+      return
+    }
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 60000 })
+      )
+      const { latitude: lat, longitude: lon } = pos.coords
+
+      // Try Overpass with correct Content-Type and a hard 10s abort
+      let results = []
+      try {
+        const ac = new AbortController()
+        const t = setTimeout(() => ac.abort(), 10000)
+        const q = `[out:json][timeout:10];node["amenity"="pharmacy"](around:5000,${lat},${lon});out 8;`
+        const r = await fetch('https://overpass-api.de/api/interpreter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `data=${encodeURIComponent(q)}`,
+          signal: ac.signal,
+        })
+        clearTimeout(t)
+        if (r.ok) {
+          const d = await r.json()
+          results = (d.elements || []).map(el => ({
+            name: el.tags?.name || '',
+            address: [el.tags?.['addr:housenumber'], el.tags?.['addr:street'], el.tags?.['addr:city']].filter(Boolean).join(' '),
+          })).filter(p => p.name)
+        }
+      } catch {}
+
+      // Nominatim viewbox fallback if Overpass returned nothing
+      if (!results.length) {
+        const delta = 0.08
+        const url = `https://nominatim.openstreetmap.org/search?q=pharmacy&format=json&countrycodes=nz&addressdetails=1&limit=8&viewbox=${lon - delta},${lat + delta},${lon + delta},${lat - delta}&bounded=1`
+        const r = await fetch(url, { headers: { 'Accept-Language': 'en' } })
+        const d = await r.json()
+        results = d.map(item => ({
+          name: item.namedetails?.name || item.display_name?.split(',')[0] || '',
+          address: [item.address?.road, item.address?.suburb, item.address?.city || item.address?.town].filter(Boolean).join(', '),
+        })).filter(p => p.name)
+      }
+
+      setPharmacyResults(results.slice(0, 6))
+      if (!results.length) setPharmacyGeoError('No pharmacies found nearby. Try typing a name below.')
+    } catch (e) {
+      setPharmacyGeoError(e.code === 1 ? 'Location access denied — type your pharmacy name below.' : 'Location unavailable — type your pharmacy name below.')
+    } finally { setPharmacySearching(false) }
+  }
+
+  async function searchPharmacyByName(q) {
+    if (!q.trim()) return
+    setPharmacySearching(true)
+    setPharmacyResults([])
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=pharmacy+${encodeURIComponent(q)}&format=json&countrycodes=nz&addressdetails=1&limit=6`
+      const r = await fetch(url, { headers: { 'Accept-Language': 'en' } })
+      const d = await r.json()
+      const results = d.map(item => ({
+        name: item.namedetails?.name || item.display_name?.split(',')[0] || 'Pharmacy',
+        address: [item.address?.road, item.address?.suburb, item.address?.city || item.address?.town].filter(Boolean).join(', '),
+      }))
+      setPharmacyResults(results)
+      if (!results.length) setPharmacyGeoError('No results found — try a different name or suburb.')
+    } catch { setPharmacyGeoError('Search unavailable — type the pharmacy name and press Send.') }
+    finally { setPharmacySearching(false) }
+  }
+
+  function selectPharmacy(p) {
+    const val = p.address ? `${p.name} — ${p.address}` : p.name
+    setPharmacyResults([])
+    setPharmacyQuery('')
+    setPharmacyGeoError('')
+    handleSendValue(val)
+  }
 
   if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowConsentGate(true); trackEvent('intro_viewed', { lang }) }} />
   if (showConsentGate) return <ConsentGate onAccepted={() => setShowConsentGate(false)} lang={lang} patientName={data?.patient_name} />
@@ -777,13 +863,16 @@ export default function AITriage() {
 
   return (
     <div ref={triageContainerRef} style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
-      <div style={{background:'var(--navy)',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto'}}>
+      <div style={{background:'var(--navy)',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto',padding:'0 1.25rem .875rem'}}>
           <div>
             <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
             <span style={{color:'rgba(255,255,255,.4)',fontSize:'.8rem',marginLeft:8}}>Health Assistant</span>
           </div>
           <span style={{fontSize:'.75rem',color:'rgba(255,255,255,.35)'}}>🔒 Encrypted</span>
+        </div>
+        <div style={{height:2,background:'rgba(255,255,255,.08)'}}>
+          <div style={{height:'100%',background:'var(--teal)',width:`${Math.round((currentStep / Math.max(STEPS.length - 1, 1)) * 100)}%`,transition:'width .4s ease'}} />
         </div>
       </div>
 
@@ -854,7 +943,44 @@ export default function AITriage() {
         </div>
       )}
 
-      {step?.skippable && !tereTyping && (
+      {step?.type==='pharmacy' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          {/* Nearby search button */}
+          <button onClick={searchNearbyPharmacies} disabled={pharmacySearching}
+            style={{width:'100%',background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'11px',fontWeight:700,fontSize:'.9rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',marginBottom:6,opacity:pharmacySearching?.7:1}}>
+            {pharmacySearching ? '🔍 Searching…' : '📍 Find nearby pharmacies'}
+          </button>
+          {/* Text search */}
+          <div style={{display:'flex',gap:6,marginBottom:6}}>
+            <input value={pharmacyQuery} onChange={e=>setPharmacyQuery(e.target.value)}
+              onKeyDown={e=>{if(e.key==='Enter')searchPharmacyByName(pharmacyQuery)}}
+              placeholder="Or type pharmacy name…"
+              style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}} />
+            <button onClick={()=>searchPharmacyByName(pharmacyQuery)} disabled={pharmacySearching||!pharmacyQuery.trim()}
+              style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
+              Search
+            </button>
+          </div>
+          {pharmacyGeoError && <div style={{fontSize:'.8rem',color:'#6B7280',marginBottom:4}}>{pharmacyGeoError}</div>}
+          {pharmacyResults.length>0 && (
+            <div style={{display:'flex',flexDirection:'column',gap:5,maxHeight:220,overflowY:'auto'}}>
+              {pharmacyResults.map((p,i)=>(
+                <button key={i} onClick={()=>selectPharmacy(p)}
+                  style={{background:'white',border:'1.5px solid var(--border)',borderRadius:10,padding:'.625rem .875rem',textAlign:'left',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+                  <div style={{fontWeight:600,fontSize:'.9rem',color:'var(--navy)'}}>{p.name}</div>
+                  {p.address&&<div style={{fontSize:'.775rem',color:'#6B7280',marginTop:2}}>{p.address}</div>}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={()=>handleSendValue('skip')}
+            style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',marginTop:6}}>
+            Skip →
+          </button>
+        </div>
+      )}
+
+      {step?.skippable && step?.type !== 'pharmacy' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>

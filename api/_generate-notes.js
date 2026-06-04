@@ -300,12 +300,21 @@ Return ONLY valid JSON. Return empty flags array if no concerns found.
       alcohol:    extracted.alcohol_use || 'Not disclosed',
       occupation: extracted.occupation  || triage.accEmployer || 'Not disclosed',
     },
+    examination: {
+      generalAppearance: extracted.general_appearance || null,
+      visibleFindings:   extracted.visible_findings   || null,
+    },
     generalAppearance: extracted.general_appearance || null,
     visibleFindings:   extracted.visible_findings   || null,
     mdm:               extracted.mdm_summary        || null,
+    plan:              planAdditions.length ? planAdditions.join('\n') : null,
     planItems:         planAdditions,
     returnPrecautions: extracted.return_precautions || null,
     workCapacity: 'fit',
+    billing: {
+      serviceCode:     billingCode,
+      durationMinutes: durationMinutes || 0,
+    },
     accSection: triage.accEligible ? {
       mechanism:          triage.accInjuryDescription || null,
       bodyPart:           null,

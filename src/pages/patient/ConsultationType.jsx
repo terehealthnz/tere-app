@@ -5,23 +5,16 @@ import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
 const TYPE_CONFIG = {
   video: {
     icon: '📹',
-    title: 'Video consultation',
-    subtitle: 'Face to face with your doctor via video call',
-    features: ['See and hear your doctor', 'Physical assessment', 'Prescriptions & referrals', 'ACC claims accepted'],
+    title: 'Video call',
+    subtitle: 'Dr Herling will video call you within 2 hours',
+    features: ['Face-to-face with your doctor', 'Physical assessment', 'Prescriptions & referrals', 'ACC claims accepted'],
     recommended: true,
   },
   phone: {
     icon: '📞',
-    title: 'Phone consultation',
-    subtitle: 'Audio call only — no camera needed',
-    features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims accepted', 'Good for low-bandwidth areas'],
-    recommended: false,
-  },
-  message: {
-    icon: '💬',
-    title: 'Written response',
-    subtitle: 'Send your query and receive a written response within 2 hours',
-    features: ['Doctor reviews your notes', 'Written response to your email', 'Prescriptions if appropriate', 'No video or phone needed'],
+    title: 'Phone call',
+    subtitle: 'Dr Herling will phone you within 2 hours',
+    features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims accepted', 'No camera needed'],
     recommended: false,
   },
 }
@@ -100,9 +93,7 @@ export default function ConsultationType() {
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
               ? 'ACC claims require a live consultation — video or phone only.'
-              : allowMessage
-                ? 'Based on your query, all three options are available.'
-                : 'Based on your query, a live consultation is recommended.'}
+              : 'Dr Herling will call you back within 2 hours. Choose your preferred contact method.'}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>
@@ -181,20 +172,13 @@ export default function ConsultationType() {
           })}
         </div>
 
-        {selected === 'message' && (
-          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 10, padding: '1rem', marginBottom: '1.25rem', fontSize: '.875rem', lineHeight: 1.7, color: '#92400E' }}>
-            <strong style={{ display: 'block', marginBottom: '.25rem' }}>About written consultations</strong>
-            A clinician will read your triage notes and respond in writing within 2 hours. You'll receive the response to your email. If they determine you need urgent in-person care, they'll call you directly.
-          </div>
-        )}
-
         <button
           onClick={handleContinue}
           disabled={!selected || loading}
           className="btn btn-primary btn-full"
           style={{ fontSize: '1rem', padding: '.875rem' }}
         >
-          {loading ? 'Setting up…' : selected ? (employerPaid ? `Continue with ${TYPE_CONFIG[selected].title} — Covered` : `Continue with ${TYPE_CONFIG[selected].title} — $${getPrice(selected)}`) : 'Select a consultation type'}
+          {loading ? 'Setting up…' : selected ? (employerPaid ? `Submit — ${TYPE_CONFIG[selected].title} — Covered` : `Submit — ${TYPE_CONFIG[selected].title} — $${getPrice(selected)}`) : 'Select how you want to be contacted'}
         </button>
 
         <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.875rem', marginTop: '1rem', fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.6 }}>

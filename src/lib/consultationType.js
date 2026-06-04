@@ -28,28 +28,14 @@ const VIDEO_FORCE_KEYWORDS = [
 ]
 
 export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
-  const lower = (complaint || '').toLowerCase()
-
-  // ACC claims require a live consultation (video or phone) for billing
-  if (isAcc) return { allowVideo: true, allowPhone: true, allowMessage: false }
-
-  const needsVideo = VIDEO_FORCE_KEYWORDS.some(kw => lower.includes(kw))
-  if (needsVideo) return { allowVideo: true, allowPhone: true, allowMessage: false }
-
-  const isMessageAppropriate = MESSAGE_KEYWORDS.some(kw => lower.includes(kw))
-  return {
-    allowVideo: true,
-    allowPhone: true,
-    allowMessage: isMessageAppropriate && isReturning,
-  }
+  return { allowVideo: true, allowPhone: true, allowMessage: false }
 }
 
 export const RESERVATION_FEE = 15
 
 export const CONSULT_PRICES = {
-  video:   { private: 65, acc: 25 },
-  phone:   { private: 45, acc: 25 },
-  message: { private: 25, acc: 25 },
+  video: { private: 55, acc: 25 },
+  phone: { private: 55, acc: 25 },
 }
 
 export const CONSULT_TYPE_LABELS = {
