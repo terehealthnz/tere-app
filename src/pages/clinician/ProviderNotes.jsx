@@ -289,7 +289,7 @@ export default function ProviderNotes() {
         actions: actionsRef.current,
       }
 
-      await supabase.from('consultations').update({
+      const { error: updateErr } = await supabase.from('consultations').update({
         notes_final:         JSON.stringify(finalNote),
         notes_draft:         null,
         notes_finalised:     true,
@@ -305,6 +305,7 @@ export default function ProviderNotes() {
         consultation_duration_seconds: durationSec,
         payment_amount:      consult.payment_amount || (consult.acc_eligible === 'yes' ? 2500 : 6500),
       }).eq('id', id)
+      if (updateErr) throw updateErr
 
       // Patient summary email
       if (consult.patient_email) {

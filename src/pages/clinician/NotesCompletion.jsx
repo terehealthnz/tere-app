@@ -451,7 +451,7 @@ export default function NotesCompletion() {
         (consult?.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
       const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({
+      const { error: updateErr } = await supabase.from('consultations').update({
         notes_final:             JSON.stringify(finalNote),
         notes_draft:             null,
         notes_finalised:         true,
@@ -469,6 +469,7 @@ export default function NotesCompletion() {
         consultation_duration_seconds: durationSec,
         payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
       }).eq('id', id)
+      if (updateErr) throw updateErr
 
       // Patient summary email
       if (consult?.patient_email) {
