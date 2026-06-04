@@ -34,11 +34,11 @@ function Nav() {
           <a href="#faq" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
           <Link to="/employers" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
         </div>
-        <Link to="/triage" style={{
+        <a href={CONSULT_URL} style={{
           background: BRAND.teal, color: 'white', textDecoration: 'none',
           padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,
           fontFamily: 'Plus Jakarta Sans, sans-serif',
-        }}>Book consultation</Link>
+        }}>Book consultation</a>
       </div>
     </nav>
   )
@@ -107,7 +107,7 @@ function UpcomingSlots() {
         <div style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: BRAND.teal, marginBottom: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Next available appointments</div>
         <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'stretch' }}>
           {slots.map((s, i) => (
-            <Link key={i} to="/book" style={{ background: BRAND.bg, border: `1.5px solid ${BRAND.tealLight}`, borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130 }}>
+            <a key={i} href={CONSULT_URL} style={{ background: BRAND.bg, border: `1.5px solid ${BRAND.tealLight}`, borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130 }}>
               <div style={{ fontWeight: 700, color: BRAND.navy, fontSize: '1.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.time}</div>
               <div style={{ color: '#6B7280', fontSize: '.8125rem', marginTop: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 {new Date(s.date + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })}
@@ -115,9 +115,9 @@ function UpcomingSlots() {
               {s.providerName && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.providerName}</div>}
             </Link>
           ))}
-          <Link to="/book" style={{ background: BRAND.teal, color: 'white', borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem' }}>
+          <a href={CONSULT_URL} style={{ background: BRAND.teal, color: 'white', borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem' }}>
             All times →
-          </Link>
+          </a>
         </div>
       </div>
     </section>
@@ -219,14 +219,14 @@ function Pricing() {
                   </li>
                 ))}
               </ul>
-              <Link to="/triage" style={{
+              <a href={CONSULT_URL} style={{
                 display: 'block', textAlign: 'center', textDecoration: 'none',
                 background: p.highlight ? BRAND.teal : 'white',
                 color: p.highlight ? 'white' : BRAND.teal,
                 border: `2px solid ${BRAND.teal}`,
                 padding: '.75rem', borderRadius: 99, fontWeight: 700, fontSize: '.9375rem',
                 fontFamily: 'Plus Jakarta Sans, sans-serif',
-              }}>Book now</Link>
+              }}>Book now</a>
             </div>
           ))}
         </div>
