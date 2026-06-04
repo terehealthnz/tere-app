@@ -224,6 +224,8 @@ function MessagesTab() {
           A: '',
           P: responseText,
         },
+        async_response: responseText,
+        async_responded_at: new Date().toISOString(),
         notes_finalised: true,
         notes_finalised_at: new Date().toISOString(),
         outcome: 'message_response',
