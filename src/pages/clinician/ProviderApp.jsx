@@ -137,7 +137,7 @@ function QueueCard({ c, onStart, onDismiss, starting }) {
         disabled={starting === c.id}
         style={{ width:'100%', background: starting===c.id ? '#9CA3AF' : TEAL, color:'white', border:'none', borderRadius:12, padding:'16px', fontSize:'1.0625rem', fontWeight:700, cursor: starting===c.id ? 'not-allowed' : 'pointer', fontFamily:FF, minHeight:56, letterSpacing:'.01em' }}
       >
-        {starting === c.id ? 'Opening…' : 'Review & call patient →'}
+        {starting === c.id ? 'Calling…' : '📞 Call patient →'}
       </button>
     </div>
   )
@@ -1172,7 +1172,21 @@ export default function ProviderApp() {
     } finally { setSavingAvail(false) }
   }
 
-  function startConsult(c) {
+  async function startConsult(c) {
+    setStarting(c.id)
+    try {
+      // Initiate the call immediately — notifies patient via realtime and captures payment
+      await apiFetch('/api/initiate-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: c.id,
+          providerId,
+          providerName: displayName,
+        }),
+      })
+    } catch {}
+    setStarting(null)
     navigate(`/provider/consult/${c.id}`)
   }
 

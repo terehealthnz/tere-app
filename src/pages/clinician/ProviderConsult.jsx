@@ -395,14 +395,17 @@ export default function ProviderConsult() {
 
       {/* Fixed bottom action area */}
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'white', borderTop:'1px solid #E2E8F0', padding:'12px 16px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))' }}>
+        <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:8 }}>
+          ⏳ Connecting — patient is being notified
+        </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
           <button onClick={() => navigate('/provider')}
-            style={{ minHeight:56, borderRadius:12, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.9375rem', cursor:'pointer' }}>
+            style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer' }}>
             ← Queue
           </button>
           <button onClick={initiateCall} disabled={calling}
-            style={{ minHeight:56, borderRadius:12, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'1.0625rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-            {calling ? 'Connecting…' : `📞 Call patient now`}
+            style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+            {calling ? 'Connecting…' : '📞 Start call now'}
           </button>
         </div>
       </div>
