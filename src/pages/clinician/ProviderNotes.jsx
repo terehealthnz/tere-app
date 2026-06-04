@@ -304,6 +304,7 @@ export default function ProviderNotes() {
         completed_at:        consult.completed_at || now,
         consultation_duration_seconds: durationSec,
         payment_amount:      consult.payment_amount || (consult.acc_eligible === 'yes' ? 2500 : 6500),
+        is_acc:              consult.acc_eligible === 'yes',
       }).eq('id', id)
       if (updateErr) throw updateErr
 
