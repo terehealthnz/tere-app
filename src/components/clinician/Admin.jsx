@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
-import ScheduleEditor, { getScheduleSlots, getUseSchedule, shouldBeOpen } from './ScheduleEditor'
+import { getWaitlist, markWaitlistNotified } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from '../../pages/clinician/AdminSchedule'
 import AdminPayroll  from '../../pages/clinician/AdminPayroll'
@@ -1790,91 +1789,6 @@ function ProviderMetricsPanel() {
 function AdminBody() {
   const navigate = useNavigate()
   const [adminTab, setAdminTab] = useState('overview')
-  const [isOpen, setIsOpen] = useState(false)
-  const [availMsg, setAvailMsg] = useState('')
-  const [savingAvail, setSavingAvail] = useState(false)
-  const [availSaved, setAvailSaved] = useState(false)
-  const [nextTimes, setNextTimes] = useState('')
-  const [savingSchedule, setSavingSchedule] = useState(false)
-  const [scheduleSaved, setScheduleSaved] = useState(false)
-  const [waitlist, setWaitlist] = useState([])
-  const [notifying, setNotifying] = useState(false)
-  const [notified, setNotified] = useState(false)
-
-  const load = useCallback(async () => {
-    try {
-      const [av, sc, wl, slots, useSched] = await Promise.all([
-        getAvailability(), getSchedule(), getWaitlist(), getScheduleSlots(), getUseSchedule()
-      ])
-      setIsOpen(av.is_open)
-      setAvailMsg(av.message || '')
-      setNextTimes(sc.next_times || '')
-      setWaitlist(wl)
-      if (useSched) {
-        const open = shouldBeOpen(slots)
-        if (open !== av.is_open) {
-          await apiFetch('/api/set-availability', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ isOpen: open, message: av.message || '' }),
-          })
-          setIsOpen(open)
-        }
-      }
-    } catch (e) { console.error(e) }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  async function saveAvailability() {
-    setSavingAvail(true)
-    try {
-      const r = await apiFetch('/api/set-availability', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isOpen, message: availMsg }),
-      })
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}))
-        alert(`Failed to save availability: ${body.error || r.status}`)
-        setSavingAvail(false)
-        return
-      }
-      setAvailSaved(true)
-      setTimeout(() => setAvailSaved(false), 2500)
-      // If opening clinic, notify waitlisted patients
-      if (isOpen) {
-        try {
-          const res = await apiFetch('/api/notify-waitlist', { method:'POST', headers:{'Content-Type':'application/json'} })
-          const { sent } = await res.json()
-          if (sent > 0) alert(`✓ ${sent} waitlisted patient${sent>1?'s':''} notified by email`)
-        } catch(e) { console.error('Waitlist notify error:', e) }
-      }
-    }
-    catch (e) { console.error(e) }
-    setSavingAvail(false)
-  }
-
-  async function saveScheduleHandler() {
-    setSavingSchedule(true)
-    try { await setSchedule(nextTimes); setScheduleSaved(true); setTimeout(() => setScheduleSaved(false), 2500) }
-    catch (e) { console.error(e) }
-    setSavingSchedule(false)
-  }
-
-  async function notifyWaitlist() {
-    setNotifying(true)
-    try {
-      for (const p of waitlist) {
-        try { await apiFetch('/api/send-email', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ to:p.email, name:p.name, isOpenNotification:true, schedule:nextTimes }) }) } catch {}
-      }
-      await markWaitlistNotified()
-      setWaitlist([])
-      setNotified(true)
-      setTimeout(() => setNotified(false), 3000)
-    } catch (e) { console.error(e) }
-    setNotifying(false)
-  }
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
   const inp  = { width:'100%', padding:'.75rem 1rem', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.9375rem', color:'#1A2A33', outline:'none', boxSizing:'border-box' }
@@ -1897,7 +1811,7 @@ function AdminBody() {
 
       <div style={{ maxWidth:720, margin:'0 auto', padding:'2rem 1.5rem 3rem' }}>
         <h1 style={{ fontSize:'1.5rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Clinic Admin</h1>
-        <p style={{ fontSize:'.9375rem', color:'#6B7280', marginBottom:'1rem' }}>Manage availability, schedule, and clinic settings.</p>
+        <p style={{ fontSize:'.9375rem', color:'#6B7280', marginBottom:'1rem' }}>Manage providers, schedule, and clinic settings.</p>
 
         {/* Tabs — desktop: horizontal row, mobile: dropdown */}
         {(() => {
@@ -1946,58 +1860,6 @@ function AdminBody() {
         })()}
 
         {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
-
-        {/* Availability */}
-        <div style={card}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem', flexWrap:'wrap', gap:'.75rem' }}>
-            <div>
-              <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Manual override</div>
-              <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Toggle the clinic open or closed right now, overriding the schedule</div>
-            </div>
-            <div onClick={() => setIsOpen(o => !o)} style={{ width:56, height:30, borderRadius:15, cursor:'pointer', position:'relative', transition:'background .2s', background:isOpen ? '#059669' : '#DC2626', flexShrink:0 }}>
-              <div style={{ position:'absolute', top:3, left:isOpen ? 29 : 3, width:24, height:24, borderRadius:'50%', background:'white', transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.2)' }} />
-            </div>
-          </div>
-          <div style={{ padding:'1rem', background:isOpen ? '#F0FDF4' : '#FEF2F2', borderRadius:8, marginBottom:'1.25rem', border:`1px solid ${isOpen ? '#BBF7D0' : '#FECACA'}` }}>
-            <div style={{ fontWeight:700, color:isOpen ? '#065F46' : '#991B1B', marginBottom:'.25rem' }}>{isOpen ? '✓ Open — accepting patients' : '✗ Closed — patients see unavailable screen'}</div>
-          </div>
-          <div style={{ marginBottom:'1.25rem' }}>
-            <label style={{ display:'block', fontSize:'.8125rem', fontWeight:600, color:'#1A2A33', marginBottom:'.375rem' }}>Message shown to patients when closed</label>
-            <input style={inp} value={availMsg} onChange={e => setAvailMsg(e.target.value)} placeholder="e.g. Dr Herling is not available today. Back tomorrow at 9am." />
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <button style={btn} onClick={saveAvailability} disabled={savingAvail}>{savingAvail ? 'Saving…' : 'Save'}</button>
-            {availSaved && <span style={saved}>✓ Saved</span>}
-          </div>
-        </div>
-
-        {/* Auto schedule */}
-        <div style={card}>
-          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Weekly schedule</div>
-          <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1.25rem' }}>Set your regular hours and the clinic opens and closes automatically.</div>
-          <ScheduleEditor onSaved={(slots, useSched) => {
-            const open = useSched ? shouldBeOpen(slots) : isOpen
-            if (useSched) {
-              setIsOpen(open)
-              apiFetch('/api/set-availability', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ isOpen: open, message: availMsg }),
-              }).catch(console.error)
-            }
-          }} />
-        </div>
-
-        {/* Next available text */}
-        <div style={card}>
-          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Next available message</div>
-          <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'.875rem' }}>Shown on the closed screen alongside the schedule. Use this for special notes e.g. holiday cover.</div>
-          <textarea style={{ ...inp, resize:'vertical', minHeight:80 }} value={nextTimes} onChange={e => setNextTimes(e.target.value)} placeholder={'e.g. Back Monday 9am\nHoliday cover: call 111 for emergencies'} />
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:'.875rem' }}>
-            <button style={btn} onClick={saveScheduleHandler} disabled={savingSchedule}>{savingSchedule ? 'Saving…' : 'Save message'}</button>
-            {scheduleSaved && <span style={saved}>✓ Saved</span>}
-          </div>
-        </div>
 
         {/* Providers */}
         <ProvidersPanel />

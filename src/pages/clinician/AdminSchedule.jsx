@@ -283,6 +283,14 @@ export default function AdminSchedule({ embedded = false }) {
   const content = (
     <div style={{ padding:'1rem', fontFamily:FF }}>
 
+      {/* Display-only note */}
+      <div style={{ background:'#EFF9F9', border:'1px solid #0B6E7640', borderRadius:10, padding:'.75rem 1rem', marginBottom:'1rem', display:'flex', alignItems:'flex-start', gap:'.625rem' }}>
+        <span style={{ fontSize:'1rem', flexShrink:0, marginTop:1 }}>ℹ️</span>
+        <span style={{ fontFamily:FF, fontSize:'.8125rem', color:TEAL, lineHeight:1.5 }}>
+          Provider schedules are for planning purposes only. The clinic is open <strong>8am – 8pm daily</strong> regardless of provider schedules.
+        </span>
+      </div>
+
       {/* Week navigator */}
       <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'1rem' }}>
         <button onClick={prevWeek} style={{ background:'white', border:'1.5px solid #E2E8F0', color:NAVY, borderRadius:10, padding:'9px 14px', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:'pointer', minHeight:44, flexShrink:0 }}>‹</button>

@@ -55,9 +55,14 @@ function Hero() {
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
           Tele-emergency care.<br />Anywhere in Aotearoa.
         </h1>
-        <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           FACEM-led Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
         </p>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
+          <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.875rem' }}>· After hours? Send a message — we'll respond first thing in the morning.</span>
+        </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link to="/triage" style={{
             background: BRAND.teal, color: 'white', textDecoration: 'none',
@@ -72,7 +77,7 @@ function Hero() {
           }}>How it works</a>
         </div>
         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-          {[['✓', 'FACEM-led'], ['✓', 'ACC registered'], ['✓', 'MCNZ registered doctors']].map(([tick, text]) => (
+          {[['✓', 'FACEM-led'], ['✓', 'ACC registered'], ['✓', 'Open 8am – 8pm, 7 days']].map(([tick, text]) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '.375rem', color: 'rgba(255,255,255,.65)', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <span style={{ color: BRAND.tealLight, fontWeight: 700 }}>{tick}</span> {text}
             </div>

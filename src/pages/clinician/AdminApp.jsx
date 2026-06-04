@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getAvailability, setAvailability, getSchedule, setSchedule, getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
@@ -54,32 +54,9 @@ function restoreDevice(d) {
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }
 
-// ── Big availability toggle ───────────────────────────────────────────────────
-
-function BigToggle({ isOpen, onChange, saving }) {
-  return (
-    <div
-      onClick={saving ? undefined : () => onChange(!isOpen)}
-      style={{ width:'100%', background:isOpen?'#059669':'#DC2626', borderRadius:16, padding:'1.375rem 1.25rem', cursor:saving?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', transition:'background .25s', minHeight:80, userSelect:'none', WebkitUserSelect:'none' }}
-    >
-      <div>
-        <div style={{ color:'white', fontWeight:800, fontSize:'1.375rem', fontFamily:FF, lineHeight:1.1 }}>
-          {isOpen ? '✓ Clinic Open' : '✗ Clinic Closed'}
-        </div>
-        <div style={{ color:'rgba(255,255,255,.75)', fontSize:'.875rem', fontFamily:FF, marginTop:4 }}>
-          {isOpen ? 'Accepting new patients' : 'Patients see unavailable screen'}
-        </div>
-      </div>
-      <div style={{ width:64, height:34, borderRadius:17, background:'rgba(255,255,255,.25)', position:'relative', flexShrink:0 }}>
-        <div style={{ position:'absolute', top:4, left:isOpen?33:4, width:26, height:26, borderRadius:'50%', background:'white', transition:'left .2s', boxShadow:'0 2px 6px rgba(0,0,0,.25)' }} />
-      </div>
-    </div>
-  )
-}
-
 // ── Dashboard tab ─────────────────────────────────────────────────────────────
 
-function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, savingAvail, availSaved }) {
+function DashboardTab() {
   const navigate = useNavigate()
   const [queue, setQueue] = useState([])
   const [approvals, setApprovals] = useState(0)
@@ -162,28 +139,6 @@ function DashboardTab({ isOpen, setIsOpen, availMsg, setAvailMsg, onSaveAvail, s
 
   return (
     <div style={{ padding:'1rem', fontFamily:FF }}>
-
-      {/* Big toggle — auto-saves on tap */}
-      <BigToggle isOpen={isOpen} onChange={v => { setIsOpen(v); onSaveAvail(v) }} saving={savingAvail} />
-      {availSaved && <div style={{ textAlign:'center', color:'#059669', fontSize:'.8125rem', marginTop:'.5rem', fontFamily:FF }}>✓ Saved</div>}
-
-      {/* Custom message card */}
-      <div style={{ background:'white', borderRadius:12, padding:'1rem', marginTop:'.75rem', border:'1px solid #E2E8F0' }}>
-        <div style={{ fontSize:'.8125rem', fontWeight:600, color:'#6B7280', marginBottom:'.5rem', fontFamily:FF }}>Closed message (optional)</div>
-        <input
-          value={availMsg}
-          onChange={e => setAvailMsg(e.target.value)}
-          placeholder="Message shown when clinic is closed…"
-          style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', outline:'none', marginBottom:'.75rem' }}
-        />
-        <button
-          onClick={() => onSaveAvail()}
-          disabled={savingAvail}
-          style={{ width:'100%', background:TEAL, color:'white', border:'none', borderRadius:10, padding:'11px', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', opacity:savingAvail?0.6:1 }}
-        >
-          {savingAvail ? 'Saving…' : 'Save message'}
-        </button>
-      </div>
 
       {/* Stat tiles */}
       {loading ? (
@@ -1126,20 +1081,8 @@ export default function AdminApp() {
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Admin'
 
   const [tab, setTab]               = useState('dashboard')
-  const [isOpen, setIsOpen]         = useState(false)
-  const [availMsg, setAvailMsg]     = useState('')
-  const [savingAvail, setSavingAvail] = useState(false)
-  const [availSaved, setAvailSaved] = useState(false)
   const [isOnline, setIsOnline]     = useState(navigator.onLine)
   const [dashBadge, setDashBadge]   = useState(0)
-
-  // Load clinic availability + poll for changes
-  useEffect(() => {
-    const poll = () => getAvailability().then(av => { setIsOpen(av.is_open); setAvailMsg(m => m || av.message || '') }).catch(()=>{})
-    poll()
-    const interval = setInterval(poll, 10000)
-    return () => clearInterval(interval)
-  }, [])
 
   // Register push
   useEffect(() => {
@@ -1177,41 +1120,6 @@ export default function AdminApp() {
     return () => clearInterval(interval)
   }, [])
 
-  async function saveAvail(overrideValue) {
-    const value = overrideValue !== undefined ? overrideValue : isOpen
-    setSavingAvail(true)
-    try {
-      // Use server-side endpoint (service role key) to bypass RLS on availability table
-      const r = await apiFetch('/api/set-availability', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isOpen: value, message: availMsg }),
-      })
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        console.error('Failed to update availability:', err)
-        setIsOpen(!value) // revert toggle
-        setSavingAvail(false)
-        return
-      }
-      setAvailSaved(true)
-      setTimeout(() => setAvailSaved(false), 2500)
-      if (value) {
-        try {
-          const res = await apiFetch('/api/notify-waitlist', { method:'POST', headers:{'Content-Type':'application/json'} })
-          const { sent } = await res.json()
-          if (sent > 0) {
-            apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'waitlist_open', count:sent }) }).catch(()=>{})
-          }
-        } catch {}
-      }
-    } catch (e) {
-      console.error('saveAvail error:', e)
-      setIsOpen(!value) // revert toggle
-    }
-    setSavingAvail(false)
-  }
-
   return (
     <div style={{ height:'100dvh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none', position:'relative', overflow:'hidden' }}>
 
@@ -1232,16 +1140,12 @@ export default function AdminApp() {
             style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.18)', color:'rgba(255,255,255,.85)', fontSize:'.75rem', cursor:'pointer', fontFamily:FF, minHeight:34 }}>
             🩺 Provider
           </button>
-          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:isOpen?'#10B981':'#6B7280' }} />
-            <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.8125rem', fontFamily:FF }}>{isOpen?'Open':'Closed'}</span>
-          </div>
         </div>
       </div>
 
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
-        {tab === 'dashboard' && <DashboardTab isOpen={isOpen} setIsOpen={setIsOpen} availMsg={availMsg} setAvailMsg={setAvailMsg} onSaveAvail={saveAvail} savingAvail={savingAvail} availSaved={availSaved} />}
+        {tab === 'dashboard' && <DashboardTab />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'bookings'  && <BookingsTab />}
         {tab === 'schedule'  && <AdminSchedule embedded />}

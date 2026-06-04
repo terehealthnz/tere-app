@@ -5,6 +5,7 @@ import TereIntro from './TereIntro'
 import ConsentGate from './ConsentGate'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
+import { isClinicOpen } from '../../lib/clinicHours'
 
 // ── Anonymous analytics helper ─────────────────────────────────────────────────
 function trackEvent(event_name, metadata = {}) {
@@ -560,13 +561,6 @@ export default function AITriage() {
     trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
-      let av = { is_open: true }
-      try {
-        const avRes = await apiFetch('/api/get-availability?t=' + Date.now())
-        if (avRes.ok) av = await avRes.json()
-        else av = { is_open: false } // API error → assume closed
-      } catch { av = { is_open: false } } // network error → assume closed
-      console.log('[triage] av result:', JSON.stringify(av))
       const consultation = await createConsultation({
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
@@ -603,9 +597,6 @@ export default function AITriage() {
       })
       sessionStorage.setItem('consultationId', consultation.id)
 
-      console.log('Clinic status:', av.is_open)
-
-
       // Flag controlled medication mention (requires migration: ALTER TABLE consultations ADD COLUMN controlled_medication_mentioned BOOLEAN DEFAULT false)
       if (data.controlled_medication_mentioned) {
         import('../../lib/supabase').then(({ supabase }) => {
@@ -636,7 +627,7 @@ export default function AITriage() {
       sessionStorage.setItem('patient_language', lang)
       sessionStorage.removeItem('tere_triage_state')
 
-      if (!av.is_open) {
+      if (!isClinicOpen()) {
         sessionStorage.setItem('consultation_subtype', 'async_message')
         try {
           const { supabase } = await import('../../lib/supabase')

@@ -254,21 +254,6 @@ export default function WaitingRoom() {
           </div>
         </div>
 
-        {/* Clinic hours */}
-        {(() => {
-          let open = true
-          try { const h = Number(new Intl.DateTimeFormat('en-NZ',{timeZone:'Pacific/Auckland',hour:'numeric',hour12:false}).format(new Date())); open = h >= 8 && h < 20 } catch {}
-          return (
-            <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 10, padding: '.75rem 1.125rem', marginBottom: '1.5rem', width: '100%', maxWidth: 360, animation: 'fadeUp .5s .65s both' }}>
-              <div style={{ fontSize: '.625rem', fontWeight: 700, color: 'rgba(212,238,240,.5)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem' }}>Clinic hours</div>
-              <div style={{ fontSize: '.8125rem', color: open ? 'rgba(212,238,240,.7)' : 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
-                {open
-                  ? '✓ Clinic is open now — 8am–8pm NZ time'
-                  : '⏰ Outside clinic hours (8am–8pm NZ). Dr Herling will call when the clinic reopens.'}
-              </div>
-            </div>
-          )
-        })()}
 
         {/* Step indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '2rem', animation: 'fadeUp .5s .7s both' }}>

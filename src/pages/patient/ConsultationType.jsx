@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
+import { isClinicOpen } from '../../lib/clinicHours'
 
 const TYPE_CONFIG = {
   video: {
@@ -60,13 +61,7 @@ export default function ConsultationType() {
         updates.payment_amount = 0
       }
       await supabase.from('consultations').update(updates).eq('id', consultationId)
-      // Re-check clinic is still open (it may have closed between triage and here)
-      const [{ data: av, error: avErr }, { data: manualProvs }] = await Promise.all([
-        supabase.from('availability').select('is_open').eq('id', 1).single(),
-        supabase.from('providers').select('id').eq('is_available', true).eq('is_provider', true).eq('is_active', true),
-      ])
-      const isOpen = av?.is_open === true || (manualProvs?.length ?? 0) > 0
-      if (!avErr && !isOpen) {
+      if (!isClinicOpen()) {
         navigate(`/async-message/${consultationId}`)
         return
       }
