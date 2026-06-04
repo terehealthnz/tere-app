@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { getPatientConsultations, updatePatient } from '../../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -19,9 +20,15 @@ function InfoRow({ label, value }) {
 export default function ClinicianPatient() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [consult, setConsult]   = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [starting, setStarting] = useState(false)
+  const [consult, setConsult]     = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [starting, setStarting]   = useState(false)
+  const [patient, setPatient]     = useState(null)
+  const [history, setHistory]     = useState([])
+  const [expandedId, setExpandedId] = useState(null)
+  const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
+  const [editValue, setEditValue] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -36,6 +43,14 @@ export default function ClinicianPatient() {
         const { supabase } = await import('../../lib/supabase')
         const { data } = await supabase.from('consultations').select('*').eq('id', id).single()
         setConsult(data)
+        if (data?.patient_id) {
+          const [{ data: pt }, pastConsults] = await Promise.all([
+            supabase.from('patients').select('*').eq('id', data.patient_id).single(),
+            getPatientConsultations(data.patient_id, 10),
+          ])
+          setPatient(pt || null)
+          setHistory(pastConsults.filter(c => c.id !== id))
+        }
       } catch {} finally { setLoading(false) }
     }
     if (id) load()
@@ -151,6 +166,96 @@ export default function ClinicianPatient() {
               {v.hr  && <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>}
               {v.rr  && <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>}
               {v.spo2 && <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>{v.spo2}%</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div></div>}
+            </div>
+          </div>
+        )}
+
+        {/* Editable patient record (medications / allergies / history from patients table) */}
+        {patient && (() => {
+          async function saveEdit(field, value) {
+            setSavingEdit(true)
+            const map = { medications: 'current_medications', allergies: 'allergies', history: 'medical_history' }
+            try {
+              await updatePatient(patient.id, { [map[field]]: value })
+              setPatient(p => ({ ...p, [map[field]]: value }))
+            } catch {}
+            setSavingEdit(false)
+            setEditField(null)
+          }
+
+          function EditableCard({ fieldKey, label, color, bg, borderColor, value }) {
+            const isEditing = editField === fieldKey
+            return (
+              <div style={{ background: bg || 'white', borderRadius: 16, border: `1px solid ${borderColor || '#E2E8F0'}`, padding: '1.25rem', marginBottom: '.875rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
+                  <div style={{ fontWeight: 700, color: color || NAVY, fontSize: '.9375rem' }}>{label}</div>
+                  <button onClick={() => { setEditField(isEditing ? null : fieldKey); setEditValue(value || '') }}
+                    style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: FF }}>
+                    {isEditing ? 'Cancel' : 'Edit'}
+                  </button>
+                </div>
+                {isEditing ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <textarea
+                      value={editValue}
+                      onChange={e => setEditValue(e.target.value)}
+                      rows={4}
+                      style={{ width: '100%', padding: '.625rem .75rem', border: '1.5px solid #D1D5DB', borderRadius: 8, fontFamily: FF, fontSize: '.9rem', resize: 'vertical', boxSizing: 'border-box' }}
+                    />
+                    <button onClick={() => saveEdit(fieldKey, editValue)} disabled={savingEdit}
+                      style={{ alignSelf: 'flex-end', background: TEAL, color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '.875rem', cursor: 'pointer', fontFamily: FF, opacity: savingEdit ? .6 : 1 }}>
+                      {savingEdit ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '.9375rem', color: color || NAVY, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{value || <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>None recorded</span>}</div>
+                )}
+              </div>
+            )
+          }
+
+          return (
+            <>
+              <EditableCard fieldKey="allergies" label="⚠ Allergies" color="#991B1B" bg="#FEF2F2" borderColor="#FECACA" value={patient.allergies} />
+              <EditableCard fieldKey="medications" label="Current medications" value={patient.current_medications} />
+              <EditableCard fieldKey="history" label="Medical history" value={patient.medical_history} />
+            </>
+          )
+        })()}
+
+        {/* Past Tere consultations */}
+        {history.length > 0 && (
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>
+              Past Tere consultations ({history.length})
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {history.map(c => (
+                <div key={c.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+                  <button onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                    style={{ width: '100%', background: 'none', border: 'none', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '.875rem', fontWeight: 600, color: NAVY, marginBottom: 2 }}>{c.chief_complaint}</div>
+                      <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                        {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
+                        {c.acc_read_code ? ` · ${c.acc_read_code}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {c.prescription_issued && <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Rx</span>}
+                      {c.referral_issued && <span style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Ref</span>}
+                    </div>
+                    <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}>{expandedId === c.id ? '▲' : '▼'}</span>
+                  </button>
+                  {expandedId === c.id && c.notes_final && (
+                    <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.625rem 0 .375rem' }}>Finalised notes</div>
+                      <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes_final}</div>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}

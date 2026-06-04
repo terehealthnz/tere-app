@@ -227,7 +227,8 @@ export default function AITriage() {
         // Terminal or unknown status — clear stale session and start fresh
         ;['consultationId','tere_triage_state','accEligible','consultationType','paymentAmount',
           'patientName','patientEmail','triage_complaint','triage_returning','patient_language',
-          'paymentIntentId','employer_paid','employer_name','employer_id'].forEach(k => sessionStorage.removeItem(k))
+          'paymentIntentId','employer_paid','employer_name','employer_id',
+          'patient_id','patient_consult_count'].forEach(k => sessionStorage.removeItem(k))
       }
       if (sessionStorage.getItem('tere_triage_state')) return
       setTimeout(() => setMessages([{ role:'tere', text: t('greeting', lang) }]), 400)
@@ -326,26 +327,18 @@ export default function AITriage() {
 
     setData(newData)
 
-    // Returning patient lookup after DOB entry
+    // Returning patient lookup after DOB entry — uses patients table
     if (step.id === 'dob_lookup') {
       try {
-        const { supabase } = await import('../../lib/supabase')
+        const { findPatient } = await import('../../lib/supabase')
         const dob = parseDate(processed)
         const nameParts = (currentData.patient_name || '').trim().split(' ')
         const firstName = nameParts[0]
         const lastName = nameParts.slice(1).join(' ') || ''
 
-        console.log('Looking up patient:', { firstName, lastName, dob })
         // Run patient lookup and employer check in parallel
-        const [prevResult, empResult] = await Promise.allSettled([
-          supabase
-            .from('consultations')
-            .select('*')
-            .ilike('patient_first_name', firstName)
-            .ilike('patient_last_name', lastName)
-            .eq('patient_dob', dob)
-            .order('created_at', { ascending: false })
-            .limit(1),
+        const [patientResult, empResult] = await Promise.allSettled([
+          findPatient(firstName, lastName, dob),
           apiFetch('/api/employer-check', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -353,7 +346,7 @@ export default function AITriage() {
           }).then(r => r.json()),
         ])
 
-        // Process employer check result
+        // Process employer check
         const empData = {}
         if (empResult.status === 'fulfilled' && empResult.value?.match) {
           const { employerId, employerName } = empResult.value
@@ -368,44 +361,44 @@ export default function AITriage() {
           }, 600)
         }
 
-        const prev = prevResult.status === 'fulfilled' ? prevResult.value?.data : null
-        console.log('Supabase result:', prev, prevResult.value?.error, { dob })
+        const patient = patientResult.status === 'fulfilled' ? patientResult.value : null
 
-        if (prev && prev.length > 0) {
-          const p = prev[0]
+        if (patient) {
+          // Returning patient — pre-fill from patients table
+          sessionStorage.setItem('patient_id', patient.id)
+          sessionStorage.setItem('patient_consult_count', String(patient.total_consultations || 0))
           const prefilled = {
             ...newData,
             ...empData,
-            patient_name: `${p.patient_first_name} ${p.patient_last_name}`,
-            patient_first_name: p.patient_first_name,
-            patient_last_name: p.patient_last_name,
-            patient_dob_raw: p.patient_dob,
-            patient_phone: p.patient_phone || '',
-            patient_email: p.patient_email || '',
-            patient_nhi: p.patient_nhi || '',
-            patient_location: p.patient_location || '',
-            pharmacy: p.pharmacy || '',
-            gp_name: p.gp_name || '',
-            gp_clinic: p.gp_clinic || '',
-            gp_email: p.gp_email || '',
-            employer: p.employer || '',
-            medical_history: p.medical_history || '',
-            medications: p.medications || '',
-            allergies: p.allergies || '',
+            patient_name: `${patient.first_name} ${patient.last_name}`,
+            patient_first_name: patient.first_name,
+            patient_last_name: patient.last_name,
+            patient_dob_raw: patient.date_of_birth,
+            patient_phone: patient.phone || '',
+            patient_email: patient.email || '',
+            patient_nhi: patient.nhi || '',
+            pharmacy: patient.pharmacy_name || '',
+            gp_name: patient.gp_name || '',
+            gp_clinic: patient.gp_clinic || '',
+            gp_email: patient.gp_email || '',
+            employer: patient.acc_employer || '',
+            medical_history: patient.medical_history || '',
+            medications: patient.current_medications || '',
+            allergies: patient.allergies || '',
             returning: true,
           }
           setData(prefilled)
           setTereTyping(true)
           setTimeout(() => {
             setTereTyping(false)
-            setMessages(prev => [...prev, { role:'tere', text: t('welcome_back', lang, { firstName: p.patient_first_name }) }])
+            setMessages(prev => [...prev, { role:'tere', text: t('welcome_back', lang, { firstName: patient.first_name }) }])
             advanceToStep('complaint', prefilled)
           }, 800)
           return
         }
 
         if (Object.keys(empData).length) setData({ ...newData, ...empData })
-      } catch(e) { console.error('Lookup error:', e) }
+      } catch(e) { console.error('Patient lookup error:', e) }
       advanceToStep('phone', newData)
       return
     }
@@ -617,6 +610,68 @@ export default function AITriage() {
           sessionStorage.removeItem('consultation_id')
         } catch {}
       }
+
+      // Upsert patient record and link to consultation
+      const patientIdFromSession = sessionStorage.getItem('patient_id')
+      try {
+        const { supabase: sb, createPatient, updatePatient } = await import('../../lib/supabase')
+        const researchGranted = data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes'
+        let finalPatientId = patientIdFromSession
+
+        if (!finalPatientId) {
+          // New patient — create record now with full triage data
+          const np = await createPatient({
+            first_name: nameParts[0],
+            last_name: nameParts.slice(1).join(' ') || '',
+            date_of_birth: parseDate(data.patient_dob_raw),
+            phone: data.patient_phone || null,
+            email: data.patient_email || null,
+            nhi: data.patient_nhi || null,
+            pharmacy_name: data.pharmacy || null,
+            gp_name: data.gp_name || null,
+            gp_clinic: data.gp_clinic || null,
+            gp_email: data.gp_email || null,
+            medical_history: data.medical_history || null,
+            current_medications: data.medications || null,
+            allergies: data.allergies || null,
+            preferred_language: lang,
+            acc_employer: data.employer || null,
+            research_consent: researchGranted,
+            research_consent_updated_at: new Date().toISOString(),
+            first_consultation_at: new Date().toISOString(),
+            last_consultation_at: new Date().toISOString(),
+            total_consultations: 1,
+          })
+          finalPatientId = np?.id
+        } else {
+          // Returning patient — refresh all fields with latest values
+          const prevCount = parseInt(sessionStorage.getItem('patient_consult_count') || '0', 10)
+          const updates = {
+            last_consultation_at: new Date().toISOString(),
+            total_consultations: prevCount + 1,
+            research_consent: researchGranted,
+            research_consent_updated_at: new Date().toISOString(),
+            preferred_language: lang,
+          }
+          if (data.patient_phone) updates.phone = data.patient_phone
+          if (data.patient_email) updates.email = data.patient_email
+          if (data.patient_nhi) updates.nhi = data.patient_nhi
+          if (data.pharmacy) updates.pharmacy_name = data.pharmacy
+          if (data.gp_name) updates.gp_name = data.gp_name
+          if (data.gp_clinic) updates.gp_clinic = data.gp_clinic
+          if (data.gp_email) updates.gp_email = data.gp_email
+          if (data.medical_history) updates.medical_history = data.medical_history
+          if (data.medications) updates.current_medications = data.medications
+          if (data.allergies) updates.allergies = data.allergies
+          if (data.employer) updates.acc_employer = data.employer
+          await updatePatient(finalPatientId, updates)
+        }
+
+        if (finalPatientId) {
+          await sb.from('consultations').update({ patient_id: finalPatientId }).eq('id', consultation.id)
+          sessionStorage.setItem('patient_id', finalPatientId)
+        }
+      } catch(e) { console.error('Patient record error:', e) }
 
       // Flag controlled medication mention (requires migration: ALTER TABLE consultations ADD COLUMN controlled_medication_mentioned BOOLEAN DEFAULT false)
       if (data.controlled_medication_mentioned) {

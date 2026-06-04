@@ -308,6 +308,85 @@ export function subscribeToChatMessages(consultationId, callback) {
     .subscribe()
 }
 
+// ── Patient profile helpers ──────────────────────────────────────────────────
+
+export async function findPatient(firstName, lastName, dob) {
+  const { data } = await supabase
+    .from('patients')
+    .select('*')
+    .ilike('first_name', firstName.trim())
+    .ilike('last_name', lastName.trim())
+    .eq('date_of_birth', dob)
+    .maybeSingle()
+  return data || null
+}
+
+export async function createPatient(data) {
+  const { data: patient, error } = await supabase
+    .from('patients')
+    .insert(data)
+    .select()
+    .single()
+  if (error) throw error
+  return patient
+}
+
+export async function updatePatient(patientId, updates) {
+  const { error } = await supabase
+    .from('patients')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', patientId)
+  if (error) throw error
+}
+
+export async function getPatients({ search = '', limit = 50, offset = 0 } = {}) {
+  let q = supabase
+    .from('patients')
+    .select('id, first_name, last_name, date_of_birth, nhi, phone, email, total_consultations, last_consultation_at, research_consent', { count: 'exact' })
+    .order('last_consultation_at', { ascending: false, nullsFirst: false })
+    .range(offset, offset + limit - 1)
+  if (search.trim()) {
+    const s = search.trim()
+    q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,nhi.ilike.%${s}%`)
+  }
+  const { data, error, count } = await q
+  if (error) throw error
+  return { data: data || [], count: count || 0 }
+}
+
+export async function getPatient(patientId) {
+  const { data, error } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('id', patientId)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function getPatientConsultations(patientId, limit = 20) {
+  const { data, error } = await supabase
+    .from('consultations')
+    .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
+}
+
+export async function mergePatients(primaryId, secondaryId) {
+  await supabase.from('consultations').update({ patient_id: primaryId }).eq('patient_id', secondaryId)
+  await supabase.from('consents').update({ consultation_id: primaryId }).eq('consultation_id', secondaryId)
+  const { data: primary } = await supabase.from('patients').select('total_consultations').eq('id', primaryId).single()
+  const { data: secondary } = await supabase.from('patients').select('total_consultations').eq('id', secondaryId).single()
+  await supabase.from('patients').update({
+    total_consultations: (primary?.total_consultations || 0) + (secondary?.total_consultations || 0),
+    updated_at: new Date().toISOString(),
+  }).eq('id', primaryId)
+  await supabase.from('patients').delete().eq('id', secondaryId)
+}
+
 // ── Provider helpers ─────────────────────────────────────────────────────────
 
 export function providerDisplayName(p) {

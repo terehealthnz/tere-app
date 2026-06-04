@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
+import AdminPatients  from '../../pages/clinician/AdminPatients'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1825,6 +1826,7 @@ function AdminBody() {
             { id:'employers',    label:'🏢 Employers' },
             { id:'careers',      label:'💼 Careers' },
             { id:'research',     label:'🔬 Research' },
+            { id:'patients',     label:'👥 Patients' },
           ]
           return (<>
             {/* Desktop horizontal tabs */}
@@ -1861,7 +1863,7 @@ function AdminBody() {
           </>)
         })()}
 
-        {adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
+        {adminTab === 'patients' ? <AdminPatients embedded /> : adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
 
         {/* Providers */}
         <ProvidersPanel />

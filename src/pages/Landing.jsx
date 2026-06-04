@@ -4,6 +4,10 @@ import { apiFetch } from '../lib/api'
 
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
 
+const CONSULT_URL = (window.location.hostname === 'terehealth.co.nz' || window.location.hostname === 'www.terehealth.co.nz')
+  ? 'https://tere.co.nz'
+  : '/triage'
+
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -64,12 +68,12 @@ function Hero() {
           <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.875rem' }}>· After hours? Send a message — we'll respond first thing in the morning.</span>
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/triage" style={{
+          <a href={CONSULT_URL} style={{
             background: BRAND.teal, color: 'white', textDecoration: 'none',
             padding: '1.1rem 2.75rem', borderRadius: 99, fontSize: '1.25rem', fontWeight: 700,
             fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 6px 32px rgba(11,110,118,.5)',
             letterSpacing: '.01em',
-          }}>Start consultation</Link>
+          }}>Start consultation</a>
           <a href="#how-it-works" style={{
             background: 'rgba(255,255,255,.1)', color: 'white', textDecoration: 'none',
             padding: '.9rem 2rem', borderRadius: 99, fontSize: '1rem', fontWeight: 600,
@@ -290,6 +294,42 @@ function About() {
   )
 }
 
+function Team() {
+  const members = [
+    { name: 'Dr Rachel Thomas', role: 'Medical Director', cred: 'FACEM', bio: 'Emergency physician with over 20 years in rural and regional emergency medicine. Fellow of the Australasian College for Emergency Medicine.' },
+    { name: 'Dr Patrick Herling', role: 'EM Physician', cred: 'MBChB', bio: 'Emergency medicine doctor and co-founder. Passionate about equitable access to acute care for rural and maritime communities across Aotearoa.' },
+    { name: 'Justin Thomas', role: 'Chief Business Officer', cred: '', bio: 'Healthcare business leader with expertise in digital health, employer health programmes, and scaling telehealth services across New Zealand.' },
+  ]
+  return (
+    <section style={{ background: BRAND.bg, padding: '5rem 1.5rem' }}>
+      <div style={{ maxWidth: 860, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
+            The team
+          </h2>
+          <p style={{ fontSize: '1rem', color: '#6B7280', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            Emergency medicine expertise, built for rural New Zealand.
+          </p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+          {members.map(m => (
+            <div key={m.name} style={{ background: 'white', borderRadius: 14, border: '1px solid #E2E8F0', padding: '1.5rem' }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: BRAND.teal, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '1.25rem', marginBottom: '1rem' }}>
+                {m.name.split(' ').filter((_, i) => i === 1 || i === 2).map(w => w[0]).join('')}
+              </div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: BRAND.navy }}>
+                {m.name}{m.cred ? <span style={{ fontWeight: 400, color: BRAND.teal, fontSize: '.875rem' }}> {m.cred}</span> : ''}
+              </div>
+              <div style={{ fontSize: '.8125rem', color: BRAND.teal, fontWeight: 600, marginBottom: '.625rem' }}>{m.role}</div>
+              <div style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6 }}>{m.bio}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function FAQ() {
   const [open, setOpen] = useState(null)
   const faqs = [
@@ -393,6 +433,7 @@ export default function Landing() {
         <Pricing />
         <ForEmployers />
         <About />
+        <Team />
         <FAQ />
       </main>
       <Footer />

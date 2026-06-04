@@ -105,8 +105,7 @@ const DemoAdmin           = lazy(() => import('./pages/demo/DemoAdmin'))
 const AsyncMessage        = lazy(() => import('./pages/patient/AsyncMessage'))
 const VitalsValidate      = lazy(() => import('./pages/patient/VitalsValidate'))
 const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDashboard'))
-const HDCConsent          = lazy(() => import('./pages/patient/HDCConsent'))
-const PrescribingLimits   = lazy(() => import('./pages/patient/PrescribingLimits'))
+const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -122,6 +121,8 @@ function PwaRoot() {
     if (portal === 'admin') return <Navigate to="/admin" replace />
     return <Navigate to="/triage" replace />
   }
+  const h = window.location.hostname
+  if (h === 'terehealth.co.nz' || h === 'www.terehealth.co.nz') return <Landing />
   return <TereIntro />
 }
 
@@ -131,8 +132,7 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
-        <Route path="/consent"                element={<HDCConsent />} />
-        <Route path="/prescribing-limits"     element={<PrescribingLimits />} />
+        <Route path="/consent"                element={<ConsentPage />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />
         <Route path="/vitals/:id"             element={<VitalsCapture />} />
