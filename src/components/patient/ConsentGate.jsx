@@ -54,8 +54,8 @@ function AccordionCard({ icon, title, summary, children, checked, onCheck, check
           </div>
         )}
 
-        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-          <div onClick={() => onCheck(c => !c)}
+        <label onClick={() => onCheck(c => !c)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+          <div
             style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${checked ? '#059669' : '#D1D5DB'}`, background: checked ? '#059669' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
             {checked && <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>✓</span>}
           </div>
@@ -70,12 +70,14 @@ export default function ConsentGate({ onAccepted, lang = 'en', patientName, cons
   const navigate = useNavigate()
   const [hdcChecked, setHdcChecked] = useState(false)
   const [rxChecked, setRxChecked] = useState(false)
+  const [researchChecked, setResearchChecked] = useState(false)
   const [saving, setSaving] = useState(false)
   const bothChecked = hdcChecked && rxChecked
 
   async function handleAccept() {
     if (!bothChecked) return
     setSaving(true)
+    sessionStorage.setItem('research_consent', researchChecked ? 'yes' : 'no')
     try {
       await Promise.allSettled([
         apiFetch('/api/consents', {
@@ -103,8 +105,8 @@ export default function ConsentGate({ onAccepted, lang = 'en', patientName, cons
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1rem', maxWidth: 600, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: '#0B6E76', fontSize: '.875rem', marginBottom: '.25rem' }}>Before we begin</div>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Two quick things to confirm</h2>
-          <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.5 }}>Tick both boxes to continue — tap "Show details" if you'd like to read more.</p>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>A few things to confirm</h2>
+          <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.5 }}>Tick the first two boxes to continue — tap "Show details" if you'd like to read more.</p>
         </div>
 
         <AccordionCard
@@ -160,6 +162,20 @@ export default function ConsentGate({ onAccepted, lang = 'en', patientName, cons
             </div>
           </div>
         </AccordionCard>
+
+        {/* Research consent — optional */}
+        <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1rem 1.25rem', marginBottom: '.75rem' }}>
+          <label onClick={() => setResearchChecked(c => !c)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+            <div
+              style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${researchChecked ? '#059669' : '#D1D5DB'}`, background: researchChecked ? '#059669' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+              {researchChecked && <span style={{ color: 'white', fontSize: 13, fontWeight: 700 }}>✓</span>}
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '.9375rem', color: '#0D2B45', marginBottom: 2 }}>🔬 Support NZ health research <span style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 400 }}>(optional)</span></div>
+              <div style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.5 }}>I'm willing for my de-identified data (no name, no contact details) to contribute to NZ rural health research. This is completely optional and will not affect my care.</div>
+            </div>
+          </label>
+        </div>
 
         <button onClick={handleAccept} disabled={!bothChecked || saving}
           style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '1rem', cursor: bothChecked ? 'pointer' : 'default', background: bothChecked ? '#0B6E76' : '#E2E8F0', color: bothChecked ? 'white' : '#9CA3AF', marginBottom: '2rem', transition: 'background .15s, color .15s' }}>

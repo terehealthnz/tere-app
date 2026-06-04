@@ -29,30 +29,6 @@ const REQUEST_OPTIONS = [
   'ACC claim assistance',
 ]
 
-function estimateDeadline() {
-  const now = new Date()
-  // NZ DST: UTC+13 Oct–Mar, UTC+12 Apr–Sep
-  const utcMonth = now.getUTCMonth()
-  const nzOffsetMs = (utcMonth >= 9 || utcMonth <= 2) ? 13 * 3600000 : 12 * 3600000
-  const nzDate = new Date(now.getTime() + nzOffsetMs)
-  const day = nzDate.getUTCDay()
-  const h   = nzDate.getUTCHours()
-  const inBH = day >= 1 && day <= 5 && h >= 8 && h < 18
-
-  if (inBH) {
-    const dlH = h + 4
-    if (dlH < 18) {
-      const ampm = dlH < 12 ? 'am' : 'pm'
-      const dlMin = String(nzDate.getUTCMinutes()).padStart(2, '0')
-      return `By ${dlH % 12 || 12}:${dlMin}${ampm} today (NZ time)`
-    }
-    return 'By 6pm today (NZ time)'
-  }
-  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
-  let nextDay = (day + 1) % 7, daysAhead = 1
-  while (nextDay === 0 || nextDay === 6) { nextDay = (nextDay + 1) % 7; daysAhead++ }
-  return `By 10am ${daysAhead === 1 ? 'tomorrow' : dayNames[nextDay]} (NZ time)`
-}
 
 function formatDeadline(iso) {
   if (!iso) return ''
@@ -187,27 +163,99 @@ function AsyncMessageInner() {
   const [visible, setVisible] = useState(false)
 
   // Form fields
-  const [symptomDetail, setSymptomDetail]           = useState('')
+  const [symptomDetail, setSymptomDetail]           = useState(() => sessionStorage.getItem('triage_complaint') || '')
   const [progression, setProgression]               = useState('')
-  const [prevTreatment, setPrevTreatment]           = useState('')
-  const [prevEpisodes, setPrevEpisodes]             = useState('')
-  const [prevEpisodesDetail, setPrevEpisodesDetail] = useState('')
   const [dailyImpact, setDailyImpact]               = useState('')
   const [photos, setPhotos]                         = useState([])  // File objects
   const [photoUrls, setPhotoUrls]                   = useState([])  // Uploaded URLs
-  const [requests, setRequests]                     = useState([])
-  const [urgency, setUrgency]                       = useState('')
+  const [requests, setRequests]                     = useState(() => sessionStorage.getItem('accEligible') === 'yes' ? ['ACC claim assistance'] : [])
   const [formError, setFormError]                   = useState('')
   const [uploading, setUploading]                   = useState(false)
   const photoInputRef = useRef(null)
   const paymentIntentIdRef = useRef(null)
 
+  // Thread messaging
+  const [threadMsgs, setThreadMsgs]     = useState([])
+  const [replyText, setReplyText]       = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
+  const threadSubRef   = useRef(null)
+  const threadScrollRef = useRef(null)
+
+  // Real-time consultation state
+  const [consultStatus, setConsultStatus]           = useState(null)
+  const [consultResponse, setConsultResponse]       = useState(null)
+  const [providerDisplayName, setProviderDisplayName] = useState(null)
+  const [showAddInfo, setShowAddInfo]               = useState(false)
+  const [showQA, setShowQA]                         = useState(false)
+  const [followUpText, setFollowUpText]             = useState('')
+  const [sendingFollowUp, setSendingFollowUp]       = useState(false)
+  const [followUpSent, setFollowUpSent]             = useState(false)
+  const consultSubRef = useRef(null)
+
   useEffect(() => { setTimeout(() => setVisible(true), 60) }, [])
+
+  // Thread subscription when in thread phase
+  useEffect(() => {
+    if (phase !== 'thread') return
+    let sub
+    import('../../lib/supabase').then(({ getChatMessages, subscribeToChatMessages }) => {
+      getChatMessages(id).then(msgs => {
+        setThreadMsgs(msgs || [])
+      }).catch(() => {})
+      sub = subscribeToChatMessages(id, msg => {
+        setThreadMsgs(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          // Replace matching optimistic message
+          const filtered = prev.filter(m => !(String(m.id).startsWith('opt-') && m.sender === msg.sender && m.message === msg.message))
+          return [...filtered, msg]
+        })
+      })
+      threadSubRef.current = sub
+    })
+    return () => { sub?.unsubscribe?.(); threadSubRef.current = null }
+  }, [phase, id])
+
+  // Auto-scroll to bottom when messages arrive
+  useEffect(() => {
+    if (phase !== 'thread') return
+    setTimeout(() => {
+      if (threadScrollRef.current) threadScrollRef.current.scrollTop = threadScrollRef.current.scrollHeight
+    }, 50)
+  }, [threadMsgs, phase])
+
+  // Real-time consultation status subscription
+  useEffect(() => {
+    if (phase !== 'thread' || !id) return
+    if (consult) {
+      setConsultStatus(consult.status)
+      setConsultResponse(consult.async_response || null)
+      setProviderDisplayName(consult.provider_display_name || null)
+    }
+    const ch = supabase.channel(`consult-${id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'consultations', filter: `id=eq.${id}` }, ({ new: row }) => {
+        setConsultStatus(row.status)
+        if (row.async_response)       setConsultResponse(row.async_response)
+        if (row.provider_display_name) setProviderDisplayName(row.provider_display_name)
+      })
+      .subscribe()
+    consultSubRef.current = ch
+    return () => { ch.unsubscribe(); consultSubRef.current = null }
+  }, [phase, id, consult])
 
   // Load consultation + run suitability check
   useEffect(() => {
     async function init() {
-      try { const c = await getConsultation(id); setConsult(c) } catch {}
+      try {
+        const c = await getConsultation(id)
+        setConsult(c)
+        // Already submitted — go straight to thread view
+        if (c && c.consultation_subtype === 'async_message' && c.async_symptom_detail &&
+            ['waiting', 'in_progress', 'complete'].includes(c.status)) {
+          setConfirmedDeadline(c.async_deadline || null)
+          setPhase('thread')
+          return
+        }
+      } catch {}
       try {
         const complaint = sessionStorage.getItem('triage_complaint') || ''
         const res = await apiFetch('/api/async-consult', {
@@ -236,7 +284,6 @@ function AsyncMessageInner() {
     }
     if (!progression) { setFormError('Please select how your symptoms have changed.'); return }
     if (!dailyImpact) { setFormError('Please select how this is affecting you.'); return }
-    if (!urgency)     { setFormError('Please select how urgent you feel this is.'); return }
     setFormError('')
 
     // Upload photos
@@ -273,15 +320,14 @@ function AsyncMessageInner() {
           dailyImpact,
           photoUrls,
           requests,
-          urgency,
         }),
       })
       const data = await res.json()
       if (!data.ok) throw new Error(data.error || 'Submit failed')
       setConfirmedDeadline(data.deadline)
-      setPhase('confirm')
+      setPhase('thread')
     } catch {
-      setSubmitError(`Payment taken but we had trouble saving your message. Please email hello@terehealth.co.nz with ref: ${id.slice(0, 8).toUpperCase()}`)
+      setSubmitError(`Payment taken but we had trouble saving your message. Please email terehealthnz@gmail.com with ref: ${id.slice(0, 8).toUpperCase()}`)
       setPhase('submit_error')
     } finally {
       setSubmitting(false)
@@ -362,6 +408,22 @@ function AsyncMessageInner() {
                 style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid #E5E7EB', borderRadius: 12, padding: '.75rem .9rem', fontSize: '1rem', fontFamily: FF, color: NAVY, resize: 'vertical', outline: 'none', lineHeight: 1.6 }} />
             </div>
 
+            {/* What they want — second field, before clinical questions */}
+            <div>
+              <label style={labelStyle}>What are you hoping your provider can help with?</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+                {REQUEST_OPTIONS.map(opt => {
+                  const checked = requests.includes(opt)
+                  return (
+                    <label key={opt} style={{ ...radioStyle(checked), cursor: 'pointer' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleRequest(opt)} style={{ accentColor: TEAL }} />
+                      <span style={{ fontSize: '.9rem', color: NAVY, fontWeight: checked ? 600 : 400 }}>{opt}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+
             {/* Progression */}
             <div>
               <label style={labelStyle}>How have your symptoms changed? *</label>
@@ -415,36 +477,6 @@ function AsyncMessageInner() {
               )}
             </div>
 
-            {/* What they want */}
-            <div>
-              <label style={labelStyle}>What are you hoping your provider can help with?</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                {REQUEST_OPTIONS.map(opt => {
-                  const checked = requests.includes(opt)
-                  return (
-                    <label key={opt} style={{ ...radioStyle(checked), cursor: 'pointer' }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleRequest(opt)} style={{ accentColor: TEAL }} />
-                      <span style={{ fontSize: '.9rem', color: NAVY, fontWeight: checked ? 600 : 400 }}>{opt}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Urgency */}
-            <div>
-              <label style={labelStyle}>How urgent do you feel this is? *</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
-                {['Can wait for next business day', 'Would like a response today if possible', 'Quite urgent — within a few hours'].map(opt => (
-                  <label key={opt} style={radioStyle(urgency === opt)}>
-                    <input type="radio" name="urgency" value={opt} checked={urgency === opt}
-                      onChange={() => setUrgency(opt)} style={{ accentColor: TEAL }} />
-                    <span style={{ fontSize: '.875rem', color: NAVY, fontWeight: urgency === opt ? 600 : 400 }}>{opt}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
             {formError && (
               <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '.875rem', color: '#DC2626', fontSize: '.875rem' }}>
                 {formError}
@@ -482,51 +514,228 @@ function AsyncMessageInner() {
     </div>
   )
 
-  // ── Confirm ────────────────────────────────────────────────────────────────
-  if (phase === 'confirm') {
-    const email = consult?.patient_email || sessionStorage.getItem('triage_email') || ''
-    const phone = consult?.patient_phone || sessionStorage.getItem('triage_phone') || ''
+  // ── Thread (messaging board) ──────────────────────────────────────────────
+  if (phase === 'thread') {
+    const email    = consult?.patient_email || sessionStorage.getItem('triage_email') || ''
+    const status   = consultStatus || consult?.status || 'waiting'
+    const isComplete  = status === 'complete'
+    const finalResponse = consultResponse || consult?.async_response || null
+    const drName    = providerDisplayName || consult?.provider_display_name || null
+    const drInitials = drName ? drName.split(' ').filter(Boolean).map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'DR'
+    const respondedAt = consult?.async_responded_at || consult?.completed_at
+    const isOverdue = !isComplete && confirmedDeadline && new Date(confirmedDeadline) < Date.now()
+
+    const STATUS_CFG = {
+      waiting:     { label: isOverdue ? 'Overdue' : 'Pending',   dot: isOverdue ? '#DC2626' : '#F59E0B' },
+      in_progress: { label: 'In review', dot: '#10B981' },
+      complete:    { label: 'Responded', dot: '#059669' },
+    }
+    const sc = STATUS_CFG[status] || STATUS_CFG.waiting
+
+    const canFollowUp = isComplete && respondedAt && (Date.now() - new Date(respondedAt).getTime() < 86400000) && !followUpSent
+    const canSend = !isComplete || canFollowUp
+
+    async function sendReply() {
+      const text = replyText.trim()
+      if (!text || sendingReply) return
+      setSendingReply(true)
+      const optId = `opt-${Date.now()}`
+      setThreadMsgs(prev => [...prev, { id: optId, sender: 'patient', message: text, created_at: new Date().toISOString() }])
+      setReplyText('')
+      if (isComplete) setFollowUpSent(true)
+      try {
+        const { sendChatMessage } = await import('../../lib/supabase')
+        await sendChatMessage(id, 'patient', text)
+      } catch {
+        setThreadMsgs(prev => prev.filter(m => m.id !== optId))
+        setReplyText(text)
+        if (isComplete) setFollowUpSent(false)
+      } finally { setSendingReply(false) }
+    }
 
     return (
-      <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'calc(2rem + env(safe-area-inset-top)) 1.25rem calc(2rem + env(safe-area-inset-bottom))', fontFamily: FF }}>
-        <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: '1rem', ...anim() }}>
+      <div style={{ background: NAVY, height: '100dvh', display: 'flex', flexDirection: 'column', fontFamily: FF }}>
 
-          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#059669', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.75rem', margin: '0 auto .875rem', boxShadow: '0 0 0 12px rgba(5,150,105,.15)' }}>
-              ✓
+        {/* Header */}
+        <div style={{ background: 'rgba(255,255,255,.05)', padding: 'calc(.75rem + env(safe-area-inset-top)) 1.25rem .75rem', display: 'flex', alignItems: 'center', gap: '.75rem', borderBottom: '1px solid rgba(255,255,255,.07)', flexShrink: 0 }}>
+          <button onClick={() => window.location.href = '/'} style={{ background: 'none', border: 'none', color: 'rgba(212,238,240,.5)', cursor: 'pointer', fontSize: '1rem', padding: 0, minWidth: 28 }}>←</button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'Georgia,serif', fontStyle: 'italic', color: TEAL_L, fontSize: '1.0625rem' }}>Tere Health</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '.375rem', marginTop: 1 }}>
+              <div style={{ width: 7, height: 7, borderRadius: '50%', background: sc.dot, flexShrink: 0 }} />
+              <span style={{ fontSize: '.7rem', color: 'rgba(212,238,240,.5)', fontWeight: 600 }}>{sc.label}</span>
+              {!isComplete && confirmedDeadline && (
+                <span style={{ fontSize: '.7rem', color: isOverdue ? '#FCA5A5' : 'rgba(212,238,240,.3)' }}>
+                  · {isOverdue ? 'overdue — following up' : formatDeadline(confirmedDeadline)}
+                </span>
+              )}
             </div>
-            <h2 style={{ color: 'white', fontWeight: 800, fontSize: '1.5rem', margin: '0 0 .5rem' }}>Message sent to your provider</h2>
-            {firstName && (
-              <p style={{ color: 'rgba(212,238,240,.65)', fontSize: '.9375rem', margin: 0, lineHeight: 1.6 }}>
-                Kia ora {firstName}, your message has been received and will be reviewed by one of our registered health providers.
-              </p>
+          </div>
+          <span style={{ fontSize: '.7rem', color: 'rgba(212,238,240,.3)', flexShrink: 0 }}>#{refId}</span>
+        </div>
+
+        {/* Scrollable message board */}
+        <div ref={threadScrollRef} style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
+
+          {/* Submission recap */}
+          <div style={{ alignSelf: 'flex-start', maxWidth: '88%', background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '12px 12px 12px 3px', padding: '.75rem 1rem' }}>
+            <div style={{ fontSize: '.6875rem', fontWeight: 700, color: 'rgba(212,238,240,.35)', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.375rem' }}>Your consultation</div>
+            <div style={{ fontWeight: 700, color: 'rgba(212,238,240,.9)', fontSize: '.9375rem', marginBottom: '.3rem' }}>{complaint}</div>
+            {consult?.async_symptom_detail && (
+              <div style={{ color: 'rgba(212,238,240,.6)', fontSize: '.8125rem', lineHeight: 1.55, marginBottom: '.375rem' }}>{consult.async_symptom_detail}</div>
             )}
+            {consult?.async_requests?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.25rem', marginTop: '.25rem' }}>
+                {consult.async_requests.map(r => (
+                  <span key={r} style={{ background: 'rgba(255,255,255,.07)', color: 'rgba(212,238,240,.5)', fontSize: '.6875rem', padding: '2px 7px', borderRadius: 99, border: '1px solid rgba(255,255,255,.1)' }}>{r}</span>
+                ))}
+              </div>
+            )}
+            {consult?.async_photo_urls?.length > 0 && (
+              <div style={{ color: 'rgba(212,238,240,.35)', fontSize: '.75rem', marginTop: '.25rem' }}>📷 {consult.async_photo_urls.length} photo{consult.async_photo_urls.length !== 1 ? 's' : ''} attached</div>
+            )}
+            <div style={{ fontSize: '.625rem', color: 'rgba(212,238,240,.25)', marginTop: '.375rem' }}>Submitted · #{refId}</div>
           </div>
 
-          {[
-            { icon: '⏱️', title: 'Expected response', body: "Typically within 24 hours — we'll notify you by email and text when ready." },
-            email && { icon: '📧', title: 'Watch your inbox', body: `Your response will be sent to ${email}. Check your spam folder too.` },
-            phone && { icon: '📞', title: 'You may be contacted', body: `If your provider needs more information or determines a call is needed, they'll contact you at ${phone}.` },
-            { icon: '🚨', title: 'If you get worse', body: "Don't wait — call 111 or go to your nearest emergency department immediately." },
-          ].filter(Boolean).map(({ icon, title, body }) => (
-            <div key={title} style={{ background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 14, padding: '1rem 1.125rem', display: 'flex', gap: '.875rem', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: 1 }}>{icon}</span>
-              <div>
-                <div style={{ fontWeight: 700, color: 'white', fontSize: '.9rem', marginBottom: '.3rem' }}>{title}</div>
-                <div style={{ color: 'rgba(212,238,240,.65)', fontSize: '.8125rem', lineHeight: 1.5 }}>{body}</div>
+          {/* Status timeline markers */}
+          <div style={{ alignSelf: 'center', background: 'rgba(5,150,105,.15)', border: '1px solid rgba(5,150,105,.25)', borderRadius: 99, padding: '4px 14px', fontSize: '.75rem', color: '#6EE7B7', fontWeight: 600 }}>
+            ✓ Message sent
+          </div>
+
+          {/* What happens next — shown only while waiting */}
+          {status === 'waiting' && (
+            <div style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', borderRadius: 14, padding: '.875rem 1rem', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'rgba(212,238,240,.5)', textTransform: 'uppercase', letterSpacing: '.06em' }}>What happens next</div>
+              {[
+                ['👩‍⚕️', 'A provider picks up your message and reviews your details.'],
+                ['💬', 'They may send a clarifying question before responding — reply here when they do.'],
+                ['📋', 'Once happy, they\'ll send a formal response with advice, a prescription, or next steps.'],
+                ['🔔', 'This page updates automatically — keep it open or we\'ll email you when they respond.'],
+              ].map(([icon, text]) => (
+                <div key={text} style={{ display: 'flex', gap: '.625rem', alignItems: 'flex-start' }}>
+                  <span style={{ fontSize: '.9rem', flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                  <span style={{ fontSize: '.8125rem', color: 'rgba(212,238,240,.45)', lineHeight: 1.55 }}>{text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(status === 'in_progress' || isComplete) && (
+            <div style={{ alignSelf: 'center', background: 'rgba(11,110,118,.15)', border: '1px solid rgba(11,110,118,.3)', borderRadius: 99, padding: '4px 14px', fontSize: '.75rem', color: TEAL_L, fontWeight: 600 }}>
+              🔍 Provider is reviewing your message
+            </div>
+          )}
+
+          {/* Deadline / notification hint */}
+          {!isComplete && confirmedDeadline && (
+            <div style={{ alignSelf: 'center', fontSize: '.75rem', color: isOverdue ? '#FCA5A5' : 'rgba(212,238,240,.35)', textAlign: 'center', padding: '.25rem 0' }}>
+              {isOverdue ? "⚠️ Response overdue — we're following up" : `⏱ Expected ${formatDeadline(confirmedDeadline)}`}
+            </div>
+          )}
+          {!isComplete && !confirmedDeadline && email && (
+            <div style={{ alignSelf: 'center', fontSize: '.75rem', color: 'rgba(212,238,240,.3)', textAlign: 'center' }}>📧 We'll notify you at {email}</div>
+          )}
+
+          {/* Chronological message bubbles */}
+          {threadMsgs.map(msg => {
+            const isPatient = msg.sender === 'patient'
+            const isOpt = String(msg.id).startsWith('opt-')
+            return (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: isPatient ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: '.375rem' }}>
+                {!isPatient && (
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', background: TEAL, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.5625rem', fontWeight: 700, flexShrink: 0 }}>{drInitials}</div>
+                )}
+                <div style={{ maxWidth: '78%' }}>
+                  <div style={{ background: isPatient ? TEAL : 'rgba(255,255,255,.12)', color: 'white', borderRadius: isPatient ? '12px 12px 3px 12px' : '12px 12px 12px 3px', padding: '.6rem .85rem', fontSize: '.9rem', lineHeight: 1.55, whiteSpace: 'pre-wrap', opacity: isOpt ? 0.65 : 1, transition: 'opacity .2s' }}>
+                    {msg.message}
+                    {msg.photo_url && <img src={msg.photo_url} alt="" style={{ maxWidth: '100%', borderRadius: 8, marginTop: msg.message ? 4 : 0, display: 'block' }} />}
+                  </div>
+                  <div style={{ fontSize: '.625rem', color: 'rgba(212,238,240,.3)', marginTop: 3, textAlign: isPatient ? 'right' : 'left' }}>
+                    {isPatient ? 'You' : drName || 'Provider'} · {new Date(msg.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Formal response */}
+          {isComplete && finalResponse && (
+            <div style={{ background: 'rgba(5,150,105,.12)', border: '1px solid rgba(5,150,105,.3)', borderRadius: 16, overflow: 'hidden', marginTop: '.25rem' }}>
+              <div style={{ background: '#059669', padding: '.875rem 1.25rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,.2)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '.75rem', flexShrink: 0 }}>{drInitials}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: 'white', fontSize: '.875rem' }}>{drName || 'Your provider'}</div>
+                  <div style={{ fontSize: '.7rem', color: 'rgba(255,255,255,.65)' }}>Tere Health{respondedAt ? ' · ' + new Date(respondedAt).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' }) : ''}</div>
+                </div>
+                <span style={{ background: 'rgba(255,255,255,.2)', color: 'white', fontSize: '.6875rem', fontWeight: 700, padding: '2px 9px', borderRadius: 99 }}>✓ Responded</span>
+              </div>
+              <div style={{ padding: '1rem 1.25rem' }}>
+                <div style={{ color: 'rgba(212,238,240,.92)', fontSize: '.9375rem', lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>{finalResponse}</div>
+              </div>
+              <div style={{ padding: '.625rem 1.25rem', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'rgba(212,238,240,.3)' }}>
+                <span>Ref #{refId}</span>
+                <span>{consult?.acc_eligible === 'yes' ? '$62.50 (ACC + co-payment)' : '$25'}</span>
               </div>
             </div>
-          ))}
+          )}
 
-          <div style={{ textAlign: 'center', color: 'rgba(212,238,240,.35)', fontSize: '.75rem', paddingTop: '.25rem' }}>
-            Reference: {refId}
+          {/* Email copy */}
+          {isComplete && email && (
+            <div style={{ alignSelf: 'center', fontSize: '.75rem', color: 'rgba(212,238,240,.3)', textAlign: 'center' }}>
+              📧 A copy has been sent to {email}
+            </div>
+          )}
+
+          {/* Follow-up sent confirmation */}
+          {followUpSent && (
+            <div style={{ alignSelf: 'center', background: 'rgba(5,150,105,.15)', border: '1px solid rgba(5,150,105,.3)', borderRadius: 10, padding: '.625rem 1rem', fontSize: '.8125rem', color: '#6EE7B7', textAlign: 'center' }}>
+              ✓ Follow-up sent — your provider will reply shortly.
+            </div>
+          )}
+
+          {/* Emergency banner */}
+          <div style={{ background: 'rgba(220,38,38,.12)', border: '1px solid rgba(220,38,38,.25)', borderRadius: 12, padding: '.875rem 1.125rem', fontSize: '.8125rem', color: '#FCA5A5', lineHeight: 1.5 }}>
+            🚨 If your condition worsens — call <strong>111</strong> or go to your nearest emergency department. Do not wait for this response.
           </div>
 
-          <button onClick={() => window.location.href = '/'}
-            style={{ width: '100%', background: TEAL, color: 'white', border: 'none', borderRadius: 14, padding: '16px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', fontFamily: FF, marginTop: '.25rem' }}>
-            Done →
-          </button>
+          {isComplete && !canFollowUp && (
+            <button onClick={() => window.location.href = '/'}
+              style={{ width: '100%', background: TEAL, color: 'white', border: 'none', borderRadius: 14, padding: '16px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', fontFamily: FF, marginBottom: 4 }}>
+              Start new consultation →
+            </button>
+          )}
+
+          <div style={{ height: canSend ? 70 : 4, flexShrink: 0 }} />
+
         </div>
+
+        {/* Compose bar */}
+        {canSend && (
+          <div style={{ background: 'rgba(255,255,255,.05)', borderTop: '1px solid rgba(255,255,255,.08)', padding: '.75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px))', flexShrink: 0 }}>
+            {canFollowUp && (
+              <div style={{ fontSize: '.7rem', color: 'rgba(212,238,240,.4)', marginBottom: '.375rem', fontWeight: 600 }}>Free follow-up (24h)</div>
+            )}
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-end' }}>
+              <textarea
+                value={replyText}
+                onChange={e => setReplyText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+                placeholder={canFollowUp ? 'Ask a follow-up question…' : 'Reply to your provider…'}
+                rows={1}
+                style={{ flex: 1, background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 22, padding: '.625rem 1rem', fontFamily: FF, fontSize: '.9375rem', color: 'white', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.4, maxHeight: 120, overflowY: 'auto' }}
+                onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
+              />
+              <button
+                onClick={sendReply}
+                disabled={sendingReply || !replyText.trim()}
+                style={{ width: 42, height: 42, borderRadius: '50%', background: replyText.trim() ? TEAL : 'rgba(255,255,255,.1)', border: 'none', color: 'white', fontWeight: 700, fontSize: '1.1rem', cursor: replyText.trim() ? 'pointer' : 'not-allowed', fontFamily: FF, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: replyText.trim() ? 1 : 0.5, transition: 'background .15s, opacity .15s' }}
+              >
+                {sendingReply ? '…' : '↑'}
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
     )
   }

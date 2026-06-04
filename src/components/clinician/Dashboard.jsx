@@ -198,6 +198,7 @@ function MessagesTab() {
         .select('*')
         .eq('consultation_type', 'message')
         .in('status', ['waiting', 'in_progress'])
+        .not('async_symptom_detail', 'is', null)
         .order('created_at', { ascending: true })
       setRows(data || [])
     } catch(e) { console.error(e) }
@@ -213,7 +214,12 @@ function MessagesTab() {
       await supabase.from('consultations').update({
         status: 'complete',
         clinical_notes: {
-          S: consultation.chief_complaint,
+          S: [
+            consultation.chief_complaint,
+            consultation.async_symptom_detail ? `\nDetail: ${consultation.async_symptom_detail}` : null,
+            consultation.async_symptom_progression ? `Progression: ${consultation.async_symptom_progression}` : null,
+            consultation.async_daily_impact ? `Daily impact: ${consultation.async_daily_impact}` : null,
+          ].filter(Boolean).join('\n'),
           O: `Medical history: ${consultation.medical_history || 'nil'}\nMedications: ${consultation.medications || 'nil'}\nAllergies: ${consultation.patient_allergies || 'nil'}`,
           A: '',
           P: responseText,
@@ -299,6 +305,22 @@ function MessagesTab() {
                 <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--muted)', marginBottom:'.375rem' }}>Chief complaint</div>
                 <div style={{ fontSize:'.9375rem', lineHeight:1.6 }}>{c.chief_complaint}</div>
               </div>
+
+              {c.async_symptom_detail && (
+                <div style={{ background:'white', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'.875rem', marginBottom:'.75rem' }}>
+                  <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--muted)', marginBottom:'.375rem' }}>Symptom detail</div>
+                  <div style={{ fontSize:'.9375rem', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{c.async_symptom_detail}</div>
+                  {c.async_symptom_progression && <div style={{ fontSize:'.8125rem', color:'var(--muted)', marginTop:'.375rem' }}>Progression: {c.async_symptom_progression}</div>}
+                  {c.async_daily_impact && <div style={{ fontSize:'.8125rem', color:'var(--muted)' }}>Daily impact: {c.async_daily_impact}</div>}
+                  {c.async_requests?.length > 0 && (
+                    <div style={{ display:'flex', gap:'.375rem', flexWrap:'wrap', marginTop:'.5rem' }}>
+                      {c.async_requests.map(r => (
+                        <span key={r} style={{ background:'var(--teal-light)', color:'var(--teal)', fontSize:'.75rem', fontWeight:600, padding:'2px 8px', borderRadius:99 }}>{r}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {(c.medical_history || c.medications || c.patient_allergies) && (
                 <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap', marginBottom:'.75rem' }}>
