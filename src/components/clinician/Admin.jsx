@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import AdminSchedule from '../../pages/clinician/AdminSchedule'
-import AdminPayroll  from '../../pages/clinician/AdminPayroll'
+import AdminSchedule  from '../../pages/clinician/AdminSchedule'
+import AdminPayroll   from '../../pages/clinician/AdminPayroll'
+import AdminResearch  from '../../pages/clinician/AdminResearch'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1823,6 +1824,7 @@ function AdminBody() {
             { id:'performance',  label:'📈 Performance' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'careers',      label:'💼 Careers' },
+            { id:'research',     label:'🔬 Research' },
           ]
           return (<>
             {/* Desktop horizontal tabs */}
@@ -1859,7 +1861,7 @@ function AdminBody() {
           </>)
         })()}
 
-        {adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
+        {adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
 
         {/* Providers */}
         <ProvidersPanel />

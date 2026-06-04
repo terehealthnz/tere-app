@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 
 const CAN_PRESCRIBE = [
   'Antibiotics, antifungals, antihistamines',
@@ -30,19 +31,27 @@ export default function PrescribingLimits() {
     if (!rxChecked) return
     setSaving(true)
     sessionStorage.setItem('research_consent', granted ? 'yes' : 'no')
+    const consultationId = sessionStorage.getItem('consultation_id')
+    const now = new Date().toISOString()
     try {
       await Promise.allSettled([
         apiFetch('/api/consents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultation_id: null, consent_type: 'prescribing_limitations_acknowledged', granted: true }),
+          body: JSON.stringify({ consultation_id: consultationId || null, consent_type: 'prescribing_limitations_acknowledged', granted: true }),
         }),
         apiFetch('/api/consents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultation_id: null, consent_type: 'research_consent', granted }),
+          body: JSON.stringify({ consultation_id: consultationId || null, consent_type: 'research_consent', granted }),
         }),
       ])
+      if (consultationId) {
+        await supabase.from('consultations').update({
+          prescribing_consent_at: now,
+          research_consent: granted,
+        }).eq('id', consultationId)
+      }
     } catch {}
     navigate('/triage')
   }

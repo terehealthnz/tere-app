@@ -5,8 +5,27 @@ import { LANGUAGES, t } from '../../lib/i18n'
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
   const [v, setV] = useState(false)
+  const [starting, setStarting] = useState(false)
   const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
   useEffect(() => { setTimeout(() => setV(true), 100) }, [])
+
+  async function handleStart() {
+    if (starting) return
+    setStarting(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const ua = navigator?.userAgent || ''
+      const deviceType = /Mobile|iPhone|Android/.test(ua) ? (/iPad/.test(ua) ? 'tablet' : 'mobile') : 'desktop'
+      const { data: pt } = await supabase
+        .from('consultations')
+        .insert({ status: 'pre_triage', patient_language: lang, device_type: deviceType })
+        .select('id')
+        .single()
+      if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
+    } catch {}
+    if (onStart) onStart()
+    else navigate('/consent')
+  }
 
   function selectLang(code) {
     setLang(code)
@@ -142,7 +161,7 @@ export default function TereIntro({ onStart }) {
       {/* Buttons */}
       {(() => { const bookingEnabled = import.meta.env.VITE_BOOKING_ENABLED === 'true'; return (
       <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
-        <button onClick={onStart ?? (() => navigate('/consent'))} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+        <button onClick={handleStart} disabled={starting} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif', opacity: starting ? 0.8 : 1 }}>
           <div>{t('get_started', lang)} →</div>
           <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.8, marginTop:2 }}>Join the queue — see a provider today</div>
         </button>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { supabase } from '../../lib/supabase'
 
 const HDC_RIGHTS = [
   { num: '1', title: 'Right to be treated with respect', desc: 'Your dignity and privacy will be respected at all times.' },
@@ -22,12 +23,17 @@ export default function HDCConsent() {
   async function handleContinue() {
     if (!checked) return
     setSaving(true)
+    const consultationId = sessionStorage.getItem('consultation_id')
+    const now = new Date().toISOString()
     try {
       await apiFetch('/api/consents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultation_id: null, consent_type: 'hdc_code_of_rights', granted: true }),
+        body: JSON.stringify({ consultation_id: consultationId || null, consent_type: 'hdc_code_of_rights', granted: true }),
       })
+      if (consultationId) {
+        await supabase.from('consultations').update({ hdc_consent_at: now }).eq('id', consultationId)
+      }
     } catch {}
     navigate('/prescribing-limits')
   }

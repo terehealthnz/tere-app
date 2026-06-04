@@ -593,6 +593,31 @@ export default function AITriage() {
       })
       sessionStorage.setItem('consultationId', consultation.id)
 
+      // Re-link pre-triage consent records to the real consultation
+      const preTriageId = sessionStorage.getItem('consultation_id')
+      if (preTriageId && preTriageId !== consultation.id) {
+        try {
+          const { supabase: sb } = await import('../../lib/supabase')
+          // Get consent timestamps set during /consent and /prescribing-limits screens
+          const { data: pt } = await sb.from('consultations')
+            .select('hdc_consent_at, prescribing_consent_at, research_consent')
+            .eq('id', preTriageId)
+            .single()
+          // Move all pre-triage consent records to the real consultation
+          await sb.from('consents').update({ consultation_id: consultation.id }).eq('consultation_id', preTriageId)
+          // Copy consent timestamps to the real consultation record
+          if (pt?.hdc_consent_at || pt?.prescribing_consent_at) {
+            await sb.from('consultations').update({
+              hdc_consent_at: pt.hdc_consent_at,
+              prescribing_consent_at: pt.prescribing_consent_at,
+            }).eq('id', consultation.id)
+          }
+          // Delete the now-redundant pre_triage stub
+          await sb.from('consultations').delete().eq('id', preTriageId).eq('status', 'pre_triage')
+          sessionStorage.removeItem('consultation_id')
+        } catch {}
+      }
+
       // Flag controlled medication mention (requires migration: ALTER TABLE consultations ADD COLUMN controlled_medication_mentioned BOOLEAN DEFAULT false)
       if (data.controlled_medication_mentioned) {
         import('../../lib/supabase').then(({ supabase }) => {

@@ -12,6 +12,47 @@ export const supabase = createClient(
   key || 'placeholder'
 )
 
+// ── Research field helpers ────────────────────────────────────────────────────
+
+function calcAgeBand(dob) {
+  if (!dob) return null
+  try {
+    const age = new Date().getFullYear() - new Date(dob).getFullYear()
+    if (age < 20) return 'Under 20'
+    if (age < 30) return '20-29'
+    if (age < 40) return '30-39'
+    if (age < 50) return '40-49'
+    if (age < 60) return '50-59'
+    return '60+'
+  } catch { return null }
+}
+
+function categorizeComplaint(complaint) {
+  if (!complaint) return 'other'
+  const t = complaint.toLowerCase()
+  if (/(ankle|knee|shoulder|back|neck|hip|wrist|elbow|joint|muscle|sprain|strain|fracture|broken|torn|tendon|ligament|sport|gym|lifting|physio|ortho|bursitis|arthritis)/.test(t)) return 'musculoskeletal'
+  if (/(cough|cold|flu|fever|chest|breath|wheeze|asthma|sinus|throat|nose|covid|rsv|pneumonia|bronchitis|infection|tonsil|sore throat)/.test(t)) return 'respiratory'
+  if (/(rash|skin|itch|acne|eczema|psoriasis|wound|cut|bite|burn|lesion|lump|boil|cellulitis|dermatitis|hives|blister)/.test(t)) return 'skin'
+  if (/(stomach|abdomen|nausea|vomit|diarrhea|diarrhoea|constipation|bowel|gut|ibs|reflux|heartburn|bloating|cramps)/.test(t)) return 'gastrointestinal'
+  if (/(head|migraine|dizzy|vertigo|numbness|tingle|nerve|memory|concussion|balance|brain|neurolog)/.test(t)) return 'neurological'
+  if (/(heart|cardiac|palpitation|blood pressure|hypertension|cholesterol|chest pain)/.test(t)) return 'cardiovascular'
+  if (/(urine|bladder|kidney|uti|std|vaginal|period|menstrual|prostate|testicular|ovarian|pelvic|thrush|discharge)/.test(t)) return 'genitourinary'
+  if (/(anxiety|depression|stress|mental|mood|sleep|insomnia|panic|ptsd|sad|low|suicid|psychosis|eating)/.test(t)) return 'mental_health'
+  if (/(accident|injury|fall|trip|hurt|impact|crash|collision|work injury|road|sport injury)/.test(t)) return 'injury'
+  return 'other'
+}
+
+function categorizeEmploymentSector(employer) {
+  if (!employer) return null
+  const t = employer.toLowerCase()
+  if (/(maritime|boat|ship|port|ferry|fishing vessel|sea captain|crew|coast guard|vessel)/.test(t)) return 'maritime'
+  if (/(aquaculture|salmon|oyster|mussel|seafood|fish farm|marine farm|shellfish)/.test(t)) return 'aquaculture'
+  if (/(farm|agriculture|orchard|vineyard|winery|wine|kiwifruit|apple|crop|horticulture|pastoral|forestry|sheep|cattle|dairy|arable)/.test(t)) return 'agriculture'
+  if (/(hotel|tourism|hospitality|motel|lodge|tour operator|tourist|resort|accommodation|restaurant|café)/.test(t)) return 'tourism'
+  if (/(hospital|clinic|health|medical|nursing|care|pharmacy|doctor|practice|dental|physio|aged care|midwife)/.test(t)) return 'healthcare'
+  return 'other'
+}
+
 // ── Input validation & sanitisation ─────────────────────────────────────────
 
 const INJECTION_PATTERNS = [/<script/i, /SELECT\s+\*/i, /DROP\s+TABLE/i, /INSERT\s+INTO/i]
@@ -52,6 +93,9 @@ function validateEmail(email) {
 // ── Consultation helpers ─────────────────────────────────────────────────────
 
 export async function createConsultation(data) {
+  const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : ''
+  const deviceType = /Mobile|iPhone|Android/.test(ua) ? (/iPad/.test(ua) ? 'tablet' : 'mobile') : 'desktop'
+
   const payload = {
     patient_first_name:           sanitizeString(data.firstName),
     patient_last_name:            sanitizeString(data.lastName),
@@ -90,6 +134,13 @@ export async function createConsultation(data) {
     status:                       data.status || 'waiting',
     vitals:                       null,
     daily_room_url:               null,
+    // Research fields (requires supabase-research-migration.sql)
+    patient_age_band:             calcAgeBand(data.dob),
+    complaint_category:           categorizeComplaint(data.complaint),
+    consultation_month:           new Date().toISOString().slice(0, 7),
+    device_type:                  deviceType,
+    language_selected:            data.patientLanguage || 'en',
+    patient_employment_sector:    categorizeEmploymentSector(data.employer),
   }
 
   console.log('[createConsultation] inserting payload keys:', Object.keys(payload))
