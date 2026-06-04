@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { apiFetch } from '../lib/api'
 
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
 
@@ -92,37 +91,6 @@ function Hero() {
   )
 }
 
-function UpcomingSlots() {
-  const [slots, setSlots] = useState([])
-  useEffect(() => {
-    apiFetch('/api/bookings?action=upcoming')
-      .then(r => r.json())
-      .then(d => setSlots(d.slots || []))
-      .catch(() => {})
-  }, [])
-  if (!slots.length) return null
-  return (
-    <section style={{ background: 'white', padding: '2rem 1.5rem', borderBottom: '1px solid #E2E8F0' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
-        <div style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', color: BRAND.teal, marginBottom: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Next available appointments</div>
-        <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap', alignItems: 'stretch' }}>
-          {slots.map((s, i) => (
-            <a key={i} href={CONSULT_URL} style={{ background: BRAND.bg, border: `1.5px solid ${BRAND.tealLight}`, borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130 }}>
-              <div style={{ fontWeight: 700, color: BRAND.navy, fontSize: '1.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.time}</div>
-              <div style={{ color: '#6B7280', fontSize: '.8125rem', marginTop: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                {new Date(s.date + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })}
-              </div>
-              {s.providerName && <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{s.providerName}</div>}
-            </a>
-          ))}
-          <a href={CONSULT_URL} style={{ background: BRAND.teal, color: 'white', borderRadius: 12, padding: '.875rem 1.25rem', textDecoration: 'none', textAlign: 'center', minWidth: 130, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9375rem' }}>
-            All times →
-          </a>
-        </div>
-      </div>
-    </section>
-  )
-}
 
 function HowItWorks() {
   const steps = [
@@ -185,11 +153,6 @@ function Pricing() {
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           ACC-eligible injury? Your cost is reduced to the co-payment. No surprises.
         </p>
-        {/* BOOKING DISABLED — reservation fee badge hidden */}
-        {/* <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', background: 'white', border: '1px solid #E2E8F0', borderRadius: 99, padding: '.5rem 1rem', fontSize: '.875rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '3rem' }}>
-          <span style={{ color: '#0B6E76', fontWeight: 700 }}>+$15</span>
-          <span>reservation fee for scheduled appointments — guarantees your time slot</span>
-        </div> */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {plans.map(p => (
             <div key={p.title} style={{
@@ -392,8 +355,6 @@ export default function Landing() {
       <Nav />
       <main>
         <Hero />
-        {/* BOOKING DISABLED — uncomment when VITE_BOOKING_ENABLED=true */}
-        {/* <UpcomingSlots /> */}
         <HowItWorks />
         <Pricing />
         <ForEmployers />
