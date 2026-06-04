@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 const TZ = 'Pacific/Auckland'
 const SLOT_MIN = 20
 const BUFFER_MIN = 20
@@ -107,7 +107,7 @@ ${body}
 async function refundBooking(booking) {
   if (!booking.reservation_fee_payment_intent_id || booking.reservation_fee_refunded) return false
   try {
-    await stripe.refunds.create({ payment_intent: booking.reservation_fee_payment_intent_id })
+    await getStripe().refunds.create({ payment_intent: booking.reservation_fee_payment_intent_id })
     return true
   } catch { return false }
 }
@@ -188,7 +188,7 @@ export default async function handler(req, res) {
     // Create $15 reservation payment intent
     if (action === 'create_reservation_intent') {
       try {
-        const pi = await stripe.paymentIntents.create({
+        const pi = await getStripe().paymentIntents.create({
           amount: 1500, currency: 'nzd',
           description: 'Tere Health — appointment reservation fee',
         })
@@ -209,7 +209,7 @@ export default async function handler(req, res) {
       // Verify Stripe payment succeeded
       if (reservation_fee_payment_intent_id) {
         try {
-          const pi = await stripe.paymentIntents.retrieve(reservation_fee_payment_intent_id)
+          const pi = await getStripe().paymentIntents.retrieve(reservation_fee_payment_intent_id)
           if (pi.status !== 'succeeded') return res.status(402).json({ error: 'Payment not completed' })
         } catch (e) { return res.status(402).json({ error: 'Could not verify payment' }) }
       }

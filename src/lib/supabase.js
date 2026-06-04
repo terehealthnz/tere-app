@@ -158,6 +158,20 @@ export async function createConsultation(data) {
       hint: error.hint,
       code: error.code,
     }))
+    // If a research column doesn't exist yet, retry without those optional fields
+    if (error.code === '42703' || error.message?.includes('column')) {
+      console.warn('[createConsultation] Retrying without research fields')
+      const { patient_age_band, complaint_category, consultation_month,
+              device_type, language_selected, patient_employment_sector,
+              patient_region, ...corePayload } = payload
+      const { data: consult2, error: error2 } = await supabase
+        .from('consultations')
+        .insert(corePayload)
+        .select()
+        .single()
+      if (error2) throw error2
+      return consult2
+    }
     throw error
   }
   return consult

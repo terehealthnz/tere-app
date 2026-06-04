@@ -14,6 +14,16 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'demo',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 800 },
+        video: 'on',
+        launchOptions: { slowMo: 600 },
+      },
+      testMatch: '**/demo-walkthrough.spec.ts',
+    },
   ],
   webServer: {
     command: 'npm run dev',

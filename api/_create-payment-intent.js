@@ -1,6 +1,6 @@
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   const label = `$${amount / 100}.00`
 
   try {
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntent = await getStripe().paymentIntents.create({
       amount,
       currency: 'nzd',
       capture_method: 'manual',

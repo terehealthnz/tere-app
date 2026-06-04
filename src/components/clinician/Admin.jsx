@@ -63,7 +63,7 @@ function ProvidersPanel() {
             const displayName = providerDisplayName(p)
             return (
               <div key={p.id} style={{ background:'#F8FAFC', borderRadius:8, padding:'1rem 1.25rem', border:`1px solid ${p.is_active ? '#E2E8F0' : '#FECACA'}`, opacity: p.is_active ? 1 : 0.6 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'auto 1fr auto', gap:'1rem', alignItems:'start' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'1rem', alignItems:'start', flexWrap:'wrap' }}>
                   <div style={{ width:44, height:44, borderRadius:'50%', background:p.color||'#0B6E76', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:700, fontSize:'1.1rem', flexShrink:0 }}>
                     {p.first_name[0]}{p.last_name[0]}
                   </div>
@@ -91,7 +91,7 @@ function ProvidersPanel() {
                       )}
                     </div>
                   </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:'.375rem', alignItems:'flex-end' }}>
+                  <div style={{ display:'flex', flexDirection:'row', flexWrap:'wrap', gap:'.375rem', alignItems:'center', gridColumn:'1 / -1' }}>
                     {p.is_provider && (
                       <button onClick={() => update(p.id, { is_available: !p.is_available })}
                         disabled={saving === p.id}
@@ -259,6 +259,7 @@ function FailedPayments() {
       ) : rows.length === 0 ? (
         <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>✓ No failed or uncaptured payments</div>
       ) : (
+        <div style={{ overflowX:'auto' }}>
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.875rem' }}>
           <thead>
             <tr style={{ borderBottom:'2px solid #E2E8F0' }}>
@@ -279,6 +280,7 @@ function FailedPayments() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )
@@ -671,6 +673,7 @@ function AnalyticsPanel() {
           </div>
 
           {/* Daily breakdown */}
+          <div style={{ overflowX:'auto' }}>
           <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.875rem' }}>
             <thead>
               <tr style={{ borderBottom:'2px solid #E2E8F0' }}>
@@ -698,6 +701,7 @@ function AnalyticsPanel() {
               })}
             </tbody>
           </table>
+          </div>
         </>
       )}
     </div>

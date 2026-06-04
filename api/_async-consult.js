@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 function getSupabase() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     const { consultationId } = req.body
     if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
     try {
-      const pi = await stripe.paymentIntents.create({
+      const pi = await getStripe().paymentIntents.create({
         amount: 2500, currency: 'nzd', capture_method: 'manual',
         metadata: { consultationId, type: 'async_message' },
         description: 'Tere Health — message consultation ($25)',
@@ -187,7 +187,7 @@ export default async function handler(req, res) {
     // Capture the authorised payment now that provider has responded
     if (consult.payment_intent_id) {
       try {
-        await stripe.paymentIntents.capture(consult.payment_intent_id)
+        await getStripe().paymentIntents.capture(consult.payment_intent_id)
       } catch (e) {
         console.error('[async-consult] Stripe capture failed:', e.message)
         // Non-fatal — DB is already updated; flag for manual follow-up
@@ -345,7 +345,7 @@ ${draft}`
     // Cancel payment — no charge for in-person referral
     if (consult.payment_intent_id) {
       try {
-        await stripe.paymentIntents.cancel(consult.payment_intent_id)
+        await getStripe().paymentIntents.cancel(consult.payment_intent_id)
       } catch (e) {
         console.error('[async-consult] Stripe cancel failed:', e.message)
       }

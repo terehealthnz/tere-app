@@ -38,7 +38,7 @@ export default function TereIntro({ onStart }) {
   })
 
   return (
-    <div style={{ background:'#0D2B45', minHeight:'100dvh', display:'flex', flexDirection:'column', paddingTop:'calc(1.5rem + env(safe-area-inset-top))', paddingBottom:'2rem', paddingLeft:'1.5rem', paddingRight:'1.5rem', position:'relative', overflowX:'hidden', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+    <main style={{ background:'#0D2B45', minHeight:'100dvh', display:'flex', flexDirection:'column', paddingTop:'calc(1.5rem + env(safe-area-inset-top))', paddingBottom:'2rem', paddingLeft:'1.5rem', paddingRight:'1.5rem', position:'relative', overflowX:'hidden', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
       {/* Bg circles */}
       <div style={{ position:'absolute', width:300, height:300, borderRadius:'50%', background:'#0B6E76', opacity:.06, top:-80, right:-80 }} />
       <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'#0B6E76', opacity:.06, bottom:-60, left:-60 }} />
@@ -53,7 +53,7 @@ export default function TereIntro({ onStart }) {
       <div style={{ marginTop:'auto', marginBottom:'auto', display:'flex', flexDirection:'column', alignItems:'center', width:'100%' }}>
       {/* Logo */}
       <div style={{ ...anim('0.2s'), fontFamily:'Cormorant Garamond, Georgia, serif', fontStyle:'italic', fontSize:'2.8rem', color:'#D4EEF0', letterSpacing:'0.05em', marginBottom:2 }}>Tere Health</div>
-      <div style={{ ...anim('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.45)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>Emergency medicine. On your phone.</div>
+      <div style={{ ...anim('0.4s'), fontSize:'0.65rem', color:'rgba(212,238,240,0.82)', letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:'1.25rem' }}>Emergency medicine. On your phone.</div>
 
       {/* Stage */}
       <div style={{ ...anim('0.8s'), display:'flex', alignItems:'flex-end', justifyContent:'center', gap:'1.5rem', marginBottom:'1rem' }}>
@@ -81,7 +81,7 @@ export default function TereIntro({ onStart }) {
             <rect x="12" y="46" width="10" height="14" rx="1" fill="#0B6E76" opacity=".6"/>
             <circle cx="17" cy="62" r="1.5" fill="#555"/>
           </svg>
-          <div style={{ fontSize:'.7rem', color:'rgba(212,238,240,.55)', textTransform:'uppercase', letterSpacing:'.08em' }}>Patient</div>
+          <div style={{ fontSize:'.7rem', color:'rgba(212,238,240,0.87)', textTransform:'uppercase', letterSpacing:'.08em' }}>Patient</div>
         </div>
 
         {/* Signal */}
@@ -93,7 +93,7 @@ export default function TereIntro({ onStart }) {
             <path d="M5 14 Q20 4 35 14" stroke="#0B6E76" strokeWidth="1.5" fill="none" strokeDasharray="3 2"/>
             <path d="M10 20 Q20 12 30 20" stroke="#0B6E76" strokeWidth="1.5" fill="none" strokeDasharray="3 2"/>
           </svg>
-          <div style={{ fontSize:'.6rem', color:'rgba(11,110,118,.8)', letterSpacing:'.05em' }}>SECURE</div>
+          <div style={{ fontSize:'.6rem', color:'rgba(212,238,240,0.72)', letterSpacing:'.05em' }}>SECURE</div>
         </div>
 
         {/* Doctor */}
@@ -128,13 +128,13 @@ export default function TereIntro({ onStart }) {
             <rect x="48" y="46" width="10" height="14" rx="1" fill="#0B6E76" opacity=".6"/>
             <circle cx="53" cy="62" r="1.5" fill="#555"/>
           </svg>
-          <div style={{ fontSize:'.7rem', color:'rgba(212,238,240,.55)', textTransform:'uppercase', letterSpacing:'.08em' }}>Doctor</div>
+          <div style={{ fontSize:'.7rem', color:'rgba(212,238,240,0.87)', textTransform:'uppercase', letterSpacing:'.08em' }}>Doctor</div>
         </div>
       </div>
 
       {/* Language selector */}
       <div style={{ ...anim('2s'), marginBottom:'1.25rem', width:'100%', maxWidth:360 }}>
-        <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,.45)', textAlign:'center', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:'.625rem' }}>
+        <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,0.82)', textAlign:'center', textTransform:'uppercase', letterSpacing:'.1em', marginBottom:'.625rem' }}>
           {t('choose_language', lang)}
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:6 }}>
@@ -142,7 +142,7 @@ export default function TereIntro({ onStart }) {
             <button key={l.code} onClick={() => selectLang(l.code)}
               style={{ background: lang === l.code ? 'rgba(11,110,118,.5)' : 'rgba(255,255,255,.07)', border: `1.5px solid ${lang === l.code ? '#0B6E76' : 'rgba(255,255,255,.12)'}`, borderRadius:8, padding:'6px 4px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:2, transition:'all .15s' }}>
               <span style={{ fontSize:'1.25rem', lineHeight:1 }}>{l.flag}</span>
-              <span style={{ fontSize:'.6rem', color: lang === l.code ? '#D4EEF0' : 'rgba(212,238,240,.55)', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight: lang === l.code ? 700 : 400 }}>{l.nativeName}</span>
+              <span style={{ fontSize:'.6rem', color: lang === l.code ? '#D4EEF0' : 'rgba(212,238,240,0.87)', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight: lang === l.code ? 700 : 400 }}>{l.nativeName}</span>
             </button>
           ))}
         </div>
@@ -153,7 +153,7 @@ export default function TereIntro({ onStart }) {
         {[['1','step_1'],['2','step_2'],['3','step_3'],['4','step_4']].map(([n,key]) => (
           <div key={n} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
             <div style={{ width:28, height:28, borderRadius:'50%', background:'rgba(11,110,118,.3)', border:'1px solid rgba(11,110,118,.6)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.75rem', color:'#D4EEF0', fontWeight:600 }}>{n}</div>
-            <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,.6)', textAlign:'center', lineHeight:1.3 }}>{t(key, lang)}</div>
+            <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,0.87)', textAlign:'center', lineHeight:1.3 }}>{t(key, lang)}</div>
           </div>
         ))}
       </div>
@@ -163,25 +163,25 @@ export default function TereIntro({ onStart }) {
       <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
         <button onClick={handleStart} disabled={starting} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif', opacity: starting ? 0.8 : 1 }}>
           <div>{t('get_started', lang)} →</div>
-          <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.8, marginTop:2 }}>Join the queue — see a provider today</div>
+          <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.95, marginTop:2 }}>Join the queue — see a provider today</div>
         </button>
         {/* BOOKING DISABLED — set VITE_BOOKING_ENABLED=true in Vercel to re-enable */}
         {bookingEnabled && (
           <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
             <div>Book for later</div>
-            <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,.65)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
+            <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,0.87)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
           </button>
         )}
       </div>
       )})()}
 
       <div style={{ ...anim('3s'), display:'flex', gap:'1.25rem', marginTop:'.875rem', justifyContent:'center' }}>
-        <Link to="/clinician" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>
-        <Link to="/admin" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Admin</Link>
-        <Link to="/employers" style={{ color:'rgba(212,238,240,.35)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
+        <Link to="/clinician" style={{ color:'rgba(212,238,240,0.72)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>
+        <Link to="/admin" style={{ color:'rgba(212,238,240,0.72)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Admin</Link>
+        <Link to="/employers" style={{ color:'rgba(212,238,240,0.72)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
       </div>
 
-      <Link to="/careers" style={{ ...anim('3.1s'), display:'inline-block', background:'#F59E0B', color:'white', textDecoration:'none', padding:'5px 14px', borderRadius:99, fontSize:'.75rem', fontWeight:600, marginTop:'.625rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+      <Link to="/careers" style={{ ...anim('3.1s'), display:'inline-block', background:'#F59E0B', color:'#1a1a1a', textDecoration:'none', padding:'5px 14px', borderRadius:99, fontSize:'.75rem', fontWeight:700, marginTop:'.625rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
         We're hiring →
       </Link>
       </div>
@@ -195,6 +195,6 @@ export default function TereIntro({ onStart }) {
         @keyframes blink { 0%,90%,100%{transform:scaleY(1)} 95%{transform:scaleY(.1)} }
         @keyframes tail { 0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(10deg)} }
       `}</style>
-    </div>
+    </main>
   )
 }

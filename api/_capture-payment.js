@@ -1,13 +1,13 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const { paymentIntentId, consultationId } = req.body
   try {
-    const intent = await stripe.paymentIntents.capture(paymentIntentId)
+    const intent = await getStripe().paymentIntents.capture(paymentIntentId)
 
     // Store the captured amount in the consultation for revenue reporting
     if (consultationId && intent.amount_received > 0) {

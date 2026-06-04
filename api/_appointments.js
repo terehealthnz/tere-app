@@ -10,7 +10,7 @@ function getNZTDate(d = new Date()) {
     .format(d)
 }
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -111,7 +111,7 @@ export default async function handler(req, res) {
     // Create $15 reservation fee payment intent (immediate capture)
     if (action === 'create_reservation_intent') {
       try {
-        const paymentIntent = await stripe.paymentIntents.create({
+        const paymentIntent = await getStripe().paymentIntents.create({
           amount: 1500,
           currency: 'nzd',
           description: 'Tere Health — appointment reservation fee',
