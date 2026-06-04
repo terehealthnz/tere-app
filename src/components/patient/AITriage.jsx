@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
-import TereIntro from './TereIntro'
-import ConsentGate from './ConsentGate'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
@@ -193,8 +191,6 @@ export default function AITriage() {
   const [done, setDone] = useState(false)
   const [saving, setSaving] = useState(false)
   const [waitingForPhoto, setWaitingForPhoto] = useState(false)
-  const [showIntro, setShowIntro] = useState(() => { try { if (sessionStorage.getItem('consultationId')) return true; return !loadTriageState() } catch { return true } })
-  const [showConsentGate, setShowConsentGate] = useState(false)
   const bottomRef = useRef(null)
   const messagesRef = useRef(null)
   const fileRef = useRef(null)
@@ -676,9 +672,6 @@ export default function AITriage() {
 
   // ── Pharmacy input state ─────────────────────────────────────────────────────
   const [pharmacyQuery, setPharmacyQuery] = useState('')
-
-  if (showIntro) return <TereIntro onStart={() => { setShowIntro(false); setShowConsentGate(true); trackEvent('intro_viewed', { lang }) }} />
-  if (showConsentGate) return <ConsentGate onAccepted={() => setShowConsentGate(false)} lang={lang} patientName={data?.patient_name} />
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>

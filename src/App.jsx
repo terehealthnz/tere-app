@@ -51,8 +51,9 @@ class ChunkErrorBoundary extends React.Component {
   }
 }
 
-// Eager: Landing is shown immediately on first load
+// Eager: root screens shown immediately on first load
 import Landing from './pages/Landing'
+import TereIntro from './components/patient/TereIntro'
 
 // Lazy: everything else split into separate chunks
 const IntakeForm          = lazy(() => import('./components/patient/IntakeForm'))
@@ -104,6 +105,8 @@ const DemoAdmin           = lazy(() => import('./pages/demo/DemoAdmin'))
 const AsyncMessage        = lazy(() => import('./pages/patient/AsyncMessage'))
 const VitalsValidate      = lazy(() => import('./pages/patient/VitalsValidate'))
 const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDashboard'))
+const HDCConsent          = lazy(() => import('./pages/patient/HDCConsent'))
+const PrescribingLimits   = lazy(() => import('./pages/patient/PrescribingLimits'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -119,7 +122,7 @@ function PwaRoot() {
     if (portal === 'admin') return <Navigate to="/admin" replace />
     return <Navigate to="/triage" replace />
   }
-  return <Landing />
+  return <TereIntro />
 }
 
 export default function App() {
@@ -128,6 +131,8 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
+        <Route path="/consent"                element={<HDCConsent />} />
+        <Route path="/prescribing-limits"     element={<PrescribingLimits />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />
         <Route path="/vitals/:id"             element={<VitalsCapture />} />
@@ -170,7 +175,7 @@ export default function App() {
         <Route path="/employers"              element={<Employers />} />
         <Route path="/rate/:id"               element={<Rate />} />
         <Route path="/privacy"                element={<PrivacyPolicy />} />
-        <Route path="/landing"                element={<Navigate to="/" replace />} />
+        <Route path="/landing"                element={<Landing />} />
         <Route path="/terms"                  element={<Terms />} />
         <Route path="/demo"                       element={<DemoLanding />} />
         <Route path="/demo/patient"               element={<DemoPatient />} />

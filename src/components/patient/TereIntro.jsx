@@ -142,7 +142,7 @@ export default function TereIntro({ onStart }) {
       {/* Buttons */}
       {(() => { const bookingEnabled = import.meta.env.VITE_BOOKING_ENABLED === 'true'; return (
       <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
-        <button onClick={onStart} style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+        <button onClick={onStart ?? (() => navigate('/consent'))} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
           <div>{t('get_started', lang)} →</div>
           <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.8, marginTop:2 }}>Join the queue — see a provider today</div>
         </button>
