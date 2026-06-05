@@ -16,7 +16,7 @@ const CARD_STYLE = {
     },
     invalid: { color: '#DC2626' },
   },
-  value: { postalCode: '' },
+  hidePostalCode: true,
 }
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }

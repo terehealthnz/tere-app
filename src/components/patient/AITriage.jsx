@@ -752,6 +752,10 @@ export default function AITriage() {
 
   // ── Pharmacy input state ─────────────────────────────────────────────────────
   const [pharmacyQuery, setPharmacyQuery] = useState('')
+  const NZ_PHARMACY_BRANDS = ['Unichem','Life Pharmacy','Chemist Warehouse','Green Cross Health','Health 2000','Countdown Pharmacy','New World Pharmacy','Pak\'nSave Pharmacy','Bargain Chemist','Terry White Chemmart','Amcal','Guardian Pharmacy','Pharmacy 547']
+  const pharmacySuggestions = pharmacyQuery.trim().length > 1
+    ? NZ_PHARMACY_BRANDS.filter(b => b.toLowerCase().includes(pharmacyQuery.trim().toLowerCase())).slice(0, 4)
+    : []
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
@@ -924,21 +928,33 @@ export default function AITriage() {
 
       {step?.type==='pharmacy' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
-          <div style={{display:'flex',gap:6,marginBottom:6}}>
-            <input
-              value={pharmacyQuery}
-              onChange={e => setPharmacyQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
-              placeholder="e.g. Unichem Whanganui, Life Pharmacy…"
-              autoFocus
-              style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
-            />
-            <button
-              onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
-              disabled={!pharmacyQuery.trim()}
-              style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
-              Send
-            </button>
+          <div style={{position:'relative',marginBottom:6}}>
+            <div style={{display:'flex',gap:6}}>
+              <input
+                value={pharmacyQuery}
+                onChange={e => setPharmacyQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
+                placeholder="e.g. Unichem Whanganui, Life Pharmacy…"
+                autoFocus
+                style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
+              />
+              <button
+                onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
+                disabled={!pharmacyQuery.trim()}
+                style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
+                Send
+              </button>
+            </div>
+            {pharmacySuggestions.length > 0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.08)'}}>
+                {pharmacySuggestions.map(s => (
+                  <button key={s} onClick={() => { setPharmacyQuery(s + ' '); }} style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',color:'#374151',cursor:'pointer',borderBottom:'1px solid #F3F4F6'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <button onClick={() => handleSendValue('skip')}
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>

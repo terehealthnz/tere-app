@@ -87,12 +87,35 @@ export default function ProviderConsult() {
     }
   }, [navigate])
 
+  function buildTriageContext(data) {
+    const lines = []
+    if (data.vitals && !data.vitals.skipped) {
+      const v = data.vitals
+      const vparts = [
+        v.hr  && `HR ${v.hr} bpm`,
+        v.rr  && `RR ${v.rr} br/min`,
+        v.spo2 && `SpO₂ ${v.spo2}%`,
+        v.bp  && `BP ${v.bp}`,
+      ].filter(Boolean)
+      if (vparts.length) lines.push(`Vitals: ${vparts.join(', ')}`)
+    }
+    const social = []
+    if (data.tobacco_use === 'yes') social.push(`Smoker${data.tobacco_amount ? ` (${data.tobacco_amount})` : ''}`)
+    else if (data.tobacco_use === 'no') social.push('Non-smoker')
+    if (data.alcohol_use === 'yes') social.push(`Drinks alcohol${data.alcohol_amount ? ` (${data.alcohol_amount})` : ''}`)
+    else if (data.alcohol_use === 'no') social.push('Non-drinker')
+    if (social.length) lines.push(`Social Hx: ${social.join('. ')}.`)
+    return lines.join('\n')
+  }
+
   // Load consultation
   useEffect(() => {
     async function load() {
       try {
         const data = await getConsultation(id)
         setConsult(data)
+        const ctx = buildTriageContext(data)
+        if (ctx) setCallNotes(ctx + '\n\n')
         if (data.status === 'in_progress') {
           setInCall(true)
           await fetchToken()
@@ -112,9 +135,17 @@ export default function ProviderConsult() {
         const data = await getConsultation(id)
         setConsult(prev => {
           if (!prev) return data
-          if (data.status !== prev.status) return data
+          if (data.status !== prev.status || JSON.stringify(data.vitals) !== JSON.stringify(prev.vitals)) return data
           return prev
         })
+        // Inject vitals into notes once they arrive (if notes don't already have them)
+        if (data.vitals && !data.vitals.skipped) {
+          setCallNotes(prev => {
+            if (prev.includes('Vitals:')) return prev
+            const ctx = buildTriageContext(data)
+            return ctx ? ctx + '\n\n' + prev.replace(/^Vitals:[^\n]*\n?/, '') : prev
+          })
+        }
         if (data.status === 'in_progress' && !inCall) {
           setInCall(true)
         }
@@ -326,8 +357,9 @@ export default function ProviderConsult() {
 
       <div style={{ flex:1, padding:'1rem', overflowY:'auto' }}>
 
-        {/* Patient header card */}
+        {/* Triage summary — one card */}
         <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0', borderTop:`4px solid ${TEAL}` }}>
+          {/* Patient name + badges */}
           <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:12 }}>
             <div>
               <h1 style={{ fontSize:'1.375rem', fontWeight:800, color:NAVY, margin:0, lineHeight:1.2 }}>{patientName}</h1>
@@ -358,12 +390,61 @@ export default function ProviderConsult() {
             </div>
           )}
 
+          {/* Vitals */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:6 }}>Vitals</div>
+            <VitalsRow vitals={consult.vitals} />
+          </div>
+
+          {/* Medical history */}
+          {consult.medical_history && (
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:4 }}>Medical history</div>
+              <div style={{ fontSize:'.9375rem', color:'#374151', lineHeight:1.6 }}>{consult.medical_history}</div>
+            </div>
+          )}
+
+          {/* Social history */}
+          {(consult.tobacco_use || consult.alcohol_use) && (
+            <div style={{ marginBottom:8 }}>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:4 }}>Social history</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                {consult.tobacco_use === 'yes' && (
+                  <span style={{ background:'#FEF2F2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>
+                    🚬 Smoker{consult.tobacco_amount ? ` · ${consult.tobacco_amount}` : ''}
+                  </span>
+                )}
+                {consult.tobacco_use === 'no' && (
+                  <span style={{ background:'#F0FDF4', color:'#059669', border:'1px solid #BBF7D0', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>Non-smoker</span>
+                )}
+                {consult.alcohol_use === 'yes' && (
+                  <span style={{ background:'#FFFBEB', color:'#92400E', border:'1px solid #FDE68A', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>
+                    🍺 Drinks{consult.alcohol_amount ? ` · ${consult.alcohol_amount}` : ''}
+                  </span>
+                )}
+                {consult.alcohol_use === 'no' && (
+                  <span style={{ background:'#F0FDF4', color:'#059669', border:'1px solid #BBF7D0', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>Non-drinker</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ACC injury details */}
+          {isAcc && consult.acc_injury_details && (
+            <div style={{ background:'#EFF6FF', borderRadius:8, padding:'10px 12px', marginBottom:8 }}>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#1D4ED8', marginBottom:4 }}>ACC injury</div>
+              <div style={{ fontSize:'.9375rem', color:'#1e3a5f', lineHeight:1.6 }}>{consult.acc_injury_details}</div>
+              {consult.acc_injury_date && <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:4 }}>Date of injury: {new Date(consult.acc_injury_date).toLocaleDateString('en-NZ')}</div>}
+            </div>
+          )}
+
           {/* Patient info rows */}
           {[
-            ['Location',  consult.patient_location],
-            ['Employer',  consult.acc_employer],
-            ['Pharmacy',  consult.pharmacy],
+            ['Location',    consult.patient_location],
+            ['Employer',    consult.acc_employer],
+            ['Pharmacy',    consult.pharmacy],
             ['Medications', consult.medications],
+            ['GP',          consult.gp_name ? `${consult.gp_name}${consult.gp_clinic ? ` · ${consult.gp_clinic}` : ''}` : null],
           ].filter(([,v]) => v).map(([k,v]) => (
             <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderTop:'1px solid #F3F4F6', fontSize:'.8125rem' }}>
               <span style={{ color:'#9CA3AF' }}>{k}</span>
@@ -371,23 +452,6 @@ export default function ProviderConsult() {
             </div>
           ))}
         </div>
-
-        {/* Medical history */}
-        {consult.medical_history && (
-          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
-            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:8 }}>Medical history</div>
-            <div style={{ fontSize:'.9375rem', color:'#374151', lineHeight:1.6 }}>{consult.medical_history}</div>
-          </div>
-        )}
-
-        {/* ACC injury details */}
-        {isAcc && consult.acc_injury_details && (
-          <div style={{ background:'#EFF6FF', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #BFDBFE' }}>
-            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#1D4ED8', marginBottom:8 }}>ACC injury details</div>
-            <div style={{ fontSize:'.9375rem', color:'#1e3a5f', lineHeight:1.6 }}>{consult.acc_injury_details}</div>
-            {consult.acc_injury_date && <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:6 }}>Date of injury: {new Date(consult.acc_injury_date).toLocaleDateString('en-NZ')}</div>}
-          </div>
-        )}
 
         {/* Spacer for bottom buttons */}
         <div style={{ height:148 }} />
