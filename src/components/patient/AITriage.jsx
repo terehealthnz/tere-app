@@ -584,7 +584,6 @@ export default function AITriage() {
         alcoholUse: data.alcohol_use_raw === 'yes' ? 'yes' : (data.alcohol_use_raw === 'no' ? 'no' : null),
         alcoholAmount: data.alcohol_amount || null,
         status: 'waiting',
-        ...(!clinicOpen ? { consultationType: 'message', consultationSubtype: 'after_hours' } : {}),
       })
       sessionStorage.setItem('consultationId', consultation.id)
 

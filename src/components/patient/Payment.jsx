@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
-import { isClinicOpen } from '../../lib/clinicHours'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -26,7 +25,7 @@ const STRIPE_OPTIONS = { locale: 'en-NZ' }
 const BASE_PRICES = { video: { private: 65, acc: 25 }, phone: { private: 45, acc: 25 } }
 const COUPON_DISCOUNT = 10
 
-function PaymentForm({ consultationId, accEligible, consultationType, afterHours }) {
+function PaymentForm({ consultationId, accEligible, consultationType }) {
   const navigate   = useNavigate()
   const stripe     = useStripe()
   const elements   = useElements()
@@ -122,15 +121,6 @@ function PaymentForm({ consultationId, accEligible, consultationType, afterHours
 
   return (
     <form onSubmit={handleSubmit}>
-      {afterHours && (
-        <div style={{background:'#1E293B',borderRadius:12,padding:'1rem 1.25rem',marginBottom:'1rem',display:'flex',alignItems:'flex-start',gap:'.875rem'}}>
-          <span style={{fontSize:'1.5rem',flexShrink:0,marginTop:2}}>🌙</span>
-          <div>
-            <div style={{fontWeight:700,color:'white',fontSize:'.9375rem',marginBottom:'.25rem'}}>After hours — response by 8am</div>
-            <div style={{fontSize:'.8125rem',color:'rgba(255,255,255,.7)',lineHeight:1.6}}>The clinic opens at 8am NZT. A doctor will call you back then. Your card is held now but only charged when the consultation begins.</div>
-          </div>
-        </div>
-      )}
       <div className="card" style={{marginBottom:'1rem'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'1.25rem'}}>
           <div>
@@ -241,7 +231,7 @@ function PaymentForm({ consultationId, accEligible, consultationType, afterHours
         )}
 
         <button type="submit" className="btn btn-primary btn-full" disabled={loading || !clientSecret}>
-          {loading ? 'Processing…' : afterHours ? `Hold $${amount} — doctor calls at 8am` : `Hold $${amount} and join waiting room`}
+          {loading ? 'Processing…' : `Hold $${amount} and join waiting room`}
         </button>
       </div>
 
@@ -271,8 +261,6 @@ export default function Payment() {
   const consultationId   = sessionStorage.getItem('consultationId')
   const accEligible      = sessionStorage.getItem('accEligible') || 'no'
   const consultationType = sessionStorage.getItem('consultationType') || 'video'
-  const afterHours       = !isClinicOpen()
-
   useEffect(() => {
     if (!consultationId) navigate('/triage')
   }, [consultationId, navigate])
@@ -288,7 +276,7 @@ export default function Payment() {
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>
         <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
-          <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} afterHours={afterHours} />
+          <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
         </Elements>
         <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem',textAlign:'center'}}>
           Emergency? Call <strong>111</strong> immediately.

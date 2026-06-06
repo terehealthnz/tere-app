@@ -124,10 +124,9 @@ function InstallBanner({ onDismiss }) {
 }
 
 const TYPE_BADGE = {
-  video:       { icon:'📹', bg: TEAL,      color:'white', label:'Video' },
-  phone:       { icon:'📞', bg: NAVY,      color:'white', label:'Phone' },
-  message:     { icon:'🌙', bg: '#1E293B', color:'white', label:'After hours' },
-  after_hours: { icon:'🌙', bg: '#1E293B', color:'white', label:'After hours' },
+  video:   { icon:'📹', bg: TEAL, color:'white', label:'Video' },
+  phone:   { icon:'📞', bg: NAVY, color:'white', label:'Phone' },
+  message: { icon:'✉️', bg: '#6B7280', color:'white', label:'Message' },
 }
 
 // ── Today's appointments strip ────────────────────────────────────────────────
@@ -280,16 +279,9 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
           {/* Rows */}
           {queue.map((c, i) => {
-            const isAfterHours = c.consultation_subtype === 'after_hours'
-            const buf  = isAfterHours
-              ? { label:'Overnight', color:'#6B7280', bg:'#F1F5F9' }
-              : bufferInfo(c.created_at, now)
-            const sta  = isAfterHours
-              ? { label:'After hours', color:'#D97706', bg:'#FEF3C7' }
-              : queueStatus(c, now)
-            const tb   = isAfterHours
-              ? TYPE_BADGE.after_hours
-              : (TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video)
+            const buf = bufferInfo(c.created_at, now)
+            const sta = queueStatus(c, now)
+            const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
             const isLast = i === queue.length - 1
             const isCalling = starting === c.id
             const complaint = (c.chief_complaint || '').length > 20
@@ -304,12 +296,12 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   display:'grid', gridTemplateColumns:COLS,
                   borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
                   cursor: 'pointer',
-                  background: isAfterHours ? '#FAFAF9' : 'white',
+                  background: 'white',
                   transition:'background .1s',
                   alignItems:'center',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background='#F0F9FA' }}
-                onMouseLeave={e => { e.currentTarget.style.background= isAfterHours ? '#FAFAF9' : 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.background='white' }}
               >
                 {/* Type icon */}
                 <div style={{ ...TD, display:'flex', justifyContent:'center' }}>
@@ -364,13 +356,11 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                     title="View patient"
                     style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
                   >👁</button>
-                  {!isAfterHours && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
-                      title="Dismiss patient"
-                      style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
-                    >✕</button>
-                  )}
+                  <button
+                    onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
+                    title="Dismiss patient"
+                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
+                  >✕</button>
                 </div>
               </div>
             )

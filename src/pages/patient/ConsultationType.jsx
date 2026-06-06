@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
-import { isClinicOpen } from '../../lib/clinicHours'
 
 const TYPE_CONFIG = {
   video: {
@@ -20,29 +19,10 @@ const TYPE_CONFIG = {
   },
 }
 
-const AFTER_HOURS_CONFIG = {
-  video: {
-    icon: '📹',
-    title: 'Video call',
-    subtitle: 'A doctor will video call you at 8am — leave your phone on',
-    features: ['Face-to-face with your doctor', 'Physical assessment', 'Prescriptions & referrals', 'ACC claims accepted'],
-    recommended: true,
-  },
-  phone: {
-    icon: '📞',
-    title: 'Phone call',
-    subtitle: 'A doctor will phone you at 8am',
-    features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims accepted', 'No camera needed'],
-    recommended: false,
-  },
-}
-
 export default function ConsultationType() {
   const navigate = useNavigate()
   const [selected, setSelected] = useState(() => sessionStorage.getItem('consultationType') || null)
   const [loading, setLoading] = useState(false)
-
-  const afterHours = !isClinicOpen()
   const complaint = sessionStorage.getItem('triage_complaint') || ''
   const isReturning = sessionStorage.getItem('triage_returning') === 'true'
   const isAcc = sessionStorage.getItem('accEligible') === 'yes'
@@ -57,7 +37,7 @@ export default function ConsultationType() {
     allowPhone && 'phone',
   ].filter(Boolean)
 
-  const typeConfig = afterHours ? AFTER_HOURS_CONFIG : TYPE_CONFIG
+  const typeConfig = TYPE_CONFIG
 
   function getPrice(type) {
     const prices = CONSULT_PRICES[type]
@@ -98,23 +78,12 @@ export default function ConsultationType() {
       </nav>
 
       <div className="container" style={{ paddingTop: '2rem', paddingBottom: '3rem', maxWidth: 520 }}>
-        {afterHours && (
-          <div style={{ background: '#1E293B', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-start', gap: '.875rem' }}>
-            <span style={{ fontSize: '1.5rem', flexShrink: 0, marginTop: 2 }}>🌙</span>
-            <div>
-              <div style={{ fontWeight: 700, color: 'white', fontSize: '.9375rem', marginBottom: '.25rem' }}>The clinic is currently closed</div>
-              <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.7)', lineHeight: 1.6 }}>Our doctors are available 8am–8pm NZT. Submit your request now and a doctor will call you back when we open. Your card is held but not charged until the consultation begins.</div>
-            </div>
-          </div>
-        )}
         <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ marginBottom: '.375rem' }}>How would you like to consult?</h1>
           <p style={{ fontSize: '.9375rem' }}>
-            {afterHours
-              ? 'Choose how you\'d like to be contacted at 8am tomorrow.'
-              : isAcc
-                ? 'ACC claims require a live consultation — video or phone only.'
-                : 'Dr Herling will call you back within 2 hours. Choose your preferred contact method.'}
+            {isAcc
+              ? 'ACC claims require a live consultation — video or phone only.'
+              : 'Dr Herling will call you back within 2 hours. Choose your preferred contact method.'}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>

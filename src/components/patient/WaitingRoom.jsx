@@ -32,6 +32,7 @@ export default function WaitingRoom() {
 
   const patientName = (sessionStorage.getItem('patientName') || '').split(' ')[0] || null
   const consultType = sessionStorage.getItem('consultationType') || 'video'
+  const afterHours  = sessionStorage.getItem('after_hours') === 'true'
 
   async function cancelConsultation() {
     try {
@@ -189,8 +190,15 @@ export default function WaitingRoom() {
           Request submitted
         </h1>
 
-        {/* 2-hour countdown */}
-        {secsLeft !== null && (
+        {/* Timer */}
+        {afterHours ? (
+          <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
+            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'rgba(212,238,240,.9)' }}>From 8am</div>
+            <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
+              your doctor will contact you when available
+            </div>
+          </div>
+        ) : secsLeft !== null && (
           <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
             <div style={{
               fontFamily: 'monospace',
@@ -208,7 +216,7 @@ export default function WaitingRoom() {
         )}
 
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
-          {providerName ? `${providerName} will` : 'Dr Herling will'} review your notes and {consultType === 'phone' ? 'phone' : 'video call'} you <strong style={{ color: 'rgba(255,255,255,.8)' }}>within 2 hours</strong>.
+          {providerName ? `${providerName} will` : 'A doctor will'} review your notes and {consultType === 'phone' ? 'phone' : 'video call'} you <strong style={{ color: 'rgba(255,255,255,.8)' }}>{afterHours ? 'from 8am' : 'within 2 hours'}</strong>.
         </p>
 
         {/* Info cards */}
@@ -228,8 +236,12 @@ export default function WaitingRoom() {
               </div>
               <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
                 {consultType === 'phone'
-                  ? 'You\'ll receive a phone call — answer any unknown NZ numbers for the next 2 hours.'
-                  : 'You\'ll get a notification to join a video call. Keep this tab open or check your email.'}
+                  ? afterHours
+                    ? 'Your doctor will phone you from 8am — keep your phone on and answer unknown NZ numbers.'
+                    : "You'll receive a phone call — answer any unknown NZ numbers for the next 2 hours."
+                  : afterHours
+                    ? 'Your doctor will start a video call from 8am — keep this tab open.'
+                    : "You'll get a notification to join a video call. Keep this tab open or check your email."}
               </div>
             </div>
           </div>
@@ -285,10 +297,18 @@ export default function WaitingRoom() {
           ))}
         </div>
 
+        {/* No-charge notice for after-hours */}
+        {afterHours && (
+          <div style={{ background: 'rgba(11,110,118,.2)', border: '1px solid rgba(11,110,118,.4)', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1.5rem', width: '100%', maxWidth: 360, animation: 'fadeUp .5s .75s both' }}>
+            <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>Card held, not charged yet</div>
+            <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.8125rem', lineHeight: 1.6 }}>Your card is held but you won't be charged until your doctor contacts you. Cancel anytime and the hold is released automatically.</div>
+          </div>
+        )}
+
         {/* Cancel */}
         <button onClick={cancelConsultation}
-          style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.25)', fontSize: '.8125rem', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Cancel and start over
+          style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.2)', color: 'rgba(255,255,255,.7)', fontSize: '.9375rem', cursor: 'pointer', padding: '.75rem 1.5rem', borderRadius: 10, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>
+          Cancel — remove me from the queue
         </button>
       </div>
 
