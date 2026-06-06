@@ -132,6 +132,8 @@ export async function createConsultation(data) {
     controlled_medication_mentioned: false,
     card_saved:                   false,
     status:                       data.status || 'waiting',
+    ...(data.consultationType    ? { consultation_type:    data.consultationType }    : {}),
+    ...(data.consultationSubtype ? { consultation_subtype: data.consultationSubtype } : {}),
     vitals:                       null,
     daily_room_url:               null,
     // Research fields (requires supabase-research-migration.sql)

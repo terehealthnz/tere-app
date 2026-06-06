@@ -61,10 +61,23 @@ const apis = [
   'verify-acc',
 ]
 
+const GET_ONLY = new Set(['get-queue', 'get-availability', 'async-overdue', 'status'])
+const DUAL_METHOD = new Set([
+  'analytics-events', 'appointments', 'audit', 'breach', 'consents',
+  'complaints', 'bookings', 'handover', 'consultation-token', 'patient-flags',
+  'incidents', 'schedule', 'payroll',
+])
+
 for (const name of apis) {
   try {
     const mod = await import(`./api/_${name}.js`)
-    app.post(`/api/${name}`, mod.default)
+    if (GET_ONLY.has(name)) {
+      app.get(`/api/${name}`, mod.default)
+    } else if (DUAL_METHOD.has(name)) {
+      app.all(`/api/${name}`, mod.default)
+    } else {
+      app.post(`/api/${name}`, mod.default)
+    }
     console.log(`✓ /api/${name}`)
   } catch (e) {
     console.log(`✗ /api/${name}: ${e.message}`)

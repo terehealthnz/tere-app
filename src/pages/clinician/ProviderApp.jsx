@@ -124,9 +124,10 @@ function InstallBanner({ onDismiss }) {
 }
 
 const TYPE_BADGE = {
-  video:   { icon:'📹', bg: TEAL,      color:'white', label:'Video' },
-  phone:   { icon:'📞', bg: NAVY,      color:'white', label:'Phone' },
-  message: { icon:'✉️', bg: '#D97706', color:'white', label:'Async' },
+  video:       { icon:'📹', bg: TEAL,      color:'white', label:'Video' },
+  phone:       { icon:'📞', bg: NAVY,      color:'white', label:'Phone' },
+  message:     { icon:'🌙', bg: '#1E293B', color:'white', label:'After hours' },
+  after_hours: { icon:'🌙', bg: '#1E293B', color:'white', label:'After hours' },
 }
 
 // ── Today's appointments strip ────────────────────────────────────────────────
@@ -238,11 +239,18 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
     return () => clearInterval(id)
   }, [])
 
-  const videoQueue = consultations.filter(c => c.consultation_type !== 'message')
+  // Messages first, then live queue sorted by created_at
+  const queue = [...consultations].sort((a, b) => {
+    const aMsg = a.consultation_type === 'message'
+    const bMsg = b.consultation_type === 'message'
+    if (aMsg && !bMsg) return -1
+    if (!aMsg && bMsg) return 1
+    return new Date(a.created_at) - new Date(b.created_at)
+  })
 
   if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
 
-  if (!videoQueue.length) return (
+  if (!queue.length) return (
     <>
       <HandoverBanner />
       <TodayAppointments />
@@ -271,11 +279,18 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
           </div>
 
           {/* Rows */}
-          {videoQueue.map((c, i) => {
-            const buf  = bufferInfo(c.created_at, now)
-            const sta  = queueStatus(c, now)
-            const tb   = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
-            const isLast = i === videoQueue.length - 1
+          {queue.map((c, i) => {
+            const isAfterHours = c.consultation_subtype === 'after_hours'
+            const buf  = isAfterHours
+              ? { label:'Overnight', color:'#6B7280', bg:'#F1F5F9' }
+              : bufferInfo(c.created_at, now)
+            const sta  = isAfterHours
+              ? { label:'After hours', color:'#D97706', bg:'#FEF3C7' }
+              : queueStatus(c, now)
+            const tb   = isAfterHours
+              ? TYPE_BADGE.after_hours
+              : (TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video)
+            const isLast = i === queue.length - 1
             const isCalling = starting === c.id
             const complaint = (c.chief_complaint || '').length > 20
               ? c.chief_complaint.slice(0, 20) + '…'
@@ -289,12 +304,12 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   display:'grid', gridTemplateColumns:COLS,
                   borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
                   cursor: 'pointer',
-                  background: 'white',
+                  background: isAfterHours ? '#FAFAF9' : 'white',
                   transition:'background .1s',
                   alignItems:'center',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background='#F9FAFB' }}
-                onMouseLeave={e => { e.currentTarget.style.background='white' }}
+                onMouseEnter={e => { e.currentTarget.style.background='#F0F9FA' }}
+                onMouseLeave={e => { e.currentTarget.style.background= isAfterHours ? '#FAFAF9' : 'white' }}
               >
                 {/* Type icon */}
                 <div style={{ ...TD, display:'flex', justifyContent:'center' }}>
@@ -344,18 +359,18 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
                 {/* Actions */}
                 <div style={{ ...TD, display:'flex', gap:4, justifyContent:'flex-end', paddingRight:'.875rem' }}>
-                  {/* View */}
                   <button
                     onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
                     title="View patient"
                     style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
                   >👁</button>
-                  {/* Dismiss */}
-                  <button
-                    onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
-                    title="Dismiss patient"
-                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
-                  >✕</button>
+                  {!isAfterHours && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
+                      title="Dismiss patient"
+                      style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
+                    >✕</button>
+                  )}
                 </div>
               </div>
             )
@@ -363,7 +378,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
         </div>
 
         <div style={{ textAlign:'center', padding:'.625rem 0 .25rem', fontSize:'.75rem', color:'#9CA3AF' }}>
-          {videoQueue.length} patient{videoQueue.length !== 1 ? 's' : ''} in queue · Click a row to view
+          {queue.length} patient{queue.length !== 1 ? 's' : ''} in queue · Click a row to view
         </div>
       </div>
 
@@ -443,7 +458,7 @@ function fmtDeadline(iso) {
   return `by ${t} ${dl.toLocaleDateString('en-NZ', { timeZone: TZ, weekday: 'short' })}`
 }
 
-function MessagesTab() {
+function MessagesTab({ autoOpenId, onClose }) {
   const [rows, setRows]             = useState([])
   const [loading, setLoading]       = useState(true)
   const [responding, setResponding] = useState(null)
@@ -701,6 +716,12 @@ function MessagesTab() {
   }
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (!autoOpenId || !rows.length) return
+    const c = rows.find(r => r.id === autoOpenId)
+    if (c && responding !== autoOpenId) startResponding(c)
+  }, [autoOpenId, rows])
 
   if (loading) return <div style={{ textAlign: 'center', padding: '4rem' }}><div className="spinner" /></div>
 
@@ -1171,10 +1192,9 @@ function MenuTab({ navigate, displayName, isAdmin }) {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, queueBadge, msgBadge, notesBadge }) {
+function BottomNav({ tab, setTab, queueBadge, notesBadge }) {
   const items = [
     { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
-    { id:'messages', icon:'💬', label:'Messages', badge:msgBadge },
     { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'notes',    icon:'📋', label:'Notes',    badge:notesBadge },
     { id:'earnings', icon:'💰', label:'Earnings', badge:0 },
@@ -1345,8 +1365,7 @@ export default function ProviderApp() {
     setConsultations(cs => cs.filter(x => x.id !== c.id))
   }
 
-  const msgCount   = consultations.filter(c => c.consultation_type === 'message').length
-  const queueCount = consultations.filter(c => c.consultation_type !== 'message').length
+  const queueCount = consultations.length
 
   return (
     <div style={{ height:'100dvh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none', position:'relative', overflow:'hidden' }}>
@@ -1384,7 +1403,6 @@ export default function ProviderApp() {
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
-        {tab === 'messages' && <MessagesTab />}
         {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'notes'    && <NotesTab navigate={navigate} />}
         {tab === 'earnings' && <ProviderEarnings embedded />}
@@ -1406,7 +1424,7 @@ export default function ProviderApp() {
       )}
 
       {/* Bottom nav */}
-      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} msgBadge={msgCount} notesBadge={0} />
+      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} notesBadge={0} />
     </div>
   )
 }

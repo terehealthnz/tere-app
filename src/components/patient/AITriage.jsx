@@ -550,6 +550,7 @@ export default function AITriage() {
     trackEvent('triage_completed', { lang })
     try {
       const nameParts = (data.patient_name||'').trim().split(' ')
+      const clinicOpen = isClinicOpen()
       const consultation = await createConsultation({
         firstName: nameParts[0],
         lastName: nameParts.slice(1).join(' '),
@@ -583,6 +584,7 @@ export default function AITriage() {
         alcoholUse: data.alcohol_use_raw === 'yes' ? 'yes' : (data.alcohol_use_raw === 'no' ? 'no' : null),
         alcoholAmount: data.alcohol_amount || null,
         status: 'waiting',
+        ...(!clinicOpen ? { consultationType: 'message', consultationSubtype: 'after_hours' } : {}),
       })
       sessionStorage.setItem('consultationId', consultation.id)
 
@@ -703,20 +705,14 @@ export default function AITriage() {
       sessionStorage.setItem('patient_language', lang)
       sessionStorage.removeItem('tere_triage_state')
 
-      if (!isClinicOpen()) {
-        sessionStorage.setItem('consultation_subtype', 'async_message')
-        try {
-          const { supabase } = await import('../../lib/supabase')
-          await supabase.from('consultations').update({
-            consultation_type: 'message',
-            consultation_subtype: 'async_message',
-          }).eq('id', consultation.id)
-        } catch {}
-        navigate(`/async-message/${consultation.id}`)
+      if (!clinicOpen) {
+        sessionStorage.setItem('consultation_subtype', 'after_hours')
+        sessionStorage.setItem('after_hours', 'true')
       } else {
         sessionStorage.setItem('consultation_subtype', 'live')
-        navigate('/consultation-type')
+        sessionStorage.removeItem('after_hours')
       }
+      navigate('/consultation-type')
     } catch(e) {
       console.error('[handleConfirm] Save failed: ' + JSON.stringify({
         message: e.message,
@@ -750,12 +746,40 @@ export default function AITriage() {
 
   const step = STEPS[currentStep]
 
-  // ── Pharmacy input state ─────────────────────────────────────────────────────
+  // ── Pharmacy address search (OpenStreetMap Nominatim) ────────────────────────
   const [pharmacyQuery, setPharmacyQuery] = useState('')
-  const NZ_PHARMACY_BRANDS = ['Unichem','Life Pharmacy','Chemist Warehouse','Green Cross Health','Health 2000','Countdown Pharmacy','New World Pharmacy','Pak\'nSave Pharmacy','Bargain Chemist','Terry White Chemmart','Amcal','Guardian Pharmacy','Pharmacy 547']
-  const pharmacySuggestions = pharmacyQuery.trim().length > 1
-    ? NZ_PHARMACY_BRANDS.filter(b => b.toLowerCase().includes(pharmacyQuery.trim().toLowerCase())).slice(0, 4)
-    : []
+  const [pharmacyResults, setPharmacyResults] = useState([])
+  const [pharmacyLoading, setPharmacyLoading] = useState(false)
+  const pharmacyDebounceRef = useRef(null)
+
+  useEffect(() => {
+    const q = pharmacyQuery.trim()
+    if (q.length < 3) { setPharmacyResults([]); return }
+    clearTimeout(pharmacyDebounceRef.current)
+    pharmacyDebounceRef.current = setTimeout(async () => {
+      setPharmacyLoading(true)
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ' pharmacy')}&countrycodes=nz&addressdetails=1&format=json&limit=6`
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } })
+        const items = await res.json()
+        const formatted = items
+          .filter(i => i.address)
+          .map(i => {
+            const a = i.address
+            const name = i.namedetails?.name || i.name || a.amenity || ''
+            const street = [a.house_number, a.road].filter(Boolean).join(' ')
+            const suburb = a.suburb || a.village || a.town || a.city_district || ''
+            const city = a.city || a.town || a.county || ''
+            const parts = [name, street, suburb || city].filter(Boolean)
+            return { label: parts.join(', '), display: { name, street, suburb: suburb || city } }
+          })
+          .filter(i => i.display.name)
+        setPharmacyResults(formatted.slice(0, 5))
+      } catch { setPharmacyResults([]) }
+      finally { setPharmacyLoading(false) }
+    }, 350)
+    return () => clearTimeout(pharmacyDebounceRef.current)
+  }, [pharmacyQuery])
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
@@ -932,25 +956,29 @@ export default function AITriage() {
             <div style={{display:'flex',gap:6}}>
               <input
                 value={pharmacyQuery}
-                onChange={e => setPharmacyQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
-                placeholder="e.g. Unichem Whanganui, Life Pharmacy…"
+                onChange={e => { setPharmacyQuery(e.target.value); setPharmacyResults([]) }}
+                onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery(''); setPharmacyResults([]) } }}
+                placeholder="e.g. Unichem Whanganui, Chemist Wh…"
                 autoFocus
                 style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
               />
               <button
-                onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery('') } }}
+                onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery(''); setPharmacyResults([]) } }}
                 disabled={!pharmacyQuery.trim()}
                 style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
-                Send
+                {pharmacyLoading ? '…' : 'Send'}
               </button>
             </div>
-            {pharmacySuggestions.length > 0 && (
-              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.08)'}}>
-                {pharmacySuggestions.map(s => (
-                  <button key={s} onClick={() => { setPharmacyQuery(s + ' '); }} style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',color:'#374151',cursor:'pointer',borderBottom:'1px solid #F3F4F6'}}
+            {pharmacyResults.length > 0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+                {pharmacyResults.map((r, idx) => (
+                  <button key={idx} onClick={() => { handleSendValue(r.label); setPharmacyQuery(''); setPharmacyResults([]) }}
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<pharmacyResults.length-1?'1px solid #F3F4F6':'none'}}
                     onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                    {s}
+                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{r.display.name}</div>
+                    {(r.display.street || r.display.suburb) && (
+                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[r.display.street, r.display.suburb].filter(Boolean).join(', ')}</div>
+                    )}
                   </button>
                 ))}
               </div>
