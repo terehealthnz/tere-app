@@ -24,8 +24,6 @@ export default async function handler(req, res) {
       .filter(c => {
         if (seen.has(c.id)) return false
         seen.add(c.id)
-        // Exclude async message consultations — they belong in the Messages tab only
-        if (c.consultation_subtype === 'async_message') return false
         return true
       })
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
