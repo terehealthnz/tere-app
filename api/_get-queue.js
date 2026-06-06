@@ -8,7 +8,14 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
     )
 
-    const ACTIVE = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress']
+    const ACTIVE = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing']
+
+    // Auto-expire stale reviewing locks (provider closed browser without going back)
+    const staleThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    await supabase.from('consultations')
+      .update({ status: 'waiting', provider_display_name: null, provider_id: null })
+      .eq('status', 'reviewing')
+      .lt('updated_at', staleThreshold)
 
     // Run two queries: active consultations + paid-waitlisted (patient in WaitingRoom
     // but DB status not promoted due to RLS blocking the client-side update)

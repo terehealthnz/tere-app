@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsultations, updatePatient } from '../../lib/supabase'
@@ -32,17 +32,57 @@ export default function ClinicianPatient() {
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
+  const lockedRef   = useRef(false)
+  const sbRef       = useRef(null)
 
   useEffect(() => {
     if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician')
   }, [navigate])
 
+  // Pre-load supabase client so we can use it synchronously in cleanup
+  useEffect(() => {
+    import('../../lib/supabase').then(m => { sbRef.current = m.supabase })
+  }, [])
+
+  async function unlock() {
+    if (!lockedRef.current || !sbRef.current) return
+    lockedRef.current = false
+    await sbRef.current.from('consultations')
+      .update({ status: 'waiting', provider_display_name: null, provider_id: null })
+      .eq('id', id)
+      .eq('status', 'reviewing')
+      .eq('provider_id', providerId)
+  }
+
+  // Unlock on unmount (catches browser back button and tab close)
+  useEffect(() => {
+    return () => {
+      if (!lockedRef.current || !sbRef.current) return
+      lockedRef.current = false
+      sbRef.current.from('consultations')
+        .update({ status: 'waiting', provider_display_name: null, provider_id: null })
+        .eq('id', id)
+        .eq('status', 'reviewing')
+        .eq('provider_id', providerId)
+        .then(() => {})
+    }
+  }, [id, providerId])
+
   useEffect(() => {
     async function load() {
       try {
         const { supabase } = await import('../../lib/supabase')
+        if (!sbRef.current) sbRef.current = supabase
         const { data } = await supabase.from('consultations').select('*').eq('id', id).single()
         setConsult(data)
+        // Lock the consultation so other providers see it as being reviewed
+        if (data && ['waiting', 'vitals_requested', 'vitals_complete', 'ready'].includes(data.status)) {
+          const { error } = await supabase.from('consultations')
+            .update({ status: 'reviewing', provider_display_name: displayName, provider_id: providerId })
+            .eq('id', id)
+            .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready'])
+          if (!error) lockedRef.current = true
+        }
         if (data?.patient_id) {
           const [{ data: pt }, pastConsults] = await Promise.all([
             supabase.from('patients').select('*').eq('id', data.patient_id).single(),
@@ -86,13 +126,13 @@ export default function ClinicianPatient() {
 
   const v = consult.vitals
   const typeIcon = consult.consultation_type === 'phone' ? '📞' : consult.consultation_type === 'message' ? '✉️' : '📹'
-  const isCallable = ['waiting', 'vitals_requested', 'vitals_complete', 'ready'].includes(consult.status)
+  const isCallable = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing'].includes(consult.status)
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F7F5F0', fontFamily: FF }}>
       {/* Header */}
       <div style={{ background: NAVY, paddingTop: 'calc(.875rem + env(safe-area-inset-top))', paddingBottom: '.875rem', paddingLeft: '1.25rem', paddingRight: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button onClick={() => navigate('/provider')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.375rem', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center' }}>←</button>
+        <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.375rem', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center' }}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'Cormorant Garamond,Georgia,serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.1rem' }}>Tere</div>
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.75rem' }}>Patient details</div>
@@ -264,7 +304,7 @@ export default function ClinicianPatient() {
       {/* Bottom action bar */}
       {isCallable && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', gap: '.75rem', maxWidth: 640, margin: '0 auto' }}>
-          <button onClick={() => navigate('/provider')} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 12, padding: '14px 20px', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', fontFamily: FF }}>
+          <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 12, padding: '14px 20px', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', fontFamily: FF }}>
             ← Back
           </button>
           <button

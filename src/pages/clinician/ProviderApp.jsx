@@ -47,6 +47,7 @@ function queueStatus(c, now) {
   if (s === 'no_answer')  return { label: 'No answer',  color: '#991B1B', bg: '#FEE2E2' }
   if (s === 'expired')    return { label: 'Expired',    color: '#6B7280', bg: '#F3F4F6' }
   if (s === 'in_progress') return { label: 'In Progress', color: '#7C3AED', bg: '#EDE9FE' }
+  if (s === 'reviewing')  return { label: `Reviewing — ${c.provider_display_name || 'Provider'}`, color: '#92400E', bg: '#FEF3C7' }
   const deadline = new Date(c.created_at).getTime() + 2 * 60 * 60 * 1000
   const minsLeft = (deadline - now) / 60000
   if (minsLeft <= 30) return { label: 'Upcoming', color: '#1E40AF', bg: '#DBEAFE' }
@@ -232,6 +233,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
   const [now, setNow]             = useState(Date.now())
   const [dismissTarget, setDismissTarget] = useState(null)
   const [dismissing, setDismissing]       = useState(false)
+  const currentProviderId = sessionStorage.getItem('providerId')
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60000)
@@ -279,6 +281,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
           {/* Rows */}
           {queue.map((c, i) => {
+            const isLocked = c.status === 'reviewing' && c.provider_id !== currentProviderId
             const buf = bufferInfo(c.created_at, now)
             const sta = queueStatus(c, now)
             const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
@@ -291,16 +294,17 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
             return (
               <div
                 key={c.id}
-                onClick={() => navigate(`/clinician/patient/${c.id}`)}
+                onClick={() => { if (!isLocked) navigate(`/clinician/patient/${c.id}`) }}
                 style={{
                   display:'grid', gridTemplateColumns:COLS,
                   borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
-                  cursor: 'pointer',
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
                   background: 'white',
-                  transition:'background .1s',
+                  opacity: isLocked ? 0.55 : 1,
+                  transition:'background .1s, opacity .15s',
                   alignItems:'center',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.background='#F0F9FA' }}
+                onMouseEnter={e => { if (!isLocked) e.currentTarget.style.background='#F0F9FA' }}
                 onMouseLeave={e => { e.currentTarget.style.background='white' }}
               >
                 {/* Type icon */}
@@ -351,16 +355,20 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
                 {/* Actions */}
                 <div style={{ ...TD, display:'flex', gap:4, justifyContent:'flex-end', paddingRight:'.875rem' }}>
-                  <button
-                    onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
-                    title="View patient"
-                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
-                  >👁</button>
-                  <button
-                    onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
-                    title="Dismiss patient"
-                    style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
-                  >✕</button>
+                  {!isLocked && (
+                    <button
+                      onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
+                      title="View patient"
+                      style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
+                    >👁</button>
+                  )}
+                  {!isLocked && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
+                      title="Dismiss patient"
+                      style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'.875rem', color:'#9CA3AF' }}
+                    >✕</button>
+                  )}
                 </div>
               </div>
             )
