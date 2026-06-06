@@ -81,7 +81,7 @@ export default function ClinicianPatient() {
             .update({ status: 'reviewing', provider_display_name: displayName, provider_id: providerId })
             .eq('id', id)
             .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready'])
-          if (!error) lockedRef.current = true
+          if (!error) { lockedRef.current = true; setConsult(c => ({ ...c, status: 'reviewing' })) }
         }
         if (data?.patient_id) {
           const [{ data: pt }, pastConsults] = await Promise.all([
