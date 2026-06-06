@@ -26,6 +26,7 @@ export default function ClinicianPatient() {
   const [patient, setPatient]     = useState(null)
   const [history, setHistory]     = useState([])
   const [expandedId, setExpandedId] = useState(null)
+  const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -271,34 +272,103 @@ export default function ClinicianPatient() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {history.map(c => (
-                <div key={c.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-                  <button onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                    style={{ width: '100%', background: 'none', border: 'none', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '.875rem', fontWeight: 600, color: NAVY, marginBottom: 2 }}>{c.chief_complaint}</div>
-                      <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
-                        {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
-                        {c.acc_read_code ? ` · ${c.acc_read_code}` : ''}
-                      </div>
+                <button key={c.id} onClick={() => setNoteModal(c)}
+                  style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '.8125rem', fontWeight: 600, color: NAVY, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.chief_complaint}</div>
+                    <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                      {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
                     </div>
-                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      {c.prescription_issued && <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Rx</span>}
-                      {c.referral_issued && <span style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Ref</span>}
-                    </div>
-                    <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}>{expandedId === c.id ? '▲' : '▼'}</span>
-                  </button>
-                  {expandedId === c.id && c.notes_final && (
-                    <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>
-                      <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.625rem 0 .375rem' }}>Finalised notes</div>
-                      <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes_final}</div>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
+                    {c.prescription_issued && <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Rx</span>}
+                    {c.referral_issued && <span style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Xr</span>}
+                    {c.notes_final && <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>}
+                  </div>
+                </button>
               ))}
             </div>
           </div>
         )}
+
+        {/* Note detail modal */}
+        {noteModal && (() => {
+          let parsed = null
+          try { parsed = typeof noteModal.notes_final === 'string' ? JSON.parse(noteModal.notes_final) : noteModal.notes_final } catch {}
+          const actions = parsed?.actions || []
+          const rxItems = actions.filter(a => a.type === 'prescription')
+          const xrItems = actions.filter(a => a.type === 'radiology')
+          const s = parsed?.sections || {}
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.7)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+              onClick={e => { if (e.target === e.currentTarget) setNoteModal(null) }}>
+              <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 640, maxHeight: '90dvh', display: 'flex', flexDirection: 'column' }}>
+                {/* Modal header */}
+                <div style={{ padding: '1.25rem 1.25rem .75rem', borderBottom: '1px solid #E2E8F0', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+                    <div>
+                      <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.25rem' }}>
+                        {new Date(noteModal.created_at).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
+                        {noteModal.provider_display_name ? ` · ${noteModal.provider_display_name}` : ''}
+                      </div>
+                      <div style={{ fontWeight: 700, color: NAVY, fontSize: '1rem', lineHeight: 1.4 }}>{noteModal.chief_complaint}</div>
+                    </div>
+                    <button onClick={() => setNoteModal(null)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontSize: '1rem', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                  </div>
+                  {/* Rx / Xr badges */}
+                  {(rxItems.length > 0 || xrItems.length > 0) && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: '.75rem', flexWrap: 'wrap' }}>
+                      {rxItems.map((rx, i) => (
+                        <span key={i} style={{ background: '#EFF9F9', color: TEAL, fontSize: '.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 99 }}>
+                          Rx: {rx.medication || rx.drug || rx.name || 'Prescription'}
+                        </span>
+                      ))}
+                      {xrItems.map((xr, i) => (
+                        <span key={i} style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: 99 }}>
+                          Xr: {xr.type_of_scan || xr.body_part || xr.name || 'Radiology'}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {/* Outcome + work capacity */}
+                  {parsed?.outcome && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: rxItems.length || xrItems.length ? '.375rem' : '.75rem', flexWrap: 'wrap' }}>
+                      <span style={{ background: '#F0FDF4', color: '#059669', fontSize: '.75rem', fontWeight: 600, padding: '3px 10px', borderRadius: 99 }}>
+                        {parsed.outcome.replace(/_/g, ' ')}
+                      </span>
+                      {parsed.workCapacity && parsed.workCapacity !== 'fit' && (
+                        <span style={{ background: '#FEF3C7', color: '#D97706', fontSize: '.75rem', fontWeight: 600, padding: '3px 10px', borderRadius: 99 }}>
+                          {parsed.workCapacity}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {/* Modal body — scrollable */}
+                <div style={{ overflowY: 'auto', padding: '1rem 1.25rem 2rem', flex: 1 }}>
+                  {[
+                    { key: 'presentingHistory', label: 'Presenting history' },
+                    { key: 'mdm', label: 'Medical decision making' },
+                    { key: 'plan', label: 'Plan' },
+                    { key: 'socialHistory', label: 'Social history' },
+                  ].filter(({ key }) => s[key]).map(({ key, label }) => (
+                    <div key={key} style={{ marginBottom: '1rem' }}>
+                      <div style={{ fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#9CA3AF', marginBottom: '.375rem' }}>{label}</div>
+                      <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s[key]}</div>
+                    </div>
+                  ))}
+                  {!parsed && noteModal.notes_final && (
+                    <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{noteModal.notes_final}</div>
+                  )}
+                  {!parsed && !noteModal.notes_final && (
+                    <div style={{ color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>No finalised notes for this visit</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Bottom action bar */}

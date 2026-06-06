@@ -1112,15 +1112,27 @@ function MessagesTab({ autoOpenId, onClose }) {
 // ── Notes tab ─────────────────────────────────────────────────────────────────
 
 function NotesTab({ navigate }) {
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('pending')
+  const [pending, setPending]     = useState([])
+  const [completed, setCompleted] = useState([])
+  const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
     (async () => {
       try {
         const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('consultations').select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible,notes_finalised').eq('status','complete').eq('notes_finalised',false).order('created_at',{ascending:false}).limit(50)
-        setRows(data || [])
+        const [pRes, cRes] = await Promise.all([
+          supabase.from('consultations')
+            .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible')
+            .eq('status','complete').eq('notes_finalised',false)
+            .order('created_at',{ascending:false}).limit(50),
+          supabase.from('consultations')
+            .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,notes_finalised_at,outcome,note_finalised_by,prescription_issued,referral_issued')
+            .eq('status','complete').eq('notes_finalised',true)
+            .order('notes_finalised_at',{ascending:false}).limit(50),
+        ])
+        setPending(pRes.data || [])
+        setCompleted(cRes.data || [])
       } catch {} finally { setLoading(false) }
     })()
   }, [])
@@ -1128,25 +1140,74 @@ function NotesTab({ navigate }) {
   if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" /></div>
 
   return (
-    <div style={{ padding:'1rem', fontFamily:FF }}>
-      {!rows.length ? (
-        <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
-          <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📋</div>
-          <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>All notes complete</div>
-          <div style={{ color:'#6B7280' }}>Consultations needing notes will appear here</div>
-        </div>
-      ) : rows.map(c => (
-        <div key={c.id} style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.875rem' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.5rem' }}>
-            <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
-            <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
-          </div>
-          <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1rem', fontStyle:'italic' }}>{c.chief_complaint}</div>
-          <button onClick={() => navigate(`/provider/notes/${c.id}`)} style={{ width:'100%', background:NAVY, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:56 }}>
-            Complete notes →
+    <div style={{ fontFamily:FF }}>
+      {/* Tab bar */}
+      <div style={{ display:'flex', background:'white', borderBottom:'1px solid #E2E8F0', position:'sticky', top:0, zIndex:10 }}>
+        {[
+          { id:'pending', label:'Pending', count: pending.length },
+          { id:'completed', label:'Completed', count: completed.length },
+        ].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{ flex:1, padding:'.875rem', background:'none', border:'none', borderBottom:`2px solid ${activeTab===t.id?TEAL:'transparent'}`, color:activeTab===t.id?TEAL:'#6B7280', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+            {t.label}
+            {t.count > 0 && (
+              <span style={{ background:activeTab===t.id?TEAL:'#E5E7EB', color:activeTab===t.id?'white':'#6B7280', fontSize:'.6875rem', fontWeight:700, padding:'2px 7px', borderRadius:99 }}>
+                {t.count}
+              </span>
+            )}
           </button>
-        </div>
-      ))}
+        ))}
+      </div>
+
+      <div style={{ padding:'1rem' }}>
+        {activeTab === 'pending' && (
+          !pending.length ? (
+            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>✓</div>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>All notes complete</div>
+              <div style={{ color:'#6B7280' }}>Consultations needing notes will appear here</div>
+            </div>
+          ) : pending.map(c => (
+            <div key={c.id} style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.875rem' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.5rem' }}>
+                <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
+                <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
+              </div>
+              <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1rem', fontStyle:'italic' }}>{c.chief_complaint}</div>
+              <button onClick={() => navigate(`/provider/notes/${c.id}`)} style={{ width:'100%', background:NAVY, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:56 }}>
+                Complete notes →
+              </button>
+            </div>
+          ))
+        )}
+
+        {activeTab === 'completed' && (
+          !completed.length ? (
+            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📋</div>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No completed notes yet</div>
+              <div style={{ color:'#6B7280' }}>Finalised consultation notes will appear here</div>
+            </div>
+          ) : completed.map(c => (
+            <div key={c.id} onClick={() => navigate(`/provider/notes/${c.id}`)}
+              style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #059669', padding:'1.25rem', marginBottom:'.875rem', cursor:'pointer' }}>
+              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'.5rem', marginBottom:'.375rem' }}>
+                <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
+                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                  {c.prescription_issued && <span style={{ background:'#EFF9F9', color:TEAL, fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Rx</span>}
+                  {c.referral_issued && <span style={{ background:'#F5F3FF', color:'#7C3AED', fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Xr</span>}
+                </div>
+              </div>
+              <div style={{ fontSize:'.875rem', color:'#6B7280', fontStyle:'italic', marginBottom:'.375rem' }}>{c.chief_complaint}</div>
+              <div style={{ fontSize:'.75rem', color:'#9CA3AF' }}>
+                {c.notes_finalised_at ? new Date(c.notes_finalised_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}) : ''}
+                {c.note_finalised_by ? ` · ${c.note_finalised_by}` : ''}
+                {c.outcome ? ` · ${c.outcome.replace(/_/g,' ')}` : ''}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
