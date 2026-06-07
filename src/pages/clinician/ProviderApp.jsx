@@ -811,9 +811,13 @@ export default function ProviderApp() {
   }
 
   async function startConsult(c) {
+    const isMessage = c.consultation_type === 'message' || c.consultation_subtype === 'async_message'
+    if (isMessage) {
+      navigate(`/provider/notes/${c.id}`)
+      return
+    }
     setStarting(c.id)
     try {
-      // Initiate the call immediately — notifies patient via realtime and captures payment
       await apiFetch('/api/initiate-call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -6,13 +6,13 @@
  * Clinical label: INDICATIVE SCREENING only
  */
 
-const WINDOW_SEC   = 30
+const WINDOW_SEC   = 80
 const RESAMPLE_FPS = 30
 const HR_LOW_HZ    = 0.75
 const HR_HIGH_HZ   = 3.5
 const RR_LOW_HZ    = 0.13
 const RR_HIGH_HZ   = 0.5
-const PASS_COUNT   = 3
+const PASS_COUNT   = 4
 const MOTION_THRESHOLD = 10  // total RGB delta across R+G+B channels
 
 const ROI_LANDMARKS = [9,10,8,50,101,118,119,280,330,347,348,168,6,197]
@@ -125,7 +125,7 @@ export function getQualityScore(fps, brightness, contrast) {
 
 export function calibrateRPPG(deviceInfo) {
   const { fps, quality } = deviceInfo
-  const windowSec = quality > 70 ? 30 : quality > 40 ? 45 : 60
+  const windowSec = quality > 70 ? 80 : quality > 40 ? 80 : 100
   const highFreq = Math.min(HR_HIGH_HZ, (fps / 2) - 0.1)
   console.log('rPPG calibration:', { windowSec, fps: fps.toFixed(1), quality, hrHighHz: highFreq.toFixed(2) })
   return { windowSec, highFreq }
@@ -539,4 +539,18 @@ export class MultiPassMeasurement {
     this.stopped = true
     this.currentPass?.stop()
   }
+}
+
+// Fetch current outdoor ambient temperature via geolocation + open-meteo (no API key required)
+export async function getAmbientTemp() {
+  const pos = await new Promise((resolve, reject) =>
+    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000, maximumAge: 300000 })
+  )
+  const { latitude, longitude } = pos.coords
+  const res = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m`
+  )
+  if (!res.ok) throw new Error('Weather fetch failed')
+  const data = await res.json()
+  return Math.round(data.current.temperature_2m * 10) / 10  // one decimal place
 }

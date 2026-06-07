@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MultiPassMeasurement, inspectDevice, calibrateRPPG } from '../../lib/rppg'
+import { MultiPassMeasurement, inspectDevice, calibrateRPPG, getAmbientTemp } from '../../lib/rppg'
 import { updateVitals } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
@@ -77,7 +77,7 @@ export default function VitalsCapture() {
   const [vitals,     setVitals]     = useState(null)
   const [error,      setError]      = useState('')
   const [manualMode, setManualMode] = useState(false)
-  const [manual,     setManual]     = useState({ hr:'', rr:'', spo2:'', bp:'' })
+  const [manual,     setManual]     = useState({ hr:'', rr:'', spo2:'', bp:'', temperature:'' })
   const [deviceInfo, setDeviceInfo] = useState(null)
   const [scanLabel,  setScanLabel]  = useState('Start scan')
   const [passNum,    setPassNum]    = useState(1)
@@ -85,7 +85,8 @@ export default function VitalsCapture() {
   const [motionPct,  setMotionPct]  = useState(0)
   const [checklist,  setChecklist]  = useState(CHECKLIST_ITEMS.map(() => false))
   const [ovalColor,  setOvalColor]  = useState('#F59E0B')  // amber default
-  const [bpEstimate, setBpEstimate] = useState(null)
+  const [bpEstimate,   setBpEstimate]   = useState(null)
+  const [ambientTemp,  setAmbientTemp]  = useState(null)
 
   const allChecked = checklist.every(Boolean)
 
@@ -110,7 +111,7 @@ export default function VitalsCapture() {
           const cal = calibrateRPPG(info)
           setScanLabel(`Start ${cal.windowSec}-second scan (3 passes)`)
         } catch {
-          setScanLabel('Start 30-second scan (3 passes)')
+          setScanLabel('Start 80-second scan (4 passes)')
         }
         setUiState(STATES.CHECKLIST)
       } catch {
@@ -119,6 +120,7 @@ export default function VitalsCapture() {
       }
     }
     requestCamera()
+    getAmbientTemp().then(setAmbientTemp).catch(() => {})
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop())
       measureRef.current?.stop()
@@ -155,9 +157,10 @@ export default function VitalsCapture() {
           }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
         }
         const id = sessionStorage.getItem('consultationId')
+        const resultWithEnv = { ...result, ambientTemp: ambientTemp ?? null }
         if (id && !id.startsWith('demo')) {
           try {
-            await updateVitals(id, result)
+            await updateVitals(id, resultWithEnv)
             apiFetch('/api/push-notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -165,7 +168,7 @@ export default function VitalsCapture() {
             }).catch(() => {})
           } catch {}
         } else {
-          sessionStorage.setItem('vitals', JSON.stringify(result))
+          sessionStorage.setItem('vitals', JSON.stringify(resultWithEnv))
         }
         streamRef.current?.getTracks().forEach(t => t.stop())
       },
@@ -201,10 +204,12 @@ export default function VitalsCapture() {
 
   async function saveManual() {
     const result = {
-      hr:   manual.hr   ? parseInt(manual.hr)   : null,
-      rr:   manual.rr   ? parseInt(manual.rr)   : null,
-      spo2: manual.spo2 ? parseInt(manual.spo2) : null,
-      bp:   manual.bp   || null,
+      hr:          manual.hr          ? parseInt(manual.hr)          : null,
+      rr:          manual.rr          ? parseInt(manual.rr)          : null,
+      spo2:        manual.spo2        ? parseInt(manual.spo2)        : null,
+      bp:          manual.bp          || null,
+      temperature: manual.temperature ? parseFloat(manual.temperature) : null,
+      ambientTemp: ambientTemp ?? null,
       source: 'manual',
       note: 'Manually entered by patient',
     }
@@ -271,7 +276,7 @@ export default function VitalsCapture() {
           <div className="card">
             <h2 style={{marginBottom:'.375rem'}}>Measure your vital signs</h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem'}}>
-              Your camera takes 3 quick passes to measure your heart rate and breathing rate accurately.
+              Your camera takes 4 passes of 20 seconds each (80 seconds total) for an accurate reading. Stay still and breathe normally.
             </p>
 
             {/* Camera preview */}
@@ -346,6 +351,12 @@ export default function VitalsCapture() {
             {/* Pre-scan checklist */}
             {uiState === STATES.CHECKLIST && (
               <div style={{marginBottom:'1.25rem'}}>
+                {ambientTemp !== null && (
+                  <div style={{background:'#EFF6FF',borderRadius:8,padding:'8px 14px',marginBottom:10,fontSize:'.8125rem',color:'#1E40AF',display:'flex',alignItems:'center',gap:6}}>
+                    <span>🌡</span>
+                    <span>Outdoor temperature: <strong>{ambientTemp}°C</strong> — captured for vitals calibration</span>
+                  </div>
+                )}
                 <QualityIndicator deviceInfo={deviceInfo} />
                 <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem'}}>
                   <div style={{fontWeight:600,fontSize:'.9375rem',marginBottom:'.625rem',color:'var(--text)'}}>
@@ -521,6 +532,14 @@ export default function VitalsCapture() {
                 <input type="text" placeholder="e.g. 120/80"
                   value={manual.bp} onChange={e => setManual(m => ({...m, bp: e.target.value}))} />
               </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Temperature <span className="label-opt">(°C)</span></label>
+                <input type="number" step="0.1" min="34" max="42" placeholder="e.g. 37.2"
+                  value={manual.temperature} onChange={e => setManual(m => ({...m, temperature: e.target.value}))} />
+              </div>
+              <div className="form-group" />
             </div>
             <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem'}}>
               <button className="btn btn-secondary" onClick={() => setManualMode(false)}>Back</button>

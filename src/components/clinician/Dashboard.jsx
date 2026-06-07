@@ -753,6 +753,11 @@ export default function Dashboard() {
   }
 
   async function startConsult(consult) {
+    const isMessage = consult.consultation_type === 'message' || consult.consultation_subtype === 'async_message'
+    if (isMessage) {
+      navigate('/provider/notes/' + consult.id)
+      return
+    }
     setJoiningId(consult.id)
     try {
       const { supabase } = await import('../../lib/supabase')

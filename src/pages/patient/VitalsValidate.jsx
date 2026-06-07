@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement } from '../../lib/rppg'
+import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationSubjectsWithLastScan } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
 
@@ -150,7 +150,7 @@ export default function VitalsValidate() {
   const [subjectError, setSubjectError]   = useState(null)
 
   // Step 1
-  const [manual, setManual] = useState({ systolic: '', diastolic: '', hr: '', notes: '' })
+  const [manual, setManual] = useState({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
 
   // Step 2
   const videoRef   = useRef(null)
@@ -181,11 +181,15 @@ export default function VitalsValidate() {
   const [bpEstimate, setBpEstimate]   = useState(null)
   const [bpModelMeta, setBpModelMeta] = useState(() => getLocalMeta())
 
-  // Load subjects on mount
+  // Ambient temperature
+  const [ambientTemp, setAmbientTemp] = useState(null)
+
+  // Load subjects + ambient temp on mount
   useEffect(() => {
     getValidationSubjectsWithLastScan()
       .then(list => { setSubjects(list); setSubjectsLoaded(true) })
       .catch(() => setSubjectsLoaded(true))
+    getAmbientTemp().then(setAmbientTemp).catch(() => {})
   }, [])
 
   const selectedSubjectFromId = useCallback((id, list) => {
@@ -306,7 +310,9 @@ export default function VitalsValidate() {
         subjectCode:     selectedSubject?.subject_code,
         manualSystolic:  manual.systolic  ? parseInt(manual.systolic)  : null,
         manualDiastolic: manual.diastolic ? parseInt(manual.diastolic) : null,
-        manualHr:        manual.hr        ? parseInt(manual.hr)        : null,
+        manualHr:          manual.hr          ? parseInt(manual.hr)            : null,
+        manualTemperature: manual.temperature ? parseFloat(manual.temperature) : null,
+        ambientTemp:     ambientTemp ?? null,
         tereHr:          vitals?.hr || null,
         tereRr:          vitals?.rr || null,
         rawRppgSignal:   vitals?.rawFrames
@@ -329,7 +335,7 @@ export default function VitalsValidate() {
   }
 
   const resetForScanAgain = () => {
-    setManual({ systolic: '', diastolic: '', hr: '', notes: '' })
+    setManual({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
     setVitals(null); setDeviceInfo(null); setScanPhase('idle')
     setProgress(0); setReviewNotes(''); setSaveError(null)
     setTrainingPhase('idle'); setTrainingResult(null)
@@ -338,7 +344,7 @@ export default function VitalsValidate() {
   }
 
   const goToSelect = () => {
-    setManual({ systolic: '', diastolic: '', hr: '', notes: '' })
+    setManual({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
     setVitals(null); setDeviceInfo(null); setScanPhase('idle')
     setProgress(0); setReviewNotes(''); setSaveError(null)
     setTrainingPhase('idle'); setTrainingResult(null)
@@ -483,12 +489,21 @@ export default function VitalsValidate() {
         <SubjectBadge subject={selectedSubject} onSwitch={goToSelect} />
         <Card>
           <StepHeader step={1} label="Manual cuff readings" />
+          {ambientTemp !== null && (
+            <div style={{ marginTop: '.75rem', background: '#EFF6FF', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>🌡</span>
+              <span>Outdoor ambient: <strong>{ambientTemp}°C</strong> — saved automatically</span>
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.25rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <Field label="Systolic (mmHg)" value={manual.systolic} onChange={v => setManual(p => ({ ...p, systolic: v }))} type="number" min="60" max="250" placeholder="120" />
               <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
             </div>
-            <Field label="Heart rate (bpm)" value={manual.hr} onChange={v => setManual(p => ({ ...p, hr: v }))} type="number" min="30" max="220" placeholder="72" />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+              <Field label="Heart rate (bpm)" value={manual.hr} onChange={v => setManual(p => ({ ...p, hr: v }))} type="number" min="30" max="220" placeholder="72" />
+              <Field label="Temperature (°C)" value={manual.temperature} onChange={v => setManual(p => ({ ...p, temperature: v }))} type="number" min="34" max="42" placeholder="37.2" />
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
               <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Session conditions (optional)</label>
               <textarea value={manual.notes} onChange={e => setManual(p => ({ ...p, notes: e.target.value }))}

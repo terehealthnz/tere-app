@@ -506,6 +506,8 @@ export async function saveValidationReading(data) {
       manual_systolic:    data.manualSystolic || null,
       manual_diastolic:   data.manualDiastolic || null,
       manual_hr:          data.manualHr || null,
+      manual_temperature: data.manualTemperature || null,
+      ambient_temp:       data.ambientTemp ?? null,
       tere_hr:            data.tereHr || null,
       tere_rr:            data.tereRr || null,
       hr_difference:      hrDiff,
