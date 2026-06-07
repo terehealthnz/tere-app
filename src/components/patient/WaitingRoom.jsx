@@ -216,7 +216,7 @@ export default function WaitingRoom() {
         )}
 
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
-          {providerName ? `${providerName} will` : 'A doctor will'} review your notes and {consultType === 'phone' ? 'phone' : 'video call'} you <strong style={{ color: 'rgba(255,255,255,.8)' }}>{afterHours ? 'from 8am' : 'within 2 hours'}</strong>.
+          {providerName ? `${providerName} will` : 'A doctor will'} review your notes and {consultType === 'phone' ? 'phone you' : consultType === 'message' ? 'send you a written reply' : 'video call you'} <strong style={{ color: 'rgba(255,255,255,.8)' }}>{afterHours ? 'from 8am' : 'within 2 hours'}</strong>.
         </p>
 
         {/* Info cards */}
@@ -229,41 +229,49 @@ export default function WaitingRoom() {
             textAlign: 'left',
             display: 'flex', alignItems: 'flex-start', gap: '1rem',
           }}>
-            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>{consultType === 'phone' ? '📞' : '📹'}</span>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>
+              {consultType === 'phone' ? '📞' : consultType === 'message' ? '💬' : '📹'}
+            </span>
             <div>
               <div style={{ color: 'rgba(212,238,240,.8)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>
-                Keep your {consultType === 'phone' ? 'phone' : 'device'} nearby
+                {consultType === 'message' ? 'Watch your email' : `Keep your ${consultType === 'phone' ? 'phone' : 'device'} nearby`}
               </div>
               <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
-                {consultType === 'phone'
+                {consultType === 'message'
                   ? afterHours
-                    ? 'Your doctor will phone you from 8am — keep your phone on and answer unknown NZ numbers.'
-                    : "You'll receive a phone call — answer any unknown NZ numbers for the next 2 hours."
-                  : afterHours
-                    ? 'Your doctor will start a video call from 8am — keep this tab open.'
-                    : "You'll get a notification to join a video call. Keep this tab open or check your email."}
+                    ? "Your doctor's written reply will arrive by email from 8am."
+                    : "Your doctor's written reply will arrive by email within 2 hours."
+                  : consultType === 'phone'
+                    ? afterHours
+                      ? 'Your doctor will phone you from 8am — keep your phone on and answer unknown NZ numbers.'
+                      : "You'll receive a phone call — answer any unknown NZ numbers for the next 2 hours."
+                    : afterHours
+                      ? 'Your doctor will start a video call from 8am — keep this tab open.'
+                      : "You'll get a notification to join a video call. Keep this tab open or check your email."}
               </div>
             </div>
           </div>
 
-          <div style={{
-            background: 'rgba(255,255,255,.06)',
-            border: '1px solid rgba(255,255,255,.1)',
-            borderRadius: 14,
-            padding: '1rem 1.25rem',
-            textAlign: 'left',
-            display: 'flex', alignItems: 'flex-start', gap: '1rem',
-          }}>
-            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📧</span>
-            <div>
-              <div style={{ color: 'rgba(212,238,240,.8)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>
-                Watch your email
-              </div>
-              <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
-                You'll receive an email with a link to join when your doctor is ready.
+          {consultType !== 'message' && (
+            <div style={{
+              background: 'rgba(255,255,255,.06)',
+              border: '1px solid rgba(255,255,255,.1)',
+              borderRadius: 14,
+              padding: '1rem 1.25rem',
+              textAlign: 'left',
+              display: 'flex', alignItems: 'flex-start', gap: '1rem',
+            }}>
+              <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📧</span>
+              <div>
+                <div style={{ color: 'rgba(212,238,240,.8)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>
+                  Watch your email
+                </div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
+                  You'll receive an email with a link to join when your doctor is ready.
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
 

@@ -28,14 +28,15 @@ const VIDEO_FORCE_KEYWORDS = [
 ]
 
 export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
-  return { allowVideo: true, allowPhone: true, allowMessage: false }
+  return { allowVideo: true, allowPhone: true, allowMessage: true }
 }
 
 export const RESERVATION_FEE = 15
 
 export const CONSULT_PRICES = {
-  video: { private: 65, acc: 25 },
-  phone: { private: 45, acc: 25 },
+  video:   { private: 65, acc: 25 },
+  phone:   { private: 45, acc: 25 },
+  message: { private: 25 },
 }
 
 export const CONSULT_TYPE_LABELS = {

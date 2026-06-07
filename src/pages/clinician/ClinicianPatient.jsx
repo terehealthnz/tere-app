@@ -28,6 +28,8 @@ export default function ClinicianPatient() {
   const [expandedId, setExpandedId] = useState(null)
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
+  const [msgReply, setMsgReply]   = useState('')
+  const [sendingMsg, setSendingMsg] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
@@ -126,8 +128,45 @@ export default function ClinicianPatient() {
   )
 
   const v = consult.vitals
-  const typeIcon = consult.consultation_type === 'phone' ? '📞' : consult.consultation_type === 'message' ? '✉️' : '📹'
+  const typeIcon = consult.consultation_type === 'phone' ? '📞' : consult.consultation_type === 'message' ? '💬' : '📹'
   const isCallable = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing'].includes(consult.status)
+  const isMessage = consult.consultation_type === 'message'
+
+  async function sendMessageReply() {
+    if (!msgReply.trim() || sendingMsg) return
+    setSendingMsg(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const pname = sessionStorage.getItem('providerDisplayName')
+      const pid   = sessionStorage.getItem('providerId')
+      // Save reply to messages table
+      await supabase.from('messages').insert({ consultation_id: id, sender: 'provider', message: msgReply.trim() })
+      // Complete the consultation
+      await supabase.from('consultations').update({
+        status: 'complete',
+        notes_finalised: true,
+        notes_finalised_at: new Date().toISOString(),
+        outcome: 'message_response',
+        provider_display_name: pname || null,
+        ...(pid ? { provider_id: pid } : {}),
+      }).eq('id', id)
+      // Capture payment
+      if (consult.payment_intent_id) {
+        apiFetch('/api/capture-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId: consult.payment_intent_id, consultationId: id }),
+        }).catch(() => {})
+      }
+      // Email patient
+      apiFetch('/api/async-consult', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'respond', consultationId: id, responseText: msgReply.trim(), providerName: pname || undefined }),
+      }).catch(() => {})
+      lockedRef.current = false
+      navigate('/provider')
+    } catch { setSendingMsg(false) }
+  }
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F7F5F0', fontFamily: FF }}>
@@ -372,7 +411,7 @@ export default function ClinicianPatient() {
       </div>
 
       {/* Bottom action bar */}
-      {isCallable && (
+      {isCallable && !isMessage && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', gap: '.75rem', maxWidth: 640, margin: '0 auto' }}>
           <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 12, padding: '14px 20px', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', fontFamily: FF }}>
             ← Back
@@ -384,6 +423,34 @@ export default function ClinicianPatient() {
           >
             {starting ? 'Connecting…' : consult.consultation_type === 'phone' ? '📞 Start phone call' : '📹 Start video call'}
           </button>
+        </div>
+      )}
+
+      {/* Message reply bar */}
+      {isCallable && isMessage && (
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.5rem' }}>
+            Reply to patient
+          </div>
+          <textarea
+            value={msgReply}
+            onChange={e => setMsgReply(e.target.value)}
+            placeholder="Type your reply… prescriptions and referrals can be added after sending."
+            rows={3}
+            style={{ width: '100%', border: '1.5px solid #D1D5DB', borderRadius: 10, padding: '.75rem', fontSize: '.9375rem', fontFamily: FF, resize: 'vertical', boxSizing: 'border-box', outline: 'none', color: NAVY }}
+          />
+          <div style={{ display: 'flex', gap: '.75rem', marginTop: '.5rem' }}>
+            <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 12, padding: '12px 16px', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', fontFamily: FF }}>
+              ← Back
+            </button>
+            <button
+              onClick={sendMessageReply}
+              disabled={!msgReply.trim() || sendingMsg}
+              style={{ flex: 1, background: !msgReply.trim() || sendingMsg ? '#9CA3AF' : TEAL, color: 'white', border: 'none', borderRadius: 12, padding: '12px', fontWeight: 700, fontSize: '1rem', cursor: !msgReply.trim() || sendingMsg ? 'not-allowed' : 'pointer', fontFamily: FF }}
+            >
+              {sendingMsg ? 'Sending…' : '💬 Send reply & complete'}
+            </button>
+          </div>
         </div>
       )}
     </div>

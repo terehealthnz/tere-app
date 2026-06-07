@@ -15,7 +15,12 @@ const TYPE_CONFIG = {
     title: 'Phone call',
     subtitle: 'Dr Herling will phone you within 2 hours',
     features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims accepted', 'No camera needed'],
-    recommended: false,
+  },
+  message: {
+    icon: '💬',
+    title: 'Send a message',
+    subtitle: 'Doctor reads your notes and replies within 2 hours',
+    features: ['Written response to your query', 'Prescriptions & referrals included', 'No call needed', 'Lowest cost option'],
   },
 }
 
@@ -30,18 +35,20 @@ export default function ConsultationType() {
   const employerPaid = sessionStorage.getItem('employer_paid') === 'true'
   const employerName = sessionStorage.getItem('employer_name') || ''
 
-  const { allowVideo, allowPhone } = scoreComplaint(complaint, isReturning, isAcc)
+  const { allowVideo, allowPhone, allowMessage } = scoreComplaint(complaint, isReturning, isAcc)
 
   const availableTypes = [
     allowVideo && 'video',
     allowPhone && 'phone',
+    !isAcc && allowMessage && 'message',
   ].filter(Boolean)
 
   const typeConfig = TYPE_CONFIG
 
   function getPrice(type) {
     const prices = CONSULT_PRICES[type]
-    return isAcc && type !== 'message' ? prices.acc : prices.private
+    if (type === 'message') return prices.private
+    return isAcc ? prices.acc : prices.private
   }
 
   async function handleContinue() {
@@ -83,7 +90,7 @@ export default function ConsultationType() {
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
               ? 'ACC claims require a live consultation — video or phone only.'
-              : 'Dr Herling will call you back within 2 hours. Choose your preferred contact method.'}
+              : "Dr Herling will respond within 2 hours. Choose how you'd like to be contacted."}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>
