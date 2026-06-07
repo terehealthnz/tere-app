@@ -46,6 +46,7 @@ const apis = [
   'patient-flags',
   'payroll',
   'provider-auth',
+  'provider-notifications',
   'push-notify',
   'push-subscribe',
   'schedule',
@@ -65,7 +66,7 @@ const GET_ONLY = new Set(['get-queue', 'get-availability', 'async-overdue', 'sta
 const DUAL_METHOD = new Set([
   'analytics-events', 'appointments', 'audit', 'breach', 'consents',
   'complaints', 'bookings', 'handover', 'consultation-token', 'patient-flags',
-  'incidents', 'schedule', 'payroll',
+  'incidents', 'provider-notifications', 'schedule', 'payroll',
 ])
 
 for (const name of apis) {
