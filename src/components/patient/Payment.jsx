@@ -21,8 +21,7 @@ const CARD_STYLE = {
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
-// Video $65 / Phone $45 — server mirrors these exactly
-const BASE_PRICES = { video: { private: 65, acc: 25 }, phone: { private: 45, acc: 25 } }
+const BASE_PRICES = { video: { private: 65, acc: 25 }, phone: { private: 45, acc: 25 }, message: { private: 25, acc: 25 } }
 const COUPON_DISCOUNT = 10
 
 function PaymentForm({ consultationId, accEligible, consultationType }) {
@@ -161,7 +160,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.5rem',color:'#0D2B45'}}>About this fee</strong>
             <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>
-              This is a private acute telehealth consultation with an Emergency Medicine physician. The ${amount} fee covers your full consultation including any prescriptions and referrals.
+              This is a private telehealth consultation with an Emergency Medicine physician. You're charged only for the method your doctor actually uses — video $65, phone $45, or message $25. Prescriptions and referrals are included.
             </div>
             <div style={{fontSize:'.8125rem',color:'#6B7280'}}>If your condition turns out to be ACC-eligible during the consultation, your clinician will lodge a claim and the difference will be refunded to your card.</div>
           </div>
@@ -212,7 +211,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         )}
 
         <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'.875rem',marginBottom:'1.25rem',fontSize:'.8125rem',lineHeight:1.7,color:'#6B7280'}}>
-          🔒 <strong>Card hold:</strong> Your card is held but <strong>not charged</strong> until your consultation begins. Cancel before it starts and the hold is released automatically.
+          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>${amount}</strong> but <strong>not charged</strong> until your consultation is complete. You're only charged for the method your doctor uses. Cancel before it starts and the hold is released automatically.
         </div>
 
         <div style={{marginBottom:'1.25rem'}}>
@@ -231,7 +230,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         )}
 
         <button type="submit" className="btn btn-primary btn-full" disabled={loading || !clientSecret}>
-          {loading ? 'Processing…' : `Hold $${amount} and join waiting room`}
+          {loading ? 'Processing…' : `Join queue — hold up to $${amount}`}
         </button>
       </div>
 

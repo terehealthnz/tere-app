@@ -124,6 +124,7 @@ export default function ProviderNotes() {
   const [accMechanism, setAccMechanism] = useState('')
   const [accBodyPart, setAccBodyPart]   = useState('')
   const [outcome, setOutcome]           = useState('')
+  const [actualMethod, setActualMethod] = useState(() => sessionStorage.getItem('consultationType') || 'video')
   const [attested, setAttested]         = useState(false)
 
   const actionsRef  = useRef([])
@@ -145,6 +146,7 @@ export default function ProviderNotes() {
       try {
         const data = await getConsultation(id)
         setConsult(data)
+        setActualMethod(data.consultation_type || sessionStorage.getItem('consultationType') || 'video')
 
         const rs = location.state
         actionsRef.current  = rs?.actions || data.notes_draft?.actions || []
@@ -289,6 +291,9 @@ export default function ProviderNotes() {
         actions: actionsRef.current,
       }
 
+      const METHOD_PRICES = { video: 6500, phone: 4500, message: 2500 }
+      const chargeCents = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
+
       const { error: updateErr } = await supabase.from('consultations').update({
         notes_final:         JSON.stringify(finalNote),
         notes_draft:         null,
@@ -303,10 +308,21 @@ export default function ProviderNotes() {
         status:              'complete',
         completed_at:        consult.completed_at || now,
         consultation_duration_seconds: durationSec,
-        payment_amount:      consult.payment_amount || (consult.acc_eligible === 'yes' ? 2500 : 6500),
-        is_acc:              consult.acc_eligible === 'yes',
+        consultation_type:   actualMethod,
+        payment_amount:      chargeCents / 100,
+        is_acc:              isAcc,
       }).eq('id', id)
       if (updateErr) throw updateErr
+
+      // Capture payment for the method actually used
+      const paymentIntentId = consult.payment_intent_id || sessionStorage.getItem('paymentIntentId')
+      if (paymentIntentId) {
+        apiFetch('/api/capture-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId, consultationId: id, amount_cents: chargeCents }),
+        }).catch(() => {})
+      }
 
       // Patient summary email
       if (consult.patient_email) {
@@ -553,6 +569,28 @@ export default function ProviderNotes() {
             {OUTCOMES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
+
+        {/* Method actually used — determines charge amount */}
+        {!isFinalised && (
+          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>
+              Method used <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— patient charged this amount</span>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              {[
+                { val:'video',   label:'Video',   price: isAcc ? 25 : 65 },
+                { val:'phone',   label:'Phone',   price: isAcc ? 25 : 45 },
+                { val:'message', label:'Message', price: 25 },
+              ].map(o => (
+                <button key={o.val} onClick={() => setActualMethod(o.val)}
+                  style={{ flex:1, minHeight:52, borderRadius:10, border:`1.5px solid ${actualMethod===o.val?TEAL:'#E2E8F0'}`, background:actualMethod===o.val?'#EFF9F9':'white', color:actualMethod===o.val?TEAL:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }}>
+                  <div>{o.val === 'video' ? '📹' : o.val === 'phone' ? '📞' : '💬'} {o.label}</div>
+                  <div style={{ fontSize:'.6875rem', fontWeight:400, marginTop:2 }}>${o.price}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Attestation + Finalise */}
         {!isFinalised ? (

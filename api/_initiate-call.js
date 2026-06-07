@@ -34,21 +34,7 @@ export default async function handler(req, res) {
 
   if (updateErr) return res.status(500).json({ error: updateErr.message })
 
-  // Capture Stripe payment hold
-  if (consult.payment_intent_id && process.env.STRIPE_SECRET_KEY) {
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-      const intent = await stripe.paymentIntents.capture(consult.payment_intent_id)
-      if (intent.amount_received > 0) {
-        supabase.from('consultations')
-          .update({ payment_amount_nzd: intent.amount_received / 100 })
-          .eq('id', consultationId)
-          .then(() => {}).catch(() => {})
-      }
-    } catch (e) {
-      console.error('[initiate-call] payment capture failed:', e.message)
-    }
-  }
+  // Payment is captured at note completion (not at call start) to allow method flexibility
 
   // Email patient — your doctor is ready
   const resendKey = process.env.RESEND_API_KEY
@@ -83,7 +69,7 @@ export default async function handler(req, res) {
       </a>
     </div>` : ''}
     <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px 16px;font-size:13px;color:#065F46;margin-top:24px">
-      ✓ Your payment has been processed. A summary will be emailed to you after your consultation.
+      ✓ Your card hold is active. You'll be charged only for the method used, once your consultation is complete.
     </div>
     <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:12px">
       ⚠️ <strong>In an emergency, call 111.</strong>

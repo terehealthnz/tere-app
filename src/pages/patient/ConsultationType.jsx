@@ -86,11 +86,11 @@ export default function ConsultationType() {
 
       <div className="container" style={{ paddingTop: '2rem', paddingBottom: '3rem', maxWidth: 520 }}>
         <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ marginBottom: '.375rem' }}>How would you like to consult?</h1>
+          <h1 style={{ marginBottom: '.375rem' }}>Contact preference</h1>
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
               ? 'ACC claims require a live consultation — video or phone only.'
-              : "Dr Herling will respond within 2 hours. Choose how you'd like to be contacted."}
+              : "Choose your preferred method. Your doctor will use this if possible — you're only charged for the method actually used."}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>
@@ -175,7 +175,7 @@ export default function ConsultationType() {
           className="btn btn-primary btn-full"
           style={{ fontSize: '1rem', padding: '.875rem' }}
         >
-          {loading ? 'Setting up…' : selected ? (employerPaid ? `Submit — ${TYPE_CONFIG[selected].title} — Covered` : `Submit — ${TYPE_CONFIG[selected].title} — $${getPrice(selected)}`) : 'Select how you want to be contacted'}
+          {loading ? 'Setting up…' : selected ? (employerPaid ? `Confirm preference — ${TYPE_CONFIG[selected].title} — Covered` : `Confirm preference — ${TYPE_CONFIG[selected].title} — up to $${getPrice(selected)}`) : 'Select your preferred method'}
         </button>
 
         <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.875rem', marginTop: '1rem', fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.6 }}>

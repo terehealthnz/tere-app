@@ -5,9 +5,10 @@ function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const { paymentIntentId, consultationId } = req.body
+  const { paymentIntentId, consultationId, amount_cents } = req.body
   try {
-    const intent = await getStripe().paymentIntents.capture(paymentIntentId)
+    const captureOpts = amount_cents ? { amount_to_capture: amount_cents } : undefined
+    const intent = await getStripe().paymentIntents.capture(paymentIntentId, captureOpts)
 
     // Store the captured amount in the consultation for revenue reporting
     if (consultationId && intent.amount_received > 0) {
