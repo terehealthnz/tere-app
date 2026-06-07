@@ -386,21 +386,23 @@ export default function ClinicianPatient() {
                 </div>
                 {/* Modal body — scrollable */}
                 <div style={{ overflowY: 'auto', padding: '1rem 1.25rem 2rem', flex: 1 }}>
-                  {[
-                    { key: 'presentingHistory', label: 'Presenting history' },
-                    { key: 'mdm', label: 'Medical decision making' },
-                    { key: 'plan', label: 'Plan' },
-                    { key: 'socialHistory', label: 'Social history' },
-                  ].filter(({ key }) => s[key]).map(({ key, label }) => (
-                    <div key={key} style={{ marginBottom: '1rem' }}>
-                      <div style={{ fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#9CA3AF', marginBottom: '.375rem' }}>{label}</div>
-                      <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s[key]}</div>
-                    </div>
-                  ))}
-                  {!parsed && noteModal.notes_final && (
+                  {parsed?.noteText ? (
+                    <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{parsed.noteText}</div>
+                  ) : parsed ? (
+                    [
+                      { key: 'presentingHistory', label: 'Presenting history' },
+                      { key: 'mdm', label: 'Medical decision making' },
+                      { key: 'plan', label: 'Plan' },
+                      { key: 'socialHistory', label: 'Social history' },
+                    ].filter(({ key }) => s[key]).map(({ key, label }) => (
+                      <div key={key} style={{ marginBottom: '1rem' }}>
+                        <div style={{ fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#9CA3AF', marginBottom: '.375rem' }}>{label}</div>
+                        <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{s[key]}</div>
+                      </div>
+                    ))
+                  ) : noteModal.notes_final ? (
                     <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{noteModal.notes_final}</div>
-                  )}
-                  {!parsed && !noteModal.notes_final && (
+                  ) : (
                     <div style={{ color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', padding: '2rem' }}>No finalised notes for this visit</div>
                   )}
                 </div>

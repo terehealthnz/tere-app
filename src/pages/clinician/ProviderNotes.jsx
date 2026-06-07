@@ -106,17 +106,8 @@ export default function ProviderNotes() {
   const [finalising, setFinalising] = useState(false)
   const [genError, setGenError]     = useState(null)
 
-  const [sections, setSections] = useState({
-    presentingHistory:'', medicalHistory:'', allergies:'',
-    socialHistory:'', mdm:'', plan:'',
-  })
-  const [exam, setExam] = useState({
-    general:'', vitals:'', msk:'',
-  })
-  const [confirmed, setConfirmed] = useState({
-    presentingHistory:false, medicalHistory:false, allergies:false,
-    socialHistory:false, examination:false, mdm:false, plan:false,
-  })
+  const [noteText, setNoteText]       = useState('')
+  const [noteConfirmed, setNoteConfirmed] = useState(false)
 
   const [workCapacity, setWorkCapacity] = useState('fit')
   const [returnDate, setReturnDate]     = useState('')
@@ -190,8 +181,26 @@ export default function ProviderNotes() {
   }, [id])
 
   function restoreDraft(d) {
-    if (d.sections) setSections(s => ({ ...s, ...d.sections }))
-    if (d.exam)     setExam(e => ({ ...e, ...d.exam }))
+    if (d.noteText) {
+      setNoteText(d.noteText)
+    } else if (d.sections) {
+      // backwards compat: combine old multi-section format into single note
+      const s = d.sections
+      const e = d.exam || {}
+      const parts = []
+      if (s.presentingHistory) parts.push(`PRESENTING HISTORY\n${s.presentingHistory}`)
+      if (s.medicalHistory)    parts.push(`PAST MEDICAL HISTORY\n${s.medicalHistory}`)
+      if (s.allergies)         parts.push(`ALLERGIES\n${s.allergies}`)
+      if (s.socialHistory)     parts.push(`SOCIAL HISTORY\n${s.socialHistory}`)
+      const examParts = []
+      if (e.general) examParts.push(`General: ${e.general}`)
+      if (e.vitals)  examParts.push(`Vitals: ${e.vitals}`)
+      if (e.msk)     examParts.push(`MSK: ${e.msk}`)
+      if (examParts.length) parts.push(`EXAMINATION\n${examParts.join('\n')}`)
+      if (s.mdm)  parts.push(`CLINICAL REASONING\n${s.mdm}`)
+      if (s.plan) parts.push(`PLAN\n${s.plan}`)
+      if (parts.length) setNoteText(parts.join('\n\n'))
+    }
     if (d.workCapacity) setWorkCapacity(d.workCapacity)
     if (d.returnDate)   setReturnDate(d.returnDate)
     if (d.accReadCode)  setAccReadCode(d.accReadCode)
@@ -235,19 +244,22 @@ export default function ProviderNotes() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
 
-      setSections(s => ({
-        ...s,
-        presentingHistory: data.presentingHistory || s.presentingHistory,
-        medicalHistory:    data.medicalHistory    || s.medicalHistory,
-        allergies:         data.allergies         || s.allergies,
-        socialHistory:     data.socialHistory     || s.socialHistory,
-        mdm:               data.mdm               || s.mdm,
-        plan:              data.plan              || s.plan,
-      }))
+      const parts = []
+      if (data.presentingHistory) parts.push(`PRESENTING HISTORY\n${data.presentingHistory}`)
+      if (data.medicalHistory)    parts.push(`PAST MEDICAL HISTORY\n${data.medicalHistory}`)
+      if (data.allergies)         parts.push(`ALLERGIES\n${data.allergies}`)
+      if (data.socialHistory)     parts.push(`SOCIAL HISTORY\n${data.socialHistory}`)
       if (data.examination) {
-        const { highlighted:_, ...fields } = data.examination
-        setExam(e => ({ ...e, ...fields }))
+        const e = data.examination
+        const examParts = []
+        if (e.general) examParts.push(`General: ${e.general}`)
+        if (e.vitals)  examParts.push(`Vitals: ${e.vitals}`)
+        if (e.msk)     examParts.push(`MSK: ${e.msk}`)
+        if (examParts.length) parts.push(`EXAMINATION\n${examParts.join('\n')}`)
       }
+      if (data.mdm)  parts.push(`CLINICAL REASONING\n${data.mdm}`)
+      if (data.plan) parts.push(`PLAN\n${data.plan}`)
+      if (parts.length) setNoteText(parts.join('\n\n'))
       if (data.accSection) {
         if (data.accSection.mechanism) setAccMechanism(data.accSection.mechanism)
         if (data.accSection.bodyPart)  setAccBodyPart(data.accSection.bodyPart)
@@ -267,12 +279,11 @@ export default function ProviderNotes() {
   // Auto-save draft to localStorage
   useEffect(() => {
     if (!id || !consult) return
-    const draft = { sections, exam, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome }
+    const draft = { noteText, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome }
     localStorage.setItem(draftKey, JSON.stringify(draft))
-  }, [sections, exam, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome])
+  }, [noteText, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome])
 
-  const allConfirmed = Object.values(confirmed).every(Boolean)
-  const canFinalise  = allConfirmed && !!outcome && attested
+  const canFinalise = noteConfirmed && !!outcome && attested
 
   async function finalise() {
     if (!canFinalise) return
@@ -285,7 +296,7 @@ export default function ProviderNotes() {
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
       const finalNote = {
-        sections, exam, workCapacity, returnDate, accReadCode,
+        noteText, workCapacity, returnDate, accReadCode,
         accSection: { mechanism:accMechanism, bodyPart:accBodyPart },
         outcome, providerName, attestedAt: now,
         actions: actionsRef.current,
@@ -331,7 +342,7 @@ export default function ProviderNotes() {
           body: JSON.stringify({
             to: consult.patient_email,
             name: `${consult.patient_first_name} ${consult.patient_last_name}`,
-            sections, notes:{}, actions: actionsRef.current,
+            noteText, notes:{}, actions: actionsRef.current,
             consult: { chief_complaint: consult.chief_complaint },
             consultationId: id,
           }),
@@ -410,97 +421,37 @@ export default function ProviderNotes() {
           )}
         </div>
 
-        {/* Note sections */}
-        <NoteSection
-          title="1. Presenting history"
-          value={sections.presentingHistory}
-          onChange={v => setSections(s => ({ ...s, presentingHistory:v }))}
-          confirmed={confirmed.presentingHistory}
-          onConfirm={() => setConfirmed(c => ({ ...c, presentingHistory:true }))}
-          loading={generating}
-        />
-        <NoteSection
-          title="2. Medical history"
-          value={sections.medicalHistory}
-          onChange={v => setSections(s => ({ ...s, medicalHistory:v }))}
-          confirmed={confirmed.medicalHistory}
-          onConfirm={() => setConfirmed(c => ({ ...c, medicalHistory:true }))}
-          loading={generating}
-        />
-        <NoteSection
-          title="3. Allergies"
-          value={sections.allergies}
-          onChange={v => setSections(s => ({ ...s, allergies:v }))}
-          confirmed={confirmed.allergies}
-          onConfirm={() => setConfirmed(c => ({ ...c, allergies:true }))}
-          loading={generating}
-        />
-        <NoteSection
-          title="4. Social history"
-          value={sections.socialHistory}
-          onChange={v => setSections(s => ({ ...s, socialHistory:v }))}
-          confirmed={confirmed.socialHistory}
-          onConfirm={() => setConfirmed(c => ({ ...c, socialHistory:true }))}
-          loading={generating}
-        />
-
-        {/* Examination — simplified for mobile */}
-        <div style={{ background:'white', borderRadius:14, border:`1.5px solid ${confirmed.examination?'#BBF7D0':'#E2E8F0'}`, marginBottom:12, overflow:'hidden' }}>
-          <button
-            onClick={() => {}}
-            style={{ width:'100%', padding:'14px 16px', background:'none', border:'none', display:'flex', alignItems:'center', gap:10, fontFamily:FF, cursor:'default' }}>
-            {confirmed.examination
+        {/* Single combined note */}
+        <div style={{ background:'white', borderRadius:14, border:`1.5px solid ${noteConfirmed?'#BBF7D0':'#E2E8F0'}`, marginBottom:12, overflow:'hidden' }}>
+          <div style={{ padding:'14px 16px', display:'flex', alignItems:'center', gap:10 }}>
+            {noteConfirmed
               ? <span style={{ width:22, height:22, borderRadius:'50%', background:GREEN, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <span style={{ color:'white', fontSize:12, fontWeight:700 }}>✓</span>
                 </span>
               : <span style={{ width:22, height:22, borderRadius:'50%', border:'2px solid #E2E8F0', display:'inline-block', flexShrink:0 }} />
             }
-            <span style={{ fontWeight:700, fontSize:'.9375rem', color:confirmed.examination?GREEN:NAVY }}>5. Examination</span>
-            {generating && <span style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>Generating…</span>}
-          </button>
-          <div style={{ borderTop:'1px solid #F3F4F6', padding:'0 16px 14px' }}>
-            {[
-              { key:'general', label:'General' },
-              { key:'vitals',  label:'Vitals' },
-              { key:'msk',     label:'MSK' },
-            ].map(({ key, label }) => (
-              <div key={key} style={{ marginBottom:10 }}>
-                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:4 }}>{label}</div>
-                <textarea
-                  value={exam[key] || ''}
-                  onChange={e => setExam(ex => ({ ...ex, [key]:e.target.value }))}
-                  rows={2}
-                  readOnly={isFinalised}
-                  style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'10px', fontFamily:FF, fontSize:'1rem', lineHeight:1.6, resize:'none', outline:'none', background:isFinalised?'#F8FAFC':'white' }}
-                />
+            <span style={{ fontWeight:700, fontSize:'.9375rem', color:noteConfirmed?GREEN:NAVY }}>Clinical note</span>
+            {generating && <span style={{ fontSize:'.6875rem', color:'#9CA3AF', marginLeft:4 }}>Generating…</span>}
+          </div>
+          <div style={{ borderTop:'1px solid #F3F4F6' }}>
+            <textarea
+              value={noteText}
+              onChange={e => { setNoteText(e.target.value); setNoteConfirmed(false) }}
+              readOnly={isFinalised}
+              rows={22}
+              style={{ width:'100%', boxSizing:'border-box', border:'none', padding:'12px 16px', fontFamily:FF, fontSize:'.9375rem', lineHeight:1.7, resize:'vertical', outline:'none', color:'#1A2A33', background:noteConfirmed?'#F0FDF4':isFinalised?'#F8FAFC':'white' }}
+            />
+            {!noteConfirmed && !isFinalised && (
+              <div style={{ padding:'0 16px 14px' }}>
+                <button
+                  onClick={() => setNoteConfirmed(true)}
+                  style={{ width:'100%', minHeight:48, borderRadius:10, border:`1.5px solid ${GREEN}`, background:'#F0FDF4', color:GREEN, fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer' }}>
+                  ✓ Confirm note
+                </button>
               </div>
-            ))}
-            {!confirmed.examination && (
-              <button
-                onClick={() => setConfirmed(c => ({ ...c, examination:true }))}
-                style={{ width:'100%', minHeight:48, borderRadius:10, border:`1.5px solid ${GREEN}`, background:'#F0FDF4', color:GREEN, fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer' }}>
-                ✓ Confirm section
-              </button>
             )}
           </div>
         </div>
-
-        <NoteSection
-          title="6. Medical decision making"
-          value={sections.mdm}
-          onChange={v => setSections(s => ({ ...s, mdm:v }))}
-          confirmed={confirmed.mdm}
-          onConfirm={() => setConfirmed(c => ({ ...c, mdm:true }))}
-          loading={generating}
-        />
-        <NoteSection
-          title="7. Plan"
-          value={sections.plan}
-          onChange={v => setSections(s => ({ ...s, plan:v }))}
-          confirmed={confirmed.plan}
-          onConfirm={() => setConfirmed(c => ({ ...c, plan:true }))}
-          loading={generating}
-        />
 
         {/* Work capacity */}
         <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
@@ -612,9 +563,9 @@ export default function ProviderNotes() {
               {finalising ? 'Finalising…' : '✓ Finalise & complete'}
             </button>
 
-            {!allConfirmed && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Confirm all note sections above to continue</div>}
-            {allConfirmed && !outcome && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Select a consultation outcome to continue</div>}
-            {allConfirmed && outcome && !attested && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#9CA3AF', marginTop:8 }}>Tick the attestation above to finalise</div>}
+            {!noteConfirmed && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Confirm the clinical note above to continue</div>}
+            {noteConfirmed && !outcome && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Select a consultation outcome to continue</div>}
+            {noteConfirmed && outcome && !attested && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#9CA3AF', marginTop:8 }}>Tick the attestation above to finalise</div>}
           </div>
         ) : (
           <div style={{ background:'#F0FDF4', borderRadius:14, padding:'1.5rem', border:'1.5px solid #BBF7D0', textAlign:'center', marginBottom:12 }}>
