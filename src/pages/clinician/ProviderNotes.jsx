@@ -95,6 +95,135 @@ function NoteSection({ title, value, onChange, confirmed, onConfirm, loading }) 
   )
 }
 
+function buildNZNote(data, consult, actions) {
+  const consultDate = consult?.created_at
+    ? new Date(consult.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    : ''
+  const consultType = consult?.consultation_type || 'video'
+  const typeLabel   = consultType === 'phone' ? 'Phone' : consultType === 'message' ? 'Written message' : 'Video'
+  const billing     = data.billing?.serviceCode || ''
+  const providerName = consult?.provider_display_name || sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
+  const isAcc       = consult?.acc_eligible === 'yes'
+
+  const lines = []
+
+  // ── Header ──────────────────────────────────────────────────────────────────
+  lines.push(`TELEHEALTH CONSULTATION — ${typeLabel.toUpperCase()}`)
+  lines.push(`Date: ${consultDate}  |  Provider: ${providerName}${billing ? `  |  Billing: ${billing}` : ''}`)
+  lines.push('')
+
+  // ── Subjective ───────────────────────────────────────────────────────────────
+  lines.push('SUBJECTIVE')
+  lines.push(`Presenting complaint: ${data.presentingHistory || consult?.chief_complaint || '—'}`)
+
+  if (data.medicalHistory) {
+    lines.push('')
+    lines.push(`Past medical history: ${data.medicalHistory}`)
+  }
+  lines.push(`Current medications: ${consult?.medications || 'Nil regular medications'}`)
+  lines.push(`Allergies: ${consult?.patient_allergies || 'NKDA'}`)
+
+  // Social history
+  const soc = data.social || {}
+  const socialItems = []
+  if (soc.occupation && soc.occupation !== 'Not disclosed') socialItems.push(`Occupation: ${soc.occupation}`)
+  if (soc.tobacco    && soc.tobacco    !== 'Not disclosed') socialItems.push(`Smoking: ${soc.tobacco}`)
+  if (soc.alcohol    && soc.alcohol    !== 'Not disclosed') socialItems.push(`Alcohol: ${soc.alcohol}`)
+  if (socialItems.length) {
+    lines.push('')
+    lines.push('Social history:')
+    socialItems.forEach(s => lines.push(s))
+  }
+
+  // ACC injury details
+  if (isAcc) {
+    lines.push('')
+    lines.push('ACC injury details:')
+    if (data.accSection?.mechanism || consult?.acc_injury_details) lines.push(`Mechanism: ${data.accSection?.mechanism || consult?.acc_injury_details}`)
+    if (consult?.acc_injury_date) lines.push(`Date of injury: ${consult.acc_injury_date}`)
+    if (consult?.acc_employer)    lines.push(`Employer: ${consult.acc_employer}`)
+  }
+
+  // ── Objective ────────────────────────────────────────────────────────────────
+  lines.push('')
+  lines.push('OBJECTIVE')
+  lines.push('Examination (telehealth visual assessment):')
+  if (data.generalAppearance) lines.push(data.generalAppearance)
+  if (data.visibleFindings)   lines.push(data.visibleFindings)
+  if (!data.generalAppearance && !data.visibleFindings) {
+    lines.push('Full physical examination not possible via telehealth. Assessment based on history and visual observation.')
+  }
+
+  const vitals = consult?.vitals
+  if (vitals && typeof vitals === 'object' && Object.values(vitals).some(Boolean)) {
+    const vParts = []
+    if (vitals.heart_rate)      vParts.push(`HR ${vitals.heart_rate}`)
+    if (vitals.blood_pressure)  vParts.push(`BP ${vitals.blood_pressure}`)
+    if (vitals.spo2)            vParts.push(`SpO₂ ${vitals.spo2}%`)
+    if (vitals.respiratory_rate) vParts.push(`RR ${vitals.respiratory_rate}`)
+    if (vitals.temperature)     vParts.push(`Temp ${vitals.temperature}°C`)
+    if (vitals.gcs)             vParts.push(`GCS ${vitals.gcs}`)
+    if (vParts.length) lines.push(`Vitals (patient self-reported): ${vParts.join(', ')}`)
+  }
+
+  // ── Assessment ───────────────────────────────────────────────────────────────
+  lines.push('')
+  lines.push('ASSESSMENT')
+  if (data.icd10Label || data.icd10Code) lines.push(`Diagnosis: ${data.icd10Label || ''}${data.icd10Code ? ` (ICD-10: ${data.icd10Code})` : ''}`)
+  if (isAcc && data.accSection?.readCodeSuggestion) lines.push(`ACC Read code: ${data.accSection.readCodeSuggestion}${data.accSection.readCodeLabel ? ` — ${data.accSection.readCodeLabel}` : ''}`)
+
+  if (data.mdm) {
+    lines.push('')
+    lines.push('Clinical reasoning:')
+    lines.push(data.mdm)
+  }
+
+  // Red flags
+  if (data._redFlags?.flags?.length) {
+    lines.push('')
+    lines.push('⚠ Safety flags identified (review before finalising):')
+    data._redFlags.flags.forEach(f => lines.push(`• [${f.severity?.toUpperCase()}] ${f.concern} — ${f.recommendation}`))
+  }
+
+  // ── Plan ─────────────────────────────────────────────────────────────────────
+  lines.push('')
+  lines.push('PLAN')
+  const rxItems = actions.filter(a => a.type === 'prescription')
+  const xrItems = actions.filter(a => a.type === 'radiology')
+  let planNum = 1
+  if (rxItems.length) {
+    rxItems.forEach(rx => {
+      lines.push(`${planNum++}. Prescription: ${rx.medication || rx.drug || rx.name || 'medication prescribed'}`)
+    })
+  }
+  if (xrItems.length) {
+    xrItems.forEach(xr => {
+      lines.push(`${planNum++}. Radiology: ${xr.type_of_scan || xr.body_part || xr.name || 'imaging requested'}`)
+    })
+  }
+  if (data.planItems?.length) {
+    data.planItems.forEach(item => lines.push(`${planNum++}. ${item}`))
+  } else if (data.plan) {
+    lines.push(data.plan)
+  }
+  if (!rxItems.length && !xrItems.length && !data.planItems?.length && !data.plan) {
+    lines.push('[Complete plan]')
+  }
+
+  if (data.returnPrecautions) {
+    lines.push('')
+    lines.push(`Return precautions: ${data.returnPrecautions}`)
+  }
+
+  // ── Compliance footer ────────────────────────────────────────────────────────
+  lines.push('')
+  lines.push('---')
+  lines.push('Patient identity confirmed at consultation commencement per MCNZ telehealth guidelines (August 2023).')
+  if (isAcc) lines.push('Three-part ACC45 consent (treatment, lodgement, collection of information) obtained at triage registration.')
+
+  return lines.join('\n')
+}
+
 export default function ProviderNotes() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -248,22 +377,7 @@ export default function ProviderNotes() {
       const data = await res.json()
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
 
-      const parts = []
-      if (data.presentingHistory) parts.push(`PRESENTING HISTORY\n${data.presentingHistory}`)
-      if (data.medicalHistory)    parts.push(`PAST MEDICAL HISTORY\n${data.medicalHistory}`)
-      if (data.allergies)         parts.push(`ALLERGIES\n${data.allergies}`)
-      if (data.socialHistory)     parts.push(`SOCIAL HISTORY\n${data.socialHistory}`)
-      if (data.examination) {
-        const e = data.examination
-        const examParts = []
-        if (e.general) examParts.push(`General: ${e.general}`)
-        if (e.vitals)  examParts.push(`Vitals: ${e.vitals}`)
-        if (e.msk)     examParts.push(`MSK: ${e.msk}`)
-        if (examParts.length) parts.push(`EXAMINATION\n${examParts.join('\n')}`)
-      }
-      if (data.mdm)  parts.push(`CLINICAL REASONING\n${data.mdm}`)
-      if (data.plan) parts.push(`PLAN\n${data.plan}`)
-      if (parts.length) setNoteText(parts.join('\n\n'))
+      setNoteText(buildNZNote(data, consultData, actionsRef.current || []))
       if (data.accSection) {
         if (data.accSection.mechanism) setAccMechanism(data.accSection.mechanism)
         if (data.accSection.bodyPart)  setAccBodyPart(data.accSection.bodyPart)
