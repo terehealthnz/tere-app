@@ -109,8 +109,10 @@ export default function ProviderNotes() {
   const [noteText, setNoteText]       = useState('')
   const [noteConfirmed, setNoteConfirmed] = useState(false)
 
-  const [workCapacity, setWorkCapacity] = useState('fit')
-  const [returnDate, setReturnDate]     = useState('')
+  const [workCapacity, setWorkCapacity]   = useState('fit')
+  const [dutyLevel, setDutyLevel]         = useState('')
+  const [workLimitation, setWorkLimitation] = useState('')
+  const [returnDate, setReturnDate]       = useState('')
   const [accReadCode, setAccReadCode]   = useState('')
   const [accMechanism, setAccMechanism] = useState('')
   const [accBodyPart, setAccBodyPart]   = useState('')
@@ -201,8 +203,10 @@ export default function ProviderNotes() {
       if (s.plan) parts.push(`PLAN\n${s.plan}`)
       if (parts.length) setNoteText(parts.join('\n\n'))
     }
-    if (d.workCapacity) setWorkCapacity(d.workCapacity)
-    if (d.returnDate)   setReturnDate(d.returnDate)
+    if (d.workCapacity)   setWorkCapacity(d.workCapacity)
+    if (d.dutyLevel)      setDutyLevel(d.dutyLevel)
+    if (d.workLimitation) setWorkLimitation(d.workLimitation)
+    if (d.returnDate)     setReturnDate(d.returnDate)
     if (d.accReadCode)  setAccReadCode(d.accReadCode)
     if (d.accMechanism) setAccMechanism(d.accMechanism)
     if (d.accBodyPart)  setAccBodyPart(d.accBodyPart)
@@ -279,9 +283,9 @@ export default function ProviderNotes() {
   // Auto-save draft to localStorage
   useEffect(() => {
     if (!id || !consult) return
-    const draft = { noteText, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome }
+    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome }
     localStorage.setItem(draftKey, JSON.stringify(draft))
-  }, [noteText, workCapacity, returnDate, accReadCode, accMechanism, accBodyPart, outcome])
+  }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome])
 
   const canFinalise = noteConfirmed && !!outcome && attested
 
@@ -296,7 +300,7 @@ export default function ProviderNotes() {
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
       const finalNote = {
-        noteText, workCapacity, returnDate, accReadCode,
+        noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode,
         accSection: { mechanism:accMechanism, bodyPart:accBodyPart },
         outcome, providerName, attestedAt: now,
         actions: actionsRef.current,
@@ -468,6 +472,34 @@ export default function ProviderNotes() {
               </button>
             ))}
           </div>
+
+          {workCapacity === 'modified' && (
+            <div style={{ marginTop:12 }}>
+              <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#D97706', display:'block', marginBottom:8 }}>Duty level</label>
+              <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                {[
+                  { val:'sedentary', label:'Sedentary' },
+                  { val:'light',     label:'Light' },
+                  { val:'moderate',  label:'Moderate' },
+                ].map(o => (
+                  <button key={o.val} onClick={() => !isFinalised && setDutyLevel(o.val)}
+                    style={{ flex:1, minHeight:44, borderRadius:8, border:`1.5px solid ${dutyLevel===o.val?'#F59E0B':'#E2E8F0'}`, background:dutyLevel===o.val?'#FFFBEB':'white', color:dutyLevel===o.val?'#D97706':'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:isFinalised?'default':'pointer' }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:6 }}>Limitations / restrictions</label>
+              <textarea
+                value={workLimitation}
+                onChange={e => setWorkLimitation(e.target.value)}
+                readOnly={isFinalised}
+                rows={3}
+                placeholder="e.g. No lifting over 5kg, no prolonged standing, avoid repetitive bending…"
+                style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', lineHeight:1.6, resize:'none', outline:'none', background:isFinalised?'#F8FAFC':'white' }}
+              />
+            </div>
+          )}
+
           {workCapacity !== 'fit' && (
             <div style={{ marginTop:10 }}>
               <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:6 }}>Return to work date</label>
