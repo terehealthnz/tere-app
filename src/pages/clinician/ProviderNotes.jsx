@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { PrescribeModal, XrayModal } from '../../components/clinician/ClinicalActionModals'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -163,7 +164,7 @@ function buildNZNote(data, consult, actions) {
     if (vitals.respiratory_rate) vParts.push(`RR ${vitals.respiratory_rate}`)
     if (vitals.temperature)     vParts.push(`Temp ${vitals.temperature}°C`)
     if (vitals.gcs)             vParts.push(`GCS ${vitals.gcs}`)
-    if (vParts.length) lines.push(`Vitals (patient self-reported): ${vParts.join(', ')}`)
+    if (vParts.length) lines.push(`Vitals (captured via Tere vitals system): ${vParts.join(', ')}`)
   }
 
   // ── Assessment ───────────────────────────────────────────────────────────────
@@ -235,8 +236,9 @@ export default function ProviderNotes() {
   const [finalising, setFinalising] = useState(false)
   const [genError, setGenError]     = useState(null)
 
-  const [noteText, setNoteText]       = useState('')
+  const [noteText, setNoteText]           = useState('')
   const [noteConfirmed, setNoteConfirmed] = useState(false)
+  const [modals, setModals]               = useState({ rx: false, xr: false })
 
   const [workCapacity, setWorkCapacity]   = useState('fit')
   const [dutyLevel, setDutyLevel]         = useState('')
@@ -403,6 +405,18 @@ export default function ProviderNotes() {
 
   const canFinalise = noteConfirmed && !!outcome && attested
 
+  function addAction(action) {
+    actionsRef.current = [...actionsRef.current, action]
+    setNoteConfirmed(false)
+    // Append action to note plan section so provider sees it
+    const label = action.type === 'prescription'
+      ? `Rx: ${action.drug}${action.directions ? ` — ${action.directions}` : ''}`
+      : action.type === 'radiology'
+      ? `${action.investigation}: ${action.bodyPart}${action.urgency ? ` (${action.urgency})` : ''}`
+      : null
+    if (label) setNoteText(t => t + `\n${label}`)
+  }
+
   async function finalise() {
     if (!canFinalise) return
     setFinalising(true)
@@ -536,6 +550,44 @@ export default function ProviderNotes() {
               <button onClick={() => runGenerate(consult)}
                 style={{ background:'#DC2626', color:'white', border:'none', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontFamily:FF, fontSize:'.75rem', fontWeight:700 }}>Retry</button>
             </div>
+          )}
+        </div>
+
+        {/* Rx / XR actions */}
+        <div style={{ background:'white', borderRadius:14, padding:'1rem 1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
+          <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>Actions</div>
+          <div style={{ display:'flex', gap:8, marginBottom: actionsRef.current.length ? 10 : 0 }}>
+            {!isFinalised && (
+              <>
+                <button onClick={() => setModals(m => ({ ...m, rx: true }))}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  💊 Prescribe
+                </button>
+                <button onClick={() => setModals(m => ({ ...m, xr: true }))}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  🩻 Imaging
+                </button>
+              </>
+            )}
+          </div>
+          {actionsRef.current.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {actionsRef.current.map((a, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background: a.type==='prescription' ? '#EFF9F9' : '#F5F3FF', borderRadius:8, padding:'8px 12px', fontSize:'.8125rem' }}>
+                  <span style={{ fontWeight:700, color: a.type==='prescription' ? TEAL : '#7C3AED' }}>
+                    {a.type === 'prescription' ? 'Rx' : a.investigation || 'Xr'}
+                  </span>
+                  <span style={{ color:'#374151', flex:1 }}>
+                    {a.type === 'prescription'
+                      ? `${a.drug}${a.directions ? ` — ${a.directions}` : ''}${a.pending ? ' (pending approval)' : ''}`
+                      : `${a.bodyPart}${a.urgency ? ` — ${a.urgency}` : ''}${a.pending ? ' (pending approval)' : ''}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {!isFinalised && actionsRef.current.length === 0 && (
+            <div style={{ fontSize:'.8125rem', color:'#9CA3AF', fontStyle:'italic' }}>No prescriptions or imaging ordered yet</div>
           )}
         </div>
 
@@ -728,6 +780,19 @@ export default function ProviderNotes() {
       </div>
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      <PrescribeModal
+        open={modals.rx}
+        onClose={() => setModals(m => ({ ...m, rx: false }))}
+        consult={consult}
+        onDone={action => { addAction(action); setModals(m => ({ ...m, rx: false })) }}
+      />
+      <XrayModal
+        open={modals.xr}
+        onClose={() => setModals(m => ({ ...m, xr: false }))}
+        consult={consult}
+        onDone={action => { addAction(action); setModals(m => ({ ...m, xr: false })) }}
+      />
     </div>
   )
 }
