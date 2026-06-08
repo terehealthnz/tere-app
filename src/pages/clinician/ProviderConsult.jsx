@@ -75,6 +75,7 @@ export default function ProviderConsult() {
   const [endingCall, setEndingCall]     = useState(false)
   const [callStart, setCallStart]       = useState(null)
   const [elapsed, setElapsed]           = useState(0)
+  const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
   const recorderRef = useRef(null)
   const pollRef = useRef(null)
 
@@ -175,6 +176,39 @@ export default function ProviderConsult() {
     } catch {}
   }
 
+  async function initiatePhoneCall() {
+    setPhoneCallState('dialling')
+    try {
+      const res = await apiFetch('/api/make-call', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId: id }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        alert(err.error || 'Failed to initiate call')
+        setPhoneCallState('idle')
+      }
+    } catch { setPhoneCallState('idle') }
+  }
+
+  // Poll twilio_call_status when a Twilio call is active
+  useEffect(() => {
+    if (!['dialling', 'ringing', 'answered'].includes(phoneCallState)) return
+    const interval = setInterval(async () => {
+      try {
+        const data = await getConsultation(id)
+        const s = data?.twilio_call_status
+        if (s && s !== phoneCallState) setPhoneCallState(s)
+      } catch {}
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [id, phoneCallState])
+
+  // Auto-start scribe when entering in-call state
+  useEffect(() => {
+    if (inCall && scribeState === 'idle') startScribe()
+  }, [inCall])
+
   async function initiateCall() {
     setCalling(true)
     try {
@@ -247,6 +281,7 @@ export default function ProviderConsult() {
   )
 
   const isAcc       = consult.acc_eligible === 'yes'
+  const isPhone     = consult.consultation_type === 'phone'
   const patientName = `${consult.patient_first_name} ${consult.patient_last_name}`
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────
@@ -278,10 +313,17 @@ export default function ProviderConsult() {
         </div>
       </div>
 
-      {/* Video */}
+      {/* Audio-only banner for phone */}
+      {isPhone && (
+        <div style={{ background:'rgba(11,110,118,.85)', padding:'8px 16px', fontSize:'.875rem', color:'white', display:'flex', alignItems:'center', gap:'.5rem', flexShrink:0 }}>
+          📞 <strong>Audio only</strong> — 🔊 Put phone on speaker for Scribe to capture both sides
+        </div>
+      )}
+
+      {/* Video / Audio */}
       <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
         {lkToken && lkUrl ? (
-          <LiveKitRoom token={lkToken} serverUrl={lkUrl} video audio data-lk-theme="default" style={{ width:'100%', height:'100%' }}>
+          <LiveKitRoom token={lkToken} serverUrl={lkUrl} video={!isPhone} audio data-lk-theme="default" style={{ width:'100%', height:'100%' }}>
             <VideoConference />
           </LiveKitRoom>
         ) : (
@@ -290,6 +332,39 @@ export default function ProviderConsult() {
               <div style={{ width:32, height:32, border:'3px solid rgba(255,255,255,.2)', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite', margin:'0 auto 1rem' }} />
               <div>Connecting…</div>
             </div>
+          </div>
+        )}
+
+        {/* Twilio fallback for phone */}
+        {isPhone && (
+          <div style={{ position:'absolute', top:12, right:12, background:'rgba(0,0,0,.75)', backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:200, zIndex:10 }}>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'rgba(255,255,255,.5)', marginBottom:6 }}>
+              Patient not on browser?
+            </div>
+            {phoneCallState === 'idle' && (
+              <button onClick={initiatePhoneCall}
+                style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,.12)', border:'1px solid rgba(255,255,255,.25)', borderRadius:8, color:'white', fontFamily:FF, fontWeight:600, fontSize:'.8125rem', cursor:'pointer' }}>
+                📞 Call their phone
+              </button>
+            )}
+            {['dialling','ringing','answered'].includes(phoneCallState) && (
+              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:'.8125rem', color: phoneCallState==='answered' ? '#4ADE80' : '#FCD34D', fontWeight:600 }}>
+                <div style={{ width:7, height:7, borderRadius:'50%', background:'currentColor', animation:'blink 1.2s infinite' }} />
+                {phoneCallState==='dialling'?'Dialling…':phoneCallState==='ringing'?'Ringing…':'Call in progress'}
+              </div>
+            )}
+            {phoneCallState === 'completed' && <div style={{ fontSize:'.8125rem', color:'#4ADE80', fontWeight:600 }}>✓ Call ended</div>}
+            {['no_answer','busy','failed'].includes(phoneCallState) && (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                <span style={{ fontSize:'.8125rem', color:'#F87171', fontWeight:600 }}>
+                  {phoneCallState==='no_answer'?'No answer':phoneCallState==='busy'?'Busy':'Failed'}
+                </span>
+                <button onClick={initiatePhoneCall}
+                  style={{ padding:'4px 10px', background:'transparent', border:'1px solid #F87171', borderRadius:6, color:'#F87171', fontFamily:FF, fontWeight:600, fontSize:'.75rem', cursor:'pointer' }}>
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -337,6 +412,7 @@ export default function ProviderConsult() {
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+        @keyframes pulse-ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.5);opacity:0}}
       `}</style>
     </div>
   )
