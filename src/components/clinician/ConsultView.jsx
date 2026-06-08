@@ -706,6 +706,11 @@ export default function ConsultView() {
                   )
                 })()}
 
+                {/* Speaker reminder */}
+                <div style={{background:'rgba(251,191,36,.12)',border:'1px solid rgba(251,191,36,.4)',borderRadius:10,padding:'.75rem 1rem',width:'100%',maxWidth:360,textAlign:'center'}}>
+                  <span style={{color:'#FCD34D',fontSize:'.875rem',fontWeight:600}}>🔊 Put your phone on speaker for Scribe to capture both sides</span>
+                </div>
+
                 {/* Tere Scribe for phone */}
                 <div style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,padding:'1rem 1.25rem',width:'100%',maxWidth:360}}>
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
