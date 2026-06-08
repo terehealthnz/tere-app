@@ -299,6 +299,12 @@ export default function ConsultView() {
     return () => clearInterval(interval)
   }, [id, phoneCallState, consult?.consultation_type])
 
+  // Auto-start scribe when phone call is answered
+  useEffect(() => {
+    if (consult?.consultation_type !== 'phone') return
+    if (phoneCallState === 'answered' && scribeState === 'idle') startScribe()
+  }, [phoneCallState])
+
   function addAction(action) {
     setActions(a => [...a, action])
   }
