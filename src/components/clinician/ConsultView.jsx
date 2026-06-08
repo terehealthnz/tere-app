@@ -305,6 +305,12 @@ export default function ConsultView() {
     if (phoneCallState === 'answered' && scribeState === 'idle') startScribe()
   }, [phoneCallState])
 
+  // Auto-start scribe when video call goes in_progress
+  useEffect(() => {
+    if (consult?.consultation_type !== 'video') return
+    if (consult?.status === 'in_progress' && scribeState === 'idle') startScribe()
+  }, [consult?.status])
+
   function addAction(action) {
     setActions(a => [...a, action])
   }
