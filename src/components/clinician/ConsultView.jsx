@@ -535,39 +535,46 @@ export default function ConsultView() {
                 </button>
               )}
 
-              {consult.status === 'in_progress' && consult.consultation_type !== 'phone' && (
+              {consult.status === 'in_progress' && (
                 <div style={{marginTop:'1rem',background:'var(--success-bg)',border:'1px solid var(--success)',borderRadius:'var(--radius-sm)',padding:'.75rem',textAlign:'center',fontSize:'.875rem',color:'var(--success)',fontWeight:600}}>
                   ✓ Patient admitted — joining call
                 </div>
               )}
 
+              {/* Twilio fallback for phone — only shown if patient can't connect via browser */}
               {consult.status === 'in_progress' && consult.consultation_type === 'phone' && (() => {
-                const callStateConfig = {
-                  idle:      { icon: '📞', label: 'Ready to call', sub: `Patient: ${consult.patient_phone}`, btn: true, btnLabel: '📞 Call patient now', color: 'var(--teal)' },
-                  dialling:  { icon: '📲', label: 'Dialling…',     sub: `Calling ${consult.patient_phone}`,  btn: false, color: '#D97706' },
-                  ringing:   { icon: '📱', label: "Patient's phone is ringing", sub: 'Waiting for answer…',  btn: false, color: '#D97706' },
-                  answered:  { icon: '✓',  label: 'Call in progress', sub: 'Patient has answered',           btn: false, color: 'var(--success)' },
-                  completed: { icon: '✓',  label: 'Call ended',     sub: null, btn: true, btnLabel: '📞 Call again', color: 'var(--success)' },
-                  no_answer: { icon: '📵', label: 'No answer',      sub: null, btn: true, btnLabel: '📞 Try again', color: '#DC2626' },
-                  busy:      { icon: '🔴', label: 'Line busy',      sub: null, btn: true, btnLabel: '📞 Try again', color: '#DC2626' },
-                  failed:    { icon: '⚠',  label: 'Call failed',    sub: null, btn: true, btnLabel: '📞 Retry', color: '#DC2626' },
-                  canceled:  { icon: '✕',  label: 'Call canceled',  sub: null, btn: true, btnLabel: '📞 Call patient', color: '#6B7280' },
-                }
-                const cfg = callStateConfig[phoneCallState] || callStateConfig.idle
                 const isActive = ['dialling','ringing','answered'].includes(phoneCallState)
+                const failed = ['no_answer','busy','failed','canceled'].includes(phoneCallState)
                 return (
-                  <div style={{marginTop:'1rem',border:`1.5px solid ${cfg.color}`,borderRadius:'var(--radius-sm)',padding:'.875rem',background: phoneCallState === 'answered' ? 'var(--success-bg)' : 'white'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'.5rem',marginBottom:'.375rem'}}>
-                      {isActive && <div style={{width:8,height:8,borderRadius:'50%',background:cfg.color,animation:'blink 1.2s infinite',flexShrink:0}} />}
-                      <span style={{fontSize:'1rem'}}>{cfg.icon}</span>
-                      <span style={{fontWeight:700,fontSize:'.9375rem',color:cfg.color}}>{cfg.label}</span>
+                  <div style={{marginTop:'.75rem',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:'.75rem',background:'var(--bg)'}}>
+                    <div style={{fontSize:'.6875rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--muted)',marginBottom:'.5rem'}}>
+                      Patient not connecting via browser?
                     </div>
-                    {cfg.sub && <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.5rem'}}>{cfg.sub}</div>}
-                    {cfg.btn && (
+                    {phoneCallState === 'idle' && (
                       <button onClick={initiatePhoneCall}
-                        style={{width:'100%',padding:'8px 12px',background:cfg.color,border:'none',borderRadius:8,color:'white',fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:700,fontSize:'.875rem',cursor:'pointer'}}>
-                        {cfg.btnLabel}
+                        style={{width:'100%',padding:'7px 10px',background:'white',border:'1.5px solid var(--border)',borderRadius:7,color:'var(--text)',fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:600,fontSize:'.8125rem',cursor:'pointer'}}>
+                        📞 Call their phone instead
                       </button>
+                    )}
+                    {isActive && (
+                      <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'.8125rem',color:phoneCallState==='answered'?'var(--success)':'#D97706',fontWeight:600}}>
+                        <div style={{width:7,height:7,borderRadius:'50%',background:'currentColor',animation:'blink 1.2s infinite',flexShrink:0}} />
+                        {phoneCallState==='dialling'?'Dialling…':phoneCallState==='ringing'?"Patient's phone ringing…":'Call in progress'}
+                      </div>
+                    )}
+                    {(phoneCallState === 'completed') && (
+                      <div style={{fontSize:'.8125rem',color:'var(--success)',fontWeight:600}}>✓ Phone call ended</div>
+                    )}
+                    {failed && (
+                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                        <span style={{fontSize:'.8125rem',color:'#DC2626',fontWeight:600}}>
+                          {phoneCallState === 'no_answer' ? 'No answer' : phoneCallState === 'busy' ? 'Line busy' : 'Call failed'}
+                        </span>
+                        <button onClick={initiatePhoneCall}
+                          style={{padding:'4px 10px',background:'white',border:'1.5px solid #DC2626',borderRadius:6,color:'#DC2626',fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:600,fontSize:'.75rem',cursor:'pointer'}}>
+                          Retry
+                        </button>
+                      </div>
                     )}
                   </div>
                 )
@@ -682,58 +689,20 @@ export default function ConsultView() {
               )}
             </div>
 
-            {/* Phone consultation body */}
+            {/* Audio-only banner for phone */}
             {isPhone && (
-              <div style={{flex:1,overflow:'hidden',position:'relative',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'1.5rem',padding:'2rem'}}>
-                {/* Call state display */}
-                {(() => {
-                  const stateIcon = { idle:'📞', dialling:'📲', ringing:'📱', answered:'✓', completed:'✓', no_answer:'📵', busy:'🔴', failed:'⚠', canceled:'✕' }
-                  const stateColor = { idle:'#0B6E76', dialling:'#D97706', ringing:'#D97706', answered:'#22C55E', completed:'#22C55E', no_answer:'#EF4444', busy:'#EF4444', failed:'#EF4444', canceled:'#6B7280' }
-                  const stateLabel = { idle:'Waiting to call', dialling:'Dialling patient…', ringing:'Ringing…', answered:'Call in progress', completed:'Call ended', no_answer:'No answer', busy:'Line busy', failed:'Call failed', canceled:'Canceled' }
-                  const icon = stateIcon[phoneCallState] || '📞'
-                  const color = stateColor[phoneCallState] || '#0B6E76'
-                  const label = stateLabel[phoneCallState] || phoneCallState
-                  const isActive = ['dialling','ringing','answered'].includes(phoneCallState)
-                  return (
-                    <div style={{textAlign:'center'}}>
-                      <div style={{width:96,height:96,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',fontSize:'2.5rem',margin:'0 auto 1rem',boxShadow:`0 0 40px ${color}66`,position:'relative'}}>
-                        {isActive && <div style={{position:'absolute',inset:-4,borderRadius:'50%',border:`2px solid ${color}`,animation:'pulse-ring 2s ease-out infinite',opacity:.5}} />}
-                        {icon}
-                      </div>
-                      <div style={{color:'white',fontWeight:700,fontSize:'1.25rem',marginBottom:'.375rem'}}>{label}</div>
-                      {consult.patient_phone && <div style={{color:'rgba(255,255,255,.5)',fontSize:'.9375rem'}}>{consult.patient_phone}</div>}
-                    </div>
-                  )
-                })()}
-
-                {/* Speaker reminder */}
-                <div style={{background:'rgba(251,191,36,.12)',border:'1px solid rgba(251,191,36,.4)',borderRadius:10,padding:'.75rem 1rem',width:'100%',maxWidth:360,textAlign:'center'}}>
-                  <span style={{color:'#FCD34D',fontSize:'.875rem',fontWeight:600}}>🔊 Put your phone on speaker for Scribe to capture both sides</span>
-                </div>
-
-                {/* Tere Scribe for phone */}
-                <div style={{background:'rgba(255,255,255,.06)',border:'1px solid rgba(255,255,255,.12)',borderRadius:12,padding:'1rem 1.25rem',width:'100%',maxWidth:360}}>
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:6}}>
-                      {scribeState==='recording' && <div style={{width:8,height:8,borderRadius:'50%',background:'#EF4444',animation:'blink 1s infinite'}} />}
-                      <span style={{color:'rgba(255,255,255,.7)',fontWeight:600,fontSize:'.875rem'}}>
-                        {scribeState==='idle'?'Tere Scribe':scribeState==='recording'?'Recording…':'Transcript ready'}
-                      </span>
-                    </div>
-                    {scribeState==='idle' && <button onClick={startScribe} style={{background:'var(--teal)',color:'white',border:'none',padding:'4px 10px',borderRadius:'99px',fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>▶ Start</button>}
-                    {scribeState==='recording' && <button onClick={stopScribe} style={{background:'#DC2626',color:'white',border:'none',padding:'4px 10px',borderRadius:'99px',fontSize:'.75rem',fontWeight:600,cursor:'pointer'}}>■ Stop</button>}
-                  </div>
-                </div>
+              <div style={{background:'rgba(11,110,118,.85)',padding:'.5rem 1rem',fontSize:'.875rem',color:'white',fontFamily:'Plus Jakarta Sans,sans-serif',display:'flex',alignItems:'center',gap:'.5rem',flexShrink:0}}>
+                📞 <strong>Audio only</strong> — video disabled · 🔊 Put phone on speaker for Scribe
               </div>
             )}
 
-            {/* Video area */}
-            {!isPhone && <div style={{flex:1,overflow:'hidden',position:'relative'}}>
+            {/* Video/audio area */}
+            <div style={{flex:1,overflow:'hidden',position:'relative'}}>
               {lkToken && lkUrl ? (
                 <LiveKitRoom
                   token={lkToken}
                   serverUrl={lkUrl}
-                  video={true}
+                  video={!isPhone}
                   audio={true}
                   data-lk-theme="default"
                   style={{width:'100%',height:'100%'}}
@@ -781,11 +750,11 @@ export default function ConsultView() {
                 }}
                 style={{ bottom: 16, right: 16 }}
               />
-            </div>}
+            </div>
 
             <div style={{background:'rgba(0,0,0,.3)',padding:'5px',textAlign:'center',flexShrink:0}}>
               <span style={{fontSize:'.6875rem',color:'rgba(255,255,255,.2)'}}>
-                {isPhone ? `Tere · Phone · ${id}` : `Tere · LiveKit WebRTC · ${id}`}
+                Tere · {isPhone ? 'Phone' : 'Video'} · {id}
               </span>
             </div>
           </div>
