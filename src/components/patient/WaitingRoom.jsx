@@ -3,6 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
+const TWILIO_DISPLAY = import.meta.env.VITE_TWILIO_PHONE_NUMBER
+  ? import.meta.env.VITE_TWILIO_PHONE_NUMBER.replace('+64', '0').replace(/(\d{2})(\d{3})(\d{4})/, '$1 $2 $3')
+  : '03 668 4225'
+
 function fmtCountdown(secs) {
   if (secs <= 0) return '0:00:00'
   const h = Math.floor(secs / 3600)
@@ -25,6 +29,7 @@ export default function WaitingRoom() {
   const navigate = useNavigate()
   const { id: idParam } = useParams()
   const [providerName, setProviderName] = useState(null)
+  const [phoneInProgress, setPhoneInProgress] = useState(false)
   const consultationId = idParam || sessionStorage.getItem('consultationId')
   const pushFiredRef = useRef(false)
   const [createdAt, setCreatedAt] = useState(null)
@@ -98,7 +103,14 @@ export default function WaitingRoom() {
 
     function handleStatusChange(status, providerDisplayName) {
       if (providerDisplayName) setProviderName(providerDisplayName)
-      if (['in_progress', 'ready'].includes(status)) { navigate('/call'); return }
+      if (['in_progress', 'ready'].includes(status)) {
+        if (consultType === 'phone') {
+          setPhoneInProgress(true)
+        } else {
+          navigate('/call')
+        }
+        return
+      }
     }
 
     const poll = async () => {
@@ -218,6 +230,25 @@ export default function WaitingRoom() {
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
           {providerName ? `${providerName} will` : 'A doctor will'} review your notes and {consultType === 'phone' ? 'phone you' : consultType === 'message' ? 'send you a written reply' : 'video call you'} <strong style={{ color: 'rgba(255,255,255,.8)' }}>{afterHours ? 'from 8am' : 'within 2 hours'}</strong>.
         </p>
+
+        {/* Phone in-progress overlay */}
+        {phoneInProgress && (
+          <div style={{ width: '100%', maxWidth: 360, marginBottom: '1.5rem', animation: 'fadeUp .4s both' }}>
+            <div style={{ background: 'rgba(11,110,118,.25)', border: '2px solid rgba(11,110,118,.7)', borderRadius: 16, padding: '1.25rem 1.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '.75rem' }}>📞</div>
+              <div style={{ color: 'white', fontWeight: 700, fontSize: '1.125rem', marginBottom: '.5rem' }}>Your doctor is calling you now</div>
+              <div style={{ color: 'rgba(212,238,240,.8)', fontSize: '.9375rem', marginBottom: '.75rem', lineHeight: 1.6 }}>
+                Answer the call from
+              </div>
+              <div style={{ color: 'white', fontWeight: 700, fontSize: '1.5rem', letterSpacing: '.04em', marginBottom: '.25rem' }}>
+                {TWILIO_DISPLAY}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem' }}>
+                (03) 668 4225 · Terehealth
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Info cards */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', width: '100%', maxWidth: 360, marginBottom: '2rem', animation: 'fadeUp .5s .6s both' }}>
