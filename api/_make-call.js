@@ -41,6 +41,10 @@ export default async function handler(req, res) {
       statusCallback: `${base}/api/twilio-status`,
       statusCallbackMethod: 'POST',
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+      record: true,
+      recordingChannels: 'dual',
+      recordingStatusCallback: `${base}/api/twilio-recording`,
+      recordingStatusCallbackEvent: ['completed'],
       machineDetection: 'Enable',
       timeout: 30,
     })

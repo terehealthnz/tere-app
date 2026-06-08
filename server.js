@@ -61,6 +61,7 @@ const apis = [
   'translate',
   'twilio-connect',
   'twilio-fallback',
+  'twilio-recording',
   'twilio-status',
   'make-call',
   'verify-acc',
