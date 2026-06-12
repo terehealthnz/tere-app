@@ -132,6 +132,7 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
+        <Route path="/start"                  element={<TereIntro />} />
         <Route path="/consent"                element={<ConsentPage />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />

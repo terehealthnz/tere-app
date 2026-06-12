@@ -4,8 +4,8 @@ import { Link } from 'react-router-dom'
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
 
 const CONSULT_URL = (window.location.hostname === 'terehealth.co.nz' || window.location.hostname === 'www.terehealth.co.nz')
-  ? 'https://tere.co.nz'
-  : '/triage'
+  ? 'https://tere.co.nz/start'
+  : '/start'
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -59,7 +59,7 @@ function Hero() {
           Tele-emergency care.<br />Anywhere in Aotearoa.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          FACEM-led Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
+          Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
@@ -80,7 +80,7 @@ function Hero() {
           }}>How it works</a>
         </div>
         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-          {[['✓', 'FACEM-led'], ['✓', 'ACC registered'], ['✓', 'Open 8am – 8pm, 7 days']].map(([tick, text]) => (
+          {[['✓', 'FACEM medical director'], ['✓', 'ACC registered'], ['✓', 'Open 8am – 8pm, 7 days']].map(([tick, text]) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '.375rem', color: 'rgba(255,255,255,.65)', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <span style={{ color: BRAND.tealLight, fontWeight: 700 }}>{tick}</span> {text}
             </div>
@@ -128,7 +128,7 @@ function Pricing() {
     {
       icon: '📹', title: 'Video', subtitle: 'Face-to-face with your doctor',
       price: 65, accPrice: 25,
-      features: ['Full clinical assessment', 'Prescriptions & referrals', 'ACC claims filed', 'Consultation summary emailed'],
+      features: ['Full tele-assessment', 'Prescriptions & referrals', 'ACC claims filed', 'Consultation summary emailed'],
       highlight: true,
     },
     {
@@ -243,7 +243,7 @@ function About() {
             Emergency medicine. Wherever you are.
           </h2>
           <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 560, margin: '0 auto' }}>
-            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings FACEM-led emergency medicine to wherever you are — on the water, on the farm, or deep in the Sounds.
+            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings specialist emergency medicine to wherever you are — on the water, on the farm, or deep in the Sounds.
           </p>
         </div>
         <div style={{ background: 'rgba(11,110,118,.06)', border: '1px solid rgba(11,110,118,.2)', borderRadius: 12, padding: '1.5rem 1.75rem', fontSize: '.875rem', color: '#374151', lineHeight: 1.8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
@@ -267,7 +267,7 @@ function FAQ() {
     },
     {
       q: 'What can Tere Health treat?',
-      a: 'Tere Health provides tele-emergency care across a broad range of acute presentations: infections, lacerations, sprains and musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. Our FACEM-led team manages the same presentations seen in an emergency department — via your phone. We cannot treat true emergencies — if your life is at risk, call 111.',
+      a: 'Tere Health provides tele-emergency care across a broad range of acute presentations: infections, lacerations, sprains and musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. Our team manages the same presentations seen in an emergency department — via your phone. We cannot treat true emergencies — if your life is at risk, call 111.',
     },
     {
       q: 'How do I pay?',
