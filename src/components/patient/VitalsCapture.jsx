@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { MultiPassMeasurement, inspectDevice, calibrateRPPG, getAmbientTemp } from '../../lib/rppg'
+import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames, calculatePTT } from '../../lib/rppg'
 import { updateVitals } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
 
 const STATES = {
   REQUESTING: 'requesting',
@@ -14,12 +15,11 @@ const STATES = {
   ERROR:      'error',
 }
 
-const CHECKLIST_ITEMS = [
-  'Good lighting — facing a window or lamp',
-  'Phone at arm\'s length from my face',
-  'Ready to stay still for the scan',
-  'Glasses removed (if applicable)',
-  'I\'ll breathe normally',
+const PREP_TIPS = [
+  { icon: '💡', text: 'Good lighting on your face' },
+  { icon: '📱', text: 'Hold phone at arm\'s length' },
+  { icon: '🧘', text: 'Stay still and breathe normally' },
+  { icon: '👓', text: 'Remove glasses if you wear them' },
 ]
 
 function QualityIndicator({ deviceInfo }) {
@@ -68,10 +68,20 @@ export default function VitalsCapture() {
   const navigate = useNavigate()
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
-  const measureRef = useRef(null)
-  const streamRef  = useRef(null)
+  const measureRef       = useRef(null)
+  const streamRef        = useRef(null)
+  const qualityIntervalRef = useRef(null)
 
-  const [uiState,    setUiState]    = useState(STATES.REQUESTING)
+  // If background frames are already available, skip straight to processing
+  const hasBackgroundFrames = (() => {
+    try {
+      const s = sessionStorage.getItem('background_rppg_frames')
+      if (!s) return false
+      return JSON.parse(s).length > 450
+    } catch { return false }
+  })()
+
+  const [uiState,    setUiState]    = useState(hasBackgroundFrames ? STATES.MEASURING : STATES.REQUESTING)
   const [progress,   setProgress]   = useState(0)
   const [liveHR,     setLiveHR]     = useState(null)
   const [vitals,     setVitals]     = useState(null)
@@ -83,14 +93,14 @@ export default function VitalsCapture() {
   const [passNum,    setPassNum]    = useState(1)
   const [totalPasses,setTotalPasses]= useState(3)
   const [motionPct,  setMotionPct]  = useState(0)
-  const [checklist,  setChecklist]  = useState(CHECKLIST_ITEMS.map(() => false))
   const [ovalColor,  setOvalColor]  = useState('#F59E0B')  // amber default
   const [bpEstimate,   setBpEstimate]   = useState(null)
-  const [ambientTemp,  setAmbientTemp]  = useState(null)
+  const [spo2Estimate, setSpo2Estimate] = useState(null)
+  const [scanMode,     setScanMode]     = useState('face') // 'face' | 'finger'
+  const rearStreamRef  = useRef(null)
+  const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
 
-  const allChecked = checklist.every(Boolean)
-
-  // Request camera → inspect → checklist
+  // Request camera → inspect → checklist (or use background frames if available)
   useEffect(() => {
     async function requestCamera() {
       try {
@@ -114,20 +124,72 @@ export default function VitalsCapture() {
           setScanLabel('Start 80-second scan (4 passes)')
         }
         setUiState(STATES.CHECKLIST)
+
+        // Re-check quality every 3s so lighting warnings update live
+        const qualityInterval = setInterval(async () => {
+          if (!videoRef.current) return
+          try {
+            const info = await inspectDevice(videoRef.current)
+            setDeviceInfo(info)
+          } catch {}
+        }, 3000)
+        qualityIntervalRef.current = qualityInterval
       } catch {
         setError('Camera access denied. Please allow camera access and refresh, or use manual entry below.')
         setUiState(STATES.ERROR)
       }
     }
+
+    // Check for background frames collected during triage
+    const storedFrames = sessionStorage.getItem('background_rppg_frames')
+    const storedFPS    = parseFloat(sessionStorage.getItem('background_rppg_fps') || '15')
+    if (storedFrames) {
+      try {
+        const frames = JSON.parse(storedFrames)
+        if (frames.length > 450) { // at least 30 seconds at 15fps
+          sessionStorage.removeItem('background_rppg_frames')
+          sessionStorage.removeItem('background_rppg_fps')
+          setTimeout(() => {
+            const result = processStoredFrames(frames, storedFPS)
+            if (result) {
+              setVitals(result); setUiState(STATES.DONE)
+              const id = sessionStorage.getItem('consultationId')
+              if (id && !id.startsWith('demo')) {
+                import('../../lib/supabase').then(({ updateVitals }) => updateVitals(id, result)).catch(() => {})
+                import('../../lib/api').then(({ apiFetch }) =>
+                  apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'vitals_ready', consultationId:id }) }).catch(() => {})
+                ).catch(() => {})
+              } else {
+                sessionStorage.setItem('vitals', JSON.stringify(result))
+              }
+              if (result.rawFrames?.length) {
+                import('../../lib/bpModel').then(({ isBPReliable, predictBP }) => {
+                  if (!isBPReliable()) return
+                  return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+                }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
+                try { const spo2 = calculateSpO2(result.rawFrames); if (spo2) setSpo2Estimate(spo2) } catch {}
+              }
+              console.log(`Using background frames: ${frames.length} (${result.backgroundDurationSec}s)`)
+              return
+            }
+            // Background processing failed — fall back to live camera scan
+            requestCamera()
+          }, 100)
+          return
+        }
+      } catch {}
+    }
+
     requestCamera()
-    getAmbientTemp().then(setAmbientTemp).catch(() => {})
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop())
       measureRef.current?.stop()
+      clearInterval(qualityIntervalRef.current)
     }
   }, [])
 
   async function startMeasurement() {
+    clearInterval(qualityIntervalRef.current)
     setUiState(STATES.MEASURING)
     setProgress(0)
     setLiveHR(null)
@@ -149,18 +211,25 @@ export default function VitalsCapture() {
       async (result) => {
         setVitals(result)
         setUiState(STATES.DONE)
-        // Attempt BP estimate from locally trained model (dynamic import keeps TF.js out of main bundle)
+        // Store face frames so finger scan can compute PTT
+        if (result.rawFrames?.length) faceFramesRef.current = result.rawFrames
+        // BP estimate from locally trained model (dynamic import keeps TF.js out of main bundle)
         if (result.rawFrames?.length) {
-          import('../../lib/bpModel').then(({ bpModelReady, predictBP }) => {
-            if (!bpModelReady()) return
+          import('../../lib/bpModel').then(({ bpModelReady, predictBP, isBPReliable }) => {
+            if (!isBPReliable()) return
             return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
           }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
         }
+        // SpO2: compute synchronously so it's saved with vitals (provider-only, not shown to patient)
+        let spo2Result = null
+        if (result.rawFrames?.length) {
+          try { spo2Result = calculateSpO2(result.rawFrames) } catch {}
+          if (spo2Result) setSpo2Estimate(spo2Result)
+        }
         const id = sessionStorage.getItem('consultationId')
-        const resultWithEnv = { ...result, ambientTemp: ambientTemp ?? null }
         if (id && !id.startsWith('demo')) {
           try {
-            await updateVitals(id, resultWithEnv)
+            await updateVitals(id, { ...result, spo2: spo2Result?.estimate || null })
             apiFetch('/api/push-notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -168,7 +237,7 @@ export default function VitalsCapture() {
             }).catch(() => {})
           } catch {}
         } else {
-          sessionStorage.setItem('vitals', JSON.stringify(resultWithEnv))
+          sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
         }
         streamRef.current?.getTracks().forEach(t => t.stop())
       },
@@ -202,6 +271,63 @@ export default function VitalsCapture() {
     setOvalColor('#F59E0B')
   }
 
+  async function startFingerScan() {
+    setScanMode('finger')
+    setUiState(STATES.MEASURING); setProgress(0); setLiveHR(null); setError('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width:{ ideal:320 }, height:{ ideal:240 }, frameRate:{ ideal:30 } },
+        audio: false,
+      })
+      rearStreamRef.current = stream
+      const video = document.createElement('video')
+      video.srcObject = stream; video.autoplay = true; video.playsInline = true; video.muted = true
+      video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0'
+      document.body.appendChild(video)
+      await new Promise(r => { video.onloadedmetadata = r })
+
+      const frames = []; const startMs = Date.now(); const durationMs = 30000
+      await new Promise(resolve => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth || 320; canvas.height = video.videoHeight || 240
+        const ctx = canvas.getContext('2d')
+        const capture = () => {
+          const elapsed = Date.now() - startMs
+          setProgress(Math.min(100, Math.round(elapsed / durationMs * 100)))
+          if (elapsed >= durationMs) { resolve(); return }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+          const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+          let r = 0, g = 0, b = 0, cnt = 0
+          for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i+1]; b += d[i+2]; cnt++ }
+          if (cnt) frames.push({ r: r/cnt, g: g/cnt, b: b/cnt, t: elapsed })
+          requestAnimationFrame(capture)
+        }
+        requestAnimationFrame(capture)
+      })
+      stream.getTracks().forEach(t => t.stop()); video.remove()
+
+      const result = processStoredFrames(frames, 30)
+      if (result) {
+        // Compute PTT if we have face frames from a prior scan
+        let pttResult = null
+        if (faceFramesRef.current?.length) {
+          try { pttResult = calculatePTT(faceFramesRef.current, frames, 30) } catch {}
+        }
+        const finalResult = { ...result, source: 'finger_ppg', ptt: pttResult || undefined }
+        setVitals(finalResult); setUiState(STATES.DONE); setScanMode('face')
+        const id = sessionStorage.getItem('consultationId')
+        if (id && !id.startsWith('demo')) {
+          const { updateVitals } = await import('../../lib/supabase')
+          await updateVitals(id, finalResult)
+        } else { sessionStorage.setItem('vitals', JSON.stringify(finalResult)) }
+      } else {
+        setError('Finger scan failed. Try again or use face scan.'); setUiState(STATES.ERROR); setScanMode('face')
+      }
+    } catch (e) {
+      setError('Rear camera unavailable: ' + e.message); setUiState(STATES.ERROR); setScanMode('face')
+    }
+  }
+
   async function saveManual() {
     const result = {
       hr:          manual.hr          ? parseInt(manual.hr)          : null,
@@ -209,7 +335,6 @@ export default function VitalsCapture() {
       spo2:        manual.spo2        ? parseInt(manual.spo2)        : null,
       bp:          manual.bp          || null,
       temperature: manual.temperature ? parseFloat(manual.temperature) : null,
-      ambientTemp: ambientTemp ?? null,
       source: 'manual',
       note: 'Manually entered by patient',
     }
@@ -226,7 +351,7 @@ export default function VitalsCapture() {
     } else {
       sessionStorage.setItem('vitals', JSON.stringify(result))
     }
-    navigate(`/vitals-waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
+    navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
   }
 
   async function skip() {
@@ -243,7 +368,7 @@ export default function VitalsCapture() {
         sessionStorage.setItem('vitals', JSON.stringify({ skipped: true }))
       }
     } catch {}
-    navigate(`/vitals-waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
+    navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
   }
 
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
@@ -274,13 +399,15 @@ export default function VitalsCapture() {
 
         {!manualMode ? (
           <div className="card">
-            <h2 style={{marginBottom:'.375rem'}}>Measure your vital signs</h2>
-            <p style={{marginBottom:'1.25rem',fontSize:'.9375rem'}}>
-              Your camera takes 4 passes of 20 seconds each (80 seconds total) for an accurate reading. Stay still and breathe normally.
+            <h2 style={{marginBottom:'.375rem'}}>{hasBackgroundFrames && uiState !== STATES.DONE ? 'Analysing your vitals…' : 'Vital signs scan'}</h2>
+            <p style={{marginBottom:'1.25rem',fontSize:'.9375rem',color:'var(--muted)'}}>
+              {hasBackgroundFrames && uiState !== STATES.DONE
+                ? 'We captured readings during your consultation — processing now.'
+                : 'Your camera measures your heart rate, breathing, and blood pressure. Takes about 80 seconds.'}
             </p>
 
-            {/* Camera preview */}
-            <div style={{position:'relative',borderRadius:'var(--radius-sm)',overflow:'hidden',background:'#0D1117',marginBottom:'1.25rem',aspectRatio:'4/3',maxHeight:'280px'}}>
+            {/* Camera preview — hidden when processing background frames */}
+            <div style={{position:'relative',borderRadius:'var(--radius-sm)',overflow:'hidden',background:'#0D1117',marginBottom:'1.25rem',aspectRatio:'4/3',maxHeight:'280px',display: hasBackgroundFrames && uiState !== STATES.DONE ? 'none' : undefined}}>
               <video ref={videoRef} style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}} muted playsInline />
               <canvas ref={canvasRef} width={640} height={480} style={{display:'none'}} />
 
@@ -348,30 +475,48 @@ export default function VitalsCapture() {
               )}
             </div>
 
-            {/* Pre-scan checklist */}
+            {/* Finger scan overlay */}
+            {scanMode === 'finger' && isMeasuring && (
+              <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.85)',zIndex:5,gap:12}}>
+                <div style={{fontSize:'3.5rem'}}>👆</div>
+                <div style={{color:'white',fontWeight:700,fontSize:'1rem'}}>Cover the rear camera with your finger</div>
+                <div style={{color:'rgba(255,255,255,.7)',fontSize:'.8125rem'}}>Press gently — don't block the flash</div>
+                <svg width="80" height="80" style={{marginTop:8}}>
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="5"/>
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="#0B6E76" strokeWidth="5"
+                    strokeDasharray={`${2*Math.PI*34}`} strokeDashoffset={`${2*Math.PI*34*(1-progress/100)}`}
+                    strokeLinecap="round" style={{transform:'rotate(-90deg)',transformOrigin:'40px 40px',transition:'stroke-dashoffset .5s'}}/>
+                  <text x="40" y="40" textAnchor="middle" dominantBaseline="central" style={{fill:'white',fontSize:'15px',fontWeight:'700',fontFamily:'Plus Jakarta Sans'}}>
+                    {progress}%
+                  </text>
+                </svg>
+              </div>
+            )}
+
+            {/* Pre-scan tips */}
             {uiState === STATES.CHECKLIST && (
               <div style={{marginBottom:'1.25rem'}}>
-                {ambientTemp !== null && (
-                  <div style={{background:'#EFF6FF',borderRadius:8,padding:'8px 14px',marginBottom:10,fontSize:'.8125rem',color:'#1E40AF',display:'flex',alignItems:'center',gap:6}}>
-                    <span>🌡</span>
-                    <span>Outdoor temperature: <strong>{ambientTemp}°C</strong> — captured for vitals calibration</span>
+                <QualityIndicator deviceInfo={deviceInfo} />
+                {deviceInfo && deviceInfo.quality < 30 && (
+                  <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:12,padding:16,marginBottom:12}}>
+                    <div style={{fontWeight:700,color:'#92400E',marginBottom:6}}>⚠️ Poor signal detected</div>
+                    <p style={{fontSize:'.875rem',color:'#92400E',margin:'0 0 12px'}}>
+                      Low lighting or camera quality may affect accuracy. Try the finger scan for a more reliable reading.
+                    </p>
+                    <button onClick={startFingerScan} style={{width:'100%',padding:12,background:'#F59E0B',color:'white',borderRadius:8,border:'none',fontWeight:700,cursor:'pointer',fontSize:'.9375rem'}}>
+                      👆 Switch to finger scan
+                    </button>
+                    <p style={{fontSize:'.75rem',color:'#92400E',margin:'8px 0 0',textAlign:'center'}}>
+                      Cover the rear camera lens with your fingertip
+                    </p>
                   </div>
                 )}
-                <QualityIndicator deviceInfo={deviceInfo} />
-                <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem'}}>
-                  <div style={{fontWeight:600,fontSize:'.9375rem',marginBottom:'.625rem',color:'var(--text)'}}>
-                    Before we start — tick each one:
-                  </div>
-                  {CHECKLIST_ITEMS.map((item, i) => (
-                    <label key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'6px 0',cursor:'pointer',fontSize:'.875rem',color:'var(--text)'}}>
-                      <input
-                        type="checkbox"
-                        checked={checklist[i]}
-                        onChange={() => setChecklist(prev => prev.map((v, j) => j === i ? !v : v))}
-                        style={{width:18,height:18,cursor:'pointer',accentColor:'#0B6E76'}}
-                      />
-                      <span style={{color: checklist[i] ? '#0B6E76' : 'var(--text)', transition:'color .2s'}}>{item}</span>
-                    </label>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem'}}>
+                  {PREP_TIPS.map(({ icon, text }) => (
+                    <div key={text} style={{background:'var(--bg)',borderRadius:10,padding:'.75rem',display:'flex',alignItems:'center',gap:'.625rem',fontSize:'.875rem',color:'var(--text)'}}>
+                      <span style={{fontSize:'1.25rem',flexShrink:0}}>{icon}</span>
+                      <span>{text}</span>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -393,6 +538,18 @@ export default function VitalsCapture() {
             {/* Done — results */}
             {uiState === STATES.DONE && vitals && (
               <>
+                {vitals.backgroundDurationSec && (
+                  <div style={{ background:'#EFF6FF', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#1E40AF', fontSize:'.875rem' }}>
+                    ✓ Analysed {vitals.backgroundDurationSec} seconds of data from triage
+                    <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:2 }}>More data = more accurate readings</div>
+                  </div>
+                )}
+                {vitals.ptt && vitals.ptt.pttMs > 0 && (
+                  <div style={{ background:'#F0FDF4', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#15803D', fontSize:'.875rem' }}>
+                    ✓ Pulse transit time: {vitals.ptt.pttMs}ms
+                    {vitals.ptt.systolicEstimate && <span style={{ marginLeft:8, color:'#166534' }}>· BP estimate enhanced with vascular timing</span>}
+                  </div>
+                )}
                 <ConfidenceBadge numericConfidence={vitals.numericConfidence} />
                 <div className="vitals-grid" style={{marginBottom:'1.25rem'}}>
                   <div className={`vital-card ${hrStatus}`}>
@@ -407,11 +564,16 @@ export default function VitalsCapture() {
                   </div>
                   {bpEstimate && (
                     <div className="vital-card" style={{gridColumn:'1 / -1'}}>
-                      <div className="vital-label">Blood Pressure (AI estimate)</div>
-                      <div className="vital-value">{bpEstimate.systolic}/{bpEstimate.diastolic}</div>
-                      <div className="vital-unit">mmHg · indicative only</div>
+                      <div className="vital-label">Blood Pressure{bpEstimate.confidence === 'medium' ? ' ⚠️' : ''}</div>
+                      <div className="vital-value" style={{ color: bpEstimate.confidence === 'low' ? '#F59E0B' : undefined }}>
+                        {bpEstimate.systolic}/{bpEstimate.diastolic}
+                      </div>
+                      <div className="vital-unit">
+                        mmHg · AI estimate{bpEstimate.calibrated ? ' (calibrated)' : ''}{bpEstimate.confidence === 'medium' ? ' · may vary' : bpEstimate.confidence === 'low' ? ' · low confidence' : ''}
+                      </div>
                     </div>
                   )}
+                  {/* SpO2 not shown to patient — camera-based estimate not reliable enough for self-interpretation */}
                 </div>
                 {vitals.passes && (
                   <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>
@@ -437,11 +599,9 @@ export default function VitalsCapture() {
               {uiState === STATES.CHECKLIST && (
                 <button
                   className="btn btn-primary btn-full"
-                  onClick={() => setUiState(STATES.READY)}
-                  disabled={!allChecked}
-                  style={{opacity: allChecked ? 1 : 0.5}}
+                  onClick={startMeasurement}
                 >
-                  I'm ready — continue
+                  I'm ready — start vital signs scan
                 </button>
               )}
 
@@ -465,7 +625,7 @@ export default function VitalsCapture() {
 
               {uiState === STATES.DONE && (
                 <>
-                  <button className="btn btn-primary btn-full" onClick={() => navigate(`/vitals-waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)}>
+                  <button className="btn btn-primary btn-full" onClick={() => navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)}>
                     Continue to consultation
                   </button>
                   {vitals?.numericConfidence < 50 && (
@@ -482,11 +642,6 @@ export default function VitalsCapture() {
                 </button>
               )}
 
-              {uiState !== STATES.MEASURING && uiState !== STATES.DONE && (
-                <button className="btn btn-secondary btn-full" style={{color:'var(--muted)'}} onClick={skip}>
-                  Skip vital signs
-                </button>
-              )}
 
               {uiState !== STATES.MEASURING && (
                 <button className="btn btn-secondary btn-full" onClick={() => {
@@ -547,9 +702,6 @@ export default function VitalsCapture() {
                 Continue with these readings
               </button>
             </div>
-            <button className="btn btn-secondary btn-full" style={{marginTop:'.75rem',color:'var(--muted)'}} onClick={skip}>
-              Skip — continue without vitals
-            </button>
           </div>
         )}
       </div>
