@@ -659,6 +659,46 @@ async function tryFaceDetectorROI(canvas, w, h) {
   } catch { return null }
 }
 
+// ── Face region finder — used by background capture to auto-track the face ────
+// Returns { x, y, w, h } in canvas-pixel coords, or null if no face found.
+// Tries FaceDetector API first (Chrome/Android); falls back to skin-colour scan.
+
+export async function findFaceRegion(ctx, canvasW, canvasH) {
+  if (typeof FaceDetector !== 'undefined') {
+    try {
+      const det = new FaceDetector({ maxDetectedFaces: 1, fastMode: true })
+      const faces = await det.detect(ctx.canvas)
+      if (faces.length > 0) {
+        const { x, y, width, height } = faces[0].boundingBox
+        const fx = Math.max(0, Math.round(x))
+        const fy = Math.max(0, Math.round(y))
+        return { x: fx, y: fy, w: Math.min(canvasW - fx, Math.round(width)), h: Math.min(canvasH - fy, Math.round(height)) }
+      }
+    } catch {}
+  }
+
+  // Skin-colour fallback: slide a block across the canvas and pick the region
+  // with the most skin-like pixels (R > G, R/G > 1.03, not too dark/bright).
+  const data = ctx.getImageData(0, 0, canvasW, canvasH).data
+  const bW = Math.floor(canvasW * 0.4), bH = Math.floor(canvasH * 0.5)
+  let bestScore = 0, bestX = Math.floor(canvasW * 0.3), bestY = Math.floor(canvasH * 0.1)
+  for (let by = 0; by <= canvasH - bH; by += 16) {
+    for (let bx = 0; bx <= canvasW - bW; bx += 16) {
+      let score = 0
+      for (let dy = 0; dy < bH; dy += 4) {
+        for (let dx = 0; dx < bW; dx += 4) {
+          const i = ((by + dy) * canvasW + (bx + dx)) * 4
+          const r = data[i], g = data[i+1]
+          const br = (r + data[i+2]) / 2
+          if (br > 40 && br < 230 && r > g && r / (g + 1) > 1.03) score++
+        }
+      }
+      if (score > bestScore) { bestScore = score; bestX = bx; bestY = by }
+    }
+  }
+  return bestScore > 8 ? { x: bestX, y: bestY, w: bW, h: bH } : null
+}
+
 // ── Multi-ROI weighted extraction ─────────────────────────────────────────────
 
 function sampleROI(canvas, landmarks, w, h) {
@@ -730,8 +770,9 @@ function sampleROI(canvas, landmarks, w, h) {
 // ── Single-pass measurement ───────────────────────────────────────────────────
 
 export class RppgMeasurement {
-  constructor(onProgress, onComplete, onError) {
+  constructor(onProgress, onComplete, onError, onFaceBox) {
     this.onProgress=onProgress; this.onComplete=onComplete; this.onError=onError
+    this.onFaceBox=onFaceBox||null
     this.rgbBuffer=[]; this.timestamps=[]; this.rafId=null
     this.videoEl=null; this.canvasEl=null; this.mesh=null
     this.running=false; this.startTime=null
@@ -785,6 +826,15 @@ export class RppgMeasurement {
       await this.mesh.send({image:this.canvasEl})
       const results=this.mesh._latest
       if(results?.multiFaceLandmarks?.[0]) {
+        // Compute normalised face bounding box for oval tracking (throttled to every 6 frames)
+        if (this.onFaceBox && this.totalFrames % 6 === 0) {
+          const lms = results.multiFaceLandmarks[0]
+          let minX=1,minY=1,maxX=0,maxY=0
+          for (const l of lms) { if(l.x<minX)minX=l.x; if(l.y<minY)minY=l.y; if(l.x>maxX)maxX=l.x; if(l.y>maxY)maxY=l.y }
+          // Add slight vertical padding above (hair) so oval comfortably fits the face
+          const padY = (maxY - minY) * 0.15
+          this.onFaceBox({ x: minX, y: Math.max(0, minY - padY), w: maxX - minX, h: Math.min(1, maxY - minY + padY) })
+        }
         const rgb=sampleROI(this.canvasEl,results.multiFaceLandmarks[0],this.canvasEl.width,this.canvasEl.height)
         if(rgb) {
           const isMotion = this.prevRgb
@@ -904,10 +954,11 @@ export class RppgMeasurement {
 // ── Multi-pass measurement ─────────────────────────────────────────────────────
 
 export class MultiPassMeasurement {
-  constructor(onProgress, onComplete, onError) {
+  constructor(onProgress, onComplete, onError, onFaceBox) {
     this.onProgress  = onProgress  // (globalPct, liveHR, passNum, totalPasses, motionPct)
     this.onComplete  = onComplete
     this.onError     = onError
+    this.onFaceBox   = onFaceBox || null
     this.stopped     = false
     this.currentPass = null
   }
@@ -945,7 +996,8 @@ export class MultiPassMeasurement {
           this.onProgress(global, liveHR, passIdx + 1, PASS_COUNT, motionPct || 0)
         },
         resolve,
-        msg => reject(new Error(msg))
+        msg => reject(new Error(msg)),
+        this.onFaceBox
       )
       pass.deviceQuality = deviceQuality
       this.currentPass = pass

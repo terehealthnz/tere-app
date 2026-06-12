@@ -102,6 +102,7 @@ export default function VitalsCapture() {
   const [bpEstimate,   setBpEstimate]   = useState(null)
   const [spo2Estimate, setSpo2Estimate] = useState(null)
   const [scanMode,     setScanMode]     = useState('face') // 'face' | 'finger'
+  const [faceBox,      setFaceBox]      = useState(null)   // normalised { x,y,w,h } from FaceMesh
   const rearStreamRef  = useRef(null)
   const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
 
@@ -249,7 +250,8 @@ export default function VitalsCapture() {
       (msg) => {
         setError(msg)
         setUiState(STATES.ERROR)
-      }
+      },
+      (box) => setFaceBox(box)
     )
 
     await measureRef.current.start(videoRef.current, canvasRef.current, calibration, quality)
@@ -259,6 +261,7 @@ export default function VitalsCapture() {
     setVitals(null)
     setProgress(0)
     setLiveHR(null)
+    setFaceBox(null)
     setError('')
     // Re-open camera if closed
     try {
@@ -381,8 +384,20 @@ export default function VitalsCapture() {
   const isInspecting = uiState === STATES.INSPECTING
   const isMeasuring  = uiState === STATES.MEASURING
 
-  // Face oval dimensions
-  const OVAL_STYLE = {
+  // Face oval — tracks detected face when FaceMesh is running, otherwise static centre guide
+  const OVAL_STYLE = faceBox ? {
+    position:'absolute',
+    left:`${Math.round(faceBox.x * 100)}%`,
+    top:`${Math.round(faceBox.y * 100)}%`,
+    width:`${Math.round(faceBox.w * 100)}%`,
+    paddingBottom:`${Math.round(faceBox.h * 100)}%`,
+    transform:'none',
+    border:`3px solid ${ovalColor}`,
+    borderRadius:'50%',
+    pointerEvents:'none',
+    transition:'left .2s,top .2s,width .2s,padding-bottom .2s,border-color .4s',
+    zIndex:10,
+  } : {
     position:'absolute', top:'50%', left:'50%',
     transform:'translate(-50%, -60%)',
     width:'55%', paddingBottom:'70%',

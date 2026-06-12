@@ -4,6 +4,7 @@ import { createConsultation } from '../../lib/supabase'
 import { t, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
+import { findFaceRegion } from '../../lib/rppg'
 
 // ── Anonymous analytics helper ─────────────────────────────────────────────────
 function trackEvent(event_name, metadata = {}) {
@@ -286,11 +287,25 @@ export default function AITriage() {
 
         const canvas = document.createElement('canvas')
         canvas.width = 320; canvas.height = 240
-        const ctx = canvas.getContext('2d')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        // Default sample region: centre 40% of frame. Updated by face tracker below.
+        let faceRegion = { x: 96, y: 48, w: 128, h: 96 }
+        let frameCount = 0
+
         bgCaptureRef.current = setInterval(() => {
           if (!active || !video.videoWidth) return
           ctx.drawImage(video, 0, 0, 320, 240)
-          const d = ctx.getImageData(96, 48, 128, 96).data
+
+          // Update face region every 15 frames (~1s). Async — doesn't block capture.
+          frameCount++
+          if (frameCount % 15 === 0) {
+            findFaceRegion(ctx, 320, 240).then(region => {
+              if (region) faceRegion = region
+            }).catch(() => {})
+          }
+
+          const { x, y, w, h } = faceRegion
+          const d = ctx.getImageData(x, y, w, h).data
           let r = 0, g = 0, b = 0, cnt = 0
           for (let i = 0; i < d.length; i += 4) {
             const br = (d[i] + d[i+1] + d[i+2]) / 3
