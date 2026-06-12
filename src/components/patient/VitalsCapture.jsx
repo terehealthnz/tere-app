@@ -399,15 +399,19 @@ export default function VitalsCapture() {
 
         {!manualMode ? (
           <div className="card">
-            <h2 style={{marginBottom:'.375rem'}}>{hasBackgroundFrames && uiState !== STATES.DONE ? 'Analysing your vitals…' : 'Vital signs scan'}</h2>
+            <h2 style={{marginBottom:'.375rem'}}>
+              {hasBackgroundFrames
+                ? (uiState === STATES.DONE ? 'Vitals captured' : 'Analysing your vitals…')
+                : 'Vital signs scan'}
+            </h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem',color:'var(--muted)'}}>
-              {hasBackgroundFrames && uiState !== STATES.DONE
-                ? 'We captured readings during your consultation — processing now.'
+              {hasBackgroundFrames
+                ? (uiState === STATES.DONE ? 'Captured during triage — no scan needed.' : 'We captured readings during your consultation — processing now.')
                 : 'Your camera measures your heart rate, breathing, and blood pressure. Takes about 80 seconds.'}
             </p>
 
             {/* Camera preview — hidden when processing background frames */}
-            <div style={{position:'relative',borderRadius:'var(--radius-sm)',overflow:'hidden',background:'#0D1117',marginBottom:'1.25rem',aspectRatio:'4/3',maxHeight:'280px',display: hasBackgroundFrames && uiState !== STATES.DONE ? 'none' : undefined}}>
+            <div style={{position:'relative',borderRadius:'var(--radius-sm)',overflow:'hidden',background:'#0D1117',marginBottom:'1.25rem',aspectRatio:'4/3',maxHeight:'280px',display: hasBackgroundFrames ? 'none' : undefined}}>
               <video ref={videoRef} style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}} muted playsInline />
               <canvas ref={canvasRef} width={640} height={480} style={{display:'none'}} />
 
