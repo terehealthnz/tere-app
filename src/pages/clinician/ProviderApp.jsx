@@ -48,6 +48,8 @@ function queueStatus(c, now) {
   if (s === 'expired')    return { label: 'Expired',    color: '#6B7280', bg: '#F3F4F6' }
   if (s === 'in_progress') return { label: 'In Progress', color: '#7C3AED', bg: '#EDE9FE' }
   if (s === 'reviewing')  return { label: `Reviewing — ${c.provider_display_name || 'Provider'}`, color: '#92400E', bg: '#FEF3C7' }
+  if (s === 'waiting')    return { label: '📸 Scanning vitals', color: '#D97706', bg: '#FEF3C7' }
+  if (s === 'vitals_complete') return { label: '✓ Vitals ready', color: '#059669', bg: '#D1FAE5' }
   const deadline = new Date(c.created_at).getTime() + 2 * 60 * 60 * 1000
   const minsLeft = (deadline - now) / 60000
   if (minsLeft <= 30) return { label: 'Upcoming', color: '#1E40AF', bg: '#DBEAFE' }
@@ -274,7 +276,9 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
           {/* Rows */}
           {queue.map((c, i) => {
-            const isLocked = c.status === 'reviewing' && c.provider_id !== currentProviderId
+            const isLocked    = c.provider_id && c.provider_id !== currentProviderId
+            const isScanning  = c.status === 'waiting'
+            const isBlocked   = isLocked || isScanning
             const buf = bufferInfo(c.created_at, now)
             const sta = queueStatus(c, now)
             const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
@@ -287,23 +291,24 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
             return (
               <div
                 key={c.id}
-                onClick={() => { if (!isLocked) navigate(`/clinician/patient/${c.id}`) }}
+                onClick={() => { if (!isBlocked) navigate(`/clinician/patient/${c.id}`) }}
+                title={isScanning ? 'Patient completing vitals scan' : isLocked ? 'Being reviewed by another provider' : undefined}
                 style={{
                   display:'grid', gridTemplateColumns:COLS,
                   borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
-                  cursor: isLocked ? 'not-allowed' : 'pointer',
-                  background: 'white',
-                  opacity: isLocked ? 0.55 : 1,
+                  cursor: isBlocked ? 'not-allowed' : 'pointer',
+                  background: isLocked ? '#F3F4F6' : 'white',
+                  opacity: isBlocked ? 0.55 : 1,
                   transition:'background .1s, opacity .15s',
                   alignItems:'center',
                 }}
-                onMouseEnter={e => { if (!isLocked) e.currentTarget.style.background='#F0F9FA' }}
-                onMouseLeave={e => { e.currentTarget.style.background='white' }}
+                onMouseEnter={e => { if (!isBlocked) e.currentTarget.style.background='#F0F9FA' }}
+                onMouseLeave={e => { e.currentTarget.style.background = isLocked ? '#F3F4F6' : 'white' }}
               >
-                {/* Type icon */}
+                {/* Type icon — shows 📸 when scanning */}
                 <div style={{ ...TD, display:'flex', justifyContent:'center' }}>
-                  <div style={{ width:40, height:40, borderRadius:10, background:tb.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.25rem', flexShrink:0 }}>
-                    {tb.icon}
+                  <div style={{ width:40, height:40, borderRadius:10, background: isScanning ? '#FEF3C7' : tb.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.25rem', flexShrink:0 }}>
+                    {isScanning ? '📸' : tb.icon}
                   </div>
                 </div>
 
@@ -334,7 +339,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   <div style={{ fontSize:'.875rem', color:'#374151', fontStyle:'italic', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={c.chief_complaint}>
                     {complaint}
                   </div>
-                  {c.patient_allergies && c.patient_allergies !== 'None' && (
+                  {c.patient_allergies && !['none','no','nkda','nil','no known allergies','no allergies','n/a'].includes(c.patient_allergies.toLowerCase().trim()) && (
                     <div style={{ fontSize:'.625rem', color:'#DC2626', fontWeight:700, marginTop:2 }}>⚠ Allergy</div>
                   )}
                 </div>
@@ -348,14 +353,14 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
 
                 {/* Actions */}
                 <div style={{ ...TD, display:'flex', gap:4, justifyContent:'flex-end', paddingRight:'.875rem' }}>
-                  {!isLocked && (
+                  {!isBlocked && (
                     <button
                       onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
                       title="View patient"
                       style={{ background:'none', border:'1.5px solid #E2E8F0', borderRadius:8, width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:'1rem', color:'#6B7280' }}
                     >👁</button>
                   )}
-                  {!isLocked && (
+                  {!isScanning && !isLocked && (
                     <button
                       onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
                       title="Dismiss patient"
