@@ -72,12 +72,17 @@ export default function VitalsCapture() {
   const streamRef        = useRef(null)
   const qualityIntervalRef = useRef(null)
 
-  // If background frames are already available, skip straight to processing
+  // If background frames are already available with good skin signal, skip straight to processing
   const hasBackgroundFrames = (() => {
     try {
       const s = sessionStorage.getItem('background_rppg_frames')
       if (!s) return false
-      return JSON.parse(s).length > 450
+      const frames = JSON.parse(s)
+      if (frames.length <= 450) return false
+      // Quick skin check: R/G ratio — below 1.04 means no face was in frame
+      const meanR = frames.reduce((acc, f) => acc + f.r, 0) / frames.length
+      const meanG = frames.reduce((acc, f) => acc + f.g, 0) / frames.length
+      return meanG > 0 && meanR / meanG >= 1.04
     } catch { return false }
   })()
 
@@ -151,7 +156,7 @@ export default function VitalsCapture() {
           sessionStorage.removeItem('background_rppg_fps')
           setTimeout(() => {
             const result = processStoredFrames(frames, storedFPS)
-            if (result) {
+            if (result && !result.faceWarning) {
               setVitals(result); setUiState(STATES.DONE)
               const id = sessionStorage.getItem('consultationId')
               if (id && !id.startsWith('demo')) {
