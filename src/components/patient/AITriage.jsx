@@ -118,6 +118,17 @@ function parseDate(raw) {
   // DD-MM-YYYY (day first, 2-digit day)
   const dashDMY = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/)
   if (dashDMY) return `${dashDMY[3]}-${dashDMY[2].padStart(2,'0')}-${dashDMY[1].padStart(2,'0')}`
+  // Relative dates (for acc_date field)
+  const toISO = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+  const lower = s.toLowerCase()
+  const today = new Date()
+  if (/\btoday\b|this morning|this afternoon|this evening|tonight/.test(lower)) return toISO(today)
+  if (/\byesterday\b/.test(lower)) { const d = new Date(today); d.setDate(d.getDate()-1); return toISO(d) }
+  const daysAgo = lower.match(/(\d+)\s+day[s]?\s+ago/)
+  if (daysAgo) { const d = new Date(today); d.setDate(d.getDate()-parseInt(daysAgo[1])); return toISO(d) }
+  const weeksAgo = lower.match(/(\d+)\s+week[s]?\s+ago/)
+  if (weeksAgo) { const d = new Date(today); d.setDate(d.getDate()-parseInt(weeksAgo[1])*7); return toISO(d) }
+  if (/last\s+week/.test(lower)) { const d = new Date(today); d.setDate(d.getDate()-7); return toISO(d) }
   // Natural language: "14 March 1986", "14th March 1986"
   const months = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11}
   const m = s.toLowerCase().replace(/(\d+)(st|nd|rd|th)\b/,'$1').match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/)
@@ -132,7 +143,7 @@ function parseDate(raw) {
   // Last resort — extract local parts to avoid TZ shift
   const d = new Date(s)
   if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
-  return s
+  return null
 }
 
 // Translate text to English via the server API (for keyword safety checks)
@@ -197,6 +208,15 @@ export default function AITriage() {
   const inputRef = useRef(null)
   const langMeta = getLangMeta(lang)
 
+  // Background rPPG capture
+  const bgStreamRef  = useRef(null)
+  const bgVideoRef   = useRef(null)
+  const bgCaptureRef = useRef(null)
+  const bgFramesRef  = useRef([])
+  const [bgPrivacyShown, setBgPrivacyShown] = useState(
+    () => sessionStorage.getItem('bg_rppg_consent') === '1'
+  )
+
   // Auto-submit when done
   useEffect(() => {
     if (done) handleConfirm()
@@ -218,6 +238,12 @@ export default function AITriage() {
                             sessionStorage.getItem('consultation_subtype') === 'async_message'
             if (isAsync) {
               navigate(`/async-message/${existingId}`, { replace: true })
+            } else if (['in_progress','ready'].includes(c.status)) {
+              navigate('/call', { replace: true })
+            } else if (['vitals_complete','waitlisted'].includes(c.status)) {
+              navigate(`/waiting/${existingId}`, { replace: true })
+            } else if (c.status === 'waiting' && sessionStorage.getItem('paymentIntentId')) {
+              navigate(`/vitals/${existingId}`, { replace: true })
             } else {
               navigate('/consultation-type', { replace: true })
             }
@@ -239,6 +265,54 @@ export default function AITriage() {
   useEffect(() => {
     if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
   }, [messages])
+
+  // Background rPPG capture — low-res, silent, starts after privacy consent
+  useEffect(() => {
+    if (!bgPrivacyShown) return
+    let active = true
+    const startBg = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 15 } },
+          audio: false,
+        })
+        if (!active) { stream.getTracks().forEach(t => t.stop()); return }
+        bgStreamRef.current = stream
+        const video = document.createElement('video')
+        video.srcObject = stream
+        video.autoplay = true; video.playsInline = true; video.muted = true
+        video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none'
+        document.body.appendChild(video)
+        bgVideoRef.current = video
+        console.log('Background rPPG capture started')
+
+        const canvas = document.createElement('canvas')
+        canvas.width = 320; canvas.height = 240
+        const ctx = canvas.getContext('2d')
+        bgCaptureRef.current = setInterval(() => {
+          if (!active || !video.videoWidth) return
+          ctx.drawImage(video, 0, 0, 320, 240)
+          const d = ctx.getImageData(96, 48, 128, 96).data
+          let r = 0, g = 0, b = 0, cnt = 0
+          for (let i = 0; i < d.length; i += 4) {
+            const br = (d[i] + d[i+1] + d[i+2]) / 3
+            if (br > 40 && br < 230) { r += d[i]; g += d[i+1]; b += d[i+2]; cnt++ }
+          }
+          if (cnt > 100) {
+            bgFramesRef.current.push({ r: r/cnt, g: g/cnt, b: b/cnt, t: Date.now() })
+            if (bgFramesRef.current.length > 4500) bgFramesRef.current.shift()
+          }
+        }, 1000 / 15)
+      } catch { /* camera unavailable — fail silently */ }
+    }
+    startBg()
+    return () => {
+      active = false
+      clearInterval(bgCaptureRef.current)
+      bgStreamRef.current?.getTracks().forEach(t => t.stop())
+      if (bgVideoRef.current) { bgVideoRef.current.remove(); bgVideoRef.current = null }
+    }
+  }, [bgPrivacyShown])
 
   // iOS: keep container anchored to visual viewport when keyboard opens
   const triageContainerRef = useRef(null)
@@ -704,6 +778,16 @@ export default function AITriage() {
       sessionStorage.setItem('patient_language', lang)
       sessionStorage.removeItem('tere_triage_state')
 
+      // Save background rPPG frames for VitalsCapture to use
+      const bgFrames = bgFramesRef.current
+      if (bgFrames.length > 225) { // at least 15 seconds at 15fps
+        try {
+          sessionStorage.setItem('background_rppg_frames', JSON.stringify(bgFrames.slice(-1800)))
+          sessionStorage.setItem('background_rppg_fps', '15')
+          console.log(`Background rPPG: saved ${Math.min(bgFrames.length, 1800)} frames (${Math.round(Math.min(bgFrames.length, 1800) / 15)}s)`)
+        } catch { /* sessionStorage full — skip */ }
+      }
+
       if (!clinicOpen) {
         sessionStorage.setItem('consultation_subtype', 'after_hours')
         sessionStorage.setItem('after_hours', 'true')
@@ -869,6 +953,19 @@ export default function AITriage() {
 
   return (
     <div ref={triageContainerRef} style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+
+      {/* Background scan privacy notice — one-time acknowledgement */}
+      {!bgPrivacyShown && (
+        <div style={{background:'#EFF6FF',borderTop:'3px solid #3B82F6',padding:'.625rem 1rem',display:'flex',alignItems:'center',gap:'.75rem',fontSize:'.8125rem',color:'#1E40AF',flexShrink:0,zIndex:20}}>
+          <span style={{flexShrink:0}}>📷</span>
+          <span style={{flex:1}}>For accurate vitals, Tere may use your camera during triage. No video is recorded — only anonymised colour measurements.</span>
+          <button onClick={() => { setBgPrivacyShown(true); sessionStorage.setItem('bg_rppg_consent','1') }}
+            style={{background:'#3B82F6',color:'white',border:'none',borderRadius:99,padding:'.35rem .85rem',fontWeight:700,fontSize:'.8125rem',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
+            OK
+          </button>
+        </div>
+      )}
+
       <div style={{background:'var(--navy)',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto',padding:'0 1.25rem .875rem'}}>
           <div>
