@@ -213,9 +213,7 @@ export default function AITriage() {
   const bgVideoRef   = useRef(null)
   const bgCaptureRef = useRef(null)
   const bgFramesRef  = useRef([])
-  const [bgPrivacyShown, setBgPrivacyShown] = useState(
-    () => sessionStorage.getItem('bg_rppg_consent') === '1'
-  )
+  const bgPrivacyShown = sessionStorage.getItem('bg_rppg_consent') === '1'
 
   // Auto-submit when done
   useEffect(() => {
@@ -954,19 +952,8 @@ export default function AITriage() {
   return (
     <div ref={triageContainerRef} style={{position:'fixed',top:0,left:0,right:0,height:'100dvh',overflow:'hidden',display:'flex',flexDirection:'column',background:'var(--bg)',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
 
-      {/* Background scan privacy notice — one-time acknowledgement */}
-      {!bgPrivacyShown && (
-        <div style={{background:'#EFF6FF',borderTop:'3px solid #3B82F6',padding:'.625rem 1rem',display:'flex',alignItems:'center',gap:'.75rem',fontSize:'.8125rem',color:'#1E40AF',flexShrink:0,zIndex:20}}>
-          <span style={{flexShrink:0}}>📷</span>
-          <span style={{flex:1}}>For accurate vitals, Tere may use your camera during triage. No video is recorded — only anonymised colour measurements.</span>
-          <button onClick={() => { setBgPrivacyShown(true); sessionStorage.setItem('bg_rppg_consent','1') }}
-            style={{background:'#3B82F6',color:'white',border:'none',borderRadius:99,padding:'.35rem .85rem',fontWeight:700,fontSize:'.8125rem',cursor:'pointer',whiteSpace:'nowrap',fontFamily:'inherit'}}>
-            OK
-          </button>
-        </div>
-      )}
 
-      <div style={{background:'var(--navy)',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
+<div style={{background:'var(--navy)',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))',flexShrink:0}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:600,margin:'0 auto',padding:'0 1.25rem .875rem'}}>
           <div>
             <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'var(--teal-light)',fontSize:'1.3rem',cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>

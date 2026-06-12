@@ -16,6 +16,7 @@ export default function ConsentPage() {
     setSaving(true)
     const granted = researchConsent === true
     sessionStorage.setItem('research_consent', granted ? 'yes' : 'no')
+    sessionStorage.setItem('bg_rppg_consent', '1')
     const consultationId = sessionStorage.getItem('consultation_id')
     const now = new Date().toISOString()
     try {
@@ -158,6 +159,17 @@ export default function ConsentPage() {
             Your decision won't affect your care. You can withdraw consent at any time by contacting{' '}
             <a href="mailto:terehealthnz@gmail.com" style={{ color: '#9CA3AF' }}>terehealthnz@gmail.com</a>
           </p>
+        </div>
+
+        {/* Section 4 — Camera / vitals notice */}
+        <div style={{ background: '#EFF6FF', borderRadius: 12, border: '1px solid #BFDBFE', padding: '1rem 1.25rem', marginBottom: '.75rem', display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
+          <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: 1 }}>📷</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '.9375rem', color: '#1E40AF', marginBottom: '.25rem' }}>Camera used for vitals</div>
+            <p style={{ fontSize: '.875rem', color: '#1D4ED8', lineHeight: 1.5, margin: 0 }}>
+              For accurate vitals, Tere may use your camera during the consultation. <strong>No video is recorded</strong> — only anonymised colour measurements are used to estimate heart rate and blood oxygen.
+            </p>
+          </div>
         </div>
 
         {/* Emergency links */}
