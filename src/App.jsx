@@ -122,7 +122,7 @@ function PwaRoot() {
     return <Navigate to="/triage" replace />
   }
   const h = window.location.hostname
-  if (h === 'terehealth.co.nz' || h === 'www.terehealth.co.nz') return <Landing />
+  if (h === 'terehealth.co.nz' || h === 'www.terehealth.co.nz' || h === 'tere.co.nz' || h === 'www.tere.co.nz') return <Landing />
   return <TereIntro />
 }
 
@@ -136,11 +136,11 @@ export default function App() {
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />
         <Route path="/vitals/:id"             element={<VitalsCapture />} />
-        <Route path="/vitals-waiting/:id"     element={<WaitingRoom />} />
         <Route path="/consultation-type"      element={<ConsultationType />} />
         <Route path="/payment"                element={<Payment />} />
         <Route path="/message-sent"           element={<MessageSent />} />
         <Route path="/waiting"                element={<WaitingRoom />} />
+        <Route path="/waiting/:id"            element={<WaitingRoom />} />
         <Route path="/call"                   element={<PatientCall />} />
         <Route path="/waitlisted/:id"         element={<Waitlisted />} />
         <Route path="/resume/:id"             element={<ResumePayment />} />
