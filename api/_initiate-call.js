@@ -96,8 +96,7 @@ export default async function handler(req, res) {
   }
 
   // Push notification to patient (if they have the app installed)
-  const appUrl2 = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
-  fetch(`${appUrl2}/api/push-notify`, {
+  fetch(`${appUrl}/api/push-notify`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
