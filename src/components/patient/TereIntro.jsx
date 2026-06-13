@@ -159,21 +159,31 @@ export default function TereIntro({ onStart }) {
       </div>
 
       {/* Buttons */}
-      {(() => { const bookingEnabled = import.meta.env.VITE_BOOKING_ENABLED === 'true'; return (
-      <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
-        <button onClick={handleStart} disabled={starting} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif', opacity: starting ? 0.8 : 1 }}>
-          <div>{t('get_started', lang)} →</div>
-          <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.95, marginTop:2 }}>Join the queue — see a provider today</div>
-        </button>
-        {/* BOOKING DISABLED — set VITE_BOOKING_ENABLED=true in Vercel to re-enable */}
-        {bookingEnabled && (
-          <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-            <div>Book for later</div>
-            <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,0.87)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
-          </button>
-        )}
-      </div>
-      )})()}
+      {(() => {
+        const queueEnabled   = import.meta.env.VITE_QUEUE_ENABLED === 'true'
+        const bookingEnabled = import.meta.env.VITE_BOOKING_ENABLED === 'true'
+        return (
+        <div style={{ ...anim('2.8s'), display:'flex', flexDirection:'column', gap:'.625rem', width:'100%', maxWidth:320 }}>
+          {queueEnabled ? (
+            <button onClick={handleStart} disabled={starting} data-testid="kiwi-cta" style={{ background:'#0B6E76', color:'white', border:'none', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif', opacity: starting ? 0.8 : 1 }}>
+              <div>{t('get_started', lang)} →</div>
+              <div style={{ fontWeight:400, fontSize:'.8rem', opacity:.95, marginTop:2 }}>Join the queue — see a provider today</div>
+            </button>
+          ) : (
+            <div style={{ background:'rgba(255,255,255,.06)', border:'1.5px solid rgba(212,238,240,.2)', borderRadius:12, padding:'.875rem 1.5rem', width:'100%', boxSizing:'border-box', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+              <div style={{ fontWeight:700, color:'#D4EEF0', fontSize:'.9375rem', marginBottom:4 }}>Opening soon</div>
+              <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,0.72)', lineHeight:1.5 }}>Tere Health is not yet accepting patients. Check back shortly or follow us for updates.</div>
+            </div>
+          )}
+          {bookingEnabled && queueEnabled && (
+            <button onClick={() => navigate('/book')} style={{ background:'rgba(255,255,255,.08)', color:'#D4EEF0', border:'1.5px solid rgba(212,238,240,.3)', padding:'.875rem 1.5rem', borderRadius:12, fontSize:'.9375rem', fontWeight:700, cursor:'pointer', textAlign:'left', width:'100%', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+              <div>Book for later</div>
+              <div style={{ fontWeight:400, fontSize:'.8rem', color:'rgba(212,238,240,0.87)', marginTop:2 }}>Reserve a time slot — $15 reservation fee</div>
+            </button>
+          )}
+        </div>
+        )
+      })()}
 
       <div style={{ ...anim('3s'), display:'flex', gap:'1.25rem', marginTop:'.875rem', justifyContent:'center' }}>
         <Link to="/clinician" style={{ color:'rgba(212,238,240,0.72)', fontSize:'.75rem', textDecoration:'none', fontFamily:'Plus Jakarta Sans, sans-serif' }}>Provider login</Link>
