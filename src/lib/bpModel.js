@@ -18,7 +18,7 @@ const OUTPUT_SIZE  = 4   // [systolic, diastolic, hr, spo2]
 
 const DEFAULT_SPO2 = 98   // population mean for readings without pulse oximeter
 
-export const BP_SHOW_THRESHOLD = { samples: 30, valMae: 15 }
+export const BP_SHOW_THRESHOLD = { samples: 10, valMae: 20 }
 
 // ── Physiological clamping ─────────────────────────────────────────────────────
 
