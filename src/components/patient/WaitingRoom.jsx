@@ -3,6 +3,55 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
+const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
+
+function urlBase64ToUint8Array(b64) {
+  const padding = '='.repeat((4 - (b64.length % 4)) % 4)
+  const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = window.atob(base64)
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)))
+}
+
+async function registerPatientPush(consultationId) {
+  try {
+    const isNative = window.Capacitor?.isNativePlatform?.()
+    if (isNative) {
+      const { PushNotifications } = await import('@capacitor/push-notifications')
+      const status = await PushNotifications.checkPermissions()
+      let perm = status.receive
+      if (perm === 'prompt' || perm === 'prompt-with-rationale') {
+        const result = await PushNotifications.requestPermissions()
+        perm = result.receive
+      }
+      if (perm !== 'granted') return
+      await PushNotifications.register()
+      PushNotifications.addListener('registration', async (tokenData) => {
+        await apiFetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultationId,
+            token: tokenData.value,
+            platform: window.Capacitor.getPlatform(),
+          }),
+        })
+      })
+    } else if ('serviceWorker' in navigator && 'PushManager' in window && VAPID_KEY) {
+      if (Notification.permission === 'denied') return
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') return
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_KEY) })
+      await apiFetch('/api/push-subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId, subscription: sub.toJSON() }),
+      })
+    }
+  } catch {}
+}
+
 function fmtCountdown(secs) {
   if (secs <= 0) return '0:00:00'
   const h = Math.floor(secs / 3600)
@@ -72,6 +121,12 @@ export default function WaitingRoom() {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [createdAt])
+
+  // Register patient's device for push (so provider can call them back from background)
+  useEffect(() => {
+    if (!consultationId || consultationId.startsWith('demo')) return
+    registerPatientPush(consultationId)
+  }, [consultationId])
 
   // Fire push notification to providers once
   useEffect(() => {

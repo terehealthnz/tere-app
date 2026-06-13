@@ -19,12 +19,67 @@ const NOTIFICATION_TYPES = {
   no_coverage:           (d) => ({ title: 'Coverage gap — no provider scheduled',  body: (d.days || []).join(', '),                                                          requireInteraction: true,  url: '/admin/schedule', tag: 'no-coverage' }),
   shift_offer:           (d) => ({ title: `Shift offered by ${d.fromName}`,        body: `${d.shiftDate} ${d.startTime?.slice(0,5)}–${d.endTime?.slice(0,5)}`,              requireInteraction: true,  url: '/provider/schedule', tag: `offer-${d.shiftDate}` }),
   shift_reminder:        (d) => ({ title: `Shift in 1 hour — ${d.startTime}`,      body: 'Your shift starts soon. Clinic will open automatically.',                         requireInteraction: false, url: '/provider', tag: `reminder-${d.shiftDate}` }),
+  patient_called:        (d) => ({ title: 'Doctor is ready for you',               body: d.providerName ? `${d.providerName} is calling — tap to join` : 'Tap to join your consultation', requireInteraction: true, url: d.consultUrl || '/patient', tag: `call-${d.consultationId}` }),
+}
+
+// ── Firebase Admin (lazy-loaded to avoid startup cost when unused) ────────────
+let firebaseApp = null
+async function getFirebaseMessaging() {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) return null
+  if (!firebaseApp) {
+    const { initializeApp, getApps, cert } = await import('firebase-admin/app')
+    const { getMessaging } = await import('firebase-admin/messaging')
+    if (!getApps().length) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+      firebaseApp = initializeApp({ credential: cert(serviceAccount) })
+    } else {
+      firebaseApp = getApps()[0]
+    }
+    const { getMessaging: gm } = await import('firebase-admin/messaging')
+    firebaseApp._messaging = gm(firebaseApp)
+  }
+  const { getMessaging } = await import('firebase-admin/messaging')
+  return getMessaging(firebaseApp)
+}
+
+async function sendNative(tokens, notification) {
+  const messaging = await getFirebaseMessaging()
+  if (!messaging || !tokens.length) return { sent: 0, dead: [] }
+
+  const dead = []
+  let sent = 0
+
+  await Promise.allSettled(
+    tokens.map(async ({ token }) => {
+      try {
+        await messaging.send({
+          token,
+          notification: { title: notification.title, body: notification.body },
+          data: { url: notification.url || '', tag: notification.tag || '' },
+          apns: {
+            payload: { aps: { sound: 'default', badge: 1 } },
+          },
+          android: {
+            priority: notification.requireInteraction ? 'high' : 'normal',
+          },
+        })
+        sent++
+      } catch (e) {
+        // Token expired or invalid
+        if (e.code === 'messaging/registration-token-not-registered' || e.code === 'messaging/invalid-registration-token') {
+          dead.push(token)
+        }
+      }
+    })
+  )
+
+  return { sent, dead }
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { type = 'new_patient', providerId, ...data } = req.body || {}
+  const { type = 'new_patient', providerId, userId, consultationId, ...data } = req.body || {}
 
   const buildPayload = NOTIFICATION_TYPES[type]
   if (!buildPayload) return res.status(400).json({ error: 'Unknown notification type' })
@@ -37,31 +92,44 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_ROLE_KEY
     )
 
-    // Get subscriptions — target specific provider or all available providers
-    let query = supabase.from('push_subscriptions').select('endpoint, subscription')
-    if (providerId) query = query.eq('provider_id', providerId)
+    // Target by consultationId (patient), userId, or providerId (provider)
+    let query = supabase.from('push_subscriptions').select('endpoint, subscription, token, platform')
+    if (consultationId) query = query.eq('consultation_id', consultationId)
+    else if (userId) query = query.eq('user_id', userId)
+    else if (providerId) query = query.eq('provider_id', providerId)
 
     const { data: subs } = await query
     if (!subs?.length) return res.json({ ok: true, sent: 0 })
 
+    const webSubs    = subs.filter(s => s.platform === 'web' || (!s.platform && s.endpoint))
+    const nativeSubs = subs.filter(s => s.platform === 'ios' || s.platform === 'android')
+
     const payload = JSON.stringify(notification)
-    const dead = []
+    const deadEndpoints = []
     let sent = 0
 
+    // ── Web push ──────────────────────────────────────────────────────────────
     await Promise.allSettled(
-      subs.map(async ({ endpoint, subscription }) => {
+      webSubs.map(async ({ endpoint, subscription }) => {
         try {
           await webpush.sendNotification(subscription, payload)
           sent++
         } catch (e) {
-          if (e.statusCode === 410 || e.statusCode === 404) dead.push(endpoint)
+          if (e.statusCode === 410 || e.statusCode === 404) deadEndpoints.push(endpoint)
         }
       })
     )
 
+    // ── Native push ───────────────────────────────────────────────────────────
+    const { sent: nativeSent, dead: deadTokens } = await sendNative(nativeSubs, notification)
+    sent += nativeSent
+
     // Clean up expired subscriptions
-    if (dead.length) {
-      await supabase.from('push_subscriptions').delete().in('endpoint', dead)
+    if (deadEndpoints.length) {
+      await supabase.from('push_subscriptions').delete().in('endpoint', deadEndpoints)
+    }
+    if (deadTokens.length) {
+      await supabase.from('push_subscriptions').delete().in('token', deadTokens)
     }
 
     res.json({ ok: true, sent })

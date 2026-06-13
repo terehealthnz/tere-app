@@ -95,6 +95,23 @@ export default async function handler(req, res) {
     }).catch(e => console.error('[initiate-call] email failed:', e.message))
   }
 
+  // Push notification to patient (if they have the app installed)
+  const appUrl2 = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
+  fetch(`${appUrl2}/api/push-notify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-tere-api-key': process.env.TERE_API_KEY,
+    },
+    body: JSON.stringify({
+      type: 'patient_called',
+      consultationId,
+      ...(consult.user_id ? { userId: consult.user_id } : {}),
+      providerName: providerName || 'Your doctor',
+      consultUrl: '/call',
+    }),
+  }).catch(e => console.error('[initiate-call] push failed:', e.message))
+
   // Generate LiveKit token for provider
   const lkApiKey = process.env.LIVEKIT_API_KEY
   const lkApiSecret = process.env.LIVEKIT_API_SECRET

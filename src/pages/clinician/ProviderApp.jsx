@@ -71,14 +71,37 @@ function urlBase64ToUint8Array(b64) {
 
 async function registerPush(providerId) {
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_KEY) return
-    if (Notification.permission === 'denied') return
-    const perm = await Notification.requestPermission()
-    if (perm !== 'granted') return
-    const reg = await navigator.serviceWorker.ready
-    const existing = await reg.pushManager.getSubscription()
-    const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_KEY) })
-    await apiFetch('/api/push-subscribe', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ providerId, subscription: sub.toJSON() }) })
+    const isNative = window.Capacitor?.isNativePlatform?.()
+
+    if (isNative) {
+      const { PushNotifications } = await import('@capacitor/push-notifications')
+      const status = await PushNotifications.checkPermissions()
+      let perm = status.receive
+      if (perm === 'prompt' || perm === 'prompt-with-rationale') {
+        const result = await PushNotifications.requestPermissions()
+        perm = result.receive
+      }
+      if (perm !== 'granted') return
+
+      await PushNotifications.register()
+      PushNotifications.addListener('registration', async (tokenData) => {
+        const platform = window.Capacitor.getPlatform()
+        await apiFetch('/api/push-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId, token: tokenData.value, platform }),
+        })
+      })
+    } else {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID_KEY) return
+      if (Notification.permission === 'denied') return
+      const perm = await Notification.requestPermission()
+      if (perm !== 'granted') return
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      const sub = existing || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_KEY) })
+      await apiFetch('/api/push-subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ providerId, subscription: sub.toJSON() }) })
+    }
   } catch {}
 }
 

@@ -212,6 +212,11 @@ export default function VitalsValidate() {
 
   const startCamera = useCallback(async () => {
     setCameraError(null)
+    // Stop any existing stream before requesting a new one
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = null
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false,
@@ -220,15 +225,22 @@ export default function VitalsValidate() {
       const v = videoRef.current
       if (v) {
         v.srcObject = stream
-        await new Promise(r => { v.onloadedmetadata = r })
-        v.play()
+        // Only wait for loadedmetadata if not already loaded; use addEventListener to avoid
+        // the race where metadata loads before the handler is assigned
+        if (v.readyState < 1) {
+          await new Promise((resolve, reject) => {
+            const t = setTimeout(() => reject(new Error('Camera timed out')), 8000)
+            v.addEventListener('loadedmetadata', () => { clearTimeout(t); resolve() }, { once: true })
+          })
+        }
+        await v.play().catch(() => {})
         if (canvasRef.current) {
           canvasRef.current.width = v.videoWidth || 640
           canvasRef.current.height = v.videoHeight || 480
         }
       }
     } catch (e) {
-      setCameraError('Camera access denied: ' + e.message)
+      setCameraError('Camera error: ' + e.message)
     }
   }, [])
 
@@ -662,7 +674,7 @@ export default function VitalsValidate() {
             {scanPhase === 'error' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                 <div style={{ color: '#EF4444', fontSize: '.9rem' }}>{scanError}</div>
-                <Btn onClick={() => { setScanPhase('idle'); setScanError(null); startCamera() }}>Retry scan</Btn>
+                <Btn onClick={() => { stopCamera(); setScanPhase('idle'); setScanError(null); startCamera() }}>Retry scan</Btn>
               </div>
             )}
           </div>
