@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp } from '../../lib/rppg'
-import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationSubjectsWithLastScan } from '../../lib/supabase'
+import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
+import { calculateSpO2 } from '../../lib/spo2'
 
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -145,6 +146,7 @@ export default function VitalsValidate() {
   const [newSub, setNewSub] = useState({
     firstName: '', age: '', sex: '', heightCm: '', weightKg: '',
     fitzpatrickScale: null, hasHypertension: 'unknown',
+    conditions: [],
   })
   const [savingSubject, setSavingSubject] = useState(false)
   const [subjectError, setSubjectError]   = useState(null)
@@ -180,6 +182,12 @@ export default function VitalsValidate() {
   // BP estimation
   const [bpEstimate, setBpEstimate]   = useState(null)
   const [bpModelMeta, setBpModelMeta] = useState(() => getLocalMeta())
+
+  // SpO2
+  const [manualSpO2, setManualSpO2]   = useState('')
+  const [spo2Estimate, setSpo2Estimate] = useState(null)
+  const [afConfirmed, setAfConfirmed]   = useState(null) // true/false/null
+  const [afConfirmedBy, setAfConfirmedBy] = useState('')
 
   // Ambient temperature
   const [ambientTemp, setAmbientTemp] = useState(null)
@@ -245,6 +253,10 @@ export default function VitalsValidate() {
             predictBP(signal, selectedSubject || {})
               .then(est => { if (est) setBpEstimate(est) })
               .catch(() => {})
+            try {
+              const spo2 = calculateSpO2(result.rawFrames, selectedSubject?.fitzpatrick_scale)
+              if (spo2) setSpo2Estimate(spo2)
+            } catch {}
           }
           setBpModelMeta(getLocalMeta())
         },
@@ -261,6 +273,7 @@ export default function VitalsValidate() {
     if (!newSub.firstName.trim()) { setSubjectError('First name is required'); return }
     setSavingSubject(true); setSubjectError(null)
     try {
+      const conds = newSub.conditions || []
       const sub = await saveValidationSubject({
         subjectCode: genCode(), firstName: newSub.firstName.trim(),
         age: newSub.age ? parseInt(newSub.age) : null,
@@ -268,9 +281,10 @@ export default function VitalsValidate() {
         heightCm: newSub.heightCm ? parseFloat(newSub.heightCm) : null,
         weightKg: newSub.weightKg ? parseFloat(newSub.weightKg) : null,
         fitzpatrickScale: newSub.fitzpatrickScale,
-        hasHypertension: newSub.hasHypertension,
-        hasDiabetes: 'unknown',
+        hasHypertension: conds.includes('hypertension') ? 'high' : conds.includes('hypotension') ? 'low' : newSub.hasHypertension,
+        hasDiabetes: conds.includes('diabetes') ? 'yes' : 'unknown',
         hasRegularMedications: false,
+        conditions: conds.join(',') || null,
       })
       const updated = [{ ...sub, last_scan_at: null }, ...subjects]
       setSubjects(updated)
@@ -284,16 +298,17 @@ export default function VitalsValidate() {
     }
   }
 
-  const triggerTraining = useCallback(async () => {
+  const triggerTraining = useCallback(async (reason = 'manual_trigger') => {
     setTrainingPhase('running'); setTrainingStatus('Fetching training data…')
+    localStorage.setItem('tere_last_train_ms', Date.now().toString())
     try {
       const trainable = await getTrainableReadings()
       if (trainable.length < 5) { setTrainingPhase('idle'); return }
-      setTrainingStatus(`Training on ${trainable.length} readings…`)
+      setTrainingStatus(`Training on ${trainable.length} readings… [${reason}]`)
       const result = await trainModel(trainable, (epoch, total, logs) => {
         const pct = Math.round((epoch + 1) / total * 100)
         setTrainingStatus(`Training… ${pct}% (loss ${logs.loss?.toFixed(3) || '?'})`)
-      })
+      }, reason)
       if (result) { setTrainingResult(result); setTrainingPhase('done'); setBpModelMeta(getLocalMeta()) }
       else setTrainingPhase('idle')
     } catch (e) {
@@ -301,6 +316,31 @@ export default function VitalsValidate() {
       setTrainingPhase('error'); setTrainingStatus('Training failed: ' + e.message)
     }
   }, [])
+
+  const smartRetrain = useCallback(async () => {
+    if (trainingPhase === 'running') return
+    const lastTrainMs = parseInt(localStorage.getItem('tere_last_train_ms') || '0')
+    if (Date.now() - lastTrainMs < 60000) return // skip if trained < 1 min ago
+    try {
+      const count = await getValidationReadingCount()
+      if (count < 5) return
+      let reason = null
+      // 1. Every 5 readings
+      if (count % 5 === 0) reason = 'scheduled_5_readings'
+      // 2. New subject reaches 3 readings
+      if (!reason && selectedSubject?.id) {
+        const subjectReadings = await getValidationReadings(selectedSubject.id)
+        if (subjectReadings.length === 3) reason = 'new_subject_added'
+      }
+      // 3. MAE degradation — current reading error much worse than model MAE
+      if (!reason && bpEstimate && manual.systolic) {
+        const currentErr = Math.abs(bpEstimate.systolic - parseInt(manual.systolic))
+        const modelMae = bpModelMeta?.valMae || bpModelMeta?.finalMae
+        if (modelMae && currentErr > modelMae + 5) reason = 'mae_degradation'
+      }
+      if (reason) triggerTraining(reason)
+    } catch {}
+  }, [trainingPhase, selectedSubject, bpEstimate, manual, bpModelMeta, triggerTraining])
 
   const handleSave = async () => {
     setSaving(true); setSaveError(null)
@@ -315,18 +355,24 @@ export default function VitalsValidate() {
         ambientTemp:     ambientTemp ?? null,
         tereHr:          vitals?.hr || null,
         tereRr:          vitals?.rr || null,
+        manualSpO2:      manualSpO2 ? parseInt(manualSpO2) : null,
+        tereSpo2:        spo2Estimate?.estimate || null,
         rawRppgSignal:   vitals?.rawFrames
           ? { frames: vitals.rawFrames, fps: vitals.actualFps, numericConfidence: vitals.numericConfidence }
           : null,
         deviceInfo,
         notes:             reviewNotes.trim() || null,
         sessionConditions: manual.notes.trim() || null,
+        hrvSdnn:    vitals?.hrv?.sdnn   || null,
+        hrvRmssd:   vitals?.hrv?.rmssd  || null,
+        hrvPnn50:   vitals?.hrv?.pnn50  || null,
+        afScore:    vitals?.afDetection?.score        || null,
+        afLikelihood: vitals?.afDetection?.likelihood || null,
+        afConfirmed:    afConfirmed ?? null,
+        afConfirmedBy:  afConfirmedBy || null,
       })
       setPhase('saved')
-      try {
-        const count = await getValidationReadingCount()
-        if (count >= 5 && count % 5 === 0) triggerTraining()
-      } catch {}
+      smartRetrain()
     } catch (e) {
       setSaveError(e.message)
     } finally {
@@ -339,7 +385,8 @@ export default function VitalsValidate() {
     setVitals(null); setDeviceInfo(null); setScanPhase('idle')
     setProgress(0); setReviewNotes(''); setSaveError(null)
     setTrainingPhase('idle'); setTrainingResult(null)
-    setBpEstimate(null)
+    setBpEstimate(null); setSpo2Estimate(null); setManualSpO2('')
+    setAfConfirmed(null); setAfConfirmedBy('')
     setPhase('step1')
   }
 
@@ -395,12 +442,34 @@ export default function VitalsValidate() {
                 </div>
               )}
 
-              <Btn onClick={() => setPhase('step1')} disabled={!canStart} style={{ width: '100%', marginBottom: '1rem' }}>
-                Start scan →
-              </Btn>
+              {selectedSubject && (selectedSubject.reading_count || 0) >= 5 && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
+                  <div style={{ fontWeight: 700, color: '#1E40AF', fontSize: '.875rem', marginBottom: '.4rem' }}>
+                    You've contributed {selectedSubject.reading_count} readings — thank you!
+                  </div>
+                  <p style={{ fontSize: '.8rem', color: '#3B82F6', margin: '0 0 .75rem', lineHeight: 1.5 }}>
+                    For the most accurate model we now need readings from <strong>new people</strong> more than additional readings from existing contributors. Share with a friend or colleague:
+                  </p>
+                  <div style={{ display: 'flex', gap: '.5rem' }}>
+                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vitals-validate`)}
+                      style={{ flex: 1, padding: '.5rem', background: '#1E40AF', color: 'white', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: '.8rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                      Copy share link
+                    </button>
+                    <button onClick={() => setPhase('step1')}
+                      style={{ flex: 1, padding: '.5rem', background: 'white', color: '#3B82F6', borderRadius: 8, border: '1px solid #BFDBFE', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                      Continue anyway →
+                    </button>
+                  </div>
+                </div>
+              )}
+              {!(selectedSubject && (selectedSubject.reading_count || 0) >= 5) && (
+                <Btn onClick={() => setPhase('step1')} disabled={!canStart} style={{ width: '100%', marginBottom: '1rem' }}>
+                  Start scan →
+                </Btn>
+              )}
 
               <button onClick={() => {
-                setNewSub({ firstName: '', age: '', sex: '', heightCm: '', weightKg: '', fitzpatrickScale: null, hasHypertension: 'unknown' })
+                setNewSub({ firstName: '', age: '', sex: '', heightCm: '', weightKg: '', fitzpatrickScale: null, hasHypertension: 'unknown', conditions: [] })
                 setSubjectError(null)
                 setPhase('create')
               }} style={{
@@ -469,6 +538,27 @@ export default function VitalsValidate() {
               />
             </div>
 
+            <div>
+              <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY, display: 'block', marginBottom: '.5rem' }}>Known conditions</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+                {[['hypertension','Hypertension'],['hypotension','Hypotension'],['diabetes','Diabetes'],['af','Atrial fibrillation'],['heart_failure','Heart failure'],['none','None']].map(([val, label]) => {
+                  const checked = (newSub.conditions || []).includes(val)
+                  return (
+                    <button key={val} type="button"
+                      onClick={() => setNewSub(p => {
+                        const prev = p.conditions || []
+                        if (val === 'none') return { ...p, conditions: checked ? [] : ['none'] }
+                        const without = prev.filter(c => c !== val && c !== 'none')
+                        return { ...p, conditions: checked ? without : [...without, val] }
+                      })}
+                      style={{ padding: '.4rem .85rem', borderRadius: 99, fontSize: '.82rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer', border: `1.5px solid ${checked ? TEAL : '#E5E7EB'}`, background: checked ? TEAL + '18' : 'white', color: checked ? TEAL : '#6B7280', transition: 'all .15s' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             {subjectError && <div style={{ color: '#EF4444', fontSize: '.85rem' }}>{subjectError}</div>}
             <div style={{ display: 'flex', gap: '.75rem', marginTop: '.25rem' }}>
               <Btn secondary onClick={() => setPhase('select')}>Cancel</Btn>
@@ -500,9 +590,39 @@ export default function VitalsValidate() {
               <Field label="Systolic (mmHg)" value={manual.systolic} onChange={v => setManual(p => ({ ...p, systolic: v }))} type="number" min="60" max="250" placeholder="120" />
               <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-              <Field label="Heart rate (bpm)" value={manual.hr} onChange={v => setManual(p => ({ ...p, hr: v }))} type="number" min="30" max="220" placeholder="72" />
-              <Field label="Temperature (°C)" value={manual.temperature} onChange={v => setManual(p => ({ ...p, temperature: v }))} type="number" min="34" max="42" placeholder="37.2" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+              <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate * <span style={{ fontWeight: 400, color: '#EF4444' }}>(required)</span></label>
+              <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>
+                Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="number" min="30" max="220" value={manual.hr}
+                  onChange={e => setManual(p => ({ ...p, hr: e.target.value }))}
+                  placeholder="e.g. 72"
+                  required
+                  style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: manual.hr ? '1.5px solid #D1D5DB' : '2px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                />
+                <span style={{ fontSize: '.875rem', color: '#6B7280' }}>bpm</span>
+              </div>
+            </div>
+            <Field label="Temperature (°C, optional)" value={manual.temperature} onChange={v => setManual(p => ({ ...p, temperature: v }))} type="number" min="34" max="42" placeholder="37.2" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem', background: '#FFF7ED', border: '1.5px solid #F59E0B', borderRadius: 10, padding: '1rem' }}>
+              <label style={{ fontSize: '.85rem', fontWeight: 700, color: '#92400E' }}>
+                SpO2 reference <span style={{ background: '#F59E0B', color: 'white', fontSize: '.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, marginLeft: 4 }}>HIGH PRIORITY</span>
+              </label>
+              <p style={{ fontSize: '.75rem', color: '#92400E', margin: '2px 0 6px' }}>
+                Do you have a pulse oximeter? SpO2 readings are the highest priority data we need right now. Even 5 paired readings will significantly improve accuracy.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="number" min="70" max="100" value={manualSpO2}
+                  onChange={e => setManualSpO2(e.target.value)}
+                  placeholder="e.g. 98"
+                  style={{ width: 100, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                />
+                <span style={{ fontSize: '.875rem', color: '#92400E' }}>%</span>
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
               <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Session conditions (optional)</label>
@@ -635,6 +755,101 @@ export default function VitalsValidate() {
               </div>
             )}
           </div>
+
+          {/* SpO2 comparison */}
+          {(manualSpO2 || spo2Estimate) && (
+            <div style={{ background: '#F0F9FA', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, letterSpacing: '.05em', marginBottom: '.5rem' }}>SpO2 COMPARISON</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, fontSize: '.875rem' }}>
+                <div>
+                  <div style={{ color: '#6B7280' }}>Manual</div>
+                  <div style={{ fontWeight: 700, color: NAVY }}>{manualSpO2 ? `${manualSpO2}%` : '—'}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#6B7280' }}>Tere</div>
+                  <div style={{ fontWeight: 700, color: NAVY }}>{spo2Estimate ? `~${spo2Estimate.estimate}%` : '—'}</div>
+                </div>
+                <div>
+                  <div style={{ color: '#6B7280' }}>Error</div>
+                  <div style={{ fontWeight: 700, color: (() => {
+                    if (!spo2Estimate || !manualSpO2) return '#6B7280'
+                    const e = Math.abs(spo2Estimate.estimate - parseInt(manualSpO2))
+                    return e <= 2 ? '#065F46' : e <= 4 ? '#92400E' : '#991B1B'
+                  })() }}>
+                    {spo2Estimate && manualSpO2
+                      ? `${spo2Estimate.estimate - parseInt(manualSpO2) >= 0 ? '+' : ''}${spo2Estimate.estimate - parseInt(manualSpO2)}%`
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* HRV assessment */}
+          {vitals?.hrv && (
+            <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, letterSpacing: '.05em', marginBottom: '.5rem' }}>HRV ASSESSMENT</div>
+              <div style={{ fontSize: '.875rem', color: NAVY, fontWeight: 600 }}>
+                SDNN: {vitals.hrv.sdnn}ms | RMSSD: {vitals.hrv.rmssd}ms | pNN50: {vitals.hrv.pnn50}%
+              </div>
+              <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 4 }}>{vitals.hrv.interpretation}</div>
+              {vitals.hrv.clinical_note && (
+                <div style={{ fontSize: '.75rem', color: '#B45309', marginTop: 4, fontStyle: 'italic' }}>{vitals.hrv.clinical_note}</div>
+              )}
+            </div>
+          )}
+
+          {/* AF screening */}
+          {vitals?.afDetection && (
+            <>
+              <div style={{ background: vitals.afDetection.possible ? '#FEF3C7' : '#F0FDF4', borderRadius: 12, padding: '1rem', marginBottom: '.5rem', border: vitals.afDetection.possible ? '1px solid #F59E0B' : 'none' }}>
+                <div style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, letterSpacing: '.05em', marginBottom: '.5rem' }}>AF SCREENING</div>
+                <div style={{ fontSize: '.875rem', fontWeight: 600, color: vitals.afDetection.possible ? '#92400E' : '#065F46' }}>
+                  {vitals.afDetection.possible ? '⚠️ HRV pattern flagged — warrants attention' : '✓ Rhythm appears regular'}
+                </div>
+                <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 4 }}>
+                  RMSSD: {vitals.afDetection.rmssd}ms | RR variability: {vitals.afDetection.cvRR}% | Score: {vitals.afDetection.score}
+                </div>
+              </div>
+              {vitals.afDetection.possible && (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.875rem', marginBottom: '1rem', border: '1px solid #E5E7EB' }}>
+                  <div style={{ fontSize: '.8125rem', fontWeight: 700, color: NAVY, marginBottom: '.625rem' }}>
+                    AF screening flagged — was this confirmed by external check?
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '.375rem', marginBottom: '.625rem' }}>
+                    {[
+                      { val: true,  label: 'Yes — confirmed irregular rhythm' },
+                      { val: false, label: 'No — pulse felt regular / watch showed normal' },
+                      { val: null,  label: 'Not checked' },
+                    ].map(opt => (
+                      <label key={String(opt.val)} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.875rem', cursor: 'pointer' }}>
+                        <input type="radio" name="afConfirmed"
+                          checked={afConfirmed === opt.val}
+                          onChange={() => setAfConfirmed(opt.val)}
+                          style={{ accentColor: TEAL }}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                  {afConfirmed !== null && (
+                    <div>
+                      <div style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '.25rem' }}>Confirmed by (optional)</div>
+                      <select value={afConfirmedBy} onChange={e => setAfConfirmedBy(e.target.value)}
+                        style={{ border: '1.5px solid #E5E7EB', borderRadius: 8, padding: '.5rem .75rem', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', width: '100%' }}>
+                        <option value=''>— Select —</option>
+                        <option value='apple_watch'>Apple Watch</option>
+                        <option value='ecg'>ECG</option>
+                        <option value='holter'>Holter monitor</option>
+                        <option value='manual_pulse'>Manual pulse check</option>
+                        <option value='clinical'>Clinical assessment</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '1.25rem' }}>
             <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Notes (optional)</label>

@@ -335,11 +335,11 @@ export default function ProviderConsult() {
           </div>
         )}
 
-        {/* Twilio fallback for phone */}
-        {isPhone && (
+        {/* Twilio fallback — all consultation types */}
+        {(
           <div style={{ position:'absolute', top:12, right:12, background:'rgba(0,0,0,.75)', backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:200, zIndex:10 }}>
             <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'rgba(255,255,255,.5)', marginBottom:6 }}>
-              Patient not on browser?
+              Connection issues? Call their phone
             </div>
             {phoneCallState === 'idle' && (
               <button onClick={initiatePhoneCall}
@@ -545,7 +545,7 @@ export default function ProviderConsult() {
           </button>
           <button onClick={initiateCall} disabled={calling}
             style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-            {calling ? 'Connecting…' : '📞 Start call now'}
+            {calling ? 'Connecting…' : isPhone ? '📞 Start phone call' : '📹 Start video call'}
           </button>
         </div>
       </div>

@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "vite",
+    "dev:op": "op run --env-file='.env.example' -- vite",
+    "server": "node server.js",
+    "server:op": "op run --env-file='.env.example' -- node server.js",
     "build": "vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",

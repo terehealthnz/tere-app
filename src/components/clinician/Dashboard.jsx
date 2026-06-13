@@ -50,7 +50,7 @@ function NotesGroup({ title, color, rows, navigate, onFlag }) {
     <div style={{ marginBottom: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.75rem' }}>
         <div style={dot} />
-        <span style={{ fontWeight: 700, fontSize: '.9375rem' }}>{title}</span>
+        <span style={{ fontWeight: 700, fontSize: '.9375rem', color: 'var(--navy)' }}>{title}</span>
         <span style={{ background: color + '20', color, fontSize: '.75rem', fontWeight: 700, padding: '1px 8px', borderRadius: 99 }}>{rows.length}</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '.625rem' }}>
@@ -800,7 +800,7 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <div className="container-wide" style={{paddingTop:'1.75rem',paddingBottom:'3rem'}}>
+      <div className="container-wide" style={{paddingTop:'1.75rem',paddingBottom:'3rem',background:'var(--bg)',minHeight:'calc(100dvh - 56px)'}}>
 
         {/* Per-provider availability toggle */}
         {sessionStorage.getItem('providerId') && (
@@ -858,39 +858,59 @@ export default function Dashboard() {
               <p>New consultations will appear here automatically.</p>
             </div>
           ) : (
-            <div style={{display:'flex',flexDirection:'column',gap:'1rem'}}>
-              {consultations.filter(c => c.consultation_type !== 'message').map(c => {
+            <div className="card" style={{padding:0,overflow:'hidden'}}>
+              {/* Header row */}
+              <div style={{display:'grid',gridTemplateColumns:'2fr 2fr 1fr 1fr auto',gap:'1rem',padding:'.625rem 1rem',background:'#F8FAFC',borderBottom:'1px solid var(--border)',fontSize:'.75rem',fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>
+                <span>Patient</span><span>Complaint</span><span>Type</span><span>Waiting</span><span></span>
+              </div>
+              {consultations.filter(c => c.consultation_type !== 'message').map((c, i, arr) => {
                 const st = statusLabel(c.status)
                 const v = c.vitals
+                const currentPid = sessionStorage.getItem('providerId')
+                const isLocked = c.provider_id && c.provider_id !== currentPid
+                const isLast = i === arr.length - 1
                 return (
-                  <div key={c.id} className="card card-sm" style={{borderLeft:'4px solid ' + st.color}}>
-                    <div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:'1rem',alignItems:'start'}}>
-                      <div>
-                        <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'.375rem'}}>
-                          <h3>{c.patient_first_name} {c.patient_last_name}</h3>
-                          <span style={{background:st.color+'20',color:st.color,fontSize:'.75rem',fontWeight:700,padding:'2px 8px',borderRadius:'99px'}}>{st.label}</span>
-                          <TypeBadge type={c.consultation_type || 'video'} />
-                          {c.acc_eligible === 'yes' && <span className="badge badge-info">ACC</span>}
-                        </div>
-                        <p style={{fontSize:'.9375rem',color:'var(--text)',marginBottom:'.375rem',lineHeight:1.5}}>{c.chief_complaint}</p>
-                        <div style={{display:'flex',gap:'1rem',flexWrap:'wrap'}}>
-                          <span style={{fontSize:'.8125rem',color:'var(--muted)'}}>📍 {c.patient_location}</span>
-                          <span style={{fontSize:'.8125rem',color:'var(--muted)'}}>🕒 {timeAgo(c.created_at)}</span>
-                          {v && !v.skipped && <>
-                            {v.hr && <span style={{fontSize:'.8125rem',color:'var(--success)',fontWeight:600}}>❤️ {v.hr} bpm</span>}
-                            {v.rr && <span style={{fontSize:'.8125rem',color:'var(--teal)',fontWeight:600}}>🫁 {v.rr} br/min</span>}
-                          </>}
-                        </div>
+                  <div
+                    key={c.id}
+                    onClick={() => { if (!isLocked) navigate(`/clinician/patient/${c.id}`) }}
+                    style={{
+                      display:'grid', gridTemplateColumns:'2fr 2fr 1fr 1fr auto',
+                      gap:'1rem', padding:'.75rem 1rem',
+                      borderBottom: isLast ? 'none' : '1px solid #F3F4F6',
+                      background: isLocked ? '#F3F4F6' : 'white',
+                      opacity: isLocked ? 0.65 : 1,
+                      cursor: isLocked ? 'not-allowed' : 'pointer',
+                      alignItems: 'center',
+                      transition: 'background .1s',
+                    }}
+                    onMouseEnter={e => { if (!isLocked) e.currentTarget.style.background = '#F0F9FA' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isLocked ? '#F3F4F6' : 'white' }}
+                  >
+                    <div>
+                      <div style={{fontWeight:700,fontSize:'.9375rem',color:'var(--text)'}}>
+                        {c.patient_first_name} {c.patient_last_name}
                       </div>
-                      <div style={{display:'flex',gap:'.5rem'}}>
-                        <button className="btn btn-primary btn-sm" disabled={joiningId === c.id} onClick={() => startConsult(c)}>
-                          {joiningId === c.id ? 'Starting…' : 'Start →'}
-                        </button>
+                      <div style={{display:'flex',gap:'.5rem',marginTop:2,flexWrap:'wrap'}}>
+                        <span style={{background:st.color+'20',color:st.color,fontSize:'.7rem',fontWeight:700,padding:'1px 7px',borderRadius:99}}>{st.label}</span>
+                        {c.acc_eligible === 'yes' && <span className="badge badge-info" style={{fontSize:'.7rem'}}>ACC</span>}
+                        {isLocked && <span style={{fontSize:'.7rem',color:'#6B7280'}}>🔒 {c.provider_display_name || 'In use'}</span>}
+                      </div>
+                    </div>
+                    <div style={{fontSize:'.875rem',color:'var(--muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {c.chief_complaint || '—'}
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <TypeBadge type={c.consultation_type || 'video'} />
+                      {v && !v.skipped && v.hr && <span style={{fontSize:'.75rem',color:'var(--success)',fontWeight:600,marginLeft:4}}>❤️ {v.hr}</span>}
+                    </div>
+                    <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>{timeAgo(c.created_at)}</div>
+                    <div onClick={e => e.stopPropagation()}>
+                      {!isLocked && (
                         <button onClick={() => dismissConsult(c.id)}
-                          style={{background:'none',border:'1px solid #FECACA',color:'#DC2626',padding:'6px 10px',borderRadius:'var(--radius-sm)',cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+                          style={{background:'none',border:'1px solid #FECACA',color:'#DC2626',padding:'4px 8px',borderRadius:6,cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans,sans-serif'}}>
                           ✕
                         </button>
-                      </div>
+                      )}
                     </div>
                   </div>
                 )

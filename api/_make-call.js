@@ -8,6 +8,7 @@ const supabase = createClient(
 
 function toE164NZ(phone) {
   const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('640')) return `+64${digits.slice(3)}`  // +6402... → +642...
   if (digits.startsWith('64')) return `+${digits}`
   if (digits.startsWith('0')) return `+64${digits.slice(1)}`
   return `+64${digits}`

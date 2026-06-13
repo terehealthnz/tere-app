@@ -533,104 +533,354 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
 }
 
 
-// ── Notes tab ─────────────────────────────────────────────────────────────────
+// ── PMS tab ───────────────────────────────────────────────────────────────────
 
-function NotesTab({ navigate }) {
-  const [activeTab, setActiveTab] = useState('pending')
-  const [pending, setPending]     = useState([])
-  const [completed, setCompleted] = useState([])
-  const [loading, setLoading]     = useState(true)
+const ACC_STATUS_COLOR = { submitted:'#D97706', simulated:'#6B7280', invoiced:'#2563EB', paid:'#059669', declined:'#DC2626', pending:'#9CA3AF' }
+const ACC_STATUS_LABEL = { submitted:'Submitted', simulated:'Test', invoiced:'Invoiced', paid:'Paid', declined:'Declined', pending:'Pending' }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { supabase } = await import('../../lib/supabase')
-        const [pRes, cRes] = await Promise.all([
-          supabase.from('consultations')
-            .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible')
-            .eq('status','complete').eq('notes_finalised',false)
-            .order('created_at',{ascending:false}).limit(50),
-          supabase.from('consultations')
-            .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,notes_finalised_at,outcome,note_finalised_by,prescription_issued,referral_issued')
-            .eq('status','complete').eq('notes_finalised',true)
-            .order('notes_finalised_at',{ascending:false}).limit(50),
-        ])
-        setPending(pRes.data || [])
-        setCompleted(cRes.data || [])
-      } catch {} finally { setLoading(false) }
-    })()
-  }, [])
+function PMSStat({ label, value, sub, color }) {
+  return (
+    <div style={{ background:'white', borderRadius:14, padding:'1rem', border:'1px solid #E2E8F0', textAlign:'center' }}>
+      <div style={{ fontSize:'1.625rem', fontWeight:800, color:color||NAVY, lineHeight:1 }}>{value}</div>
+      <div style={{ fontSize:'.6875rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.04em', marginTop:4 }}>{label}</div>
+      {sub && <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:2 }}>{sub}</div>}
+    </div>
+  )
+}
 
-  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" /></div>
+function PMSTab({ navigate }) {
+  const [subTab, setSubTab]     = useState('overview')
+  const [loading, setLoading]   = useState(true)
+  const [data, setData]         = useState(null)
+  const [pendingNotes, setPendingNotes] = useState([])
+  const [completedNotes, setCompletedNotes] = useState([])
+  const [notesTab, setNotesTab] = useState('pending')
+  const providerId = sessionStorage.getItem('providerId') || ''
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const nzNow      = new Date(new Date().toLocaleString('en-US', { timeZone:'Pacific/Auckland' }))
+      const todayStart = new Date(nzNow.getFullYear(), nzNow.getMonth(), nzNow.getDate()).toISOString()
+
+      const [todayRes, claimsRes, rxRes, pendingRes, completedRes] = await Promise.allSettled([
+        // Today's consults
+        supabase.from('consultations')
+          .select('id,status,consultation_type,is_acc,payment_amount_nzd,notes_finalised,created_at,patient_first_name,patient_last_name,chief_complaint,acc_claim_number,acc_claim_status,outcome')
+          .eq('status','complete').gte('created_at', todayStart)
+          .order('created_at', { ascending:false }),
+
+        // ACC claims
+        supabase.from('acc_claims')
+          .select('*').order('created_at',{ascending:false}).limit(50),
+
+        // Prescriptions
+        supabase.from('prescriptions')
+          .select('id,drug_name,drug,dose,directions,delivery_status,created_at,patient_name,nzeps_token,consultation_id')
+          .order('created_at',{ascending:false}).limit(30),
+
+        // Pending notes
+        supabase.from('consultations')
+          .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible')
+          .eq('status','complete').eq('notes_finalised',false)
+          .order('created_at',{ascending:false}).limit(50),
+
+        // Completed notes
+        supabase.from('consultations')
+          .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,notes_finalised_at,outcome,note_finalised_by,prescription_issued,referral_issued')
+          .eq('status','complete').eq('notes_finalised',true)
+          .order('notes_finalised_at',{ascending:false}).limit(50),
+      ])
+
+      const today     = todayRes.status   === 'fulfilled' ? (todayRes.value.data   || []) : []
+      const claims    = claimsRes.status  === 'fulfilled' ? (claimsRes.value.data  || []) : []
+      const rx        = rxRes.status      === 'fulfilled' ? (rxRes.value.data      || []) : []
+
+      const claimsByStatus = claims.reduce((m,c) => { m[c.status]=(m[c.status]||0)+1; return m }, {})
+      const outstandingCents = claims.filter(c=>['submitted','invoiced'].includes(c.status)).reduce((s,c)=>s+(c.amount_claimed||0),0)
+      const paidCents        = claims.filter(c=>c.status==='paid').reduce((s,c)=>s+(c.amount_paid||0),0)
+      const todayRevenue     = today.reduce((s,c)=>s+(c.payment_amount_nzd||0),0)
+
+      setData({ today, claims, rx, claimsByStatus, outstandingCents, paidCents, todayRevenue })
+      setPendingNotes(pendingRes.status   === 'fulfilled' ? (pendingRes.value.data   || []) : [])
+      setCompletedNotes(completedRes.status === 'fulfilled' ? (completedRes.value.data || []) : [])
+    } catch (e) { console.error(e) }
+    setLoading(false)
+  }
+
+  useEffect(() => { load() }, [])
+
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'4rem', gap:12, fontFamily:FF, color:'#9CA3AF' }}>
+      <div style={{ width:20,height:20,border:'2px solid #D4EEF0',borderTopColor:TEAL,borderRadius:'50%',animation:'spin .8s linear infinite' }} />
+      Loading…
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  const subTabs = [
+    { id:'overview', label:'Overview' },
+    { id:'notes',    label:`Notes${pendingNotes.length ? ` (${pendingNotes.length})` : ''}` },
+    { id:'claims',   label:`ACC${(data?.claims||[]).length ? ` (${(data?.claims||[]).length})` : ''}` },
+    { id:'rx',       label:`Rx${(data?.rx||[]).length ? ` (${(data?.rx||[]).length})` : ''}` },
+  ]
 
   return (
-    <div style={{ fontFamily:FF }}>
-      {/* Tab bar */}
+    <div style={{ fontFamily:FF, minHeight:'100%' }}>
+      {/* Sub-tab bar */}
       <div style={{ display:'flex', background:'white', borderBottom:'1px solid #E2E8F0', position:'sticky', top:0, zIndex:10 }}>
-        {[
-          { id:'pending', label:'Pending', count: pending.length },
-          { id:'completed', label:'Completed', count: completed.length },
-        ].map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
-            style={{ flex:1, padding:'.875rem', background:'none', border:'none', borderBottom:`2px solid ${activeTab===t.id?TEAL:'transparent'}`, color:activeTab===t.id?TEAL:'#6B7280', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+        {subTabs.map(t => (
+          <button key={t.id} onClick={() => setSubTab(t.id)}
+            style={{ flex:1, padding:'.75rem .25rem', background:'none', border:'none', borderBottom:`2px solid ${subTab===t.id?TEAL:'transparent'}`, color:subTab===t.id?TEAL:'#6B7280', fontFamily:FF, fontWeight:700, fontSize:'.75rem', cursor:'pointer' }}>
             {t.label}
-            {t.count > 0 && (
-              <span style={{ background:activeTab===t.id?TEAL:'#E5E7EB', color:activeTab===t.id?'white':'#6B7280', fontSize:'.6875rem', fontWeight:700, padding:'2px 7px', borderRadius:99 }}>
-                {t.count}
-              </span>
-            )}
           </button>
         ))}
       </div>
 
       <div style={{ padding:'1rem' }}>
-        {activeTab === 'pending' && (
-          !pending.length ? (
-            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
-              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>✓</div>
-              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>All notes complete</div>
-              <div style={{ color:'#6B7280' }}>Consultations needing notes will appear here</div>
+
+        {/* ── OVERVIEW ──────────────────────────────────────────────────────── */}
+        {subTab === 'overview' && (
+          <>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:'.625rem' }}>
+              Today
             </div>
-          ) : pending.map(c => (
-            <div key={c.id} style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.875rem' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'.5rem' }}>
-                <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
-                <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'.625rem', marginBottom:'1.25rem' }}>
+              <PMSStat label="Consults"     value={data?.today?.length || 0} color={NAVY} />
+              <PMSStat label="Revenue"      value={`$${((data?.todayRevenue||0)).toFixed(0)}`} color='#059669' />
+              <PMSStat label="ACC claims"   value={data?.today?.filter(c=>c.is_acc)?.length || 0} color='#2563EB' />
+              <PMSStat label="Pending notes" value={pendingNotes.length} color={pendingNotes.length>0?'#D97706':'#059669'} />
+            </div>
+
+            {pendingNotes.length > 0 && (
+              <>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#D97706', marginBottom:'.625rem' }}>
+                  Pending notes ({pendingNotes.length})
+                </div>
+                {pendingNotes.slice(0,3).map(c => (
+                  <div key={c.id} style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1rem 1.25rem', marginBottom:'.625rem', cursor:'pointer' }}
+                    onClick={() => navigate(`/provider/notes/${c.id}`)}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                      <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{c.patient_first_name} {c.patient_last_name}</div>
+                      <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
+                    </div>
+                    <div style={{ fontSize:'.8125rem', color:'#6B7280', fontStyle:'italic', marginBottom:'.75rem' }}>{c.chief_complaint}</div>
+                    <div style={{ fontSize:'.75rem', fontWeight:700, color:TEAL }}>Complete notes →</div>
+                  </div>
+                ))}
+                {pendingNotes.length > 3 && (
+                  <button onClick={() => setSubTab('notes')} style={{ width:'100%', background:'none', border:'1px dashed #E2E8F0', borderRadius:12, padding:'.75rem', color:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', cursor:'pointer', marginBottom:'1.25rem' }}>
+                    + {pendingNotes.length - 3} more pending notes
+                  </button>
+                )}
+              </>
+            )}
+
+            {(data?.claims||[]).length > 0 && (
+              <>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:'.625rem' }}>
+                  ACC claims
+                </div>
+                <div style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', padding:'1rem 1.25rem', marginBottom:'1.25rem' }}>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'.875rem' }}>
+                    {Object.entries(data.claimsByStatus).map(([status, count]) => (
+                      <span key={status} style={{ background:`${ACC_STATUS_COLOR[status]}18`, color:ACC_STATUS_COLOR[status]||'#6B7280', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:700 }}>
+                        {ACC_STATUS_LABEL[status]||status}: {count}
+                      </span>
+                    ))}
+                  </div>
+                  {data.outstandingCents > 0 && (
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.875rem' }}>
+                      <span style={{ color:'#6B7280' }}>Outstanding</span>
+                      <span style={{ fontWeight:700, color:NAVY }}>${(data.outstandingCents/100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {data.paidCents > 0 && (
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.875rem', marginTop:4 }}>
+                      <span style={{ color:'#6B7280' }}>Total received</span>
+                      <span style={{ fontWeight:700, color:'#059669' }}>${(data.paidCents/100).toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {data?.today?.length > 0 && (
+              <>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:'.625rem' }}>
+                  Today's consultations
+                </div>
+                {data.today.map(c => (
+                  <div key={c.id} onClick={() => navigate(`/provider/notes/${c.id}`)}
+                    style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', borderLeft:`4px solid ${c.is_acc?'#2563EB':'#059669'}`, padding:'1rem 1.25rem', marginBottom:'.625rem', cursor:'pointer' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                      <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{c.patient_first_name} {c.patient_last_name}</div>
+                      <div style={{ display:'flex', gap:4 }}>
+                        {c.is_acc && <span style={{ background:'#DBEAFE', color:'#1D4ED8', fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>ACC</span>}
+                        {c.acc_claim_number && <span style={{ background:'#D1FAE5', color:'#065F46', fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>✓ Claim</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontSize:'.8125rem', color:'#6B7280', fontStyle:'italic' }}>{c.chief_complaint}</div>
+                    {c.acc_claim_number && <div style={{ fontSize:'.75rem', color:'#059669', marginTop:3 }}>Claim: {c.acc_claim_number}</div>}
+                  </div>
+                ))}
+              </>
+            )}
+
+            {!data?.today?.length && !pendingNotes.length && (
+              <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+                <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📊</div>
+                <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>PMS ready</div>
+                <div style={{ color:'#6B7280', fontSize:'.875rem' }}>Activity from today's consultations will appear here</div>
               </div>
-              <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1rem', fontStyle:'italic' }}>{c.chief_complaint}</div>
-              <button onClick={() => navigate(`/provider/notes/${c.id}`)} style={{ width:'100%', background:NAVY, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:56 }}>
-                Complete notes →
-              </button>
+            )}
+          </>
+        )}
+
+        {/* ── NOTES ─────────────────────────────────────────────────────────── */}
+        {subTab === 'notes' && (
+          <>
+            <div style={{ display:'flex', gap:8, marginBottom:'1rem' }}>
+              {[{id:'pending',label:'Pending',count:pendingNotes.length},{id:'completed',label:'Completed',count:completedNotes.length}].map(t => (
+                <button key={t.id} onClick={() => setNotesTab(t.id)}
+                  style={{ flex:1, padding:'.75rem', borderRadius:10, border:`1.5px solid ${notesTab===t.id?TEAL:'#E2E8F0'}`, background:notesTab===t.id?'#EFF9F9':'white', color:notesTab===t.id?TEAL:'#6B7280', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:'pointer' }}>
+                  {t.label} {t.count>0&&`(${t.count})`}
+                </button>
+              ))}
+            </div>
+
+            {notesTab === 'pending' && (
+              !pendingNotes.length ? (
+                <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+                  <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>✓</div>
+                  <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem' }}>All notes complete</div>
+                </div>
+              ) : pendingNotes.map(c => (
+                <div key={c.id} style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', borderLeft:'4px solid #D97706', padding:'1.25rem', marginBottom:'.75rem' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
+                    <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{timeAgo(c.created_at)}</span>
+                  </div>
+                  <div style={{ fontSize:'.875rem', color:'#6B7280', marginBottom:'1rem', fontStyle:'italic' }}>{c.chief_complaint}</div>
+                  <button onClick={() => navigate(`/provider/notes/${c.id}`)} style={{ width:'100%', background:NAVY, color:'white', border:'none', borderRadius:12, padding:'14px', fontWeight:700, fontSize:'1rem', cursor:'pointer', fontFamily:FF, minHeight:52 }}>
+                    Complete notes →
+                  </button>
+                </div>
+              ))
+            )}
+
+            {notesTab === 'completed' && (
+              !completedNotes.length ? (
+                <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+                  <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📋</div>
+                  <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem' }}>No completed notes yet</div>
+                </div>
+              ) : completedNotes.map(c => (
+                <div key={c.id} onClick={() => navigate(`/provider/notes/${c.id}`)}
+                  style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', borderLeft:'4px solid #059669', padding:'1.25rem', marginBottom:'.75rem', cursor:'pointer' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                    <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
+                    <div style={{ display:'flex', gap:4 }}>
+                      {c.prescription_issued && <span style={{ background:'#EFF9F9', color:TEAL, fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Rx</span>}
+                      {c.referral_issued && <span style={{ background:'#F5F3FF', color:'#7C3AED', fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Xr</span>}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:'.875rem', color:'#6B7280', fontStyle:'italic', marginBottom:4 }}>{c.chief_complaint}</div>
+                  <div style={{ fontSize:'.75rem', color:'#9CA3AF' }}>
+                    {c.notes_finalised_at ? new Date(c.notes_finalised_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}) : ''}
+                    {c.note_finalised_by ? ` · ${c.note_finalised_by}` : ''}
+                    {c.outcome ? ` · ${c.outcome.replace(/_/g,' ')}` : ''}
+                  </div>
+                </div>
+              ))
+            )}
+          </>
+        )}
+
+        {/* ── ACC CLAIMS ────────────────────────────────────────────────────── */}
+        {subTab === 'claims' && (
+          !(data?.claims||[]).length ? (
+            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>🏥</div>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No ACC claims yet</div>
+              <div style={{ color:'#6B7280', fontSize:'.875rem', lineHeight:1.6 }}>
+                Claims appear here automatically when you finalise a consultation marked as ACC eligible.
+              </div>
+              <div style={{ marginTop:'1rem', background:'#EFF6FF', borderRadius:12, padding:'.875rem', fontSize:'.8125rem', color:'#1D4ED8', lineHeight:1.6 }}>
+                ℹ️ ACC API credentials not yet configured — claims will be simulated until ACC_API_KEY and ACC_VENDOR_ID are set.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:'.625rem', marginBottom:'1.25rem' }}>
+                <PMSStat label="Outstanding" value={`$${((data?.outstandingCents||0)/100).toFixed(0)}`} color='#D97706' />
+                <PMSStat label="Total paid"  value={`$${((data?.paidCents||0)/100).toFixed(0)}`} color='#059669' />
+              </div>
+              {(data?.claims||[]).map(c => (
+                <div key={c.id} style={{ background:'white', borderRadius:14, border:`1px solid ${ACC_STATUS_COLOR[c.status]||'#E2E8F0'}33`, borderLeft:`4px solid ${ACC_STATUS_COLOR[c.status]||'#9CA3AF'}`, padding:'1rem 1.25rem', marginBottom:'.625rem' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
+                    <div>
+                      <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{c.patient_name}</div>
+                      <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>
+                        {new Date(c.created_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'})}
+                        {c.provider_name ? ` · ${c.provider_name}` : ''}
+                      </div>
+                    </div>
+                    <span style={{ background:`${ACC_STATUS_COLOR[c.status]||'#9CA3AF'}18`, color:ACC_STATUS_COLOR[c.status]||'#9CA3AF', borderRadius:99, padding:'3px 10px', fontSize:'.6875rem', fontWeight:700, flexShrink:0, marginLeft:8 }}>
+                      {ACC_STATUS_LABEL[c.status]||c.status}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.8125rem' }}>
+                    <span style={{ color:'#6B7280' }}>
+                      {c.claim_number ? `#${c.claim_number}` : 'No claim number'}
+                      {c.service_code ? ` · ${c.service_code}` : ''}
+                    </span>
+                    <span style={{ fontWeight:700, color:c.status==='paid'?'#059669':NAVY }}>
+                      {c.status==='paid' && c.amount_paid ? `$${(c.amount_paid/100).toFixed(2)} paid` : c.amount_claimed ? `$${(c.amount_claimed/100).toFixed(2)} claimed` : ''}
+                    </span>
+                  </div>
+                  {c.decline_reason && (
+                    <div style={{ marginTop:6, background:'#FEF2F2', borderRadius:8, padding:'6px 10px', fontSize:'.75rem', color:'#DC2626' }}>
+                      Declined: {c.decline_reason}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </>
+          )
+        )}
+
+        {/* ── PRESCRIPTIONS ─────────────────────────────────────────────────── */}
+        {subTab === 'rx' && (
+          !(data?.rx||[]).length ? (
+            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>💊</div>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No prescriptions yet</div>
+              <div style={{ color:'#6B7280', fontSize:'.875rem' }}>Issued prescriptions will appear here</div>
+            </div>
+          ) : (data?.rx||[]).map(rx => (
+            <div key={rx.id} style={{ background:'white', borderRadius:14, border:'1px solid #E2E8F0', borderLeft:'4px solid #EFF9F9', padding:'1rem 1.25rem', marginBottom:'.625rem' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:4 }}>
+                <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{rx.drug_name||rx.drug}</div>
+                <span style={{ background: rx.delivery_status==='sent'?'#D1FAE5':rx.delivery_status==='error'?'#FEE2E2':'#F3F4F6', color:rx.delivery_status==='sent'?'#065F46':rx.delivery_status==='error'?'#991B1B':'#6B7280', borderRadius:99, padding:'2px 8px', fontSize:'.625rem', fontWeight:700 }}>
+                  {rx.delivery_status||'draft'}
+                </span>
+              </div>
+              {rx.dose && <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>{rx.dose}</div>}
+              <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:4 }}>
+                {rx.patient_name && `${rx.patient_name} · `}
+                {new Date(rx.created_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short'})}
+              </div>
+              {rx.nzeps_token && (
+                <div style={{ marginTop:6, background:'#EFF9F9', borderRadius:8, padding:'4px 10px', fontSize:'.75rem', color:TEAL, fontWeight:700 }}>
+                  NZePS token: {rx.nzeps_token}
+                </div>
+              )}
             </div>
           ))
         )}
 
-        {activeTab === 'completed' && (
-          !completed.length ? (
-            <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
-              <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>📋</div>
-              <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No completed notes yet</div>
-              <div style={{ color:'#6B7280' }}>Finalised consultation notes will appear here</div>
-            </div>
-          ) : completed.map(c => (
-            <div key={c.id} onClick={() => navigate(`/provider/notes/${c.id}`)}
-              style={{ background:'white', borderRadius:16, border:'1px solid #E2E8F0', borderLeft:'4px solid #059669', padding:'1.25rem', marginBottom:'.875rem', cursor:'pointer' }}>
-              <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'.5rem', marginBottom:'.375rem' }}>
-                <div style={{ fontWeight:700, color:NAVY }}>{c.patient_first_name} {c.patient_last_name}</div>
-                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-                  {c.prescription_issued && <span style={{ background:'#EFF9F9', color:TEAL, fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Rx</span>}
-                  {c.referral_issued && <span style={{ background:'#F5F3FF', color:'#7C3AED', fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>Xr</span>}
-                </div>
-              </div>
-              <div style={{ fontSize:'.875rem', color:'#6B7280', fontStyle:'italic', marginBottom:'.375rem' }}>{c.chief_complaint}</div>
-              <div style={{ fontSize:'.75rem', color:'#9CA3AF' }}>
-                {c.notes_finalised_at ? new Date(c.notes_finalised_at).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'}) : ''}
-                {c.note_finalised_by ? ` · ${c.note_finalised_by}` : ''}
-                {c.outcome ? ` · ${c.outcome.replace(/_/g,' ')}` : ''}
-              </div>
-            </div>
-          ))
-        )}
       </div>
     </div>
   )
@@ -679,7 +929,7 @@ function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge }) {
   const items = [
     { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
     { id:'messages', icon:'✉️', label:'Messages', badge:msgBadge },
-    { id:'notes',    icon:'📋', label:'Notes',    badge:notesBadge },
+    { id:'pms',      icon:'📊', label:'PMS',      badge:notesBadge },
     { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
@@ -892,7 +1142,7 @@ export default function ProviderApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
         {tab === 'messages' && <MessagesTab msgBadge={msgBadge} setMsgBadge={setMsgBadge} />}
-        {tab === 'notes'    && <NotesTab navigate={navigate} />}
+        {tab === 'pms'      && <PMSTab navigate={navigate} />}
         {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
       </div>

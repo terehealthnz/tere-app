@@ -515,6 +515,17 @@ export async function saveValidationReading(data) {
       device_info:        data.deviceInfo || null,
       notes:              data.notes || null,
       session_conditions: data.sessionConditions || null,
+      manual_spo2:        data.manualSpO2 || null,
+      tere_spo2:          data.tereSpo2 || null,
+      spo2_error:         (data.manualSpO2 && data.tereSpo2)
+        ? (data.tereSpo2 - data.manualSpO2) : null,
+      hrv_sdnn:           data.hrvSdnn   || null,
+      hrv_rmssd:          data.hrvRmssd  || null,
+      hrv_pnn50:          data.hrvPnn50  || null,
+      af_score:           data.afScore   || null,
+      af_likelihood:      data.afLikelihood || null,
+      af_confirmed:       data.afConfirmed ?? null,
+      af_confirmed_by:    data.afConfirmedBy || null,
     })
     .select()
     .single()
@@ -534,24 +545,30 @@ export async function getValidationReadings(subjectId = null) {
 }
 
 export async function getValidationSubjectsWithLastScan() {
-  const [{ data: subjects, error: e1 }, { data: scans, error: e2 }] = await Promise.all([
+  const [{ data: subjects, error: e1 }, { data: scans }] = await Promise.all([
     supabase.from('validation_subjects').select('*'),
     supabase.from('validation_readings').select('subject_id, recorded_at').order('recorded_at', { ascending: false }),
   ])
   if (e1) throw e1
 
   const lastScanMap = {}
+  const readingCountMap = {}
   for (const s of (scans || [])) {
-    if (s.subject_id && !lastScanMap[s.subject_id]) lastScanMap[s.subject_id] = s.recorded_at
+    if (!s.subject_id) continue
+    if (!lastScanMap[s.subject_id]) lastScanMap[s.subject_id] = s.recorded_at
+    readingCountMap[s.subject_id] = (readingCountMap[s.subject_id] || 0) + 1
   }
 
-  return ((subjects || []).map(s => ({ ...s, last_scan_at: lastScanMap[s.id] || null })))
-    .sort((a, b) => {
-      if (a.last_scan_at && b.last_scan_at) return new Date(b.last_scan_at) - new Date(a.last_scan_at)
-      if (a.last_scan_at) return -1
-      if (b.last_scan_at) return 1
-      return new Date(b.created_at) - new Date(a.created_at)
-    })
+  return ((subjects || []).map(s => ({
+    ...s,
+    last_scan_at:   lastScanMap[s.id]    || null,
+    reading_count:  readingCountMap[s.id] || 0,
+  }))).sort((a, b) => {
+    if (a.last_scan_at && b.last_scan_at) return new Date(b.last_scan_at) - new Date(a.last_scan_at)
+    if (a.last_scan_at) return -1
+    if (b.last_scan_at) return 1
+    return new Date(b.created_at) - new Date(a.created_at)
+  })
 }
 
 export async function getTrainableReadings() {

@@ -77,11 +77,11 @@ export default function ClinicianPatient() {
         const { data } = await supabase.from('consultations').select('*').eq('id', id).single()
         setConsult(data)
         // Lock the consultation so other providers see it as being reviewed
-        if (data && ['waiting', 'vitals_requested', 'vitals_complete', 'ready'].includes(data.status)) {
+        if (data && ['vitals_complete', 'ready'].includes(data.status)) {
           const { error } = await supabase.from('consultations')
             .update({ status: 'reviewing', provider_display_name: displayName, provider_id: providerId })
             .eq('id', id)
-            .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready'])
+            .in('status', ['vitals_complete', 'ready'])
           if (!error) { lockedRef.current = true; setConsult(c => ({ ...c, status: 'reviewing' })) }
         }
         if (data?.patient_id) {
@@ -127,7 +127,7 @@ export default function ClinicianPatient() {
 
   const v = consult.vitals
   const typeIcon = consult.consultation_type === 'phone' ? '📞' : consult.consultation_type === 'message' ? '💬' : '📹'
-  const isCallable = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing'].includes(consult.status)
+  const isCallable = ['vitals_complete', 'ready', 'reviewing'].includes(consult.status)
   const isMessage = consult.consultation_type === 'message'
 
   return (
@@ -207,7 +207,18 @@ export default function ClinicianPatient() {
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               {v.hr  && <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>}
               {v.rr  && <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>}
-              {v.spo2 && <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>{v.spo2}%</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div></div>}
+              {v.spo2 ? (
+                <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%</div>
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est.</div>
+                </div>
+              ) : (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>SpO₂ N/A</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use oximeter if needed</div>
+                </div>
+              )}
             </div>
           </div>
         )}

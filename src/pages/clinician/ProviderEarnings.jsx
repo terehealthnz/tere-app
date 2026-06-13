@@ -247,7 +247,7 @@ export default function ProviderEarnings({ embedded = true }) {
       )}
 
       <div style={{ fontSize:'.75rem', color:'#D1D5DB', textAlign:'center', lineHeight:1.6, padding:'.5rem 0' }}>
-        $16.20 per consultation · Base $15.00 + 8% holiday pay · As a contractor you are responsible for your own tax
+        $20 per video/phone · $10 per message · As a contractor you are responsible for your own tax
       </div>
     </div>
   )

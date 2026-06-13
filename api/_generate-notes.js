@@ -290,6 +290,19 @@ Return ONLY valid JSON. Return empty flags array if no concerns found.
     returnPrecautions: extracted.return_precautions  || null,
   }
 
+  // Build HRV/AF vitals screening note from rPPG data
+  const v = body.vitals
+  const vitalsScreeningNote = (() => {
+    if (!v || v.skipped) return null
+    const parts = []
+    if (v.hrv) parts.push(`HRV: SDNN ${v.hrv.sdnn}ms, RMSSD ${v.hrv.rmssd}ms (${v.hrv.interpretation})`)
+    if (v.afDetection?.possible) parts.push(`Rhythm screening: possible irregular rhythm (RR variability ${v.afDetection.cvRR}%, RMSSD ${v.afDetection.rmssd}ms)`)
+    return parts.length ? parts.join(' | ') : null
+  })()
+  const afMdmNote = (v?.afDetection?.possible)
+    ? `rPPG screening flagged possible irregular rhythm (RR variability ${v.afDetection.cvRR}%, RMSSD ${v.afDetection.rmssd}ms). Clinical correlation recommended. ECG not performed — telehealth limitation.`
+    : null
+
   const result = {
     presentingHistory: [triage.chiefComplaint, extracted.additional_history].filter(Boolean).join('. ') || null,
     medicalHistory:    triage.medicalHistory  || null,
@@ -301,12 +314,13 @@ Return ONLY valid JSON. Return empty flags array if no concerns found.
       occupation: extracted.occupation  || triage.accEmployer || 'Not disclosed',
     },
     examination: {
-      generalAppearance: extracted.general_appearance || null,
-      visibleFindings:   extracted.visible_findings   || null,
+      generalAppearance:  extracted.general_appearance || null,
+      visibleFindings:    extracted.visible_findings   || null,
+      vitalsScreening:    vitalsScreeningNote,
     },
     generalAppearance: extracted.general_appearance || null,
     visibleFindings:   extracted.visible_findings   || null,
-    mdm:               extracted.mdm_summary        || null,
+    mdm:               [extracted.mdm_summary, afMdmNote].filter(Boolean).join(' ') || null,
     plan:              planAdditions.length ? planAdditions.join('\n') : null,
     planItems:         planAdditions,
     returnPrecautions: extracted.return_precautions || null,

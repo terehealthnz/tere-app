@@ -4,15 +4,28 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
+import { getConsultation } from '../../lib/supabase'
 
 export default function PatientCall() {
   const navigate = useNavigate()
   const [token, setToken] = useState(null)
   const [serverUrl, setServerUrl] = useState(null)
   const [error, setError] = useState(null)
-  const consultationId   = sessionStorage.getItem('consultationId')
-  const consultationType = sessionStorage.getItem('consultationType') || 'video'
+  const consultationId = sessionStorage.getItem('consultationId')
+  const ssType = sessionStorage.getItem('consultationType')
+  const [consultationType, setConsultationType] = useState(ssType || 'video')
   const isPhone = consultationType === 'phone'
+
+  // When sessionStorage was cleared (browser reopened), fetch type from DB
+  useEffect(() => {
+    if (!consultationId || ssType) return
+    getConsultation(consultationId).then(c => {
+      if (c?.consultation_type) {
+        setConsultationType(c.consultation_type)
+        sessionStorage.setItem('consultationType', c.consultation_type)
+      }
+    }).catch(() => {})
+  }, [consultationId])
 
   // Keep screen awake during consultation
   useEffect(() => {

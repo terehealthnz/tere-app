@@ -47,10 +47,10 @@ function downloadBase64Pdf(b64, filename) {
 }
 function exportCsv(summaries, period_start, period_end) {
   const rows = [
-    ['Provider', 'Period Start', 'Period End', 'Consultations', 'Base Rate', 'Base Amount', 'Holiday Pay (8%)', 'Total', 'Status'],
+    ['Provider', 'Period Start', 'Period End', 'Consultations', 'Total', 'Status'],
     ...summaries.map(s => [
       s.provider_name, period_start, period_end, s.consultation_count,
-      s.base_rate.toFixed(2), s.base_amount.toFixed(2), s.holiday_pay_amount.toFixed(2), s.total_amount.toFixed(2), s.status,
+      s.total_amount.toFixed(2), s.status,
     ]),
   ]
   const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
@@ -138,7 +138,7 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
           )}
         </div>
         <div style={{ padding:'.875rem 1rem', borderTop:'1px solid #E2E8F0', background:'#F9FAFB', fontFamily:FF, fontSize:'.75rem', color:'#9CA3AF', lineHeight:1.6 }}>
-          Base $15.00 + 8% holiday pay = $16.20 per consultation · Holidays Act 2003
+          $20 per video/phone consultation · $10 per message consultation · Contract rates
         </div>
       </div>
     </div>
@@ -168,15 +168,14 @@ function ProviderCard({ summary, period_start, period_end, onAction, actionLoadi
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
             <div style={{ fontWeight:800, color:TEAL, fontSize:'1.25rem' }}>${summary.total_amount.toFixed(2)}</div>
-            <div style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>incl. holiday pay</div>
+            <div style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>contract total</div>
           </div>
         </div>
 
         {/* Breakdown */}
         {summary.consultation_count > 0 && (
-          <div style={{ background:'#F9FAFB', borderRadius:8, padding:'.75rem 1rem', marginBottom:'1rem', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.25rem', fontSize:'.8125rem' }}>
-            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Base</div><div style={{ fontWeight:600, color:NAVY }}>${summary.base_amount.toFixed(2)}</div></div>
-            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Holiday pay</div><div style={{ fontWeight:600, color:NAVY }}>${summary.holiday_pay_amount.toFixed(2)}</div></div>
+          <div style={{ background:'#F9FAFB', borderRadius:8, padding:'.75rem 1rem', marginBottom:'1rem', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.25rem', fontSize:'.8125rem' }}>
+            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Consultations</div><div style={{ fontWeight:600, color:NAVY }}>{summary.consultation_count}</div></div>
             <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Total</div><div style={{ fontWeight:700, color:TEAL }}>${summary.total_amount.toFixed(2)}</div></div>
           </div>
         )}
@@ -439,8 +438,8 @@ export default function AdminPayroll({ embedded = false }) {
 
       {/* Payroll rates note */}
       <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'.875rem 1rem', fontSize:'.8125rem', color:'#78350F', lineHeight:1.6 }}>
-        <strong>Rates:</strong> $15.00 base + 8% holiday pay = $16.20 per consultation.
-        This is a record of casual contractor earnings. Contractors are responsible for their own tax.
+        <strong>Rates:</strong> $20 per video/phone consultation · $10 per message consultation.
+        This is a record of contractor earnings. Contractors are responsible for their own tax.
         Tere Health does not deduct PAYE.
       </div>
     </div>

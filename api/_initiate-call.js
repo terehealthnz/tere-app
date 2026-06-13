@@ -59,15 +59,14 @@ export default async function handler(req, res) {
     </p>
     <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">
       ${consultType === 'phone'
-        ? 'You will receive a phone call shortly. Please answer any NZ number calling you in the next few minutes.'
+        ? 'Click the button below to join your audio consultation. If you have trouble connecting, we may also try calling your phone.'
         : 'Click the button below to join your video consultation now.'}
     </p>
-    ${consultType !== 'phone' ? `
     <div style="text-align:center;margin:28px 0">
       <a href="${callJoinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">
-        Join video call →
+        ${consultType === 'phone' ? 'Join audio call →' : 'Join video call →'}
       </a>
-    </div>` : ''}
+    </div>
     <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px 16px;font-size:13px;color:#065F46;margin-top:24px">
       ✓ Your card hold is active. You'll be charged only for the method used, once your consultation is complete.
     </div>
@@ -80,7 +79,7 @@ export default async function handler(req, res) {
   </div>
 </body></html>`
 
-    const text = `Kia ora ${firstName},\n\n${doctorName} is ready for your consultation.\n\n${consultType === 'phone' ? 'You will receive a phone call shortly.' : `Join here: ${callJoinUrl}`}\n\nIn an emergency, call 111.\n\nTere Health`
+    const text = `Kia ora ${firstName},\n\n${doctorName} is ready for your consultation.\n\nJoin here: ${callJoinUrl}${consultType === 'phone' ? '\n\nIf you have trouble connecting, we may also try calling your phone.' : ''}\n\nIn an emergency, call 111.\n\nTere Health`
 
     fetch('https://api.resend.com/emails', {
       method: 'POST',

@@ -113,6 +113,14 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
     }
     if (paymentIntent.status === 'requires_capture') {
       sessionStorage.setItem('paymentIntentId', paymentIntent.id)
+      // Add patient to provider queue immediately; vitals scan happens in parallel
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const bufferExpires = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
+        await supabase.from('consultations')
+          .update({ status: 'waiting', buffer_expires_at: bufferExpires })
+          .eq('id', consultationId)
+      } catch {}
       navigate(consultationType === 'message' ? '/message-sent' : `/vitals/${consultationId}`)
     }
     setLoading(false)
@@ -143,18 +151,11 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
 
         {accEligible === 'yes' ? (
           <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
-            <strong style={{display:'block',marginBottom:'.5rem',color:'#065F46'}}>How ACC billing works</strong>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem',marginBottom:'.75rem'}}>
-              <div style={{background:'white',borderRadius:6,padding:'.625rem',textAlign:'center'}}>
-                <div style={{fontSize:'1.25rem',fontWeight:700,color:'#065F46'}}>~$62</div>
-                <div style={{fontSize:'.75rem',color:'#6B7280'}}>ACC pays directly to Tere</div>
-              </div>
-              <div style={{background:'white',borderRadius:6,padding:'.625rem',textAlign:'center'}}>
-                <div style={{fontSize:'1.25rem',fontWeight:700,color:'#0D2B45'}}>$25</div>
-                <div style={{fontSize:'.75rem',color:'#6B7280'}}>Your co-payment today</div>
-              </div>
+            <div style={{display:'flex',alignItems:'center',gap:'.625rem',marginBottom:'.5rem'}}>
+              <span style={{fontSize:'1.1rem'}}>✓</span>
+              <strong style={{color:'#065F46'}}>ACC covering — you only owe $25</strong>
             </div>
-            <div style={{fontSize:'.8125rem',color:'#065F46'}}>ACC covers the majority of your consultation fee for injury presentations. The $25 co-payment is the regulated patient contribution under the ACC Act 2001. Tere lodges your claim during the consultation.</div>
+            <div style={{fontSize:'.8125rem',color:'#065F46'}}>ACC covers your consultation for injury presentations. The $25 co-payment is the regulated patient contribution under the ACC Act 2001. Tere lodges your claim during the consultation.</div>
           </div>
         ) : (
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>

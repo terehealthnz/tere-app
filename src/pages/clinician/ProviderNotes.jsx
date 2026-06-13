@@ -169,6 +169,8 @@ export default function ProviderNotes() {
   const [loading,     setLoading]     = useState(true)
   const [generating,  setGenerating]  = useState(false)
   const [finalising,  setFinalising]  = useState(false)
+  const [finaliseSteps, setFinaliseSteps] = useState([]) // { label, status: 'pending'|'running'|'done'|'error', detail }
+  const [finaliseResult, setFinaliseResult] = useState(null) // { accClaimNumber, chargeCents, ... }
   const [genError,    setGenError]    = useState(null)
 
   // Clinical note
@@ -501,19 +503,43 @@ export default function ProviderNotes() {
     if (label) setNoteText(t => t + `\n${label}`)
   }
 
+  function stepUpdate(steps, index, patch) {
+    return steps.map((s, i) => i === index ? { ...s, ...patch } : s)
+  }
+
   async function finalise() {
     if (!canFinalise) return
     setFinalising(true)
+
+    const METHOD_PRICES = { video:6500, phone:4500, message:2500 }
+    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
+
+    const steps = [
+      { label: 'Saving clinical notes',    status: 'pending' },
+      { label: 'Charging patient',         status: 'pending' },
+      ...(isAcc ? [{ label: 'Submitting ACC claim', status: 'pending' }] : []),
+      { label: 'Sending patient summary',  status: 'pending' },
+    ]
+    setFinaliseSteps(steps)
+
+    const result = { chargeCents, accClaimNumber: null, chargeError: null, accError: null }
+    let currentSteps = [...steps]
+
+    function setStep(i, patch) {
+      currentSteps = stepUpdate(currentSteps, i, patch)
+      setFinaliseSteps([...currentSteps])
+    }
+
     try {
-      const now = new Date().toISOString()
+      // ── Step 0: Save notes ───────────────────────────────────────────────────
+      setStep(0, { status: 'running' })
+      const now          = new Date().toISOString()
       const { supabase } = await import('../../lib/supabase')
       const providerName = sessionStorage.getItem('providerDisplayName') || ''
       const durationSec  = consult.consultation_duration_seconds ||
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
       const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current }
-      const METHOD_PRICES = { video:6500, phone:4500, message:2500 }
-      const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
 
       const { error: updateErr } = await supabase.from('consultations').update({
         notes_final:   JSON.stringify(finalNote), notes_draft:null, notes_finalised:true,
@@ -526,23 +552,83 @@ export default function ProviderNotes() {
         payment_amount:chargeCents / 100, is_acc:isAcc,
       }).eq('id', id)
       if (updateErr) throw updateErr
+      setStep(0, { status: 'done' })
 
+      // ── Step 1: Capture payment ──────────────────────────────────────────────
+      setStep(1, { status: 'running' })
       const paymentIntentId = consult.payment_intent_id || sessionStorage.getItem('paymentIntentId')
       if (paymentIntentId) {
-        apiFetch('/api/capture-payment', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ paymentIntentId, consultationId:id, amount_cents:chargeCents }),
-        }).catch(() => {})
+        try {
+          await apiFetch('/api/capture-payment', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ paymentIntentId, consultationId:id, amount_cents:chargeCents }),
+          })
+          setStep(1, { status: 'done', detail: `$${(chargeCents/100).toFixed(2)} charged` })
+        } catch (e) {
+          result.chargeError = e.message
+          setStep(1, { status: 'error', detail: 'Charge failed — manual capture needed' })
+        }
+      } else {
+        setStep(1, { status: 'done', detail: 'No payment hold — skipped' })
       }
+
+      // ── Step 2 (conditional): ACC claim ─────────────────────────────────────
+      const accStepIdx = isAcc ? 2 : -1
+      if (isAcc) {
+        setStep(accStepIdx, { status: 'running' })
+        try {
+          const accRes  = await apiFetch('/api/acc-claims', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({
+              consultationId:  id,
+              providerId:      sessionStorage.getItem('providerId'),
+              providerName,
+              providerHpi:     sessionStorage.getItem('providerHpiNumber') || '',
+              providerType:    'specialist',
+            }),
+          })
+          const accData = await accRes.json()
+          if (accData.ok) {
+            result.accClaimNumber = accData.claimNumber
+            result.accSimulated   = accData.simulated
+            setStep(accStepIdx, {
+              status: 'done',
+              detail: accData.simulated ? `Claim ${accData.claimNumber} (test)` : `Claim ${accData.claimNumber}`,
+            })
+          } else {
+            result.accError = accData.error
+            setStep(accStepIdx, { status: 'error', detail: accData.error || 'ACC submission failed' })
+          }
+        } catch (e) {
+          result.accError = e.message
+          setStep(accStepIdx, { status: 'error', detail: 'ACC submission error — retry from PMS' })
+        }
+      }
+
+      // ── Step 3: Patient email ────────────────────────────────────────────────
+      const emailStepIdx = isAcc ? 3 : 2
+      setStep(emailStepIdx, { status: 'running' })
       if (consult.patient_email) {
         apiFetch('/api/send-email', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ to:consult.patient_email, name:`${consult.patient_first_name} ${consult.patient_last_name}`, noteText, notes:{}, actions:actionsRef.current, consult:{ chief_complaint:consult.chief_complaint }, consultationId:id }),
+          body: JSON.stringify({
+            to:consult.patient_email,
+            name:`${consult.patient_first_name} ${consult.patient_last_name}`,
+            noteText, notes:{}, actions:actionsRef.current,
+            consult:{ chief_complaint:consult.chief_complaint },
+            consultationId:id,
+            accClaimNumber: result.accClaimNumber || undefined,
+          }),
         }).catch(() => {})
       }
+      setStep(emailStepIdx, { status: 'done', detail: consult.patient_email || 'No email on file' })
+
       localStorage.removeItem(draftKey)
-      navigate('/provider')
-    } catch (e) { console.error(e); setFinalising(false) }
+      setFinaliseResult({ ...result, steps: currentSteps })
+    } catch (e) {
+      console.error('finalise error:', e)
+      setFinalising(false)
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -571,6 +657,76 @@ export default function ProviderNotes() {
 
   return (
     <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF }}>
+
+      {/* Finalising progress overlay */}
+      {finalising && finaliseSteps.length > 0 && !finaliseResult && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.95)', zIndex:999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'1.25rem', padding:'2rem' }}>
+          <div style={{ width:48, height:48, border:'4px solid rgba(255,255,255,.2)', borderTopColor:'#D4EEF0', borderRadius:'50%', animation:'spin .8s linear infinite', marginBottom:'.5rem' }} />
+          <div style={{ color:'white', fontSize:'1.125rem', fontWeight:800, marginBottom:'.25rem' }}>Finalising consultation…</div>
+          <div style={{ background:'rgba(255,255,255,.07)', borderRadius:16, padding:'1.25rem 1.5rem', width:'100%', maxWidth:360, display:'flex', flexDirection:'column', gap:'.75rem' }}>
+            {finaliseSteps.map((step, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'.75rem' }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', flexShrink:0, marginTop:1, display:'flex', alignItems:'center', justifyContent:'center',
+                  background: step.status==='done'?'#059669':step.status==='error'?'#DC2626':step.status==='running'?'transparent':'rgba(255,255,255,.15)',
+                  border: step.status==='running'?'2px solid rgba(255,255,255,.4)':'2px solid transparent',
+                }}>
+                  {step.status==='done'  && <span style={{color:'white',fontSize:12,fontWeight:700}}>✓</span>}
+                  {step.status==='error' && <span style={{color:'white',fontSize:12,fontWeight:700}}>✕</span>}
+                  {step.status==='running' && <div style={{width:8,height:8,borderRadius:'50%',background:'rgba(255,255,255,.6)',animation:'pulse 1s ease-in-out infinite'}} />}
+                  {step.status==='pending' && <div style={{width:6,height:6,borderRadius:'50%',background:'rgba(255,255,255,.25)'}} />}
+                </div>
+                <div>
+                  <div style={{ color: step.status==='done'?'#6EE7B7':step.status==='error'?'#FCA5A5':step.status==='running'?'white':'rgba(255,255,255,.45)', fontWeight:step.status==='running'?700:400, fontSize:'.9375rem' }}>
+                    {step.label}
+                  </div>
+                  {step.detail && <div style={{ fontSize:'.75rem', color:'rgba(255,255,255,.4)', marginTop:2 }}>{step.detail}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
+        </div>
+      )}
+
+      {/* Finalise result overlay */}
+      {finaliseResult && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.97)', zIndex:999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'2rem', gap:'1rem' }}>
+          <div style={{ fontSize:'3rem', marginBottom:'.25rem' }}>✓</div>
+          <div style={{ color:'white', fontSize:'1.25rem', fontWeight:800 }}>Consultation complete</div>
+          <div style={{ background:'rgba(255,255,255,.07)', borderRadius:16, padding:'1.25rem 1.5rem', width:'100%', maxWidth:360, display:'flex', flexDirection:'column', gap:'.625rem' }}>
+            {finaliseResult.accClaimNumber && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>ACC claim</span>
+                <span style={{ color:'#6EE7B7', fontWeight:700, fontSize:'.9375rem' }}>
+                  {finaliseResult.accClaimNumber}{finaliseResult.accSimulated ? ' (test)' : ''}
+                </span>
+              </div>
+            )}
+            {finaliseResult.accError && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>ACC claim</span>
+                <span style={{ color:'#FCA5A5', fontWeight:600, fontSize:'.8125rem' }}>Failed — retry from PMS tab</span>
+              </div>
+            )}
+            {finaliseResult.chargeCents > 0 && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Charged</span>
+                <span style={{ color:'white', fontWeight:700 }}>${(finaliseResult.chargeCents/100).toFixed(2)}</span>
+              </div>
+            )}
+            {finaliseResult.chargeError && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Payment</span>
+                <span style={{ color:'#FCA5A5', fontSize:'.8125rem' }}>Failed — capture manually</span>
+              </div>
+            )}
+          </div>
+          <button onClick={() => navigate('/provider')}
+            style={{ marginTop:'.5rem', background:TEAL, color:'white', border:'none', padding:'14px 32px', borderRadius:12, fontFamily:FF, fontWeight:800, fontSize:'1rem', cursor:'pointer', minHeight:52 }}>
+            ← Next patient
+          </button>
+        </div>
+      )}
 
       {/* Generating overlay */}
       {generating && (

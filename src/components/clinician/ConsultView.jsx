@@ -49,6 +49,48 @@ function VitalsPanel({ vitals }) {
           <div className="vital-unit">mmHg</div>
         </div>}
       </div>
+
+      {/* AF screening — provider only, never shown to patient */}
+      {v.afDetection?.possible && (
+        <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:8,padding:'10px 14px',marginTop:8}}>
+          <div style={{fontWeight:700,color:'#92400E',fontSize:'.875rem'}}>
+            ⚠️ HRV pattern warrants attention
+          </div>
+          <div style={{fontSize:'.8125rem',color:'#92400E',marginTop:4}}>
+            RMSSD: {v.afDetection.rmssd}ms | RR variability: {v.afDetection.cvRR}%
+            {v.afDetection.likelihood && ` | Likelihood: ${v.afDetection.likelihood}`}
+          </div>
+          <div style={{fontSize:'.75rem',color:'#B45309',marginTop:4,lineHeight:1.5}}>
+            Elevated RR variability detected. Clinical correlation required — not diagnostic for AF. Consider ECG if clinically indicated.
+          </div>
+        </div>
+      )}
+
+      {/* HRV assessment — provider only */}
+      {v.hrv && (
+        <div style={{marginTop:8,padding:'10px 14px',background:'#F9FAFB',borderRadius:8,fontSize:'.8125rem'}}>
+          <div style={{fontWeight:700,color:'#0D2B45',marginBottom:4}}>HRV Assessment</div>
+          <div style={{color:'#374151'}}>SDNN: {v.hrv.sdnn}ms | RMSSD: {v.hrv.rmssd}ms</div>
+          <div style={{color:'#6B7280',marginTop:2}}>{v.hrv.interpretation}</div>
+          {v.hrv.clinical_note && (
+            <div style={{color:'#B45309',marginTop:4,fontStyle:'italic'}}>Note: {v.hrv.clinical_note}</div>
+          )}
+        </div>
+      )}
+
+      {/* Physiological stress — provider only */}
+      {v.stress && (
+        <div style={{marginTop:8,padding:'10px 14px',background:v.stress.score>=70?'#FEF3C7':'#F9FAFB',borderRadius:8,border:v.stress.score>=70?'1px solid #F59E0B':'none'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+            <span style={{fontWeight:700,fontSize:'.875rem',color:'#0D2B45'}}>Physiological stress</span>
+            <span style={{fontSize:'.875rem',fontWeight:700,color:v.stress.score>=70?'#92400E':v.stress.score>=40?'#D97706':'#059669'}}>
+              {v.stress.level?.toUpperCase()} ({v.stress.score}/100)
+            </span>
+          </div>
+          <div style={{fontSize:'.8125rem',color:'#6B7280'}}>{v.stress.clinicalContext}</div>
+        </div>
+      )}
+
       <p style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'.5rem',fontStyle:'italic'}}>
         {v.source === 'manual' ? 'Manually entered' : 'Tere rPPG — indicative screening only'}
       </p>
@@ -541,14 +583,14 @@ export default function ConsultView() {
                 </div>
               )}
 
-              {/* Twilio fallback for phone — only shown if patient can't connect via browser */}
-              {consult.status === 'in_progress' && consult.consultation_type === 'phone' && (() => {
+              {/* Twilio fallback — available for all consultation types */}
+              {consult.status === 'in_progress' && (() => {
                 const isActive = ['dialling','ringing','answered'].includes(phoneCallState)
                 const failed = ['no_answer','busy','failed','canceled'].includes(phoneCallState)
                 return (
                   <div style={{marginTop:'.75rem',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:'.75rem',background:'var(--bg)'}}>
                     <div style={{fontSize:'.6875rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'var(--muted)',marginBottom:'.5rem'}}>
-                      Patient not connecting via browser?
+                      Connection issues? Call their phone
                     </div>
                     {phoneCallState === 'idle' && (
                       <button onClick={initiatePhoneCall}

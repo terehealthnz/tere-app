@@ -1,8 +1,8 @@
 // Payroll API — calculate, approve, mark paid, payslips, emails
 import { createClient } from '@supabase/supabase-js'
 
-const BASE_RATE = 15.00
-const HOLIDAY_PAY_RATE = 0.08
+const RATES = { message: 10.00, phone: 20.00, video: 20.00 }
+const DEFAULT_RATE = 20.00
 
 // Reference Monday for fortnightly calculations (2024-01-01 is a Monday)
 const REF_MS = new Date('2024-01-01T00:00:00Z').getTime()
@@ -32,23 +32,26 @@ function getPastFortnights(count = 13) {
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
     supabase.from('providers').select('id,first_name,last_name,credential,color,email').eq('is_active', true).order('first_name'),
-    supabase.from('consultations').select('provider_id').eq('status', 'complete').not('provider_id', 'is', null)
+    supabase.from('consultations').select('provider_id,consultation_type').eq('status', 'complete').not('provider_id', 'is', null)
       .gte('created_at', period_start + 'T00:00:00.000Z')
       .lte('created_at', period_end + 'T23:59:59.999Z'),
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
   ])
 
-  const countMap  = {}
-  for (const c of consultations || []) countMap[c.provider_id] = (countMap[c.provider_id] || 0) + 1
+  const earningsMap = {}
+  const countMap    = {}
+  for (const c of consultations || []) {
+    const rate = RATES[c.consultation_type] ?? DEFAULT_RATE
+    earningsMap[c.provider_id] = (earningsMap[c.provider_id] || 0) + rate
+    countMap[c.provider_id]    = (countMap[c.provider_id] || 0) + 1
+  }
   const savedMap = {}
   for (const r of payrollRows || []) savedMap[r.provider_id] = r
 
   return (providers || []).map(p => {
     const count   = countMap[p.id] || 0
     const saved   = savedMap[p.id]
-    const base    = parseFloat((count * BASE_RATE).toFixed(2))
-    const hol     = parseFloat((base * HOLIDAY_PAY_RATE).toFixed(2))
-    const total   = parseFloat((base + hol).toFixed(2))
+    const total   = parseFloat((earningsMap[p.id] || 0).toFixed(2))
     return {
       id:                 saved?.id || null,
       provider_id:        p.id,
@@ -58,10 +61,7 @@ async function buildSummaries(supabase, period_start, period_end) {
       period_start,
       period_end,
       consultation_count: count,
-      base_rate:          BASE_RATE,
-      holiday_pay_rate:   HOLIDAY_PAY_RATE,
-      base_amount:        base,
-      holiday_pay_amount: hol,
+      rates:              RATES,
       total_amount:       total,
       status:             saved?.status || 'draft',
       paid_at:            saved?.paid_at || null,

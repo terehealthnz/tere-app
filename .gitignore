@@ -1,8 +1,7 @@
 node_modules/
 dist/
-.env
 .DS_Store
 *.bak
 .vercel
 .env*
-.env
+1password-setup.md

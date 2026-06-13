@@ -3,6 +3,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 
 dotenv.config()
+dotenv.config({ path: '.env.local', override: true })
 const app = express()
 app.use(cors())
 app.use(express.json())
@@ -64,9 +65,12 @@ const apis = [
   'twilio-status',
   'make-call',
   'verify-acc',
+  'acc-claims',
+  'acc-webhook',
+  'pms-data',
 ]
 
-const GET_ONLY = new Set(['get-queue', 'get-availability', 'async-overdue', 'status'])
+const GET_ONLY = new Set(['get-queue', 'get-availability', 'async-overdue', 'status', 'pms-data'])
 const DUAL_METHOD = new Set([
   'analytics-events', 'appointments', 'audit', 'breach', 'consents',
   'complaints', 'bookings', 'handover', 'consultation-token', 'patient-flags',

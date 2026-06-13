@@ -267,7 +267,9 @@ export default function WaitingRoom() {
                   Watch your email
                 </div>
                 <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
-                  You'll receive an email with a link to join when your doctor is ready.
+                  {consultType === 'phone'
+                    ? "You'll receive an email with a link to join your audio consultation."
+                    : "You'll receive an email with a link to join your video call."}
                 </div>
               </div>
             </div>

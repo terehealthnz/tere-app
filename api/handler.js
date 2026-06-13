@@ -117,7 +117,15 @@ const ROUTES = {
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
   'async-consult':             () => import('./_async-consult.js'),
   'async-overdue':             () => import('./_async-overdue.js'),
+  'admin-patch':               () => import('./_admin-patch.js'),
   'initiate-call':             () => import('./_initiate-call.js'),
+  'make-call':                 () => import('./_make-call.js'),
+  'twilio-connect':            () => import('./_twilio-connect.js'),
+  'twilio-fallback':           () => import('./_twilio-fallback.js'),
+  'twilio-status':             () => import('./_twilio-status.js'),
+  'acc-claims':                () => import('./_acc-claims.js'),
+  'acc-webhook':               () => import('./_acc-webhook.js'),
+  'pms-data':                  () => import('./_pms-data.js'),
 }
 
 export default async function handler(req, res) {

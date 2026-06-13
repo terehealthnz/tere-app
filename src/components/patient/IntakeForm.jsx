@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
@@ -20,6 +20,96 @@ const LOCATIONS = [
   'Northland','Coromandel','East Coast / Gisborne',
   "Hawke's Bay rural",'Whanganui rural','Other rural area',
 ]
+
+function PharmacyAutocomplete({ value, onChange }) {
+  const [query, setQuery] = useState(value || '')
+  const [suggestions, setSuggestions] = useState([])
+  const [open, setOpen] = useState(false)
+  const [selected, setSelected] = useState(false)
+  const timerRef = useRef(null)
+  const wrapRef = useRef(null)
+
+  useEffect(() => {
+    const handler = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function handleInput(e) {
+    const q = e.target.value
+    setQuery(q)
+    setSelected(false)
+    onChange(q)
+    clearTimeout(timerRef.current)
+    if (q.length < 2) { setSuggestions([]); setOpen(false); return }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(q + ' pharmacy')}&limit=6&lang=en&bbox=166,-47,178,-34`
+        )
+        const data = await res.json()
+        const results = (data.features || [])
+          .filter(f => {
+            const p = f.properties
+            const name = (p.name || '').toLowerCase()
+            const type = (p.osm_value || p.type || '').toLowerCase()
+            return name || type.includes('pharm') || type.includes('chemist')
+          })
+          .map(f => {
+            const p = f.properties
+            const parts = [p.name, p.street, p.city].filter(Boolean)
+            return parts.join(', ')
+          })
+          .filter((v, i, a) => v && a.indexOf(v) === i)
+        setSuggestions(results)
+        setOpen(results.length > 0)
+      } catch {}
+    }, 300)
+  }
+
+  function pick(s) {
+    setQuery(s)
+    onChange(s)
+    setSelected(true)
+    setSuggestions([])
+    setOpen(false)
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative' }}>
+      <input
+        value={query}
+        onChange={handleInput}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        required
+        placeholder="e.g. Chemist Warehouse Blenheim"
+        autoComplete="off"
+      />
+      {open && (
+        <ul style={{
+          position: 'absolute', zIndex: 100, top: '100%', left: 0, right: 0,
+          background: 'white', border: '1px solid #d1d5db', borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,.12)', margin: '2px 0 0', padding: 0,
+          listStyle: 'none', maxHeight: 220, overflowY: 'auto',
+        }}>
+          {suggestions.map((s, i) => (
+            <li key={i}
+              onMouseDown={() => pick(s)}
+              style={{
+                padding: '.625rem .875rem', cursor: 'pointer', fontSize: '.9rem',
+                borderBottom: i < suggestions.length - 1 ? '1px solid #f3f4f6' : 'none',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f0fdfa'}
+              onMouseLeave={e => e.currentTarget.style.background = 'white'}
+            >
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 export default function IntakeForm() {
   const navigate = useNavigate()
@@ -194,7 +284,7 @@ export default function IntakeForm() {
               </div>
               <div className="form-group">
                 <label>Preferred pharmacy</label>
-                <input name="pharmacy" value={form.pharmacy} onChange={val} required placeholder="e.g. Havelock Pharmacy" />
+                <PharmacyAutocomplete value={form.pharmacy} onChange={v => set('pharmacy', v)} />
               </div>
             </>}
 
