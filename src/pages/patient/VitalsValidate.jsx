@@ -442,31 +442,9 @@ export default function VitalsValidate() {
                 </div>
               )}
 
-              {selectedSubject && (selectedSubject.reading_count || 0) >= 5 && (
-                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 12, padding: '1rem', marginBottom: '1rem' }}>
-                  <div style={{ fontWeight: 700, color: '#1E40AF', fontSize: '.875rem', marginBottom: '.4rem' }}>
-                    You've contributed {selectedSubject.reading_count} readings — thank you!
-                  </div>
-                  <p style={{ fontSize: '.8rem', color: '#3B82F6', margin: '0 0 .75rem', lineHeight: 1.5 }}>
-                    For the most accurate model we now need readings from <strong>new people</strong> more than additional readings from existing contributors. Share with a friend or colleague:
-                  </p>
-                  <div style={{ display: 'flex', gap: '.5rem' }}>
-                    <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/vitals-validate`)}
-                      style={{ flex: 1, padding: '.5rem', background: '#1E40AF', color: 'white', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: '.8rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                      Copy share link
-                    </button>
-                    <button onClick={() => setPhase('step1')}
-                      style={{ flex: 1, padding: '.5rem', background: 'white', color: '#3B82F6', borderRadius: 8, border: '1px solid #BFDBFE', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                      Continue anyway →
-                    </button>
-                  </div>
-                </div>
-              )}
-              {!(selectedSubject && (selectedSubject.reading_count || 0) >= 5) && (
-                <Btn onClick={() => setPhase('step1')} disabled={!canStart} style={{ width: '100%', marginBottom: '1rem' }}>
-                  Start scan →
-                </Btn>
-              )}
+              <Btn onClick={() => setPhase('step1')} disabled={!canStart} style={{ width: '100%', marginBottom: '1rem' }}>
+                Start scan →
+              </Btn>
 
               <button onClick={() => {
                 setNewSub({ firstName: '', age: '', sex: '', heightCm: '', weightKg: '', fitzpatrickScale: null, hasHypertension: 'unknown', conditions: [] })
