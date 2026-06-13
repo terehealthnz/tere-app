@@ -1,114 +1,224 @@
 /**
- * Camera-based SpO2 estimation using Green/Blue channel ratio method.
+ * Camera-based SpO2 estimation — multi-channel ratio-of-ratios (SHINE-inspired, 2025)
+ *
+ * Uses all 3 RGB channel pairs (R/G, R/B, G/B) weighted by signal quality (SNR).
+ * Includes per-device calibration framework: once ≥5 paired oximeter readings are
+ * stored, a linear correction is fitted and applied automatically.
+ *
+ * References:
+ *   SHINE (2025)       — doi.org/10.1016/j.eswa.2025.028064
+ *   Grimaldi (2015)    — G/B and R/G Beer-Lambert coefficients
+ *   Verkruysse (2008)  — rPPG SpO2 via ratio-of-ratios
+ *
  * INDICATIVE ESTIMATE ONLY — not a medical device.
  */
 
+// ── Linear model coefficients per channel pair ────────────────────────────────
+// SpO2 ≈ a − b × R, where R = (AC/DC)_ch1 / (AC/DC)_ch2
+const CHANNEL_MODELS = {
+  rg: { a: 104.0, b: 17.0 },  // Red / Green  (Grimaldi 2015)
+  rb: { a: 107.0, b: 21.0 },  // Red / Blue   (SHINE dataset)
+  gb: { a: 110.0, b: 25.0 },  // Green / Blue (Grimaldi 2015)
+}
+
+// Physiologically valid ratio ranges — outside this → reject
+const RATIO_BOUNDS = {
+  rg: [0.4, 3.4],
+  rb: [0.3, 3.0],
+  gb: [0.5, 2.0],
+}
+
+// Fitzpatrick skin tone bias per channel (types 1–6, index = type − 1)
+// Darker skin absorbs more red; G/B is most stable across tones
+const FITZ_BIAS = {
+  rg: [ 0,  0, -0.5, -1.2, -2.0, -3.0],
+  rb: [ 0,  0, -0.3, -0.8, -1.5, -2.5],
+  gb: [ 0,  0, -0.2, -0.5, -1.0, -1.5],
+}
+
+// ── Signal processing ─────────────────────────────────────────────────────────
+
 function bandpass(signal) {
-  const n = signal.length
+  // Dual moving-average subtraction — approximates 0.5–4 Hz bandpass at ~30fps.
+  // Better than single SMA: rejects both DC offset and slow drift simultaneously.
+  const n    = signal.length
   const mean = signal.reduce((a, b) => a + b, 0) / n
-  const detrended = signal.map(x => x - mean)
-  const windowSize = Math.max(1, Math.round(n * 0.05))
-  return detrended.map((v, i) => {
-    const start = Math.max(0, i - windowSize)
-    const end   = Math.min(n, i + windowSize + 1)
-    const w = detrended.slice(start, end)
-    return v - w.reduce((a, b) => a + b, 0) / w.length
+  const det  = signal.map(x => x - mean)
+  const wS   = Math.max(1, Math.round(n * 0.03))  // ~1s window
+  const wL   = Math.max(1, Math.round(n * 0.12))  // ~4s window
+  return det.map((_, i) => {
+    const sliceS = det.slice(Math.max(0, i - wS), Math.min(n, i + wS + 1))
+    const sliceL = det.slice(Math.max(0, i - wL), Math.min(n, i + wL + 1))
+    const avgS   = sliceS.reduce((a, b) => a + b, 0) / sliceS.length
+    const avgL   = sliceL.reduce((a, b) => a + b, 0) / sliceL.length
+    return avgS - avgL
   })
 }
 
 function getACDC(raw, filtered) {
-  const dc = raw.reduce((a, b) => a + b, 0) / raw.length
-  const ac = Math.sqrt(filtered.map(x => x * x).reduce((a, b) => a + b, 0) / filtered.length)
-  return { ac: ac || 0.001, dc: dc || 0.001 }
+  const dc  = raw.reduce((a, b) => a + b, 0) / raw.length || 0.001
+  const ac  = Math.sqrt(filtered.reduce((s, x) => s + x * x, 0) / filtered.length) || 0.001
+  const snr = ac / dc  // pulsatility index — proxy for signal quality
+  return { ac, dc, snr }
 }
 
-function getSpO2Confidence(R_gb, R_rg) {
-  const spo2_gb = 110 - 25 * R_gb
-  const spo2_rg = 104 - 17 * R_rg
-  const agreement = Math.abs(spo2_gb - spo2_rg)
-  // Tightened R_gb range: 0.5–2.0 (was 0.3–2.5) — outside this is unreliable
-  const R_gb_valid = R_gb >= 0.5 && R_gb <= 2.0
-  const R_rg_valid = R_rg >= 0.4 && R_rg <= 3.4
-  if (!R_gb_valid || !R_rg_valid) return 'invalid'
-  if (agreement > 8) return 'low'
-  if (agreement > 4) return 'medium'
-  return 'high'
+// ── Multi-channel RoR estimation ──────────────────────────────────────────────
+
+function fitzCorrection(channel, fitzpatrick) {
+  const idx = Math.min(5, Math.max(0, (fitzpatrick || 2) - 1))
+  return FITZ_BIAS[channel][idx] || 0
 }
 
-function estimateWindowSpO2(frames, fitzpatrick = 2) {
+function estimateFromChannels(r, g, b, fitzpatrick) {
+  const RoR = {
+    rg: (r.ac / r.dc) / (g.ac / g.dc),
+    rb: (r.ac / r.dc) / (b.ac / b.dc),
+    gb: (g.ac / g.dc) / (b.ac / b.dc),
+  }
+  // SNR weight = product of constituent channel SNRs (SHINE quality-weighted consolidation)
+  const snrWeight = {
+    rg: r.snr * g.snr,
+    rb: r.snr * b.snr,
+    gb: g.snr * b.snr,
+  }
+
+  const valid = []
+  let totalWeight = 0
+
+  for (const [key, model] of Object.entries(CHANNEL_MODELS)) {
+    const ratio = RoR[key]
+    const [lo, hi] = RATIO_BOUNDS[key]
+    if (ratio < lo || ratio > hi) continue
+
+    const spo2 = model.a - model.b * ratio + fitzCorrection(key, fitzpatrick)
+    if (spo2 < 70 || spo2 > 100) continue
+
+    const weight = snrWeight[key]
+    valid.push({ spo2, weight, channel: key, ratio })
+    totalWeight += weight
+  }
+
+  if (!valid.length || totalWeight === 0) return null
+
+  const weighted = valid.reduce((sum, e) => sum + e.spo2 * e.weight, 0) / totalWeight
+  const values   = valid.map(e => e.spo2)
+  const spread   = valid.length > 1 ? Math.max(...values) - Math.min(...values) : 0
+
+  const confidence = valid.length < 2 || spread > 8 ? 'low'
+    : spread > 4 ? 'medium' : 'high'
+
+  return { spo2: weighted, confidence, spread, nChannels: valid.length, channels: valid }
+}
+
+function estimateWindowSpO2(frames, fitzpatrick) {
   if (frames.length < 20) return null
-  const greenSignal = frames.map(f => f.g)
-  const blueSignal  = frames.map(f => f.b)
-  const redSignal   = frames.map(f => f.r)
 
-  const fGreen = bandpass(greenSignal)
-  const fBlue  = bandpass(blueSignal)
-  const fRed   = bandpass(redSignal)
+  const rRaw = frames.map(f => f.r)
+  const gRaw = frames.map(f => f.g)
+  const bRaw = frames.map(f => f.b)
 
-  const green = getACDC(greenSignal, fGreen)
-  const blue  = getACDC(blueSignal, fBlue)
-  const red   = getACDC(redSignal, fRed)
+  // Reject very dark frames — camera signal unreliable below DC of 10
+  const rDC = rRaw.reduce((a, b) => a + b, 0) / rRaw.length
+  const gDC = gRaw.reduce((a, b) => a + b, 0) / gRaw.length
+  const bDC = bRaw.reduce((a, b) => a + b, 0) / bRaw.length
+  if (rDC < 10 || gDC < 10 || bDC < 10) return null
 
-  if (green.dc === 0 || blue.dc === 0) return null
+  const r = getACDC(rRaw, bandpass(rRaw))
+  const g = getACDC(gRaw, bandpass(gRaw))
+  const b = getACDC(bRaw, bandpass(bRaw))
 
-  const R_gb = (green.ac / green.dc) / (blue.ac / blue.dc)
-  const R_rg = (red.ac / red.dc) / (green.ac / green.dc)
+  return estimateFromChannels(r, g, b, fitzpatrick)
+}
 
-  const spo2_gb       = 110 - 25 * R_gb
-  const spo2_rg       = 104 - 17 * R_rg
-  const spo2_combined = spo2_gb * 0.70 + spo2_rg * 0.30
+// ── Per-device calibration (linear regression on paired oximeter readings) ────
 
-  const fitzCorrections = [0, 0, -0.5, -1.0, -1.5, -2.0]
-  const correction = fitzCorrections[Math.min(5, Math.max(0, (fitzpatrick || 2) - 1))] || 0
-  const corrected = spo2_combined + correction
-
-  const confidence = getSpO2Confidence(R_gb, R_rg)
-  if (confidence === 'invalid') return null
-
-  return {
-    estimate:   Math.min(100, Math.max(70, Math.round(corrected))),
-    R_gb, R_rg, confidence,
+export function getSpO2Calibration() {
+  try {
+    const raw = localStorage.getItem('tere_spo2_cal')
+    return raw ? JSON.parse(raw) : { slope: 1.0, intercept: 0.0, n: 0 }
+  } catch {
+    return { slope: 1.0, intercept: 0.0, n: 0 }
   }
 }
+
+/**
+ * Fit calibration from paired readings stored in Supabase validation_readings.
+ * Call this from VitalsValidate after fetching readings with both tere_spo2 and manual_spo2.
+ * pairedReadings: [{ estimated: number, reference: number }]
+ */
+export function fitSpO2Calibration(pairedReadings) {
+  const valid = pairedReadings.filter(r => r.estimated > 0 && r.reference > 0)
+  if (valid.length < 5) return null
+
+  const xs = valid.map(r => r.estimated)
+  const ys = valid.map(r => r.reference)
+  const n  = valid.length
+  const xm = xs.reduce((a, b) => a + b, 0) / n
+  const ym = ys.reduce((a, b) => a + b, 0) / n
+  const num = xs.reduce((s, x, i) => s + (x - xm) * (ys[i] - ym), 0)
+  const den = xs.reduce((s, x) => s + (x - xm) ** 2, 0)
+  if (den === 0) return null
+
+  const slope     = num / den
+  const intercept = ym - slope * xm
+  const residuals = valid.map(r => r.reference - (slope * r.estimated + intercept))
+  const rmse      = Math.sqrt(residuals.reduce((s, e) => s + e * e, 0) / n)
+  const cal = { slope, intercept, n, rmse: Math.round(rmse * 10) / 10, updatedAt: Date.now() }
+  try { localStorage.setItem('tere_spo2_cal', JSON.stringify(cal)) } catch {}
+  return cal
+}
+
+function applyCal(spo2, cal) {
+  if (!cal || cal.n < 5) return spo2
+  return cal.slope * spo2 + cal.intercept
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export function calculateSpO2(frames, fitzpatrick = 2) {
   if (!frames?.length || frames.length < 60) return null
+
+  const cal = getSpO2Calibration()
   const n   = frames.length
   const w   = Math.floor(n / 3)
-  const windows = [0, 1, 2].map(i => {
-    const seg = frames.slice(i * w, (i + 1) * w)
-    return estimateWindowSpO2(seg, fitzpatrick)
-  }).filter(Boolean)
 
-  // Need all 3 windows with valid estimates
-  if (windows.length < 3) return null
+  const windows = [0, 1, 2]
+    .map(i => estimateWindowSpO2(frames.slice(i * w, (i + 1) * w), fitzpatrick))
+    .filter(Boolean)
 
-  // All three windows must agree within ±3% of each other
-  const estimates = windows.map(w => w.estimate)
-  const maxDiff = Math.max(...estimates) - Math.min(...estimates)
-  if (maxDiff > 3) return null
+  if (windows.length < 2) return null  // need at least 2 agreeing windows
 
-  const sorted    = [...windows].sort((a, b) => a.estimate - b.estimate)
-  const median    = sorted[1]  // true median of 3
-  const bestConf  = windows.every(w => w.confidence === 'high') ? 'high'
-    : windows.some(w => w.confidence === 'medium' || w.confidence === 'high') ? 'medium' : 'low'
+  const raw       = windows.map(win => win.spo2)
+  const calibrated = raw.map(s => applyCal(s, cal))
+  const sorted     = [...calibrated].sort((a, b) => a - b)
+  const median     = sorted.length === 3 ? sorted[1] : (sorted[0] + sorted[1]) / 2
+  const spread     = sorted[sorted.length - 1] - sorted[0]
+
+  if (spread > 5) return null  // windows disagree too much
+
+  const bestConf = windows.every(w => w.confidence === 'high') ? 'high'
+    : windows.some(w => w.confidence === 'high' || w.confidence === 'medium') ? 'medium' : 'low'
 
   return {
-    estimate:   median.estimate,
-    confidence: bestConf,
-    windows:    windows.length,
-    maxWindowDiff: maxDiff,
+    estimate:      Math.min(100, Math.max(70, Math.round(median))),
+    confidence:    bestConf,
+    windows:       windows.length,
+    maxWindowDiff: Math.round(spread * 10) / 10,
+    nChannels:     Math.round(windows.reduce((s, w) => s + w.nChannels, 0) / windows.length),
+    calibrated:    cal.n >= 5,
+    calN:          cal.n,
   }
 }
 
-export function formatSpO2Display(result, hasBrathingConcerns = false) {
+export function formatSpO2Display(result, hasBreathingConcerns = false) {
   if (!result) return null
 
-  const { estimate, confidence } = result
-  const breathingNote = hasBrathingConcerns
+  const { estimate, confidence, calibrated } = result
+  const breathingNote = hasBreathingConcerns
     ? 'If you have difficulty breathing call 111 immediately.' : ''
+  const calNote = calibrated ? 'Calibrated to your device.' : 'Uncalibrated — add oximeter readings to improve accuracy.'
 
-  if (estimate < 90 || confidence === 'invalid') {
+  if (estimate < 90 || confidence === 'low') {
     return {
       show: false,
       text: 'SpO2: Unable to estimate reliably',
@@ -136,7 +246,7 @@ export function formatSpO2Display(result, hasBrathingConcerns = false) {
       label: `~${estimate}%`,
       warning: true,
       text: `SpO2: ~${estimate}%`,
-      note: `Low confidence — consider using a pulse oximeter. ${breathingNote}`.trim(),
+      note: `Low confidence — ${calNote} ${breathingNote}`.trim(),
       color: '#F59E0B',
     }
   }
@@ -147,7 +257,7 @@ export function formatSpO2Display(result, hasBrathingConcerns = false) {
     label: `~${estimate}%`,
     warning: false,
     text: `SpO2: ~${estimate}%`,
-    note: `Estimated via camera. ${breathingNote}`.trim(),
+    note: `Estimated via camera. ${calNote} ${breathingNote}`.trim(),
     color: '#10B981',
   }
 }

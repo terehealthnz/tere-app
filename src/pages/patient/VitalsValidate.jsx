@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
-import { calculateSpO2 } from '../../lib/spo2'
+import { calculateSpO2, fitSpO2Calibration } from '../../lib/spo2'
 
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -385,6 +385,13 @@ export default function VitalsValidate() {
       })
       setPhase('saved')
       smartRetrain()
+      // Refit SpO2 calibration from all paired readings
+      getValidationReadings().then(rows => {
+        const pairs = rows
+          .filter(r => r.tere_spo2 && r.manual_spo2)
+          .map(r => ({ estimated: r.tere_spo2, reference: r.manual_spo2 }))
+        if (pairs.length >= 5) fitSpO2Calibration(pairs)
+      }).catch(() => {})
     } catch (e) {
       setSaveError(e.message)
     } finally {
