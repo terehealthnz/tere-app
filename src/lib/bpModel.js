@@ -442,24 +442,33 @@ function filterQualityReadings(readings) {
 
 export async function trainModel(readings, onProgress, reason = 'manual_trigger') {
   const clean = filterQualityReadings(readings)
-  const rawF  = [], rawL = []
 
-  for (const r of clean) {
-    try {
-      const sub    = r.validation_subjects || {}
-      const dev    = r.device_info || null
-      const fps    = r.raw_rppg_signal?.fps
-      const devFull = dev ? { ...dev, pixelRatio: dev.pixelRatio || 2 } : null
-      const fv     = extractFeatures(r.raw_rppg_signal, sub, devFull)
-      rawF.push(fv)
-      rawL.push([r.manual_systolic, r.manual_diastolic, r.manual_hr || 70, r.manual_spo2 || DEFAULT_SPO2])
-    } catch (e) { console.warn('[vitalsModel] feature error:', e.message) }
+  // Split by subject BEFORE augmentation so val set contains unseen subjects
+  const subjectIds = [...new Set(clean.map(r => r.subject_id || r.subject_code).filter(Boolean))]
+  const nVal = Math.max(1, Math.round(subjectIds.length * 0.2))
+  const valSubjects = new Set(subjectIds.slice(-nVal))  // hold out most-recent subjects
+  const trainReadings = clean.filter(r => !valSubjects.has(r.subject_id || r.subject_code))
+  const valReadings   = clean.filter(r =>  valSubjects.has(r.subject_id || r.subject_code))
+
+  function toFeatLabel(r) {
+    const sub     = r.validation_subjects || {}
+    const devFull = r.device_info ? { ...r.device_info, pixelRatio: r.device_info.pixelRatio || 2 } : null
+    const fv      = extractFeatures(r.raw_rppg_signal, sub, devFull)
+    const label   = [r.manual_systolic, r.manual_diastolic, r.manual_hr || 70, r.manual_spo2 || DEFAULT_SPO2]
+    return { fv, label }
   }
 
-  if (rawF.length < 5) return null
+  const trainRaw = [], trainLabels = []
+  for (const r of trainReadings) {
+    try { const { fv, label } = toFeatLabel(r); trainRaw.push(fv); trainLabels.push(label) }
+    catch (e) { console.warn('[vitalsModel] feature error:', e.message) }
+  }
 
-  const { augF, augL } = augmentData(rawF, rawL)
-  console.log(`[vitalsModel] ${rawF.length} clean → ${augF.length} augmented`)
+  if (trainRaw.length < 5) return null
+
+  // Augment training data only
+  const { augF, augL } = augmentData(trainRaw, trainLabels)
+  console.log(`[vitalsModel] ${trainRaw.length} train (${valReadings.length} val subjects held out) → ${augF.length} augmented`)
 
   const xs     = tf.tensor2d(augF)
   const ys     = tf.tensor2d(augL)
@@ -485,7 +494,6 @@ export async function trainModel(readings, onProgress, reason = 'manual_trigger'
   const history = await model.fit(xs, ysNorm, {
     epochs: EPOCHS,
     batchSize: Math.min(32, Math.floor(augF.length / 2)),
-    validationSplit: augF.length >= 40 ? 0.15 : 0,
     shuffle: true,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
@@ -499,9 +507,33 @@ export async function trainModel(readings, onProgress, reason = 'manual_trigger'
   localStorage.setItem(NORM_KEY, JSON.stringify(normParams))
 
   const finalMae = history.history.mae.at(-1)
-  const valMae   = history.history.val_mae?.at(-1) ?? null
-  const version  = `v${Math.floor(rawF.length / 10)}`
-  const meta     = { version, samples: rawF.length, finalMae, valMae, valMaeSys: valMae, valMaeDia: valMae, retrainReason: reason }
+
+  // Compute honest MAE on held-out subjects (not augmented)
+  let valMae = null, valMaeSys = null, valMaeDia = null
+  if (valReadings.length > 0) {
+    const valF = [], valL = []
+    for (const r of valReadings) {
+      try { const { fv, label } = toFeatLabel(r); valF.push(fv); valL.push(label) }
+      catch {}
+    }
+    if (valF.length > 0) {
+      const xsVal  = tf.tensor2d(valF)
+      const predN  = model.predict(xsVal)
+      const predArr = await predN.array()
+      xsVal.dispose(); predN.dispose()
+
+      const preds = predArr.map(p => p.map((v, i) => v * yStdArr[i] + yMeanArr[i]))
+      const sysErrs = preds.map((p, i) => Math.abs(p[0] - valL[i][0]))
+      const diaErrs = preds.map((p, i) => Math.abs(p[1] - valL[i][1]))
+      valMaeSys = sysErrs.reduce((a, b) => a + b, 0) / sysErrs.length
+      valMaeDia = diaErrs.reduce((a, b) => a + b, 0) / diaErrs.length
+      valMae    = (valMaeSys + valMaeDia) / 2
+      console.log(`[vitalsModel] honest val MAE — sys ±${valMaeSys.toFixed(1)} dia ±${valMaeDia.toFixed(1)} (${valF.length} held-out readings)`)
+    }
+  }
+
+  const version = `v${Math.floor(trainRaw.length / 10)}`
+  const meta    = { version, samples: trainRaw.length, finalMae, valMae, valMaeSys, valMaeDia, retrainReason: reason }
   localStorage.setItem(META_KEY, JSON.stringify({ ...meta, trainedAt: new Date().toISOString() }))
   await model.save(MODEL_KEY)
   await saveToSupabase(meta, normParams)
