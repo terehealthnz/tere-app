@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings } from '../../lib/supabase'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable } from '../../lib/bpModel'
+import { fitSpO2Calibration } from '../../lib/spo2'
 
 const PIN = import.meta.env.VITE_VALIDATION_PIN || 'tere2026'
 const TEAL = '#0B6E76'
@@ -777,6 +778,12 @@ export default function VitalsValidateDashboard() {
         const mv = await getModelVersions()
         setModelVersions(mv)
       }
+      // Also refit SpO2 calibration from all paired readings
+      const allReadings = await getValidationReadings()
+      const pairs = allReadings
+        .filter(r => r.tere_spo2 != null && r.manual_spo2 != null)
+        .map(r => ({ estimated: r.tere_spo2, reference: r.manual_spo2 }))
+      if (pairs.length >= 5) fitSpO2Calibration(pairs)
     } catch (e) {
       setTrainingStatus('Training failed: ' + e.message)
     } finally {
