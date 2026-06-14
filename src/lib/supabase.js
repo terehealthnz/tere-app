@@ -582,6 +582,14 @@ export async function getTrainableReadings() {
   return data || []
 }
 
+export async function updateValidationSpo2(id, tereSpo2) {
+  const { error } = await supabase
+    .from('validation_readings')
+    .update({ tere_spo2: tereSpo2 })
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function getModelVersions() {
   const { data, error } = await supabase
     .from('model_versions')

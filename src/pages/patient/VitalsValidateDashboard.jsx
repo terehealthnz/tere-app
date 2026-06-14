@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings } from '../../lib/supabase'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2 } from '../../lib/supabase'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable } from '../../lib/bpModel'
 import { fitSpO2Calibration } from '../../lib/spo2'
 
@@ -695,12 +695,14 @@ function AfScreeningPanel({ readings }) {
   )
 }
 
-function Spo2CalibrationPanel({ readings }) {
+function Spo2CalibrationPanel({ readings, onReprocess, reprocessing, reprocessStatus }) {
   const MIN_PAIRED = 10
   const paired = readings.filter(r => r.manual_spo2 != null && r.tere_spo2 != null)
   const mae    = paired.length
     ? (paired.reduce((s, r) => s + Math.abs(r.tere_spo2 - r.manual_spo2), 0) / paired.length).toFixed(1)
     : null
+
+  const withRaw = readings.filter(r => r.raw_rppg_signal?.frames?.length)
 
   const status = paired.length === 0 ? 'none'
     : paired.length < 5  ? 'minimal'
@@ -718,8 +720,21 @@ function Spo2CalibrationPanel({ readings }) {
 
   return (
     <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 6px rgba(0,0,0,.05)', marginBottom: '1.25rem' }}>
-      <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.25rem', fontSize: '.95rem' }}>SpO2 calibration status</div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+        <div style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>SpO2 calibration status</div>
+        {withRaw.length > 0 && (
+          <button onClick={onReprocess} disabled={reprocessing}
+            style={{ background: TEAL, color: 'white', border: 'none', borderRadius: 99, padding: '.4rem 1rem', fontWeight: 700, fontSize: '.8rem', cursor: reprocessing ? 'not-allowed' : 'pointer', opacity: reprocessing ? .5 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+            {reprocessing ? 'Reprocessing…' : '🔄 Reprocess all'}
+          </button>
+        )}
+      </div>
       <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginBottom: '1rem' }}>Camera SpO2 vs pulse oximeter ground truth</div>
+      {reprocessStatus && (
+        <div style={{ background: '#EFF6FF', borderRadius: 8, padding: '.5rem .75rem', fontSize: '.78rem', color: '#1E40AF', marginBottom: '.75rem' }}>
+          {reprocessStatus}
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '.75rem', textAlign: 'center', marginBottom: '.75rem' }}>
         {[
           { label: 'Paired readings', value: `${paired.length}/${MIN_PAIRED}`, color: paired.length >= MIN_PAIRED ? '#10B981' : paired.length >= 5 ? '#F59E0B' : '#EF4444' },
@@ -749,8 +764,10 @@ export default function VitalsValidateDashboard() {
   const [loading, setLoading]     = useState(false)
   const [tab, setTab]             = useState('readings')
   const [filterSubject, setFilterSubject] = useState('')
-  const [training, setTraining]   = useState(false)
+  const [training, setTraining]         = useState(false)
   const [trainingStatus, setTrainingStatus] = useState('')
+  const [reprocessing, setReprocessing] = useState(false)
+  const [reprocessStatus, setReprocessStatus] = useState('')
 
   useEffect(() => {
     if (!authed) return
@@ -788,6 +805,45 @@ export default function VitalsValidateDashboard() {
       setTrainingStatus('Training failed: ' + e.message)
     } finally {
       setTraining(false)
+    }
+  }, [])
+
+  const handleReprocessSpo2 = useCallback(async () => {
+    setReprocessing(true)
+    setReprocessStatus('Loading readings with raw signal…')
+    try {
+      const { calculateSpO2 } = await import('../../lib/spo2')
+      const allReadings = await getValidationReadings()
+      const withRaw = allReadings.filter(r => r.raw_rppg_signal?.frames?.length)
+      setReprocessStatus(`Reprocessing ${withRaw.length} readings with 3-channel algorithm…`)
+
+      let updated = 0, failed = 0
+      for (const r of withRaw) {
+        try {
+          const fitz = r.validation_subjects?.fitzpatrick_scale ?? 2
+          const result = calculateSpO2(r.raw_rppg_signal.frames, fitz)
+          if (result) {
+            await updateValidationSpo2(r.id, result.estimate)
+            updated++
+          } else {
+            failed++
+          }
+        } catch { failed++ }
+      }
+
+      // Reload readings and refit calibration
+      const fresh = await getValidationReadings()
+      setReadings(fresh)
+      const pairs = fresh
+        .filter(r => r.tere_spo2 != null && r.manual_spo2 != null)
+        .map(r => ({ estimated: r.tere_spo2, reference: r.manual_spo2 }))
+      if (pairs.length >= 5) fitSpO2Calibration(pairs)
+
+      setReprocessStatus(`Done — updated ${updated} readings${failed ? `, ${failed} no signal` : ''}. Calibration refitted.`)
+    } catch (e) {
+      setReprocessStatus('Failed: ' + e.message)
+    } finally {
+      setReprocessing(false)
     }
   }, [])
 
@@ -948,7 +1004,7 @@ export default function VitalsValidateDashboard() {
       <AfScreeningPanel readings={readings} />
 
       {/* SpO2 calibration panel */}
-      <Spo2CalibrationPanel readings={readings} />
+      <Spo2CalibrationPanel readings={readings} onReprocess={handleReprocessSpo2} reprocessing={reprocessing} reprocessStatus={reprocessStatus} />
 
       {/* Tabs */}
       <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 1px 6px rgba(0,0,0,.05)', overflow: 'hidden' }}>
