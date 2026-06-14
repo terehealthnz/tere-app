@@ -695,7 +695,7 @@ function AfScreeningPanel({ readings }) {
 }
 
 function Spo2CalibrationPanel({ readings }) {
-  const MIN_PAIRED = 30
+  const MIN_PAIRED = 10
   const paired = readings.filter(r => r.manual_spo2 != null && r.tere_spo2 != null)
   const mae    = paired.length
     ? (paired.reduce((s, r) => s + Math.abs(r.tere_spo2 - r.manual_spo2), 0) / paired.length).toFixed(1)
