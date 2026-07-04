@@ -43,6 +43,36 @@ export default defineConfig({
       },
       testMatch: '**/patient-recording.spec.ts',
     },
+    {
+      name: 'sizzle',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 390, height: 844 },
+        video: 'on',
+        headless: false,
+        permissions: ['camera', 'geolocation', 'microphone'],
+        geolocation: { latitude: -41.29, longitude: 174.00 }, // Picton
+        launchOptions: {
+          slowMo: 350,
+          args: [
+            '--use-fake-device-for-media-stream=false',
+            '--allow-file-access-from-files',
+          ],
+        },
+      },
+      testMatch: '**/sizzle-vignettes.spec.ts',
+    },
+    {
+      name: 'sizzle-provider',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        video: 'on',
+        headless: false,
+        launchOptions: { slowMo: 350 },
+      },
+      testMatch: '**/sizzle-provider.spec.ts',
+    },
   ],
   webServer: {
     command: 'npm run dev',
