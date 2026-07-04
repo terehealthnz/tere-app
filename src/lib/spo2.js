@@ -185,25 +185,55 @@ async function saveSpO2CalibrationToSupabase(cal) {
 }
 
 /**
- * Pull the most recent calibration from Supabase and cache it in localStorage.
- * Called on VitalsCapture mount so fresh patient devices apply the correction
- * without needing their own paired oximeter readings.
- * Returns the loaded calibration, or null if no rows exist / call failed.
+ * Two-way sync of SpO2 calibration with Supabase, called on VitalsCapture mount.
+ *
+ * - If local is present and newer than Supabase's latest row (or Supabase is empty),
+ *   upload local so other devices can pull it.
+ * - If Supabase is newer than local (or local is missing), pull Supabase → localStorage.
+ *
+ * This lets Patrick's day-to-day Chrome (which built the calibration via VitalsValidate's
+ * paired oximeter readings) seed the shared row simply by visiting /vitals once — no
+ * separate /vitals-validate hop, no manual SQL. Every subsequent patient device then
+ * loads the calibrated correction transparently.
+ *
+ * Returns the calibration in effect after the sync, or null if neither side has one.
  */
 export async function loadSpO2CalibrationFromSupabase() {
   try {
     const { supabase } = await import('./supabase')
+    const local = getSpO2Calibration()
+    const hasLocal = local && local.n >= 5
+
     const { data, error } = await supabase.from('spo2_calibrations')
       .select('slope,intercept,n,rmse,created_at')
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
-    if (error || !data) return null
-    const cal = { slope: Number(data.slope), intercept: Number(data.intercept), n: data.n, rmse: data.rmse, updatedAt: new Date(data.created_at).getTime() }
-    try { localStorage.setItem('tere_spo2_cal', JSON.stringify(cal)) } catch {}
-    return cal
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+
+    const remote = data ? {
+      slope: Number(data.slope), intercept: Number(data.intercept),
+      n: data.n, rmse: data.rmse, updatedAt: new Date(data.created_at).getTime(),
+    } : null
+
+    // Push: local is present and newer than remote (or remote is empty)
+    if (hasLocal && (!remote || (local.updatedAt || 0) > remote.updatedAt)) {
+      const { error: pushErr } = await supabase.from('spo2_calibrations').insert({
+        slope: local.slope, intercept: local.intercept, n: local.n, rmse: local.rmse ?? null,
+      })
+      if (pushErr) console.warn('[spo2] Supabase push failed:', pushErr.message)
+      return local
+    }
+
+    // Pull: remote is newer than local (or local is missing)
+    if (remote) {
+      try { localStorage.setItem('tere_spo2_cal', JSON.stringify(remote)) } catch {}
+      return remote
+    }
+
+    return hasLocal ? local : null
   } catch (e) {
-    console.warn('[spo2] loadFromSupabase failed:', e?.message)
+    console.warn('[spo2] sync failed:', e?.message)
     return null
   }
 }
