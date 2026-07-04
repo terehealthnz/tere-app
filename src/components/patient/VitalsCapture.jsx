@@ -66,6 +66,15 @@ function ConfidenceBadge({ numericConfidence }) {
 
 export default function VitalsCapture() {
   const navigate = useNavigate()
+  // On mount, ensure the latest trained BP model + norm params are cached locally so BP + SpO2
+  // render on the summary. Skips the fetch if the local meta already matches the remote version.
+  useEffect(() => {
+    import('../../lib/bpModel').then(async ({ loadModelFromSupabase, getLocalMeta }) => {
+      const local = getLocalMeta()
+      const meta  = await loadModelFromSupabase()
+      if (meta && local && meta.version === local.version) return // already current
+    }).catch(() => {})
+  }, [])
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
   const measureRef       = useRef(null)
@@ -432,11 +441,27 @@ export default function VitalsCapture() {
 
             {/* Camera preview — hidden when processing background frames */}
             <div style={{position:'relative',borderRadius:'var(--radius-sm)',overflow:'hidden',background:'#0D1117',marginBottom:'1.25rem',aspectRatio:'4/3',maxHeight:'280px',display: hasBackgroundFrames ? 'none' : undefined}}>
-              <video ref={videoRef} style={{width:'100%',height:'100%',objectFit:'cover',transform:'scaleX(-1)'}} muted playsInline />
+              {/* Face-tracking zoom wrapper — matches VitalsValidate step 2 */}
+              {(() => {
+                let videoTransform = { transform: 'none', transformOrigin: 'center', transition: 'transform .4s ease-out' }
+                if (faceBox && faceBox.w > 0.05 && faceBox.h > 0.05) {
+                  const cx = Math.max(0.25, Math.min(0.75, faceBox.x + faceBox.w / 2))
+                  const cy = Math.max(0.25, Math.min(0.75, faceBox.y + faceBox.h / 2))
+                  const scale = Math.min(2.2, Math.max(1, 0.55 / faceBox.h))
+                  videoTransform = {
+                    transformOrigin: `${cx * 100}% ${cy * 100}%`,
+                    transform: `translate(${(0.5 - cx) * 100}%, ${(0.5 - cy) * 100}%) scale(${scale})`,
+                    transition: 'transform .4s ease-out',
+                  }
+                }
+                return (
+                  <div style={{position:'absolute',inset:0,...videoTransform}}>
+                    <video ref={videoRef} style={{width:'100%',height:'100%',objectFit:'cover'}} muted playsInline />
+                    {uiState !== STATES.DONE && uiState !== STATES.ERROR && <div style={OVAL_STYLE} />}
+                  </div>
+                )
+              })()}
               <canvas ref={canvasRef} width={640} height={480} style={{display:'none'}} />
-
-              {/* Positioning oval — shown in all pre-done states */}
-              {uiState !== STATES.DONE && uiState !== STATES.ERROR && <div style={OVAL_STYLE} />}
 
               {/* Inspecting overlay */}
               {isInspecting && (
@@ -468,14 +493,6 @@ export default function VitalsCapture() {
                   <div style={{color:'white',fontSize:'.8125rem',marginBottom:8,opacity:.85}}>
                     Pass {passNum} of {totalPasses}
                   </div>
-
-                  {/* Live HR */}
-                  {liveHR && (
-                    <div style={{color:'white',textAlign:'center',marginBottom:8}}>
-                      <div style={{fontSize:'1.5rem',fontWeight:'700'}}>❤️ {liveHR}</div>
-                      <div style={{fontSize:'.75rem',color:'rgba(255,255,255,.6)'}}>bpm (live)</div>
-                    </div>
-                  )}
 
                   {/* Motion indicator */}
                   <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'.8125rem',color:'white',opacity:.85}}>
@@ -597,7 +614,18 @@ export default function VitalsCapture() {
                       </div>
                     </div>
                   )}
-                  {/* SpO2 not shown to patient — camera-based estimate not reliable enough for self-interpretation */}
+                  {/* SpO2 shown as screening estimate with confidence badge — patient must interpret with clinician */}
+                  {spo2Estimate?.estimate != null && (
+                    <div className="vital-card">
+                      <div className="vital-label">SpO₂{spo2Estimate.confidence === 'low' ? ' ⚠️' : ''}</div>
+                      <div className="vital-value" style={{ color: spo2Estimate.confidence === 'low' ? '#F59E0B' : undefined }}>
+                        {spo2Estimate.estimate}
+                      </div>
+                      <div className="vital-unit">
+                        % · screening estimate{spo2Estimate.confidence === 'low' ? ' · low confidence' : spo2Estimate.confidence === 'medium' ? ' · may vary' : ''}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {vitals.passes && (
                   <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>

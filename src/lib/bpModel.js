@@ -299,8 +299,7 @@ export function extractFeatures(rppgSignal, subject = {}, devInfo = null) {
 // Physiologically-Informed Training Augmentation:
 // 1. Gaussian noise on all features (general robustness)
 // 2. HR plausible variation (±3 and ±5 bpm shifts) — index 0
-// 3. BP range variation (±5 and ±10 mmHg shifts on BP-related features) — indices 3-6
-// 4. Device variation (FPS/quality jitter) — indices 22-29
+// 3. Device variation (FPS/quality jitter) — indices 22-29
 
 function augmentData(features, labels, factor = 3) {
   const augF = [...features], augL = [...labels]
@@ -325,17 +324,7 @@ function augmentData(features, labels, factor = 3) {
       augL.push([sys, dia, hr + hrDelta, spo2])
     }
 
-    // Pass 3: BP range variation (±5 mmHg and ±10 mmHg)
-    for (const bpDelta of [-10, -5, 5, 10]) {
-      augF.push(feat)  // features unchanged — label variation tests robustness
-      augL.push([
-        Math.max(70,  Math.min(200, sys + bpDelta)),
-        Math.max(40,  Math.min(130, dia + Math.round(bpDelta * 0.6))),
-        hr, spo2,
-      ])
-    }
-
-    // Pass 4: Device variation (FPS and quality jitter on device feature block)
+    // Pass 3: Device variation (FPS and quality jitter on device feature block)
     const devFeat = [...feat]
     // Device features are last 8 values (indices FEATURE_SIZE-8 to FEATURE_SIZE-1)
     for (let k = feat.length - 8; k < feat.length; k++) {
@@ -370,17 +359,48 @@ function buildModel() {
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 
-async function saveToSupabase(meta, normParams) {
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf)
+  let s = ''
+  for (let i = 0; i < bytes.byteLength; i++) s += String.fromCharCode(bytes[i])
+  return btoa(s)
+}
+
+function base64ToArrayBuffer(b64) {
+  const s = atob(b64)
+  const bytes = new Uint8Array(s.length)
+  for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i)
+  return bytes.buffer
+}
+
+async function saveToSupabase(meta, normParams, model) {
   try {
+    let modelTopology = null, weightSpecs = null, weightData = null
+    if (model) {
+      const artifacts = await new Promise((resolve, reject) =>
+        model.save(tf.io.withSaveHandler(async (a) => { resolve(a); return { modelArtifactsInfo: { dateSaved: new Date(), modelTopologyType: 'JSON' } } })).catch(reject)
+      )
+      modelTopology = artifacts.modelTopology
+      weightSpecs   = artifacts.weightSpecs
+      weightData    = arrayBufferToBase64(artifacts.weightData)
+    }
     const { error } = await supabase.from('model_versions').insert({
       model_version: meta.version, training_samples: meta.samples,
       final_mae: meta.finalMae, val_mae: meta.valMae,
       val_mae_sys: meta.valMaeSys, val_mae_dia: meta.valMaeDia,
-      model_topology: null, weight_specs: null, weight_data: null,
+      model_topology: modelTopology, weight_specs: weightSpecs,
+      weight_data_base64: weightData,
       bp_mean: normParams.mean, bp_std: normParams.std,
     })
-    if (error) console.warn('[vitalsModel] Supabase save error:', error.message)
-  } catch (e) { console.warn('[vitalsModel] Supabase save failed:', e.message) }
+    if (error) {
+      console.error('[vitalsModel] Supabase save error:', error.message, error)
+      return { ok: false, error: error.message }
+    }
+    return { ok: true }
+  } catch (e) {
+    console.error('[vitalsModel] Supabase save failed:', e.message)
+    return { ok: false, error: e.message }
+  }
 }
 
 export async function loadModelFromSupabase() {
@@ -391,12 +411,33 @@ export async function loadModelFromSupabase() {
     const meta = { version: data.model_version, samples: data.training_samples, valMae: data.val_mae, finalMae: data.final_mae, trainedAt: data.trained_at }
     localStorage.setItem(NORM_KEY, JSON.stringify({ mean: data.bp_mean, std: data.bp_std }))
     localStorage.setItem(META_KEY, JSON.stringify(meta))
+
+    // Restore the trained model itself if the row has weight artifacts (rows saved before
+    // the 2026-07-04 migration have null topology/specs — those still need retraining).
+    if (data.model_topology && data.weight_specs && data.weight_data_base64) {
+      try {
+        const weightData = base64ToArrayBuffer(data.weight_data_base64)
+        const restored = await tf.loadLayersModel(tf.io.fromMemory(data.model_topology, data.weight_specs, weightData))
+        await restored.save(MODEL_KEY)
+        restored.dispose()
+      } catch (e) {
+        console.warn('[vitalsModel] weight restore failed (metadata still cached):', e.message)
+      }
+    }
     return meta
   } catch (e) { console.warn('[vitalsModel] loadFromSupabase failed:', e.message); return null }
 }
 
 export function getLocalMeta() {
   try { return JSON.parse(localStorage.getItem(META_KEY) || 'null') } catch { return null }
+}
+
+export async function resetLocalModel() {
+  try { await tf.io.removeModel(MODEL_KEY) } catch {}
+  localStorage.removeItem(NORM_KEY)
+  localStorage.removeItem(META_KEY)
+  localStorage.removeItem(CALIB_KEY)
+  localStorage.removeItem('tere_last_train_ms')
 }
 
 export function bpModelReady() { return isBPReliable() }
@@ -430,7 +471,7 @@ function filterQualityReadings(readings) {
   const sorted = [...withData].sort((a, b) => a.manual_systolic - b.manual_systolic)
   const median = sorted[Math.floor(sorted.length / 2)].manual_systolic
   return withData.filter(r => {
-    if (Math.abs(r.manual_systolic - median) > 30) {
+    if (Math.abs(r.manual_systolic - median) > 50) {
       console.warn('[vitalsModel] Outlier skipped:', r.manual_systolic, '(median:', median + ')')
       return false
     }
@@ -536,7 +577,7 @@ export async function trainModel(readings, onProgress, reason = 'manual_trigger'
   const meta    = { version, samples: trainRaw.length, finalMae, valMae, valMaeSys, valMaeDia, retrainReason: reason }
   localStorage.setItem(META_KEY, JSON.stringify({ ...meta, trainedAt: new Date().toISOString() }))
   await model.save(MODEL_KEY)
-  await saveToSupabase(meta, normParams)
+  await saveToSupabase(meta, normParams, model)
   xs.dispose(); ys.dispose(); yMean.dispose(); yStd.dispose(); ysNorm.dispose(); model.dispose()
 
   return meta
