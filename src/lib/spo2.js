@@ -165,7 +165,47 @@ export function fitSpO2Calibration(pairedReadings) {
   const rmse      = Math.sqrt(residuals.reduce((s, e) => s + e * e, 0) / n)
   const cal = { slope, intercept, n, rmse: Math.round(rmse * 10) / 10, updatedAt: Date.now() }
   try { localStorage.setItem('tere_spo2_cal', JSON.stringify(cal)) } catch {}
+
+  // Propagate to Supabase so any patient device can pull the same calibration.
+  // Fire-and-forget — local calibration is authoritative for this device.
+  saveSpO2CalibrationToSupabase(cal).catch(e => console.warn('[spo2] Supabase save failed:', e?.message))
+
   return cal
+}
+
+async function saveSpO2CalibrationToSupabase(cal) {
+  const { supabase } = await import('./supabase')
+  const { error } = await supabase.from('spo2_calibrations').insert({
+    slope: cal.slope,
+    intercept: cal.intercept,
+    n: cal.n,
+    rmse: cal.rmse ?? null,
+  })
+  if (error) throw new Error(error.message)
+}
+
+/**
+ * Pull the most recent calibration from Supabase and cache it in localStorage.
+ * Called on VitalsCapture mount so fresh patient devices apply the correction
+ * without needing their own paired oximeter readings.
+ * Returns the loaded calibration, or null if no rows exist / call failed.
+ */
+export async function loadSpO2CalibrationFromSupabase() {
+  try {
+    const { supabase } = await import('./supabase')
+    const { data, error } = await supabase.from('spo2_calibrations')
+      .select('slope,intercept,n,rmse,created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    if (error || !data) return null
+    const cal = { slope: Number(data.slope), intercept: Number(data.intercept), n: data.n, rmse: data.rmse, updatedAt: new Date(data.created_at).getTime() }
+    try { localStorage.setItem('tere_spo2_cal', JSON.stringify(cal)) } catch {}
+    return cal
+  } catch (e) {
+    console.warn('[spo2] loadFromSupabase failed:', e?.message)
+    return null
+  }
 }
 
 function applyCal(spo2, cal) {

@@ -66,14 +66,16 @@ function ConfidenceBadge({ numericConfidence }) {
 
 export default function VitalsCapture() {
   const navigate = useNavigate()
-  // On mount, ensure the latest trained BP model + norm params are cached locally so BP + SpO2
-  // render on the summary. Skips the fetch if the local meta already matches the remote version.
+  // On mount, ensure the latest trained BP model + SpO2 calibration are cached locally so
+  // BP + SpO2 render calibrated on the summary. Both fetch from Supabase and no-op if local
+  // is already current.
   useEffect(() => {
     import('../../lib/bpModel').then(async ({ loadModelFromSupabase, getLocalMeta }) => {
       const local = getLocalMeta()
       const meta  = await loadModelFromSupabase()
       if (meta && local && meta.version === local.version) return // already current
     }).catch(() => {})
+    import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
   }, [])
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
@@ -614,18 +616,22 @@ export default function VitalsCapture() {
                       </div>
                     </div>
                   )}
-                  {/* SpO2 shown as screening estimate with confidence badge — patient must interpret with clinician */}
-                  {spo2Estimate?.estimate != null && (
-                    <div className="vital-card">
-                      <div className="vital-label">SpO₂{spo2Estimate.confidence === 'low' ? ' ⚠️' : ''}</div>
-                      <div className="vital-value" style={{ color: spo2Estimate.confidence === 'low' ? '#F59E0B' : undefined }}>
-                        {spo2Estimate.estimate}
+                  {/* SpO2: use formatSpO2Display() to hide low/unreliable estimates rather than misrendering them */}
+                  {(() => {
+                    const disp = formatSpO2Display(spo2Estimate)
+                    if (!disp?.show) return null
+                    return (
+                      <div className="vital-card">
+                        <div className="vital-label">SpO₂{disp.warning ? ' ⚠️' : ''}</div>
+                        <div className="vital-value" style={{ color: disp.warning ? disp.color : undefined }}>
+                          {disp.value}
+                        </div>
+                        <div className="vital-unit">
+                          % · screening estimate{disp.warning ? ' · may vary' : ''}
+                        </div>
                       </div>
-                      <div className="vital-unit">
-                        % · screening estimate{spo2Estimate.confidence === 'low' ? ' · low confidence' : spo2Estimate.confidence === 'medium' ? ' · may vary' : ''}
-                      </div>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
                 {vitals.passes && (
                   <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>
