@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LANGUAGES, t } from '../../lib/i18n'
+import MaoriFlagIcon from '../MaoriFlagIcon'
 
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
@@ -141,11 +142,21 @@ export default function TereIntro({ onStart }) {
           {LANGUAGES.map(l => (
             <button key={l.code} onClick={() => selectLang(l.code)}
               style={{ background: lang === l.code ? 'rgba(11,110,118,.5)' : 'rgba(255,255,255,.07)', border: `1.5px solid ${lang === l.code ? '#0B6E76' : 'rgba(255,255,255,.12)'}`, borderRadius:8, padding:'6px 4px', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:2, transition:'all .15s' }}>
-              <span style={{ fontSize:'1.25rem', lineHeight:1 }}>{l.flag}</span>
+              <span style={{ fontSize:'1.25rem', lineHeight:1 }}>
+                {l.customFlag === 'MaoriFlagIcon' ? <MaoriFlagIcon width={22} height={15} /> : l.flag}
+              </span>
               <span style={{ fontSize:'.6rem', color: lang === l.code ? '#D4EEF0' : 'rgba(212,238,240,0.87)', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight: lang === l.code ? 700 : 400 }}>{l.nativeName}</span>
             </button>
           ))}
         </div>
+        {(() => {
+          const selected = LANGUAGES.find(l => l.code === lang)
+          return selected?.note ? (
+            <div style={{ fontSize:'.65rem', color:'rgba(212,238,240,0.75)', textAlign:'center', marginTop:'.5rem', lineHeight:1.4 }}>
+              {selected.note}
+            </div>
+          ) : null
+        })()}
       </div>
 
       {/* Steps */}

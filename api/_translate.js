@@ -1,7 +1,7 @@
-// DeepL target_lang codes (use EN-US for English target)
+// DeepL target_lang codes (use EN-US for English target). No Māori — DeepL doesn't support 'mi', so the code falls through to Google.
 const DEEPL_CODES = { en: 'EN-US', zh: 'ZH', ja: 'JA', ko: 'KO', de: 'DE', fr: 'FR', es: 'ES', ar: 'AR', hi: 'HI' }
-// Google Translate codes
-const GOOGLE_CODES = { en: 'en', zh: 'zh-CN', ja: 'ja', ko: 'ko', de: 'de', fr: 'fr', es: 'es', ar: 'ar', hi: 'hi' }
+// Google Translate codes (Google supports Te Reo Māori as 'mi').
+const GOOGLE_CODES = { en: 'en', mi: 'mi', zh: 'zh-CN', ja: 'ja', ko: 'ko', de: 'de', fr: 'fr', es: 'es', ar: 'ar', hi: 'hi' }
 
 async function withDeepL(text, targetLang) {
   const key = process.env.DEEPL_API_KEY

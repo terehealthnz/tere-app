@@ -11,6 +11,7 @@ import ConvertToAccModal from './ConvertToAccModal'
 import VirtualBgControls from './VirtualBgControls'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
+import MaoriFlagIcon from '../MaoriFlagIcon'
 import { apiFetch } from '../../lib/api'
 import { Modal, PrescribeModal, XrayModal, ACCModal } from './ClinicalActionModals'
 
@@ -443,7 +444,7 @@ export default function ConsultView() {
             const lm = getLangMeta(consult.patient_language)
             return (
               <div style={{marginTop:4,display:'inline-flex',alignItems:'center',gap:4,background:'rgba(11,110,118,.4)',border:'1px solid rgba(11,110,118,.6)',borderRadius:12,padding:'2px 8px',fontSize:'.7rem',color:'#D4EEF0'}}>
-                {lm.flag} {lm.name}
+                {lm.customFlag === 'MaoriFlagIcon' ? <MaoriFlagIcon width={14} height={9} /> : lm.flag} {lm.name}
               </div>
             )
           })()}

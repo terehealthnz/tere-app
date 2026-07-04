@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
-import { t, getLang, getLangMeta } from '../../lib/i18n'
+import { t, t_bilingual, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
 import { findFaceRegion } from '../../lib/rppg'
@@ -885,8 +885,8 @@ export default function AITriage() {
       <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem'}}>
         <div style={{maxWidth:420,width:'100%',textAlign:'center'}}>
           <div style={{fontSize:'4rem',marginBottom:'1rem'}}>🚨</div>
-          <h1 style={{color:'#991B1B',marginBottom:'.75rem',fontSize:'1.75rem'}}>{t('physical_heading', lang)}</h1>
-          <p style={{marginBottom:'2rem',lineHeight:1.7,color:'#374151'}}>{t('physical_body', lang)}</p>
+          <h1 style={{color:'#991B1B',marginBottom:'.75rem',fontSize:'1.75rem'}}>{t_bilingual('physical_heading', lang)}</h1>
+          <p style={{marginBottom:'2rem',lineHeight:1.7,color:'#374151'}}>{t_bilingual('physical_body', lang)}</p>
           <a href="tel:111" style={{display:'block',background:'#DC2626',color:'white',textDecoration:'none',borderRadius:14,padding:'1.25rem',fontSize:'1.25rem',fontWeight:700,marginBottom:'1rem',boxShadow:'0 4px 12px rgba(220,38,38,0.4)'}}>📞 Call 111</a>
           <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>{t('physical_back', lang)}</button>
         </div>
@@ -918,7 +918,7 @@ export default function AITriage() {
               📞 0508 828 865
             </a>
             <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:12,padding:'1rem 1.25rem',fontSize:'.875rem',color:'#92400E',textAlign:'center'}}>
-              {t('emergency_danger', lang)}
+              {t_bilingual('emergency_danger', lang)}
             </div>
           </div>
         </div>
@@ -946,7 +946,7 @@ export default function AITriage() {
               🌐 aa.org.nz
             </a>
             <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:12,padding:'1rem 1.25rem',fontSize:'.875rem',color:'#92400E',textAlign:'center'}}>
-              {t('emergency_danger', lang)}
+              {t_bilingual('emergency_danger', lang)}
             </div>
           </div>
         </div>

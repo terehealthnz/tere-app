@@ -278,15 +278,22 @@ export default async function handler(req, res) {
     if (!key) return res.status(200).json({ polished: draft })
 
     let context = ''
+    let patientLanguage = 'en'
     if (consultationId) {
       const { data: consult } = await supabase.from('consultations')
-        .select('chief_complaint, patient_first_name, patient_allergies, medications').eq('id', consultationId).single()
+        .select('chief_complaint, patient_first_name, patient_allergies, medications, preferred_language').eq('id', consultationId).single()
       if (consult) {
         context = `Patient: ${consult.patient_first_name || 'Patient'}\nComplaint: ${consult.chief_complaint || ''}`
         if (consult.patient_allergies && consult.patient_allergies !== 'None') context += `\nAllergies: ${consult.patient_allergies}`
         if (consult.medications) context += `\nCurrent medications: ${consult.medications}`
+        patientLanguage = consult.preferred_language || 'en'
       }
     }
+
+    const teReoBlock = patientLanguage === 'mi' ? `
+- The patient has selected Te Reo Māori — rewrite in Te Reo Māori where possible; use English for medical terms lacking established Te Reo equivalents, with a brief Te Reo explanation.
+- Any critical safety warning (e.g. call 111) must appear in both Te Reo AND English — e.g. "Waea atu ki te 111 ināianei — Call 111 immediately". Never render a safety warning in Te Reo only.
+- Acknowledge whānau context if the patient mentioned whānau being present or involved in their care.` : ''
 
     const prompt = `You are a medical communications specialist helping a New Zealand telehealth provider polish their patient message.
 
@@ -297,7 +304,7 @@ Rewrite the following draft as a warm, professional, clear response. Rules:
 - Preserve every clinical fact and instruction exactly — do not add or remove clinical content
 - Keep appropriate length — do not pad or truncate meaning
 - Do NOT add a greeting or sign-off — those are added automatically
-- Return ONLY the rewritten message body, nothing else
+- Return ONLY the rewritten message body, nothing else${teReoBlock}
 
 ${context ? `Context:\n${context}\n\n` : ''}Draft to polish:
 ${draft}`
@@ -553,7 +560,7 @@ ${draft}`
     if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
     const { data: c } = await supabase.from('consultations')
-      .select('chief_complaint,async_symptom_detail,async_urgency,async_requests,patient_first_name,patient_allergies,medications,medical_history,acc_eligible')
+      .select('chief_complaint,async_symptom_detail,async_urgency,async_requests,patient_first_name,patient_allergies,medications,medical_history,acc_eligible,preferred_language')
       .eq('id', consultationId).single()
     if (!c) return res.status(404).json({ error: 'Consultation not found' })
 
@@ -581,6 +588,16 @@ ${draft}`
       c.acc_eligible === 'yes' ? 'ACC: eligible injury' : null,
     ].filter(Boolean).join('\n')
 
+    const teReoBlock = c.preferred_language === 'mi' ? `
+
+Cultural + language context:
+- The patient has selected Te Reo Māori as their preferred language.
+- Write the response in Te Reo Māori where possible. For medical terms that do not have established Te Reo equivalents, use the English term with a brief Te Reo explanation alongside it.
+- If the patient's message referred to whānau being present or involved in their care, acknowledge that whānau context.
+- Any critical safety warning (e.g. call 111) must appear in both Te Reo AND English — e.g. "Waea atu ki te 111 ināianei — Call 111 immediately". Never render a safety warning in Te Reo only.
+- If you are uncertain of the correct Te Reo medical term, use English with a brief Te Reo explanation.
+` : ''
+
     const prompt = `You are a New Zealand GP writing a final response to a patient after an async message consultation.
 
 Patient information:
@@ -588,7 +605,7 @@ ${patientLines}
 
 The provider sent the following messages to the patient during the consultation:
 ${providerText}
-
+${teReoBlock}
 Write a concise, warm, professional closing response (3–5 sentences) that:
 1. Briefly states your assessment of what is going on
 2. Summarises the management plan based on what the provider communicated
@@ -596,7 +613,7 @@ Write a concise, warm, professional closing response (3–5 sentences) that:
 
 Rules:
 - Address the patient directly ("I" / "you") — do not use third person
-- Plain English, NZ spelling
+- Plain English, NZ spelling${c.preferred_language === 'mi' ? ' (write in Te Reo Māori as directed above)' : ''}
 - Do NOT add a greeting or sign-off — those are added separately
 - Do NOT add information not already in the provider messages
 - Return ONLY the response body, nothing else`

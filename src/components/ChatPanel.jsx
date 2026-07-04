@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { t, getLangMeta } from '../lib/i18n'
+import MaoriFlagIcon from './MaoriFlagIcon'
 import { apiFetch } from '../lib/api'
 
 async function resizeImageToBase64(file, maxWidth = 900) {
@@ -200,7 +201,7 @@ export default function ChatPanel({
               <span style={{ color: 'white', fontWeight: 600, fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{t('chat_label', myLang)}</span>
               {needsTranslation && (
                 <span style={{ fontSize: '.75rem', background: 'rgba(255,255,255,.15)', color: 'rgba(255,255,255,.8)', borderRadius: 4, padding: '1px 5px' }}>
-                  {patientLangMeta.flag} {patientLangMeta.nativeName}
+                  {patientLangMeta.customFlag === 'MaoriFlagIcon' ? <MaoriFlagIcon width={16} height={11} /> : patientLangMeta.flag} {patientLangMeta.nativeName}
                 </span>
               )}
             </div>
@@ -237,7 +238,7 @@ export default function ChatPanel({
                     fontFamily: 'Plus Jakarta Sans, sans-serif',
                   }}>
                     <div style={{ fontSize: '.625rem', opacity: 0.6, marginBottom: m.photo_url || m.message ? 3 : 0, textTransform: 'uppercase', letterSpacing: '.04em', display: 'flex', gap: 4, alignItems: 'center' }}>
-                      {translated && <span>{patientLangMeta.flag}</span>}
+                      {translated && <span>{patientLangMeta.customFlag === 'MaoriFlagIcon' ? <MaoriFlagIcon width={12} height={8} /> : patientLangMeta.flag}</span>}
                       {m.sender === 'patient' ? 'Patient' : 'Provider'} · {new Date(m.created_at).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                     {m.photo_url && (

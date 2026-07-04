@@ -1,5 +1,9 @@
 export const LANGUAGES = [
-  { code: 'en', name: 'English',  nativeName: 'English',   flag: '🇳🇿', rtl: false },
+  { code: 'en', name: 'English',       nativeName: 'English',       flag: '🇬🇧', rtl: false },
+  { code: 'mi', name: 'Te Reo Māori',  nativeName: 'Te Reo Māori',  flag: '🇳🇿', rtl: false,
+    // Custom Tino Rangatiratanga SVG rendered where consumers opt-in (patient selector, provider views).
+    customFlag: 'MaoriFlagIcon',
+    note: 'He rereke ētahi kupu hauora — Some medical terms remain in English' },
   { code: 'zh', name: 'Chinese',  nativeName: '中文',       flag: '🇨🇳', rtl: false },
   { code: 'ja', name: 'Japanese', nativeName: '日本語',     flag: '🇯🇵', rtl: false },
   { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false },
@@ -139,6 +143,7 @@ const T = {
 
   complaint: {
     en: "What's brought you in today? Tell me what's going on — including how long it's been happening.",
+    mi: "He aha tō raruraru i tēnei rā? Kōrero mai — me pēhea te roa o tēnei raruraru.",
     zh: "今天是什么原因来就诊？请告诉我发生了什么——包括已经持续多久了。",
     ja: "本日はどのようなことでお越しですか？症状がいつ頃から続いているかも含めて教えてください。",
     ko: "오늘 오신 이유가 무엇입니까? 얼마나 됐는지 포함해서 무슨 일인지 말씀해 주세요.",
@@ -174,6 +179,7 @@ const T = {
 
   medications: {
     en: "Are you on any regular medications?",
+    mi: "E kai ana koe i ētahi rongoā?",
     zh: "您有定期服药吗？",
     ja: "定期的に服用している薬はありますか？",
     ko: "정기적으로 복용하는 약이 있습니까?",
@@ -186,6 +192,7 @@ const T = {
 
   allergies: {
     en: "Any allergies — medications, foods, anything?",
+    mi: "He mate huka/hukarere ōu? He rongoā, kai, aha rānei?",
     zh: "有过敏症吗——药物、食物或其他任何东西？",
     ja: "アレルギーはありますか？薬、食べ物、その他何でも。",
     ko: "알레르기가 있습니까? 약물, 음식, 그 외 무엇이든요.",
@@ -337,6 +344,7 @@ const T = {
   // ── Emergency screens ─────────────────────────────────────────────────────
   physical_heading: {
     en: 'Call 111 Now',
+    mi: 'Waea atu ki te 111 ināianei',
     zh: '立即拨打111',
     ja: '今すぐ111に電話',
     ko: '지금 111에 전화',
@@ -392,6 +400,7 @@ const T = {
   },
   emergency_danger: {
     en: 'If you are in immediate danger, call 111',
+    mi: 'Mēnā kei roto koe i te tino kino, waea atu ki te 111',
     zh: '如果您面临立即危险，请拨打111',
     ja: 'すぐに危険な状況にある場合は111に電話してください',
     ko: '즉각적인 위험에 처해 있다면 111에 전화하세요',
@@ -546,6 +555,29 @@ const T = {
     ar: 'لقد لاحظت ذلك. فقط لمعلوماتك — لا يمكن وصف الأدوية الخاضعة للرقابة (مثل المواد الأفيونية، البنزوديازيبينات، أو حقن GLP-1 مثل أوزيمبيك) عبر الرعاية عن بُعد. سيناقش طبيبك الخيارات المتاحة لك اليوم.',
     hi: 'मैंने यह नोट कर लिया है। बस जानकारी के लिए — नियंत्रित दवाएं (जैसे ओपिओइड, बेंजोडायजेपाइन, या Ozempic जैसे GLP-1 इंजेक्शन) टेलीहेल्थ के माध्यम से नहीं लिखी जा सकतीं। आपके डॉक्टर आज आपके लिए उपलब्ध विकल्पों पर चर्चा करेंगे।',
   },
+
+  // ── Symptom follow-ups (added for Te Reo bring-up 2026-07-04) ─────────────
+  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?' },
+  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?' },
+  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)' },
+  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?' },
+  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?' },
+  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?' },
+  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?' },
+  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?' },
+
+  // ── Provider status ──────────────────────────────────────────────────────
+  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata' },
+
+  // ── Buttons ──────────────────────────────────────────────────────────────
+  btn_continue: { en: 'Continue', mi: 'Haere tonu' },
+  btn_back:     { en: 'Back',     mi: 'Hoki' },
+  btn_skip:     { en: 'Skip',     mi: 'Tukua' },
+  btn_submit:   { en: 'Submit',   mi: 'Tukua atu' },
+
+  // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─
+  // Rendered by t_bilingual() helper so critical warnings never appear in Te Reo only.
+  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei' },
 }
 
 /**
@@ -557,4 +589,17 @@ export function t(id, lang = 'en', vars = {}) {
   if (!entry) return id
   const str = entry[lang] || entry.en || id
   return Object.entries(vars).reduce((s, [k, v]) => s.replace(`\${${k}}`, v ?? ''), str)
+}
+
+/**
+ * Bilingual translation for safety-critical messages (e.g. red flag warnings).
+ * When Te Reo Māori is selected, always append the English fallback so no
+ * critical warning is ever shown in Te Reo only — safety requirement from the
+ * Te Reo launch. Other languages already carry their full translation.
+ */
+export function t_bilingual(id, lang = 'en', vars = {}) {
+  const primary = t(id, lang, vars)
+  if (lang !== 'mi') return primary
+  const en = t(id, 'en', vars)
+  return en === primary ? primary : `${primary} — ${en}`
 }
