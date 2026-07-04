@@ -47,6 +47,7 @@ export default defineConfig({
       name: 'sizzle',
       use: {
         ...devices['Desktop Chrome'],
+        channel: 'chrome', // use system Chrome (macOS camera permission is usually already granted)
         viewport: { width: 390, height: 844 },
         video: 'on',
         headless: false,
@@ -56,11 +57,13 @@ export default defineConfig({
           slowMo: 350,
           args: [
             '--use-fake-device-for-media-stream=false',
+            '--use-fake-ui-for-media-stream',
+            '--auto-accept-camera-and-microphone-capture',
             '--allow-file-access-from-files',
           ],
         },
       },
-      testMatch: '**/sizzle-vignettes.spec.ts',
+      testMatch: /(sizzle-vignettes|marketing-video)\.spec\.ts$/,
     },
     {
       name: 'sizzle-provider',
