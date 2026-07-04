@@ -185,53 +185,61 @@ async function saveSpO2CalibrationToSupabase(cal) {
 }
 
 /**
- * Two-way sync of SpO2 calibration with Supabase, called on VitalsCapture mount.
+ * Sync SpO2 calibration with Supabase on VitalsCapture mount.
  *
- * - If local is present and newer than Supabase's latest row (or Supabase is empty),
- *   upload local so other devices can pull it.
- * - If Supabase is newer than local (or local is missing), pull Supabase → localStorage.
+ * Order of preference:
+ *   1. If Supabase has a calibration row → pull it → localStorage.
+ *   2. Else if local calibration exists (n≥5) → push it up.
+ *   3. Else fit a calibration from paired validation_readings on-the-fly, push up, cache.
  *
- * This lets Patrick's day-to-day Chrome (which built the calibration via VitalsValidate's
- * paired oximeter readings) seed the shared row simply by visiting /vitals once — no
- * separate /vitals-validate hop, no manual SQL. Every subsequent patient device then
- * loads the calibrated correction transparently.
+ * Option 3 is the key: it means the shared calibration exists as soon as ≥5 paired
+ * oximeter readings live in validation_readings, without depending on any particular
+ * browser's localStorage or on a manual retrain step.
  *
- * Returns the calibration in effect after the sync, or null if neither side has one.
+ * Returns the calibration in effect after the sync, or null if <5 pairs exist yet.
  */
 export async function loadSpO2CalibrationFromSupabase() {
   try {
     const { supabase } = await import('./supabase')
-    const local = getSpO2Calibration()
-    const hasLocal = local && local.n >= 5
 
-    const { data, error } = await supabase.from('spo2_calibrations')
+    // 1. Try the shared calibration table first
+    const { data: existing, error: readErr } = await supabase.from('spo2_calibrations')
       .select('slope,intercept,n,rmse,created_at')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (error) throw new Error(error.message)
+    if (readErr) throw new Error(readErr.message)
 
-    const remote = data ? {
-      slope: Number(data.slope), intercept: Number(data.intercept),
-      n: data.n, rmse: data.rmse, updatedAt: new Date(data.created_at).getTime(),
-    } : null
+    if (existing) {
+      const cal = {
+        slope: Number(existing.slope), intercept: Number(existing.intercept),
+        n: existing.n, rmse: existing.rmse, updatedAt: new Date(existing.created_at).getTime(),
+      }
+      try { localStorage.setItem('tere_spo2_cal', JSON.stringify(cal)) } catch {}
+      return cal
+    }
 
-    // Push: local is present and newer than remote (or remote is empty)
-    if (hasLocal && (!remote || (local.updatedAt || 0) > remote.updatedAt)) {
+    // 2. No shared row yet — fall back to local
+    const local = getSpO2Calibration()
+    if (local && local.n >= 5) {
       const { error: pushErr } = await supabase.from('spo2_calibrations').insert({
         slope: local.slope, intercept: local.intercept, n: local.n, rmse: local.rmse ?? null,
       })
-      if (pushErr) console.warn('[spo2] Supabase push failed:', pushErr.message)
+      if (pushErr) console.warn('[spo2] push local calibration failed:', pushErr.message)
       return local
     }
 
-    // Pull: remote is newer than local (or local is missing)
-    if (remote) {
-      try { localStorage.setItem('tere_spo2_cal', JSON.stringify(remote)) } catch {}
-      return remote
-    }
+    // 3. No shared row and no usable local — try to fit from paired validation_readings
+    const { data: pairs, error: pairsErr } = await supabase.from('validation_readings')
+      .select('tere_spo2, manual_spo2')
+      .not('tere_spo2', 'is', null)
+      .not('manual_spo2', 'is', null)
+    if (pairsErr) throw new Error(pairsErr.message)
+    if (!pairs || pairs.length < 5) return null
 
-    return hasLocal ? local : null
+    const paired = pairs.map(r => ({ estimated: Number(r.tere_spo2), reference: Number(r.manual_spo2) }))
+    const fitted = fitSpO2Calibration(paired) // also writes localStorage + fires Supabase insert
+    return fitted
   } catch (e) {
     console.warn('[spo2] sync failed:', e?.message)
     return null
