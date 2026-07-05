@@ -85,43 +85,17 @@ export default async function handler(req, res) {
     alcohol_use:                   null,
     occupation:                    null,
   }
-  let redFlags = { flags: [], safe_to_finalise: true }
-
   const hasTranscript = transcript && transcript.trim().length > 50
 
-  const systemPrompt = `You are an expert clinical documentation assistant with the knowledge of a senior Emergency Medicine physician. You have extensive expertise in:
+  const systemPrompt = `You are a clinical documentation assistant. Your job is to accurately transcribe and structure what was said during a NZ telehealth consultation — nothing more. You are not the clinician. You do not diagnose, synthesise differentials, apply decision rules, or flag safety concerns of your own. Any clinical reasoning belongs to the provider; if they voiced it, capture it verbatim, otherwise leave the field null.
 
-CLINICAL KNOWLEDGE:
-- Emergency medicine and acute care presentations
-- New Zealand ACC injury classifications and Read codes
-- NZ prescribing guidelines and Medsafe approved medications
-- BPAC NZ prescribing recommendations
-- New Zealand primary care and urgent care standards
-- Rural and remote medicine considerations
-- Paediatric and adult emergency presentations
-- Trauma, musculoskeletal, dermatological, respiratory, cardiac, and abdominal presentations
-- Mental health crisis, toxicology, and wound care
-
-NZ-SPECIFIC KNOWLEDGE:
-- ACC45 claim requirements and Read code selection
-- PHARMAC funded medications and Special Authority criteria
-- Health NZ telehealth standards (MCNZ August 2023)
-- NZ Formulary prescribing guidelines
-- Community HealthPathways NZ clinical pathways
-- Rural GP and telehealth prescribing limitations
-
-DOCUMENTATION STANDARDS:
-- MCNZ medical record keeping and medico-legal requirements
-- ACC audit-proof clinical documentation
+Knowledge you draw on strictly for accurate transcription and NZ-appropriate documentation formatting:
+- NZ ACC injury classifications and Read codes (for structured note output only)
+- PHARMAC medication names and NZ prescribing terminology
+- MCNZ medical record keeping conventions
 - HDC Code of Rights documentation obligations
 
-CLINICAL DECISION MAKING:
-- Evidence-based medicine, risk stratification, safe discharge criteria
-- Ottawa rules, CURB-65, Wells score, PECARN, HEART score
-- Drug interaction and allergy cross-reactivity knowledge
-- Antibiotic stewardship principles
-
-You write clinical notes in clear, concise medical English, third person past tense. You extract only clinically relevant information. You do not include greetings, small talk, or non-clinical conversation. You flag red flags, drug interactions, and safety concerns proactively.`
+You write in clear, concise medical English, third person past tense. You extract only clinically relevant information voiced during the consultation. You do not include greetings, small talk, or non-clinical conversation. You do not add clinical opinions, differentials, or "should be considered" language of your own.`
 
   if (hasTranscript) {
     const isDiarized = transcript.includes('[PROVIDER]') || transcript.includes('[PATIENT]')
@@ -139,11 +113,10 @@ IGNORE completely:
 EXTRACT only NEW information not already captured in the triage data:
 - Additional history details (onset, mechanism, severity, associated symptoms, what patient has tried)
 - Provider's spoken examination findings ("I can see swelling", "range of motion appears limited")
-- Provider's clinical reasoning, differentials, and decision rules applied
+- Provider's clinical reasoning as they voiced it — verbatim, no synthesis or elaboration
 - Additional symptoms mentioned during the call
 - Verbal follow-up instructions and treatment advice
-- Red flags excluded or identified
-- Specific clinical observations ("swelling about 3cm", "can weight bear with pain", "neurovascularly intact")
+- Specific clinical observations ("swelling about 3cm", "can weight bear with pain")
 
 TRIAGE DATA ALREADY CAPTURED (do not repeat):
 Chief complaint: ${triage.chiefComplaint || '—'}
@@ -154,7 +127,7 @@ ${isDiarized ? `
 SPEAKER LABELS — transcript is diarized:
 [PROVIDER] = clinician speech → use for examination findings, MDM reasoning, plan instructions
 [PATIENT] = patient speech → use for additional history, symptoms, and concerns
-Extract from PROVIDER: "I can see...", "there appears to be...", "range of motion...", "Ottawa rules...", "I'm going to prescribe..."
+Extract from PROVIDER: "I can see...", "there appears to be...", "range of motion...", "I'm going to prescribe..."
 Extract from PATIENT: "it started...", "I've been having...", "the pain is...", "I'm worried about..."
 ` : ''}
 TRANSCRIPT:
@@ -173,7 +146,7 @@ For each clinical field include a confidence rating based on the clarity and com
   "general_appearance_confidence": "high|medium|low|null",
   "visible_findings": "What provider described seeing on camera: swelling, deformity, ROM, gait, measurements. Note exam modalities not possible via telehealth if relevant. null if nothing described.",
   "visible_findings_confidence": "high|medium|low|null",
-  "mdm_summary": "Provider's clinical reasoning: differentials, decision rules applied (Ottawa, PECARN etc), risk stratification, red flags excluded, reason telehealth appropriate. null if not discussed.",
+  "mdm_summary": "Provider's clinical reasoning EXACTLY as they voiced it during the call. Do not add differentials, decision rules, or considerations they did not state. null if provider did not verbalise reasoning.",
   "mdm_confidence": "high|medium|low|null",
   "plan_additions": ["Specific verbal management instructions: RICE, activity modification, wound care, medication instructions, follow-up timing. Note any PHARMAC Special Authority if applicable."],
   "plan_confidence": "high|medium|low|null",
@@ -184,45 +157,8 @@ For each clinical field include a confidence rating based on the clarity and com
   "occupation": "Occupation details only if mentioned beyond triage employer field. null if not mentioned."
 }`
 
-    const redFlagPrompt = `You are a patient safety specialist reviewing a telehealth consultation.
-
-TRIAGE DATA:
-Chief complaint: ${triage.chiefComplaint || '—'}
-Medical history: ${triage.medicalHistory || '—'}
-Medications: ${triage.medications || '—'}
-Allergies: ${triage.allergies || '—'}
-ACC eligible: ${triage.accEligible ? 'Yes' : 'No'}
-
-TRANSCRIPT:
-${transcript.slice(0, 3000)}
-
-Flag if ANY of the following are present but not adequately addressed:
-1. Symptom suggesting a serious undiagnosed condition requiring escalation
-2. Drug or medication prescribed to a patient with documented allergy to that drug class
-3. Red flag symptom mentioned (weight loss, night sweats, haemoptysis, neurological deficit, severe headache) but not followed up
-4. Patient expressed a concern or fear that was not acknowledged or addressed
-5. Suicidal ideation or self-harm mentioned
-6. Safeguarding concern (child abuse, domestic violence, vulnerable adult)
-7. Controlled drug or restricted medication mentioned or requested inappropriately
-8. Mandatory reportable condition (TB, sexual assault, child abuse)
-
-Return ONLY valid JSON. Return empty flags array if no concerns found.
-{
-  "flags": [
-    {
-      "severity": "critical|high|medium",
-      "concern": "Brief description of the safety concern",
-      "recommendation": "Specific action the provider should take"
-    }
-  ],
-  "safe_to_finalise": true
-}`
-
     try {
-      const [extractionRes, redFlagRes] = await Promise.all([
-        callClaude(apiKey, systemPrompt, extractionPrompt, 'claude-sonnet-4-6', 2000),
-        callClaude(apiKey, null, redFlagPrompt, 'claude-haiku-4-5-20251001', 600),
-      ])
+      const extractionRes = await callClaude(apiKey, systemPrompt, extractionPrompt, 'claude-sonnet-4-6', 2000)
 
       if (extractionRes) {
         extracted = { ...extracted, ...extractionRes }
@@ -232,14 +168,9 @@ Return ONLY valid JSON. Return empty flags array if no concerns found.
         )
         console.log('[generate-notes] extracted fields:', filled.join(', ') || 'none')
       }
-
-      if (redFlagRes?.flags) {
-        redFlags = redFlagRes
-        if (redFlags.flags.length) console.log('[generate-notes] red flags:', redFlags.flags.length)
-      }
     } catch (e) {
-      console.error('[generate-notes] Claude calls error:', e.message)
-      // Fall through — triage-only merge, no red flags
+      console.error('[generate-notes] Claude extraction error:', e.message)
+      // Fall through — triage-only merge
     }
   }
 
@@ -343,7 +274,6 @@ Return ONLY valid JSON. Return empty flags array if no concerns found.
     _confidence,
     _triage,
     _additions,
-    _redFlags:         redFlags,
   }
 
   console.log('[generate-notes] complete — sources:', JSON.stringify(_sources))

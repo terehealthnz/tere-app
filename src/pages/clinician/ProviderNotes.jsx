@@ -134,11 +134,6 @@ function buildNZNote(data, consult, actions) {
   if (data.icd10Label || data.icd10Code) lines.push(`Diagnosis: ${data.icd10Label || ''}${data.icd10Code ? ` (ICD-10: ${data.icd10Code})` : ''}`)
   if (isAcc && data.accSection?.readCodeSuggestion) lines.push(`ACC Read code: ${data.accSection.readCodeSuggestion}${data.accSection.readCodeLabel ? ` — ${data.accSection.readCodeLabel}` : ''}`)
   if (data.mdm) { lines.push(''); lines.push('Clinical reasoning:'); lines.push(data.mdm) }
-  if (data._redFlags?.flags?.length) {
-    lines.push('')
-    lines.push('⚠ Safety flags identified (review before finalising):')
-    data._redFlags.flags.forEach(f => lines.push(`• [${f.severity?.toUpperCase()}] ${f.concern} — ${f.recommendation}`))
-  }
 
   lines.push('')
   lines.push('PLAN')
