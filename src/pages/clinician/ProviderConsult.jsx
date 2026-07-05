@@ -307,11 +307,14 @@ export default function ProviderConsult() {
 
     try {
       const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({
+      // Only clobber transcript if we actually captured real content.
+      // Otherwise preserve beacon breadcrumbs so we can debug what happened.
+      const update = {
         notes_draft: { actions, callNotes },
-        transcript: finalTranscript || null,
         consultation_duration_seconds: durationSec,
-      }).eq('id', id)
+      }
+      if (finalTranscript && finalTranscript.trim()) update.transcript = finalTranscript
+      await supabase.from('consultations').update(update).eq('id', id)
       beacon(`endCall persist OK, transcript length=${finalTranscript?.length || 0}`)
     } catch (e) { beacon(`endCall persist FAILED: ${e?.message}`) }
     navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
