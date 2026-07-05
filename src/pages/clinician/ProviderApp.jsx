@@ -258,11 +258,22 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
   const [now, setNow]             = useState(Date.now())
   const [dismissTarget, setDismissTarget] = useState(null)
   const [dismissing, setDismissing]       = useState(false)
+  // Narrow-viewport flag. The desktop table needs ~680px to look right;
+  // below that we stack each row as a card so nothing overflows off-screen.
+  const [isNarrow, setIsNarrow] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < 720
+  )
   const currentProviderId = sessionStorage.getItem('providerId')
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60000)
     return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 720)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   const queue = [...consultations].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
@@ -282,6 +293,111 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
   )
 
   const COLS = '44px 1.5fr 1.8fr 1.1fr 1.6fr 100px 72px'
+
+  // ── Narrow-viewport (mobile) card layout ──────────────────────────────────
+  if (isNarrow) return (
+    <div>
+      <HandoverBanner />
+      <TodayAppointments />
+      <div style={{ padding:'.75rem', fontFamily:FF, display:'flex', flexDirection:'column', gap:'.625rem' }}>
+        {queue.map(c => {
+          const isLocked   = c.provider_id && c.provider_id !== currentProviderId
+          const isScanning = c.status === 'waiting'
+          const isBlocked  = isLocked || isScanning
+          const buf = bufferInfo(c.created_at, now)
+          const sta = queueStatus(c, now)
+          const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
+          const isCalling = starting === c.id
+          const complaint = (c.chief_complaint || '').length > 60
+            ? c.chief_complaint.slice(0, 60) + '…'
+            : c.chief_complaint
+
+          return (
+            <div
+              key={c.id}
+              onClick={() => { if (!isBlocked) navigate(`/clinician/patient/${c.id}`) }}
+              title={isScanning ? 'Patient completing vitals scan' : isLocked ? 'Being reviewed by another provider' : undefined}
+              style={{
+                border:'1px solid #E2E8F0', borderRadius:12, background:isLocked ? '#F3F4F6' : 'white',
+                padding:'.75rem', cursor: isBlocked ? 'not-allowed' : 'pointer',
+                opacity: isBlocked ? 0.6 : 1, display:'flex', gap:'.75rem', alignItems:'flex-start',
+              }}
+            >
+              <div style={{ width:40, height:40, borderRadius:10, background: isScanning ? '#FEF3C7' : tb.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'1.25rem', flexShrink:0 }}>
+                {isScanning ? '📸' : tb.icon}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8 }}>
+                  <div style={{ fontWeight:600, color:NAVY, fontSize:'.9375rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {c.patient_first_name} {c.patient_last_name}
+                  </div>
+                  <span style={{ background:sta.bg, color:sta.color, fontSize:'.625rem', fontWeight:700, padding:'3px 7px', borderRadius:99, whiteSpace:'nowrap', flexShrink:0 }}>
+                    {isCalling ? 'Calling…' : sta.label}
+                  </span>
+                </div>
+                {c.chief_complaint && (
+                  <div style={{ fontSize:'.8125rem', color:'#374151', fontStyle:'italic', marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {complaint}
+                  </div>
+                )}
+                <div style={{ display:'flex', gap:6, marginTop:6, alignItems:'center', flexWrap:'wrap' }}>
+                  <span style={{ background:buf.bg, color:buf.color, fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99, whiteSpace:'nowrap' }}>
+                    {buf.label}
+                  </span>
+                  {c.acc_eligible === 'yes' && (
+                    <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>ACC</span>
+                  )}
+                  {c.patient_allergies && !['none','no','nkda','nil','no known allergies','no allergies','n/a'].includes(c.patient_allergies.toLowerCase().trim()) && (
+                    <span style={{ color:'#DC2626', fontSize:'.625rem', fontWeight:700 }}>⚠ Allergy</span>
+                  )}
+                  <span style={{ marginLeft:'auto', fontSize:'.6875rem', color:'#6B7280', whiteSpace:'nowrap' }}>
+                    {fmtEnteredAt(c.created_at)}
+                  </span>
+                </div>
+                {!isScanning && !isLocked && (
+                  <div style={{ display:'flex', gap:6, marginTop:8 }}>
+                    <button onClick={e => { e.stopPropagation(); navigate(`/clinician/patient/${c.id}`) }}
+                      style={{ flex:1, background:'white', border:'1.5px solid #E2E8F0', borderRadius:8, padding:'6px 10px', fontSize:'.75rem', fontWeight:600, color:'#374151', cursor:'pointer' }}>
+                      👁 View
+                    </button>
+                    <button onClick={e => { e.stopPropagation(); setDismissTarget(c) }}
+                      style={{ background:'white', border:'1.5px solid #FCA5A5', borderRadius:8, padding:'6px 10px', fontSize:'.75rem', fontWeight:600, color:'#B91C1C', cursor:'pointer' }}>
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        <div style={{ fontSize:'.6875rem', color:'#9CA3AF', textAlign:'center', marginTop:'.25rem' }}>
+          {queue.length} patient{queue.length !== 1 ? 's' : ''} in queue · Tap a card to open
+        </div>
+      </div>
+
+      {/* Dismiss confirmation modal — same JSX as the desktop layout uses below */}
+      {dismissTarget && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem' }}
+          onClick={e => { if (e.target === e.currentTarget) setDismissTarget(null) }}>
+          <div style={{ background:'white', borderRadius:14, maxWidth:400, width:'100%', padding:'1.25rem', fontFamily:FF }}>
+            <div style={{ fontSize:'1.0625rem', fontWeight:700, color:NAVY, marginBottom:'.5rem' }}>Dismiss {dismissTarget.patient_first_name} {dismissTarget.patient_last_name}?</div>
+            <div style={{ fontSize:'.875rem', color:'#4B5563', lineHeight:1.5, marginBottom:'1rem' }}>
+              They will be removed from the queue. <strong>No charge will be applied</strong> and they'll receive an email letting them know.
+            </div>
+            <div style={{ display:'flex', gap:'.5rem' }}>
+              <button onClick={() => setDismissTarget(null)}
+                style={{ flex:1, background:'#F1F5F9', color:NAVY, border:'none', borderRadius:8, padding:'.625rem', fontWeight:700, cursor:'pointer', fontFamily:FF }}>Cancel</button>
+              <button disabled={dismissing}
+                onClick={async () => { setDismissing(true); await onDismiss(dismissTarget); setDismissing(false); setDismissTarget(null) }}
+                style={{ flex:1, background:'#DC2626', color:'white', border:'none', borderRadius:8, padding:'.625rem', fontWeight:700, cursor:dismissing?'wait':'pointer', fontFamily:FF, opacity:dismissing?.7:1 }}>
+                {dismissing ? 'Dismissing…' : 'Dismiss'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div>
