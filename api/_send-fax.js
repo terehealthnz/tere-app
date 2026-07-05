@@ -1,19 +1,23 @@
-// Provider-agnostic fax adapter. Documo (mFax) is the default because it has the
-// cleanest modern REST API and healthcare-tuned compliance; the abstraction is
-// deliberately thin so InterFAX / Sinch / Kordia can slot in via env vars later
-// without touching call sites in _generate-prescription-pdf.js.
+// Provider-agnostic fax adapter. Telnyx is the default: same vendor as our voice
+// stack (so one billing account, one dashboard, one BAA), modern REST DX, Sydney
+// data centre for HIPP-friendly data residency, and per-page cost ~US$0.007 vs
+// Documo's ~$0.07. Documo / InterFAX are retained as alternates so a swap later
+// is a config change not a code change.
 //
 // Env vars:
-//   FAX_PROVIDER    documo | interfax | none  (default: documo)
-//   FAX_API_KEY     Bearer/API key for the provider (required to actually send)
-//   FAX_FROM_NUMBER Optional caller-ID (E.164) shown on the header — recommended
+//   FAX_PROVIDER       telnyx | documo | interfax  (default: telnyx)
+//   FAX_API_KEY        Bearer/API key for the provider (required to actually send)
+//   FAX_FROM_NUMBER    Caller-ID shown on the header (E.164). Recommended.
+//                      Current Telnyx NZ DID: +6436672414 (pending auth review).
+//   FAX_CONNECTION_ID  Telnyx-only: the Fax Application id in their portal.
 //
 // Callers get { ok, providerId, status } on success or { ok: false, error, retryable }
 // on failure. When FAX_API_KEY is unset (dev, first bring-up) we return a
 // "queued-manual" success so nothing silently disappears — the consultation row
 // still records the intended destination for ops follow-up.
 
-const DEFAULT_PROVIDER = 'documo'
+const DEFAULT_PROVIDER = 'telnyx'
+const TELNYX_API_BASE = 'https://api.telnyx.com/v2'
 const DOCUMO_API = 'https://api.documo.com/v1/faxes'
 
 /**
@@ -43,7 +47,8 @@ export async function sendFax({ to, pdf, filename, subject, tag }) {
   const dest = normaliseNzFax(to)
 
   try {
-    if (provider === 'documo') return await sendViaDocumo({ apiKey, to: dest, pdf, filename, subject, tag })
+    if (provider === 'telnyx')   return await sendViaTelnyx({ apiKey, to: dest, pdf, filename, subject, tag })
+    if (provider === 'documo')   return await sendViaDocumo({ apiKey, to: dest, pdf, filename, subject, tag })
     if (provider === 'interfax') return await sendViaInterfax({ apiKey, to: dest, pdf, filename, subject, tag })
     return { ok: false, error: `unknown FAX_PROVIDER "${provider}"`, provider }
   } catch (e) {
@@ -53,6 +58,76 @@ export async function sendFax({ to, pdf, filename, subject, tag }) {
       retryable: true, // network / 5xx — worth retrying
       provider,
     }
+  }
+}
+
+// ── Telnyx ────────────────────────────────────────────────────────────────────
+// Two-step: upload PDF to /v2/media (private, referenced by media_name), then
+// POST /v2/faxes referencing that media_name. Keeps the PDF off any public URL
+// so patient data isn't briefly world-readable during transit.
+async function sendViaTelnyx({ apiKey, to, pdf, filename, subject, tag }) {
+  const connectionId = process.env.FAX_CONNECTION_ID
+  if (!connectionId) {
+    return {
+      ok: false,
+      error: 'FAX_CONNECTION_ID not set (Telnyx Fax Application id from Portal → Programmable Fax → Applications)',
+      provider: 'telnyx',
+    }
+  }
+  const from = process.env.FAX_FROM_NUMBER
+  if (!from) {
+    return { ok: false, error: 'FAX_FROM_NUMBER (E.164) not set — Telnyx requires a from number matching a purchased DID', provider: 'telnyx' }
+  }
+
+  // 1. Upload PDF to /v2/media — returns a media_name we reference in the fax send.
+  const mediaName = (filename || 'prescription.pdf').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 64)
+  const mediaForm = new FormData()
+  mediaForm.append('media_name', mediaName)
+  mediaForm.append('media', new Blob([pdf], { type: 'application/pdf' }), mediaName)
+  const mediaRes = await fetch(`${TELNYX_API_BASE}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: mediaForm,
+  })
+  const mediaBody = await mediaRes.json().catch(() => ({}))
+  if (!mediaRes.ok) {
+    return {
+      ok: false,
+      error: mediaBody?.errors?.[0]?.detail || `Telnyx media upload HTTP ${mediaRes.status}`,
+      retryable: mediaRes.status >= 500 || mediaRes.status === 429,
+      provider: 'telnyx',
+    }
+  }
+  const uploadedName = mediaBody?.data?.media_name || mediaName
+
+  // 2. Queue the fax referencing the uploaded media.
+  const body = {
+    connection_id: connectionId,
+    to,
+    from,
+    media_name: uploadedName,
+    quality: 'high',
+    ...(tag ? { client_state: Buffer.from(tag).toString('base64') } : {}),
+  }
+  const sendRes = await fetch(`${TELNYX_API_BASE}/faxes`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const sendBody = await sendRes.json().catch(() => ({}))
+  if (!sendRes.ok) {
+    return {
+      ok: false,
+      error: sendBody?.errors?.[0]?.detail || `Telnyx fax queue HTTP ${sendRes.status}`,
+      retryable: sendRes.status >= 500 || sendRes.status === 429,
+      provider: 'telnyx',
+    }
+  }
+  return {
+    ok: true,
+    providerId: sendBody?.data?.id || null,
+    status: sendBody?.data?.status || 'queued',
+    provider: 'telnyx',
   }
 }
 
