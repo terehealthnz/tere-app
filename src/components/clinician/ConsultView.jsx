@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 // Live transcription via Deepgram WebSocket — no SDK required
-import { LiveKitRoom, VideoConference } from '@livekit/components-react'
+import { LiveKitRoom, VideoConference, useRoomContext } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import HpiSearch from '../HpiSearch'
@@ -16,6 +16,18 @@ import { apiFetch } from '../../lib/api'
 import { Modal, PrescribeModal, XrayModal, ACCModal } from './ClinicalActionModals'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+// Mounted inside LiveKitRoom so it can useRoomContext(). Writes the connected
+// room to the parent's ref so startScribe() can pull remote audio tracks and
+// mix them into the transcription stream (fixing the "scribe only hears provider" bug).
+function LKRoomRefCapture({ roomRef }) {
+  const room = useRoomContext()
+  useEffect(() => {
+    roomRef.current = room || null
+    return () => { roomRef.current = null }
+  }, [room, roomRef])
+  return null
+}
 
 function VitalsPanel({ vitals }) {
   if (!vitals || vitals.skipped) return (
@@ -131,6 +143,11 @@ export default function ConsultView() {
   const mediaRecorderRef   = useRef(null)
   const streamRef          = useRef(null)
   const transcriptPanelRef = useRef(null)
+  // LiveKit room ref — captured via onConnected — used by startScribe() to mix
+  // remote patient audio into the transcription stream (otherwise the scribe
+  // only hears the provider's local mic and misses everything the patient says).
+  const lkRoomRef          = useRef(null)
+  const audioCtxRef        = useRef(null)
 
   useEffect(() => {
     if (!sessionStorage.getItem('clinicianAuth')) { navigate('/clinician'); return }
@@ -225,6 +242,7 @@ export default function ConsultView() {
     return () => {
       mediaRecorderRef.current?.stop()
       streamRef.current?.getTracks().forEach(t => t.stop())
+      audioCtxRef.current?.close().catch(() => {})
       wsRef.current?.close()
     }
   }, [])
@@ -240,8 +258,44 @@ export default function ConsultView() {
     const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
     if (!apiKey) { alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      streamRef.current = stream
+      const localMic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+
+      // Merge the provider's local mic with any remote patient audio tracks from the
+      // LiveKit room, so Deepgram diarization can separate both speakers. Without this,
+      // the patient's voice arrives through the provider's speakers and gets suppressed
+      // by echo-cancellation before reaching MediaRecorder.
+      const AudioCtx = window.AudioContext || window.webkitAudioContext
+      const audioCtx = new AudioCtx()
+      audioCtxRef.current = audioCtx
+      const destination = audioCtx.createMediaStreamDestination()
+      audioCtx.createMediaStreamSource(localMic).connect(destination)
+
+      const wireRemoteAudio = (track) => {
+        const mediaTrack = track?.mediaStreamTrack || track?.rtpReceiver?.track
+        if (!mediaTrack) return
+        try {
+          const remoteStream = new MediaStream([mediaTrack])
+          audioCtx.createMediaStreamSource(remoteStream).connect(destination)
+        } catch (e) { console.warn('[scribe] remote audio wire failed:', e?.message) }
+      }
+      const room = lkRoomRef.current
+      if (room) {
+        // Wire audio for any remote participants already in the room.
+        for (const p of room.remoteParticipants.values?.() || Object.values(room.remoteParticipants || {})) {
+          for (const pub of p.audioTrackPublications?.values?.() || Object.values(p.audioTracks || {})) {
+            wireRemoteAudio(pub.track || pub.audioTrack)
+          }
+        }
+        // Wire audio for any remote participants that publish later (patient reconnects, etc.).
+        room.on?.('trackSubscribed', (track, pub, participant) => {
+          if (track.kind === 'audio' && participant.identity !== room.localParticipant.identity) {
+            wireRemoteAudio(track)
+          }
+        })
+      }
+
+      const stream = destination.stream
+      streamRef.current = localMic // keep old shape so cleanup .getTracks() calls still work
 
       const keyterms = NZ_DRUG_KEYTERMS.map(k => `keyterm=${encodeURIComponent(k)}`).join('&')
       const url = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-NZ&diarize=true&punctuate=true&smart_format=true&interim_results=false&${keyterms}`
@@ -299,6 +353,7 @@ export default function ConsultView() {
   function stopScribe() {
     mediaRecorderRef.current?.stop()
     streamRef.current?.getTracks().forEach(t => t.stop())
+    audioCtxRef.current?.close().catch(() => {})
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'CloseStream' }))
       wsRef.current.close()
@@ -306,6 +361,7 @@ export default function ConsultView() {
     wsRef.current = null
     mediaRecorderRef.current = null
     streamRef.current = null
+    audioCtxRef.current = null
     setScribeState('done')
     setTab('notes')
   }
@@ -750,6 +806,7 @@ export default function ConsultView() {
                   data-lk-theme="default"
                   style={{width:'100%',height:'100%'}}
                 >
+                  <LKRoomRefCapture roomRef={lkRoomRef} />
                   <VideoConference />
                   <VirtualBgControls />
                 </LiveKitRoom>
