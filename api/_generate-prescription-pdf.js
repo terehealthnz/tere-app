@@ -38,7 +38,10 @@ export default async function handler(req, res) {
     consultationId, providerId, providerName, prescriberNumber,
     patientName, patientNhi, patientDob, patientEmail,
     drug, dose, directions, quantity, repeats,
-    pharmacyName, pharmacyHpiId, pharmacyEmail, pharmacyPhone, pharmacyAddress,
+    pharmacyId, pharmacyName, pharmacyHpiId,
+    pharmacyEmail, pharmacyFax, pharmacyPhone, pharmacyAddress,
+    // deliveryChannel: 'fax' | 'email' | 'both' (default: prefer fax if we have one)
+    deliveryChannel,
     needsApproval, draftedByName,
   } = req.body || {}
 
@@ -107,8 +110,30 @@ export default async function handler(req, res) {
 
   const pdfBase64 = pdfBuffer.toString('base64')
   const deliveryErrors = []
+  let faxResult = null
 
-  if (pharmacyEmail && process.env.RESEND_API_KEY) {
+  // Delivery channel resolution. If the caller was explicit, honour that.
+  // Otherwise: prefer fax when we have a fax number (higher pharmacy acceptance),
+  // fall back to email, degrade to none silently (patient still gets their copy).
+  const channel = (deliveryChannel || (pharmacyFax ? 'fax' : pharmacyEmail ? 'email' : 'none')).toLowerCase()
+  const wantsFax   = channel === 'fax'   || channel === 'both'
+  const wantsEmail = channel === 'email' || channel === 'both'
+
+  if (wantsFax && pharmacyFax) {
+    try {
+      const { sendFax } = await import('./_send-fax.js')
+      faxResult = await sendFax({
+        to: pharmacyFax,
+        pdf: pdfBuffer,
+        filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`,
+        subject: `Prescription for ${patientName} — Tere Health`,
+        tag: consultationId ? `consult:${consultationId}` : undefined,
+      })
+      if (!faxResult.ok) deliveryErrors.push(`Pharmacy fax failed (${faxResult.provider}): ${faxResult.error}`)
+    } catch (e) { deliveryErrors.push(`Pharmacy fax exception: ${e.message}`) }
+  }
+
+  if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
@@ -120,6 +145,24 @@ export default async function handler(req, res) {
         attachments: [{ filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
     } catch (e) { deliveryErrors.push(`Pharmacy email failed: ${e.message}`) }
+  }
+
+  // Crowd-source the contact details we just used so the next prescription to
+  // this pharmacy skips the manual entry. Keyed by pharmacy_id (Medsafe register
+  // slug); no-op if we don't have an id or nothing new to save.
+  if (pharmacyId && (pharmacyFax || pharmacyEmail || pharmacyPhone || pharmacyHpiId)) {
+    try {
+      await supabase.from('pharmacy_contacts').upsert({
+        pharmacy_id: pharmacyId,
+        premises_name: pharmacyName || null,
+        fax: pharmacyFax || null,
+        dispensary_email: pharmacyEmail || null,
+        phone: pharmacyPhone || null,
+        hpi_id: pharmacyHpiId || null,
+        contributed_by: providerId || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'pharmacy_id' })
+    } catch (e) { console.warn('[prescription] pharmacy_contacts upsert failed:', e.message) }
   }
 
   if (patientEmail && process.env.RESEND_API_KEY) {
@@ -149,11 +192,16 @@ export default async function handler(req, res) {
       patient_email: patientEmail,
       drug, dose, directions, quantity,
       repeats: repeats || 0,
+      pharmacy_id: pharmacyId || null,
       pharmacy_name: pharmacyName,
       pharmacy_hpi_id: pharmacyHpiId,
       pharmacy_email: pharmacyEmail,
+      pharmacy_fax: pharmacyFax || null,
       pharmacy_phone: pharmacyPhone,
       pharmacy_address: pharmacyAddress,
+      delivery_channel: channel,
+      fax_provider_id: faxResult?.providerId || null,
+      fax_status: faxResult?.status || null,
       approval_status: 'not_required',
       delivery_status: deliveryErrors.length ? 'error' : 'sent',
       delivery_error: deliveryErrors.join('; ') || null,

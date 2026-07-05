@@ -34,23 +34,47 @@ export function calcPaedDose(drug, weightKg) {
 
 export function PrescribeModal({ open, onClose, consult, onDone }) {
   const [rx, setRx] = useState({ drug:'', dose:'', directions:'', qty:'', repeats:0 })
-  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'', medsafeId:'' })
+  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', fax:'', phone:'', address:'', medsafeId:'' })
+  // Delivery channel — fax is the default because it has near-universal pharmacy
+  // acceptance and NZ pharmacies universally monitor their fax during trading hours,
+  // whereas dispensary emails aren't consistently checked in real time.
+  const [deliveryChannel, setDeliveryChannel] = useState('fax')
   // Medsafe pharmacy picker state — lets the provider change from the patient's
   // triage selection. Same register (/pharmacies.json) as the patient picker.
   const [medsafeList, setMedsafeList] = useState(null)
   const [showPharmacyPicker, setShowPharmacyPicker] = useState(false)
   const [pharmacyQuery, setPharmacyQuery] = useState('')
 
-  // Pre-fill from the patient's triage selection when the modal opens.
+  // Pre-fill from the patient's triage selection when the modal opens, plus any
+  // crowdsourced contact details already recorded against this pharmacy_id.
   useEffect(() => {
     if (!open || !consult) return
-    if (consult.pharmacy || consult.pharmacy_id) {
-      setPharmacy(p => ({
-        ...p,
-        name: p.name || consult.pharmacy || '',
-        medsafeId: p.medsafeId || consult.pharmacy_id || '',
-      }))
-    }
+    const medsafeId = consult.pharmacy_id || ''
+    setPharmacy(p => ({
+      ...p,
+      name: p.name || consult.pharmacy || '',
+      fax: p.fax || consult.pharmacy_fax || '',
+      medsafeId: p.medsafeId || medsafeId,
+    }))
+    // If a pharmacy_id exists, look up crowd-sourced fax/email/phone.
+    if (!medsafeId) return
+    ;(async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase.from('pharmacy_contacts')
+          .select('fax,dispensary_email,phone,hpi_id')
+          .eq('pharmacy_id', medsafeId).maybeSingle()
+        if (data) {
+          setPharmacy(p => ({
+            ...p,
+            fax:   p.fax   || data.fax || '',
+            email: p.email || data.dispensary_email || '',
+            phone: p.phone || data.phone || '',
+            hpiId: p.hpiId || data.hpi_id || '',
+          }))
+        }
+      } catch {}
+    })()
   }, [open, consult])
 
   // Lazy-load the register once when the picker is opened.
@@ -190,11 +214,14 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
           directions: rx.directions,
           quantity: rx.qty,
           repeats: rx.repeats,
+          pharmacyId: pharmacy.medsafeId,
           pharmacyName: pharmacy.name,
           pharmacyHpiId: pharmacy.hpiId,
           pharmacyEmail: pharmacy.email,
+          pharmacyFax: pharmacy.fax,
           pharmacyPhone: pharmacy.phone,
           pharmacyAddress: pharmacy.address,
+          deliveryChannel,
           needsApproval: !canPrescribe,
           draftedByName: sessionStorage.getItem('providerDisplayName'),
         }),
@@ -381,10 +408,50 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
             </>
           )}
         </div>
-        {!pharmacy.email && pharmacy.name && (
+        {pharmacy.name && (
           <div className="form-group">
-            <label>Pharmacy email <span style={{color:'var(--muted)',fontWeight:400}}>(if not found above)</span></label>
-            <input value={pharmacy.email} onChange={e=>setPharmacy(p=>({...p,email:e.target.value}))} placeholder="dispensary@pharmacy.co.nz" type="email" />
+            <label>Delivery</label>
+            <div style={{display:'flex',gap:6,marginBottom:8}}>
+              {[
+                { key:'fax',   label:'Fax',   disabled:!pharmacy.fax },
+                { key:'email', label:'Email', disabled:!pharmacy.email },
+                { key:'both',  label:'Both',  disabled:!pharmacy.fax || !pharmacy.email },
+              ].map(opt => (
+                <button type="button" key={opt.key}
+                  onClick={() => setDeliveryChannel(opt.key)}
+                  disabled={opt.disabled}
+                  style={{
+                    flex:1, padding:'6px 10px', borderRadius:8, cursor:opt.disabled?'not-allowed':'pointer',
+                    background: deliveryChannel === opt.key ? 'var(--teal)' : 'white',
+                    color:      deliveryChannel === opt.key ? 'white' : opt.disabled ? '#9CA3AF' : '#374151',
+                    border:`1.5px solid ${deliveryChannel === opt.key ? 'var(--teal)' : '#E2E8F0'}`,
+                    fontSize:'.8125rem', fontWeight:600, opacity:opt.disabled?.55:1,
+                  }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <div>
+                <div style={{fontSize:'.7rem',color:'var(--muted)',marginBottom:3,fontWeight:600}}>Fax</div>
+                <input value={pharmacy.fax} onChange={e=>setPharmacy(p=>({...p,fax:e.target.value}))}
+                  placeholder="03 123 4567 or +64…"
+                  style={{width:'100%',padding:'.4rem .6rem',border:'1.5px solid var(--border)',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem',outline:'none',boxSizing:'border-box'}}
+                />
+              </div>
+              <div>
+                <div style={{fontSize:'.7rem',color:'var(--muted)',marginBottom:3,fontWeight:600}}>Dispensary email</div>
+                <input value={pharmacy.email} onChange={e=>setPharmacy(p=>({...p,email:e.target.value}))}
+                  placeholder="dispensary@pharmacy.co.nz" type="email"
+                  style={{width:'100%',padding:'.4rem .6rem',border:'1.5px solid var(--border)',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem',outline:'none',boxSizing:'border-box'}}
+                />
+              </div>
+            </div>
+            {!pharmacy.fax && !pharmacy.email && (
+              <div style={{fontSize:'.7rem',color:'#B45309',marginTop:6}}>
+                No fax or email on file — the prescription can still be generated as a PDF, but nothing will be delivered until a contact is added.
+              </div>
+            )}
           </div>
         )}
         {canPrescribe && (
