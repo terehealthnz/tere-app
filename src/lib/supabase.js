@@ -106,6 +106,7 @@ export async function createConsultation(data) {
     patient_location:             sanitizeString(data.location),
     chief_complaint:              sanitizeString(data.complaint),
     pharmacy:                     data.pharmacy || null,
+    pharmacy_id:                  data.pharmacyId || null,
     acc_eligible:                 data.accEligible,
     acc_employer:                 data.employer,
     acc_injury_date:              data.injuryDate || null,
@@ -498,39 +499,59 @@ export async function saveValidationReading(data) {
   const hrDiff = (data.manualHr && data.tereHr)
     ? Math.abs(data.manualHr - data.tereHr) : null
 
+  const payload = {
+    subject_id:         data.subjectId || null,
+    subject_code:       data.subjectCode || null,
+    manual_systolic:    data.manualSystolic || null,
+    manual_diastolic:   data.manualDiastolic || null,
+    manual_hr:          data.manualHr || null,
+    manual_temperature: data.manualTemperature || null,
+    ambient_temp:       data.ambientTemp ?? null,
+    tere_hr:            data.tereHr || null,
+    tere_rr:            data.tereRr || null,
+    hr_difference:      hrDiff,
+    raw_rppg_signal:    data.rawRppgSignal || null,
+    device_info:        data.deviceInfo || null,
+    notes:              data.notes || null,
+    session_conditions: data.sessionConditions || null,
+    manual_spo2:        data.manualSpO2 || null,
+    tere_spo2:          data.tereSpo2 || null,
+    spo2_error:         (data.manualSpO2 && data.tereSpo2)
+      ? (data.tereSpo2 - data.manualSpO2) : null,
+    hrv_sdnn:           data.hrvSdnn   || null,
+    hrv_rmssd:          data.hrvRmssd  || null,
+    hrv_pnn50:          data.hrvPnn50  || null,
+    af_score:           data.afScore   || null,
+    af_likelihood:      data.afLikelihood || null,
+    af_confirmed:       data.afConfirmed ?? null,
+    af_confirmed_by:    data.afConfirmedBy || null,
+  }
+  // Optional new-pipeline fields. Require migration; safe to send null.
+  if (data.videoUrl !== undefined)        payload.video_url = data.videoUrl
+  if (data.hrQuality !== undefined)       payload.hr_quality = data.hrQuality
+  if (data.extractionRuns !== undefined)  payload.extraction_runs = data.extractionRuns
+
   const { data: reading, error } = await supabase
     .from('validation_readings')
-    .insert({
-      subject_id:         data.subjectId || null,
-      subject_code:       data.subjectCode || null,
-      manual_systolic:    data.manualSystolic || null,
-      manual_diastolic:   data.manualDiastolic || null,
-      manual_hr:          data.manualHr || null,
-      manual_temperature: data.manualTemperature || null,
-      ambient_temp:       data.ambientTemp ?? null,
-      tere_hr:            data.tereHr || null,
-      tere_rr:            data.tereRr || null,
-      hr_difference:      hrDiff,
-      raw_rppg_signal:    data.rawRppgSignal || null,
-      device_info:        data.deviceInfo || null,
-      notes:              data.notes || null,
-      session_conditions: data.sessionConditions || null,
-      manual_spo2:        data.manualSpO2 || null,
-      tere_spo2:          data.tereSpo2 || null,
-      spo2_error:         (data.manualSpO2 && data.tereSpo2)
-        ? (data.tereSpo2 - data.manualSpO2) : null,
-      hrv_sdnn:           data.hrvSdnn   || null,
-      hrv_rmssd:          data.hrvRmssd  || null,
-      hrv_pnn50:          data.hrvPnn50  || null,
-      af_score:           data.afScore   || null,
-      af_likelihood:      data.afLikelihood || null,
-      af_confirmed:       data.afConfirmed ?? null,
-      af_confirmed_by:    data.afConfirmedBy || null,
-    })
+    .insert(payload)
     .select()
     .single()
   if (error) throw error
   return reading
+}
+
+export async function uploadScanVideo(blob, subjectCode) {
+  const filename = `${subjectCode || 'unknown'}-${Date.now()}.webm`
+  const { error } = await supabase.storage
+    .from('scan-videos')
+    .upload(filename, blob, { contentType: blob.type || 'video/webm', cacheControl: '3600', upsert: false })
+  if (error) throw error
+  // Get a long-lived signed URL (bucket is private)
+  const { data, error: signErr } = await supabase.storage
+    .from('scan-videos')
+    .createSignedUrl(filename, 60 * 60 * 24 * 365 * 5)  // 5 years
+  if (signErr) throw signErr
+  return data?.signedUrl || null
 }
 
 export async function getValidationReadings(subjectId = null) {
@@ -586,6 +607,26 @@ export async function updateValidationSpo2(id, tereSpo2) {
   const { error } = await supabase
     .from('validation_readings')
     .update({ tere_spo2: tereSpo2 })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function updateValidationHrRr(id, tereHr, tereRr, manualHr, opts = {}) {
+  // Default: never overwrite with null (protect partial recoveries).
+  // opts.forceOverwrite = true: write the new value even if null. Use this
+  // when running a fresh algorithm that should fully replace prior values
+  // (otherwise stale artifact values from older runs linger).
+  const patch = { reprocessed_at: new Date().toISOString() }
+  const force = !!opts.forceOverwrite
+  if (force || tereHr != null) {
+    patch.tere_hr = tereHr
+    patch.hr_difference = (tereHr != null && manualHr != null) ? Math.abs(tereHr - manualHr) : null
+  }
+  if (force || tereRr != null) patch.tere_rr = tereRr
+  if (opts.hrQuality !== undefined) patch.hr_quality = opts.hrQuality
+  const { error } = await supabase
+    .from('validation_readings')
+    .update(patch)
     .eq('id', id)
   if (error) throw error
 }
