@@ -60,6 +60,19 @@ function VitalsRow({ vitals }) {
 export default function ProviderConsult() {
   const { id } = useParams()
   const navigate = useNavigate()
+  useEffect(() => {
+    // Fire before other state initialisers so we know ProviderConsult loaded at all.
+    if (!id) return
+    ;(async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase.from('consultations').select('transcript').eq('id', id).single()
+        const prev = data?.transcript && !data.transcript.startsWith('[BEACON') ? '' : (data?.transcript || '')
+        const line = `[BEACON ${new Date().toISOString().slice(11,19)}] ProviderConsult MOUNTED`
+        await supabase.from('consultations').update({ transcript: prev ? `${prev}\n${line}` : line }).eq('id', id)
+      } catch {}
+    })()
+  }, [id])
 
   const [consult, setConsult]           = useState(null)
   const [loading, setLoading]           = useState(true)
@@ -228,38 +241,80 @@ export default function ProviderConsult() {
     setCalling(false)
   }
 
+  // Diagnostic beacons — writes timestamped markers to consultations.transcript so
+  // we can trace what actually ran on the provider's device without needing browser access.
+  async function beacon(tag) {
+    if (!id) return
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const { data } = await supabase.from('consultations').select('transcript').eq('id', id).single()
+      const prev = data?.transcript && !data.transcript.startsWith('[BEACON') ? '' : (data?.transcript || '')
+      const line = `[BEACON ${new Date().toISOString().slice(11,19)}] ${tag}`
+      await supabase.from('consultations').update({ transcript: prev ? `${prev}\n${line}` : line }).eq('id', id)
+    } catch {}
+  }
+
   async function startScribe() {
+    beacon(`startScribe ENTERED, inCall=${inCall}, scribeState=${scribeState}`)
     setScribeState('recording')
     recorderRef.current = new ConsultationRecorder()
-    try { await recorderRef.current.start() }
-    catch (e) { console.error(e); setScribeState('idle') }
+    try {
+      await recorderRef.current.start()
+      beacon('ConsultationRecorder.start() OK — recording')
+    }
+    catch (e) {
+      beacon(`recorder.start FAILED: ${e?.message}`)
+      console.error(e)
+      setScribeState('idle')
+    }
   }
 
   async function stopScribe() {
+    beacon('stopScribe ENTERED')
     setScribeState('transcribing')
     try {
       const blob = await recorderRef.current.stop()
+      beacon(`recorder.stop OK, blob size=${blob?.size}`)
       const text = await transcribeAudio(blob)
+      beacon(`transcribeAudio OK, text length=${text?.length}`)
       setTranscript(text)
       setCallNotes(n => n ? `${n}\n\n[Transcript]\n${text}` : `[Transcript]\n${text}`)
       setShowNotes(true)
-    } catch (e) { console.error(e) }
-    setScribeState('idle')
+      return text
+    } catch (e) {
+      beacon(`stopScribe FAILED: ${e?.message}`)
+      console.error(e)
+    } finally {
+      setScribeState('idle')
+    }
+    return null
   }
 
   async function endCall() {
     if (endingCall) return
     setEndingCall(true)
+    beacon(`endCall ENTERED, scribeState=${scribeState}`)
     const durationSec = callStart ? Math.round((Date.now() - callStart) / 1000) : null
+
+    // Stop the scribe first so its recorded audio actually gets transcribed. Previously
+    // endCall persisted transcript state to DB *before* stopScribe ran, so the Blob
+    // never reached /api/transcribe and transcript was always null in the record.
+    let finalTranscript = transcript
+    if (scribeState === 'recording' && recorderRef.current) {
+      const captured = await stopScribe()
+      if (captured) finalTranscript = captured
+    }
+
     try {
       const { supabase } = await import('../../lib/supabase')
       await supabase.from('consultations').update({
         notes_draft: { actions, callNotes },
-        transcript: transcript || null,
+        transcript: finalTranscript || null,
         consultation_duration_seconds: durationSec,
       }).eq('id', id)
-    } catch {}
-    navigate(`/provider/notes/${id}`, { state: { actions, transcript: transcript || '', callNotes } })
+      beacon(`endCall persist OK, transcript length=${finalTranscript?.length || 0}`)
+    } catch (e) { beacon(`endCall persist FAILED: ${e?.message}`) }
+    navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
   }
 
   const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
