@@ -230,6 +230,20 @@ export default function ConsultView() {
     return () => clearInterval(interval)
   }, [id])
 
+  // Persist transcript to the consultation record continuously (debounced),
+  // so a partial transcript survives even if the provider closes the browser
+  // without going through the "Finish consult → notes" flow. Also gives us
+  // DB signal for whether scribe was capturing anything at all when debugging.
+  useEffect(() => {
+    if (!liveTranscript || !id) return
+    const t = setTimeout(() => {
+      updateConsultation(id, { transcript: liveTranscript }).catch(e => {
+        console.warn('[scribe] transcript persist failed:', e?.message)
+      })
+    }, 3000)
+    return () => clearTimeout(t)
+  }, [liveTranscript, id])
+
   // Auto-scroll live transcript panel
   useEffect(() => {
     if (transcriptPanelRef.current) {
@@ -256,7 +270,15 @@ export default function ConsultView() {
 
   async function startScribe() {
     const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
-    if (!apiKey) { alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return }
+    console.log('[scribe] startScribe called, apiKey present:', !!apiKey, 'lkRoom present:', !!lkRoomRef.current)
+    // Diagnostic marker: persist a "scribe was invoked" signal to the DB immediately.
+    // Real transcript overwrites this on first captured speech; if it stays, we know
+    // the scribe reached this line but never received any audio results.
+    if (id) updateConsultation(id, { transcript: '[Scribe: waiting for speech…]' }).catch(() => {})
+    if (!apiKey) {
+      if (id) updateConsultation(id, { transcript: '[Scribe: VITE_DEEPGRAM_API_KEY not set]' }).catch(() => {})
+      alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return
+    }
     try {
       const localMic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
 
