@@ -248,9 +248,12 @@ export default function ProviderConsult() {
     try {
       const { supabase } = await import('../../lib/supabase')
       const { data } = await supabase.from('consultations').select('transcript').eq('id', id).single()
-      const prev = data?.transcript && !data.transcript.startsWith('[BEACON') ? '' : (data?.transcript || '')
+      const existing = data?.transcript || ''
+      // If a real transcript is already there (non-empty AND doesn't start with a beacon
+      // marker), do NOT touch it. Beacons only append to empty or already-beacon fields.
+      if (existing && !existing.startsWith('[BEACON')) return
       const line = `[BEACON ${new Date().toISOString().slice(11,19)}] ${tag}`
-      await supabase.from('consultations').update({ transcript: prev ? `${prev}\n${line}` : line }).eq('id', id)
+      await supabase.from('consultations').update({ transcript: existing ? `${existing}\n${line}` : line }).eq('id', id)
     } catch {}
   }
 
