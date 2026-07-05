@@ -648,6 +648,7 @@ export default function AITriage() {
         location: data.patient_location,
         complaint: data.chief_complaint,
         pharmacy: data.pharmacy||'',
+        pharmacyId: sessionStorage.getItem('pending_pharmacy_id') || null,
         accEligible: data.is_acc_raw==='yes'?'yes':'no',
         employer: data.employer,
         injuryDetails: data.acc_injury_description||'',
@@ -716,6 +717,7 @@ export default function AITriage() {
             email: data.patient_email || null,
             nhi: data.patient_nhi || null,
             pharmacy_name: data.pharmacy || null,
+            pharmacy_id: sessionStorage.getItem('pending_pharmacy_id') || null,
             gp_name: data.gp_name || null,
             gp_clinic: data.gp_clinic || null,
             gp_email: data.gp_email || null,
@@ -745,6 +747,8 @@ export default function AITriage() {
           if (data.patient_email) updates.email = data.patient_email
           if (data.patient_nhi) updates.nhi = data.patient_nhi
           if (data.pharmacy) updates.pharmacy_name = data.pharmacy
+          const pendingPharmacyId = sessionStorage.getItem('pending_pharmacy_id')
+          if (pendingPharmacyId) updates.pharmacy_id = pendingPharmacyId
           if (data.gp_name) updates.gp_name = data.gp_name
           if (data.gp_clinic) updates.gp_clinic = data.gp_clinic
           if (data.gp_email) updates.gp_email = data.gp_email
@@ -842,40 +846,60 @@ export default function AITriage() {
 
   const step = STEPS[currentStep]
 
-  // ── Pharmacy address search (OpenStreetMap Nominatim) ────────────────────────
+  // ── Pharmacy picker — filter over the Medsafe register (public/pharmacies.json) ─
+  // No API call: the whole ~250KB register is fetched once and searched locally,
+  // so it works offline after first load and doesn't depend on OSM tile quotas.
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [pharmacyResults, setPharmacyResults] = useState([])
   const [pharmacyLoading, setPharmacyLoading] = useState(false)
-  const pharmacyDebounceRef = useRef(null)
+  const [pharmacyIndex, setPharmacyIndex] = useState(null)
+
+  // Lazy-load the register once — cached in module state after first load.
+  useEffect(() => {
+    if (pharmacyIndex !== null) return
+    let cancelled = false
+    fetch('/pharmacies.json')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => { if (!cancelled) setPharmacyIndex(Array.isArray(list) ? list : []) })
+      .catch(() => { if (!cancelled) setPharmacyIndex([]) })
+    return () => { cancelled = true }
+  }, [pharmacyIndex])
 
   useEffect(() => {
-    const q = pharmacyQuery.trim()
-    if (q.length < 3) { setPharmacyResults([]); return }
-    clearTimeout(pharmacyDebounceRef.current)
-    pharmacyDebounceRef.current = setTimeout(async () => {
-      setPharmacyLoading(true)
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + ' pharmacy')}&countrycodes=nz&addressdetails=1&format=json&limit=6`
-        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } })
-        const items = await res.json()
-        const formatted = items
-          .filter(i => i.address)
-          .map(i => {
-            const a = i.address
-            const name = i.namedetails?.name || i.name || a.amenity || ''
-            const street = [a.house_number, a.road].filter(Boolean).join(' ')
-            const suburb = a.suburb || a.village || a.town || a.city_district || ''
-            const city = a.city || a.town || a.county || ''
-            const parts = [name, street, suburb || city].filter(Boolean)
-            return { label: parts.join(', '), display: { name, street, suburb: suburb || city } }
-          })
-          .filter(i => i.display.name)
-        setPharmacyResults(formatted.slice(0, 5))
-      } catch { setPharmacyResults([]) }
-      finally { setPharmacyLoading(false) }
-    }, 350)
-    return () => clearTimeout(pharmacyDebounceRef.current)
-  }, [pharmacyQuery])
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2 || !pharmacyIndex) { setPharmacyResults([]); return }
+    setPharmacyLoading(true)
+    // Substring match. Prefer name matches, then address / town / region matches —
+    // the address string carries the actual city/suburb (Picton, Howick, Blenheim)
+    // whereas `town` is the broader HNZ district (Nelson Marlborough, Counties Manukau).
+    const nameHits = []
+    const otherHits = []
+    for (const p of pharmacyIndex) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    setPharmacyResults([...nameHits, ...otherHits].slice(0, 8))
+    setPharmacyLoading(false)
+  }, [pharmacyQuery, pharmacyIndex])
+
+  function selectPharmacy(pharmacy) {
+    // Persist the stable id in a ref-side channel so handleSendValue can pick it up
+    // — pharmacy step's transform in STEPS strips whitespace but doesn't know about
+    // structured selections. sessionStorage.pending_pharmacy_id gets consumed once
+    // the consultation is being written to Supabase.
+    if (pharmacy?.id) sessionStorage.setItem('pending_pharmacy_id', pharmacy.id)
+    const label = pharmacy?.town
+      ? `${pharmacy.premises_name}, ${pharmacy.town}`
+      : (pharmacy?.premises_name || '')
+    handleSendValue(label)
+    setPharmacyQuery('')
+    setPharmacyResults([])
+  }
 
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
@@ -1069,13 +1093,13 @@ export default function AITriage() {
             </div>
             {pharmacyResults.length > 0 && (
               <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
-                {pharmacyResults.map((r, idx) => (
-                  <button key={idx} onClick={() => { handleSendValue(r.label); setPharmacyQuery(''); setPharmacyResults([]) }}
+                {pharmacyResults.map((p, idx) => (
+                  <button key={p.id || idx} onClick={() => selectPharmacy(p)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<pharmacyResults.length-1?'1px solid #F3F4F6':'none'}}
                     onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{r.display.name}</div>
-                    {(r.display.street || r.display.suburb) && (
-                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[r.display.street, r.display.suburb].filter(Boolean).join(', ')}</div>
+                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{p.premises_name}</div>
+                    {(p.town || p.region) && (
+                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[p.town, p.region].filter(Boolean).join(', ')}</div>
                     )}
                   </button>
                 ))}
