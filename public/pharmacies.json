@@ -416,14 +416,6 @@
     "region": "Central | Te Ikaroa"
   },
   {
-    "id": "hawke-s-bay-hospital-pharmacy-hawke-s-bay",
-    "premises_name": "Hawke's Bay Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Omahu Road Frimley Hastings 4120, Hawke's Bay",
-    "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa"
-  },
-  {
     "id": "hokowhitu-pharmacy-midcentral",
     "premises_name": "Hokowhitu Pharmacy",
     "legal_entity": "Alchemist Pharmacy Limited",
@@ -436,14 +428,6 @@
     "premises_name": "Hutt City Pharmacy",
     "legal_entity": "Petone Pharmacy Limited",
     "address": "5 Raroa Road, Hutt Central, Lower Hutt, 5010, Capital, Coast and Hutt Valley",
-    "town": "Capital, Coast and Hutt Valley",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "hutt-hospital-pharmacy-capital-coast-and-hutt-valley",
-    "premises_name": "Hutt Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department, Hutt Hospital 622 High Street Boulcott Lower Hutt 5010, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -741,14 +725,6 @@
     "legal_entity": "ECMS Investment Limited",
     "address": "123 Main Street, Pahiatua, 4910, Wairarapa",
     "town": "Wairarapa",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "palmerston-north-hospital-pharmacy-midcentral",
-    "premises_name": "Palmerston North Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "50 Ruahine Street Roslyn Palmerston North 4414, MidCentral",
-    "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
   {
@@ -1312,14 +1288,6 @@
     "region": "Central | Te Ikaroa"
   },
   {
-    "id": "wairarapa-hospital-pharmacy-wairarapa",
-    "premises_name": "Wairarapa Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department Wairarapa Hospital Te Ore Ore Road Masterton 5810, Wairarapa",
-    "town": "Wairarapa",
-    "region": "Central | Te Ikaroa"
-  },
-  {
     "id": "wairoa-pharmacy-hawke-s-bay",
     "premises_name": "Wairoa Pharmacy",
     "legal_entity": "Pillcart Limited",
@@ -1348,14 +1316,6 @@
     "premises_name": "Wellington Compounding Pharmacy",
     "legal_entity": "Jase & Co Limited",
     "address": "67 Miramar Avenue Miramar Wellington 6022, Capital, Coast and Hutt Valley",
-    "town": "Capital, Coast and Hutt Valley",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "wellington-hospital-pharmacy-capital-coast-and-hutt-valley",
-    "premises_name": "Wellington Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Wellington Hospital, Riddiford Street, Newtown, Wellington, 6021, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1389,14 +1349,6 @@
     "legal_entity": "Westshore Pharmacy 2016 Limited",
     "address": "3 Alfred Street, Westshore, Napier, 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "whanganui-hospital-pharmacy-whanganui",
-    "premises_name": "Whanganui Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department, Whanganui Hospital 100 Heads Road Gonville Whanganui 4501, Whanganui",
-    "town": "Whanganui",
     "region": "Central | Te Ikaroa"
   },
   {
@@ -1757,14 +1709,6 @@
     "legal_entity": "Gate Pa Village Pharmacy Limited",
     "address": "17A Courtney Road Gate Pa Tauranga 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
-    "id": "gisborne-hospital-pharmacy-tair-whiti",
-    "premises_name": "Gisborne Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "421 Ormond Road Lytton West Gisborne 4010, Tairāwhiti",
-    "town": "Tairāwhiti",
     "region": "Midland | Te Manawa Taki"
   },
   {
@@ -2184,14 +2128,6 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "pharmacy-services-waikato-hospital-waikato",
-    "premises_name": "Pharmacy Services Waikato Hospital",
-    "legal_entity": "Health New Zealand",
-    "address": "183 Pembroke Street, Hamilton Central, Hamilton, 3204, Waikato",
-    "town": "Waikato",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
     "id": "pharmacy-three-rivers-tair-whiti",
     "premises_name": "Pharmacy Three Rivers",
     "legal_entity": "Kennedy Pharmacy Limited",
@@ -2288,14 +2224,6 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "rotorua-hospital-pharmacy-lakes",
-    "premises_name": "Rotorua Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Corner of Arawa and Ranolf Streets Pukeroa Hill Rotorua 3046, Lakes",
-    "town": "Lakes",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
     "id": "sanders-pharmacy-waikato",
     "premises_name": "Sanders Pharmacy",
     "legal_entity": "Pharmacy Futures Limited",
@@ -2344,34 +2272,10 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "taranaki-base-hospital-pharmacy-taranaki",
-    "premises_name": "Taranaki Base Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "David Street Westown New Plymouth 4310, Taranaki",
-    "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
     "id": "tarawera-pharmacy-limited-bay-of-plenty",
     "premises_name": "Tarawera Pharmacy Limited",
     "legal_entity": "Tarawera Pharmacy Limited",
     "address": "106 Onslow Street KAWERAU 3127, Bay of Plenty",
-    "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
-    "id": "taupo-hospital-pharmacy-lakes",
-    "premises_name": "Taupo Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Kotare Street Hilltop Taupo 3330, Lakes",
-    "town": "Lakes",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
-    "id": "tauranga-hospital-pharmacy-bay-of-plenty",
-    "premises_name": "Tauranga Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Tauranga Hospital 829 Cameron Road Tauranga South Tauranga 3112, Bay of Plenty",
     "town": "Bay of Plenty",
     "region": "Midland | Te Manawa Taki"
   },
@@ -3000,14 +2904,6 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "whakatane-hospital-pharmacy-bay-of-plenty",
-    "premises_name": "Whakatane Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Whakatane Hospital Corner of Garaway & Stewart Streets Whakatane 3120, Bay of Plenty",
-    "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
     "id": "whangamata-pharmacy-waikato",
     "premises_name": "Whangamata Pharmacy",
     "legal_entity": "Whangamata Pharmacy (2013) Limited",
@@ -3149,22 +3045,6 @@
     "legal_entity": "Elite Pharmacy Limited",
     "address": "Shop 203, 28 College Hill, Freemans Bay, Auckland, 1011, Auckland",
     "town": "Auckland",
-    "region": "Northern"
-  },
-  {
-    "id": "auckland-hospital-pharmacy-auckland",
-    "premises_name": "Auckland Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department, Auckland City Hospital, 2 Park Road, Grafton, Auckland, 1023, Auckland",
-    "town": "Auckland",
-    "region": "Northern"
-  },
-  {
-    "id": "auckland-opioid-treatment-service-pharmacy-waitemat",
-    "premises_name": "Auckland Opioid Treatment Service Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pitman House 50 Carrington Road Point Chevalier Auckland 1025, Waitematā",
-    "town": "Waitematā",
     "region": "Northern"
   },
   {
@@ -4040,14 +3920,6 @@
     "region": "Northern"
   },
   {
-    "id": "greenlane-clinical-centre-pharmacy-auckland",
-    "premises_name": "Greenlane Clinical Centre Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Room G4-302, Ground floor, Building 4, Greenlane Clinical Centre 214 Green Lane West Epsom Auckland 1051, Auckland",
-    "town": "Auckland",
-    "region": "Northern"
-  },
-  {
     "id": "guardian-pharmacy-long-bay-waitemat",
     "premises_name": "Guardian Pharmacy Long Bay",
     "legal_entity": "Long Bay Pharmacy Limited",
@@ -4069,14 +3941,6 @@
     "legal_entity": "Lee & Hart Pharmacy Limited",
     "address": "27-35 Queen Street WARKWORTH 0910, Waitematā",
     "town": "Waitematā",
-    "region": "Northern"
-  },
-  {
-    "id": "haumanu-pharmacy-middlemore-counties-manukau",
-    "premises_name": "Haumanu Pharmacy Middlemore",
-    "legal_entity": "Health New Zealand",
-    "address": "Middlemore Hospital, Ground Floor Scott Building, 100 Hospital Road Mangere East Auckland 2025, Counties Manukau",
-    "town": "Counties Manukau",
     "region": "Northern"
   },
   {
@@ -4632,14 +4496,6 @@
     "region": "Northern"
   },
   {
-    "id": "middlemore-hospital-pharmacy-counties-manukau",
-    "premises_name": "Middlemore Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department, Middlemore Hospital, 100 Hospital Road, Mangere East, Auckland 2025, Counties Manukau",
-    "town": "Counties Manukau",
-    "region": "Northern"
-  },
-  {
     "id": "milford-nutritional-pharmacy-waitemat",
     "premises_name": "Milford Nutritional Pharmacy",
     "legal_entity": "Tatri Pharmacy Limited",
@@ -4760,14 +4616,6 @@
     "region": "Northern"
   },
   {
-    "id": "north-shore-hospital-pharmacy-inpatient-outpatient-waitemat",
-    "premises_name": "North Shore Hospital Pharmacy-Inpatient/Outpatient",
-    "legal_entity": "Health New Zealand",
-    "address": "North Shore Hospital Shakespeare Road Takapuna Auckland 0740, Waitematā",
-    "town": "Waitematā",
-    "region": "Northern"
-  },
-  {
     "id": "northcare-7-day-pharmacy-waitemat",
     "premises_name": "Northcare 7 Day Pharmacy",
     "legal_entity": "Northcare 7 Day Pharmacy Limited",
@@ -4813,14 +4661,6 @@
     "legal_entity": "Optimus Healthcare 2025 Limited",
     "address": "4B Walls Road, Penrose, Auckland, 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern"
-  },
-  {
-    "id": "ormiston-hospital-pharmacy-limited-counties-manukau",
-    "premises_name": "Ormiston Hospital Pharmacy Limited",
-    "legal_entity": "Ormiston Hospital Pharmacy Limited",
-    "address": "Shop 2/125 Ormiston Road Flat Bush AUCKLAND 2019, Counties Manukau",
-    "town": "Counties Manukau",
     "region": "Northern"
   },
   {
@@ -5509,14 +5349,6 @@
     "legal_entity": "Family Health Care Pharmacy Limited",
     "address": "Unit 4, 627 Mt Wellington Highway Mt Wellington AUCKLAND 1062, Auckland",
     "town": "Auckland",
-    "region": "Northern"
-  },
-  {
-    "id": "unichem-franklin-hospital-pharmacy-counties-manukau",
-    "premises_name": "Unichem Franklin Hospital Pharmacy",
-    "legal_entity": "United Pharmacy Limited",
-    "address": "Franklin Hospital 12 Glasgow Street Pukekohe 2120, Counties Manukau",
-    "town": "Counties Manukau",
     "region": "Northern"
   },
   {
@@ -6296,14 +6128,6 @@
     "region": "Northern"
   },
   {
-    "id": "waitakere-hospital-pharmacy-inpatient-outpatient-waitemat",
-    "premises_name": "Waitakere Hospital Pharmacy - Inpatient/Outpatient",
-    "legal_entity": "Health New Zealand",
-    "address": "Waitakere Hospital 55 Lincoln Road Henderson Auckland 0610, Waitematā",
-    "town": "Waitematā",
-    "region": "Northern"
-  },
-  {
     "id": "walls-roche-medicine-management-auckland",
     "premises_name": "Walls & Roche Medicine Management",
     "legal_entity": "Walls & Roche Royal Oak Pharmacy Limited",
@@ -6349,14 +6173,6 @@
     "legal_entity": "Weymouth Whanau Pharmacy Limited",
     "address": "5 Waimahia Avenue Weymouth Auckland 2103, Counties Manukau",
     "town": "Counties Manukau",
-    "region": "Northern"
-  },
-  {
-    "id": "whangarei-hospital-pharmacy-northland",
-    "premises_name": "Whangarei Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department Whangarei Hospital Maunu Road Whangarei 0110, Northland",
-    "town": "Northland",
     "region": "Northern"
   },
   {
@@ -6688,14 +6504,6 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "ashburton-hospital-pharmacy-canterbury",
-    "premises_name": "Ashburton Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "28 Elizabeth Street Allenton Ashburton 7700, Canterbury",
-    "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
     "id": "aspiring-pharmacy-southern",
     "premises_name": "Aspiring Pharmacy",
     "legal_entity": "Tititea Pharmacy Limited",
@@ -6872,14 +6680,6 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "burwood-hospital-pharmacy-canterbury",
-    "premises_name": "Burwood Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "300 Burwood Road Burwood Christchurch 8083, Canterbury",
-    "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
     "id": "burwood-pharmacy-canterbury",
     "premises_name": "Burwood Pharmacy",
     "legal_entity": "Burwood Pharmacy (1998) Limited",
@@ -7036,14 +6836,6 @@
     "premises_name": "Chemist Warehouse Westfield Riccarton",
     "legal_entity": "Pharmacy Investments 59 Limited",
     "address": "Westfield Riccarton Shop S412A, 129 Riccarton Road Riccarton Christchurch 8041, Canterbury",
-    "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "christchurch-hospital-pharmacy-canterbury",
-    "premises_name": "Christchurch Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "2 Riccarton Avenue Christchurch Central Christchurch 8011, Canterbury",
     "town": "Canterbury",
     "region": "South Island | Te Waipounamu"
   },
@@ -7261,14 +7053,6 @@
     "legal_entity": "Highland Pharmacy Central Limited",
     "address": "107 Scotland Street ROXBURGH 9500, Southern",
     "town": "Southern",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "hillmorton-hospital-pharmacy-canterbury",
-    "premises_name": "Hillmorton Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Hillmorton Hospital, Fergusson Block, Building 15, Annex Road, Hillmorton, Christchurch, 8024, Canterbury",
-    "town": "Canterbury",
     "region": "South Island | Te Waipounamu"
   },
   {
@@ -7656,14 +7440,6 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "nelson-hospital-pharmacy-nelson-marlborough",
-    "premises_name": "Nelson Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Level 6, Percy Brunette Building Nelson Hospital, Tipahi Street Nelson 7010, Nelson Marlborough",
-    "town": "Nelson Marlborough",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
     "id": "netherby-pharmacy-canterbury",
     "premises_name": "Netherby Pharmacy",
     "legal_entity": "Netherby Pharmacy Limited",
@@ -7749,14 +7525,6 @@
     "legal_entity": "Ferrymead Pharmacy (2009) Limited",
     "address": "Units 1 & 2, Stage 2 Building 1005 Ferry Road Ferrymead CHRISTCHURCH 8023, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "pharmacy-department-dunedin-hospital-southern",
-    "premises_name": "Pharmacy Department, Dunedin Hospital",
-    "legal_entity": "Health New Zealand",
-    "address": "201 Great King Street Dunedin Central Dunedin 9016, Southern",
-    "town": "Southern",
     "region": "South Island | Te Waipounamu"
   },
   {
@@ -7936,14 +7704,6 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "southland-hospital-pharmacy-southern",
-    "premises_name": "Southland Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Pharmacy Department, Southland Hospital 1st Floor, 145 Kew Road Kew Invercargill 9812, Southern",
-    "town": "Southern",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
     "id": "st-albans-pharmacy-canterbury",
     "premises_name": "St Albans Pharmacy",
     "legal_entity": "St Albans Pharmacy (1999) Limited",
@@ -8000,14 +7760,6 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "te-nikau-grey-hospital-pharmacy-west-coast",
-    "premises_name": "Te Nikau Grey Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Te Nikau Grey Hospital, 146 High Street, Greymouth, 7805, West Coast",
-    "town": "West Coast",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
     "id": "temuka-pharmacy-south-canterbury",
     "premises_name": "Temuka Pharmacy",
     "legal_entity": "Temuka Pharmacy 2012 Limited",
@@ -8029,14 +7781,6 @@
     "legal_entity": "Searles Allenton Pharmacy [Ash] Limited",
     "address": "7-11 Allens Road Allenton Ashburton 7700, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "timaru-hospital-pharmacy-south-canterbury",
-    "premises_name": "Timaru Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Level 2, Clinical Services Building, Timaru Hospital 14 Queen Street Parkside Timaru 7910, South Canterbury",
-    "town": "South Canterbury",
     "region": "South Island | Te Waipounamu"
   },
   {
@@ -8092,14 +7836,6 @@
     "premises_name": "Unichem Brighton Village Pharmacy",
     "legal_entity": "Brighton Village Pharmacy (2024) Limited",
     "address": "183 Shaw Avenue, New Brighton, Christchurch 8083, Canterbury",
-    "town": "Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "unichem-burwood-hospital-pharmacy-canterbury",
-    "premises_name": "Unichem Burwood Hospital Pharmacy",
-    "legal_entity": "TWC Investments Limited",
-    "address": "Shop G544, Main Foyer, 300 Burwood Road, Burwood, Christchurch, 8083, Canterbury",
     "town": "Canterbury",
     "region": "South Island | Te Waipounamu"
   },
@@ -8525,14 +8261,6 @@
     "legal_entity": "Hook Holdings Limited",
     "address": "84 Queen Street, Waimate, 7924, South Canterbury",
     "town": "South Canterbury",
-    "region": "South Island | Te Waipounamu"
-  },
-  {
-    "id": "wairau-hospital-pharmacy-nelson-marlborough",
-    "premises_name": "Wairau Hospital Pharmacy",
-    "legal_entity": "Health New Zealand",
-    "address": "Hospital Road Witherlea Blenheim 7201, Nelson Marlborough",
-    "town": "Nelson Marlborough",
     "region": "South Island | Te Waipounamu"
   },
   {

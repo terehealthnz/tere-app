@@ -175,30 +175,25 @@ def validate_or_abort(records, existing_json_path: Path) -> None:
                 )
 
 
-def flag_hospital_pharmacies(records) -> None:
-    """Medsafe doesn't cleanly flag hospital vs community pharmacies. Surface any
-    entries whose legal entity or premises name suggests a hospital / DHB / Health NZ
-    context so the human operator can decide what to do — this script never filters
-    them silently."""
-    keywords = [
-        "hospital", "dhb", "district health board", "health new zealand",
-        "te whatu ora", "district health services",
-    ]
-    def is_hospitalish(rec) -> bool:
-        blob = " ".join([
-            rec.get("premises_name", "") or "",
-            rec.get("legal_entity", "") or "",
-            rec.get("address", "") or "",
-        ]).lower()
-        return any(k in blob for k in keywords)
-    flagged = [r for r in records if is_hospitalish(r)]
-    if not flagged:
-        return
-    print(f"\n⚠ {len(flagged)} entries look hospital-affiliated (review manually — not filtered):")
-    for r in flagged[:40]:
-        print(f"   · {r['premises_name']}  ({r.get('legal_entity','')})  [{r.get('region','')}]  {r['id']}")
-    if len(flagged) > 40:
-        print(f"   … and {len(flagged) - 40} more.")
+def split_community_hospital(records):
+    """Split the record set into community pharmacies and hospital-affiliated ones.
+    A pharmacy is treated as hospital-only if the premises name explicitly contains
+    'hospital pharmacy' (case-insensitive) or the legal entity is Health New Zealand
+    (all HNZ-owned pharmacies in the register are inpatient/hospital pharmacies).
+    Marginal cases stay in community — anything a prescriber might send scripts to
+    for outpatient dispensing."""
+    hospital = []
+    community = []
+    for rec in records:
+        name = (rec.get("premises_name") or "").lower()
+        legal = (rec.get("legal_entity") or "").lower()
+        is_hospital = (
+            "hospital pharmacy" in name
+            or "health new zealand" in legal
+            or "te whatu ora" in legal
+        )
+        (hospital if is_hospital else community).append(rec)
+    return community, hospital
 
 
 def main():
@@ -224,19 +219,30 @@ def main():
 
     rows = load_rows(xlsx_bytes)
     header_idx, cols = find_header(rows)
-    records = build_records(rows, header_idx, cols)
+    all_records = build_records(rows, header_idx, cols)
+    community, hospital = split_community_hospital(all_records)
+    print(f"Parsed {len(all_records)} total entries — {len(community)} community, "
+          f"{len(hospital)} hospital-only (excluded).")
 
     json_path = Path(args.json_out)
     csv_path = Path(args.csv_out)
 
     # Guardrails BEFORE writing files — nothing gets overwritten if this exits.
-    validate_or_abort(records, json_path)
+    # 500-minimum + 20%-shrink checks now apply to the community-only list, which
+    # is what the picker will actually load.
+    validate_or_abort(community, json_path)
 
-    write_json(records, json_path)
-    write_csv(records, csv_path)
-    print(f"Wrote {len(records)} pharmacies to {json_path} and {csv_path}")
+    write_json(community, json_path)
+    write_csv(community, csv_path)
+    print(f"Wrote {len(community)} community pharmacies to {json_path} and {csv_path}")
 
-    flag_hospital_pharmacies(records)
+    # Log excluded hospital pharmacies for audit — helps catch false positives.
+    if hospital:
+        print(f"\nExcluded {len(hospital)} hospital-affiliated pharmacies:")
+        for r in hospital[:60]:
+            print(f"   · {r['premises_name']}  ({r.get('legal_entity','')})  [{r.get('town','')}]  {r['id']}")
+        if len(hospital) > 60:
+            print(f"   … and {len(hospital) - 60} more.")
 
 
 if __name__ == "__main__":

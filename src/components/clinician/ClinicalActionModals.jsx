@@ -34,7 +34,76 @@ export function calcPaedDose(drug, weightKg) {
 
 export function PrescribeModal({ open, onClose, consult, onDone }) {
   const [rx, setRx] = useState({ drug:'', dose:'', directions:'', qty:'', repeats:0 })
-  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
+  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'', medsafeId:'' })
+  // Medsafe pharmacy picker state — lets the provider change from the patient's
+  // triage selection. Same register (/pharmacies.json) as the patient picker.
+  const [medsafeList, setMedsafeList] = useState(null)
+  const [showPharmacyPicker, setShowPharmacyPicker] = useState(false)
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+
+  // Pre-fill from the patient's triage selection when the modal opens.
+  useEffect(() => {
+    if (!open || !consult) return
+    if (consult.pharmacy || consult.pharmacy_id) {
+      setPharmacy(p => ({
+        ...p,
+        name: p.name || consult.pharmacy || '',
+        medsafeId: p.medsafeId || consult.pharmacy_id || '',
+      }))
+    }
+  }, [open, consult])
+
+  // Lazy-load the register once when the picker is opened.
+  useEffect(() => {
+    if (!showPharmacyPicker || medsafeList !== null) return
+    fetch('/pharmacies.json')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => setMedsafeList(Array.isArray(list) ? list : []))
+      .catch(() => setMedsafeList([]))
+  }, [showPharmacyPicker, medsafeList])
+
+  const filteredPharmacies = (() => {
+    if (!medsafeList) return []
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of medsafeList) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function pickPharmacy(p) {
+    // Update local state — clear the HPI-derived delivery fields since the Medsafe
+    // register doesn't carry email/phone. Provider fills those below if needed.
+    setPharmacy({
+      name: p.premises_name || '',
+      medsafeId: p.id || '',
+      hpiId: '',
+      email: '',
+      phone: '',
+      address: p.address || '',
+    })
+    setShowPharmacyPicker(false)
+    setPharmacyQuery('')
+    // Persist the change on the consultation row so downstream steps (prescription
+    // PDF, patient email, provider notes) all agree on which pharmacy is being used.
+    if (consult?.id) {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        await supabase.from('consultations').update({
+          pharmacy: p.premises_name || null,
+          pharmacy_id: p.id || null,
+        }).eq('id', consult.id)
+      } catch {}
+    }
+  }
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [templates, setTemplates] = useState([])
@@ -255,14 +324,62 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
           </div>
         </div>
         <div className="form-group">
-          <label>Pharmacy</label>
-          <HpiSearch
-            type="pharmacy"
-            value={pharmacy.name}
-            onSelect={r => setPharmacy({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address })}
-            placeholder="Search pharmacies…"
-          />
-          {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{pharmacy.address}</div>}
+          <label style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <span>Pharmacy</span>
+            {pharmacy.name && !showPharmacyPicker && (
+              <button type="button" onClick={() => setShowPharmacyPicker(true)}
+                style={{background:'none',border:'none',color:'var(--teal)',fontSize:'.75rem',fontWeight:600,cursor:'pointer',padding:0}}>
+                Change pharmacy →
+              </button>
+            )}
+          </label>
+          {/* Patient's selection banner — shown when we have a pre-filled name and
+              the picker isn't open. Nothing renders on a fresh consultation with no
+              pharmacy chosen; provider just uses the register picker below. */}
+          {pharmacy.name && !showPharmacyPicker ? (
+            <div style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'.5rem .75rem',background:'#F8FAFC'}}>
+              <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{pharmacy.name}</div>
+              {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:2}}>{pharmacy.address}</div>}
+              {pharmacy.medsafeId && <div style={{fontSize:'.6875rem',color:'var(--muted)',marginTop:2}}>Medsafe ID: {pharmacy.medsafeId}</div>}
+            </div>
+          ) : (
+            <>
+              {/* Medsafe register picker — same list as the triage patient picker */}
+              <div style={{position:'relative'}}>
+                <input
+                  value={pharmacyQuery}
+                  onChange={e => { setPharmacyQuery(e.target.value); setShowPharmacyPicker(true) }}
+                  onFocus={() => setShowPharmacyPicker(true)}
+                  placeholder="Search Medsafe register — pharmacy name, town, region…"
+                  style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',outline:'none',boxSizing:'border-box'}}
+                />
+                {filteredPharmacies.length > 0 && (
+                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:20,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.1)',maxHeight:280,overflowY:'auto'}}>
+                    {filteredPharmacies.map((p, idx) => (
+                      <button type="button" key={p.id || idx} onClick={() => pickPharmacy(p)}
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<filteredPharmacies.length-1?'1px solid #F3F4F6':'none'}}
+                        onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                        <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{p.premises_name}</div>
+                        {(p.town || p.region) && (
+                          <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[p.town, p.region].filter(Boolean).join(' · ')}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:'.7rem',color:'var(--muted)',marginTop:4}}>
+                Or use HPI directory lookup:
+              </div>
+              <HpiSearch
+                type="pharmacy"
+                value={pharmacy.name}
+                onSelect={r => setPharmacy({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address, medsafeId:'' })}
+                placeholder="Search HPI directory…"
+              />
+              {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{pharmacy.address}</div>}
+            </>
+          )}
         </div>
         {!pharmacy.email && pharmacy.name && (
           <div className="form-group">

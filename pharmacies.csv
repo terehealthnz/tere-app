@@ -51,10 +51,8 @@ grant-irvine-pharmacy-midcentral,Grant Irvine Pharmacy,Wisemed Limited,"Unit 1, 
 greenmeadows-pharmacy-hawke-s-bay,Greenmeadows Pharmacy,APS Pharmacy Limited,"34 Gloucester Street Greenmeadows Napier 4112, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
 greytown-pharmacy-wairarapa,Greytown Pharmacy,Capital Care Pharmacy Limited,"North Shop, 86 Main Street Greytown 5712, Wairarapa",Wairarapa,Central | Te Ikaroa
 hataitai-pharmacy-capital-coast-and-hutt-valley,Hataitai Pharmacy,Kelvin's Pharmacy Limited,"4 Moxham Avenue Hataitai Wellington 6021, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
-hawke-s-bay-hospital-pharmacy-hawke-s-bay,Hawke's Bay Hospital Pharmacy,Health New Zealand,"Omahu Road Frimley Hastings 4120, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
 hokowhitu-pharmacy-midcentral,Hokowhitu Pharmacy,Alchemist Pharmacy Limited,"360 Albert Street Hokowhitu Palmerston North 4410, MidCentral",MidCentral,Central | Te Ikaroa
 hutt-city-pharmacy-capital-coast-and-hutt-valley,Hutt City Pharmacy,Petone Pharmacy Limited,"5 Raroa Road, Hutt Central, Lower Hutt, 5010, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
-hutt-hospital-pharmacy-capital-coast-and-hutt-valley,Hutt Hospital Pharmacy,Health New Zealand,"Pharmacy Department, Hutt Hospital 622 High Street Boulcott Lower Hutt 5010, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 ihakara-pharmacy-capital-coast-and-hutt-valley,Ihakara Pharmacy,Ihakara Pharmacy Limited,"40 Ihakara Street, Paraparaumu 5032, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 john-castle-chemists-capital-coast-and-hutt-valley,John Castle Chemists,Newtown Pharmacy Limited,"139 Riddiford Street Newtown Wellington 6021, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 johnsonville-medical-centre-pharmacy-capital-coast-and-hutt-valley,Johnsonville Medical Centre Pharmacy,Johnsonville Medical Centre Pharmacy (2021) Limited,"Ground Floor 2 Trafalgar Street Johnsonville Wellington 6037, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
@@ -92,7 +90,6 @@ onslow-pharmacy-capital-coast-and-hutt-valley,Onslow Pharmacy,Pharmacy Solutions
 otaki-pharmacy-midcentral,Otaki Pharmacy,Otaki Pharmacy (2025) Limited,"80 Main Street, Otaki, 5512, MidCentral",MidCentral,Central | Te Ikaroa
 owles-pharmacy-capital-coast-and-hutt-valley,Owles Pharmacy,Pharmacy Solutions (2022) Limited,"45-47 Everest Avenue Naenae Lower Hutt 5011, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 pahiatua-pharmacy-wairarapa,Pahiatua Pharmacy,ECMS Investment Limited,"123 Main Street, Pahiatua, 4910, Wairarapa",Wairarapa,Central | Te Ikaroa
-palmerston-north-hospital-pharmacy-midcentral,Palmerston North Hospital Pharmacy,Health New Zealand,"50 Ruahine Street Roslyn Palmerston North 4414, MidCentral",MidCentral,Central | Te Ikaroa
 paraparaumu-beach-pharmacy-capital-coast-and-hutt-valley,Paraparaumu Beach Pharmacy,Bowman Pharmacy Services Limited,"Shop 1, 17 Seaview Road Paraparaumu Beach Paraparaumu 5032, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 parkvale-pharmacy-hawke-s-bay,Parkvale Pharmacy,Paul Messerschmidt Limited,"3/800 St Aubyn Street East HASTINGS 4122, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
 peak-pharmacy-hawke-s-bay,Peak Pharmacy,Peak Pharmacy Limited,"33 - 35 Napier Road HAVELOCK NORTH 4130, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
@@ -163,17 +160,14 @@ village-pharmacy-ngaio-capital-coast-and-hutt-valley,Village Pharmacy Ngaio,Vill
 vogel-street-pharmacy-midcentral,Vogel Street Pharmacy,Greenstone Pharmacy Limited,"Shops 6 & 7, 47 Vogel Street, Roslyn, Palmerston North, 4414, MidCentral",MidCentral,Central | Te Ikaroa
 wainuiomata-pharmacy-capital-coast-and-hutt-valley,Wainuiomata Pharmacy,Wainuiomata Pharmacy (2015) Limited,"8 The Strand Wainuiomata Lower Hutt 5014, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 waipawa-pharmacy-hawke-s-bay,Waipawa Pharmacy,Pillcart Partners Limited,"24 High Street, Waipawa, 4210, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
-wairarapa-hospital-pharmacy-wairarapa,Wairarapa Hospital Pharmacy,Health New Zealand,"Pharmacy Department Wairarapa Hospital Te Ore Ore Road Masterton 5810, Wairarapa",Wairarapa,Central | Te Ikaroa
 wairoa-pharmacy-hawke-s-bay,Wairoa Pharmacy,Pillcart Limited,"8 Paul Street Wairoa 4108, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
 waitangirua-pharmacy-limited-capital-coast-and-hutt-valley,Waitangirua Pharmacy Limited,Waitangirua Pharmacy Limited,"Ora Toa Waitangirua, 201 Warspite Avenue, Porirua, 5024, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 waterloo-pharmacy-capital-coast-and-hutt-valley,Waterloo Pharmacy,Hutt South Pharmacies Limited,"Shop 1, 1 Trafalgar Square, Waterloo, Lower Hutt, 5011, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 wellington-compounding-pharmacy-capital-coast-and-hutt-valley,Wellington Compounding Pharmacy,Jase & Co Limited,"67 Miramar Avenue Miramar Wellington 6022, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
-wellington-hospital-pharmacy-capital-coast-and-hutt-valley,Wellington Hospital Pharmacy,Health New Zealand,"Wellington Hospital, Riddiford Street, Newtown, Wellington, 6021, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 wellworks-pharmacy-capital-coast-and-hutt-valley,Wellworks Pharmacy,Wellworks Pharmacy Limited,"Shop 1, 75 Taranaki Street Te Aro Wellington 6011, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 wellworks-pharmacy-boulcott-capital-coast-and-hutt-valley,Wellworks Pharmacy Boulcott,Boulcott Pharmacy Limited,"Shop 3, 135 Witako Street Epuni Lower Hutt 5011, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 westbury-pharmacy-capital-coast-and-hutt-valley,Westbury Pharmacy,Waikanae Pharmacy 2012 Limited,"12 Mahara Place, Waikanae, 5036, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 westshore-pharmacy-hawke-s-bay,Westshore Pharmacy,Westshore Pharmacy 2016 Limited,"3 Alfred Street, Westshore, Napier, 4110, Hawke's Bay",Hawke's Bay,Central | Te Ikaroa
-whanganui-hospital-pharmacy-whanganui,Whanganui Hospital Pharmacy,Health New Zealand,"Pharmacy Department, Whanganui Hospital 100 Heads Road Gonville Whanganui 4501, Whanganui",Whanganui,Central | Te Ikaroa
 whitby-pharmacy-capital-coast-and-hutt-valley,Whitby Pharmacy,PTL Investments Limited,"Shops 8 and 9, Whitby Village Centre 69A Discovery Drive Whitby WELLINGTON 5024, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
 wicksteed-pharmacy-whanganui,Wicksteed Pharmacy,Elisse + Limited,"Unit G 214 Wicksteed Street Whanganui 4500, Whanganui",Whanganui,Central | Te Ikaroa
 woburn-pharmacy-capital-coast-and-hutt-valley,Woburn Pharmacy,PTL Woburn Limited,"66 Whites Line East Waiwhetu Lower Hutt 5010, Capital, Coast and Hutt Valley","Capital, Coast and Hutt Valley",Central | Te Ikaroa
@@ -219,7 +213,6 @@ five-crossroads-pharmacy-waikato,Five Crossroads Pharmacy,5 X Roads Limited,"280
 frankton-pharmacy-waikato,Frankton Pharmacy,Alchemy Frankton Limited,"161-163 Commerce Street, Frankton, Hamilton, 3204, Waikato",Waikato,Midland | Te Manawa Taki
 frontier-pharmacy-waikato,Frontier Pharmacy,Frontier Pharmacy Limited,"415B Pioneer Drive Te Awamutu 3800, Waikato",Waikato,Midland | Te Manawa Taki
 gate-pa-village-pharmacy-bay-of-plenty,Gate Pa Village Pharmacy,Gate Pa Village Pharmacy Limited,"17A Courtney Road Gate Pa Tauranga 3112, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
-gisborne-hospital-pharmacy-tair-whiti,Gisborne Hospital Pharmacy,Health New Zealand,"421 Ormond Road Lytton West Gisborne 4010, Tairāwhiti",Tairāwhiti,Midland | Te Manawa Taki
 goldfields-pharmacy-and-photo-centre-waikato,Goldfields Pharmacy and Photo Centre,Health & Beauty Limited,"Shop 48, 17 and 18 Goldfields Shopping Centre 100 Mary Street Thames 3500, Waikato",Waikato,Midland | Te Manawa Taki
 gordon-s-pharmacy-tair-whiti,Gordon's Pharmacy,A&N Pharmacy Limited,"1 Mangapapa Road Mangapapa Gisborne 4010, Tairāwhiti",Tairāwhiti,Midland | Te Manawa Taki
 hamilton-east-pharmacy-waikato,Hamilton East Pharmacy,Hamilton East Pharmacy Limited,"14 Beale Street Hamilton East HAMILTON 3216, Waikato",Waikato,Midland | Te Manawa Taki
@@ -272,7 +265,6 @@ pharmacy-547-waikato,Pharmacy 547,Anglesea Health Management Limited,"Anglesea M
 pharmacy-bell-block-taranaki,Pharmacy @ Bell Block,Jalen BB Limited,"188 Parklands Avenue Bell Block NEW PLYMOUTH 4312, Taranaki",Taranaki,Midland | Te Manawa Taki
 pharmacy-carefirst-taranaki,Pharmacy @ Carefirst,Araba Pharmacy Limited,"99 Tukapa Street, Westown, New Plymouth, 4310, Taranaki",Taranaki,Midland | Te Manawa Taki
 pharmacy-on-cameron-bay-of-plenty,Pharmacy On Cameron,Pharmacy Care Group Limited,"Shop 3, 850 Cameron Road Tauranga South Tauranga 3112, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
-pharmacy-services-waikato-hospital-waikato,Pharmacy Services Waikato Hospital,Health New Zealand,"183 Pembroke Street, Hamilton Central, Hamilton, 3204, Waikato",Waikato,Midland | Te Manawa Taki
 pharmacy-three-rivers-tair-whiti,Pharmacy Three Rivers,Kennedy Pharmacy Limited,"75 Customhouse Street Gisborne 4010, Tairāwhiti",Tairāwhiti,Midland | Te Manawa Taki
 pharmacy-westend-lakes,Pharmacy Westend,Pharmacy Westend 2022 Limited,"227 Old Taupo Road Hillcrest Rotorua 3015, Lakes",Lakes,Midland | Te Manawa Taki
 phoenix-pharmacy-2001-limited-bay-of-plenty,Phoenix Pharmacy (2001) Limited,Phoenix Pharmacy (2001) Limited,"Shop 2, Phoenix House 11 Pyne Street WHAKATANE 3120, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
@@ -285,17 +277,13 @@ roberts-ngaruawahia-pharmacy-waikato,Roberts Ngaruawahia Pharmacy,HEMSHA Limited
 robertsons-high-street-pharmacy-taranaki,Robertsons High Street Pharmacy,Robertsons Pharmacy Limited,"94 High Street HAWERA 4610, Taranaki",Taranaki,Midland | Te Manawa Taki
 robertsons-hunter-street-pharmacy-taranaki,Robertsons Hunter Street Pharmacy,Robertsons Pharmacy Limited,"41 Hunter Street, Hawera, 4610, Taranaki",Taranaki,Midland | Te Manawa Taki
 robertsons-strandon-pharmacy-taranaki,Robertsons Strandon Pharmacy,Robertsons Pharmacy Limited,"488 Devon Street East, Strandon, New Plymouth, 4312, Taranaki",Taranaki,Midland | Te Manawa Taki
-rotorua-hospital-pharmacy-lakes,Rotorua Hospital Pharmacy,Health New Zealand,"Corner of Arawa and Ranolf Streets Pukeroa Hill Rotorua 3046, Lakes",Lakes,Midland | Te Manawa Taki
 sanders-pharmacy-waikato,Sanders Pharmacy,Pharmacy Futures Limited,"3/670 Cambridge Road Te Awamutu 3800, Waikato",Waikato,Midland | Te Manawa Taki
 sean-shivnan-pharmacy-limited-tair-whiti,Sean Shivnan Pharmacy Limited,Sean Shivnan Pharmacy Limited,"578 Gladstone Road Te Hapara GISBORNE 4010, Tairāwhiti",Tairāwhiti,Midland | Te Manawa Taki
 south-city-health-pharmacy-2012-limited-waikato,South City Health Pharmacy 2012 Limited,South City Health Pharmacy 2012 Limited,"91 Kahikatea Drive Melville Hamilton 3206, Waikato",Waikato,Midland | Te Manawa Taki
 stratford-pharmacy-taranaki,Stratford Pharmacy,Calm Future Limited,"235 Broadway STRATFORD 4332, Taranaki",Taranaki,Midland | Te Manawa Taki
 tairua-pauanui-pharmacy-limited-waikato,Tairua-Pauanui Pharmacy Limited,Tairua-Pauanui Pharmacy Limited,"Shop 1, 226 Main Road Tairua 3508, Waikato",Waikato,Midland | Te Manawa Taki
 tara-road-pharmacy-bay-of-plenty,Tara Road Pharmacy,Tara Road Pharmacy Limited,"1E Tara Road, Papamoa, Tauranga 3187, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
-taranaki-base-hospital-pharmacy-taranaki,Taranaki Base Hospital Pharmacy,Health New Zealand,"David Street Westown New Plymouth 4310, Taranaki",Taranaki,Midland | Te Manawa Taki
 tarawera-pharmacy-limited-bay-of-plenty,Tarawera Pharmacy Limited,Tarawera Pharmacy Limited,"106 Onslow Street KAWERAU 3127, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
-taupo-hospital-pharmacy-lakes,Taupo Hospital Pharmacy,Health New Zealand,"Kotare Street Hilltop Taupo 3330, Lakes",Lakes,Midland | Te Manawa Taki
-tauranga-hospital-pharmacy-bay-of-plenty,Tauranga Hospital Pharmacy,Health New Zealand,"Tauranga Hospital 829 Cameron Road Tauranga South Tauranga 3112, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
 te-aroha-pharmacy-waikato,Te Aroha Pharmacy,Kaimai Rise Limited,"189 - 191 Whitaker Street, Te Aroha, 3320, Waikato",Waikato,Midland | Te Manawa Taki
 te-awamutu-pharmacy-limited-waikato,Te Awamutu Pharmacy Limited,Te Awamutu Pharmacy Limited,"168 Alexandra Street TE AWAMUTU 3800, Waikato",Waikato,Midland | Te Manawa Taki
 te-kauwhata-pharmacy-2017-limited-waikato,Te Kauwhata Pharmacy 2017 Limited,Te Kauwhata Pharmacy 2017 Limited,"14 Main Road Te Kauwhata 3710, Waikato",Waikato,Midland | Te Manawa Taki
@@ -374,7 +362,6 @@ welcome-bay-pharmacy-limited-bay-of-plenty,Welcome Bay Pharmacy Limited,Welcome 
 west-hamilton-pharmacy-waikato,West Hamilton Pharmacy,Grand View Pharmacy Limited,"Unit D, New Nawton Shopping Centre, 66 Hyde Avenue, Nawton, Hamilton, 3200, Waikato",Waikato,Midland | Te Manawa Taki
 westend-pharmacy-waikato,Westend Pharmacy,G & G Pharmacy Limited,"38 Tuhikaramea Road Dinsdale HAMILTON 3204, Waikato",Waikato,Midland | Te Manawa Taki
 western-heights-pharmacy-lakes,Western Heights Pharmacy,Western Heights Pharmacy Limited,"10 Brookland Road Western Heights Rotorua 3015, Lakes",Lakes,Midland | Te Manawa Taki
-whakatane-hospital-pharmacy-bay-of-plenty,Whakatane Hospital Pharmacy,Health New Zealand,"Whakatane Hospital Corner of Garaway & Stewart Streets Whakatane 3120, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
 whangamata-pharmacy-waikato,Whangamata Pharmacy,Whangamata Pharmacy (2013) Limited,"429 Port Road Whangamata 3620, Waikato",Waikato,Midland | Te Manawa Taki
 woolworths-pharmacy-bayfair-bay-of-plenty,Woolworths Pharmacy Bayfair,GDL Rx No6 Limited,"19 Girven Road, Mount Maunganui, 3116, Bay of Plenty",Bay of Plenty,Midland | Te Manawa Taki
 woolworths-pharmacy-cambridge-waikato,Woolworths Pharmacy Cambridge,GDL Rx No2 Limited,"97 Queen Street, Cambridge, 3434, Waikato",Waikato,Midland | Te Manawa Taki
@@ -393,8 +380,6 @@ allen-s-village-pharmacy-limited-waitemat,Allen's Village Pharmacy Limited,Allen
 allevia-pharmacy-auckland,Allevia Pharmacy,The Ascot Hospital & Clinics Limited,"Allevia Hospital, 98 Mountain Road, Epsom, Auckland, 1023, Auckland",Auckland,Northern
 ascot-pharmacy-auckland,Ascot Pharmacy,Ascot Pharmacy (2006) Limited,"90 Green Lane East Remuera Auckland 1051, Auckland",Auckland,Northern
 auckland-central-pharmacy-auckland,Auckland Central Pharmacy,Elite Pharmacy Limited,"Shop 203, 28 College Hill, Freemans Bay, Auckland, 1011, Auckland",Auckland,Northern
-auckland-hospital-pharmacy-auckland,Auckland Hospital Pharmacy,Health New Zealand,"Pharmacy Department, Auckland City Hospital, 2 Park Road, Grafton, Auckland, 1023, Auckland",Auckland,Northern
-auckland-opioid-treatment-service-pharmacy-waitemat,Auckland Opioid Treatment Service Pharmacy,Health New Zealand,"Pitman House 50 Carrington Road Point Chevalier Auckland 1025, Waitematā",Waitematā,Northern
 avondale-family-chemist-auckland,Avondale Family Chemist,A & E Chemist Limited,"1784 Great North Road Avondale Auckland 1026, Auckland",Auckland,Northern
 avondale-kiwi-chemist-auckland,Avondale Kiwi Chemist,Mishrikipharmacy Limited,"256 Rosebank Road Avondale AUCKLAND 1026, Auckland",Auckland,Northern
 avondale-pharmacy-auckland,Avondale Pharmacy,Kavita Pharmaceuticals Limited,"2144 - 2146 Great North Road Avondale Auckland 0600, Auckland",Auckland,Northern
@@ -504,11 +489,9 @@ grafton-pharmacy-auckland,Grafton Pharmacy,Grafton Pharmacy Limited,"29-31 Park 
 great-barrier-pharmacy-auckland,Great Barrier Pharmacy,DBS Pharmacy Limited,"117 Hector Sanderson Road Great Barrier Island (Aotea Island) Great Barrier Island 0991, Auckland",Auckland,Northern
 green-bay-pharmacy-waitemat,Green Bay Pharmacy,Green Bay Pharmacy (2005) Limited,"62 Godley Road, Green Bay, Auckland, 0604, Waitematā",Waitematā,Northern
 greenlane-care-pharmacy-auckland,Greenlane Care Pharmacy,Greenlane Care Pharmacy Limited,"205 Great South Road Greenlane Auckland 1051, Auckland",Auckland,Northern
-greenlane-clinical-centre-pharmacy-auckland,Greenlane Clinical Centre Pharmacy,Health New Zealand,"Room G4-302, Ground floor, Building 4, Greenlane Clinical Centre 214 Green Lane West Epsom Auckland 1051, Auckland",Auckland,Northern
 guardian-pharmacy-long-bay-waitemat,Guardian Pharmacy Long Bay,Long Bay Pharmacy Limited,"55a Glenvar Ridge Road, Long Bay, Auckland, 0630, Waitematā",Waitematā,Northern
 guardian-pharmacy-stanmore-bay-waitemat,Guardian Pharmacy Stanmore Bay,Stanmore Bay Pharmacy Limited,"Shop B2, 570 Whangaparaoa Road Stanmore Bay Whangaparaoa 0932, Waitematā",Waitematā,Northern
 hart-s-pharmacy-waitemat,Hart's Pharmacy,Lee & Hart Pharmacy Limited,"27-35 Queen Street WARKWORTH 0910, Waitematā",Waitematā,Northern
-haumanu-pharmacy-middlemore-counties-manukau,Haumanu Pharmacy Middlemore,Health New Zealand,"Middlemore Hospital, Ground Floor Scott Building, 100 Hospital Road Mangere East Auckland 2025, Counties Manukau",Counties Manukau,Northern
 hc-pharmacy-auckland,HC Pharmacy,Hamilton Central Pharmacy Limited,"G02/ 54 Surrey Crescent, Grey Lynn, Auckland, 1021, Auckland",Auckland,Northern
 health-new-lynn-7-day-pharmacy-auckland,Health New Lynn 7 Day Pharmacy,FCP Totara Health Limited,"Tenancy 01, 1 McCraes Way, New Lynn, Auckland, 0600, Auckland",Auckland,Northern
 health-plus-pharmacy-counties-manukau,Health Plus Pharmacy,Health Plus Pharmacy Limited,"578 Great South Road Manukau AUCKLAND 2025, Counties Manukau",Counties Manukau,Northern
@@ -578,7 +561,6 @@ mclaren-park-pharmacy-waitemat,McLaren Park Pharmacy,McLaren Park Pharmacy 2007 
 meadowbank-corner-chemist-auckland,Meadowbank Corner Chemist,UA2 Investments Limited,"2 Blackett Crescent, Meadowbank, Auckland, 1072, Auckland",Auckland,Northern
 medicines-to-midnight-auckland,Medicines to Midnight,Ahirangi Allied Limited,"Shop 3, 160 Broadway Newmarket Auckland 1023, Auckland",Auckland,Northern
 medplus-pharmacy-waitemat,Medplus Pharmacy,Medplus Pharmacy 2024 Limited,"327 Lake Road Hauraki Auckland 0622, Waitematā",Waitematā,Northern
-middlemore-hospital-pharmacy-counties-manukau,Middlemore Hospital Pharmacy,Health New Zealand,"Pharmacy Department, Middlemore Hospital, 100 Hospital Road, Mangere East, Auckland 2025, Counties Manukau",Counties Manukau,Northern
 milford-nutritional-pharmacy-waitemat,Milford Nutritional Pharmacy,Tatri Pharmacy Limited,"Shop 2, 119 Kitchener Road, Milford, Auckland, 0620, Waitematā",Waitematā,Northern
 millhouse-pharmacy-auckland,Millhouse Pharmacy,Easy Pharmacy Limited,"Unit 1 128 Millhouse Drive Northpark Auckland 2013, Auckland",Auckland,Northern
 millwater-parkway-pharmacy-waitemat,Millwater Parkway Pharmacy,Millwater Parkway Pharmacy Limited,"Unit 19, 175 Millwater Parkway Silverdale 0932, Waitematā",Waitematā,Northern
@@ -594,14 +576,12 @@ newsham-park-pharmacy-counties-manukau,Newsham Park Pharmacy,Newsham Park Pharma
 newton-a-z-pharmacy-auckland,Newton A-Z Pharmacy,Newton Pharmacy Holdings Limited,"357 Karangahape Road Auckland Central Auckland 1010, Auckland",Auckland,Northern
 newton-pharmacy-auckland,Newton Pharmacy,Ultra Health Limited,"Shop 2 283 Karangahape Road Auckland Central AUCKLAND 1010, Auckland",Auckland,Northern
 north-harbour-pharmacy-waitemat,North Harbour Pharmacy,North Harbour Pharmacy 2015 Limited,"Unit 1, 326 Sunset Road, Windsor Park, Auckland, 0632, Waitematā",Waitematā,Northern
-north-shore-hospital-pharmacy-inpatient-outpatient-waitemat,North Shore Hospital Pharmacy-Inpatient/Outpatient,Health New Zealand,"North Shore Hospital Shakespeare Road Takapuna Auckland 0740, Waitematā",Waitematā,Northern
 northcare-7-day-pharmacy-waitemat,Northcare 7 Day Pharmacy,Northcare 7 Day Pharmacy Limited,"5 Home Place Rosedale Auckland 0632, Waitematā",Waitematā,Northern
 northcote-family-pharmacy-auckland,Northcote Family Pharmacy,Northcote Pharmacy Limited,"26 Kawana Street Northcote Auckland 0627, Auckland",Auckland,Northern
 northcross-pharmacy-auckland,Northcross Pharmacy,Northcross Pharmacy (2025) Limited,"855 East Coast Road Northcross Auckland 0630, Auckland",Auckland,Northern
 northwest-pharmacy-waitemat,Northwest Pharmacy,Baraka Health Limited,"G01 / 98 Hobsonville Road Hobsonville Auckland 0618, Waitematā",Waitematā,Northern
 onehunga-family-pharmacy-auckland,Onehunga Family Pharmacy,Onehunga Family Pharmacy Limited,"163A Onehunga Mall Onehunga AUCKLAND 1061, Auckland",Auckland,Northern
 optimus-healthcare-auckland,Optimus Healthcare,Optimus Healthcare 2025 Limited,"4B Walls Road, Penrose, Auckland, 1061, Auckland",Auckland,Northern
-ormiston-hospital-pharmacy-limited-counties-manukau,Ormiston Hospital Pharmacy Limited,Ormiston Hospital Pharmacy Limited,"Shop 2/125 Ormiston Road Flat Bush AUCKLAND 2019, Counties Manukau",Counties Manukau,Northern
 ormiston-kiwi-chemist-counties-manukau,Ormiston Kiwi Chemist,Ormiston Pharmacy Limited,"211 Ormiston Road, Flatbush, Auckland, 2019, Counties Manukau",Counties Manukau,Northern
 orrs-kowhai-pharmacy-northland,Orrs Kowhai Pharmacy,Orrs Rust Ave Pharmacy Limited,"Units B & C, Kowhai Court, 27 Rust Avenue, Whangarei, 0110, Northland",Northland,Northern
 orrs-unichem-pharmacy-ruakaka-northland,Orrs Unichem Pharmacy Ruakaka,Orrs Ruakaka Pharmacy Limited,"Shop 16, Ruakaka Town Centre 378 Marsden Point Road RUAKAKA 0151, Northland",Northland,Northern
@@ -688,7 +668,6 @@ unichem-dennis-hanna-pharmacy-waitemat,Unichem Dennis Hanna Pharmacy,Glenfield F
 unichem-eden-quarter-pharmacy-auckland,Unichem Eden Quarter Pharmacy,EQP 2019 Limited,"Shop 9B, 296A Dominion Road, Mount Eden, Auckland, 1024, Auckland",Auckland,Northern
 unichem-ellerslie-pharmacy-auckland,Unichem Ellerslie Pharmacy,EL Pharmacy Limited,"125 Main Highway, Ellerslie, Auckland 1051, Auckland",Auckland,Northern
 unichem-family-healthcare-pharmacy-auckland,Unichem Family Healthcare Pharmacy,Family Health Care Pharmacy Limited,"Unit 4, 627 Mt Wellington Highway Mt Wellington AUCKLAND 1062, Auckland",Auckland,Northern
-unichem-franklin-hospital-pharmacy-counties-manukau,Unichem Franklin Hospital Pharmacy,United Pharmacy Limited,"Franklin Hospital 12 Glasgow Street Pukekohe 2120, Counties Manukau",Counties Manukau,Northern
 unichem-fred-thomas-pharmacy-waitemat,Unichem Fred Thomas Pharmacy,Fred Thomas Pharmacy (2015) Limited,"2 Fred Thomas Drive Takapuna AUCKLAND 0622, Waitematā",Waitematā,Northern
 unichem-gateway-pharmacy-counties-manukau,Unichem Gateway Pharmacy,Takanini Gateway Limited,"Shop 26/108 Great South Road Takanini 2112, Counties Manukau",Counties Manukau,Northern
 unichem-glendene-pharmacy-waitemat,Unichem Glendene Pharmacy,Glendene Community Pharmacy Limited,"Shop 1a, 4343 Great North Road, Glendene, Auckland, 0602, Waitematā",Waitematā,Northern
@@ -786,14 +765,12 @@ waimauku-pharmacy-silver-fern-waitemat,Waimauku Pharmacy - Silver Fern,Waimauku 
 waimauku-village-pharmacy-waitemat,Waimauku Village Pharmacy,Waimauku Village Pharmacy Limited,"8 Waimauku Station Road WAIMAUKU 0812, Waitematā",Waitematā,Northern
 waipapa-unichem-pharmacy-northland,Waipapa Unichem Pharmacy,Bay of Islands Pharmacies Limited,"7 Klinac Lane Waipapa 0230, Northland",Northland,Northern
 waipu-pharmacy-northland,Waipu Pharmacy,Waipu Village Pharmacy Limited,"25 The Centre Waipu 0510, Northland",Northland,Northern
-waitakere-hospital-pharmacy-inpatient-outpatient-waitemat,Waitakere Hospital Pharmacy - Inpatient/Outpatient,Health New Zealand,"Waitakere Hospital 55 Lincoln Road Henderson Auckland 0610, Waitematā",Waitematā,Northern
 walls-roche-medicine-management-auckland,Walls & Roche Medicine Management,Walls & Roche Royal Oak Pharmacy Limited,"Level 2, 778-784 Manukau Road, Royal Oak, Auckland, 1023, Auckland",Auckland,Northern
 wellsford-pharmacy-auckland,Wellsford Pharmacy,Wellspharm Pharmacy Limited,"Suite 1, 149 Rodney Street Wellsford 0900, Auckland",Auckland,Northern
 west-harbour-pharmacy-waitemat,West Harbour Pharmacy,Petros Pharmacy Limited,"Shop 6, 45 Luckens Road West Harbour AUCKLAND 0618, Waitematā",Waitematā,Northern
 westmere-pharmacy-limited-auckland,Westmere Pharmacy Limited,Westmere Pharmacy Limited,"156 Garnet Road Westmere Auckland 1022, Auckland",Auckland,Northern
 westview-pharmacy-waitemat,Westview Pharmacy,Westview Pharmacy (1994) Limited,"Tenancy 2, Westview Medical Centre 5 Glendale Road Glen Eden AUCKLAND 0602, Waitematā",Waitematā,Northern
 weymouth-whanau-pharmacy-counties-manukau,Weymouth Whanau Pharmacy,Weymouth Whanau Pharmacy Limited,"5 Waimahia Avenue Weymouth Auckland 2103, Counties Manukau",Counties Manukau,Northern
-whangarei-hospital-pharmacy-northland,Whangarei Hospital Pharmacy,Health New Zealand,"Pharmacy Department Whangarei Hospital Maunu Road Whangarei 0110, Northland",Northland,Northern
 white-swan-pharmacy-auckland,White Swan Pharmacy,Your Health Care Pharmacy Limited,"460 Richardson Road Mt Roskill Auckland 1041, Auckland",Auckland,Northern
 windsor-medical-pharmacy-waitemat,Windsor Medical Pharmacy,Chemist Trading Limited,"Shop 2, 51 Corinthian Drive, Albany, Auckland, 0632, Waitematā",Waitematā,Northern
 wiri-health-pharmacy-counties-manukau,Wiri Health Pharmacy,Wiri Health Pharmacy Limited,"Unit 10, 792 Great South Road, Wiri, Auckland, 2104, Counties Manukau",Counties Manukau,Northern
@@ -835,7 +812,6 @@ antidote-meridian-southern,Antidote Meridian,Antidote (NZ) No.2 Limited,"Shop G1
 antidote-mornington-southern,Antidote Mornington,Antidote (NZ) Limited,"170 Eglinton Road, Mornington, Dunedin, 9011, Southern",Southern,South Island | Te Waipounamu
 antidote-north-southern,Antidote North,Antidote (NZ) Limited,"650 George Street, North Dunedin, Dunedin, 9010, Southern",Southern,South Island | Te Waipounamu
 antidote-octagon-southern,Antidote Octagon,Antidote (NZ) Limited,"2 George Street Dunedin Central Dunedin 9016, Southern",Southern,South Island | Te Waipounamu
-ashburton-hospital-pharmacy-canterbury,Ashburton Hospital Pharmacy,Health New Zealand,"28 Elizabeth Street Allenton Ashburton 7700, Canterbury",Canterbury,South Island | Te Waipounamu
 aspiring-pharmacy-southern,Aspiring Pharmacy,Tititea Pharmacy Limited,"29 Helwick Street Wanaka 9305, Southern",Southern,South Island | Te Waipounamu
 avonhead-pharmacy-2001-limited-canterbury,Avonhead Pharmacy (2001) Limited,Avonhead Pharmacy (2001) Limited,"Shop 22, Avonhead Shopping Centre 210 Withells Road Avonhead Christchurch 8042, Canterbury",Canterbury,South Island | Te Waipounamu
 baillie-and-lewis-pharmacy-southern,Baillie and Lewis Pharmacy,Baillie & Lewis 2002 Limited,"3 - 7 Martin Street, Strathern, Invercargill, 9812, Southern",Southern,South Island | Te Waipounamu
@@ -858,7 +834,6 @@ baylis-the-chemist-southern,Baylis The Chemist,Baylis The Chemist Limited,"267 K
 beckford-health-pharmacy-canterbury,Beckford Health Pharmacy,Eco Signa Limited,"14 - 18 Beckford Road, Saint Martins, Christchurch, 8022, Canterbury",Canterbury,South Island | Te Waipounamu
 brockville-pharmacy-southern,Brockville Pharmacy,Brockville Pharmacy Limited,"283 Brockville Road Brockville Dunedin 9011, Southern",Southern,South Island | Te Waipounamu
 buller-pharmacy-west-coast,Buller Pharmacy,Ell's Pharmacy (1991) Limited,"168 Palmerston Street Westport 7825, West Coast",West Coast,South Island | Te Waipounamu
-burwood-hospital-pharmacy-canterbury,Burwood Hospital Pharmacy,Health New Zealand,"300 Burwood Road Burwood Christchurch 8083, Canterbury",Canterbury,South Island | Te Waipounamu
 burwood-pharmacy-canterbury,Burwood Pharmacy,Burwood Pharmacy (1998) Limited,"11 Parnwell Street Burwood Christchurch 8083, Canterbury",Canterbury,South Island | Te Waipounamu
 cashmere-pharmacy-canterbury,Cashmere Pharmacy,Hardings Chemists(2003) Limited,"91 Centaurus Road Huntsbury Christchurch 8022, Canterbury",Canterbury,South Island | Te Waipounamu
 caversham-pharmacy-southern,Caversham Pharmacy,Corby Lai Limited,"287 South Road Caversham Dunedin 9012, Southern",Southern,South Island | Te Waipounamu
@@ -879,7 +854,6 @@ chemist-warehouse-the-palms-canterbury,Chemist Warehouse The Palms,Pharmacy Inve
 chemist-warehouse-timaru-showgrounds-south-canterbury,Chemist Warehouse Timaru Showgrounds,Pharmacy Investments 38 Limited,"Timaru Showgrounds, Tenancy LFR2 / 233 Evans Street, Smithfield, Timaru, 7910, South Canterbury",South Canterbury,South Island | Te Waipounamu
 chemist-warehouse-waimakariri-junction-canterbury,Chemist Warehouse Waimakariri Junction,Pharmacy Investments 60 Limited,"Unit E, 13 Hakarau Road, Waimakariri Junction, Kaiapoi, 7630, Canterbury",Canterbury,South Island | Te Waipounamu
 chemist-warehouse-westfield-riccarton-canterbury,Chemist Warehouse Westfield Riccarton,Pharmacy Investments 59 Limited,"Westfield Riccarton Shop S412A, 129 Riccarton Road Riccarton Christchurch 8041, Canterbury",Canterbury,South Island | Te Waipounamu
-christchurch-hospital-pharmacy-canterbury,Christchurch Hospital Pharmacy,Health New Zealand,"2 Riccarton Avenue Christchurch Central Christchurch 8011, Canterbury",Canterbury,South Island | Te Waipounamu
 christchurch-south-pharmacy-canterbury,Christchurch South Pharmacy,Hardings Chemists(2003) Limited,"167 Colombo Street Sydenham Christchurch 8023, Canterbury",Canterbury,South Island | Te Waipounamu
 civic-health-pharmacy-nelson-marlborough,Civic Health Pharmacy,Wairau Pharmacy 2008 Limited,"18 Arthur Street, Blenheim, 7201, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 collingwood-street-pharmacy-nelson-marlborough,Collingwood Street Pharmacy,McInnes Health Limited,"132 Collingwood Street Nelson 7010, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
@@ -907,7 +881,6 @@ hammersley-pharmacy-canterbury,Hammersley Pharmacy,Matlo Limited,"Unit 2/202 Hil
 hanafins-pharmacy-canterbury,Hanafins Pharmacy,PKR Pharmacy Limited,"Shop 8, 62 Riccarton Road, Riccarton, Christchurch, 8011, Canterbury",Canterbury,South Island | Te Waipounamu
 hei-hei-pharmacy-canterbury,Hei Hei Pharmacy,Hei Hei Pharmacy (2019) Limited,"34 Wycola Avenue Hei Hei Christchurch 8042, Canterbury",Canterbury,South Island | Te Waipounamu
 highland-pharmacy-central-southern,Highland Pharmacy Central,Highland Pharmacy Central Limited,"107 Scotland Street ROXBURGH 9500, Southern",Southern,South Island | Te Waipounamu
-hillmorton-hospital-pharmacy-canterbury,Hillmorton Hospital Pharmacy,Health New Zealand,"Hillmorton Hospital, Fergusson Block, Building 15, Annex Road, Hillmorton, Christchurch, 8024, Canterbury",Canterbury,South Island | Te Waipounamu
 hillmorton-pharmacy-2009-limited-canterbury,Hillmorton Pharmacy 2009 Limited,Hillmorton Pharmacy 2009 Limited,"9 Halswell Road Hillmorton CHRISTCHURCH 8025, Canterbury",Canterbury,South Island | Te Waipounamu
 hoon-hay-pharmacy-canterbury,Hoon Hay Pharmacy,GM Pharmacy Limited,"120 Sparks Road, Hoon Hay, Christchurch, 8025, Canterbury",Canterbury,South Island | Te Waipounamu
 hurst-taylor-unichem-pharmacy-nelson-marlborough,Hurst & Taylor Unichem Pharmacy,Hurst & Taylor Limited,"512 Main Road Stoke NELSON 7011, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
@@ -956,7 +929,6 @@ milton-pharmacy-southern,Milton Pharmacy,Helium Healthcare Limited,"71 Union Str
 mosgiel-health-centre-pharmacy-limited-southern,Mosgiel Health Centre Pharmacy Limited,Mosgiel Health Centre Pharmacy Limited,"23 Inglis Street, Mosgiel, 9024, Southern",Southern,South Island | Te Waipounamu
 moyle-s-pharmacy-south-canterbury,Moyle's Pharmacy,Moyles Pharmacy 2024 Limited,"6 Dee Street Timaru 7910, South Canterbury",South Canterbury,South Island | Te Waipounamu
 musselburgh-pharmacy-2021-limited-southern,Musselburgh Pharmacy (2021) Limited,Musselburgh Pharmacy (2021) Limited,"59 - 61 Musselburgh Rise Musselburgh Dunedin 9013, Southern",Southern,South Island | Te Waipounamu
-nelson-hospital-pharmacy-nelson-marlborough,Nelson Hospital Pharmacy,Health New Zealand,"Level 6, Percy Brunette Building Nelson Hospital, Tipahi Street Nelson 7010, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 netherby-pharmacy-canterbury,Netherby Pharmacy,Netherby Pharmacy Limited,"214 Chalmers Avenue Hampstead ASHBURTON 7700, Canterbury",Canterbury,South Island | Te Waipounamu
 nga-kete-pharmacy-southern,Nga Kete Pharmacy,He Puna Waiora Wellness Pharmacy Limited,"92 Spey Street, Invercargill, 9810, Southern",Southern,South Island | Te Waipounamu
 north-avon-pharmacy-canterbury,North Avon Pharmacy,North Avon Road Pharmacy Limited,"28 North Avon Road Richmond Christchurch 8013, Canterbury",Canterbury,South Island | Te Waipounamu
@@ -968,7 +940,6 @@ papanui-pharmacy-canterbury,Papanui Pharmacy,Papanui Pharmacy (2008) Limited,"43
 parkside-pharmacy-on-oxford-terrace-canterbury,Parkside Pharmacy on Oxford Terrace,PA-MA-KO Limited,"Unit B2, 32 Oxford Terrace Christchurch Central Christchurch 8011, Canterbury",Canterbury,South Island | Te Waipounamu
 pegasus-pharmacy-canterbury,Pegasus Pharmacy,Pegasus Pharmacy Limited,"52 Pegasus Main Street, Pegasus, 7612, Canterbury",Canterbury,South Island | Te Waipounamu
 pharmacy-ferrymead-canterbury,Pharmacy @ Ferrymead,Ferrymead Pharmacy (2009) Limited,"Units 1 & 2, Stage 2 Building 1005 Ferry Road Ferrymead CHRISTCHURCH 8023, Canterbury",Canterbury,South Island | Te Waipounamu
-pharmacy-department-dunedin-hospital-southern,"Pharmacy Department, Dunedin Hospital",Health New Zealand,"201 Great King Street Dunedin Central Dunedin 9016, Southern",Southern,South Island | Te Waipounamu
 pharmacy-now-canterbury,Pharmacy Now,LD Group Limited,"11a/1 Stark Drive Wigram Christchurch 8042, Canterbury",Canterbury,South Island | Te Waipounamu
 picton-healthcare-pharmacy-nelson-marlborough,Picton Healthcare Pharmacy,CCGI Limited,"6 High Street Picton 7220, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 port-chalmers-pharmacy-southern,Port Chalmers Pharmacy,Radha Parthasarathi Investments Limited,"24 George Street Port Chalmers 9023, Southern",Southern,South Island | Te Waipounamu
@@ -991,7 +962,6 @@ selwyn-village-pharmacy-canterbury,Selwyn Village Pharmacy,Wong Health Limited,"
 shields-pharmacy-limited-canterbury,Shields Pharmacy Limited,Shields Pharmacy Limited,"95 Main North Road Papanui CHRISTCHURCH 8052, Canterbury",Canterbury,South Island | Te Waipounamu
 shirley-dispensary-canterbury,Shirley Dispensary,Shirley Dispensary 2025 Limited,"13 Marshland Road Shirley Christchurch 8061, Canterbury",Canterbury,South Island | Te Waipounamu
 silverstream-kaiapoi-pharmacy-canterbury,Silverstream Kaiapoi Pharmacy,RKM Family Limited,"Shop 10, 42 Silverstream Boulevard Kaiapoi Christchurch 7630, Canterbury",Canterbury,South Island | Te Waipounamu
-southland-hospital-pharmacy-southern,Southland Hospital Pharmacy,Health New Zealand,"Pharmacy Department, Southland Hospital 1st Floor, 145 Kew Road Kew Invercargill 9812, Southern",Southern,South Island | Te Waipounamu
 st-albans-pharmacy-canterbury,St Albans Pharmacy,St Albans Pharmacy (1999) Limited,"1073 Colombo Street St Albans CHRISTCHURCH 8014, Canterbury",Canterbury,South Island | Te Waipounamu
 st-martins-pharmacy-canterbury,St Martins Pharmacy,St Martins Pharmacies 2025 Limited,"Shop 2, 92 Wilsons Road South, Saint Martins, Christchurch, 8022, Canterbury",Canterbury,South Island | Te Waipounamu
 stan-s-7-day-pharmacy-rangiora-canterbury,Stan's 7 Day Pharmacy Rangiora,Rangiora Encounter Limited,"Shop 4, 15 Ashley Street Rangiora 7400, Canterbury",Canterbury,South Island | Te Waipounamu
@@ -999,11 +969,9 @@ stay-well-pharmacy-canterbury,Stay Well Pharmacy,Stay Well Pharmacy Limited,"Uni
 sumner-pharmacy-canterbury,Sumner Pharmacy,D & L Bell Limited,"17 Wakefield Avenue Sumner CHRISTCHURCH 8081, Canterbury",Canterbury,South Island | Te Waipounamu
 sylvan-bank-pharmacy-southern,Sylvan Bank Pharmacy,Sylvan Bank Pharmacy (2010) Limited,"231 Yarrow Street Richmond INVERCARGILL 9810, Southern",Southern,South Island | Te Waipounamu
 tahunanui-pharmacy-nelson-marlborough,Tahunanui Pharmacy,Tahunanui Pharmacy Limited,"11 Tahunanui Drive, Tahunanui, Nelson, 7011, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
-te-nikau-grey-hospital-pharmacy-west-coast,Te Nikau Grey Hospital Pharmacy,Health New Zealand,"Te Nikau Grey Hospital, 146 High Street, Greymouth, 7805, West Coast",West Coast,South Island | Te Waipounamu
 temuka-pharmacy-south-canterbury,Temuka Pharmacy,Temuka Pharmacy 2012 Limited,"81 King Street TEMUKA 7920, South Canterbury",South Canterbury,South Island | Te Waipounamu
 the-pharmacy-phillipstown-canterbury,The Pharmacy @ Phillipstown,Eco Rx Limited,"270 Ferry Road Waltham Christchurch 8011, Canterbury",Canterbury,South Island | Te Waipounamu
 three-rivers-pharmacy-canterbury,Three Rivers Pharmacy,Searles Allenton Pharmacy [Ash] Limited,"7-11 Allens Road Allenton Ashburton 7700, Canterbury",Canterbury,South Island | Te Waipounamu
-timaru-hospital-pharmacy-south-canterbury,Timaru Hospital Pharmacy,Health New Zealand,"Level 2, Clinical Services Building, Timaru Hospital 14 Queen Street Parkside Timaru 7910, South Canterbury",South Canterbury,South Island | Te Waipounamu
 unichem-alexandra-pharmacy-southern,Unichem Alexandra Pharmacy,Alexandra Pharmacy (2013) Limited,"4 Centennial Avenue Alexandra 9320, Southern",Southern,South Island | Te Waipounamu
 unichem-arrowtown-pharmacy-southern,Unichem Arrowtown Pharmacy,Mitchells Pharmacy Limited,"20 Buckingham Street Arrowtown 9302, Southern",Southern,South Island | Te Waipounamu
 unichem-ascot-pharmacy-southern,Unichem Ascot Pharmacy,Ascot Pharmacy Invercargill Limited,"706 Tay Street Hawthorndale Invercargill 9810, Southern",Southern,South Island | Te Waipounamu
@@ -1011,7 +979,6 @@ unichem-bealey-ave-pharmacy-canterbury,Unichem Bealey Ave Pharmacy,Bealey Ave Ph
 unichem-belfast-pharmacy-canterbury,Unichem Belfast Pharmacy,Thomas and William CK CO Limited,"Unit 8/812 Main North Road, Belfast, Christchurch, 8051, Canterbury",Canterbury,South Island | Te Waipounamu
 unichem-bishopdale-pharmacy-canterbury,Unichem Bishopdale Pharmacy,Bishopdale Pharmacy Limited,"37 and 39 Bishopdale Court Bishopdale CHRISTCHURCH 8053, Canterbury",Canterbury,South Island | Te Waipounamu
 unichem-brighton-village-pharmacy-canterbury,Unichem Brighton Village Pharmacy,Brighton Village Pharmacy (2024) Limited,"183 Shaw Avenue, New Brighton, Christchurch 8083, Canterbury",Canterbury,South Island | Te Waipounamu
-unichem-burwood-hospital-pharmacy-canterbury,Unichem Burwood Hospital Pharmacy,TWC Investments Limited,"Shop G544, Main Foyer, 300 Burwood Road, Burwood, Christchurch, 8083, Canterbury",Canterbury,South Island | Te Waipounamu
 unichem-cashel-pharmacy-canterbury,Unichem Cashel Pharmacy,The Dispensaries Limited,"Shop 3/111 Cashel Street, Christchurch Central, Christchurch, 8011, Canterbury",Canterbury,South Island | Te Waipounamu
 unichem-central-pharmacy-mosgiel-southern,Unichem Central Pharmacy Mosgiel,Gordon Road Pharmacy Limited,"130 Gordon Road Mosgiel 9024, Southern",Southern,South Island | Te Waipounamu
 unichem-crisps-pharmacy-canterbury,Unichem Crisps Pharmacy,Crisps Pharmacy 2020 Limited,"Shop 2, 283 Wairakei Road, Bryndwr, Christchurch, 8041, Canterbury",Canterbury,South Island | Te Waipounamu
@@ -1065,7 +1032,6 @@ victory-square-pharmacy-nelson-marlborough,Victory Square Pharmacy,SDM Limited,"
 vitahub-pharmacy-faringdon-canterbury,Vitahub Pharmacy Faringdon,Vitacare Limited,"423 Springston Rolleston Road Rolleston 7615, Canterbury",Canterbury,South Island | Te Waipounamu
 waihemo-pharmacy-southern,Waihemo Pharmacy,Graamans Health Development Limited,"132 Ronaldsay Street PALMERSTON 9340, Southern",Southern,South Island | Te Waipounamu
 waimate-pharmacy-south-canterbury,Waimate Pharmacy,Hook Holdings Limited,"84 Queen Street, Waimate, 7924, South Canterbury",South Canterbury,South Island | Te Waipounamu
-wairau-hospital-pharmacy-nelson-marlborough,Wairau Hospital Pharmacy,Health New Zealand,"Hospital Road Witherlea Blenheim 7201, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 wairau-pharmacy-nelson-marlborough,Wairau Pharmacy,Wairau Pharmacy 2008 Limited,"47 Scott Street BLENHEIM 7201, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 wakefield-pharmacy-nelson-marlborough,Wakefield Pharmacy,Wakefield Pharmacy 2019 Limited,"4 Edward Street Wakefield 7025, Nelson Marlborough",Nelson Marlborough,South Island | Te Waipounamu
 waltham-pharmacy-canterbury,Waltham Pharmacy,St Martins Pharmacies 2025 Limited,"87 Waltham Road, Waltham, Christchurch, 8023, Canterbury",Canterbury,South Island | Te Waipounamu
