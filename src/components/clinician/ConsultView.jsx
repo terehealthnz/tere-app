@@ -114,9 +114,24 @@ function VitalsPanel({ vitals }) {
 
 // ── Main ConsultView ──────────────────────────────────────────────────────────
 
+// Diagnostic beacon helper — appends a timestamped tag to consultations.transcript
+// so we can trace which code paths executed on remote devices we can't inspect.
+async function beacon(id, tag) {
+  if (!id) return
+  try {
+    const { supabase } = await import('../../lib/supabase')
+    const { data } = await supabase.from('consultations').select('transcript').eq('id', id).single()
+    const existing = data?.transcript && !data.transcript.startsWith('[BEACON') ? '' : (data?.transcript || '')
+    const stamp = new Date().toISOString().slice(11, 19)
+    const line = `[BEACON ${stamp}] ${tag}`
+    await supabase.from('consultations').update({ transcript: existing ? `${existing}\n${line}` : line }).eq('id', id)
+  } catch {}
+}
+
 export default function ConsultView() {
   const { id } = useParams()
   const navigate = useNavigate()
+  useEffect(() => { if (id) beacon(id, 'ConsultView MOUNTED') }, [id])
   const [consult, setConsult] = useState(null)
   const [tab, setTab] = useState('vitals')
   const [notes, setNotes] = useState({ S:'', O:'', A:'', P:'' })
@@ -270,17 +285,14 @@ export default function ConsultView() {
 
   async function startScribe() {
     const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
-    console.log('[scribe] startScribe called, apiKey present:', !!apiKey, 'lkRoom present:', !!lkRoomRef.current)
-    // Diagnostic marker: persist a "scribe was invoked" signal to the DB immediately.
-    // Real transcript overwrites this on first captured speech; if it stays, we know
-    // the scribe reached this line but never received any audio results.
-    if (id) updateConsultation(id, { transcript: '[Scribe: waiting for speech…]' }).catch(() => {})
+    beacon(id, `startScribe ENTERED, apiKey=${!!apiKey}, lkRoom=${!!lkRoomRef.current}`)
     if (!apiKey) {
-      if (id) updateConsultation(id, { transcript: '[Scribe: VITE_DEEPGRAM_API_KEY not set]' }).catch(() => {})
+      beacon(id, 'startScribe ABORT: VITE_DEEPGRAM_API_KEY missing')
       alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return
     }
     try {
       const localMic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      beacon(id, 'getUserMedia OK')
 
       // Merge the provider's local mic with any remote patient audio tracks from the
       // LiveKit room, so Deepgram diarization can separate both speakers. Without this,
@@ -325,6 +337,7 @@ export default function ConsultView() {
       wsRef.current = ws
 
       ws.onopen = () => {
+        beacon(id, 'Deepgram WS OPEN')
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
           : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
         const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
@@ -333,6 +346,7 @@ export default function ConsultView() {
           if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) ws.send(e.data)
         }
         mr.start(250)
+        beacon(id, 'MediaRecorder started')
       }
 
       ws.onmessage = e => {
@@ -362,10 +376,11 @@ export default function ConsultView() {
         } catch {}
       }
 
-      ws.onerror = () => {}
+      ws.onerror = (e) => { beacon(id, 'Deepgram WS ERROR') }
       setLiveTranscript('')
       setScribeState('recording')
       setShowTranscript(true)
+      beacon(id, 'scribeState set to recording')
     } catch (e) {
       alert(e.message || 'Microphone access denied')
       setScribeState('idle')
@@ -428,6 +443,7 @@ export default function ConsultView() {
 
   // Auto-start scribe when video call goes in_progress
   useEffect(() => {
+    if (id && consult?.status) beacon(id, `useEffect fired: type=${consult?.consultation_type}, status=${consult?.status}, scribeState=${scribeState}`)
     if (consult?.consultation_type !== 'video') return
     if (consult?.status === 'in_progress' && scribeState === 'idle') startScribe()
   }, [consult?.status])
