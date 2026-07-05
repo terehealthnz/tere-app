@@ -272,6 +272,10 @@ export default function ProviderConsult() {
         notes_draft: { actions, callNotes },
         transcript: finalTranscript || null,
         consultation_duration_seconds: durationSec,
+        // Clear note_generated_at so ProviderNotes re-runs AI generation on the fresh
+        // transcript. Otherwise line 248 in ProviderNotes.jsx sees stale note_generated_at
+        // from a previous call, restores the (empty) draft, and skips runGenerate entirely.
+        note_generated_at: null,
       }).eq('id', id)
     } catch {}
     navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
