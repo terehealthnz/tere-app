@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { apiFetch } from './api'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -465,34 +466,24 @@ export async function markWaitlistNotified() {
 
 // ── Vitals validation tool ───────────────────────────────────────────────────
 
+// Server-mediated: goes through /api/validation-subjects with the current
+// provider's Supabase JWT. Server uses service_role so anon RLS is irrelevant.
 export async function saveValidationSubject(data) {
-  const { data: subject, error } = await supabase
-    .from('validation_subjects')
-    .insert({
-      subject_code:            data.subjectCode,
-      first_name:              data.firstName,
-      age:                     data.age || null,
-      sex:                     data.sex || null,
-      height_cm:               data.heightCm || null,
-      weight_kg:               data.weightKg || null,
-      fitzpatrick_scale:       data.fitzpatrickScale || null,
-      has_hypertension:        data.hasHypertension || 'unknown',
-      has_diabetes:            data.hasDiabetes || 'unknown',
-      has_regular_medications: data.hasRegularMedications || false,
-    })
-    .select()
-    .single()
-  if (error) throw error
+  const res = await apiFetch('/api/validation-subjects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `saveValidationSubject HTTP ${res.status}`)
+  }
+  const { subject } = await res.json()
   return subject
 }
 
+// Alias for callers that don't need the last_scan_at / reading_count enrichment.
 export async function getValidationSubjects() {
-  const { data, error } = await supabase
-    .from('validation_subjects')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data || []
+  return getValidationSubjectsWithLastScan()
 }
 
 export async function saveValidationReading(data) {
@@ -566,30 +557,13 @@ export async function getValidationReadings(subjectId = null) {
 }
 
 export async function getValidationSubjectsWithLastScan() {
-  const [{ data: subjects, error: e1 }, { data: scans }] = await Promise.all([
-    supabase.from('validation_subjects').select('*'),
-    supabase.from('validation_readings').select('subject_id, recorded_at').order('recorded_at', { ascending: false }),
-  ])
-  if (e1) throw e1
-
-  const lastScanMap = {}
-  const readingCountMap = {}
-  for (const s of (scans || [])) {
-    if (!s.subject_id) continue
-    if (!lastScanMap[s.subject_id]) lastScanMap[s.subject_id] = s.recorded_at
-    readingCountMap[s.subject_id] = (readingCountMap[s.subject_id] || 0) + 1
+  const res = await apiFetch('/api/validation-subjects')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getValidationSubjectsWithLastScan HTTP ${res.status}`)
   }
-
-  return ((subjects || []).map(s => ({
-    ...s,
-    last_scan_at:   lastScanMap[s.id]    || null,
-    reading_count:  readingCountMap[s.id] || 0,
-  }))).sort((a, b) => {
-    if (a.last_scan_at && b.last_scan_at) return new Date(b.last_scan_at) - new Date(a.last_scan_at)
-    if (a.last_scan_at) return -1
-    if (b.last_scan_at) return 1
-    return new Date(b.created_at) - new Date(a.created_at)
-  })
+  const { subjects } = await res.json()
+  return subjects || []
 }
 
 export async function getTrainableReadings() {

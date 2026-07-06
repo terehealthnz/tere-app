@@ -126,6 +126,7 @@ const ROUTES = {
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'pms-data':                  () => import('./_pms-data.js'),
+  'validation-subjects':       () => import('./_validation-subjects.js'),
 }
 
 export default async function handler(req, res) {

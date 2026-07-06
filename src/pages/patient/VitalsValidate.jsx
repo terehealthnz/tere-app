@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp } from '../../lib/rppg'
-import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan } from '../../lib/supabase'
+import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, supabase } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
 import { calculateSpO2, fitSpO2Calibration } from '../../lib/spo2'
 
@@ -134,6 +134,23 @@ function PageWrap({ children }) {
 }
 
 export default function VitalsValidate() {
+  const navigate = useNavigate()
+  const [authChecked, setAuthChecked] = useState(false)
+
+  // Auth gate — validation flow is provider-only. Redirect to the clinician login
+  // if there's no active Supabase session; the /api/validation-subjects endpoint
+  // this page depends on requires a bearer JWT from an active provider.
+  useEffect(() => {
+    let cancelled = false
+    const goLogin = () => navigate('/clinician/login?from=/vitals-validate', { replace: true })
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return
+      if (!data?.session) goLogin()
+      else setAuthChecked(true)
+    }).catch(() => { if (!cancelled) goLogin() })
+    return () => { cancelled = true }
+  }, [navigate])
+
   const [phase, setPhase] = useState('select')
 
   // Subjects
@@ -423,6 +440,8 @@ export default function VitalsValidate() {
   }
 
   // ── Select profile ────────────────────────────────────────────────────────────
+
+  if (!authChecked) return null
 
   if (phase === 'select') {
     const canStart = !!selectedSubjectId

@@ -1,13 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2 } from '../../lib/supabase'
+import { Link, useNavigate } from 'react-router-dom'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, supabase } from '../../lib/supabase'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable } from '../../lib/bpModel'
 import { fitSpO2Calibration } from '../../lib/spo2'
-
-// PIN comes from the Vercel env — no source-code fallback so a missing env fails
-// closed rather than falling back to a well-known default that would be visible
-// in the public repo.
-const PIN = import.meta.env.VITE_VALIDATION_PIN || ''
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 const BG   = '#F7F5F0'
@@ -758,9 +753,21 @@ function Spo2CalibrationPanel({ readings, onReprocess, reprocessing, reprocessSt
 }
 
 export default function VitalsValidateDashboard() {
-  const [authed, setAuthed]       = useState(!!sessionStorage.getItem('tere_validate_authed'))
-  const [pinInput, setPinInput]   = useState('')
-  const [pinError, setPinError]   = useState(false)
+  const navigate = useNavigate()
+  // `null` = still checking, `false` = redirecting to login, `true` = active session.
+  const [authed, setAuthed]       = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const goLogin = () => navigate('/clinician/login?from=/vitals-validate/dashboard', { replace: true })
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return
+      if (!data?.session) { setAuthed(false); goLogin() }
+      else setAuthed(true)
+    }).catch(() => { if (!cancelled) { setAuthed(false); goLogin() } })
+    return () => { cancelled = true }
+  }, [navigate])
+
   const [readings, setReadings]   = useState([])
   const [subjects, setSubjects]   = useState([])
   const [modelVersions, setModelVersions] = useState([])
@@ -773,7 +780,7 @@ export default function VitalsValidateDashboard() {
   const [reprocessStatus, setReprocessStatus] = useState('')
 
   useEffect(() => {
-    if (!authed) return
+    if (authed !== true) return
     setLoading(true)
     Promise.all([getValidationReadings(), getValidationSubjects(), getModelVersions()])
       .then(([r, s, mv]) => { setReadings(r); setSubjects(s); setModelVersions(mv) })
@@ -870,31 +877,8 @@ export default function VitalsValidateDashboard() {
     </div>
   )
 
-  if (!authed) {
-    const handlePin = () => {
-      // Fail closed if either PIN or input is empty — never authenticate on an
-      // unconfigured server (`PIN === ''`) or an empty user input.
-      if (PIN && pinInput && pinInput === PIN) { sessionStorage.setItem('tere_validate_authed', '1'); setAuthed(true) }
-      else setPinError(true)
-    }
-    return wrap(
-      <div style={{ background: 'white', borderRadius: 16, padding: '1.5rem', boxShadow: '0 2px 12px rgba(0,0,0,.06)', maxWidth: 380 }}>
-        <div style={{ fontWeight: 700, fontSize: '1.1rem', color: NAVY, marginBottom: '1.25rem' }}>Access required</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input type="password" value={pinInput}
-            onChange={e => { setPinInput(e.target.value); setPinError(false) }}
-            onKeyDown={e => e.key === 'Enter' && handlePin()} placeholder="PIN"
-            style={{ border: `1.5px solid ${pinError ? '#EF4444' : '#E5E7EB'}`, borderRadius: 10, padding: '.75rem 1rem', fontSize: '1.1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.15em', outline: 'none' }}
-          />
-          {pinError && <div style={{ color: '#EF4444', fontSize: '.85rem' }}>Incorrect PIN.</div>}
-          <button onClick={handlePin}
-            style={{ background: TEAL, color: 'white', border: 'none', borderRadius: 99, padding: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem' }}>
-            Continue
-          </button>
-        </div>
-      </div>
-    )
-  }
+  // While the auth check is pending or a redirect is in flight, render nothing.
+  if (authed !== true) return null
 
   const mae         = computeHRMAE(readings)
   const milestone   = getMilestone(readings.length)
