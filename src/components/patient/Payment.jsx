@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
+import { patientUpdateConsultation } from '../../lib/supabase'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -115,11 +116,11 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
       sessionStorage.setItem('paymentIntentId', paymentIntent.id)
       // Add patient to provider queue immediately; vitals scan happens in parallel
       try {
-        const { supabase } = await import('../../lib/supabase')
         const bufferExpires = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-        await supabase.from('consultations')
-          .update({ status: 'waiting', buffer_expires_at: bufferExpires })
-          .eq('id', consultationId)
+        await patientUpdateConsultation(consultationId, {
+          status: 'waiting',
+          buffer_expires_at: bufferExpires,
+        })
       } catch {}
       navigate(consultationType === 'message' ? '/message-sent' : `/vitals/${consultationId}`)
     }

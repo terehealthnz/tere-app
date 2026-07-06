@@ -93,6 +93,11 @@ function validateEmail(email) {
 
 // ── Consultation helpers ─────────────────────────────────────────────────────
 
+// Server-mediated create. The client builds the payload (with all the local
+// sanitisation helpers) and POSTs to /api/create-consultation, which runs with
+// service_role and (a) verifies employer_id against the employers table before
+// setting employer_paid + employer_name, and (b) rejects any client attempt to
+// set reserved columns (id/patient_id/provider_id/payment_amount/etc).
 export async function createConsultation(data) {
   const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : ''
   const deviceType = /Mobile|iPhone|Android/.test(ua) ? (/iPad/.test(ua) ? 'tablet' : 'mobile') : 'desktop'
@@ -118,9 +123,10 @@ export async function createConsultation(data) {
     recording_consent:            data.recordingConsent,
     acc_consent:                  data.accConsent,
     patient_language:             data.patientLanguage || 'en',
-    employer_paid:                data.employerPaid || false,
+    // employer_id is a *claim* — server verifies against employers.is_active
+    // before deriving employer_paid + employer_name. Client-supplied
+    // employer_paid + employer_name are ignored by the server.
     employer_id:                  data.employerId || null,
-    employer_name:                data.employerName || null,
     gp_name:                      data.gpName || null,
     gp_email:                     data.gpEmail || null,
     gp_clinic:                    data.gpClinic || null,
@@ -136,9 +142,9 @@ export async function createConsultation(data) {
     status:                       data.status || 'waiting',
     ...(data.consultationType    ? { consultation_type:    data.consultationType }    : {}),
     ...(data.consultationSubtype ? { consultation_subtype: data.consultationSubtype } : {}),
+    ...(data.notesDraft          ? { notes_draft:          data.notesDraft }          : {}),
     vitals:                       null,
     daily_room_url:               null,
-    // Research fields (requires supabase-research-migration.sql)
     patient_age_band:             calcAgeBand(data.dob),
     complaint_category:           categorizeComplaint(data.complaint),
     consultation_month:           new Date().toISOString().slice(0, 7),
@@ -147,38 +153,16 @@ export async function createConsultation(data) {
     patient_employment_sector:    categorizeEmploymentSector(data.employer),
   }
 
-  console.log('[createConsultation] inserting payload keys:', Object.keys(payload))
-
-  const { data: consult, error } = await supabase
-    .from('consultations')
-    .insert(payload)
-    .select()
-    .single()
-
-  if (error) {
-    console.error('[createConsultation] Supabase error: ' + JSON.stringify({
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    }))
-    // If a research column doesn't exist yet, retry without those optional fields
-    if (error.code === '42703' || error.message?.includes('column')) {
-      console.warn('[createConsultation] Retrying without research fields')
-      const { patient_age_band, complaint_category, consultation_month,
-              device_type, language_selected, patient_employment_sector,
-              patient_region, ...corePayload } = payload
-      const { data: consult2, error: error2 } = await supabase
-        .from('consultations')
-        .insert(corePayload)
-        .select()
-        .single()
-      if (error2) throw error2
-      return consult2
-    }
-    throw error
+  const res = await apiFetch('/api/create-consultation', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `createConsultation HTTP ${res.status}`)
   }
-  return consult
+  const { consultation } = await res.json()
+  return consultation
 }
 
 // Patient-side update helper. Routes through /api/patient-consult which

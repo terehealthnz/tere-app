@@ -41,6 +41,8 @@ const PATIENT_ALLOWLIST = new Set([
   'vitals', 'vitals_at',
   // Consultation type (patient picks message vs video vs phone)
   'consultation_type',
+  // Post-payment: patient enters the queue with a buffer expiry
+  'buffer_expires_at',
   // Consent surface
   'hdc_consent_at', 'prescribing_consent_at', 'research_consent',
   'marketing_consent', 'consent_signed_at', 'consent_signature',
@@ -68,7 +70,10 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
 
 // Only these status values may be set from the patient side. Provider-side
 // status changes go through /api/consultations PATCH which has its own gate.
-const PATIENT_STATUS_ALLOWED = new Set(['cancelled', 'vitals_complete'])
+//   waiting          — post-payment, patient joins provider queue
+//   vitals_complete  — patient finished (or skipped) vitals scan
+//   cancelled        — patient bailed out
+const PATIENT_STATUS_ALLOWED = new Set(['waiting', 'vitals_complete', 'cancelled'])
 
 export default async function handler(req, res) {
   if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' })

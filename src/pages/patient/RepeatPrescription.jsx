@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { createConsultation } from '../../lib/supabase'
 
 export default function RepeatPrescription() {
   const [step, setStep] = useState(1)
@@ -30,24 +31,22 @@ export default function RepeatPrescription() {
     setSubmitting(true)
     setError('')
     try {
-      // Create a message-type consultation for repeat Rx
-      const { supabase } = await import('../../lib/supabase')
+      // Create a message-type consultation for repeat Rx via the server endpoint.
+      // Server derives payment_amount for consultation_type='repeat_rx' (2500 cents).
       const nameParts = name.trim().split(' ')
-      const { data: consult, error: cErr } = await supabase.from('consultations').insert({
-        patient_first_name: nameParts[0],
-        patient_last_name: nameParts.slice(1).join(' ') || '',
-        patient_dob: dob || null,
-        patient_phone: phone,
-        patient_email: email || null,
-        patient_nhi: nhi || null,
+      await createConsultation({
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(' ') || '',
+        dob: dob || null,
+        phone,
+        email: email || null,
+        nhi: nhi || null,
         pharmacy: pharmacy || null,
-        chief_complaint: `Repeat prescription request: ${medication} ${dose}`,
-        consultation_type: 'repeat_rx',
+        complaint: `Repeat prescription request: ${medication} ${dose}`,
+        consultationType: 'repeat_rx',
         status: 'waiting',
-        payment_amount: 2500, // $25 message consult
-        notes_draft: { repeatRx: { medication, dose, pharmacy, patientNotes: notes } },
-      }).select().single()
-      if (cErr) throw cErr
+        notesDraft: { repeatRx: { medication, dose, pharmacy, patientNotes: notes } },
+      })
       setDone(true)
     } catch (e) { setError('Submission failed — ' + e.message) }
     setSubmitting(false)
