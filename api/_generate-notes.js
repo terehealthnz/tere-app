@@ -1,6 +1,22 @@
 // api/_generate-notes.js — Tere Scribe v3: extract → red-flag check → JS-merge
+import { isFlagEnabled } from './_flags-server.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
+
+  // Kill switch: if the AI notes generation misbehaves (bad prompt, model
+  // outage, unexpected clinical output), an admin can flip the
+  // `ai_notes_enabled` feature flag OFF from Admin → 🚩 Feature flags and
+  // every subsequent scribe call returns `{ skipped: true }` within ~60s.
+  // Provider then writes notes manually with no code change or deploy needed.
+  // Default true — only actively disabled when a problem is detected.
+  const notesOn = await isFlagEnabled('ai_notes_enabled', { default: true })
+  if (!notesOn) {
+    return res.status(200).json({
+      skipped: true,
+      reason: 'AI note generation disabled by feature flag (ai_notes_enabled). Provider will complete notes manually.',
+    })
+  }
 
   const apiKey = process.env.ANTHROPIC_API_KEY
   console.log('ANTHROPIC_API_KEY:', apiKey ? 'SET' : 'MISSING')
