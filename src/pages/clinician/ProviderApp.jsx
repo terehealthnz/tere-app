@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { getActiveConsultations, subscribeToQueue } from '../../lib/supabase'
+import { getActiveConsultations, subscribeToQueue, getCompleteSince, getPendingNotes, getCompletedNotes } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } from '../../components/clinician/ConsultModals'
 import ProviderSchedule from './ProviderSchedule'
@@ -703,38 +703,19 @@ function PMSTab({ navigate }) {
       const nzNow      = new Date(new Date().toLocaleString('en-US', { timeZone:'Pacific/Auckland' }))
       const todayStart = new Date(nzNow.getFullYear(), nzNow.getMonth(), nzNow.getDate()).toISOString()
 
+      // acc_claims + prescriptions detail-list stay direct (own follow-up); the
+      // three consultations queries now go through /api/consultations filters.
       const [todayRes, claimsRes, rxRes, pendingRes, completedRes] = await Promise.allSettled([
-        // Today's consults
-        supabase.from('consultations')
-          .select('id,status,consultation_type,is_acc,payment_amount_nzd,notes_finalised,created_at,patient_first_name,patient_last_name,chief_complaint,acc_claim_number,acc_claim_status,outcome')
-          .eq('status','complete').gte('created_at', todayStart)
-          .order('created_at', { ascending:false }),
-
-        // ACC claims
-        supabase.from('acc_claims')
-          .select('*').order('created_at',{ascending:false}).limit(50),
-
-        // Prescriptions
-        supabase.from('prescriptions')
-          .select('id,drug_name,drug,dose,directions,delivery_status,created_at,patient_name,nzeps_token,consultation_id')
-          .order('created_at',{ascending:false}).limit(30),
-
-        // Pending notes
-        supabase.from('consultations')
-          .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,acc_eligible')
-          .eq('status','complete').eq('notes_finalised',false)
-          .order('created_at',{ascending:false}).limit(50),
-
-        // Completed notes
-        supabase.from('consultations')
-          .select('id,created_at,patient_first_name,patient_last_name,chief_complaint,notes_finalised_at,outcome,note_finalised_by,prescription_issued,referral_issued')
-          .eq('status','complete').eq('notes_finalised',true)
-          .order('notes_finalised_at',{ascending:false}).limit(50),
+        getCompleteSince(todayStart),
+        supabase.from('acc_claims').select('*').order('created_at',{ascending:false}).limit(50),
+        supabase.from('prescriptions').select('id,drug_name,drug,dose,directions,delivery_status,created_at,patient_name,nzeps_token,consultation_id').order('created_at',{ascending:false}).limit(30),
+        getPendingNotes(),
+        getCompletedNotes(),
       ])
 
-      const today     = todayRes.status   === 'fulfilled' ? (todayRes.value.data   || []) : []
-      const claims    = claimsRes.status  === 'fulfilled' ? (claimsRes.value.data  || []) : []
-      const rx        = rxRes.status      === 'fulfilled' ? (rxRes.value.data      || []) : []
+      const today     = todayRes.status   === 'fulfilled' ? (todayRes.value           || []) : []
+      const claims    = claimsRes.status  === 'fulfilled' ? (claimsRes.value.data     || []) : []
+      const rx        = rxRes.status      === 'fulfilled' ? (rxRes.value.data         || []) : []
 
       const claimsByStatus = claims.reduce((m,c) => { m[c.status]=(m[c.status]||0)+1; return m }, {})
       const outstandingCents = claims.filter(c=>['submitted','invoiced'].includes(c.status)).reduce((s,c)=>s+(c.amount_claimed||0),0)
@@ -742,8 +723,8 @@ function PMSTab({ navigate }) {
       const todayRevenue     = today.reduce((s,c)=>s+(c.payment_amount_nzd||0),0)
 
       setData({ today, claims, rx, claimsByStatus, outstandingCents, paidCents, todayRevenue })
-      setPendingNotes(pendingRes.status   === 'fulfilled' ? (pendingRes.value.data   || []) : [])
-      setCompletedNotes(completedRes.status === 'fulfilled' ? (completedRes.value.data || []) : [])
+      setPendingNotes(pendingRes.status   === 'fulfilled' ? (pendingRes.value   || []) : [])
+      setCompletedNotes(completedRes.status === 'fulfilled' ? (completedRes.value || []) : [])
     } catch (e) { console.error(e) }
     setLoading(false)
   }

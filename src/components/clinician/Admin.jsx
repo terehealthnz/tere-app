@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -861,13 +861,16 @@ function PendingApprovalsPanel() {
   async function load() {
     setLoading(true)
     try {
+      // radiology_referrals still reads directly — has its own follow-up task
+      // to migrate to /api/radiology-referrals. Not a PHI leak in the same
+      // way consultations is, so migrating incrementally.
       const { supabase } = await import('../../lib/supabase')
-      const [rxRes, refRes, accRes] = await Promise.all([
-        supabase.from('prescriptions').select('id, created_at, patient_name, drafted_by_name, provider_name, drug, urgency').eq('approval_status', 'pending_approval').order('created_at'),
+      const [rx, refRes, acc] = await Promise.all([
+        getPendingPrescriptions('id, created_at, patient_name, drafted_by_name, provider_name, drug, urgency'),
         supabase.from('radiology_referrals').select('id, created_at, patient_name, drafted_by_name, provider_name, investigation, urgency').eq('approval_status', 'pending_approval').order('created_at'),
-        supabase.from('consultations').select('id, created_at, patient_first_name, patient_last_name, provider_display_name').eq('acc_approval_status', 'pending_approval').order('created_at'),
+        getAccPendingConsultations('id, created_at, patient_first_name, patient_last_name, provider_display_name'),
       ])
-      setItems({ prescriptions: rxRes.data || [], referrals: refRes.data || [], acc: accRes.data || [] })
+      setItems({ prescriptions: rx || [], referrals: refRes.data || [], acc: acc || [] })
     } catch {}
     setLoading(false)
   }

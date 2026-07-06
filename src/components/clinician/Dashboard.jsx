@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { subscribeToQueue, updateConsultation } from '../../lib/supabase'
+import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAccPendingCount, getPendingPrescriptions, getPendingPrescriptionsCount } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
@@ -365,17 +365,16 @@ function ApprovalsTab({ onBadgeChange }) {
 
   async function load() {
     try {
+      // radiology_referrals still reads directly (own follow-up); prescriptions
+      // and consultations go through their server endpoints.
       const { supabase } = await import('../../lib/supabase')
-      const [rxRes, refRes, accRes] = await Promise.all([
-        supabase.from('prescriptions').select('*').eq('approval_status', 'pending_approval').order('created_at'),
+      const [rx, refRes, acc] = await Promise.all([
+        getPendingPrescriptions().catch(e => { if (e.message?.includes('42P01')) { setMigrationError(true); return null } throw e }),
         supabase.from('radiology_referrals').select('*').eq('approval_status', 'pending_approval').order('created_at'),
-        supabase.from('consultations')
-          .select('id, created_at, patient_first_name, patient_last_name, patient_email, acc_draft, provider_id, provider_display_name')
-          .eq('acc_approval_status', 'pending_approval')
-          .order('created_at'),
+        getAccPendingConsultations(),
       ])
-      if (rxRes.error?.code === '42P01') { setMigrationError(true); setLoading(false); return }
-      const loaded = { prescriptions: rxRes.data || [], referrals: refRes.data || [], acc: accRes.data || [] }
+      if (rx === null) { setLoading(false); return }
+      const loaded = { prescriptions: rx || [], referrals: refRes.data || [], acc: acc || [] }
       setItems(loaded)
       onBadgeChange?.(loaded.prescriptions.length + loaded.referrals.length + loaded.acc.length)
       setMigrationError(false)
@@ -708,13 +707,14 @@ export default function Dashboard() {
       })
     }
     if (isSupervisor) {
+      // radiology_referrals count still direct (own follow-up).
       import('../../lib/supabase').then(({ supabase }) => {
         Promise.all([
-          supabase.from('prescriptions').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending_approval'),
+          getPendingPrescriptionsCount(),
           supabase.from('radiology_referrals').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending_approval'),
-          supabase.from('consultations').select('id', { count: 'exact', head: true }).eq('acc_approval_status', 'pending_approval'),
-        ]).then(([rx, ref, acc]) => {
-          setApprovalBadge((rx.count || 0) + (ref.count || 0) + (acc.count || 0))
+          getAccPendingCount(),
+        ]).then(([rxC, ref, accC]) => {
+          setApprovalBadge((rxC || 0) + (ref.count || 0) + (accC || 0))
         }).catch(() => {})
       })
     }

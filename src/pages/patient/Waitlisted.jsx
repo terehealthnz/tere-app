@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getAvailability, getConsultation, getSchedule } from '../../lib/supabase'
+import { getAvailability, getConsultation, getSchedule, patientUpdateConsultation } from '../../lib/supabase'
 
 const NAVY  = '#0D2B45'
 const TEAL  = '#0B6E76'
@@ -67,11 +67,9 @@ export default function Waitlisted() {
           sessionStorage.setItem('consultationId', id)
           const c = await getConsultation(id)
           sessionStorage.setItem('accEligible', c?.acc_eligible || 'no')
-          const { supabase } = await import('../../lib/supabase')
-          await supabase.from('consultations')
-            .update({ status: 'waiting', updated_at: new Date().toISOString() })
-            .eq('id', id)
-            .eq('status', 'waitlisted')
+          // Promote waitlisted → waiting via the patient-consult endpoint.
+          // 'waiting' is in PATIENT_STATUS_ALLOWED (post-payment queue entry).
+          await patientUpdateConsultation(id, { status: 'waiting' }).catch(() => {})
           navigate('/triage-review', { replace: true })
         }
       } catch {}

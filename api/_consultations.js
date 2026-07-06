@@ -113,7 +113,169 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: data || [] })
     }
 
-    return res.status(400).json({ error: 'Provide id, patientId, or filter=active|waitlist' })
+    // ── Supervisor / admin approval + review filters ──────────────────────────
+    // Each of these takes optional ?columns=a,b,c so the client can request a
+    // narrower projection matching whatever it displays. If omitted the server
+    // sends a sensible default that matches the callers currently on prod.
+    const projection = req.query?.columns
+      ? String(req.query.columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
+      : null
+
+    if (filter === 'acc_pending') {
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, patient_email, acc_draft, provider_id, provider_display_name'
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('acc_approval_status', 'pending_approval')
+        .order('created_at', { ascending: true })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    if (filter === 'acc_pending_count') {
+      const { count, error } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('acc_approval_status', 'pending_approval')
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ count: count || 0 })
+    }
+
+    if (filter === 'notes_flagged') {
+      const cols = projection || '*'
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('notes_flagged', true)
+        .order('created_at', { ascending: false })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Provider's own completed consults in a date range (ProviderEarnings).
+    // Non-admin callers can only see their own; admins may pass ?providerId=<uuid>.
+    if (filter === 'provider_period') {
+      const wantId = req.query?.providerId || auth.provider.id
+      if (wantId !== auth.provider.id && !auth.provider.is_admin) {
+        return res.status(403).json({ error: 'Cannot query another provider\'s consults' })
+      }
+      const start = req.query?.start
+      const end   = req.query?.end
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, consultation_type'
+      let q = supabase.from('consultations').select(cols).eq('status', 'complete').eq('provider_id', wantId)
+      if (start) q = q.gte('created_at', String(start))
+      if (end)   q = q.lte('created_at', String(end))
+      q = q.order('created_at', { ascending: false })
+      const { data, error } = await q
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Research-consented complete consults (AdminApp research panel).
+    if (filter === 'research_consented') {
+      const cols = projection || 'id, created_at, patient_dob, patient_location, acc_eligible, chief_complaint, consultation_type, consultation_duration_seconds, work_capacity'
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('research_consent', true)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // ACC provider conversions that were subsequently flagged (admin safety review)
+    if (filter === 'acc_converted_flagged') {
+      const cols = projection || 'id, patient_first_name, patient_last_name, acc_converted_at, acc_injury_details, acc_body_part, acc_read_code, notes_flagged, acc_converted_by'
+      const limit = Math.max(1, Math.min(200, parseInt(req.query?.limit) || 20))
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('acc_converted_by_provider', true)
+        .eq('notes_flagged', true)
+        .order('acc_converted_at', { ascending: false })
+        .limit(limit)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    if (filter === 'notes_flagged_count') {
+      const { count, error } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('notes_flagged', true)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ count: count || 0 })
+    }
+
+    if (filter === 'complete_count') {
+      const { count, error } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'complete')
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ count: count || 0 })
+    }
+
+    // Today's complete consults for the provider dashboard summary.
+    // ?since=<iso> lets the caller pick the day-start (usually midnight local).
+    if (filter === 'complete_today' || filter === 'complete_since') {
+      const since = req.query?.since || new Date(new Date().setHours(0,0,0,0)).toISOString()
+      const cols = projection || 'id, status, consultation_type, is_acc, payment_amount_nzd, notes_finalised, created_at, patient_first_name, patient_last_name, chief_complaint, acc_claim_number, acc_claim_status, outcome'
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('status', 'complete')
+        .gte('created_at', String(since))
+        .order('created_at', { ascending: false })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Notes work: consults that finished the video but need clinical note completion.
+    if (filter === 'pending_notes') {
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible'
+      const limit = Math.max(1, Math.min(200, parseInt(req.query?.limit) || 50))
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('status', 'complete')
+        .eq('notes_finalised', false)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Notes work: consults that are fully closed out (for the dashboard history).
+    if (filter === 'completed_notes') {
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, chief_complaint, notes_finalised_at, outcome, note_finalised_by, prescription_issued, referral_issued'
+      const limit = Math.max(1, Math.min(200, parseInt(req.query?.limit) || 50))
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .eq('status', 'complete')
+        .eq('notes_finalised', true)
+        .order('notes_finalised_at', { ascending: false })
+        .limit(limit)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Employer usage report: consults billed against a given employer within a
+    // date range. Provider must be admin (enforced via the endpoint's guard).
+    if (filter === 'by_employer') {
+      const { employerId, since } = req.query || {}
+      if (!employerId) return res.status(400).json({ error: 'employerId query param required' })
+      const cols = projection || 'patient_first_name, patient_last_name, created_at, consultation_type, billing_code'
+      let q = supabase.from('consultations').select(cols).eq('employer_id', String(employerId))
+      if (since) q = q.gte('created_at', String(since))
+      const { data, error } = await q
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    return res.status(400).json({ error: 'Provide id, patientId, or filter=active|waitlist|acc_pending|acc_pending_count|notes_flagged|notes_flagged_count|complete_count|complete_today|complete_since|pending_notes|completed_notes|by_employer' })
   }
 
   if (req.method === 'POST') {

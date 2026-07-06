@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, updateConsultation } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
@@ -70,29 +70,23 @@ function DashboardTab() {
 
   const load = useCallback(async () => {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const [qRes, flagRes, accRes] = await Promise.all([
+      const [qRes, flagCount, accList] = await Promise.all([
         apiFetch('/api/get-queue').then(r => r.json()),
-        supabase.from('consultations').select('*', { count:'exact', head:true }).eq('notes_flagged', true),
-        supabase.from('consultations')
-          .select('id,patient_first_name,patient_last_name,acc_converted_at,acc_injury_details,acc_body_part,acc_read_code,notes_flagged,acc_converted_by')
-          .eq('acc_converted_by_provider', true)
-          .eq('notes_flagged', true)
-          .order('acc_converted_at', { ascending: false })
-          .limit(20),
+        getFlaggedNotesCount(),
+        getAccConvertedFlagged(),
       ])
       setQueue(qRes.consultations || [])
-      setFlagged(flagRes.count || 0)
-      setAccConversions(accRes.data || [])
+      setFlagged(flagCount || 0)
+      setAccConversions(accList || [])
     } catch {}
-    // Pending approvals — may not exist, so catch separately
+    // Pending approvals — radiology_referrals still direct (own follow-up)
     try {
       const { supabase } = await import('../../lib/supabase')
-      const [rxRes, refRes] = await Promise.all([
-        supabase.from('prescriptions').select('*', { count:'exact', head:true }).eq('approval_status','pending_approval'),
+      const [rxC, refRes] = await Promise.all([
+        getPendingPrescriptionsCount(),
         supabase.from('radiology_referrals').select('*', { count:'exact', head:true }).eq('approval_status','pending_approval'),
       ])
-      setApprovals((rxRes.count || 0) + (refRes.count || 0))
+      setApprovals((rxC || 0) + (refRes.count || 0))
     } catch {}
     setLoading(false)
   }, [])
@@ -463,9 +457,8 @@ function EmployersTab() {
 
   async function downloadReport(emp) {
     try {
-      const { supabase } = await import('../../lib/supabase')
       const since = new Date(); since.setDate(1); since.setHours(0,0,0,0)
-      const { data: cs } = await supabase.from('consultations').select('patient_first_name,patient_last_name,created_at,consultation_type,billing_code').eq('employer_id',emp.id).gte('created_at',since.toISOString())
+      const cs = await getConsultsByEmployer(emp.id, since.toISOString())
       if (!cs?.length) { alert('No consultations this month for this employer'); return }
       const csv = 'Patient,Date,Type,Code\n' + cs.map(c => `"${c.patient_first_name} ${c.patient_last_name}","${new Date(c.created_at).toLocaleDateString('en-NZ')}","${c.consultation_type||''}","${c.billing_code||''}"`).join('\n')
       const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}))
@@ -774,17 +767,12 @@ function ResearchTab() {
     async function load() {
       setLoading(true)
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const [allRes, consentRes] = await Promise.all([
-          supabase.from('consultations').select('*', { count:'exact', head:true }).eq('status','complete'),
-          supabase.from('consultations')
-            .select('id,created_at,patient_dob,patient_location,acc_eligible,chief_complaint,consultation_type,consultation_duration_seconds,work_capacity')
-            .eq('research_consent', true)
-            .eq('status', 'complete')
-            .order('created_at', { ascending:false }),
+        const [allCount, consentList] = await Promise.all([
+          getCompleteCount(),
+          getResearchConsentedConsults(),
         ])
-        setTotalComplete(allRes.count || 0)
-        setData(consentRes.data || [])
+        setTotalComplete(allCount || 0)
+        setData(consentList || [])
       } catch {}
       setLoading(false)
     }
@@ -1105,12 +1093,7 @@ export default function AdminApp() {
           apiFetch('/api/get-queue').then(r => r.json()),
         ])
         const qCount = (qRes.consultations || []).filter(c => ['waiting','vitals_requested','vitals_complete','ready'].includes(c.status)).length
-        let rxCount = 0
-        try {
-          const { supabase } = await import('../../lib/supabase')
-          const { count } = await supabase.from('prescriptions').select('*',{count:'exact',head:true}).eq('approval_status','pending_approval')
-          rxCount = count || 0
-        } catch {}
+        const rxCount = await getPendingPrescriptionsCount().catch(() => 0)
         setDashBadge(qCount + rxCount)
       } catch {}
     }

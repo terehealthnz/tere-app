@@ -228,6 +228,81 @@ export async function getActiveConsultations() {
   return consultations || []
 }
 
+// ── Consultation filter helpers (all provider-JWT gated server-side) ─────────
+
+async function consultsFilter(name, extraParams = {}) {
+  const qs = new URLSearchParams({ filter: name, ...extraParams })
+  const res = await apiFetch(`/api/consultations?${qs.toString()}`)
+  if (!res.ok) throw new Error(`consultsFilter(${name}) HTTP ${res.status}`)
+  const body = await res.json()
+  return body.consultations || body.count || []
+}
+
+export async function getAccPendingConsultations(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('acc_pending', params)
+}
+export async function getAccPendingCount() {
+  const res = await apiFetch('/api/consultations?filter=acc_pending_count')
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
+}
+export async function getFlaggedNotesCount() {
+  const res = await apiFetch('/api/consultations?filter=notes_flagged_count')
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
+}
+export async function getFlaggedNotes(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('notes_flagged', params)
+}
+export async function getAccConvertedFlagged(columns = null, limit = 20) {
+  const params = { limit: String(limit) }
+  if (columns) params.columns = columns
+  return consultsFilter('acc_converted_flagged', params)
+}
+export async function getResearchConsentedConsults(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('research_consented', params)
+}
+export async function getProviderPeriodConsults({ providerId, start, end, columns } = {}) {
+  const params = {}
+  if (providerId) params.providerId = providerId
+  if (start)      params.start = start
+  if (end)        params.end = end
+  if (columns)    params.columns = columns
+  return consultsFilter('provider_period', params)
+}
+export async function getCompleteCount() {
+  const res = await apiFetch('/api/consultations?filter=complete_count')
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
+}
+export async function getCompleteSince(sinceISO, columns = null) {
+  const params = { since: sinceISO }
+  if (columns) params.columns = columns
+  return consultsFilter('complete_since', params)
+}
+export async function getPendingNotes(columns = null, limit = 50) {
+  const params = { limit: String(limit) }
+  if (columns) params.columns = columns
+  return consultsFilter('pending_notes', params)
+}
+export async function getCompletedNotes(columns = null, limit = 50) {
+  const params = { limit: String(limit) }
+  if (columns) params.columns = columns
+  return consultsFilter('completed_notes', params)
+}
+export async function getConsultsByEmployer(employerId, sinceISO = null, columns = null) {
+  const params = { employerId }
+  if (sinceISO) params.since = sinceISO
+  if (columns)  params.columns = columns
+  return consultsFilter('by_employer', params)
+}
+
 // ── Real-time subscription ───────────────────────────────────────────────────
 
 export function subscribeToQueue(callback) {

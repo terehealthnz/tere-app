@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { apiFetch } from '../../lib/api'
+import { getProviderPeriodConsults } from '../../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -67,17 +68,13 @@ export default function ProviderEarnings({ embedded = true }) {
     async function load() {
       setLoading(true)
       try {
-        const { supabase } = await import('../../lib/supabase')
-
-        // All completed consultations in current period
-        const { data: periodConsults } = await supabase.from('consultations')
-          .select('id,created_at,patient_first_name,patient_last_name,consultation_type')
-          .eq('status', 'complete').eq('provider_id', providerId)
-          .gte('created_at', period.period_start + 'T00:00:00.000Z')
-          .lte('created_at', period.period_end + 'T23:59:59.999Z')
-          .order('created_at', { ascending: false })
-
-        const all = periodConsults || []
+        // All completed consultations in current period. Server enforces that
+        // a non-admin can only fetch their own consults.
+        const all = await getProviderPeriodConsults({
+          providerId,
+          start: period.period_start + 'T00:00:00.000Z',
+          end:   period.period_end   + 'T23:59:59.999Z',
+        }).catch(() => [])
 
         // Today count
         const todayStart = today + 'T00:00:00.000Z'
