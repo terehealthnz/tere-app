@@ -181,6 +181,18 @@ export async function patientUpdateConsultation(consultationId, patch) {
   return consultation
 }
 
+// Server-side delete restricted to rows still in status='pre_triage' — used by
+// AITriage cleanup after promoting a pre-triage row to a full triage consult.
+export async function patientDeletePreTriage(consultationId) {
+  const res = await apiFetch(`/api/patient-consult?id=${encodeURIComponent(consultationId)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `patientDeletePreTriage HTTP ${res.status}`)
+  }
+}
+
 export async function updateVitals(consultationId, vitals) {
   return patientUpdateConsultation(consultationId, { vitals, status: 'vitals_complete' })
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getConsultation } from '../../lib/supabase'
+import { getConsultation, patientUpdateConsultation } from '../../lib/supabase'
 
 const NAVY  = '#0D2B45'
 const TEAL  = '#0B6E76'
@@ -34,11 +34,7 @@ export default function TriageReview() {
   async function handleContinue() {
     setSaving(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase
-        .from('consultations')
-        .update({ chief_complaint: complaint.trim(), updated_at: new Date().toISOString() })
-        .eq('id', consultationId)
+      await patientUpdateConsultation(consultationId, { chief_complaint: complaint.trim() })
       sessionStorage.setItem('triage_complaint', complaint.trim())
       navigate('/payment')
     } catch {

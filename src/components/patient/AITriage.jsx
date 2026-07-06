@@ -679,7 +679,7 @@ export default function AITriage() {
       const preTriageId = sessionStorage.getItem('consultation_id')
       if (preTriageId && preTriageId !== consultation.id) {
         try {
-          const { supabase: sb } = await import('../../lib/supabase')
+          const { supabase: sb, patientUpdateConsultation, patientDeletePreTriage } = await import('../../lib/supabase')
           // Get consent timestamps set during /consent and /prescribing-limits screens
           const { data: pt } = await sb.from('consultations')
             .select('hdc_consent_at, prescribing_consent_at, research_consent')
@@ -689,13 +689,15 @@ export default function AITriage() {
           await sb.from('consents').update({ consultation_id: consultation.id }).eq('consultation_id', preTriageId)
           // Copy consent timestamps to the real consultation record
           if (pt?.hdc_consent_at || pt?.prescribing_consent_at) {
-            await sb.from('consultations').update({
+            await patientUpdateConsultation(consultation.id, {
               hdc_consent_at: pt.hdc_consent_at,
               prescribing_consent_at: pt.prescribing_consent_at,
-            }).eq('id', consultation.id)
+            })
           }
-          // Delete the now-redundant pre_triage stub
-          await sb.from('consultations').delete().eq('id', preTriageId).eq('status', 'pre_triage')
+          // Delete the now-redundant pre_triage stub (server enforces
+          // status='pre_triage' filter so we can't accidentally delete real
+          // consults).
+          await patientDeletePreTriage(preTriageId)
           sessionStorage.removeItem('consultation_id')
         } catch {}
       }
@@ -760,7 +762,7 @@ export default function AITriage() {
         }
 
         if (finalPatientId) {
-          await sb.from('consultations').update({ patient_id: finalPatientId }).eq('id', consultation.id)
+          await patientUpdateConsultation(consultation.id, { patient_id: finalPatientId })
           sessionStorage.setItem('patient_id', finalPatientId)
         }
       } catch(e) { console.error('Patient record error:', e) }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LANGUAGES, t } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
+import { createConsultation } from '../../lib/supabase'
 
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
@@ -14,14 +15,14 @@ export default function TereIntro({ onStart }) {
     if (starting) return
     setStarting(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const ua = navigator?.userAgent || ''
-      const deviceType = /Mobile|iPhone|Android/.test(ua) ? (/iPad/.test(ua) ? 'tablet' : 'mobile') : 'desktop'
-      const { data: pt } = await supabase
-        .from('consultations')
-        .insert({ status: 'pre_triage', patient_language: lang, device_type: deviceType })
-        .select('id')
-        .single()
+      // Pre-triage placeholder row so we can track drop-offs at the language
+      // select stage. Routes through /api/create-consultation which accepts
+      // this minimal payload — server derives payment_amount only when
+      // consultation_type is one of the fixed-price shortcuts (repeat_rx).
+      const pt = await createConsultation({
+        status: 'pre_triage',
+        patientLanguage: lang,
+      })
       if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
     } catch {}
     if (onStart) onStart()

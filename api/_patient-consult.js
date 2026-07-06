@@ -48,6 +48,10 @@ const PATIENT_ALLOWLIST = new Set([
   'marketing_consent', 'consent_signed_at', 'consent_signature',
   // Triage self-declarations
   'controlled_medication_mentioned',
+  // Triage review — patient may adjust their own chief complaint before payment
+  'chief_complaint',
+  // AITriage links this consult to a patients row if we found or created one
+  'patient_id',
   // Post-consult rating
   'rating', 'rating_comment', 'rated_at',
 ])
@@ -73,13 +77,30 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
 //   waiting          — post-payment, patient joins provider queue
 //   vitals_complete  — patient finished (or skipped) vitals scan
 //   cancelled        — patient bailed out
-const PATIENT_STATUS_ALLOWED = new Set(['waiting', 'vitals_complete', 'cancelled'])
+const PATIENT_STATUS_ALLOWED = new Set([
+  'pre_triage', 'triage',                    // AITriage lifecycle transitions
+  'waiting', 'vitals_complete', 'cancelled', // post-payment / vitals / cancel
+])
 
 export default async function handler(req, res) {
-  if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' })
-
   const { id } = req.query || {}
   if (!id) return res.status(400).json({ error: 'id query param required' })
+
+  // AITriage cleanup: after promoting a pre_triage row into a real triage
+  // consult, the client asks us to delete the stale row. Restricted to rows
+  // still in status='pre_triage' so a scraper can't delete real consults.
+  if (req.method === 'DELETE') {
+    const supabase = admin()
+    const { error } = await supabase
+      .from('consultations')
+      .delete()
+      .eq('id', id)
+      .eq('status', 'pre_triage')
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ ok: true })
+  }
+
+  if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' })
 
   const raw = req.body || {}
   const patch = {}
