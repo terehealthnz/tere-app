@@ -12,6 +12,76 @@ function useClinicianAuth() {
   useEffect(() => { if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician?redirect=/clinician/admin') }, [navigate])
 }
 
+// Top-right nav on Admin — a hamburger that expands into a floating menu of
+// admin destinations. Replaces a horizontal row of buttons that was starting
+// to feel cramped on narrow viewports and expected more entries (validation
+// dashboard was the trigger). Menu closes on outside click or a nav choice.
+function AdminNavMenu({ navigate }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = React.useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = e => { if (!menuRef.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const go = (path) => { setOpen(false); navigate(path) }
+  const signOut = () => {
+    setOpen(false)
+    localStorage.removeItem('tere_portal')
+    sessionStorage.clear()
+    navigate('/clinician')
+  }
+
+  const items = [
+    { label: '← Queue',        onClick: () => go('/provider') },
+    { label: '← Dashboard',    onClick: () => go('/clinician/dashboard') },
+    { label: '🔬 Validation',  onClick: () => go('/vitals-validate/dashboard') },
+    { label: 'Sign out',       onClick: signOut, danger: true },
+  ]
+
+  return (
+    <div ref={menuRef} style={{ position:'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="Open navigation menu"
+        aria-expanded={open}
+        style={{
+          background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.9)',
+          padding:'8px 14px', borderRadius:6, cursor:'pointer', fontSize:'.9rem',
+          display:'flex', alignItems:'center', gap:'.4rem', fontWeight:500,
+        }}>
+        <span aria-hidden="true" style={{ fontSize:'1rem', lineHeight:1 }}>☰</span>
+        <span>Menu</span>
+      </button>
+      {open && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 8px)', right:0, minWidth:200,
+          background:'white', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,.18)',
+          border:'1px solid #E2E8F0', overflow:'hidden', zIndex:1000,
+        }}>
+          {items.map((it, i) => (
+            <button key={i} onClick={it.onClick}
+              style={{
+                width:'100%', textAlign:'left', background:'none', border:'none',
+                padding:'.75rem 1rem', cursor:'pointer',
+                fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.9rem',
+                color: it.danger ? '#B91C1C' : '#0D2B45', fontWeight:500,
+                borderTop: i === 0 ? 'none' : '1px solid #F1F5F9',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -1825,12 +1895,7 @@ function AdminBody() {
           <span onClick={() => navigate('/admin')} style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.3rem', cursor:'pointer', userSelect:'none', transition:'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to admin">Tere</span>
           <span style={{ color:'rgba(255,255,255,.4)', fontSize:'.8125rem' }}>Admin</span>
         </div>
-        <div style={{ display:'flex', gap:'.75rem' }}>
-          <button onClick={() => navigate('/provider')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Queue</button>
-          <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Dashboard</button>
-          <button onClick={() => navigate('/vitals-validate/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>🔬 Validation</button>
-          <button onClick={() => { localStorage.removeItem('tere_portal'); sessionStorage.clear(); navigate('/clinician') }} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>Sign out</button>
-        </div>
+        <AdminNavMenu navigate={navigate} />
       </nav>
 
       <div style={{ maxWidth:720, margin:'0 auto', padding:'2rem 1.5rem 3rem' }}>
