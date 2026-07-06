@@ -130,6 +130,7 @@ const ROUTES = {
   'validation-readings':       () => import('./_validation-readings.js'),
   'model-version':             () => import('./_model-version.js'),
   'consultations':             () => import('./_consultations.js'),
+  'patient-consult':            () => import('./_patient-consult.js'),
   'patients':                  () => import('./_patients.js'),
 }
 

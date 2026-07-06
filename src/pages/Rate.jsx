@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
+import { patientUpdateConsultation } from '../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -39,12 +40,11 @@ export default function Rate() {
     if (!rating) return
     setSubmitting(true)
     try {
-      const { supabase } = await import('../lib/supabase')
-      await supabase.from('consultations').update({
+      await patientUpdateConsultation(id, {
         rating,
         rating_comment: comment.trim() || null,
         rated_at: new Date().toISOString(),
-      }).eq('id', id)
+      })
       setSubmitted(true)
     } catch (e) { console.error(e) }
     setSubmitting(false)

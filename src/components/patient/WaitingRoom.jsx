@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getConsultation } from '../../lib/supabase'
+import { getConsultation, patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
 const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
@@ -85,8 +85,7 @@ export default function WaitingRoom() {
 
   async function cancelConsultation() {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ status: 'cancelled' }).eq('id', consultationId)
+      await patientUpdateConsultation(consultationId, { status: 'cancelled' })
       const paymentIntentId = sessionStorage.getItem('paymentIntentId')
       if (paymentIntentId) {
         await apiFetch('/api/cancel-payment', {

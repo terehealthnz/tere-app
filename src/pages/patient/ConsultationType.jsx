@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
+import { patientUpdateConsultation } from '../../lib/supabase'
 
 const TYPE_CONFIG = {
   video: {
@@ -58,7 +59,6 @@ export default function ConsultationType() {
       const price = getPrice(selected)
       sessionStorage.setItem('consultationType', selected)
       sessionStorage.setItem('paymentAmount', String(price))
-      const { supabase } = await import('../../lib/supabase')
       const updates = { consultation_type: selected }
       if (employerPaid) {
         updates.employer_paid = true
@@ -66,7 +66,7 @@ export default function ConsultationType() {
         updates.employer_name = employerName || null
         updates.payment_amount = 0
       }
-      await supabase.from('consultations').update(updates).eq('id', consultationId)
+      await patientUpdateConsultation(consultationId, updates)
       navigate(employerPaid ? '/waiting' : '/payment')
     } catch (e) {
       console.error(e)

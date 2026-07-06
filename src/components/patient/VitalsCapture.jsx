@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames, calculatePTT } from '../../lib/rppg'
-import { updateVitals } from '../../lib/supabase'
+import { updateVitals, patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
 
@@ -377,12 +377,11 @@ export default function VitalsCapture() {
     try {
       const cId = sessionStorage.getItem('consultationId')
       if (cId && !cId.startsWith('demo')) {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({
+        await patientUpdateConsultation(cId, {
           status: 'vitals_complete',
           vitals: { skipped: true },
-          vitals_at: new Date().toISOString()
-        }).eq('id', cId)
+          vitals_at: new Date().toISOString(),
+        })
       } else {
         sessionStorage.setItem('vitals', JSON.stringify({ skipped: true }))
       }

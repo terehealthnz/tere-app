@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { patientUpdateConsultation } from '../../lib/supabase'
 import { supabase } from '../../lib/supabase'
 
 const HDC_RIGHTS = [
@@ -32,7 +33,7 @@ export default function HDCConsent() {
         body: JSON.stringify({ consultation_id: consultationId || null, consent_type: 'hdc_code_of_rights', granted: true }),
       })
       if (consultationId) {
-        await supabase.from('consultations').update({ hdc_consent_at: now }).eq('id', consultationId)
+        await patientUpdateConsultation(consultationId, { hdc_consent_at: now })
       }
     } catch {}
     navigate('/prescribing-limits')

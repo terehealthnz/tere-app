@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { supabase } from '../../lib/supabase'
+import { supabase, patientUpdateConsultation } from '../../lib/supabase'
 
 const CAN_PRESCRIBE = [
   'Antibiotics, antifungals, antihistamines',
@@ -47,10 +47,10 @@ export default function PrescribingLimits() {
         }),
       ])
       if (consultationId) {
-        await supabase.from('consultations').update({
+        await patientUpdateConsultation(consultationId, {
           prescribing_consent_at: now,
           research_consent: granted,
-        }).eq('id', consultationId)
+        })
       }
     } catch {}
     navigate('/triage')

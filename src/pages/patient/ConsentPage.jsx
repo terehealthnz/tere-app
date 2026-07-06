@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, patientUpdateConsultation } from '../../lib/supabase'
 
 export default function ConsentPage() {
   const navigate = useNavigate()
@@ -27,11 +27,11 @@ export default function ConsentPage() {
       ]
       await supabase.from('consents').insert(rows)
       if (consultationId) {
-        await supabase.from('consultations').update({
+        await patientUpdateConsultation(consultationId, {
           research_consent:        granted,
           hdc_consent_at:          now,
           prescribing_consent_at:  now,
-        }).eq('id', consultationId)
+        })
       }
     } catch {}
     navigate('/triage')

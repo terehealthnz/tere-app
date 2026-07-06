@@ -181,17 +181,24 @@ export async function createConsultation(data) {
   return consult
 }
 
-// updateVitals is called from the patient VitalsCapture page. Patient is not
-// signed in, so this cannot go through the provider-JWT endpoint. Kept as a
-// direct write for now; will be moved to a token-verified /api/patient/vitals
-// endpoint when patient-side auth is wired up. Guardrail: patient can only
-// hit this while their session is active in the same browser tab.
+// Patient-side update helper. Routes through /api/patient-consult which
+// enforces a narrow column allowlist and safe-status guard. Callers pass
+// whatever columns they need; disallowed ones are silently dropped server-side.
+export async function patientUpdateConsultation(consultationId, patch) {
+  const res = await apiFetch(`/api/patient-consult?id=${encodeURIComponent(consultationId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `patientUpdateConsultation HTTP ${res.status}`)
+  }
+  const { consultation } = await res.json()
+  return consultation
+}
+
 export async function updateVitals(consultationId, vitals) {
-  const { error } = await supabase
-    .from('consultations')
-    .update({ vitals, status: 'vitals_complete' })
-    .eq('id', consultationId)
-  if (error) throw error
+  return patientUpdateConsultation(consultationId, { vitals, status: 'vitals_complete' })
 }
 
 // assignRoom is called from the provider's start-consult flow (JWT present).

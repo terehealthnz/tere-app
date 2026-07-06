@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConsultation } from '../../lib/supabase'
+import { createConsultation, patientUpdateConsultation } from '../../lib/supabase'
 import { t, t_bilingual, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
@@ -767,9 +767,7 @@ export default function AITriage() {
 
       // Flag controlled medication mention (requires migration: ALTER TABLE consultations ADD COLUMN controlled_medication_mentioned BOOLEAN DEFAULT false)
       if (data.controlled_medication_mentioned) {
-        import('../../lib/supabase').then(({ supabase }) => {
-          supabase.from('consultations').update({ controlled_medication_mentioned: true }).eq('id', consultation.id)
-        }).catch(() => {})
+        patientUpdateConsultation(consultation.id, { controlled_medication_mentioned: true }).catch(() => {})
       }
 
       // research_consent is now included in createConsultation payload
