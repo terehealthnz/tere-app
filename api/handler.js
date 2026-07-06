@@ -16,12 +16,17 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Validation subsystem (research data)
   'validation-subjects', 'validation-readings', 'model-version', 'flags',
   // Provider clinical work
-  'assess-acc', 'verify-acc', 'convert-to-acc', 'acc-claims',
+  'convert-to-acc', 'acc-claims',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
-  'hpi-search', 'drug-interactions', 'dismiss-patient',
-  'join-room', 'create-room',
+  'drug-interactions', 'dismiss-patient',
+  'create-room',
   'initiate-call', 'make-call',
-  'translate',
+  // NOT auth-required (patient-side callers, own guards inside):
+  //   assess-acc      — patient triage AI classifies ACC eligibility
+  //   verify-acc      — patient triage verifies ACC injury details
+  //   translate       — patient-side i18n (Te Reo triage translation)
+  //   hpi-search      — patient uses to look up pharmacy in triage
+  //   join-room       — patient joins the video call (has consultationId gate)
   // Provider comms
   'send-email', 'send-to-gp', 'send-waitlist-email', 'notify-waitlist', 'sms',
   // Schedule + availability
