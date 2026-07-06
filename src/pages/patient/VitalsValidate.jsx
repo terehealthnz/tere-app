@@ -123,9 +123,6 @@ function PageWrap({ children }) {
             <div style={{ fontWeight: 800, color: NAVY, fontSize: '1.05rem' }}>Tere Vitals Validation</div>
             <div style={{ fontSize: '.75rem', color: '#6B7280' }}>Clinical data collection</div>
           </div>
-          <Link to="/vitals-validate/dashboard" style={{ marginLeft: 'auto', fontSize: '.8rem', color: TEAL, fontWeight: 600, textDecoration: 'none' }}>
-            Dashboard →
-          </Link>
         </div>
         {children}
       </div>
@@ -917,9 +914,6 @@ export default function VitalsValidate() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
             <Btn onClick={resetForScanAgain} style={{ width: '100%' }}>Scan again</Btn>
             <Btn secondary onClick={goToSelect} style={{ width: '100%' }}>Switch profile</Btn>
-            <Link to="/vitals-validate/dashboard" style={{ color: TEAL, fontWeight: 600, fontSize: '.9rem', textDecoration: 'none' }}>
-              View dashboard →
-            </Link>
           </div>
         </Card>
       </PageWrap>

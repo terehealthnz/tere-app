@@ -1828,6 +1828,7 @@ function AdminBody() {
         <div style={{ display:'flex', gap:'.75rem' }}>
           <button onClick={() => navigate('/provider')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Queue</button>
           <button onClick={() => navigate('/clinician/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>← Dashboard</button>
+          <button onClick={() => navigate('/vitals-validate/dashboard')} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>🔬 Validation</button>
           <button onClick={() => { localStorage.removeItem('tere_portal'); sessionStorage.clear(); navigate('/clinician') }} style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem' }}>Sign out</button>
         </div>
       </nav>
