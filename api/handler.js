@@ -2,6 +2,37 @@
 // bodyParser disabled so multipart streams reach _transcribe.js intact via formidable
 export const config = { api: { bodyParser: false } }
 
+// Routes that require an authenticated provider (Supabase JWT OR sessionStorage
+// x-provider-id). Everything not in this set is either patient-facing (with its
+// own guards inside the endpoint — token verification, column allowlist,
+// rate-limit), a public info endpoint, a webhook (Stripe/Twilio/ACC signature
+// verified by the endpoint itself), or a cron (CRON_SECRET verified in the
+// endpoint). If you add a new provider-only route to the ROUTES map below,
+// add its key here too — otherwise anyone can hit it without signing in.
+const AUTH_REQUIRED_ROUTES = new Set([
+  // PHI reads/writes on consultations + related tables
+  'consultations', 'create-consultation', 'patients', 'prescriptions', 'providers',
+  'get-queue', 'appointments',
+  // Validation subsystem (research data)
+  'validation-subjects', 'validation-readings', 'model-version', 'flags',
+  // Provider clinical work
+  'assess-acc', 'verify-acc', 'convert-to-acc', 'acc-claims',
+  'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
+  'hpi-search', 'drug-interactions', 'dismiss-patient',
+  'join-room', 'create-room',
+  'initiate-call', 'make-call',
+  'translate',
+  // Provider comms
+  'send-email', 'send-to-gp', 'send-waitlist-email', 'notify-waitlist', 'sms',
+  // Schedule + availability
+  'schedule', 'set-availability', 'set-provider-avail',
+  // Approvals + admin
+  'approve-draft', 'admin-patch', 'audit', 'payroll',
+  'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
+  // Data integrations (provider-triggered)
+  'pms-data',
+])
+
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
 const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment'])
@@ -164,12 +195,22 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── API key check (cron-availability uses its own auth) ─────────────────────
-  const expectedKey = process.env.TERE_API_KEY
-  const providedKey = req.headers['x-tere-api-key']
-  if (route !== 'cron-availability' && route !== 'async-overdue' && expectedKey && providedKey !== expectedKey) {
-    logRequest(ip, route, 401, 'api_key_invalid')
-    return res.status(401).json({ error: 'Unauthorized' })
+  // ── Auth ────────────────────────────────────────────────────────────────────
+  // Provider-only routes get guardProvider (Supabase JWT OR x-provider-id from
+  // sessionStorage) applied at the router. Public patient-facing routes,
+  // Stripe/Twilio/ACC webhooks, cron jobs, and login endpoints are omitted.
+  //
+  // The old x-tere-api-key check is gone — it was a shared secret baked into
+  // the client bundle, so it never provided real protection. Real security is
+  // now per-endpoint: guardProvider (for provider work), token verification
+  // (for /api/consultation-token patient view), CRON_SECRET (for cron routes),
+  // Twilio/Stripe signature verification (for webhooks), and rate-limits + a
+  // narrow column allowlist for the anonymous patient flow endpoints.
+  if (AUTH_REQUIRED_ROUTES.has(route)) {
+    const { guardProvider } = await import('./_auth.js')
+    const auth = await guardProvider(req, res)
+    if (!auth) return  // guardProvider already sent the 401/403
+    req.auth = auth
   }
 
   // ── Rate limiting ───────────────────────────────────────────────────────────

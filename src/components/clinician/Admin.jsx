@@ -1520,7 +1520,8 @@ function AuditLogPanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/audit?limit=50', { headers: { 'x-tere-api-key': import.meta.env.VITE_TERE_API_KEY || '' } })
+        const { apiFetch } = await import('../../lib/api')
+        const res = await apiFetch('/api/audit?limit=50')
         const { logs } = await res.json()
         setLogs(logs || [])
       } catch { setLogs([]) }
