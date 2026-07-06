@@ -759,7 +759,7 @@ export default function VitalsValidateDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    const goLogin = () => navigate('/clinician/login?from=/vitals-validate/dashboard', { replace: true })
+    const goLogin = () => navigate('/clinician?from=/vitals-validate/dashboard', { replace: true })
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return
       if (!data?.session) { setAuthed(false); goLogin() }

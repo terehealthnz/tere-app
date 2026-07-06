@@ -142,7 +142,7 @@ export default function VitalsValidate() {
   // this page depends on requires a bearer JWT from an active provider.
   useEffect(() => {
     let cancelled = false
-    const goLogin = () => navigate('/clinician/login?from=/vitals-validate', { replace: true })
+    const goLogin = () => navigate('/clinician?from=/vitals-validate', { replace: true })
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return
       if (!data?.session) goLogin()
