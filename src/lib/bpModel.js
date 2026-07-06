@@ -384,17 +384,25 @@ async function saveToSupabase(meta, normParams, model) {
       weightSpecs   = artifacts.weightSpecs
       weightData    = arrayBufferToBase64(artifacts.weightData)
     }
-    const { error } = await supabase.from('model_versions').insert({
-      model_version: meta.version, training_samples: meta.samples,
-      final_mae: meta.finalMae, val_mae: meta.valMae,
-      val_mae_sys: meta.valMaeSys, val_mae_dia: meta.valMaeDia,
-      model_topology: modelTopology, weight_specs: weightSpecs,
-      weight_data_base64: weightData,
-      bp_mean: normParams.mean, bp_std: normParams.std,
+    // Server-mediated model save — the endpoint uses service_role and requires a
+    // signed-in provider. Prevents drive-by writes to model_versions with the
+    // (public) anon key even if RLS on that table is relaxed.
+    const { apiFetch } = await import('./api')
+    const res = await apiFetch('/api/model-version', {
+      method: 'POST',
+      body: JSON.stringify({
+        model_version: meta.version, training_samples: meta.samples,
+        final_mae: meta.finalMae, val_mae: meta.valMae,
+        val_mae_sys: meta.valMaeSys, val_mae_dia: meta.valMaeDia,
+        model_topology: modelTopology, weight_specs: weightSpecs,
+        weight_data_base64: weightData,
+        bp_mean: normParams.mean, bp_std: normParams.std,
+      }),
     })
-    if (error) {
-      console.error('[vitalsModel] Supabase save error:', error.message, error)
-      return { ok: false, error: error.message }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      console.error('[vitalsModel] model-version save error:', err.error || res.statusText)
+      return { ok: false, error: err.error || `HTTP ${res.status}` }
     }
     return { ok: true }
   } catch (e) {

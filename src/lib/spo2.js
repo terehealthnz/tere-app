@@ -229,12 +229,14 @@ export async function loadSpO2CalibrationFromSupabase() {
       return local
     }
 
-    // 3. No shared row and no usable local — try to fit from paired validation_readings
-    const { data: pairs, error: pairsErr } = await supabase.from('validation_readings')
-      .select('tere_spo2, manual_spo2')
-      .not('tere_spo2', 'is', null)
-      .not('manual_spo2', 'is', null)
-    if (pairsErr) throw new Error(pairsErr.message)
+    // 3. No shared row and no usable local — try to fit from paired validation_readings.
+    // Goes through /api/validation-readings so the anon SELECT policy on that table
+    // stays deniable. This only runs on the /vitals-validate route where the caller
+    // is a signed-in provider, so the JWT will be present.
+    const { apiFetch } = await import('./api')
+    const pairsRes = await apiFetch('/api/validation-readings?filter=paired-spo2')
+    if (!pairsRes.ok) throw new Error(`paired-spo2 fetch failed HTTP ${pairsRes.status}`)
+    const { pairs } = await pairsRes.json()
     if (!pairs || pairs.length < 5) return null
 
     const paired = pairs.map(r => ({ estimated: Number(r.tere_spo2), reference: Number(r.manual_spo2) }))

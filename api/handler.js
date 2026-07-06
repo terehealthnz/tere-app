@@ -127,6 +127,8 @@ const ROUTES = {
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'pms-data':                  () => import('./_pms-data.js'),
   'validation-subjects':       () => import('./_validation-subjects.js'),
+  'validation-readings':       () => import('./_validation-readings.js'),
+  'model-version':             () => import('./_model-version.js'),
 }
 
 export default async function handler(req, res) {

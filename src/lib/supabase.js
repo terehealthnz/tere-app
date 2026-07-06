@@ -487,47 +487,15 @@ export async function getValidationSubjects() {
 }
 
 export async function saveValidationReading(data) {
-  const hrDiff = (data.manualHr && data.tereHr)
-    ? Math.abs(data.manualHr - data.tereHr) : null
-
-  const payload = {
-    subject_id:         data.subjectId || null,
-    subject_code:       data.subjectCode || null,
-    manual_systolic:    data.manualSystolic || null,
-    manual_diastolic:   data.manualDiastolic || null,
-    manual_hr:          data.manualHr || null,
-    manual_temperature: data.manualTemperature || null,
-    ambient_temp:       data.ambientTemp ?? null,
-    tere_hr:            data.tereHr || null,
-    tere_rr:            data.tereRr || null,
-    hr_difference:      hrDiff,
-    raw_rppg_signal:    data.rawRppgSignal || null,
-    device_info:        data.deviceInfo || null,
-    notes:              data.notes || null,
-    session_conditions: data.sessionConditions || null,
-    manual_spo2:        data.manualSpO2 || null,
-    tere_spo2:          data.tereSpo2 || null,
-    spo2_error:         (data.manualSpO2 && data.tereSpo2)
-      ? (data.tereSpo2 - data.manualSpO2) : null,
-    hrv_sdnn:           data.hrvSdnn   || null,
-    hrv_rmssd:          data.hrvRmssd  || null,
-    hrv_pnn50:          data.hrvPnn50  || null,
-    af_score:           data.afScore   || null,
-    af_likelihood:      data.afLikelihood || null,
-    af_confirmed:       data.afConfirmed ?? null,
-    af_confirmed_by:    data.afConfirmedBy || null,
+  const res = await apiFetch('/api/validation-readings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `saveValidationReading HTTP ${res.status}`)
   }
-  // Optional new-pipeline fields. Require migration; safe to send null.
-  if (data.videoUrl !== undefined)        payload.video_url = data.videoUrl
-  if (data.hrQuality !== undefined)       payload.hr_quality = data.hrQuality
-  if (data.extractionRuns !== undefined)  payload.extraction_runs = data.extractionRuns
-
-  const { data: reading, error } = await supabase
-    .from('validation_readings')
-    .insert(payload)
-    .select()
-    .single()
-  if (error) throw error
+  const { reading } = await res.json()
   return reading
 }
 
@@ -546,14 +514,16 @@ export async function uploadScanVideo(blob, subjectCode) {
 }
 
 export async function getValidationReadings(subjectId = null) {
-  let q = supabase
-    .from('validation_readings')
-    .select('*')
-    .order('recorded_at', { ascending: false })
-  if (subjectId) q = q.eq('subject_id', subjectId)
-  const { data, error } = await q
-  if (error) throw error
-  return data || []
+  const url = subjectId
+    ? `/api/validation-readings?subjectId=${encodeURIComponent(subjectId)}`
+    : '/api/validation-readings'
+  const res = await apiFetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getValidationReadings HTTP ${res.status}`)
+  }
+  const { readings } = await res.json()
+  return readings || []
 }
 
 export async function getValidationSubjectsWithLastScan() {
@@ -567,44 +537,45 @@ export async function getValidationSubjectsWithLastScan() {
 }
 
 export async function getTrainableReadings() {
-  const { data, error } = await supabase
-    .from('validation_readings')
-    .select('*, validation_subjects(age, sex, height_cm, weight_kg, fitzpatrick_scale)')
-    .not('raw_rppg_signal', 'is', null)
-    .not('manual_systolic', 'is', null)
-    .not('manual_diastolic', 'is', null)
-  if (error) throw error
-  return data || []
+  const res = await apiFetch('/api/validation-readings?filter=trainable')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getTrainableReadings HTTP ${res.status}`)
+  }
+  const { readings } = await res.json()
+  return readings || []
 }
 
 export async function updateValidationSpo2(id, tereSpo2) {
-  const { error } = await supabase
-    .from('validation_readings')
-    .update({ tere_spo2: tereSpo2 })
-    .eq('id', id)
-  if (error) throw error
+  const res = await apiFetch(`/api/validation-readings?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tereSpo2 }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateValidationSpo2 HTTP ${res.status}`)
+  }
 }
 
 export async function updateValidationHrRr(id, tereHr, tereRr, manualHr, opts = {}) {
-  // Default: never overwrite with null (protect partial recoveries).
-  // opts.forceOverwrite = true: write the new value even if null. Use this
-  // when running a fresh algorithm that should fully replace prior values
-  // (otherwise stale artifact values from older runs linger).
-  const patch = { reprocessed_at: new Date().toISOString() }
-  const force = !!opts.forceOverwrite
-  if (force || tereHr != null) {
-    patch.tere_hr = tereHr
-    patch.hr_difference = (tereHr != null && manualHr != null) ? Math.abs(tereHr - manualHr) : null
+  const res = await apiFetch(`/api/validation-readings?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      tereHr, tereRr, manualHr,
+      forceOverwrite: !!opts.forceOverwrite,
+      ...(opts.hrQuality !== undefined ? { hrQuality: opts.hrQuality } : {}),
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateValidationHrRr HTTP ${res.status}`)
   }
-  if (force || tereRr != null) patch.tere_rr = tereRr
-  if (opts.hrQuality !== undefined) patch.hr_quality = opts.hrQuality
-  const { error } = await supabase
-    .from('validation_readings')
-    .update(patch)
-    .eq('id', id)
-  if (error) throw error
 }
 
+// Model versions read stays direct because it doesn't contain PHI — just
+// training metrics + weight blobs. Kept as an anon-readable table for now.
+// The insert path (saveTrainedModel in bpModel.js) goes through
+// /api/model-version so the write is provider-gated.
 export async function getModelVersions() {
   const { data, error } = await supabase
     .from('model_versions')
@@ -616,9 +587,11 @@ export async function getModelVersions() {
 }
 
 export async function getValidationReadingCount() {
-  const { count, error } = await supabase
-    .from('validation_readings')
-    .select('*', { count: 'exact', head: true })
-  if (error) throw error
+  const res = await apiFetch('/api/validation-readings?filter=count')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getValidationReadingCount HTTP ${res.status}`)
+  }
+  const { count } = await res.json()
   return count || 0
 }
