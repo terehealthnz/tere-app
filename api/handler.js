@@ -132,6 +132,8 @@ const ROUTES = {
   'consultations':             () => import('./_consultations.js'),
   'patient-consult':            () => import('./_patient-consult.js'),
   'patients':                  () => import('./_patients.js'),
+  'prescriptions':             () => import('./_prescriptions.js'),
+  'providers':                 () => import('./_providers.js'),
 }
 
 export default async function handler(req, res) {

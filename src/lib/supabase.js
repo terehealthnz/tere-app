@@ -429,20 +429,41 @@ export function providerDisplayName(p) {
 }
 
 export async function getProviders() {
-  const { data, error } = await supabase
-    .from('providers')
-    .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_available, availability_message')
-    .order('first_name')
-  if (error) throw error
-  return data || []
+  const res = await apiFetch('/api/providers')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getProviders HTTP ${res.status}`)
+  }
+  const { providers } = await res.json()
+  return providers || []
 }
 
 export async function updateProvider(id, updates) {
-  const { error } = await supabase
-    .from('providers')
-    .update(updates)
-    .eq('id', id)
-  if (error) throw error
+  const res = await apiFetch(`/api/providers?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateProvider HTTP ${res.status}`)
+  }
+}
+
+// ── Prescriptions ────────────────────────────────────────────────────────────
+
+export async function getPendingPrescriptions(columns = null) {
+  const qs = columns ? `&columns=${encodeURIComponent(columns)}` : ''
+  const res = await apiFetch(`/api/prescriptions?filter=pending_approval${qs}`)
+  if (!res.ok) return []
+  const { prescriptions } = await res.json()
+  return prescriptions || []
+}
+
+export async function getPendingPrescriptionsCount() {
+  const res = await apiFetch('/api/prescriptions?filter=pending_count')
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
 }
 
 export async function addToWaitlist(name, email) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -103,8 +103,7 @@ function ProvidersPanel() {
   async function update(id, updates) {
     setSaving(id)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('providers').update(updates).eq('id', id)
+      await updateProvider(id, updates)
       setProviders(ps => ps.map(p => p.id === id ? { ...p, ...updates } : p))
     } catch {}
     setSaving(null)
