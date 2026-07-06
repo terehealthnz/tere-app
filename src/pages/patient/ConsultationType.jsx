@@ -60,11 +60,11 @@ export default function ConsultationType() {
       sessionStorage.setItem('consultationType', selected)
       sessionStorage.setItem('paymentAmount', String(price))
       const updates = { consultation_type: selected }
+      // Server verifies employer_id against the employers table and, if it's
+      // a real active employer, populates employer_paid + employer_name +
+      // payment_amount server-side. The client can't force a free consult.
       if (employerPaid) {
-        updates.employer_paid = true
         updates.employer_id = sessionStorage.getItem('employer_id') || null
-        updates.employer_name = employerName || null
-        updates.payment_amount = 0
       }
       await patientUpdateConsultation(consultationId, updates)
       navigate(employerPaid ? '/waiting' : '/payment')

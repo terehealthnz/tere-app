@@ -30,11 +30,17 @@ function admin() {
 
 // Columns a patient may set on their own consultation. Everything else is
 // silently dropped from the patch.
+//
+// employer_paid / employer_id / employer_name / payment_amount are NOT on this
+// list — they're populated server-side by verifyEmployerBenefit() below only
+// when a valid employer_id is provided AND that employer row is active. This
+// closes the fraud vector where a scraper could POST { payment_amount: 0,
+// employer_paid: true } with a valid consult id and get a free consult.
 const PATIENT_ALLOWLIST = new Set([
   // Vitals capture flow
   'vitals', 'vitals_at',
-  // Consultation type + payment shape (see FRAUD note below)
-  'consultation_type', 'employer_paid', 'employer_id', 'employer_name', 'payment_amount',
+  // Consultation type (patient picks message vs video vs phone)
+  'consultation_type',
   // Consent surface
   'hdc_consent_at', 'prescribing_consent_at', 'research_consent',
   'marketing_consent', 'consent_signed_at', 'consent_signature',
@@ -43,6 +49,22 @@ const PATIENT_ALLOWLIST = new Set([
   // Post-consult rating
   'rating', 'rating_comment', 'rated_at',
 ])
+
+// Verifies the claimed employer_id belongs to an active employer row. Returns
+// { employer_id, employer_name } on success (values the caller can trust), or
+// null if the employer doesn't exist or isn't active. The employer_paid /
+// payment_amount fields are populated by the caller from this result — the
+// client's own values for those columns are ignored entirely.
+async function verifyEmployerBenefit(supabase, claimedEmployerId) {
+  if (!claimedEmployerId) return null
+  const { data, error } = await supabase
+    .from('employers')
+    .select('id, company_name, is_active')
+    .eq('id', String(claimedEmployerId))
+    .maybeSingle()
+  if (error || !data || !data.is_active) return null
+  return { employer_id: data.id, employer_name: data.company_name }
+}
 
 // Only these status values may be set from the patient side. Provider-side
 // status changes go through /api/consultations PATCH which has its own gate.
@@ -67,19 +89,31 @@ export default async function handler(req, res) {
     patch.status = raw.status
   }
 
+  const supabase = admin()
+
+  // Handle the employer-paid path server-side. Client sends employer_id as a
+  // *claim*; we verify against the employers table and, if it's a real active
+  // employer, populate employer_id + employer_name + employer_paid + payment_amount
+  // from that server-side row. The client's values for those columns are
+  // discarded entirely — a scraper cannot force payment_amount = 0.
+  if ('employer_id' in raw) {
+    const verified = await verifyEmployerBenefit(supabase, raw.employer_id)
+    if (verified) {
+      patch.employer_id    = verified.employer_id
+      patch.employer_name  = verified.employer_name
+      patch.employer_paid  = true
+      patch.payment_amount = 0
+    }
+    // If unverified we simply don't set employer fields — the patient
+    // continues on the standard-payment path.
+  }
+
   if (Object.keys(patch).length === 0) {
     return res.status(400).json({ error: 'No allowed columns in patch' })
   }
 
-  // FRAUD NOTE: employer_paid + employer_id + payment_amount are patient-writable
-  // to make the ConsultationType.jsx flow work today. That means a patient can
-  // set payment_amount = 0 with employer_paid = true and get a free consult.
-  // Fix in a follow-up: server-side verification that employer_id matches a
-  // whitelisted employer with valid billing on file. Tracked in task list.
-
   patch.updated_at = new Date().toISOString()
 
-  const supabase = admin()
   const { data, error } = await supabase
     .from('consultations')
     .update(patch)
