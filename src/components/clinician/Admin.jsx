@@ -36,10 +36,11 @@ function AdminNavMenu({ navigate }) {
   }
 
   const items = [
-    { label: '← Queue',        onClick: () => go('/provider') },
-    { label: '← Dashboard',    onClick: () => go('/clinician/dashboard') },
-    { label: '🔬 Validation',  onClick: () => go('/vitals-validate/dashboard') },
-    { label: 'Sign out',       onClick: signOut, danger: true },
+    { label: '← Queue',           onClick: () => go('/provider') },
+    { label: '← Dashboard',       onClick: () => go('/clinician/dashboard') },
+    { label: '🔬 Validation',     onClick: () => go('/vitals-validate/dashboard') },
+    { label: '🚩 Feature flags',  onClick: () => go('/clinician/admin/flags') },
+    { label: 'Sign out',          onClick: signOut, danger: true },
   ]
 
   return (

@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import App from './App'
 import './index.css'
+import { loadFlags } from './lib/featureFlags'
+
+// Fire-and-forget: warms the flag cache during app boot so the first
+// useFeatureFlag() render has data. Failure is silent — flag callers fall
+// back to their default (off).
+loadFlags().catch(() => {})
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({

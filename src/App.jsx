@@ -79,6 +79,7 @@ const ClinicianLogin      = lazy(() => import('./components/clinician/Login'))
 const Dashboard           = lazy(() => import('./components/clinician/Dashboard'))
 const ConsultView         = lazy(() => import('./components/clinician/ConsultView'))
 const Admin               = lazy(() => import('./components/clinician/Admin'))
+const AdminFlags          = lazy(() => import('./pages/clinician/AdminFlags'))
 const NotesCompletion     = lazy(() => import('./pages/clinician/NotesCompletion'))
 const ChangePassword      = lazy(() => import('./pages/clinician/ChangePassword'))
 const ProviderApp         = lazy(() => import('./pages/clinician/ProviderApp'))
@@ -170,6 +171,7 @@ export default function App() {
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
         <Route path="/clinician/change-password" element={<ChangePassword />} />
         <Route path="/clinician/admin"        element={<Admin />} />
+        <Route path="/clinician/admin/flags"  element={<AdminFlags />} />
         <Route path="/clinician/consult/:id"  element={<ConsultView />} />
         <Route path="/clinician/notes/:id"    element={<NotesCompletion />} />
         <Route path="/careers"                element={<Careers />} />
