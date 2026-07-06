@@ -181,6 +181,11 @@ export async function createConsultation(data) {
   return consult
 }
 
+// updateVitals is called from the patient VitalsCapture page. Patient is not
+// signed in, so this cannot go through the provider-JWT endpoint. Kept as a
+// direct write for now; will be moved to a token-verified /api/patient/vitals
+// endpoint when patient-side auth is wired up. Guardrail: patient can only
+// hit this while their session is active in the same browser tab.
 export async function updateVitals(consultationId, vitals) {
   const { error } = await supabase
     .from('consultations')
@@ -189,43 +194,47 @@ export async function updateVitals(consultationId, vitals) {
   if (error) throw error
 }
 
+// assignRoom is called from the provider's start-consult flow (JWT present).
 export async function assignRoom(consultationId, roomUrl, roomName) {
-  const { error } = await supabase
-    .from('consultations')
-    .update({ daily_room_url: roomUrl, daily_room_name: roomName, status: 'ready' })
-    .eq('id', consultationId)
-  if (error) throw error
+  return updateConsultation(consultationId, {
+    daily_room_url: roomUrl, daily_room_name: roomName, status: 'ready',
+  })
 }
 
+// Provider-side consultation update — routes through /api/consultations with
+// a JWT. Server enforces a column allowlist so we can never mutate billing /
+// auth / audit columns even if the client asks for it.
 export async function updateConsultation(id, updates) {
-  const { data, error } = await supabase
-    .from('consultations')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .select()
-    .single()
-  if (error) throw error
-  return data
+  const res = await apiFetch(`/api/consultations?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateConsultation HTTP ${res.status}`)
+  }
+  const { consultation } = await res.json()
+  return consultation
 }
 
 export async function getConsultation(id) {
-  const { data, error } = await supabase
-    .from('consultations')
-    .select('*')
-    .eq('id', id)
-    .single()
-  if (error) throw error
-  return data
+  const res = await apiFetch(`/api/consultations?id=${encodeURIComponent(id)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getConsultation HTTP ${res.status}`)
+  }
+  const { consultation } = await res.json()
+  return consultation
 }
 
 export async function getActiveConsultations() {
-  const { data, error } = await supabase
-    .from('consultations')
-    .select('*')
-    .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return data || []
+  const res = await apiFetch('/api/consultations?filter=active')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getActiveConsultations HTTP ${res.status}`)
+  }
+  const { consultations } = await res.json()
+  return consultations || []
 }
 
 // ── Real-time subscription ───────────────────────────────────────────────────
@@ -358,51 +367,47 @@ export async function updatePatient(patientId, updates) {
 }
 
 export async function getPatients({ search = '', limit = 50, offset = 0 } = {}) {
-  let q = supabase
-    .from('patients')
-    .select('id, first_name, last_name, date_of_birth, nhi, phone, email, total_consultations, last_consultation_at, research_consent', { count: 'exact' })
-    .order('last_consultation_at', { ascending: false, nullsFirst: false })
-    .range(offset, offset + limit - 1)
-  if (search.trim()) {
-    const s = search.trim()
-    q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,nhi.ilike.%${s}%`)
+  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  if (search && search.trim()) qs.set('search', search.trim())
+  const res = await apiFetch(`/api/patients?${qs.toString()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPatients HTTP ${res.status}`)
   }
-  const { data, error, count } = await q
-  if (error) throw error
+  const { patients: data, count } = await res.json()
   return { data: data || [], count: count || 0 }
 }
 
 export async function getPatient(patientId) {
-  const { data, error } = await supabase
-    .from('patients')
-    .select('*')
-    .eq('id', patientId)
-    .single()
-  if (error) throw error
-  return data
+  const res = await apiFetch(`/api/patients?id=${encodeURIComponent(patientId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPatient HTTP ${res.status}`)
+  }
+  const { patient } = await res.json()
+  return patient
 }
 
-export async function getPatientConsultations(patientId, limit = 20) {
-  const { data, error } = await supabase
-    .from('consultations')
-    .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued')
-    .eq('patient_id', patientId)
-    .order('created_at', { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return data || []
+export async function getPatientConsultations(patientId) {
+  const res = await apiFetch(`/api/consultations?patientId=${encodeURIComponent(patientId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPatientConsultations HTTP ${res.status}`)
+  }
+  const { consultations } = await res.json()
+  return consultations || []
 }
 
 export async function mergePatients(primaryId, secondaryId) {
-  await supabase.from('consultations').update({ patient_id: primaryId }).eq('patient_id', secondaryId)
-  await supabase.from('consents').update({ consultation_id: primaryId }).eq('consultation_id', secondaryId)
-  const { data: primary } = await supabase.from('patients').select('total_consultations').eq('id', primaryId).single()
-  const { data: secondary } = await supabase.from('patients').select('total_consultations').eq('id', secondaryId).single()
-  await supabase.from('patients').update({
-    total_consultations: (primary?.total_consultations || 0) + (secondary?.total_consultations || 0),
-    updated_at: new Date().toISOString(),
-  }).eq('id', primaryId)
-  await supabase.from('patients').delete().eq('id', secondaryId)
+  const res = await apiFetch('/api/patients?action=merge', {
+    method: 'POST',
+    body: JSON.stringify({ primaryId, secondaryId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `mergePatients HTTP ${res.status}`)
+  }
+  return await res.json()
 }
 
 // ── Provider helpers ─────────────────────────────────────────────────────────
@@ -441,13 +446,10 @@ export async function addToWaitlist(name, email) {
 }
 
 export async function getWaitlist() {
-  const { data, error } = await supabase
-    .from('consultations')
-    .select('id, patient_first_name, patient_last_name, patient_email, patient_phone, created_at')
-    .eq('status', 'waitlisted')
-    .order('created_at', { ascending: true })
-  if (error) return []
-  return (data || []).map(c => ({
+  const res = await apiFetch('/api/consultations?filter=waitlist')
+  if (!res.ok) return []
+  const { consultations } = await res.json()
+  return (consultations || []).map(c => ({
     id: c.id,
     name: `${c.patient_first_name} ${c.patient_last_name}`.trim(),
     email: c.patient_email,
@@ -457,11 +459,11 @@ export async function getWaitlist() {
 }
 
 export async function markWaitlistNotified() {
-  const { error } = await supabase
-    .from('consultations')
-    .update({ status: 'waiting', updated_at: new Date().toISOString() })
-    .eq('status', 'waitlisted')
-  if (error) throw error
+  const res = await apiFetch('/api/consultations?action=mark-waitlist-notified', { method: 'POST' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `markWaitlistNotified HTTP ${res.status}`)
+  }
 }
 
 // ── Vitals validation tool ───────────────────────────────────────────────────

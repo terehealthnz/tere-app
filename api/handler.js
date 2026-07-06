@@ -129,6 +129,8 @@ const ROUTES = {
   'validation-subjects':       () => import('./_validation-subjects.js'),
   'validation-readings':       () => import('./_validation-readings.js'),
   'model-version':             () => import('./_model-version.js'),
+  'consultations':             () => import('./_consultations.js'),
+  'patients':                  () => import('./_patients.js'),
 }
 
 export default async function handler(req, res) {

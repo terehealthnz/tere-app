@@ -1,5 +1,10 @@
+import { guardProvider } from './_auth.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
+
+  const auth = await guardProvider(req, res)
+  if (!auth) return
 
   try {
     const { createClient } = await import('@supabase/supabase-js')
