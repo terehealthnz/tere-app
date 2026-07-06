@@ -284,107 +284,13 @@ export default function ConsultView() {
   ]
 
   async function startScribe() {
-    const apiKey = import.meta.env.VITE_DEEPGRAM_API_KEY
-    beacon(id, `startScribe ENTERED, apiKey=${!!apiKey}, lkRoom=${!!lkRoomRef.current}`)
-    if (!apiKey) {
-      beacon(id, 'startScribe ABORT: VITE_DEEPGRAM_API_KEY missing')
-      alert('Live transcription not configured (VITE_DEEPGRAM_API_KEY missing)'); return
-    }
-    try {
-      const localMic = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-      beacon(id, 'getUserMedia OK')
-
-      // Merge the provider's local mic with any remote patient audio tracks from the
-      // LiveKit room, so Deepgram diarization can separate both speakers. Without this,
-      // the patient's voice arrives through the provider's speakers and gets suppressed
-      // by echo-cancellation before reaching MediaRecorder.
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      const audioCtx = new AudioCtx()
-      audioCtxRef.current = audioCtx
-      const destination = audioCtx.createMediaStreamDestination()
-      audioCtx.createMediaStreamSource(localMic).connect(destination)
-
-      const wireRemoteAudio = (track) => {
-        const mediaTrack = track?.mediaStreamTrack || track?.rtpReceiver?.track
-        if (!mediaTrack) return
-        try {
-          const remoteStream = new MediaStream([mediaTrack])
-          audioCtx.createMediaStreamSource(remoteStream).connect(destination)
-        } catch (e) { console.warn('[scribe] remote audio wire failed:', e?.message) }
-      }
-      const room = lkRoomRef.current
-      if (room) {
-        // Wire audio for any remote participants already in the room.
-        for (const p of room.remoteParticipants.values?.() || Object.values(room.remoteParticipants || {})) {
-          for (const pub of p.audioTrackPublications?.values?.() || Object.values(p.audioTracks || {})) {
-            wireRemoteAudio(pub.track || pub.audioTrack)
-          }
-        }
-        // Wire audio for any remote participants that publish later (patient reconnects, etc.).
-        room.on?.('trackSubscribed', (track, pub, participant) => {
-          if (track.kind === 'audio' && participant.identity !== room.localParticipant.identity) {
-            wireRemoteAudio(track)
-          }
-        })
-      }
-
-      const stream = destination.stream
-      streamRef.current = localMic // keep old shape so cleanup .getTracks() calls still work
-
-      const keyterms = NZ_DRUG_KEYTERMS.map(k => `keyterm=${encodeURIComponent(k)}`).join('&')
-      const url = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-NZ&diarize=true&punctuate=true&smart_format=true&interim_results=false&${keyterms}`
-      const ws = new WebSocket(url, ['token', apiKey])
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        beacon(id, 'Deepgram WS OPEN')
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
-        const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {})
-        mediaRecorderRef.current = mr
-        mr.ondataavailable = e => {
-          if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) ws.send(e.data)
-        }
-        mr.start(250)
-        beacon(id, 'MediaRecorder started')
-      }
-
-      ws.onmessage = e => {
-        try {
-          const data = JSON.parse(e.data)
-          if (data.type !== 'Results' || !data.is_final) return
-          const alt = data.channel?.alternatives?.[0]
-          if (!alt?.transcript?.trim()) return
-
-          const words = alt.words || []
-          let text = alt.transcript
-          if (words.length > 0 && words[0].speaker !== undefined) {
-            let labeled = ''
-            let curSpeaker = null
-            words.forEach(w => {
-              if (w.speaker !== curSpeaker) {
-                curSpeaker = w.speaker
-                labeled += (labeled ? '\n' : '') + (w.speaker === 0 ? '[PROVIDER]' : '[PATIENT]') + ' '
-              } else {
-                labeled += ' '
-              }
-              labeled += (w.punctuated_word || w.word)
-            })
-            text = labeled
-          }
-          setLiveTranscript(prev => prev + (prev ? '\n' : '') + text)
-        } catch {}
-      }
-
-      ws.onerror = (e) => { beacon(id, 'Deepgram WS ERROR') }
-      setLiveTranscript('')
-      setScribeState('recording')
-      setShowTranscript(true)
-      beacon(id, 'scribeState set to recording')
-    } catch (e) {
-      alert(e.message || 'Microphone access denied')
-      setScribeState('idle')
-    }
+    // Live transcription on this legacy route is disabled. The active scribe runs on
+    // /provider/consult/:id (ProviderConsult.jsx) and uses the server-side /api/transcribe
+    // endpoint so the Deepgram key never touches the browser. This stub keeps the button
+    // wired but does not expose an API key in the client bundle.
+    beacon(id, 'startScribe DISABLED on /clinician/consult — use /provider/consult route instead')
+    alert('Live transcription is not available on this route. Please use the provider consult route.')
+    setScribeState('idle')
   }
 
   function stopScribe() {

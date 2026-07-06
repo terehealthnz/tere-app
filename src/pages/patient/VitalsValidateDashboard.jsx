@@ -4,7 +4,10 @@ import { getValidationReadings, getValidationSubjects, getModelVersions, getTrai
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable } from '../../lib/bpModel'
 import { fitSpO2Calibration } from '../../lib/spo2'
 
-const PIN = import.meta.env.VITE_VALIDATION_PIN || 'tere2026'
+// PIN comes from the Vercel env — no source-code fallback so a missing env fails
+// closed rather than falling back to a well-known default that would be visible
+// in the public repo.
+const PIN = import.meta.env.VITE_VALIDATION_PIN || ''
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 const BG   = '#F7F5F0'
@@ -869,7 +872,9 @@ export default function VitalsValidateDashboard() {
 
   if (!authed) {
     const handlePin = () => {
-      if (pinInput === PIN) { sessionStorage.setItem('tere_validate_authed', '1'); setAuthed(true) }
+      // Fail closed if either PIN or input is empty — never authenticate on an
+      // unconfigured server (`PIN === ''`) or an empty user input.
+      if (PIN && pinInput && pinInput === PIN) { sessionStorage.setItem('tere_validate_authed', '1'); setAuthed(true) }
       else setPinError(true)
     }
     return wrap(
