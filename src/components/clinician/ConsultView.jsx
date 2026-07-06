@@ -114,19 +114,10 @@ function VitalsPanel({ vitals }) {
 
 // ── Main ConsultView ──────────────────────────────────────────────────────────
 
-// Diagnostic beacon helper — appends a timestamped tag to consultations.transcript
-// so we can trace which code paths executed on remote devices we can't inspect.
-async function beacon(id, tag) {
-  if (!id) return
-  try {
-    const { supabase } = await import('../../lib/supabase')
-    const { data } = await supabase.from('consultations').select('transcript').eq('id', id).single()
-    const existing = data?.transcript && !data.transcript.startsWith('[BEACON') ? '' : (data?.transcript || '')
-    const stamp = new Date().toISOString().slice(11, 19)
-    const line = `[BEACON ${stamp}] ${tag}`
-    await supabase.from('consultations').update({ transcript: existing ? `${existing}\n${line}` : line }).eq('id', id)
-  } catch {}
-}
+// Diagnostic beacon (no-op). Was used during the scribe debugging pass — kept
+// as a shim so callers don't need to be removed, but no longer writes to the
+// consultations table (that produced a race with real transcripts, see task 44).
+async function beacon(_id, _tag) { /* intentionally empty */ }
 
 export default function ConsultView() {
   const { id } = useParams()
@@ -179,8 +170,7 @@ export default function ConsultView() {
             })
             if (res.ok) {
               const { roomName } = await res.json()
-              const { supabase } = await import('../../lib/supabase')
-              await supabase.from('consultations').update({ daily_room_url: roomName }).eq('id', id)
+              await updateConsultation(id, { daily_room_url: roomName })
               setConsult(d => ({...d, daily_room_url: roomName}))
             }
           } catch (e) { console.error('Room creation error:', e) }
@@ -381,12 +371,11 @@ export default function ConsultView() {
     const durationSec = consult.started_at
       ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({
+      await updateConsultation(id, {
         notes_draft: { actions },
         transcript: liveTranscript || null,
         consultation_duration_seconds: durationSec,
-      }).eq('id', id)
+      })
     } catch {}
     navigate(`/clinician/notes/${id}`, { state: { actions, transcript: liveTranscript || '' } })
   }
@@ -560,8 +549,9 @@ export default function ConsultView() {
                     }
                     const patch = { status: 'in_progress', started_at: startedAt }
                     if (roomName) patch.daily_room_url = roomName
-                    const { error } = await supabase.from('consultations').update(patch).eq('id', consult.id)
-                    if (error) { console.error('Admit update failed:', error); return }
+                    try {
+                      await updateConsultation(consult.id, patch)
+                    } catch (e) { console.error('Admit update failed:', e); return }
                     setConsult(d => ({...d, ...patch}))
                     if (consult.payment_intent_id) {
                       apiFetch('/api/capture-payment', {

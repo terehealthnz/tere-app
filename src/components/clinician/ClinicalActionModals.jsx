@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import HpiSearch from '../HpiSearch'
 import { apiFetch } from '../../lib/api'
+import { updateConsultation } from '../../lib/supabase'
 
 export function Modal({ open, onClose, title, children }) {
   if (!open) return null
@@ -120,11 +121,10 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
     // PDF, patient email, provider notes) all agree on which pharmacy is being used.
     if (consult?.id) {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({
+        await updateConsultation(consult.id, {
           pharmacy: p.premises_name || null,
           pharmacy_id: p.id || null,
-        }).eq('id', consult.id)
+        })
       } catch {}
     }
   }
@@ -654,11 +654,10 @@ export function ACCModal({ open, onClose, consult, onDone }) {
     setResult(null)
     if (!canAcc) {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({
+        await updateConsultation(consult.id, {
           acc_approval_status: 'pending_approval',
           acc_draft: { ...acc, drafted_by: sessionStorage.getItem('providerDisplayName'), drafted_at: new Date().toISOString() },
-        }).eq('id', consult.id)
+        })
         setResult({ pending: true })
         onDone({ type: 'acc45', ...acc, pending: true, timestamp: new Date().toISOString() })
         setTimeout(() => { setResult(null); onClose() }, 3000)

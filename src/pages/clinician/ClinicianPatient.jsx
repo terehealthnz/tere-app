@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -34,60 +34,55 @@ export default function ClinicianPatient() {
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
   const lockedRef   = useRef(false)
-  const sbRef       = useRef(null)
 
   useEffect(() => {
     if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician')
   }, [navigate])
 
   // Pre-load supabase client so we can use it synchronously in cleanup
-  useEffect(() => {
-    import('../../lib/supabase').then(m => { sbRef.current = m.supabase })
-  }, [])
-
   async function unlock() {
-    if (!lockedRef.current || !sbRef.current) return
+    if (!lockedRef.current) return
     lockedRef.current = false
-    await sbRef.current.from('consultations')
-      .update({ status: 'waiting', provider_display_name: null, provider_id: null })
-      .eq('id', id)
-      .eq('status', 'reviewing')
-      .eq('provider_id', providerId)
+    try {
+      await updateConsultation(id, {
+        status: 'waiting', provider_display_name: null, provider_id: null,
+      })
+    } catch {}
   }
 
   // Unlock on unmount (catches browser back button and tab close)
   useEffect(() => {
     return () => {
-      if (!lockedRef.current || !sbRef.current) return
+      if (!lockedRef.current) return
       lockedRef.current = false
-      sbRef.current.from('consultations')
-        .update({ status: 'waiting', provider_display_name: null, provider_id: null })
-        .eq('id', id)
-        .eq('status', 'reviewing')
-        .eq('provider_id', providerId)
-        .then(() => {})
+      updateConsultation(id, {
+        status: 'waiting', provider_display_name: null, provider_id: null,
+      }).catch(() => {})
     }
   }, [id, providerId])
 
   useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        if (!sbRef.current) sbRef.current = supabase
-        const { data } = await supabase.from('consultations').select('*').eq('id', id).single()
+        const data = await getConsultation(id)
         setConsult(data)
-        // Lock the consultation so other providers see it as being reviewed
+        // Lock the consultation so other providers see it as being reviewed.
+        // Note: since we now read then write via API, there's a small race window
+        // if two providers open the same consult at the same second. Acceptable
+        // for a soft lock — the queue re-syncs on realtime updates.
         if (data && ['vitals_complete', 'ready'].includes(data.status)) {
-          const { error } = await supabase.from('consultations')
-            .update({ status: 'reviewing', provider_display_name: displayName, provider_id: providerId })
-            .eq('id', id)
-            .in('status', ['vitals_complete', 'ready'])
-          if (!error) { lockedRef.current = true; setConsult(c => ({ ...c, status: 'reviewing' })) }
+          try {
+            await updateConsultation(id, {
+              status: 'reviewing', provider_display_name: displayName, provider_id: providerId,
+            })
+            lockedRef.current = true
+            setConsult(c => ({ ...c, status: 'reviewing' }))
+          } catch {}
         }
         if (data?.patient_id) {
-          const [{ data: pt }, pastConsults] = await Promise.all([
-            supabase.from('patients').select('*').eq('id', data.patient_id).single(),
-            getPatientConsultations(data.patient_id, 10),
+          const [pt, pastConsults] = await Promise.all([
+            getPatient(data.patient_id).catch(() => null),
+            getPatientConsultations(data.patient_id),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))

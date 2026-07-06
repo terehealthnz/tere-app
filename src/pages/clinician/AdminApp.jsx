@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
@@ -123,8 +123,7 @@ function DashboardTab() {
   async function markLodged(id) {
     setLodgingId(id)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ notes_flagged: false }).eq('id', id)
+      await updateConsultation(id, { notes_flagged: false })
       setAccConversions(prev => prev.filter(c => c.id !== id))
     } catch {}
     setLodgingId(null)

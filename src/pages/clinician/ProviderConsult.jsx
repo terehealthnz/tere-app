@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getConsultation } from '../../lib/supabase'
+import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
@@ -267,8 +267,7 @@ export default function ProviderConsult() {
     }
 
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({
+      await updateConsultation(id, {
         notes_draft: { actions, callNotes },
         transcript: finalTranscript || null,
         consultation_duration_seconds: durationSec,
@@ -276,7 +275,7 @@ export default function ProviderConsult() {
         // transcript. Otherwise line 248 in ProviderNotes.jsx sees stale note_generated_at
         // from a previous call, restores the (empty) draft, and skips runGenerate entirely.
         note_generated_at: null,
-      }).eq('id', id)
+      })
     } catch {}
     navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
   }

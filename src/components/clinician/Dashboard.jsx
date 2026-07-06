@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { subscribeToQueue } from '../../lib/supabase'
+import { subscribeToQueue, updateConsultation } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
@@ -119,8 +119,7 @@ function NotesTab({ navigate }) {
 
   async function toggleFlag(id, flagged) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ notes_flagged: flagged }).eq('id', id)
+      await updateConsultation(id, { notes_flagged: flagged })
       setRows(rs => rs.map(r => r.id === id ? { ...r, notes_flagged: flagged } : r))
     } catch {}
   }
@@ -208,10 +207,9 @@ function MessagesTab() {
   async function sendResponse(consultation) {
     setSending(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
       const providerId = sessionStorage.getItem('providerId')
       const providerDisplay = sessionStorage.getItem('providerDisplayName')
-      await supabase.from('consultations').update({
+      await updateConsultation(consultation.id, {
         status: 'complete',
         clinical_notes: {
           S: [
@@ -231,7 +229,7 @@ function MessagesTab() {
         outcome: 'message_response',
         provider_display_name: providerDisplay || null,
         ...(providerId ? { provider_id: providerId } : {}),
-      }).eq('id', consultation.id)
+      })
 
       // Capture the payment hold (message consultations use manual capture)
       if (consultation.payment_intent_id) {
@@ -746,8 +744,7 @@ export default function Dashboard() {
 
   async function dismissConsult(id) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ status: 'expired' }).eq('id', id)
+      await updateConsultation(id, { status: 'expired' })
       setConsultations(cs => cs.filter(c => c.id !== id))
     } catch(e) { console.error(e) }
   }
@@ -760,17 +757,14 @@ export default function Dashboard() {
     }
     setJoiningId(consult.id)
     try {
-      const { supabase } = await import('../../lib/supabase')
       const providerId = sessionStorage.getItem('providerId')
       const providerDisplay = sessionStorage.getItem('providerDisplayName')
-      await supabase.from('consultations')
-        .update({
-          status: 'vitals_requested',
-          vitals_requested_at: new Date().toISOString(),
-          ...(providerId ? { provider_id: providerId } : {}),
-          ...(providerDisplay ? { provider_display_name: providerDisplay } : {}),
-        })
-        .eq('id', consult.id)
+      await updateConsultation(consult.id, {
+        status: 'vitals_requested',
+        vitals_requested_at: new Date().toISOString(),
+        ...(providerId ? { provider_id: providerId } : {}),
+        ...(providerDisplay ? { provider_display_name: providerDisplay } : {}),
+      })
       navigate('/clinician/consult/' + consult.id)
     } catch { navigate('/clinician/consult/' + consult.id) }
     finally { setJoiningId(null) }

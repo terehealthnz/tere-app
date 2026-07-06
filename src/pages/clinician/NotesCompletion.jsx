@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { getConsultation } from '../../lib/supabase'
+import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
@@ -323,8 +323,7 @@ export default function NotesCompletion() {
         })
       }
 
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ note_generated_at: new Date().toISOString() }).eq('id', id)
+      await updateConsultation(id, { note_generated_at: new Date().toISOString() })
     } catch (e) { console.error(e); setGenError(e.message) }
     setGenerating(false)
   }
@@ -368,8 +367,7 @@ export default function NotesCompletion() {
       const draft = getDraft()
       localStorage.setItem(draftKey, JSON.stringify(draft))
       try {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('consultations').update({ notes_draft: draft }).eq('id', id)
+        await updateConsultation(id, { notes_draft: draft })
         setLastSaved(new Date())
       } catch {}
     }, 30000)
@@ -450,27 +448,27 @@ export default function NotesCompletion() {
       const durationSec = consult?.consultation_duration_seconds ||
         (consult?.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
-      const { supabase } = await import('../../lib/supabase')
-      const { error: updateErr } = await supabase.from('consultations').update({
-        notes_final:             JSON.stringify(finalNote),
-        notes_draft:             null,
-        notes_finalised:         true,
-        notes_finalised_at:      now,
-        note_finalised_by:       providerName,
-        notes_finalised_by:      providerId,
-        notes_completed_seconds: completedSec,
-        acc_read_code:           accReadCode || null,
-        work_capacity:           workCapacity || null,
-        return_to_work_date:     workCapacity !== 'fit' && wcTo ? wcTo : null,
-        billing_code:            durationSec >= 1800 ? 'CS2T' : 'CS1T',
-        outcome:                 outcome || null,
-        status:                  'complete',
-        completed_at:            consult?.completed_at || now,
-        consultation_duration_seconds: durationSec,
-        payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
-        is_acc:                  consult?.acc_eligible === 'yes',
-      }).eq('id', id)
-      if (updateErr) throw updateErr
+      try {
+        await updateConsultation(id, {
+          notes_final:             JSON.stringify(finalNote),
+          notes_draft:             null,
+          notes_finalised:         true,
+          notes_finalised_at:      now,
+          note_finalised_by:       providerName,
+          notes_finalised_by:      providerId,
+          notes_completed_seconds: completedSec,
+          acc_read_code:           accReadCode || null,
+          work_capacity:           workCapacity || null,
+          return_to_work_date:     workCapacity !== 'fit' && wcTo ? wcTo : null,
+          billing_code:            durationSec >= 1800 ? 'CS2T' : 'CS1T',
+          outcome:                 outcome || null,
+          status:                  'complete',
+          completed_at:            consult?.completed_at || now,
+          consultation_duration_seconds: durationSec,
+          payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
+          is_acc:                  consult?.acc_eligible === 'yes',
+        })
+      } catch (updateErr) { throw updateErr }
 
       // Patient summary email
       if (consult?.patient_email) {

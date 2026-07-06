@@ -28,26 +28,42 @@ function admin() {
 // Columns the client is allowed to update via this endpoint. Anything not on
 // the list is silently dropped from the patch to prevent providers (or a
 // compromised client) from mutating auth / billing / audit columns directly.
+// Columns the client is allowed to PATCH via this endpoint. Anything not on
+// this list is silently dropped from the patch. The list captures every
+// column legitimately written by provider-side flows (Dashboard, ConsultView,
+// NotesCompletion, ProviderNotes, ProviderConsult, ClinicalActionModals,
+// Admin, AdminApp). Deliberately excluded: id, created_at, patient_id,
+// patient_name/email/phone (identity), payment_intent_id / payment_status
+// (billing), acc_claim_number (external identity), consultation_token.
 const UPDATE_ALLOWLIST = new Set([
   // Notes & clinical documentation
   'notes_draft', 'notes_final', 'notes_flagged', 'note_generated_at',
+  'notes_finalised', 'notes_finalised_at', 'notes_finalised_by', 'note_finalised_by',
+  'notes_completed_seconds', 'clinical_notes',
   'transcript', 'summary', 'chief_complaint',
   'diagnosis', 'diagnosis_code', 'icd10_code', 'acc_read_code',
   'mdm_summary', 'plan_summary',
+  // Async consult response
+  'async_response', 'async_responded_at',
   // Workflow status
-  'status', 'work_capacity',
+  'status', 'work_capacity', 'outcome',
   'provider_id', 'provider_display_name',
+  'started_at', 'completed_at', 'consultation_duration_seconds',
   // Vitals + measurements
-  'vitals', 'measured_temperature',
+  'vitals', 'measured_temperature', 'vitals_requested_at',
+  // Consultation type (provider may correct e.g. video→phone)
+  'consultation_type',
   // Consultation output
   'prescription_issued', 'referral_issued', 'gp_letter_sent_at',
+  'return_to_work_date',
   // Room + logistics
   'daily_room_url', 'daily_room_name',
   // Approval / admin
-  'acc_approval_status', 'acc_reviewed_at', 'acc_reviewer_id',
+  'acc_approval_status', 'acc_draft', 'acc_reviewed_at', 'acc_reviewer_id',
+  'is_acc', 'billing_code', 'payment_amount',
   'recall_completed', 'controlled_medication_mentioned',
   // Pharmacy
-  'pharmacy_id',
+  'pharmacy', 'pharmacy_id',
 ])
 
 export default async function handler(req, res) {

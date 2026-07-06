@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -800,8 +800,7 @@ function FlaggedNotes() {
 
   async function markReviewed(id) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ notes_flagged: false }).eq('id', id)
+      await updateConsultation(id, { notes_flagged: false })
       setRows(rs => rs.filter(r => r.id !== id))
     } catch {}
   }
@@ -1375,8 +1374,7 @@ function RecallsPanel() {
 
   async function markDone(id) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ recall_completed: true }).eq('id', id)
+      await updateConsultation(id, { recall_completed: true })
       setRows(rs => rs.filter(r => r.id !== id))
     } catch {}
   }

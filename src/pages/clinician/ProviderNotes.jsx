@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage } from '../../lib/supabase'
+import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal } from '../../components/clinician/ClinicalActionModals'
 
@@ -354,8 +354,7 @@ export default function ProviderNotes() {
       if (data.suggestedReadCode) setAccReadCode(data.suggestedReadCode)
       if (data.workCapacity)      setWorkCapacity(data.workCapacity)
 
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('consultations').update({ note_generated_at: new Date().toISOString() }).eq('id', id)
+      await updateConsultation(id, { note_generated_at: new Date().toISOString() })
     } catch (e) {
       console.error(e)
       setGenError(e.message)
@@ -443,16 +442,17 @@ export default function ProviderNotes() {
 
       // Save clinical note as internal record
       if (noteText) {
-        const { supabase } = await import('../../lib/supabase')
         const now = new Date().toISOString()
-        await supabase.from('consultations').update({
-          notes_final: JSON.stringify({ noteText, outcome: outcome || 'async_response', actions: actionsRef.current }),
-          notes_draft: null,
-          note_finalised_by: providerName,
-          notes_finalised_at: now,
-          acc_read_code: accReadCode || null,
-          work_capacity: workCapacity || null,
-        }).eq('id', id).catch(() => {})
+        try {
+          await updateConsultation(id, {
+            notes_final: JSON.stringify({ noteText, outcome: outcome || 'async_response', actions: actionsRef.current }),
+            notes_draft: null,
+            note_finalised_by: providerName,
+            notes_finalised_at: now,
+            acc_read_code: accReadCode || null,
+            work_capacity: workCapacity || null,
+          })
+        } catch {}
       }
       localStorage.removeItem(draftKey)
       navigate('/provider')
@@ -529,24 +529,24 @@ export default function ProviderNotes() {
       // ── Step 0: Save notes ───────────────────────────────────────────────────
       setStep(0, { status: 'running' })
       const now          = new Date().toISOString()
-      const { supabase } = await import('../../lib/supabase')
       const providerName = sessionStorage.getItem('providerDisplayName') || ''
       const durationSec  = consult.consultation_duration_seconds ||
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
       const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current }
 
-      const { error: updateErr } = await supabase.from('consultations').update({
-        notes_final:   JSON.stringify(finalNote), notes_draft:null, notes_finalised:true,
-        notes_finalised_at:now, note_finalised_by:providerName,
-        acc_read_code:accReadCode, work_capacity:workCapacity,
-        return_to_work_date: workCapacity !== 'fit' && returnDate ? returnDate : null,
-        billing_code: durationSec >= 1800 ? 'CS2T' : 'CS1T',
-        outcome, status:'complete', completed_at:consult.completed_at || now,
-        consultation_duration_seconds:durationSec, consultation_type:actualMethod,
-        payment_amount:chargeCents / 100, is_acc:isAcc,
-      }).eq('id', id)
-      if (updateErr) throw updateErr
+      try {
+        await updateConsultation(id, {
+          notes_final:   JSON.stringify(finalNote), notes_draft:null, notes_finalised:true,
+          notes_finalised_at:now, note_finalised_by:providerName,
+          acc_read_code:accReadCode, work_capacity:workCapacity,
+          return_to_work_date: workCapacity !== 'fit' && returnDate ? returnDate : null,
+          billing_code: durationSec >= 1800 ? 'CS2T' : 'CS1T',
+          outcome, status:'complete', completed_at:consult.completed_at || now,
+          consultation_duration_seconds:durationSec, consultation_type:actualMethod,
+          payment_amount:chargeCents / 100, is_acc:isAcc,
+        })
+      } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })
 
       // ── Step 1: Capture payment ──────────────────────────────────────────────
