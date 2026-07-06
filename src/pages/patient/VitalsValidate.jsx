@@ -137,17 +137,23 @@ export default function VitalsValidate() {
   const navigate = useNavigate()
   const [authChecked, setAuthChecked] = useState(false)
 
-  // Auth gate — validation flow is provider-only. Redirect to the clinician login
-  // if there's no active Supabase session; the /api/validation-subjects endpoint
-  // this page depends on requires a bearer JWT from an active provider.
+  // Auth gate — accepts either the existing PIN clinician login (sessionStorage
+  // clinicianAuth + providerId, per Login.jsx) or a Supabase auth session.
+  // Server-side requireProvider() honours the same two paths (x-provider-id
+  // header vs Authorization bearer JWT).
   useEffect(() => {
     let cancelled = false
-    const goLogin = () => navigate('/clinician?from=/vitals-validate', { replace: true })
+    const goLogin = () => navigate('/clinician?redirect=/vitals-validate', { replace: true })
+    const hasClinicianSession = () => {
+      try { return sessionStorage.getItem('clinicianAuth') === 'true' && !!sessionStorage.getItem('providerId') }
+      catch { return false }
+    }
+    if (hasClinicianSession()) { setAuthChecked(true); return }
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return
-      if (!data?.session) goLogin()
-      else setAuthChecked(true)
-    }).catch(() => { if (!cancelled) goLogin() })
+      if (data?.session || hasClinicianSession()) setAuthChecked(true)
+      else goLogin()
+    }).catch(() => { if (!cancelled) { hasClinicianSession() ? setAuthChecked(true) : goLogin() } })
     return () => { cancelled = true }
   }, [navigate])
 

@@ -759,12 +759,18 @@ export default function VitalsValidateDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    const goLogin = () => navigate('/clinician?from=/vitals-validate/dashboard', { replace: true })
+    const goLogin = () => navigate('/clinician?redirect=/vitals-validate/dashboard', { replace: true })
+    // Accept either the PIN clinician login (sessionStorage) or a Supabase session.
+    const hasClinicianSession = () => {
+      try { return sessionStorage.getItem('clinicianAuth') === 'true' && !!sessionStorage.getItem('providerId') }
+      catch { return false }
+    }
+    if (hasClinicianSession()) { setAuthed(true); return }
     supabase.auth.getSession().then(({ data }) => {
       if (cancelled) return
-      if (!data?.session) { setAuthed(false); goLogin() }
-      else setAuthed(true)
-    }).catch(() => { if (!cancelled) { setAuthed(false); goLogin() } })
+      if (data?.session || hasClinicianSession()) setAuthed(true)
+      else { setAuthed(false); goLogin() }
+    }).catch(() => { if (!cancelled) { hasClinicianSession() ? setAuthed(true) : (setAuthed(false), goLogin()) } })
     return () => { cancelled = true }
   }, [navigate])
 
