@@ -348,16 +348,13 @@ export default function VitalsValidate() {
       )),
     ])
     try {
-      console.log('[scan] loadFaceMesh…')
-      await withTimeout(loadFaceMesh(), 15000, 'Face detector load')
-      console.log('[scan] inspectDevice…', {
-        videoAttached: !!videoRef.current,
-        videoWidth: videoRef.current?.videoWidth,
-        readyState: videoRef.current?.readyState,
-        paused: videoRef.current?.paused,
-      })
-      const info = await withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection')
-      console.log('[scan] inspect complete:', info)
+      // Parallelise face detector init with camera inspection — on mobile the
+      // FaceLandmarker model download + WASM init easily costs 2–4s and there's
+      // no reason to make inspectDevice wait for it.
+      const [, info] = await Promise.all([
+        withTimeout(loadFaceMesh(),                 15000, 'Face detector load'),
+        withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection'),
+      ])
       setDeviceInfo(info)
       const calibration = { ...calibrateRPPG(info), captureRaw: true }
       setScanPhase('measuring')
@@ -897,7 +894,6 @@ export default function VitalsValidate() {
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1rem', background: 'linear-gradient(transparent, rgba(0,0,0,.7))' }}>
                   <div style={{ color: 'white', fontSize: '.8rem', marginBottom: '.4rem', display: 'flex', justifyContent: 'space-between' }}>
                     <span>Pass {passNum}/{PASS_COUNT}</span>
-                    {liveHR && <span>~{liveHR} bpm</span>}
                   </div>
                   <div style={{ background: 'rgba(255,255,255,.25)', borderRadius: 99, height: 6 }}>
                     <div style={{ background: TEAL, height: 6, borderRadius: 99, width: `${progress}%`, transition: 'width .3s' }} />

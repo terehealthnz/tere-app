@@ -346,20 +346,25 @@ export default function Vitals() {
     const vision = await FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
     )
-    const landmarker = await FaceLandmarker.createFromOptions(vision, {
+    const opts = {
       baseOptions: {
         modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-        delegate: 'GPU',
       },
-      runningMode: 'IMAGE',
+      runningMode: 'VIDEO',
       numFaces: 1,
       outputFaceBlendshapes: false,
       outputFacialTransformationMatrixes: false,
-    })
+    }
+    let landmarker
+    try {
+      landmarker = await FaceLandmarker.createFromOptions(vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'GPU' } })
+    } catch {
+      landmarker = await FaceLandmarker.createFromOptions(vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'CPU' } })
+    }
     const mesh = {
       async send({ image }) {
         try {
-          const r = landmarker.detect(image)
+          const r = landmarker.detectForVideo(image, performance.now())
           onFaceMeshResults({ multiFaceLandmarks: r?.faceLandmarks || [] })
         } catch {}
       },

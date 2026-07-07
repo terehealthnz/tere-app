@@ -20,38 +20,43 @@ const ROI_LANDMARKS = [9,10,8,50,101,118,119,280,330,347,348,168,6,197]
 let faceMeshInstance = null
 let faceMeshReady    = false
 
-// Face landmarker — @mediapipe/tasks-vision replaces the old @mediapipe/face_mesh
-// package. Same underlying model (478 landmarks with refined lips/eyes), but
-// bundled as ESM so we don't fight the runtime "still waiting on run dependencies"
-// polling loop of the old WASM loader.
+// Face landmarker — @mediapipe/tasks-vision. Same 478-landmark output shape
+// as the old @mediapipe/face_mesh, wrapped so callers keep their existing
+// mesh.send({image}) + mesh._latest.multiFaceLandmarks pattern.
 //
-// Callers use `mesh.send({image})` and read `mesh._latest.multiFaceLandmarks[0]`.
-// We keep that shape by wrapping the sync `.detect()` call in a `.send()` method
-// that fills the same field. Zero caller changes needed.
+// runningMode: 'VIDEO' + detectForVideo() is the right path for streamed
+// frames — the model reuses inter-frame state, so per-frame cost drops
+// dramatically vs IMAGE mode. Delegate defaults to GPU with a CPU fallback
+// so we don't hang on iOS Safari (WebGL2 sometimes flakes there).
 export async function loadFaceMesh() {
   if (faceMeshReady) return faceMeshInstance
   const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
   const vision = await FilesetResolver.forVisionTasks(
     'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
   )
-  const landmarker = await FaceLandmarker.createFromOptions(vision, {
+  const opts = {
     baseOptions: {
       modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
-      delegate: 'GPU',
     },
-    runningMode: 'IMAGE',
+    runningMode: 'VIDEO',
     numFaces: 1,
     outputFaceBlendshapes: false,
     outputFacialTransformationMatrixes: false,
-  })
+  }
+  let landmarker
+  try {
+    landmarker = await FaceLandmarker.createFromOptions(vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'GPU' } })
+  } catch {
+    // GPU init failed (e.g. iOS Safari WebGL2 quirk). Fall back to CPU.
+    landmarker = await FaceLandmarker.createFromOptions(vision, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'CPU' } })
+  }
   const wrapper = {
     _latest: null,
     async send({ image }) {
       try {
-        const r = landmarker.detect(image)
-        // Match the old face_mesh result shape so callers don't need to change.
+        const r = landmarker.detectForVideo(image, performance.now())
         wrapper._latest = { multiFaceLandmarks: r?.faceLandmarks || [] }
-      } catch (e) {
+      } catch {
         wrapper._latest = { multiFaceLandmarks: [] }
       }
     },
