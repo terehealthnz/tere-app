@@ -371,11 +371,11 @@ function OutstandingReferrals() {
   async function updateStatus(id, status, notes) {
     setSaving(id)
     try {
-      const { supabase } = await import('../../lib/supabase')
+      const { updateRadiologyReferral } = await import('../../lib/supabase')
       const updates = { referral_status: status }
       if (status === 'result_received') updates.result_received_at = new Date().toISOString()
       if (notes !== undefined) updates.result_notes = notes
-      await supabase.from('radiology_referrals').update(updates).eq('id', id)
+      await updateRadiologyReferral(id, updates)
       setRows(rs => status === 'result_received' || status === 'dna'
         ? rs.filter(r => r.id !== id)
         : rs.map(r => r.id === id ? { ...r, ...updates } : r)
@@ -939,7 +939,7 @@ function CareersPanel() {
     if (!form.title.trim()) return
     setSaving(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
+      const { createJobListing, updateJobListing } = await import('../../lib/supabase')
       const payload = {
         title: form.title, location: form.location, employment_type: form.employment_type,
         short_description: form.short_description, full_description: form.full_description,
@@ -947,9 +947,9 @@ function CareersPanel() {
         requirements: form.requirements ? form.requirements.split('\n').map(r => r.trim()).filter(Boolean) : [],
       }
       if (editId) {
-        await supabase.from('job_listings').update(payload).eq('id', editId)
+        await updateJobListing(editId, payload)
       } else {
-        await supabase.from('job_listings').insert(payload)
+        await createJobListing(payload)
       }
       setForm(blank); setEditId(null); setShowForm(false)
       await load()
@@ -959,8 +959,8 @@ function CareersPanel() {
 
   async function toggleActive(id, val) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('job_listings').update({ is_active: val }).eq('id', id)
+      const { updateJobListing } = await import('../../lib/supabase')
+      await updateJobListing(id, { is_active: val })
       setListings(ls => ls.map(l => l.id === id ? { ...l, is_active: val } : l))
     } catch {}
   }
@@ -968,8 +968,8 @@ function CareersPanel() {
   async function remove(id) {
     if (!window.confirm('Delete this listing?')) return
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('job_listings').delete().eq('id', id)
+      const { deleteJobListing } = await import('../../lib/supabase')
+      await deleteJobListing(id)
       setListings(ls => ls.filter(l => l.id !== id))
     } catch {}
   }
@@ -1270,8 +1270,8 @@ function AppointmentsPanel() {
 
   async function updateStatus(id, status) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('appointments').update({ status }).eq('id', id)
+      const { updateAppointmentStatus } = await import('../../lib/supabase')
+      await updateAppointmentStatus(id, status)
       setRows(rs => rs.filter(r => r.id !== id))
     } catch {}
   }

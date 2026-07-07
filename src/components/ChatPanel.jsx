@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, sendChatMessage } from '../lib/supabase'
 import { t, getLangMeta } from '../lib/i18n'
 import MaoriFlagIcon from './MaoriFlagIcon'
 import { apiFetch } from '../lib/api'
@@ -115,9 +115,8 @@ export default function ChatPanel({
         }
       }
 
-      await supabase.from('messages').insert({
+      await sendChatMessage({
         consultation_id: consultationId,
-        sender,
         message: text || null,
         photo_url: photoData || null,
         translated_text: translated_text || null,

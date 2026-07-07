@@ -26,12 +26,17 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'drug-interactions', 'dismiss-patient',
   'create-room',
   'initiate-call', 'make-call',
+  // Provider admin surfaces (task C migrations)
+  'audit-log', 'radiology-referrals', 'job-listings', 'clinic-schedule',
   // NOT auth-required (patient-side callers, own guards inside):
   //   assess-acc      — patient triage AI classifies ACC eligibility
   //   verify-acc      — patient triage verifies ACC injury details
   //   translate       — patient-side i18n (Te Reo triage translation)
   //   hpi-search      — patient uses to look up pharmacy in triage
   //   join-room       — patient joins the video call (has consultationId gate)
+  //   messages        — dual-mode: patient AND provider chat inserts (server
+  //                     forces sender=patient|provider based on presence of
+  //                     provider credentials, so no spoofing risk)
   // Provider comms
   'send-email', 'send-to-gp', 'send-waitlist-email', 'notify-waitlist', 'sms',
   // Schedule + availability
@@ -179,6 +184,11 @@ const ROUTES = {
   'flags':                     () => import('./_flags.js'),
   'employers':                 () => import('./_employers.js'),
   'employer-employees':        () => import('./_employer-employees.js'),
+  'audit-log':                 () => import('./_audit-log.js'),
+  'radiology-referrals':       () => import('./_radiology-referrals.js'),
+  'job-listings':              () => import('./_job-listings.js'),
+  'clinic-schedule':           () => import('./_clinic-schedule.js'),
+  'messages':                  () => import('./_messages.js'),
 }
 
 export default async function handler(req, res) {

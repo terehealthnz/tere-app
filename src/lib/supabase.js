@@ -600,6 +600,93 @@ export async function getEmployerEmployeeCounts() {
   return counts || {}
 }
 
+// ── Audit log ────────────────────────────────────────────────────────────────
+
+export async function writeAuditLog(action, metadata = null) {
+  const res = await apiFetch('/api/audit-log', {
+    method: 'POST',
+    body: JSON.stringify({ action, metadata }),
+  })
+  return res.ok
+}
+
+// ── Radiology referrals ──────────────────────────────────────────────────────
+
+export async function updateRadiologyReferral(id, updates) {
+  const res = await apiFetch(`/api/radiology-referrals?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  return res.ok
+}
+
+// ── Job listings ─────────────────────────────────────────────────────────────
+
+export async function createJobListing(payload) {
+  const res = await apiFetch('/api/job-listings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return res.ok
+}
+
+export async function updateJobListing(id, patch) {
+  const res = await apiFetch(`/api/job-listings?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  return res.ok
+}
+
+export async function deleteJobListing(id) {
+  const res = await apiFetch(`/api/job-listings?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  return res.ok
+}
+
+// ── Clinic-wide schedule (single-row config, distinct from provider schedules) ──
+
+export async function saveClinicSchedule({ slots, use_schedule }) {
+  const body = {}
+  if (slots !== undefined) body.slots = slots
+  if (use_schedule !== undefined) body.use_schedule = use_schedule
+  const res = await apiFetch('/api/clinic-schedule', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+  return res.ok
+}
+
+// ── Chat messages ────────────────────────────────────────────────────────────
+
+export async function sendChatMessage({ consultation_id, message, photo_url, translated_text, detected_language }) {
+  const res = await apiFetch('/api/messages', {
+    method: 'POST',
+    body: JSON.stringify({ consultation_id, message, photo_url, translated_text, detected_language }),
+  })
+  return res.ok
+}
+
+// ── Appointments ─────────────────────────────────────────────────────────────
+
+const APPOINTMENT_STATUS_TO_ACTION = {
+  confirmed: 'confirm',
+  cancelled: 'cancel',
+  completed: 'complete',
+  no_show:   'no_show',
+}
+
+export async function updateAppointmentStatus(id, status) {
+  const action = APPOINTMENT_STATUS_TO_ACTION[status]
+  if (!action) throw new Error(`Unsupported appointment status: ${status}`)
+  const res = await apiFetch('/api/appointments', {
+    method: 'POST',
+    body: JSON.stringify({ action, appointment_id: id }),
+  })
+  return res.ok
+}
+
 // ── Prescriptions ────────────────────────────────────────────────────────────
 
 export async function getPendingPrescriptions(columns = null) {

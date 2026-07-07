@@ -871,12 +871,8 @@ function ResearchTab() {
       URL.revokeObjectURL(url)
       // Audit log
       try {
-        const { supabase } = await import('../../lib/supabase')
-        await supabase.from('audit_log').insert({
-          action: 'research_data_export',
-          actor_id: sessionStorage.getItem('providerId'),
-          metadata: { record_count: data.length, filename },
-        })
+        const { writeAuditLog } = await import('../../lib/supabase')
+        await writeAuditLog('research_data_export', { record_count: data.length, filename })
       } catch {}
     } catch {}
     setExporting(false)

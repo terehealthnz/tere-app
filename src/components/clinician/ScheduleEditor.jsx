@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, saveClinicSchedule } from '../../lib/supabase'
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const DEFAULT_SLOTS = DAYS.map(d => ({ day: d, enabled: false, open: '09:00', close: '17:00' }))
@@ -11,7 +11,7 @@ export async function getScheduleSlots() {
 }
 
 export async function saveScheduleSlots(slots) {
-  await supabase.from('schedule').update({ slots: JSON.stringify(slots) }).eq('id',1)
+  await saveClinicSchedule({ slots: JSON.stringify(slots) })
 }
 
 export async function getUseSchedule() {
@@ -20,7 +20,7 @@ export async function getUseSchedule() {
 }
 
 export async function setUseSchedule(val) {
-  await supabase.from('availability').update({ use_schedule: val }).eq('id',1)
+  await saveClinicSchedule({ use_schedule: val })
 }
 
 export function shouldBeOpen(slots) {
