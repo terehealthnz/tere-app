@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames } from '../../lib/rppg'
+import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames, PASS_COUNT } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, uploadScanVideo, supabase } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
 import { calculateSpO2, fitSpO2Calibration, getSpO2Calibration, loadSpO2CalibrationFromSupabase } from '../../lib/spo2'
@@ -878,7 +878,7 @@ export default function VitalsValidate() {
               {isScanning && (
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '1rem', background: 'linear-gradient(transparent, rgba(0,0,0,.7))' }}>
                   <div style={{ color: 'white', fontSize: '.8rem', marginBottom: '.4rem', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Pass {passNum}/3</span>
+                    <span>Pass {passNum}/{PASS_COUNT}</span>
                     {liveHR && <span>~{liveHR} bpm</span>}
                   </div>
                   <div style={{ background: 'rgba(255,255,255,.25)', borderRadius: 99, height: 6 }}>

@@ -12,7 +12,7 @@ const HR_LOW_HZ    = 0.75
 const HR_HIGH_HZ   = 3.5
 const RR_LOW_HZ    = 0.13
 const RR_HIGH_HZ   = 0.5
-const PASS_COUNT   = 4
+export const PASS_COUNT   = 4
 const MOTION_THRESHOLD = 10
 
 const ROI_LANDMARKS = [9,10,8,50,101,118,119,280,330,347,348,168,6,197]
