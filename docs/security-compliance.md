@@ -251,7 +251,7 @@ Tere maintains a documented list of security controls that are not yet in place 
 | Formal Privacy Impact Assessment | Draft v1.0 published 2026-07-08 at `docs/privacy-impact-assessment.md` — under review before external distribution | Review by NZ privacy counsel before first PHO contract |
 | Data residency in New Zealand or Australia | Sub-processors hosted in US | Supabase and Bedrock migration to Sydney (`ap-southeast-2`) planned |
 | Third-party penetration test | Not yet conducted | Planned before scaling beyond initial PHO deployment |
-| Formal incident-response tabletop exercise | Written scenario ready to run — `docs/incident-tabletop-exercise.md` (Scenario A: credential exposure) | First exercise to be conducted within one month; rotating scenarios semi-annually thereafter |
+| Formal incident-response tabletop exercise | First exercise conducted 2026-07-08 (Scenario A: credential exposure). Debrief at `docs/incidents/tabletop-2026-07-08.md` — 10 gaps identified, 8 durable-change actions committed. | Next scenario (B: LiveKit outage) scheduled for 2027-01-08; semi-annual rotation thereafter |
 | Dedicated staging environment | In progress | Complete separation of staging from production, with independent database and function domain |
 | Formal disaster recovery documentation | DR playbook v1.0 published 2026-07-08 at `docs/disaster-recovery-plan.md` — covers RTO/RPO, backup strategy, per-service failure runbooks | Semi-annual DR drill to validate playbook |
 | Formal incident response plan | IR plan v1.0 published 2026-07-08 at `docs/incident-response-plan.md` — incident classification, response phases, notification thresholds, roles, templates | Legal review of notification templates before first PHO contract |

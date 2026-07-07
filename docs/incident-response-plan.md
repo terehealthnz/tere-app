@@ -191,6 +191,64 @@ Containment actions started at: [timestamp]
 
 Use the standard OPC online breach notification form. Have this document open when completing so all required fields can be answered from Section 3 above.
 
+### 7.4 Full incident report (post-incident, filed within 5 working days of resolution)
+
+Filed as `docs/incidents/incident-YYYY-MM-DD-NNN.md`. Confidential — repo access only.
+
+```markdown
+# Incident Report — [Incident ID]
+
+## Executive summary
+[3-4 sentences: what happened, what was affected, what was done, current status]
+
+## Classification
+Final classification: [P0/P1/P2/P3]
+Classification changes during response: [any upgrades or downgrades and why]
+
+## Timeline
+| Time | Event |
+|---|---|
+| T+0 | [detection or actual start, whichever earlier] |
+| T+N | [key events] |
+| T+resolved | [containment complete] |
+| T+report | [this report filed] |
+
+## Scope
+- Data types affected: [PHI categories, credentials, systems]
+- Number of records affected: [best estimate + basis]
+- Individuals affected: [count + how identified]
+- Geographic scope: [NZ only, or other]
+
+## Containment actions taken
+1. [action + timestamp + who]
+2. ...
+
+## Investigation findings
+- Root cause(s): [proximate + underlying]
+- Attack vector or failure mode: [technical description]
+- Prior similar incidents: [reference IDs if any]
+
+## Notification decisions
+- OPC: [notified / not notified + rationale]
+- Affected individuals: [notified / not notified + method]
+- HDC: [applicable / not]
+- Sub-processors: [notified / not + which]
+
+## Durable changes committed
+| Change | Owner | Target date | Status |
+|---|---|---|---|
+|  |  |  |  |
+
+## Documents updated
+- [ ] IR plan
+- [ ] DR plan
+- [ ] Security & compliance doc
+- [ ] Other
+
+## Follow-up review date
+[Date at which durable-change actions are audited for completion]
+```
+
 ---
 
 ## 8. Learning from Incidents
