@@ -20,27 +20,46 @@ const ROI_LANDMARKS = [9,10,8,50,101,118,119,280,330,347,348,168,6,197]
 let faceMeshInstance = null
 let faceMeshReady    = false
 
-function loadScript(src) {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve()
-    const s = document.createElement('script')
-    s.src = src; s.crossOrigin = 'anonymous'
-    s.onload = resolve; s.onerror = () => reject(new Error(`Failed: ${src}`))
-    document.head.appendChild(s)
-  })
-}
-
+// Face landmarker — @mediapipe/tasks-vision replaces the old @mediapipe/face_mesh
+// package. Same underlying model (478 landmarks with refined lips/eyes), but
+// bundled as ESM so we don't fight the runtime "still waiting on run dependencies"
+// polling loop of the old WASM loader.
+//
+// Callers use `mesh.send({image})` and read `mesh._latest.multiFaceLandmarks[0]`.
+// We keep that shape by wrapping the sync `.detect()` call in a `.send()` method
+// that fills the same field. Zero caller changes needed.
 export async function loadFaceMesh() {
   if (faceMeshReady) return faceMeshInstance
-  await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js')
-  return new Promise((resolve, reject) => {
-    const mesh = new FaceMesh({
-      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/${f}`
-    })
-    mesh.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.5, minTrackingConfidence:0.5 })
-    mesh.onResults(r => { if (faceMeshInstance) faceMeshInstance._latest = r })
-    mesh.initialize().then(() => { faceMeshInstance=mesh; faceMeshReady=true; resolve(mesh) }).catch(reject)
+  const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
+  const vision = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+  )
+  const landmarker = await FaceLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+      delegate: 'GPU',
+    },
+    runningMode: 'IMAGE',
+    numFaces: 1,
+    outputFaceBlendshapes: false,
+    outputFacialTransformationMatrixes: false,
   })
+  const wrapper = {
+    _latest: null,
+    async send({ image }) {
+      try {
+        const r = landmarker.detect(image)
+        // Match the old face_mesh result shape so callers don't need to change.
+        wrapper._latest = { multiFaceLandmarks: r?.faceLandmarks || [] }
+      } catch (e) {
+        wrapper._latest = { multiFaceLandmarks: [] }
+      }
+    },
+    close() { try { landmarker.close() } catch {} },
+  }
+  faceMeshInstance = wrapper
+  faceMeshReady = true
+  return wrapper
 }
 
 // ── Device inspection ──────────────────────────────────────────────────────────

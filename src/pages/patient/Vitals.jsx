@@ -336,20 +336,35 @@ export default function Vitals() {
   const [scanHint, setScanHint] = useState(null)  // null | 'dark' | 'move' | 'good'
   const lastGRef = useRef(null)
 
-  // ── MediaPipe FaceMesh setup ───────────────────────────────────────────
+  // ── MediaPipe FaceLandmarker (tasks-vision) setup ──────────────────────
+  // Swapped from @mediapipe/face_mesh (which hangs on WASM asset load) to the
+  // newer @mediapipe/tasks-vision FaceLandmarker. Wrapped so callers keep the
+  // familiar .send({image}) shape and the results callback still fires with
+  // { multiFaceLandmarks }.
   const setupFaceMesh = useCallback(async () => {
-    const { FaceMesh } = await import('@mediapipe/face_mesh')
-    const mesh = new FaceMesh({
-      locateFile: file =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4/${file}`
+    const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision')
+    const vision = await FilesetResolver.forVisionTasks(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+    )
+    const landmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate: 'GPU',
+      },
+      runningMode: 'IMAGE',
+      numFaces: 1,
+      outputFaceBlendshapes: false,
+      outputFacialTransformationMatrixes: false,
     })
-    mesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: false,
-      minDetectionConfidence: 0.5,
-      minTrackingConfidence: 0.5,
-    })
-    mesh.onResults(onFaceMeshResults)
+    const mesh = {
+      async send({ image }) {
+        try {
+          const r = landmarker.detect(image)
+          onFaceMeshResults({ multiFaceLandmarks: r?.faceLandmarks || [] })
+        } catch {}
+      },
+      close() { try { landmarker.close() } catch {} },
+    }
     faceMeshRef.current = mesh
     return mesh
   }, [])
