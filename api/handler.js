@@ -117,7 +117,7 @@ function setSecurityHeaders(res) {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",
-      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://api.anthropic.com https://cdn.jsdelivr.net https://storage.googleapis.com",
+      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://cdn.jsdelivr.net https://storage.googleapis.com",
       "frame-src 'none'",
       "object-src 'none'",
     ].join('; ')

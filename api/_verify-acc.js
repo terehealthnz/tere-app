@@ -1,17 +1,19 @@
 // api/verify-acc.js — Claude verifies ACC eligibility of patient complaint
+import { aiCallJSON, isConfigured } from './_ai.js'
+
+const FALLBACK = {
+  verdict: 'PENDING',
+  confidence: 'low',
+  reasoning: 'AI verification unavailable — clinician to assess manually.',
+  flags: [],
+  suggestedQuestions: [],
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const { complaint, injuryDetails, injuryDate, employer } = req.body
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return res.status(200).json({
-      verdict: 'PENDING',
-      confidence: 'low',
-      reasoning: 'AI verification unavailable — clinician to assess manually.',
-      flags: [],
-      suggestedQuestions: []
-    })
-  }
+
+  if (!isConfigured()) return res.status(200).json(FALLBACK)
 
   const prompt = `You are an ACC (Accident Compensation Corporation) eligibility assessment tool for Tere Health, a New Zealand rural urgent care telehealth service.
 
@@ -36,27 +38,11 @@ Respond ONLY with valid JSON in this exact format:
 }`
 
   try {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }]
-      })
-    })
-    const data = await r.json()
-    const text = data.content[0].text
-    const json = JSON.parse(text.replace(/```json|```/g, '').trim())
+    const json = await aiCallJSON({ tier: 'sonnet', user: prompt, maxTokens: 500 })
+    if (!json) return res.status(200).json(FALLBACK)
     res.status(200).json(json)
   } catch (e) {
-    console.error(e)
-    res.status(200).json({
-      verdict: 'PENDING',
-      confidence: 'low',
-      reasoning: 'AI verification unavailable — clinician to assess manually.',
-      flags: [],
-      suggestedQuestions: []
-    })
+    console.error('[verify-acc] Bedrock error:', e.message)
+    res.status(200).json(FALLBACK)
   }
 }

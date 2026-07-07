@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { aiCall, isConfigured } from './_ai.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
@@ -50,19 +51,13 @@ export default async function handler(req, res) {
   if (action === 'check_suitability') {
     const { complaint } = req.body
     if (!complaint?.trim()) return res.status(200).json({ suitable: true })
-    const key = process.env.ANTHROPIC_API_KEY
-    if (!key) return res.status(200).json({ suitable: true })
+    if (!isConfigured()) return res.status(200).json({ suitable: true })
     try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-haiku-4-5-20251001', max_tokens: 5,
-          messages: [{ role: 'user', content: `NZ patient health complaint: "${complaint.slice(0, 500)}"\n\nCan this be handled by async message consultation (provider replies within business hours, no live call)?\n\nSUITABLE (reply YES): cough, cold, flu, sore throat, runny nose, ear pain, eye infection, skin rash or condition, repeat or ongoing prescription, uncomplicated UTI (adult female), minor wound or injury, referral or imaging request, medical certificate, non-urgent advice, known condition follow-up, gastro symptoms without red flags, mild headache, mild back pain, minor sports injury.\n\nNOT SUITABLE (reply NO) — only if clearly urgent or emergency: chest pain or tightness, acute shortness of breath or inability to breathe, severe crushing pain, suspected stroke or sudden neurological deficit, severe allergic reaction or anaphylaxis, active mental health crisis or suicidal ideation, high fever with stiff neck or rash, major trauma or uncontrolled bleeding.\n\nWhen in doubt, reply YES. Only reply NO if the complaint is clearly an emergency.\n\nReply YES or NO only.` }],
-        }),
-      })
-      const d = await r.json()
-      const answer = (d.content?.[0]?.text || '').trim().toUpperCase()
+      const answer = (await aiCall({
+        tier: 'haiku',
+        maxTokens: 5,
+        user: `NZ patient health complaint: "${complaint.slice(0, 500)}"\n\nCan this be handled by async message consultation (provider replies within business hours, no live call)?\n\nSUITABLE (reply YES): cough, cold, flu, sore throat, runny nose, ear pain, eye infection, skin rash or condition, repeat or ongoing prescription, uncomplicated UTI (adult female), minor wound or injury, referral or imaging request, medical certificate, non-urgent advice, known condition follow-up, gastro symptoms without red flags, mild headache, mild back pain, minor sports injury.\n\nNOT SUITABLE (reply NO) — only if clearly urgent or emergency: chest pain or tightness, acute shortness of breath or inability to breathe, severe crushing pain, suspected stroke or sudden neurological deficit, severe allergic reaction or anaphylaxis, active mental health crisis or suicidal ideation, high fever with stiff neck or rash, major trauma or uncontrolled bleeding.\n\nWhen in doubt, reply YES. Only reply NO if the complaint is clearly an emergency.\n\nReply YES or NO only.`,
+      })).trim().toUpperCase()
       return res.status(200).json({ suitable: !answer.startsWith('NO') })
     } catch {
       return res.status(200).json({ suitable: true })
@@ -274,8 +269,7 @@ export default async function handler(req, res) {
   if (action === 'polish_response') {
     const { draft, consultationId } = req.body
     if (!draft?.trim()) return res.status(400).json({ error: 'draft required' })
-    const key = process.env.ANTHROPIC_API_KEY
-    if (!key) return res.status(200).json({ polished: draft })
+    if (!isConfigured()) return res.status(200).json({ polished: draft })
 
     let context = ''
     let patientLanguage = 'en'
@@ -310,13 +304,7 @@ ${context ? `Context:\n${context}\n\n` : ''}Draft to polish:
 ${draft}`
 
     try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] }),
-      })
-      const data = await r.json()
-      const polished = data.content?.[0]?.text?.trim() || draft
+      const polished = (await aiCall({ tier: 'haiku', user: prompt, maxTokens: 1000 })).trim() || draft
       return res.status(200).json({ polished })
     } catch {
       return res.status(200).json({ polished: draft })
@@ -569,9 +557,8 @@ ${draft}`
       .map(m => m.message.trim())
       .join('\n\n')
 
-    // No AI key or no provider messages — return structured template
-    const key = process.env.ANTHROPIC_API_KEY
-    if (!key || !providerText) {
+    // No AI or no provider messages — return structured template
+    if (!isConfigured() || !providerText) {
       const lines = []
       if (c.chief_complaint) lines.push(`Thank you for contacting us regarding your ${c.chief_complaint}.`)
       if (providerText) lines.push(providerText)
@@ -619,13 +606,7 @@ Rules:
 - Return ONLY the response body, nothing else`
 
     try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
-      })
-      const d = await r.json()
-      const summary = d.content?.[0]?.text?.trim() || providerText
+      const summary = (await aiCall({ tier: 'haiku', user: prompt, maxTokens: 500 })).trim() || providerText
       return res.status(200).json({ summary })
     } catch {
       return res.status(200).json({ summary: providerText })

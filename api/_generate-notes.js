@@ -1,5 +1,6 @@
 // api/_generate-notes.js — Tere Scribe v3: extract → red-flag check → JS-merge
 import { isFlagEnabled } from './_flags-server.js'
+import { aiCallJSON, isConfigured } from './_ai.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -18,9 +19,7 @@ export default async function handler(req, res) {
     })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  console.log('ANTHROPIC_API_KEY:', apiKey ? 'SET' : 'MISSING')
-  if (!apiKey) return res.status(500).json({ error: 'Anthropic API key not configured' })
+  if (!isConfigured()) return res.status(500).json({ error: 'Bedrock not configured' })
 
   let body = req.body || {}
 
@@ -174,7 +173,12 @@ For each clinical field include a confidence rating based on the clarity and com
 }`
 
     try {
-      const extractionRes = await callClaude(apiKey, systemPrompt, extractionPrompt, 'claude-sonnet-4-6', 2000)
+      const extractionRes = await aiCallJSON({
+        tier: 'sonnet',
+        system: systemPrompt,
+        user: extractionPrompt,
+        maxTokens: 2000,
+      })
 
       if (extractionRes) {
         extracted = { ...extracted, ...extractionRes }
@@ -185,7 +189,7 @@ For each clinical field include a confidence rating based on the clarity and com
         console.log('[generate-notes] extracted fields:', filled.join(', ') || 'none')
       }
     } catch (e) {
-      console.error('[generate-notes] Claude extraction error:', e.message)
+      console.error('[generate-notes] Bedrock extraction error:', e.message)
       // Fall through — triage-only merge
     }
   }
@@ -294,34 +298,6 @@ For each clinical field include a confidence rating based on the clarity and com
 
   console.log('[generate-notes] complete — sources:', JSON.stringify(_sources))
   res.status(200).json(result)
-}
-
-// ── Helper: call Claude ───────────────────────────────────────────────────────
-async function callClaude(apiKey, system, userContent, model, maxTokens) {
-  const body = {
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: userContent }],
-  }
-  if (system) body.system = system
-
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01' },
-    body: JSON.stringify(body),
-  })
-  if (!r.ok) throw new Error(await r.text())
-  const data = await r.json()
-  const text = data.content[0].text.trim()
-  const stripped = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim()
-  try {
-    return JSON.parse(stripped)
-  } catch {
-    const start = stripped.indexOf('{')
-    const end   = stripped.lastIndexOf('}')
-    if (start !== -1 && end > start) return JSON.parse(stripped.slice(start, end + 1))
-    return null
-  }
 }
 
 // ── ACC Read code suggestion ──────────────────────────────────────────────────

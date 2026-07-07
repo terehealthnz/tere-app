@@ -10,10 +10,10 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('consultations').select('id').limit(1)
       return { name: 'database', ok: !error, detail: error?.message }
     })(),
-    // AI (Anthropic)
+    // AI (AWS Bedrock, BAA-covered)
     (async () => {
-      const key = process.env.ANTHROPIC_API_KEY
-      return { name: 'ai', ok: !!key, detail: key ? null : 'API key not configured' }
+      const ok = !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+      return { name: 'ai', ok, detail: ok ? null : 'Bedrock credentials not configured' }
     })(),
     // Payments (Stripe)
     (async () => {

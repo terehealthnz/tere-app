@@ -1,4 +1,6 @@
 // api/send-email.js — patient post-consultation summary email + waitlist open notification
+import { aiCall, isConfigured } from './_ai.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId } = req.body
@@ -28,8 +30,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ sent: true })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-
   // Support both old SOAP format and new 9-section format
   const assessment = sections.mdm     || notes.A || ''
   const plan       = sections.plan    || notes.P || ''
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
   ).join('\n')
 
   let summaryText = ''
-  if (apiKey) {
+  if (isConfigured()) {
     try {
       const prompt = `Write a warm, friendly summary of this telehealth consultation for a rural New Zealand patient.
 
@@ -69,14 +69,8 @@ ACC claim:\n${accList || 'Not applicable'}
 
 Sign off warmly from Tere Health. Keep under 200 words total.`
 
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 500, messages: [{ role: 'user', content: prompt }] }),
-      })
-      const data = await r.json()
-      summaryText = data.content?.[0]?.text || ''
-    } catch (e) { console.error('Claude error:', e) }
+      summaryText = await aiCall({ tier: 'sonnet', user: prompt, maxTokens: 500 })
+    } catch (e) { console.error('[send-email] Bedrock error:', e.message) }
   }
 
   if (!summaryText) {
