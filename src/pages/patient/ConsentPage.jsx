@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, patientUpdateConsultation } from '../../lib/supabase'
+import { patientUpdateConsultation } from '../../lib/supabase'
+import { apiFetch } from '../../lib/api'
 
 export default function ConsentPage() {
   const navigate = useNavigate()
@@ -20,12 +21,17 @@ export default function ConsentPage() {
     const consultationId = sessionStorage.getItem('consultation_id')
     const now = new Date().toISOString()
     try {
-      const rows = [
-        { consultation_id: consultationId || null, consent_type: 'hdc_code_of_rights',                  granted: true,    timestamp: now },
-        { consultation_id: consultationId || null, consent_type: 'prescribing_limitations_acknowledged', granted: true,    timestamp: now },
-        { consultation_id: consultationId || null, consent_type: 'research_consent',                    granted,          timestamp: now },
-      ]
-      await supabase.from('consents').insert(rows)
+      // Route consent records through /api/consents (server has the correct
+      // schema — the `timestamp` column doesn't exist; created_at is DB-auto).
+      const post = (consent_type, granted) => apiFetch('/api/consents', {
+        method: 'POST',
+        body: JSON.stringify({ consultation_id: consultationId || null, consent_type, granted }),
+      })
+      await Promise.all([
+        post('hdc_code_of_rights', true),
+        post('prescribing_limitations_acknowledged', true),
+        post('research_consent', granted),
+      ])
       if (consultationId) {
         await patientUpdateConsultation(consultationId, {
           research_consent:        granted,
