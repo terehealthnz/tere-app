@@ -905,6 +905,26 @@ function PendingApprovalsPanel() {
 }
 
 function CareersPanel() {
+  const [subTab, setSubTab] = React.useState('listings')
+  const NAVY = '#0D2B45', TEAL = '#0B6E76'
+  const tabBtn = (active) => ({
+    background: active ? TEAL : '#F7F5F0',
+    color: active ? 'white' : NAVY,
+    border: 'none', padding: '8px 16px', borderRadius: 99, cursor: 'pointer',
+    fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.875rem',
+  })
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: '1rem' }}>
+        <button onClick={() => setSubTab('listings')}   style={tabBtn(subTab === 'listings')}>📋 Job listings</button>
+        <button onClick={() => setSubTab('applicants')} style={tabBtn(subTab === 'applicants')}>👤 Applicants</button>
+      </div>
+      {subTab === 'listings' ? <JobListingsSection /> : <ApplicantsSection />}
+    </div>
+  )
+}
+
+function JobListingsSection() {
   const [listings, setListings] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [showForm, setShowForm] = React.useState(false)
@@ -916,9 +936,9 @@ function CareersPanel() {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data } = await supabase.from('job_listings').select('*').order('created_at', { ascending: false })
-      setListings(data || [])
+      const { getJobListings } = await import('../../lib/supabase')
+      const data = await getJobListings()
+      setListings(data)
     } catch { setListings([]) }
     setLoading(false)
   }
@@ -1049,6 +1069,315 @@ function CareersPanel() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Applicants ────────────────────────────────────────────────────────────────
+
+const APPLICANT_STATUSES = [
+  { key: 'new',        label: 'New',        color: '#1D4ED8', bg: '#EFF6FF' },
+  { key: 'reviewing',  label: 'Reviewing',  color: '#7C3AED', bg: '#F5F3FF' },
+  { key: 'interview',  label: 'Interview',  color: '#0B6E76', bg: '#F0FDFA' },
+  { key: 'offer',      label: 'Offer',      color: '#D97706', bg: '#FEF3C7' },
+  { key: 'hired',      label: 'Hired',      color: '#065F46', bg: '#D1FAE5' },
+  { key: 'rejected',   label: 'Rejected',   color: '#991B1B', bg: '#FEE2E2' },
+  { key: 'withdrawn',  label: 'Withdrawn',  color: '#6B7280', bg: '#F3F4F6' },
+]
+const STATUS_BY_KEY = Object.fromEntries(APPLICANT_STATUSES.map(s => [s.key, s]))
+
+function StatusPill({ status }) {
+  const s = STATUS_BY_KEY[status] || { label: status, color: '#6B7280', bg: '#F3F4F6' }
+  return (
+    <span style={{ background: s.bg, color: s.color, fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+      {s.label}
+    </span>
+  )
+}
+
+function ApplicantsSection() {
+  const [applicants, setApplicants] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [statusFilter, setStatusFilter] = React.useState('active')  // 'active' | 'archived' | any status key
+  const [openId, setOpenId] = React.useState(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { getJobApplications } = await import('../../lib/supabase')
+      const opts = statusFilter === 'archived'
+        ? { archived: true }
+        : (statusFilter === 'active' ? {} : { status: statusFilter })
+      const data = await getJobApplications(opts)
+      setApplicants(data)
+    } catch { setApplicants([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [statusFilter])
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const chip = (active) => ({
+    background: active ? '#0D2B45' : '#F1F5F9', color: active ? 'white' : '#6B7280',
+    border: 'none', padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
+    fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', fontWeight: 700,
+  })
+
+  const counts = React.useMemo(() => {
+    const m = { active: 0 }
+    for (const a of applicants) {
+      m.active++
+      m[a.status] = (m[a.status] || 0) + 1
+    }
+    return m
+  }, [applicants])
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Applicants</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Submissions from /careers/apply.</div>
+        </div>
+        <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻ Refresh</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1rem' }}>
+        <button onClick={() => setStatusFilter('active')} style={chip(statusFilter === 'active')}>All active</button>
+        {APPLICANT_STATUSES.map(s => (
+          <button key={s.key} onClick={() => setStatusFilter(s.key)} style={chip(statusFilter === s.key)}>
+            {s.label}{counts[s.key] ? ` · ${counts[s.key]}` : ''}
+          </button>
+        ))}
+        <button onClick={() => setStatusFilter('archived')} style={chip(statusFilter === 'archived')}>Archived</button>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+      ) : applicants.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
+          {statusFilter === 'active' ? 'No applicants yet.' : `No applicants match "${statusFilter}".`}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+          {applicants.map(a => (
+            <div key={a.id} onClick={() => setOpenId(a.id)} style={{
+              background: '#F8FAFC', borderRadius: 8, padding: '.75rem 1rem', border: '1px solid #E2E8F0',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap',
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.125rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45' }}>
+                    {a.first_name} {a.last_name}
+                  </span>
+                  <StatusPill status={a.status} />
+                  {a.job_listing?.title && (
+                    <span style={{ background: '#EFF6FF', color: '#1D4ED8', fontSize: '.6875rem', fontWeight: 600, padding: '2px 8px', borderRadius: 99 }}>
+                      {a.job_listing.title}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                  {a.email}{a.phone ? ` · ${a.phone}` : ''} · Applied {new Date(a.applied_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              <span style={{ color: '#9CA3AF', fontSize: '.875rem' }}>→</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {openId && <ApplicantDetail id={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+    </div>
+  )
+}
+
+function ApplicantDetail({ id, onClose, onChanged }) {
+  const [data, setData] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+  const [noteText, setNoteText] = React.useState('')
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { getJobApplication } = await import('../../lib/supabase')
+      const d = await getJobApplication(id)
+      setData(d)
+    } catch { setData(null) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [id])
+
+  async function setStatus(next) {
+    setSaving(true)
+    try {
+      const { updateJobApplication } = await import('../../lib/supabase')
+      await updateJobApplication(id, { status: next })
+      await load()
+      onChanged?.()
+    } finally { setSaving(false) }
+  }
+  async function toggleArchive() {
+    setSaving(true)
+    try {
+      const { updateJobApplication } = await import('../../lib/supabase')
+      await updateJobApplication(id, { archived: !data?.application?.archived })
+      await load()
+      onChanged?.()
+    } finally { setSaving(false) }
+  }
+  async function addNote() {
+    if (!noteText.trim()) return
+    setSaving(true)
+    try {
+      const { addApplicationNote } = await import('../../lib/supabase')
+      await addApplicationNote(id, noteText.trim())
+      setNoteText('')
+      await load()
+    } finally { setSaving(false) }
+  }
+  async function toggleStep(stepId, done) {
+    setSaving(true)
+    try {
+      const { updateOnboardingStep } = await import('../../lib/supabase')
+      await updateOnboardingStep(stepId, { done })
+      await load()
+    } finally { setSaving(false) }
+  }
+
+  const backdrop = { position: 'fixed', inset: 0, background: 'rgba(13,43,69,.55)', zIndex: 60, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto' }
+  const modal    = { background: 'white', borderRadius: 16, maxWidth: 720, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.25)', border: '1px solid #E2E8F0', maxHeight: '92vh', overflowY: 'auto' }
+  const section  = { padding: '1.25rem 1.5rem', borderTop: '1px solid #F1F5F9' }
+  const label    = { display: 'block', fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.5rem' }
+  const btn = (variant) => {
+    const map = {
+      primary: { background: '#0B6E76', color: 'white' },
+      danger:  { background: '#FEE2E2', color: '#DC2626' },
+      ghost:   { background: 'none', color: '#6B7280', border: '1px solid #E2E8F0' },
+    }
+    return { ...(map[variant] || map.primary), border: 'none', padding: '7px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }
+  }
+
+  const app  = data?.application
+  const notes = data?.notes || []
+  const onboarding = data?.onboarding || []
+
+  return (
+    <div style={backdrop} onClick={onClose}>
+      <div style={modal} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+          <div>
+            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>
+              {loading ? 'Loading…' : app ? `${app.first_name} ${app.last_name}` : 'Not found'}
+            </div>
+            {app && (
+              <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: '.25rem' }}>
+                <a href={`mailto:${app.email}`} style={{ color: '#0B6E76', textDecoration: 'none' }}>{app.email}</a>
+                {app.phone ? ` · ${app.phone}` : ''}
+                {app.job_listing?.title ? ` · ${app.job_listing.title}` : ' · Speculative'}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '1rem' }}>✕</button>
+        </div>
+
+        {app && (
+          <>
+            <div style={section}>
+              <span style={label}>Status</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {APPLICANT_STATUSES.map(s => (
+                  <button key={s.key} onClick={() => setStatus(s.key)} disabled={saving} style={{
+                    ...btn('ghost'),
+                    background: app.status === s.key ? s.bg : '#F8FAFC',
+                    color: app.status === s.key ? s.color : '#6B7280',
+                    borderColor: app.status === s.key ? s.color : '#E2E8F0',
+                    padding: '6px 12px',
+                  }}>{s.label}</button>
+                ))}
+              </div>
+              <div style={{ marginTop: '.75rem', display: 'flex', gap: 6 }}>
+                <button onClick={toggleArchive} disabled={saving} style={btn('ghost')}>
+                  {app.archived ? 'Unarchive' : 'Archive'}
+                </button>
+              </div>
+            </div>
+
+            <div style={section}>
+              <span style={label}>Applicant details</span>
+              <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.65 }}>
+                <div><strong>Applied:</strong> {new Date(app.applied_at).toLocaleString('en-NZ')}</div>
+                {app.source && <div><strong>Source:</strong> {app.source}</div>}
+                {app.cv_url && (
+                  <div><strong>CV:</strong> <a href={app.cv_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>{app.cv_filename || 'Open CV'}</a></div>
+                )}
+                {app.cover_note && (
+                  <div style={{ marginTop: '.5rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, whiteSpace: 'pre-wrap' }}>{app.cover_note}</div>
+                )}
+              </div>
+            </div>
+
+            <div style={section}>
+              <span style={label}>Internal notes ({notes.length})</span>
+              <div style={{ display: 'flex', gap: 6, marginBottom: '.75rem' }}>
+                <input
+                  value={noteText}
+                  onChange={e => setNoteText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), addNote())}
+                  placeholder="Add a note (e.g. 'MCNZ verified', 'Schedule interview Tuesday')…"
+                  style={{ flex: 1, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none' }}
+                />
+                <button onClick={addNote} disabled={saving || !noteText.trim()} style={btn('primary')}>Add</button>
+              </div>
+              {notes.length === 0 ? (
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No notes yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {notes.map(n => (
+                    <div key={n.id} style={{ background: '#F8FAFC', borderRadius: 6, padding: '.5rem .75rem', border: '1px solid #EEF2F7' }}>
+                      <div style={{ fontSize: '.875rem', color: '#1A2A33', whiteSpace: 'pre-wrap' }}>{n.note}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: '.25rem' }}>
+                        {n.author_name || 'Provider'} · {new Date(n.created_at).toLocaleString('en-NZ')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {onboarding.length > 0 && (
+              <div style={section}>
+                <span style={label}>Onboarding ({onboarding.filter(s => s.done).length}/{onboarding.length})</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {onboarding.map(s => (
+                    <label key={s.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '.625rem', padding: '.5rem .625rem', background: s.done ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${s.done ? '#BBF7D0' : '#E2E8F0'}`, borderRadius: 6, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={s.done} onChange={e => toggleStep(s.id, e.target.checked)} style={{ marginTop: 3, accentColor: '#0B6E76' }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '.875rem', color: s.done ? '#065F46' : '#1A2A33', fontWeight: s.done ? 600 : 500 }}>
+                          {s.label}
+                        </div>
+                        {s.done && s.done_by_name && (
+                          <div style={{ fontSize: '.6875rem', color: '#065F46', marginTop: '.125rem' }}>
+                            {s.done_by_name} · {new Date(s.done_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {app.status === 'hired' && onboarding.length === 0 && (
+              <div style={section}>
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF' }}>
+                  Onboarding checklist will appear here shortly. If it doesn't, re-set status to 'hired' to seed it.
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

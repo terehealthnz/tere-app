@@ -762,6 +762,15 @@ export async function deleteJobListing(id) {
   return res.ok
 }
 
+// ── Job listings (read) ──────────────────────────────────────────────────────
+
+export async function getJobListings() {
+  const res = await apiFetch('/api/job-listings')
+  if (!res.ok) return []
+  const { listings } = await res.json()
+  return listings || []
+}
+
 // ── Job applications ─────────────────────────────────────────────────────────
 
 export async function submitJobApplication(payload) {
