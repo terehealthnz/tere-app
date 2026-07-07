@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
@@ -399,8 +399,7 @@ function EmployersTab() {
     if (!newEmp.company_name.trim()) return
     setSaving(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('employers').insert({
+      await createEmployer({
         company_name: newEmp.company_name.trim(),
         contact_email: newEmp.contact_email.trim() || null,
         monthly_rate_per_employee: newEmp.monthly_rate_per_employee ? parseFloat(newEmp.monthly_rate_per_employee) : null,
@@ -416,8 +415,7 @@ function EmployersTab() {
 
   async function toggleActive(id, val) {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      await supabase.from('employers').update({ is_active: val }).eq('id', id)
+      await updateEmployer(id, { is_active: val })
       setEmployers(es => es.map(e => e.id===id ? {...e,is_active:val} : e))
     } catch {}
   }
@@ -440,7 +438,6 @@ function EmployersTab() {
       const text = await file.text()
       const rows = parseCsv(text)
       if (!rows.length) { alert('No valid rows. CSV needs: first_name, last_name'); setUploadingFor(null); return }
-      const { supabase } = await import('../../lib/supabase')
       const inserts = rows.map(r => ({
         employer_id: empId,
         first_name: r.first_name||r.firstname||'',
@@ -448,7 +445,7 @@ function EmployersTab() {
         dob: r.dob||null,
         employee_id: r.employee_id||r.staff_id||null,
       })).filter(r => r.first_name && r.last_name)
-      await supabase.from('employer_employees').insert(inserts)
+      await addEmployerEmployees(inserts)
       setCounts(c => ({...c, [empId]: (c[empId]||0)+inserts.length}))
       alert(`✓ ${inserts.length} employees imported`)
     } catch { alert('Upload failed') }

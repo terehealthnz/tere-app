@@ -520,6 +520,44 @@ export async function updateProvider(id, updates) {
   }
 }
 
+// ── Employers ────────────────────────────────────────────────────────────────
+
+export async function getEmployers({ includeInactive = false } = {}) {
+  const qs = includeInactive ? '?includeInactive=1' : ''
+  const res = await apiFetch(`/api/employers${qs}`)
+  if (!res.ok) return []
+  const { employers } = await res.json()
+  return employers || []
+}
+
+export async function createEmployer(data) {
+  const res = await apiFetch('/api/employers', { method: 'POST', body: JSON.stringify(data) })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `createEmployer HTTP ${res.status}`)
+  }
+  const { employer } = await res.json()
+  return employer
+}
+
+export async function updateEmployer(id, patch) {
+  const res = await apiFetch(`/api/employers?id=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateEmployer HTTP ${res.status}`)
+  }
+}
+
+export async function addEmployerEmployees(rows) {
+  const res = await apiFetch('/api/employer-employees', { method: 'POST', body: JSON.stringify(rows) })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `addEmployerEmployees HTTP ${res.status}`)
+  }
+  const body = await res.json()
+  return body.employees || []
+}
+
 // ── Prescriptions ────────────────────────────────────────────────────────────
 
 export async function getPendingPrescriptions(columns = null) {

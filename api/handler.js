@@ -16,6 +16,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Same for patient-consult (patient updates own consult with PATIENT_ALLOWLIST).
   'consultations', 'patients', 'prescriptions', 'providers',
   'get-queue', 'appointments',
+  // Employer directory — writes affect who can get a free consult, so admin-gate
+  'employers', 'employer-employees',
   // Validation subsystem (research data)
   'validation-subjects', 'validation-readings', 'model-version', 'flags',
   // Provider clinical work
@@ -175,6 +177,8 @@ const ROUTES = {
   'prescriptions':             () => import('./_prescriptions.js'),
   'providers':                 () => import('./_providers.js'),
   'flags':                     () => import('./_flags.js'),
+  'employers':                 () => import('./_employers.js'),
+  'employer-employees':        () => import('./_employer-employees.js'),
 }
 
 export default async function handler(req, res) {
