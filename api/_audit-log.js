@@ -1,13 +1,15 @@
 // POST /api/audit-log — provider-auth append-only audit trail.
 //
-// Client writes to the `audit_log` table (singular; separate from `audit_logs`
-// which is a different table with different columns — see _audit.js). The
-// singular table has (action, actor_id, metadata, created_at) and is used for
-// admin actions like research data export.
+// Writes to the real `audit_logs` table (plural — same as /api/audit uses).
+// Historical note: the old client code called .from('audit_log') (singular)
+// which silently no-op'd inside a try/catch because that table didn't exist.
+// This endpoint accepts the friendly (action, metadata) shape from client
+// callers and maps it onto the actual (event_type, provider_id, metadata)
+// schema.
 //
-// Auth: guardProvider runs at the router. actor_id in the body is discarded;
-// we take it from req.auth so a scraper can't forge who took the action.
-// action + metadata are echoed through (metadata is a jsonb blob).
+// Auth: guardProvider runs at the router. provider_id / provider_name in the
+// body are ignored — we take them from req.auth.provider so a scraper can't
+// forge the actor.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -27,13 +29,20 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'action (string) required' })
   }
 
-  const actor_id = req.auth?.provider?.id || null
+  const provider = req.auth?.provider || {}
+  const provider_id   = provider.id || null
+  const provider_name = provider.first_name || provider.last_name
+    ? `${provider.first_name || ''} ${provider.last_name || ''}`.trim()
+    : null
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
 
   const supabase = admin()
-  const { error } = await supabase.from('audit_log').insert({
-    action,
-    actor_id,
+  const { error } = await supabase.from('audit_logs').insert({
+    event_type: action,
+    provider_id,
+    provider_name,
     metadata: metadata && typeof metadata === 'object' ? metadata : null,
+    ip,
   })
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json({ ok: true })
