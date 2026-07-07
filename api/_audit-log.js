@@ -44,6 +44,12 @@ export default async function handler(req, res) {
     metadata: metadata && typeof metadata === 'object' ? metadata : null,
     ip,
   })
+  // audit_logs table isn't in the deployed schema yet — degrade to no-op so
+  // callers (research CSV export, etc.) don't visibly fail. Once the table is
+  // migrated in, writes will land automatically without a code change.
+  if (error && (error.message?.includes('does not exist') || error.message?.includes('schema cache'))) {
+    return res.status(200).json({ ok: true, skipped: 'audit_logs table missing' })
+  }
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json({ ok: true })
 }

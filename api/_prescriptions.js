@@ -28,6 +28,17 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { filter, consultationId, id, columns } = req.query || {}
 
+  // Columns referenced in client code but never migrated to the DB. Strip
+  // them from any client-supplied projection so we return real data instead
+  // of surfacing "column does not exist" errors.
+  const MISSING_SCHEMA_COLUMNS = new Set(['urgency'])
+  const normalizeCols = (raw) => {
+    if (!raw) return null
+    const cols = String(raw).split(',').map(c => c.trim())
+      .filter(c => c && !MISSING_SCHEMA_COLUMNS.has(c))
+    return cols.length ? cols.join(', ') : '*'
+  }
+
   if (id) {
     const { data, error } = await supabase.from('prescriptions').select('*').eq('id', id).maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
@@ -46,9 +57,7 @@ export default async function handler(req, res) {
 
   if (filter === 'pending_approval') {
     // Default projection matches Admin.jsx approvals table + Dashboard supervisor panel.
-    const cols = columns
-      ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
-      : '*'
+    const cols = normalizeCols(columns) || '*'
     const { data, error } = await supabase
       .from('prescriptions')
       .select(cols)
@@ -61,9 +70,7 @@ export default async function handler(req, res) {
   // Recent prescriptions since <iso> — Admin.jsx "Recent prescriptions" panel.
   if (filter === 'recent') {
     const { since } = req.query
-    const cols = columns
-      ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
-      : '*'
+    const cols = normalizeCols(columns) || '*'
     const sinceIso = since || new Date(Date.now() - 30 * 86400000).toISOString()
     const { data, error } = await supabase
       .from('prescriptions')
@@ -77,9 +84,7 @@ export default async function handler(req, res) {
   // Recent list capped at limit — ProviderApp.jsx analytics panel.
   if (filter === 'recent_list') {
     const { limit: rawLimit } = req.query
-    const cols = columns
-      ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
-      : 'id, drug_name, drug, dose, directions, delivery_status, created_at, patient_name, nzeps_token, consultation_id'
+    const cols = normalizeCols(columns) || 'id, drug_name, drug, dose, directions, delivery_status, created_at, patient_name, nzeps_token, consultation_id'
     const lim = Math.max(1, Math.min(200, parseInt(rawLimit) || 30))
     const { data, error } = await supabase
       .from('prescriptions')

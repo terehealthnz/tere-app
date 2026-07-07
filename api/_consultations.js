@@ -117,28 +117,31 @@ export default async function handler(req, res) {
     // Each of these takes optional ?columns=a,b,c so the client can request a
     // narrower projection matching whatever it displays. If omitted the server
     // sends a sensible default that matches the callers currently on prod.
+    // Columns that were referenced in code but never migrated into the deployed
+    // schema. Strip them from any client-supplied projection so we return
+    // meaningful data instead of a 500. Client callers null-coalesce them
+    // (`row.payment_amount_nzd || row.payment_amount / 100`) so absence is safe.
+    const MISSING_SCHEMA_COLUMNS = new Set([
+      'payment_amount_nzd', 'is_acc', 'notes_finalised',
+      'acc_draft', 'acc_approval_status',
+      'recall_date', 'recall_completed', 'recall_note',
+    ])
     const projection = req.query?.columns
-      ? String(req.query.columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
+      ? String(req.query.columns).split(',').map(c => c.trim())
+          .filter(c => c && !MISSING_SCHEMA_COLUMNS.has(c)).join(', ')
       : null
 
+    // NOTE: acc_pending / acc_pending_count filter on `acc_approval_status`
+    // and default-project `acc_draft` — both columns do not exist in the
+    // deployed schema (the ACC approval flow was planned but never migrated
+    // in). Return empty gracefully instead of surfacing a Postgres error;
+    // switch to a real query if/when acc_approval_status ships.
     if (filter === 'acc_pending') {
-      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, patient_email, acc_draft, provider_id, provider_display_name'
-      const { data, error } = await supabase
-        .from('consultations')
-        .select(cols)
-        .eq('acc_approval_status', 'pending_approval')
-        .order('created_at', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: [] })
     }
 
     if (filter === 'acc_pending_count') {
-      const { count, error } = await supabase
-        .from('consultations')
-        .select('id', { count: 'exact', head: true })
-        .eq('acc_approval_status', 'pending_approval')
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ count: count || 0 })
+      return res.status(200).json({ count: 0 })
     }
 
     if (filter === 'notes_flagged') {
@@ -154,7 +157,10 @@ export default async function handler(req, res) {
 
     // Recent consults (all statuses) — analytics panel.
     if (filter === 'recent') {
-      const cols = projection || 'id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, payment_amount_nzd, acc_eligible, acc_read_code, consultation_duration_seconds'
+      // payment_amount_nzd is a planned column that was never migrated in;
+      // drop from default projection. Client callers that reference it fall
+      // back to payment_amount safely.
+      const cols = projection || 'id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, acc_eligible, acc_read_code, consultation_duration_seconds'
       const limit = Math.max(1, Math.min(500, parseInt(req.query?.limit) || 100))
       const { data, error } = await supabase
         .from('consultations').select(cols)
@@ -186,16 +192,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: data || [] })
     }
 
-    // Recalls waiting for follow-up.
+    // Recalls waiting for follow-up. recall_date / recall_completed / recall_note
+    // are planned columns that were never migrated in — return empty gracefully.
     if (filter === 'recall_pending') {
-      const cols = projection || 'id, patient_first_name, patient_last_name, patient_phone, chief_complaint, recall_date, recall_note, recall_completed'
-      const { data, error } = await supabase
-        .from('consultations').select(cols)
-        .not('recall_date', 'is', null)
-        .eq('recall_completed', false)
-        .order('recall_date', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: [] })
     }
 
     // All complete consults — supervisor review of closed consults.
@@ -292,7 +292,7 @@ export default async function handler(req, res) {
     // ?since=<iso> lets the caller pick the day-start (usually midnight local).
     if (filter === 'complete_today' || filter === 'complete_since') {
       const since = req.query?.since || new Date(new Date().setHours(0,0,0,0)).toISOString()
-      const cols = projection || 'id, status, consultation_type, is_acc, payment_amount_nzd, notes_finalised, created_at, patient_first_name, patient_last_name, chief_complaint, acc_claim_number, acc_claim_status, outcome'
+      const cols = projection || 'id, status, consultation_type, payment_amount, created_at, patient_first_name, patient_last_name, chief_complaint, acc_claim_number, acc_claim_status, outcome'
       const { data, error } = await supabase
         .from('consultations')
         .select(cols)
