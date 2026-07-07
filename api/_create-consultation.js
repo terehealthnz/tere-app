@@ -96,12 +96,14 @@ export default async function handler(req, res) {
   }
 
   // Pre-triage rows fired by TereIntro carry only { status, patient_language }.
-  // The `patient_first_name` column has a NOT NULL constraint, so insert
-  // placeholder values for the pre-triage stage — the real values get filled
-  // in during AITriage when we have the patient's name.
+  // Several columns have NOT NULL constraints (patient_first_name, chief_complaint,
+  // etc). Insert placeholder values — the real ones get filled in during AITriage
+  // when we have the patient's details. Marked as 'Pending' so anyone browsing
+  // the DB knows these are stubs.
   if (payload.status === 'pre_triage') {
-    if (!payload.patient_first_name) payload.patient_first_name = 'Pending'
-    if (!payload.patient_last_name)  payload.patient_last_name  = ''
+    payload.patient_first_name = payload.patient_first_name || 'Pending'
+    payload.patient_last_name  = payload.patient_last_name  || ''
+    payload.chief_complaint    = payload.chief_complaint    || 'Pending — triage not started'
   }
 
   const { data, error } = await supabase.from('consultations').insert(payload).select().single()
