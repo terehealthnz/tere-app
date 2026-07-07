@@ -911,10 +911,7 @@ export default function VitalsValidate() {
             {scanPhase === 'inspecting' && <div style={{ textAlign: 'center', color: '#6B7280', fontSize: '.9rem' }}>Inspecting camera…</div>}
             {scanPhase === 'measuring' && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '2.75rem', fontWeight: 800, color: liveHR ? TEAL : '#D1D5DB', lineHeight: 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  {liveHR ?? '—'}
-                </div>
-                <div style={{ fontSize: '.7rem', fontWeight: 700, color: '#6B7280', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: '.25rem' }}>bpm · live</div>
+                <div style={{ fontSize: '.7rem', fontWeight: 700, color: '#6B7280', letterSpacing: '.12em', textTransform: 'uppercase' }}>Measuring vitals</div>
                 <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: '.5rem' }}>Hold still…</div>
               </div>
             )}
