@@ -467,15 +467,11 @@ function OutstandingPrescriptions() {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
+      const { getRecentPrescriptions } = await import('../../lib/supabase')
       const since = new Date()
       since.setDate(since.getDate() - 30)
-      const { data } = await supabase
-        .from('prescriptions')
-        .select('*')
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending: false })
-      setRows(data || [])
+      const data = await getRecentPrescriptions(since.toISOString())
+      setRows(data)
     } catch { setRows([]) }
     setLoading(false)
   }

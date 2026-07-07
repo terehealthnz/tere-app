@@ -164,6 +164,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ bookings: data || [] })
     }
 
+    // Today's bookings for a provider (or all providers) — ProviderApp today panel.
+    if (action === 'today') {
+      const today = getNZDate()
+      let q = supabase.from('bookings').select('*')
+        .eq('appointment_date', today)
+        .not('status', 'eq', 'cancelled')
+        .order('appointment_time')
+        .limit(10)
+      if (provider_id) q = q.eq('provider_id', provider_id)
+      const { data, error } = await q
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ bookings: data || [] })
+    }
+
     // Next 3 public available slots (landing page)
     if (action === 'upcoming') {
       const results = []

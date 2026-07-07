@@ -174,14 +174,11 @@ export function fitSpO2Calibration(pairedReadings) {
 }
 
 async function saveSpO2CalibrationToSupabase(cal) {
-  const { supabase } = await import('./supabase')
-  const { error } = await supabase.from('spo2_calibrations').insert({
-    slope: cal.slope,
-    intercept: cal.intercept,
-    n: cal.n,
-    rmse: cal.rmse ?? null,
+  const { saveSpo2Calibration } = await import('./supabase')
+  const ok = await saveSpo2Calibration({
+    slope: cal.slope, intercept: cal.intercept, n: cal.n, rmse: cal.rmse ?? null,
   })
-  if (error) throw new Error(error.message)
+  if (!ok) throw new Error('spo2 calibration save failed')
 }
 
 /**
@@ -200,15 +197,10 @@ async function saveSpO2CalibrationToSupabase(cal) {
  */
 export async function loadSpO2CalibrationFromSupabase() {
   try {
-    const { supabase } = await import('./supabase')
+    const { getLatestSpo2Calibration, saveSpo2Calibration } = await import('./supabase')
 
     // 1. Try the shared calibration table first
-    const { data: existing, error: readErr } = await supabase.from('spo2_calibrations')
-      .select('slope,intercept,n,rmse,created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (readErr) throw new Error(readErr.message)
+    const existing = await getLatestSpo2Calibration()
 
     if (existing) {
       const cal = {
@@ -222,10 +214,10 @@ export async function loadSpO2CalibrationFromSupabase() {
     // 2. No shared row yet — fall back to local
     const local = getSpO2Calibration()
     if (local && local.n >= 5) {
-      const { error: pushErr } = await supabase.from('spo2_calibrations').insert({
+      const ok = await saveSpo2Calibration({
         slope: local.slope, intercept: local.intercept, n: local.n, rmse: local.rmse ?? null,
       })
-      if (pushErr) console.warn('[spo2] push local calibration failed:', pushErr.message)
+      if (!ok) console.warn('[spo2] push local calibration failed')
       return local
     }
 

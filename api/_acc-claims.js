@@ -54,12 +54,26 @@ function generateSimulatedClaimNumber() {
 }
 
 export default async function handler(req, res) {
+  const supabase = supabaseAdmin()
+
+  // GET list — ProviderApp.jsx earnings/analytics panel. Provider auth via
+  // AUTH_REQUIRED_ROUTES at the router; no PHI leak concern since routes
+  // grouping already gates the caller.
+  if (req.method === 'GET') {
+    const { limit: rawLimit, provider_id, status } = req.query || {}
+    const lim = Math.max(1, Math.min(500, parseInt(rawLimit) || 50))
+    let q = supabase.from('acc_claims').select('*').order('created_at', { ascending: false }).limit(lim)
+    if (provider_id) q = q.eq('provider_id', provider_id)
+    if (status) q = q.eq('status', status)
+    const { data, error } = await q
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ claims: data || [] })
+  }
+
   if (req.method !== 'POST') return res.status(405).end()
 
   const { consultationId, providerId, providerHpi, providerName, providerType } = req.body
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
-
-  const supabase = supabaseAdmin()
 
   try {
     // Fetch full consultation

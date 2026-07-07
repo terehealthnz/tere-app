@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp } from '../../lib/rppg'
-import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, supabase } from '../../lib/supabase'
+import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames } from '../../lib/rppg'
+import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, uploadScanVideo, supabase } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
-import { calculateSpO2, fitSpO2Calibration } from '../../lib/spo2'
+import { calculateSpO2, fitSpO2Calibration, getSpO2Calibration, loadSpO2CalibrationFromSupabase } from '../../lib/spo2'
 
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -65,6 +65,26 @@ function Toggle({ options, value, onChange }) {
             border: `1.5px solid ${value === val ? TEAL : '#E5E7EB'}`, borderRadius: 99,
             padding: '.4rem 1rem', fontSize: '.9rem', fontWeight: 600, cursor: 'pointer',
             fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all .15s',
+          }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// Compact 2-way segmented control for choosing an input unit (cm/imp, kg/lb).
+function UnitPicker({ options, value, onChange }) {
+  return (
+    <div style={{ display: 'inline-flex', background: '#F3F4F6', borderRadius: 8, padding: 2, gap: 2 }}>
+      {options.map(([val, label]) => (
+        <button key={val} type="button" onClick={() => onChange(val)}
+          style={{
+            padding: '.2rem .55rem', fontSize: '.72rem', fontWeight: 700,
+            border: 'none', borderRadius: 6, cursor: 'pointer',
+            background: value === val ? TEAL : 'transparent',
+            color: value === val ? 'white' : NAVY,
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
           }}>
           {label}
         </button>
@@ -135,9 +155,9 @@ export default function VitalsValidate() {
   const [authChecked, setAuthChecked] = useState(false)
 
   // Auth gate — accepts either the existing PIN clinician login (sessionStorage
-  // clinicianAuth + providerId, per Login.jsx) or a Supabase auth session.
-  // Server-side requireProvider() honours the same two paths (x-provider-id
-  // header vs Authorization bearer JWT).
+  // clinicianAuth + providerId) or a Supabase auth session. Server side
+  // requireProvider() honours the same two paths (x-provider-id header or
+  // Authorization bearer JWT).
   useEffect(() => {
     let cancelled = false
     const goLogin = () => navigate('/clinician?redirect=/vitals-validate', { replace: true })
@@ -164,7 +184,9 @@ export default function VitalsValidate() {
 
   // Create form
   const [newSub, setNewSub] = useState({
-    firstName: '', age: '', sex: '', heightCm: '', weightKg: '',
+    firstName: '', age: '', sex: '',
+    heightCm: '', heightFt: '', heightIn: '', heightUnit: 'cm',
+    weightKg: '', weightLb: '', weightUnit: 'kg',
     fitzpatrickScale: null, hasHypertension: 'unknown',
     conditions: [],
   })
@@ -175,10 +197,13 @@ export default function VitalsValidate() {
   const [manual, setManual] = useState({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
 
   // Step 2
-  const videoRef   = useRef(null)
-  const canvasRef  = useRef(null)
-  const streamRef  = useRef(null)
-  const measureRef = useRef(null)
+  const videoRef        = useRef(null)
+  const canvasRef       = useRef(null)
+  const streamRef       = useRef(null)
+  const measureRef      = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const videoChunksRef  = useRef([])
+  const videoBlobRef    = useRef(null)
   const [cameraError, setCameraError] = useState(null)
   const [scanPhase, setScanPhase]     = useState('idle')
   const [scanError, setScanError]     = useState(null)
@@ -188,6 +213,7 @@ export default function VitalsValidate() {
   const [motionPct, setMotionPct]     = useState(0)
   const [deviceInfo, setDeviceInfo]   = useState(null)
   const [vitals, setVitals]           = useState(null)
+  const [faceBox, setFaceBox]         = useState(null)
 
   // Step 3
   const [reviewNotes, setReviewNotes] = useState('')
@@ -218,6 +244,26 @@ export default function VitalsValidate() {
       .then(list => { setSubjects(list); setSubjectsLoaded(true) })
       .catch(() => setSubjectsLoaded(true))
     getAmbientTemp().then(setAmbientTemp).catch(() => {})
+  }, [])
+
+  // One-shot bootstrap: if this browser has a local SpO2 calibration (from prior paired
+  // readings) but Supabase has no calibration or an older one, upload local → Supabase so
+  // patient devices can pull it via loadSpO2CalibrationFromSupabase(). Safe to run on every
+  // mount: Supabase load is a single query; upload only fires when local is genuinely newer.
+  useEffect(() => {
+    (async () => {
+      try {
+        const local = getSpO2Calibration()
+        if (!local || local.n < 5) return // nothing worth uploading
+        const remote = await loadSpO2CalibrationFromSupabase()
+        if (remote && remote.updatedAt >= (local.updatedAt || 0)) return // Supabase already current
+        // Re-fitting isn't needed — just insert the current local values directly.
+        const { saveSpo2Calibration } = await import('../../lib/supabase')
+        await saveSpo2Calibration({
+          slope: local.slope, intercept: local.intercept, n: local.n, rmse: local.rmse ?? null,
+        })
+      } catch (e) { console.warn('[spo2] bootstrap upload failed:', e?.message) }
+    })()
   }, [])
 
   const selectedSubjectFromId = useCallback((id, list) => {
@@ -268,17 +314,83 @@ export default function VitalsValidate() {
     if (phase === 'step2') { startCamera(); return stopCamera }
   }, [phase])
 
+  // Preview face tracking — runs while camera is on but scan hasn't started.
+  // During the scan, MultiPassMeasurement publishes face boxes itself.
+  useEffect(() => {
+    if (phase !== 'step2' || scanPhase !== 'idle') return
+    let stopped = false
+    let timeoutId = null
+    ;(async () => {
+      try {
+        const mesh = await loadFaceMesh()
+        const cnv = document.createElement('canvas')
+        cnv.width = 320; cnv.height = 240
+        const ctx = cnv.getContext('2d')
+        const loop = async () => {
+          if (stopped) return
+          const v = videoRef.current
+          if (v && v.videoWidth) {
+            try {
+              ctx.drawImage(v, 0, 0, cnv.width, cnv.height)
+              await mesh.send({ image: cnv })
+              const r = mesh._latest
+              const lms = r?.multiFaceLandmarks?.[0]
+              if (lms) {
+                let minX = 1, minY = 1, maxX = 0, maxY = 0
+                for (const l of lms) { if (l.x < minX) minX = l.x; if (l.y < minY) minY = l.y; if (l.x > maxX) maxX = l.x; if (l.y > maxY) maxY = l.y }
+                const padY = (maxY - minY) * 0.15
+                setFaceBox({ x: minX, y: Math.max(0, minY - padY), w: maxX - minX, h: Math.min(1, maxY - minY + padY) })
+              }
+            } catch {}
+          }
+          if (!stopped) timeoutId = setTimeout(loop, 200)
+        }
+        loop()
+      } catch {}
+    })()
+    return () => { stopped = true; if (timeoutId) clearTimeout(timeoutId) }
+  }, [phase, scanPhase])
+
   const startScan = useCallback(async () => {
     setScanError(null); setScanPhase('inspecting'); setProgress(0); setLiveHR(null); setBpEstimate(null)
+    videoChunksRef.current = []; videoBlobRef.current = null
     try {
       await loadFaceMesh()
       const info = await inspectDevice(videoRef.current)
       setDeviceInfo(info)
       const calibration = { ...calibrateRPPG(info), captureRaw: true }
       setScanPhase('measuring')
+
+      // Start recording the camera stream — needed so we can reprocess later
+      // with any rPPG algorithm improvements (the stored RGB-only signal can't
+      // be re-extracted from scratch, so we save the actual video too).
+      try {
+        const stream = streamRef.current
+        if (stream && typeof MediaRecorder !== 'undefined') {
+          const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4']
+          const mime = mimeCandidates.find(m => MediaRecorder.isTypeSupported(m)) || ''
+          const recorder = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 1_500_000 } : { videoBitsPerSecond: 1_500_000 })
+          recorder.ondataavailable = e => { if (e.data && e.data.size > 0) videoChunksRef.current.push(e.data) }
+          recorder.start(1000)
+          mediaRecorderRef.current = recorder
+        }
+      } catch (e) { console.warn('MediaRecorder not available:', e.message) }
+
       const m = new MultiPassMeasurement(
         (pct, hr, pass, _t, mPct) => { setProgress(pct); setLiveHR(hr); setPassNum(pass); setMotionPct(mPct || 0) },
+
         (result) => {
+          // Stop video recording and assemble the blob.
+          const rec = mediaRecorderRef.current
+          if (rec && rec.state !== 'inactive') {
+            rec.onstop = () => {
+              try {
+                const type = rec.mimeType || 'video/webm'
+                videoBlobRef.current = new Blob(videoChunksRef.current, { type })
+              } catch (e) { console.warn('Video blob assembly failed:', e.message) }
+            }
+            try { rec.stop() } catch {}
+          }
           setVitals(result); setScanPhase('done'); stopCamera(); setPhase('step3')
           if (result.rawFrames) {
             const signal = { frames: result.rawFrames, fps: result.actualFps }
@@ -293,6 +405,7 @@ export default function VitalsValidate() {
           setBpModelMeta(getLocalMeta())
         },
         (msg) => { setScanError(msg); setScanPhase('error'); stopCamera() },
+        (box) => setFaceBox(box),
       )
       measureRef.current = m
       m.start(videoRef.current, canvasRef.current, calibration, info.quality)
@@ -306,12 +419,28 @@ export default function VitalsValidate() {
     setSavingSubject(true); setSubjectError(null)
     try {
       const conds = newSub.conditions || []
+      // Convert entered units to metric for storage. Always persist as cm / kg.
+      let heightCmVal = null
+      if (newSub.heightUnit === 'cm') {
+        heightCmVal = newSub.heightCm ? parseFloat(newSub.heightCm) : null
+      } else {
+        const ft = parseFloat(newSub.heightFt) || 0
+        const inches = parseFloat(newSub.heightIn) || 0
+        const totalInches = ft * 12 + inches
+        heightCmVal = totalInches > 0 ? +(totalInches * 2.54).toFixed(1) : null
+      }
+      let weightKgVal = null
+      if (newSub.weightUnit === 'kg') {
+        weightKgVal = newSub.weightKg ? parseFloat(newSub.weightKg) : null
+      } else {
+        weightKgVal = newSub.weightLb ? +(parseFloat(newSub.weightLb) * 0.453592).toFixed(2) : null
+      }
       const sub = await saveValidationSubject({
         subjectCode: genCode(), firstName: newSub.firstName.trim(),
         age: newSub.age ? parseInt(newSub.age) : null,
         sex: newSub.sex || null,
-        heightCm: newSub.heightCm ? parseFloat(newSub.heightCm) : null,
-        weightKg: newSub.weightKg ? parseFloat(newSub.weightKg) : null,
+        heightCm: heightCmVal,
+        weightKg: weightKgVal,
         fitzpatrickScale: newSub.fitzpatrickScale,
         hasHypertension: conds.includes('hypertension') ? 'high' : conds.includes('hypotension') ? 'low' : newSub.hasHypertension,
         hasDiabetes: conds.includes('diabetes') ? 'yes' : 'unknown',
@@ -377,6 +506,36 @@ export default function VitalsValidate() {
   const handleSave = async () => {
     setSaving(true); setSaveError(null)
     try {
+      // Twice-verified extraction. Run #1 = the live MultiPassMeasurement
+      // result already in `vitals` (3 internal passes, current pipeline).
+      // Run #2 = re-extract from the stored frames via processStoredFrames
+      // (single-pass, same algorithm but different aggregation path). If both
+      // agree within 5 bpm, the HR is "verified"; otherwise "unreliable".
+      const run1 = { hr: vitals?.hr ?? null, rr: vitals?.rr ?? null, source: 'live_multipass' }
+      let run2 = { hr: null, rr: null, source: 'reprocess_stored' }
+      if (vitals?.rawFrames?.length) {
+        try {
+          const r = processStoredFrames(vitals.rawFrames, vitals.actualFps || 30)
+          if (r) run2 = { hr: r.hr ?? null, rr: r.rr ?? null, source: 'reprocess_stored', sigQuality: r.numericConfidence }
+        } catch (e) { console.warn('Verification reprocess failed:', e.message) }
+      }
+      let hrQuality = 'unreliable'
+      let finalHr = run1.hr
+      if (run1.hr != null && run2.hr != null && Math.abs(run1.hr - run2.hr) <= 5) {
+        hrQuality = 'verified'
+        finalHr = Math.round((run1.hr + run2.hr) / 2)
+      } else if (run1.hr == null && run2.hr == null) {
+        hrQuality = 'no_signal'
+      }
+
+      // Upload the recorded video, if we have it. Best-effort — don't block save on upload failure.
+      let videoUrl = null
+      if (videoBlobRef.current) {
+        try {
+          videoUrl = await uploadScanVideo(videoBlobRef.current, selectedSubject?.subject_code)
+        } catch (e) { console.warn('Video upload failed:', e.message) }
+      }
+
       await saveValidationReading({
         subjectId:       selectedSubject?.id,
         subjectCode:     selectedSubject?.subject_code,
@@ -385,7 +544,7 @@ export default function VitalsValidate() {
         manualHr:          manual.hr          ? parseInt(manual.hr)            : null,
         manualTemperature: manual.temperature ? parseFloat(manual.temperature) : null,
         ambientTemp:     ambientTemp ?? null,
-        tereHr:          vitals?.hr || null,
+        tereHr:          finalHr,
         tereRr:          vitals?.rr || null,
         manualSpO2:      manualSpO2 ? parseInt(manualSpO2) : null,
         tereSpo2:        spo2Estimate?.estimate || null,
@@ -402,6 +561,9 @@ export default function VitalsValidate() {
         afLikelihood: vitals?.afDetection?.likelihood || null,
         afConfirmed:    afConfirmed ?? null,
         afConfirmedBy:  afConfirmedBy || null,
+        videoUrl,
+        hrQuality,
+        extractionRuns: [run1, run2],
       })
       setPhase('saved')
       smartRetrain()
@@ -488,7 +650,7 @@ export default function VitalsValidate() {
               </Btn>
 
               <button onClick={() => {
-                setNewSub({ firstName: '', age: '', sex: '', heightCm: '', weightKg: '', fitzpatrickScale: null, hasHypertension: 'unknown', conditions: [] })
+                setNewSub({ firstName: '', age: '', sex: '', heightCm: '', heightFt: '', heightIn: '', heightUnit: 'cm', weightKg: '', weightLb: '', weightUnit: 'kg', fitzpatrickScale: null, hasHypertension: 'unknown', conditions: [] })
                 setSubjectError(null)
                 setPhase('create')
               }} style={{
@@ -516,13 +678,46 @@ export default function VitalsValidate() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <Field label="Age" value={newSub.age} onChange={v => setNewSub(p => ({ ...p, age: v }))} type="number" min="1" max="120" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Height (cm)</label>
-                <input type="number" value={newSub.heightCm} onChange={e => setNewSub(p => ({ ...p, heightCm: e.target.value }))}
-                  style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Height</label>
+                  <UnitPicker options={[['cm', 'cm'], ['imp', "ft'in"]]} value={newSub.heightUnit} onChange={u => setNewSub(p => ({ ...p, heightUnit: u }))} />
+                </div>
+                {newSub.heightUnit === 'cm' ? (
+                  <input type="number" value={newSub.heightCm} onChange={e => setNewSub(p => ({ ...p, heightCm: e.target.value }))}
+                    placeholder="e.g. 178"
+                    style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.4rem' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input type="number" value={newSub.heightFt} onChange={e => setNewSub(p => ({ ...p, heightFt: e.target.value }))} placeholder="5" min="0" max="8"
+                        style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem 1.6rem .65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <span style={{ position: 'absolute', right: '.6rem', top: '50%', transform: 'translateY(-50%)', fontSize: '.8rem', color: '#6B7280', pointerEvents: 'none' }}>ft</span>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input type="number" value={newSub.heightIn} onChange={e => setNewSub(p => ({ ...p, heightIn: e.target.value }))} placeholder="10" min="0" max="11"
+                        style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem 1.6rem .65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                      <span style={{ position: 'absolute', right: '.6rem', top: '50%', transform: 'translateY(-50%)', fontSize: '.8rem', color: '#6B7280', pointerEvents: 'none' }}>in</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-              <Field label="Weight (kg)" value={newSub.weightKg} onChange={v => setNewSub(p => ({ ...p, weightKg: v }))} type="number" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Weight</label>
+                  <UnitPicker options={[['kg', 'kg'], ['lb', 'lb']]} value={newSub.weightUnit} onChange={u => setNewSub(p => ({ ...p, weightUnit: u }))} />
+                </div>
+                {newSub.weightUnit === 'kg' ? (
+                  <input type="number" value={newSub.weightKg} onChange={e => setNewSub(p => ({ ...p, weightKg: e.target.value }))}
+                    placeholder="e.g. 72"
+                    style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                ) : (
+                  <input type="number" value={newSub.weightLb} onChange={e => setNewSub(p => ({ ...p, weightLb: e.target.value }))}
+                    placeholder="e.g. 160"
+                    style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem .9rem', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+                )}
+              </div>
               <div />
             </div>
 
@@ -546,6 +741,9 @@ export default function VitalsValidate() {
                 ))}
               </div>
               {newSub.fitzpatrickScale && <div style={{ fontSize: '.8rem', color: '#6B7280', marginTop: '.35rem' }}>Type {newSub.fitzpatrickScale} selected</div>}
+              <div style={{ fontSize: '.75rem', color: '#92400E', background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 8, padding: '.5rem .65rem', marginTop: '.5rem', lineHeight: 1.4 }}>
+                Type V–VI readings are our highest priority — facial-blood-flow measurement is least accurate for darker skin without representative training data.
+              </div>
             </div>
 
             <div>
@@ -663,6 +861,18 @@ export default function VitalsValidate() {
     const isScanning = scanPhase === 'measuring' || scanPhase === 'inspecting'
     const ovalColor = motionPct > 30 ? '#EF4444' : scanPhase === 'measuring' ? TEAL : '#F59E0B'
 
+    let videoTransform = { transform: 'none', transformOrigin: 'center', transition: 'transform .4s ease-out' }
+    if (faceBox && faceBox.w > 0.05 && faceBox.h > 0.05) {
+      const cx = Math.max(0.25, Math.min(0.75, faceBox.x + faceBox.w / 2))
+      const cy = Math.max(0.25, Math.min(0.75, faceBox.y + faceBox.h / 2))
+      const scale = Math.min(2.2, Math.max(1, 0.55 / faceBox.h))
+      videoTransform = {
+        transformOrigin: `${cx * 100}% ${cy * 100}%`,
+        transform: `translate(${(0.5 - cx) * 100}%, ${(0.5 - cy) * 100}%) scale(${scale})`,
+        transition: 'transform .4s ease-out',
+      }
+    }
+
     return (
       <PageWrap>
         <SubjectBadge subject={selectedSubject} />
@@ -674,8 +884,8 @@ export default function VitalsValidate() {
               <Btn onClick={startCamera}>Retry camera</Btn>
             </div>
           ) : (
-            <div style={{ position: 'relative', background: '#000', marginTop: '1rem', aspectRatio: '4/3' }}>
-              <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            <div style={{ position: 'relative', background: '#000', marginTop: '1rem', aspectRatio: '4/3', overflow: 'hidden' }}>
+              <video ref={videoRef} playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...videoTransform }} />
               <canvas ref={canvasRef} style={{ display: 'none' }} />
               <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -58%)', width: '50%', paddingBottom: '65%', border: `3px solid ${ovalColor}`, borderRadius: '50%', pointerEvents: 'none', transition: 'border-color .4s', zIndex: 10 }} />
               {isScanning && motionPct > 20 && (
@@ -699,7 +909,15 @@ export default function VitalsValidate() {
           <div style={{ padding: '1.25rem 1.5rem' }}>
             {scanPhase === 'idle' && !cameraError && <Btn onClick={startScan} style={{ width: '100%' }}>Start scan</Btn>}
             {scanPhase === 'inspecting' && <div style={{ textAlign: 'center', color: '#6B7280', fontSize: '.9rem' }}>Inspecting camera…</div>}
-            {scanPhase === 'measuring' && <div style={{ textAlign: 'center', color: '#6B7280', fontSize: '.9rem' }}>Hold still…</div>}
+            {scanPhase === 'measuring' && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2.75rem', fontWeight: 800, color: liveHR ? TEAL : '#D1D5DB', lineHeight: 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  {liveHR ?? '—'}
+                </div>
+                <div style={{ fontSize: '.7rem', fontWeight: 700, color: '#6B7280', letterSpacing: '.12em', textTransform: 'uppercase', marginTop: '.25rem' }}>bpm · live</div>
+                <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: '.5rem' }}>Hold still…</div>
+              </div>
+            )}
             {scanPhase === 'error' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                 <div style={{ color: '#EF4444', fontSize: '.9rem' }}>{scanError}</div>

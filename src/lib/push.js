@@ -1,5 +1,4 @@
 // Push notification service — uses Capacitor native push on iOS/Android, falls back to web push
-import { supabase } from './supabase'
 
 const isNative = () => typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()
 
@@ -73,12 +72,13 @@ export async function registerPush(userId) {
     ? window.Capacitor.getPlatform() // 'ios' | 'android'
     : 'web'
 
-  const { error } = await supabase.from('push_subscriptions').upsert(
-    { user_id: userId, token, platform, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,platform' }
-  )
+  const { apiFetch } = await import('./api')
+  const res = await apiFetch('/api/push-subscribe', {
+    method: 'POST',
+    body: JSON.stringify({ userId, token, platform }),
+  })
 
-  return { ok: !error, token, platform }
+  return { ok: res.ok, token, platform }
 }
 
 /**

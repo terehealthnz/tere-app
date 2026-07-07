@@ -11,6 +11,21 @@ export default async function handler(req, res) {
   )
 
   try {
+    // Simple token-only upsert (native FCM/APNs OR native-shape web push
+    // registrations from src/lib/push.js). Distinguished from the VAPID web
+    // subscription flow below, which sends the full subscription object.
+    if (!subscription && token && (userId || providerId)) {
+      const { error } = await supabase.from('push_subscriptions').upsert({
+        user_id:     userId || providerId,
+        provider_id: providerId || null,
+        token,
+        platform:    platform || 'web',
+        updated_at:  new Date().toISOString(),
+      }, { onConflict: 'user_id,platform' })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json({ ok: true })
+    }
+
     if (platform === 'ios' || platform === 'android') {
       // Native Capacitor push — store FCM/APNs token
       if (!token) return res.status(400).json({ error: 'Missing token' })

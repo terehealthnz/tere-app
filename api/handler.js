@@ -14,7 +14,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // is NOT here — patient triage / repeat-Rx flows call it before login;
   // security is enforced by the CREATE_REJECT allowlist inside the endpoint.
   // Same for patient-consult (patient updates own consult with PATIENT_ALLOWLIST).
-  'consultations', 'patients', 'prescriptions', 'providers',
+  // Same for patients (action=create/lookup for anon triage; guarded inside).
+  'consultations', 'prescriptions', 'providers',
   'get-queue', 'appointments',
   // Employer directory — writes affect who can get a free consult, so admin-gate
   'employers', 'employer-employees',
@@ -28,6 +29,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'initiate-call', 'make-call',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'job-listings', 'clinic-schedule',
+  // NOT here:
+  //   patients         — action=create/lookup are anon triage; guarded inside
+  //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
+  //   push-subscribe   — anon patient/provider subscription; upsert-only
   // NOT auth-required (patient-side callers, own guards inside):
   //   assess-acc      — patient triage AI classifies ACC eligibility
   //   verify-acc      — patient triage verifies ACC injury details
@@ -189,6 +194,8 @@ const ROUTES = {
   'job-listings':              () => import('./_job-listings.js'),
   'clinic-schedule':           () => import('./_clinic-schedule.js'),
   'messages':                  () => import('./_messages.js'),
+  'patients':                  () => import('./_patients.js'),
+  'spo2-calibrations':         () => import('./_spo2-calibrations.js'),
 }
 
 export default async function handler(req, res) {

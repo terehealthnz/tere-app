@@ -21,11 +21,60 @@ function admin() {
   )
 }
 
+// Columns a patient may set on their own record via the anon-facing
+// action=create and PATCH ?anon=1 code paths. Excludes any provider-only or
+// billing fields; a scraper with a valid consult id can only populate demographic
+// data that the triage flow would normally collect anyway.
+const PATIENT_ANON_ALLOWLIST = new Set([
+  'first_name', 'last_name', 'date_of_birth',
+  'phone', 'email', 'nhi',
+  'pharmacy_name', 'pharmacy_id',
+  'gp_name', 'gp_clinic', 'gp_email',
+  'medical_history', 'current_medications', 'allergies',
+  'preferred_language',
+  'acc_employer',
+  'research_consent', 'research_consent_updated_at',
+  'first_consultation_at', 'last_consultation_at',
+  'total_consultations',
+])
+
+function projectAnonPatch(raw) {
+  const patch = {}
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (PATIENT_ANON_ALLOWLIST.has(k)) patch[k] = v
+  }
+  return patch
+}
+
+// action=lookup (name+DOB) and action=create are anon-facing (patient triage
+// runs before login). All other paths require provider auth.
 export default async function handler(req, res) {
-  const auth = await guardProvider(req, res)
-  if (!auth) return
+  const { action } = req.query || {}
+  const isAnonFlow =
+    (req.method === 'POST' && (action === 'create' || action === 'lookup')) ||
+    (req.method === 'PATCH' && req.query?.anon === '1')
+
+  if (!isAnonFlow) {
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+  }
 
   const supabase = admin()
+
+  if (req.method === 'PATCH') {
+    const { id } = req.query || {}
+    if (!id) return res.status(400).json({ error: 'id query param required' })
+    // Provider-authenticated path allows the same allowlist (no extra columns
+    // added). Anon path uses same allowlist too — no server-only fields exposed.
+    const patch = projectAnonPatch(req.body)
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No allowed columns in patch' })
+    }
+    patch.updated_at = new Date().toISOString()
+    const { error } = await supabase.from('patients').update(patch).eq('id', id)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ ok: true })
+  }
 
   if (req.method === 'GET') {
     const { id, search, limit: rawLimit, offset: rawOffset } = req.query || {}
@@ -55,7 +104,40 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { action } = req.query || {}
+    // Anon patient triage lookup by name + DOB. Returns a limited safe
+    // projection so a scraper can't harvest full patient records even with a
+    // guessed name+DOB combo.
+    if (action === 'lookup') {
+      const { first_name, last_name, date_of_birth } = req.body || {}
+      if (!first_name || !last_name || !date_of_birth) {
+        return res.status(400).json({ error: 'first_name, last_name, date_of_birth required' })
+      }
+      const { data } = await supabase
+        .from('patients')
+        .select('id, first_name, last_name, date_of_birth, phone, email, nhi, pharmacy_name, pharmacy_id, gp_name, gp_clinic, gp_email, medical_history, current_medications, allergies, preferred_language, acc_employer, research_consent, total_consultations, last_consultation_at')
+        .ilike('first_name', String(first_name).trim())
+        .ilike('last_name', String(last_name).trim())
+        .eq('date_of_birth', date_of_birth)
+        .maybeSingle()
+      return res.status(200).json({ patient: data || null })
+    }
+
+    // Anon patient triage create — narrow column allowlist prevents tampering
+    // with provider-only fields like risk_score, do_not_prescribe_list, etc.
+    if (action === 'create') {
+      const patch = projectAnonPatch(req.body)
+      if (!patch.first_name || !patch.last_name || !patch.date_of_birth) {
+        return res.status(400).json({ error: 'first_name, last_name, date_of_birth required' })
+      }
+      const { data, error } = await supabase
+        .from('patients')
+        .insert(patch)
+        .select()
+        .single()
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ patient: data })
+    }
+
     const { primaryId, secondaryId } = req.body || {}
 
     if (action === 'merge') {
@@ -89,7 +171,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, primaryId, mergedFrom: secondaryId, total })
     }
 
-    return res.status(400).json({ error: 'Unknown POST action (supported: merge)' })
+    return res.status(400).json({ error: 'Unknown POST action (supported: merge, create, lookup)' })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

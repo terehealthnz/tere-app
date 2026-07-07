@@ -164,16 +164,13 @@ function TodayAppointments() {
     async function load() {
       try {
         const pid = sessionStorage.getItem('providerId')
-        const { supabase, getTodaysAppointments } = await import('../../lib/supabase')
-        const today = new Date().toISOString().slice(0, 10)
-        let bq = supabase.from('bookings').select('*').eq('appointment_date', today).not('status', 'eq', 'cancelled').order('appointment_time').limit(10)
-        if (pid) bq = bq.eq('provider_id', pid)
+        const { getTodaysAppointments, getTodaysBookings } = await import('../../lib/supabase')
         const [ar, br] = await Promise.allSettled([
           getTodaysAppointments(pid),
-          bq,
+          getTodaysBookings(pid),
         ])
         const apptData = ar.value || []
-        const bookData = br.value?.data || []
+        const bookData = br.value || []
         const merged = [
           ...apptData.map(a => ({ id: a.id, time: a.slot_time, name: a.patient_name, label: a.reason || 'General' })),
           ...bookData.map(b => ({ id: b.id, time: b.appointment_time, name: b.patient_name, label: (b.reason || 'General') + ' 📅', isBooked: true })),
@@ -700,23 +697,21 @@ function PMSTab({ navigate }) {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
+      const { getAccClaims, getRecentPrescriptionsList } = await import('../../lib/supabase')
       const nzNow      = new Date(new Date().toLocaleString('en-US', { timeZone:'Pacific/Auckland' }))
       const todayStart = new Date(nzNow.getFullYear(), nzNow.getMonth(), nzNow.getDate()).toISOString()
 
-      // acc_claims + prescriptions detail-list stay direct (own follow-up); the
-      // three consultations queries now go through /api/consultations filters.
       const [todayRes, claimsRes, rxRes, pendingRes, completedRes] = await Promise.allSettled([
         getCompleteSince(todayStart),
-        supabase.from('acc_claims').select('*').order('created_at',{ascending:false}).limit(50),
-        supabase.from('prescriptions').select('id,drug_name,drug,dose,directions,delivery_status,created_at,patient_name,nzeps_token,consultation_id').order('created_at',{ascending:false}).limit(30),
+        getAccClaims({ limit: 50 }),
+        getRecentPrescriptionsList(30),
         getPendingNotes(),
         getCompletedNotes(),
       ])
 
-      const today     = todayRes.status   === 'fulfilled' ? (todayRes.value           || []) : []
-      const claims    = claimsRes.status  === 'fulfilled' ? (claimsRes.value.data     || []) : []
-      const rx        = rxRes.status      === 'fulfilled' ? (rxRes.value.data         || []) : []
+      const today     = todayRes.status   === 'fulfilled' ? (todayRes.value  || []) : []
+      const claims    = claimsRes.status  === 'fulfilled' ? (claimsRes.value || []) : []
+      const rx        = rxRes.status      === 'fulfilled' ? (rxRes.value     || []) : []
 
       const claimsByStatus = claims.reduce((m,c) => { m[c.status]=(m[c.status]||0)+1; return m }, {})
       const outstandingCents = claims.filter(c=>['submitted','invoiced'].includes(c.status)).reduce((s,c)=>s+(c.amount_claimed||0),0)

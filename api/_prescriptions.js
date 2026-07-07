@@ -58,6 +58,38 @@ export default async function handler(req, res) {
     return res.status(200).json({ prescriptions: data || [] })
   }
 
+  // Recent prescriptions since <iso> — Admin.jsx "Recent prescriptions" panel.
+  if (filter === 'recent') {
+    const { since } = req.query
+    const cols = columns
+      ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
+      : '*'
+    const sinceIso = since || new Date(Date.now() - 30 * 86400000).toISOString()
+    const { data, error } = await supabase
+      .from('prescriptions')
+      .select(cols)
+      .gte('created_at', sinceIso)
+      .order('created_at', { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ prescriptions: data || [] })
+  }
+
+  // Recent list capped at limit — ProviderApp.jsx analytics panel.
+  if (filter === 'recent_list') {
+    const { limit: rawLimit } = req.query
+    const cols = columns
+      ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
+      : 'id, drug_name, drug, dose, directions, delivery_status, created_at, patient_name, nzeps_token, consultation_id'
+    const lim = Math.max(1, Math.min(200, parseInt(rawLimit) || 30))
+    const { data, error } = await supabase
+      .from('prescriptions')
+      .select(cols)
+      .order('created_at', { ascending: false })
+      .limit(lim)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ prescriptions: data || [] })
+  }
+
   if (consultationId) {
     const { data, error } = await supabase
       .from('prescriptions')

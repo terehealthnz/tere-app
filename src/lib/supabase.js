@@ -446,32 +446,45 @@ export function subscribeToChatMessages(consultationId, callback) {
 // ── Patient profile helpers ──────────────────────────────────────────────────
 
 export async function findPatient(firstName, lastName, dob) {
-  const { data } = await supabase
-    .from('patients')
-    .select('*')
-    .ilike('first_name', firstName.trim())
-    .ilike('last_name', lastName.trim())
-    .eq('date_of_birth', dob)
-    .maybeSingle()
-  return data || null
+  const res = await apiFetch('/api/patients?action=lookup', {
+    method: 'POST',
+    body: JSON.stringify({
+      first_name: (firstName || '').trim(),
+      last_name:  (lastName || '').trim(),
+      date_of_birth: dob,
+    }),
+  })
+  if (!res.ok) return null
+  const { patient } = await res.json()
+  return patient || null
 }
 
 export async function createPatient(data) {
-  const { data: patient, error } = await supabase
-    .from('patients')
-    .insert(data)
-    .select()
-    .single()
-  if (error) throw error
+  const res = await apiFetch('/api/patients?action=create', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `createPatient HTTP ${res.status}`)
+  }
+  const { patient } = await res.json()
   return patient
 }
 
 export async function updatePatient(patientId, updates) {
-  const { error } = await supabase
-    .from('patients')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', patientId)
-  if (error) throw error
+  // Patient anon flow (AITriage) and provider flow (AdminPatients) both use
+  // this. anon=1 marker lets the anon triage path through server-side; the
+  // provider flow attaches x-provider-id automatically via apiFetch.
+  const anonMarker = typeof window !== 'undefined' && !sessionStorage.getItem('providerId') ? '&anon=1' : ''
+  const res = await apiFetch(`/api/patients?id=${encodeURIComponent(patientId)}${anonMarker}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updatePatient HTTP ${res.status}`)
+  }
 }
 
 export async function getPatients({ search = '', limit = 50, offset = 0 } = {}) {
@@ -661,6 +674,66 @@ export async function getReservationCount(sinceIso = null) {
   if (!res.ok) return 0
   const { count } = await res.json()
   return count || 0
+}
+
+// ── Prescriptions (recent list helpers) ──────────────────────────────────────
+
+export async function getRecentPrescriptions(sinceIso, columns = null) {
+  const params = new URLSearchParams({ filter: 'recent' })
+  if (sinceIso) params.set('since', sinceIso)
+  if (columns) params.set('columns', columns)
+  const res = await apiFetch(`/api/prescriptions?${params.toString()}`)
+  if (!res.ok) return []
+  const { prescriptions } = await res.json()
+  return prescriptions || []
+}
+
+export async function getRecentPrescriptionsList(limit = 30, columns = null) {
+  const params = new URLSearchParams({ filter: 'recent_list', limit: String(limit) })
+  if (columns) params.set('columns', columns)
+  const res = await apiFetch(`/api/prescriptions?${params.toString()}`)
+  if (!res.ok) return []
+  const { prescriptions } = await res.json()
+  return prescriptions || []
+}
+
+// ── ACC claims ───────────────────────────────────────────────────────────────
+
+export async function getAccClaims({ limit = 50, provider_id, status } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (provider_id) params.set('provider_id', provider_id)
+  if (status) params.set('status', status)
+  const res = await apiFetch(`/api/acc-claims?${params.toString()}`)
+  if (!res.ok) return []
+  const { claims } = await res.json()
+  return claims || []
+}
+
+// ── Bookings ─────────────────────────────────────────────────────────────────
+
+export async function getTodaysBookings(providerId = null) {
+  const qs = providerId ? `?action=today&provider_id=${encodeURIComponent(providerId)}` : '?action=today'
+  const res = await apiFetch(`/api/bookings${qs}`)
+  if (!res.ok) return []
+  const { bookings } = await res.json()
+  return bookings || []
+}
+
+// ── SpO2 calibrations ────────────────────────────────────────────────────────
+
+export async function getLatestSpo2Calibration() {
+  const res = await apiFetch('/api/spo2-calibrations')
+  if (!res.ok) return null
+  const { calibration } = await res.json()
+  return calibration || null
+}
+
+export async function saveSpo2Calibration({ slope, intercept, n, rmse }) {
+  const res = await apiFetch('/api/spo2-calibrations', {
+    method: 'POST',
+    body: JSON.stringify({ slope, intercept, n, rmse: rmse ?? null }),
+  })
+  return res.ok
 }
 
 // ── Job listings ─────────────────────────────────────────────────────────────
