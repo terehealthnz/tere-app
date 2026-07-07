@@ -83,10 +83,200 @@ function AdminNavMenu({ navigate }) {
   )
 }
 
+// AddProviderModal — full onboarding form for a new clinician / admin user.
+// Posts to /api/providers with admin auth. Returns a plain initial PIN which
+// the parent surfaces via a green banner. Auto-generates 6-digit PIN if empty.
+const COLOR_SWATCHES = ['#0B6E76','#7C3AED','#DC2626','#059669','#D97706','#0EA5E9','#EC4899','#0D2B45']
+
+function AddProviderModal({ onClose, onCreated, prefill = {} }) {
+  const [form, setForm] = React.useState({
+    first_name: prefill.first_name || '',
+    last_name:  prefill.last_name || '',
+    email:      prefill.email || '',
+    credential: prefill.credential || 'Dr',
+    specialty:  prefill.specialty || '',
+    color:      prefill.color || '#0B6E76',
+    is_provider: true,
+    is_admin: false,
+    is_supervisor: false,
+    can_prescribe: true,
+    can_refer: true,
+    can_acc: true,
+    prescriber_number: '',
+    cpn: '',
+    hpi_number: '',
+    acc_provider_number: '',
+    pin: '',
+  })
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState(null)
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function submit(e) {
+    e?.preventDefault()
+    setError(null)
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+      setError('First name, last name, and email are required')
+      return
+    }
+    if (form.pin && !/^\d{4,8}$/.test(form.pin)) {
+      setError('PIN must be 4–8 digits, or leave blank to auto-generate')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const res = await apiFetch('/api/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to create provider')
+      onCreated(data)
+    } catch (e) {
+      setError(e.message)
+      setSubmitting(false)
+    }
+  }
+
+  const inputStyle = { width:'100%', padding:'8px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif' }
+  const labelStyle = { fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:'.04em' }
+  const checkboxStyle = { display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', border:'1px solid #E2E8F0', borderRadius:6, background:'#F8FAFC' }
+  const groupStyle = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }
+  const sectionStyle = { padding:'1rem 1.25rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, marginBottom:'.75rem' }
+  const sectionTitle = { fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem', textTransform:'uppercase', letterSpacing:'.04em' }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,0.6)', zIndex:1000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'40px 20px', overflowY:'auto' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:14, width:'100%', maxWidth:640, boxShadow:'0 20px 60px rgba(0,0,0,.3)', maxHeight:'calc(100vh - 80px)', display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'1.25rem 1.5rem', borderBottom:'1px solid #E2E8F0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:'1.125rem', fontWeight:800, color:'#0D2B45' }}>Add provider</div>
+            <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>Onboard a new clinician or admin user</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'1.5rem', cursor:'pointer', color:'#6B7280', lineHeight:1 }}>×</button>
+        </div>
+
+        <form onSubmit={submit} style={{ padding:'1.25rem 1.5rem', overflowY:'auto', flex:1 }}>
+          {error && (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#991B1B', padding:'.625rem .875rem', borderRadius:8, fontSize:'.8125rem', marginBottom:'1rem' }}>{error}</div>
+          )}
+
+          {/* Identity */}
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Identity</div>
+            <div style={groupStyle}>
+              <div>
+                <div style={labelStyle}>First name *</div>
+                <input value={form.first_name} onChange={e => set('first_name', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Last name *</div>
+                <input value={form.last_name} onChange={e => set('last_name', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Email *</div>
+                <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Credential</div>
+                <select value={form.credential} onChange={e => set('credential', e.target.value)} style={inputStyle}>
+                  <option value="Dr">Dr</option>
+                  <option value="RN">RN</option>
+                  <option value="NP">NP</option>
+                  <option value="Nurse">Nurse</option>
+                  <option value="Paramedic">Paramedic</option>
+                  <option value="Ms">Ms</option>
+                  <option value="Mr">Mr</option>
+                  <option value="">(none)</option>
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Specialty</div>
+                <input value={form.specialty} onChange={e => set('specialty', e.target.value)} placeholder="e.g. Emergency Medicine" style={inputStyle} />
+              </div>
+              <div>
+                <div style={labelStyle}>Colour</div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {COLOR_SWATCHES.map(c => (
+                    <button key={c} type="button" onClick={() => set('color', c)}
+                      style={{ width:26, height:26, borderRadius:'50%', background:c, border: form.color === c ? '2px solid #0D2B45' : '2px solid transparent', cursor:'pointer', padding:0 }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Roles */}
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Roles</div>
+            <div style={groupStyle}>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
+            </div>
+          </div>
+
+          {/* Capabilities */}
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Clinical capabilities</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'.75rem' }}>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+              </div>
+              <div style={groupStyle}>
+                <div>
+                  <div style={labelStyle}>MCNZ prescriber number</div>
+                  <input value={form.prescriber_number} onChange={e => set('prescriber_number', e.target.value)} style={inputStyle} placeholder="e.g. 12345" />
+                </div>
+                <div>
+                  <div style={labelStyle}>HPI-CPN</div>
+                  <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} placeholder="Common Person Number" />
+                </div>
+                <div>
+                  <div style={labelStyle}>HPI number</div>
+                  <input value={form.hpi_number} onChange={e => set('hpi_number', e.target.value)} style={inputStyle} placeholder="Provider HPI" />
+                </div>
+                <div>
+                  <div style={labelStyle}>ACC provider number</div>
+                  <input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} placeholder="ACC vendor" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PIN */}
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Login PIN</div>
+            <div>
+              <div style={labelStyle}>Initial PIN (4–8 digits) — leave blank to auto-generate</div>
+              <input value={form.pin} onChange={e => set('pin', e.target.value.replace(/[^0-9]/g,'').slice(0,8))} style={{ ...inputStyle, fontFamily:'monospace', fontSize:'1rem', letterSpacing:'.1em' }} placeholder="Leave blank to auto-generate" />
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:6 }}>Provider will be forced to change this PIN on first login.</div>
+            </div>
+          </div>
+        </form>
+
+        <div style={{ padding:'1rem 1.5rem', borderTop:'1px solid #E2E8F0', display:'flex', justifyContent:'flex-end', gap:'.5rem', background:'#F8FAFC' }}>
+          <button onClick={onClose} type="button" disabled={submitting} style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'8px 18px', borderRadius:6, cursor:'pointer', fontSize:'.875rem', fontWeight:600 }}>Cancel</button>
+          <button onClick={submit} disabled={submitting} style={{ background:'#0B6E76', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: submitting ? 'wait' : 'pointer', fontSize:'.875rem', fontWeight:700, opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? 'Creating…' : 'Create provider'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(null)
+  const [addOpen, setAddOpen] = React.useState(false)
+  const [createdNotice, setCreatedNotice] = React.useState(null)
 
   async function load() {
     try {
@@ -121,8 +311,31 @@ function ProvidersPanel() {
           <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Providers</div>
           <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Manage clinician availability and access</div>
         </div>
-        <button onClick={load} style={{ background:'#F0F9FA', border:'none', color:'#0B6E76', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>↻ Refresh</button>
+        <div style={{ display:'flex', gap:'.5rem' }}>
+          <button onClick={() => setAddOpen(true)} style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700 }}>+ Add provider</button>
+          <button onClick={load} style={{ background:'#F0F9FA', border:'none', color:'#0B6E76', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>↻ Refresh</button>
+        </div>
       </div>
+      {createdNotice && (
+        <div style={{ background:'#F0FDF4', border:'1px solid #86EFAC', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem', fontSize:'.875rem' }}>
+          <div style={{ color:'#065F46', fontWeight:700, marginBottom:4 }}>✓ Provider created: {createdNotice.provider.first_name} {createdNotice.provider.last_name}</div>
+          <div style={{ color:'#065F46' }}>
+            Initial PIN: <code style={{ background:'white', padding:'2px 8px', borderRadius:4, fontSize:'1rem', fontWeight:700, letterSpacing:'.15em' }}>{createdNotice.initialPin}</code>
+            &nbsp;— share with them securely. They'll be prompted to change it on first login.
+          </div>
+          <button onClick={() => setCreatedNotice(null)} style={{ marginTop:8, background:'none', border:'none', color:'#0B6E76', cursor:'pointer', fontSize:'.8125rem', fontWeight:600, padding:0 }}>Dismiss</button>
+        </div>
+      )}
+      {addOpen && (
+        <AddProviderModal
+          onClose={() => setAddOpen(false)}
+          onCreated={(payload) => {
+            setAddOpen(false)
+            setCreatedNotice(payload)
+            load()
+          }}
+        />
+      )}
       {loading ? (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
       ) : providers.length === 0 ? (

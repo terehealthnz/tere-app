@@ -1,14 +1,16 @@
-// GET/PATCH /api/providers — provider-side reads and admin updates on the
-// providers table. Runs with service_role, requires an authenticated provider
-// (guardProvider). Login flow uses the separate /api/provider-auth endpoint —
-// this one is for staff-facing management.
+// GET/POST/PATCH /api/providers — provider-side reads and admin updates on
+// the providers table. Runs with service_role, requires an authenticated
+// provider (guardProvider). Login flow uses the separate /api/provider-auth
+// endpoint — this one is for staff-facing management.
 //
 // GET   /api/providers                        → active providers, ordered by first_name
 // GET   /api/providers?filter=active-full     → wider column projection
 // GET   /api/providers?id=<uuid>&columns=…    → single row, optional column projection
+// POST  /api/providers                        → admin-only create new provider + hash PIN
 // PATCH /api/providers?id=<uuid>              → admin-only update, column allowlist
 
 import { createClient } from '@supabase/supabase-js'
+import bcrypt from 'bcryptjs'
 import { guardProvider } from './_auth.js'
 
 function admin() {
@@ -66,6 +68,74 @@ export default async function handler(req, res) {
       .order('first_name')
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ providers: data || [] })
+  }
+
+  if (req.method === 'POST') {
+    if (!auth.provider?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to create providers' })
+    }
+    const raw = req.body || {}
+
+    // Required identity fields
+    const first_name = String(raw.first_name || '').trim()
+    const last_name  = String(raw.last_name  || '').trim()
+    const email      = String(raw.email      || '').trim().toLowerCase()
+    if (!first_name || !last_name || !email) {
+      return res.status(400).json({ error: 'first_name, last_name, email are required' })
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'email format invalid' })
+    }
+
+    // Email uniqueness — check case-insensitively
+    const { data: dupe } = await supabase
+      .from('providers').select('id').ilike('email', email).maybeSingle()
+    if (dupe) return res.status(409).json({ error: `A provider with email ${email} already exists` })
+
+    // PIN — 4-8 digits. Auto-generate a 6-digit PIN if not supplied.
+    const rawPin = raw.pin != null ? String(raw.pin) : ''
+    const pin = rawPin.trim()
+    let finalPin = pin
+    if (!finalPin) {
+      finalPin = String(Math.floor(100000 + Math.random() * 900000))
+    }
+    if (!/^\d{4,8}$/.test(finalPin)) {
+      return res.status(400).json({ error: 'PIN must be 4–8 digits' })
+    }
+    const pin_hash = await bcrypt.hash(finalPin, 10)
+
+    // Build row using column allowlist. is_provider defaults true; is_active true.
+    const CREATE_ALLOWLIST = new Set([
+      'first_name', 'last_name', 'email', 'credential', 'specialty', 'color',
+      'is_active', 'is_admin', 'is_provider', 'is_supervisor',
+      'can_prescribe', 'can_refer', 'can_acc',
+      'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
+      'provider_type', 'availability_message',
+    ])
+    const row = { first_name, last_name, email, pin_hash, must_change_password: true }
+    for (const [k, v] of Object.entries(raw)) {
+      if (CREATE_ALLOWLIST.has(k) && !['first_name', 'last_name', 'email'].includes(k)) {
+        row[k] = v
+      }
+    }
+    if (row.is_active === undefined)   row.is_active = true
+    if (row.is_provider === undefined) row.is_provider = true
+
+    const { data: created, error } = await supabase
+      .from('providers')
+      .insert(row)
+      .select('id, first_name, last_name, email, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+
+    // Return the plain PIN so admin can share it with the new provider on first
+    // login. The provider will be forced to change it on next login
+    // (must_change_password=true). PIN is never returned again after this call.
+    return res.status(201).json({
+      provider: created,
+      initialPin: finalPin,
+      note: 'Initial PIN. Share securely with the new provider. They will be prompted to change it on first login.',
+    })
   }
 
   if (req.method === 'PATCH') {
