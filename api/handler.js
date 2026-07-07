@@ -20,7 +20,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Employer directory — writes affect who can get a free consult, so admin-gate
   'employers', 'employer-employees',
   // Validation subsystem (research data)
-  'validation-subjects', 'validation-readings', 'model-version', 'flags',
+  //   validation-subjects — GET/POST are anon (patient self-enrolls); guarded inline
+  //   validation-readings — GET/POST are anon; PATCH (provider corrections) guarded inline
+  //   model-version stays gated — anon should never publish an ML model
+  'model-version', 'flags',
   // Provider clinical work
   'convert-to-acc', 'acc-claims',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',

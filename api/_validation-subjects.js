@@ -1,13 +1,14 @@
 // GET/POST /api/validation-subjects — server-side gateway that replaces direct
-// Supabase reads/writes on validation_subjects. Requires an authenticated
-// provider (Supabase JWT via Authorization header). Runs with service_role
-// so the anon SELECT policy on validation_subjects can be dropped.
+// Supabase reads/writes on validation_subjects. Runs with service_role so anon
+// policies on the table can be dropped.
 //
 // GET  → list of subjects enriched with { last_scan_at, reading_count }
 // POST → creates a subject from the shape used by saveValidationSubject()
+//
+// Anon-accessible (patient self-enrolment). The narrow POST allowlist prevents
+// scrapers from setting fields the client doesn't collect.
 
 import { createClient } from '@supabase/supabase-js'
-import { guardProvider } from './_auth.js'
 
 function admin() {
   return createClient(
@@ -18,9 +19,6 @@ function admin() {
 }
 
 export default async function handler(req, res) {
-  const auth = await guardProvider(req, res)
-  if (!auth) return
-
   const supabase = admin()
 
   if (req.method === 'GET') {

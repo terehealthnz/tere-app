@@ -26,8 +26,14 @@ function admin() {
 }
 
 export default async function handler(req, res) {
-  const auth = await guardProvider(req, res)
-  if (!auth) return
+  // PATCH updates provider-corrected fields (tere_spo2, tere_hr, tere_rr,
+  // hr_quality). Anon must not be able to rewrite already-corrected readings,
+  // so we gate PATCH inline. GET and POST are anon-accessible for patient
+  // self-service scans.
+  if (req.method === 'PATCH') {
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+  }
 
   const supabase = admin()
 
