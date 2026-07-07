@@ -294,7 +294,16 @@ export default function VitalsValidate() {
   }, [])
 
   useEffect(() => {
-    if (phase === 'step2') { startCamera(); return stopCamera }
+    if (phase === 'step2') {
+      startCamera()
+      // Kick off the FaceLandmarker download in the background while the user
+      // reads the "Ready to scan?" prompt / gets into position. On first load
+      // this pulls ~5 MB (WASM + face_landmarker.task). Once cached it's
+      // instant. Swallowing errors — the preview effect below retries, and
+      // startScan has its own timeout wrapper as a final safety net.
+      loadFaceMesh().catch(() => {})
+      return stopCamera
+    }
   }, [phase])
 
   // Preview face tracking — runs while camera is on but scan hasn't started.
@@ -349,10 +358,13 @@ export default function VitalsValidate() {
     ])
     try {
       // Parallelise face detector init with camera inspection — on mobile the
-      // FaceLandmarker model download + WASM init easily costs 2–4s and there's
-      // no reason to make inspectDevice wait for it.
+      // FaceLandmarker model + WASM download can genuinely take 20–30s on 4G
+      // for the first scan of the session (subsequent scans hit the cache and
+      // are instant), so the timeout has to be generous. loadFaceMesh is also
+      // kicked off in the step2 useEffect so it's usually well warmed up by
+      // the time the user clicks Start scan.
       const [, info] = await Promise.all([
-        withTimeout(loadFaceMesh(),                 15000, 'Face detector load'),
+        withTimeout(loadFaceMesh(),                 45000, 'Face detector load'),
         withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection'),
       ])
       setDeviceInfo(info)
