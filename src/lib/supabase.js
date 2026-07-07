@@ -181,6 +181,15 @@ export async function patientUpdateConsultation(consultationId, patch) {
   return consultation
 }
 
+// Public GET returning a limited safe projection of the patient's own consult
+// by id. Used by Rate.jsx and AITriage.jsx's pre_triage lookup.
+export async function patientGetConsultation(consultationId) {
+  const res = await apiFetch(`/api/patient-consult?id=${encodeURIComponent(consultationId)}`)
+  if (!res.ok) return null
+  const { consultation } = await res.json()
+  return consultation || null
+}
+
 // Server-side delete restricted to rows still in status='pre_triage' — used by
 // AITriage cleanup after promoting a pre-triage row to a full triage consult.
 export async function patientDeletePreTriage(consultationId) {
@@ -278,6 +287,32 @@ export async function getAccConvertedFlagged(columns = null, limit = 20) {
 export async function getResearchConsentedConsults(columns = null) {
   const params = columns ? { columns } : {}
   return consultsFilter('research_consented', params)
+}
+export async function getRecentConsultations(limit = 100, columns = null) {
+  const params = { limit: String(limit) }
+  if (columns) params.columns = columns
+  return consultsFilter('recent', params)
+}
+export async function getPaymentPendingConsultations(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('payment_pending', params)
+}
+export async function getRatedConsultations(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('rated', params)
+}
+export async function getRecallPendingConsultations(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('recall_pending', params)
+}
+export async function getAllCompleteConsultations(limit = 200, columns = null) {
+  const params = { limit: String(limit) }
+  if (columns) params.columns = columns
+  return consultsFilter('all_complete', params)
+}
+export async function getMessagePendingConsultations(columns = null) {
+  const params = columns ? { columns } : {}
+  return consultsFilter('message_pending', params)
 }
 export async function getProviderPeriodConsults({ providerId, start, end, columns } = {}) {
   const params = {}

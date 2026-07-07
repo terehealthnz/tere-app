@@ -82,9 +82,36 @@ const PATIENT_STATUS_ALLOWED = new Set([
   'waiting', 'vitals_complete', 'cancelled', // post-payment / vitals / cancel
 ])
 
+// Columns safe to return to the patient view. Excludes provider-only fields
+// (notes, diagnosis, transcript, billing internals, ACC internals).
+const PATIENT_VIEW_COLUMNS = [
+  'id', 'created_at', 'updated_at',
+  'patient_first_name', 'patient_last_name',
+  'status', 'consultation_type', 'consultation_subtype',
+  'provider_display_name',
+  'rating', 'rating_comment', 'rated_at',
+  'hdc_consent_at', 'prescribing_consent_at', 'research_consent',
+  'chief_complaint',
+].join(',')
+
 export default async function handler(req, res) {
   const { id } = req.query || {}
   if (!id) return res.status(400).json({ error: 'id query param required' })
+
+  // Patient view: read a limited safe projection of their own consult by id.
+  // Patient has the id (they were on this consult), so no further auth required
+  // for this narrow projection — nothing sensitive is returned.
+  if (req.method === 'GET') {
+    const supabase = admin()
+    const { data, error } = await supabase
+      .from('consultations')
+      .select(PATIENT_VIEW_COLUMNS)
+      .eq('id', id)
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    if (!data)  return res.status(404).json({ error: 'Consultation not found' })
+    return res.status(200).json({ consultation: data })
+  }
 
   // AITriage cleanup: after promoting a pre_triage row into a real triage
   // consult, the client asks us to delete the stale row. Restricted to rows

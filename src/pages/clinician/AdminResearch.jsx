@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { getResearchConsentedConsults } from '../../lib/supabase'
 
 // ── Privacy guard ─────────────────────────────────────────────────────────────
 const PII_FIELDS = [
@@ -95,30 +96,25 @@ export default function AdminResearch({ embedded = false }) {
     async function load() {
       try {
         const { supabase } = await import('../../lib/supabase')
-        const [{ data: consultRows }, { data: consentRows }] = await Promise.all([
-          supabase
-            .from('consultations')
-            .select([
-              'id','created_at','patient_age_band','patient_dob','patient_location',
-              'patient_employment_sector','acc_eligible','consultation_type',
-              'chief_complaint','complaint_category','work_capacity',
-              'prescription_issued','prescription_drug_class','referral_issued',
-              'referral_type','icd10_code','acc_read_code','consultation_month',
-              'consultation_duration_seconds','device_type','language_selected',
-              'vitals_completed','tere_scribe_used','research_consent',
-              'status','notes_finalised_at',
-            ].join(','))
-            .eq('research_consent', true)
-            .eq('status', 'complete')
-            .order('created_at', { ascending: false })
-            .limit(500),
+        const [consultRows, { data: consentRows }] = await Promise.all([
+          getResearchConsentedConsults([
+            'id','created_at','patient_age_band','patient_dob','patient_location',
+            'patient_employment_sector','acc_eligible','consultation_type',
+            'chief_complaint','complaint_category','work_capacity',
+            'prescription_issued','prescription_drug_class','referral_issued',
+            'referral_type','icd10_code','acc_read_code','consultation_month',
+            'consultation_duration_seconds','device_type','language_selected',
+            'vitals_completed','tere_scribe_used','research_consent',
+            'status','notes_finalised_at',
+          ].join(',')),
+          // consents table stays direct — separate follow-up task
           supabase
             .from('consents')
             .select('id,consultation_id,consent_type,granted,created_at')
             .order('created_at', { ascending: false })
             .limit(500),
         ])
-        setRows(consultRows || [])
+        setRows((consultRows || []).slice(0, 500))
         setConsents(consentRows || [])
       } catch (e) {
         console.error('[AdminResearch] load error:', e)

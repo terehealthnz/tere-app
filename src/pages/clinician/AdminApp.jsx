@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getCompleteSince } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
@@ -259,15 +259,12 @@ function AnalyticsTab() {
     async function load() {
       setLoading(true)
       try {
-        const { supabase } = await import('../../lib/supabase')
         const since = new Date()
         since.setDate(since.getDate() - range)
-        const { data: rows } = await supabase
-          .from('consultations')
-          .select('created_at,started_at,consultation_duration_seconds,payment_amount,acc_eligible,consultation_subtype')
-          .gte('created_at', since.toISOString())
-          .eq('status','complete')
-          .order('created_at', { ascending:true })
+        const rows = await getCompleteSince(
+          since.toISOString(),
+          'created_at,started_at,consultation_duration_seconds,payment_amount,acc_eligible,consultation_subtype',
+        )
         setData(rows || [])
       } catch {}
       setLoading(false)

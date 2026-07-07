@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getRecentConsultations, getPaymentPendingConsultations, getRatedConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -200,12 +200,7 @@ function ConsultationLog() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('consultations')
-          .select('id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, payment_amount_nzd, acc_eligible, acc_read_code, consultation_duration_seconds')
-          .order('created_at', { ascending: false })
-          .limit(100)
+        const data = await getRecentConsultations(100)
         setRows(data || [])
       } catch(e) { console.error(e) }
       setLoading(false)
@@ -300,16 +295,11 @@ function FailedPayments() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('consultations')
-          .select('id, created_at, patient_first_name, patient_last_name, payment_amount, payment_intent_id, status')
-          .not('payment_intent_id', 'is', null)
-          .neq('status', 'complete')
-          .neq('status', 'waiting')
-          .order('created_at', { ascending: false })
-          .limit(50)
-        setRows(data || [])
+        // Server filter returns payment_pending consults (payment_intent_id !== null
+        // AND status != 'complete'). Client trims 'waiting' + first 50 to match
+        // the historic UI slice.
+        const rows = await getPaymentPendingConsultations()
+        setRows((rows || []).filter(r => r.status !== 'waiting').slice(0, 50))
       } catch(e) { console.error(e) }
       setLoading(false)
     }
@@ -555,14 +545,8 @@ function RatingsPanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('consultations')
-          .select('id, patient_first_name, patient_last_name, provider_display_name, rating, rating_comment, rated_at, created_at')
-          .not('rating', 'is', null)
-          .order('rated_at', { ascending: false })
-          .limit(100)
-        setRows(data || [])
+        const rows = await getRatedConsultations()
+        setRows((rows || []).slice(0, 100))
       } catch { setRows([]) }
       setLoading(false)
     }
@@ -655,15 +639,12 @@ function AnalyticsPanel() {
     async function load() {
       setLoading(true)
       try {
-        const { supabase } = await import('../../lib/supabase')
         const since = new Date()
         since.setDate(since.getDate() - range)
-        const { data: rows } = await supabase
-          .from('consultations')
-          .select('created_at, started_at, completed_at, consultation_duration_seconds, payment_amount, is_acc, acc_eligible, status, payment_intent_id')
-          .gte('created_at', since.toISOString())
-          .eq('status', 'complete')
-          .order('created_at', { ascending: true })
+        const rows = await getCompleteSince(
+          since.toISOString(),
+          'created_at, started_at, completed_at, consultation_duration_seconds, payment_amount, is_acc, acc_eligible, status, payment_intent_id',
+        )
         setData(rows || [])
       } catch(e) { console.error(e) }
       setLoading(false)
@@ -786,13 +767,7 @@ function FlaggedNotes() {
 
   async function load() {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data, error: err } = await supabase
-        .from('consultations')
-        .select('id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible, notes_flagged, notes_finalised_at, clinical_notes, outcome')
-        .eq('notes_flagged', true)
-        .order('created_at', { ascending: false })
-      if (err) throw err
+      const data = await getFlaggedNotes('id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible, notes_flagged, notes_finalised_at, clinical_notes, outcome')
       setRows(data || [])
     } catch { setError(true) }
     setLoading(false)
@@ -1171,13 +1146,8 @@ function EmployersPanel() {
 
   async function downloadReport(emp) {
     try {
-      const { supabase } = await import('../../lib/supabase')
       const since = new Date(); since.setDate(1); since.setHours(0,0,0,0)
-      const { data: consults } = await supabase
-        .from('consultations')
-        .select('patient_first_name, patient_last_name, created_at, consultation_type, billing_code')
-        .eq('employer_id', emp.id)
-        .gte('created_at', since.toISOString())
+      const consults = await getConsultsByEmployer(emp.id, since.toISOString())
       if (!consults?.length) { alert('No consultations this month for this employer'); return }
       const header = 'Patient,Date,Type,Code\n'
       const rows = consults.map(c => `"${c.patient_first_name} ${c.patient_last_name}","${new Date(c.created_at).toLocaleDateString('en-NZ')}","${c.consultation_type||''}","${c.billing_code||''}"`)
@@ -1349,15 +1319,8 @@ function RecallsPanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('consultations')
-          .select('id, patient_first_name, patient_last_name, patient_phone, chief_complaint, recall_date, recall_note, recall_completed')
-          .not('recall_date', 'is', null)
-          .eq('recall_completed', false)
-          .order('recall_date')
-          .limit(50)
-        setRows(data || [])
+        const rows = await getRecallPendingConsultations()
+        setRows((rows || []).slice(0, 50))
       } catch { setRows([]) }
       setLoading(false)
     }
@@ -1423,19 +1386,15 @@ function RevenuePanel() {
         const { supabase } = await import('../../lib/supabase')
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
         const [consultResult, reservationResult] = await Promise.allSettled([
-          supabase
-            .from('consultations')
-            .select('created_at, payment_amount_nzd, payment_amount, acc_eligible, status')
-            .gte('created_at', thirtyDaysAgo)
-            .eq('status', 'complete')
-            .order('created_at', { ascending: false }),
+          getCompleteSince(thirtyDaysAgo, 'created_at, payment_amount_nzd, payment_amount, acc_eligible, status'),
+          // appointments read stays direct (own follow-up task)
           supabase
             .from('appointments')
             .select('id', { count: 'exact', head: true })
             .gte('created_at', thirtyDaysAgo)
             .not('reservation_payment_intent_id', 'is', null),
         ])
-        if (consultResult.status === 'fulfilled') setRows(consultResult.value.data || [])
+        if (consultResult.status === 'fulfilled') setRows(consultResult.value || [])
         if (reservationResult.status === 'fulfilled') setReservationCount(reservationResult.value.count || 0)
       } catch { setRows([]) }
       setLoading(false)
@@ -1790,13 +1749,11 @@ function ProviderMetricsPanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
-        const { data } = await supabase
-          .from('consultations')
-          .select('provider_display_name, provider_id, status, acc_eligible, payment_amount_nzd, payment_amount, consultation_duration_seconds, notes_finalised, created_at')
-          .gte('created_at', thirtyDaysAgo)
-          .eq('status', 'complete')
+        const data = await getCompleteSince(
+          thirtyDaysAgo,
+          'provider_display_name, provider_id, status, acc_eligible, payment_amount_nzd, payment_amount, consultation_duration_seconds, notes_finalised, created_at',
+        )
         const grouped = {}
         for (const c of data || []) {
           const key = c.provider_display_name || c.provider_id || 'Unknown'

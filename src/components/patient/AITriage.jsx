@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConsultation, patientUpdateConsultation } from '../../lib/supabase'
+import { createConsultation, patientUpdateConsultation, patientGetConsultation } from '../../lib/supabase'
 import { t, t_bilingual, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
@@ -679,12 +679,9 @@ export default function AITriage() {
       const preTriageId = sessionStorage.getItem('consultation_id')
       if (preTriageId && preTriageId !== consultation.id) {
         try {
-          const { supabase: sb, patientUpdateConsultation, patientDeletePreTriage } = await import('../../lib/supabase')
+          const { supabase: sb, patientDeletePreTriage } = await import('../../lib/supabase')
           // Get consent timestamps set during /consent and /prescribing-limits screens
-          const { data: pt } = await sb.from('consultations')
-            .select('hdc_consent_at, prescribing_consent_at, research_consent')
-            .eq('id', preTriageId)
-            .single()
+          const pt = await patientGetConsultation(preTriageId)
           // Move all pre-triage consent records to the real consultation
           await sb.from('consents').update({ consultation_id: consultation.id }).eq('consultation_id', preTriageId)
           // Copy consent timestamps to the real consultation record

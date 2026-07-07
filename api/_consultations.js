@@ -152,6 +152,77 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: data || [] })
     }
 
+    // Recent consults (all statuses) — analytics panel.
+    if (filter === 'recent') {
+      const cols = projection || 'id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, payment_amount_nzd, acc_eligible, acc_read_code, consultation_duration_seconds'
+      const limit = Math.max(1, Math.min(500, parseInt(req.query?.limit) || 100))
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .order('created_at', { ascending: false }).limit(limit)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Consults with a payment_intent but not yet complete — billing follow-up panel.
+    if (filter === 'payment_pending') {
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, payment_amount, payment_intent_id, status'
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .not('payment_intent_id', 'is', null)
+        .neq('status', 'complete')
+        .order('created_at', { ascending: false })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Rated consults — ratings panel.
+    if (filter === 'rated') {
+      const cols = projection || 'id, patient_first_name, patient_last_name, provider_display_name, rating, rating_comment, rated_at, created_at'
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .not('rating', 'is', null)
+        .order('rated_at', { ascending: false })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Recalls waiting for follow-up.
+    if (filter === 'recall_pending') {
+      const cols = projection || 'id, patient_first_name, patient_last_name, patient_phone, chief_complaint, recall_date, recall_note, recall_completed'
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .not('recall_date', 'is', null)
+        .eq('recall_completed', false)
+        .order('recall_date', { ascending: true })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // All complete consults — supervisor review of closed consults.
+    if (filter === 'all_complete') {
+      const cols = projection || 'id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible, notes_flagged, notes_finalised, notes_finalised_at, notes_draft, clinical_notes, outcome, follow_up_days'
+      const limit = Math.max(1, Math.min(500, parseInt(req.query?.limit) || 200))
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
+    // Message-type consults in queue (async workload panel).
+    if (filter === 'message_pending') {
+      const cols = projection || '*'
+      const { data, error } = await supabase
+        .from('consultations').select(cols)
+        .eq('consultation_type', 'message')
+        .in('status', ['waiting', 'in_progress'])
+        .order('created_at', { ascending: true })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
     // Provider's own completed consults in a date range (ProviderEarnings).
     // Non-admin callers can only see their own; admins may pass ?providerId=<uuid>.
     if (filter === 'provider_period') {

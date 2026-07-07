@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAccPendingCount, getPendingPrescriptions, getPendingPrescriptionsCount } from '../../lib/supabase'
+import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAccPendingCount, getPendingPrescriptions, getPendingPrescriptionsCount, getCompleteSince, getAllCompleteConsultations, getMessagePendingConsultations } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
@@ -31,16 +31,9 @@ function statusLabel(status) {
 }
 
 async function getTodaysConsultations() {
-  const { supabase } = await import('../../lib/supabase')
   const today = new Date()
   today.setHours(0,0,0,0)
-  const { data } = await supabase
-    .from('consultations')
-    .select('*')
-    .eq('status', 'complete')
-    .gte('created_at', today.toISOString())
-    .order('created_at', { ascending: false })
-  return data || []
+  return getCompleteSince(today.toISOString(), '*')
 }
 
 function NotesGroup({ title, color, rows, navigate, onFlag }) {
@@ -100,14 +93,7 @@ function NotesTab({ navigate }) {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data, error: err } = await supabase
-        .from('consultations')
-        .select('id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible, notes_flagged, notes_finalised, notes_finalised_at, notes_draft, clinical_notes, outcome, follow_up_days')
-        .eq('status', 'complete')
-        .order('created_at', { ascending: false })
-        .limit(200)
-      if (err) throw err
+      const data = await getAllCompleteConsultations(200)
       setRows(data || [])
       setError(false)
     } catch (e) {
@@ -191,15 +177,10 @@ function MessagesTab() {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data } = await supabase
-        .from('consultations')
-        .select('*')
-        .eq('consultation_type', 'message')
-        .in('status', ['waiting', 'in_progress'])
-        .not('async_symptom_detail', 'is', null)
-        .order('created_at', { ascending: true })
-      setRows(data || [])
+      const rows = await getMessagePendingConsultations()
+      // Client-side filter for async_symptom_detail (small extra restriction on
+      // top of the server's status=message + in {waiting,in_progress}).
+      setRows((rows || []).filter(r => r.async_symptom_detail))
     } catch(e) { console.error(e) }
     setLoading(false)
   }

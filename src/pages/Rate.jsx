@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { patientUpdateConsultation } from '../lib/supabase'
+import { patientUpdateConsultation, patientGetConsultation } from '../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -21,13 +21,8 @@ export default function Rate() {
   useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../lib/supabase')
-        const { data, error } = await supabase
-          .from('consultations')
-          .select('id, patient_first_name, provider_display_name, created_at, rating, rated_at')
-          .eq('id', id)
-          .single()
-        if (error || !data) { setNotFound(true); setLoading(false); return }
+        const data = await patientGetConsultation(id)
+        if (!data) { setNotFound(true); setLoading(false); return }
         setConsult(data)
         if (data.rating) { setAlreadyRated(true); setRating(data.rating) }
       } catch { setNotFound(true) }
