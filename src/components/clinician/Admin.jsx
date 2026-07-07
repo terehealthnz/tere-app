@@ -88,6 +88,129 @@ function AdminNavMenu({ navigate }) {
 // the parent surfaces via a green banner. Auto-generates 6-digit PIN if empty.
 const COLOR_SWATCHES = ['#0B6E76','#7C3AED','#DC2626','#059669','#D97706','#0EA5E9','#EC4899','#0D2B45']
 
+// SignaturePad — canvas the provider draws their signature into during
+// onboarding. Uploads the resulting PNG to Supabase Storage on demand and
+// returns the public URL via the onSaved callback. Uses pointer events so
+// mouse, trackpad, stylus, and touch all work uniformly.
+function SignaturePad({ onSaved, disabled }) {
+  const canvasRef = React.useRef(null)
+  const drawingRef = React.useRef(false)
+  const dirtyRef = React.useRef(false)
+  const [status, setStatus] = React.useState(null) // 'saving' | 'saved' | 'error'
+  const [savedUrl, setSavedUrl] = React.useState(null)
+  const [errorMsg, setErrorMsg] = React.useState(null)
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    // Fill white background so the PNG isn't transparent — PDF renderers
+    // don't always composite transparent PNGs cleanly over the signature line.
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#1A2A33'
+    ctx.lineWidth = 2.5
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+  }, [])
+
+  function pointerPos(e) {
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width)
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height)
+    return { x, y }
+  }
+  function onDown(e) {
+    if (disabled) return
+    e.preventDefault()
+    const { x, y } = pointerPos(e)
+    const ctx = canvasRef.current.getContext('2d')
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+    drawingRef.current = true
+    dirtyRef.current = true
+    if (savedUrl) { setSavedUrl(null); setStatus(null) } // dirty after save
+  }
+  function onMove(e) {
+    if (!drawingRef.current) return
+    e.preventDefault()
+    const { x, y } = pointerPos(e)
+    const ctx = canvasRef.current.getContext('2d')
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+  function onUp() {
+    drawingRef.current = false
+  }
+
+  function clear() {
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = 'white'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.strokeStyle = '#1A2A33'
+    ctx.lineWidth = 2.5
+    dirtyRef.current = false
+    setSavedUrl(null)
+    setStatus(null)
+    setErrorMsg(null)
+    onSaved && onSaved('')
+  }
+
+  async function save() {
+    if (!dirtyRef.current) return
+    setStatus('saving')
+    setErrorMsg(null)
+    try {
+      const canvas = canvasRef.current
+      const blob = await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('canvas.toBlob returned null')), 'image/png'))
+      const { supabase } = await import('../../lib/supabase')
+      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+      const { error: upErr } = await supabase.storage.from('signatures').upload(path, blob, { contentType: 'image/png', cacheControl: '3600', upsert: false })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
+      setSavedUrl(publicUrl)
+      setStatus('saved')
+      onSaved && onSaved(publicUrl)
+    } catch (e) {
+      setStatus('error')
+      setErrorMsg(e.message)
+    }
+  }
+
+  return (
+    <div>
+      <div style={{ position:'relative', border:'2px dashed #E2E8F0', borderRadius:8, background:'white', overflow:'hidden' }}>
+        <canvas
+          ref={canvasRef}
+          width={600}
+          height={200}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onPointerLeave={onUp}
+          style={{ display:'block', width:'100%', height:'160px', cursor: disabled ? 'not-allowed' : 'crosshair', touchAction:'none' }}
+        />
+        <div style={{ position:'absolute', bottom:6, left:8, color:'#9CA3AF', fontSize:'.7rem', pointerEvents:'none' }}>Sign above the line</div>
+      </div>
+      <div style={{ display:'flex', gap:'.5rem', marginTop:'.5rem', alignItems:'center' }}>
+        <button type="button" onClick={clear} disabled={disabled}
+          style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>
+          Clear
+        </button>
+        <button type="button" onClick={save} disabled={disabled || status === 'saving'}
+          style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700, opacity: status === 'saving' ? 0.6 : 1 }}>
+          {status === 'saving' ? 'Saving…' : 'Save signature'}
+        </button>
+        {status === 'saved' && <span style={{ fontSize:'.75rem', color:'#059669', fontWeight:600 }}>✓ Saved</span>}
+        {status === 'error' && <span style={{ fontSize:'.75rem', color:'#DC2626', fontWeight:600 }}>Save failed: {errorMsg}</span>}
+      </div>
+    </div>
+  )
+}
+
 function AddProviderModal({ onClose, onCreated, prefill = {} }) {
   const [form, setForm] = React.useState({
     first_name: prefill.first_name || '',
@@ -121,36 +244,8 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
-  const [uploadingSig, setUploadingSig] = React.useState(false)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
-
-  async function handleSignatureUpload(file) {
-    if (!file) return
-    if (file.size > 2 * 1024 * 1024) { setError('Signature file must be under 2MB'); return }
-    if (!/^image\//.test(file.type)) { setError('Signature must be an image (PNG, JPG, WebP)'); return }
-    setUploadingSig(true)
-    setError(null)
-    try {
-      const { supabase } = await import('../../lib/supabase')
-      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
-      // Use timestamp + random suffix so signatures don't clash across
-      // provider creation attempts and don't leak the provider's identity
-      // through the filename.
-      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
-      const { error: upErr } = await supabase.storage.from('signatures').upload(path, file, {
-        contentType: file.type,
-        cacheControl: '3600',
-        upsert: false,
-      })
-      if (upErr) throw upErr
-      const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
-      set('signature_url', publicUrl)
-    } catch (e) {
-      setError('Signature upload failed: ' + e.message)
-    }
-    setUploadingSig(false)
-  }
 
   async function submit(e) {
     e?.preventDefault()
@@ -295,24 +390,14 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
             </div>
           )}
 
-          {/* Signature */}
+          {/* Signature — drawn during onboarding, uploaded on Save */}
           {form.is_provider && form.can_prescribe && (
             <div style={sectionStyle}>
               <div style={sectionTitle}>Prescriber signature</div>
               <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
-                PNG or JPG of the provider's signature. Rendered on prescription, referral, and medical certificate PDFs. Max 2MB.
+                The provider signs directly here — draw with mouse, trackpad, stylus, or finger (touchscreen). Click <strong>Save signature</strong> when it looks right, then <strong>Clear</strong> and redraw if needed. Rendered on prescription PDFs.
               </div>
-              <input type="file" accept="image/*" disabled={uploadingSig}
-                onChange={e => handleSignatureUpload(e.target.files?.[0])}
-                style={{ width:'100%', padding:'8px', border:'1px dashed #E2E8F0', borderRadius:6, fontSize:'.8125rem', cursor: uploadingSig ? 'wait' : 'pointer' }}
-              />
-              {uploadingSig && <div style={{ fontSize:'.75rem', color:'#0B6E76', marginTop:6 }}>Uploading…</div>}
-              {form.signature_url && (
-                <div style={{ marginTop:'.75rem', background:'white', padding:'.75rem', borderRadius:6, border:'1px solid #E2E8F0' }}>
-                  <div style={{ fontSize:'.75rem', color:'#059669', marginBottom:6, fontWeight:600 }}>✓ Uploaded</div>
-                  <img src={form.signature_url} alt="signature preview" style={{ maxHeight:80, maxWidth:'100%', display:'block', background:'#F8FAFC', padding:6, borderRadius:4 }} />
-                </div>
-              )}
+              <SignaturePad onSaved={url => set('signature_url', url)} />
             </div>
           )}
 
