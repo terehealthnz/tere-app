@@ -56,7 +56,7 @@ export default async function handler(req, res) {
 <body>
 <div class="header">
   <div class="logo">Tere Health</div>
-  <div class="sublogo">He tere, he ora — Marlborough Sounds, New Zealand</div>
+  <div class="sublogo">Marlborough Sounds, New Zealand</div>
 </div>
 
 <div class="cert-title">

@@ -47,7 +47,6 @@ export default function AvailabilityCheck({ onAvailable }) {
     <div className="page">
       <nav className="navbar">
         <span className="navbar-brand">Tere</span>
-        <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem',fontStyle:'italic'}}>He tere, he ora</span>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem'}}>
         <div className="card" style={{marginBottom:'1rem'}}>

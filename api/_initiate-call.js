@@ -75,7 +75,7 @@ export default async function handler(req, res) {
     </div>
   </div>
   <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-    He tere, he ora · Tere Health · terehealth.co.nz
+    Tere Health · terehealth.co.nz
   </div>
 </body></html>`
 

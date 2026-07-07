@@ -148,7 +148,7 @@ export default function Rate() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '.75rem', color: '#9CA3AF' }}>
-          He tere, he ora · Tere Health · terehealth.co.nz
+          Tere Health · terehealth.co.nz
         </div>
       </div>
     </div>

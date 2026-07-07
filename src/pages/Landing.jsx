@@ -25,7 +25,6 @@ function Nav() {
     }}>
       <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
         <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.5rem', fontWeight: 600, transition: 'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>Tere Health</span>
-        <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.75rem', letterSpacing: '.1em', textTransform: 'uppercase' }}>He tere, he ora</span>
       </Link>
       <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
         <div className="nav-links-desktop" style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
@@ -315,8 +314,7 @@ function FAQ() {
 function Footer() {
   return (
     <footer style={{ background: BRAND.navy, padding: '2.5rem 1.5rem', textAlign: 'center' }}>
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.25rem' }}>Tere Health</div>
-      <div style={{ color: 'rgba(212,238,240,.6)', fontSize: '.8rem', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>He tere, he ora</div>
+      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.75rem' }}>Tere Health</div>
       <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.55)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>
         Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: '#D4EEF0', textDecoration: 'underline' }}>terehealthnz@gmail.com</a>
       </div>

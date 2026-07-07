@@ -196,7 +196,6 @@ export default function PrivacyPolicy() {
             <strong style={{ color: '#6B7280' }}>Tere Health Limited</strong> · Marlborough Sounds, New Zealand ·{' '}
             <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal }}>terehealthnz@gmail.com</a>
           </p>
-          <p style={{ fontSize: '.8125rem', color: '#9CA3AF', marginTop: '.25rem', fontStyle: 'italic' }}>He tere, he ora — swift action, healthy lives.</p>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>

@@ -57,8 +57,7 @@ function IntroScreen() {
     <div style={{ background: NAVY, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif', position: 'relative', overflow: 'hidden' }}>
       <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', background: TEAL, opacity: .06, top: -80, right: -80 }} />
       <div style={{ position: 'absolute', width: 180, height: 180, borderRadius: '50%', background: TEAL, opacity: .06, bottom: -50, left: -50 }} />
-      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '2.4rem', marginBottom: '.375rem' }}>Tere Health</div>
-      <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: '2.5rem' }}>He tere, he ora</div>
+      <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '2.4rem', marginBottom: '2.5rem' }}>Tere Health</div>
       <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'flex-end', marginBottom: '2.5rem' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '2.75rem', marginBottom: '.375rem' }}>🧑‍🌾</div>
@@ -165,7 +164,6 @@ function WaitingScreen() {
     <div style={{ background: '#F8FAFC', height: '100%', display: 'flex', flexDirection: 'column', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
       <div style={{ background: NAVY, padding: '.875rem 1rem', flexShrink: 0 }}>
         <div style={{ color: '#D4EEF0', fontWeight: 700, fontSize: '.9375rem' }}>Tere Health</div>
-        <div style={{ color: 'rgba(212,238,240,.4)', fontSize: '.75rem' }}>He tere, he ora</div>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
         <div style={{ position: 'relative', width: 80, height: 80, marginBottom: '1.5rem' }}>

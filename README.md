@@ -1,7 +1,5 @@
 # Tere — Rural Urgent Care Platform
 
-He tere, he ora. Swift care, good health.
-
 ## Setup
 
 ```bash

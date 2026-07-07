@@ -10,7 +10,7 @@ export function buildPrescriptionPdf(data) {
 
     doc.rect(0, 0, doc.page.width, 70).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', 50, 20)
-    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 46)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 46)
 
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('PRESCRIPTION', 50, 90)
     doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
@@ -73,7 +73,7 @@ export function buildReferralPdf(data) {
 
     doc.rect(0, 0, doc.page.width, 70).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', 50, 20)
-    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 46)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 46)
 
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('RADIOLOGY REFERRAL', 50, 90)
     doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
@@ -160,7 +160,7 @@ export function buildPayslipPdf(data) {
     // Header
     doc.rect(0, 0, W, 70).fill('#0D2B45')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 16)
-    doc.font('Helvetica').fontSize(10).text('He tere, he ora  ·  terehealth.co.nz', 50, 42)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 42)
     doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('GST No: [Your GST]  ·  terehealthnz@gmail.com', 50, 56)
 
     // Title
@@ -258,7 +258,7 @@ export function buildPayslipPdf(data) {
     y += 28
 
     doc.fillColor('#AAA').fontSize(7.5)
-      .text('Tere Health Limited  ·  terehealth.co.nz  ·  He tere, he ora', 50, y, { align: 'center', width: W - 100 })
+      .text('Tere Health Limited  ·  terehealth.co.nz', 50, y, { align: 'center', width: W - 100 })
 
     doc.end()
   })

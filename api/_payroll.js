@@ -239,7 +239,6 @@ export default async function handler(req, res) {
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
   <div style="background:#0D2B45;padding:20px 28px">
     <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
-    <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
   </div>
   <div style="padding:24px 28px">
     <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
@@ -258,7 +257,7 @@ export default async function handler(req, res) {
     </div>
   </div>
   <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-    He tere, he ora · Tere Health Limited · terehealth.co.nz
+    Tere Health Limited · terehealth.co.nz
   </div>
 </body></html>`
 

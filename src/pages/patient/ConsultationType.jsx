@@ -81,7 +81,6 @@ export default function ConsultationType() {
           <button onClick={() => navigate(-1)} style={{background:'none',border:'none',color:'rgba(255,255,255,.7)',cursor:'pointer',fontSize:'1.1rem',padding:'0',lineHeight:1,display:'flex',alignItems:'center'}} aria-label="Go back">←</button>
           <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
         </div>
-        <span style={{ color: 'rgba(255,255,255,.5)', fontSize: '.875rem', fontStyle: 'italic' }}>He tere, he ora</span>
       </nav>
 
       <div className="container" style={{ paddingTop: '2rem', paddingBottom: '3rem', maxWidth: 520 }}>

@@ -11,7 +11,6 @@ function Nav() {
     <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'rgba(13,43,69,0.97)', backdropFilter: 'blur(8px)', padding: '.875rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
         <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: TEAL_LIGHT, fontSize: '1.5rem', fontWeight: 600 }}>Tere Health</span>
-        <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.75rem', letterSpacing: '.1em', textTransform: 'uppercase', fontFamily: FF }}>He tere, he ora</span>
       </Link>
       <Link to="/triage" style={{ background: TEAL, color: 'white', textDecoration: 'none', padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700, fontFamily: FF }}>Book consultation</Link>
     </nav>
@@ -29,9 +28,6 @@ function Hero() {
       </h1>
       <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1rem', fontFamily: FF, maxWidth: 580 }}>
         We're building Aotearoa's tele-emergency care service — emergency medicine, on your phone.
-      </p>
-      <p style={{ fontSize: '1.25rem', color: 'rgba(212,238,240,.55)', fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic' }}>
-        He tere, he ora — swift action, healthy lives
       </p>
     </section>
   )

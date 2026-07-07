@@ -214,7 +214,6 @@ export default async function handler(req, res) {
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
 <div style="background:#0D2B45;padding:20px 28px">
   <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
-  <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
 </div>
 <div style="padding:24px 28px">
   <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
@@ -233,11 +232,11 @@ export default async function handler(req, res) {
   </div>
 </div>
 <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a><br>
+  Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a><br>
   This response does not constitute ongoing medical advice. In an emergency, call 111.
 </div>
 </body></html>`,
-          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} has responded to your message.\n\nPROVIDER RESPONSE:\n${responseText}\n${accClaimText}\nIf your condition worsens, call 111 immediately.\n\nRef: ${refId} · Fee: ${isAcc ? '$62.50 (ACC + co-payment)' : '$25'}\n\nHe tere, he ora.\nTere Health`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} has responded to your message.\n\nPROVIDER RESPONSE:\n${responseText}\n${accClaimText}\nIf your condition worsens, call 111 immediately.\n\nRef: ${refId} · Fee: ${isAcc ? '$62.50 (ACC + co-payment)' : '$25'}\n\nTere Health`,
         })
       } catch (e) {
         console.error('[async-consult] Email failed:', e.message)
@@ -366,7 +365,6 @@ ${draft}`
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
 <div style="background:#0D2B45;padding:20px 28px">
   <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
-  <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
 </div>
 <div style="padding:24px 28px">
   <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
@@ -381,11 +379,11 @@ ${draft}`
   <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B">${erWarning}</div>
 </div>
 <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
+  Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
   This message does not constitute ongoing medical advice. In an emergency, call 111.
 </div>
 </body></html>`,
-          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} recommends you be seen in person at your ${venueLabel}.\n${notes ? notes + '\n' : ''}\nNO CHARGE: Your payment authorisation has been released.\n\n${referralType === 'er' ? 'If very unwell, call 111 now.' : 'If condition worsens before seeing your GP, call 111.'}\n\nHe tere, he ora.\nTere Health`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} recommends you be seen in person at your ${venueLabel}.\n${notes ? notes + '\n' : ''}\nNO CHARGE: Your payment authorisation has been released.\n\n${referralType === 'er' ? 'If very unwell, call 111 now.' : 'If condition worsens before seeing your GP, call 111.'}\n\nTere Health`,
         })
       } catch (e) {
         console.error('[async-consult] in_person email failed:', e.message)
@@ -442,7 +440,6 @@ ${draft}`
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
 <div style="background:#0D2B45;padding:20px 28px">
   <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
-  <div style="color:rgba(212,238,240,.5);font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-top:2px">He tere, he ora</div>
 </div>
 <div style="padding:24px 28px">
   <p style="font-size:15px;margin:0 0 8px">Kia ora ${firstName},</p>
@@ -456,11 +453,11 @@ ${draft}`
   </div>
 </div>
 <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
+  Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a> · ${dateStr}<br>
   In an emergency, call 111.
 </div>
 </body></html>`,
-          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} would like a ${typeLabel} with you.\n\nPlease return to ${appUrl}/triage to join the queue.\n\n${message || ''}\n\nIf your condition worsens, call 111.\n\nHe tere, he ora.\nTere Health`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} would like a ${typeLabel} with you.\n\nPlease return to ${appUrl}/triage to join the queue.\n\n${message || ''}\n\nIf your condition worsens, call 111.\n\nTere Health`,
         })
       } catch (e) {
         console.error('[async-consult] upgrade email failed:', e.message)
@@ -520,10 +517,10 @@ ${draft}`
   </div>
 </div>
 <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
-  He tere, he ora · Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
+  Tere Health · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
 </div>
 </body></html>`,
-          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} has a question:\n\n${questionText || ''}\n\nReply at: ${appUrl}/async-message/${consultationId}\n\nIf condition worsens, call 111.\n\nHe tere, he ora.\nTere Health`,
+          text: `Kia ora ${firstName},\n\n${providerName || 'Your provider'} has a question:\n\n${questionText || ''}\n\nReply at: ${appUrl}/async-message/${consultationId}\n\nIf condition worsens, call 111.\n\nTere Health`,
         })
       } catch (e) {
         console.error('[async-consult] notify_question email failed:', e.message)

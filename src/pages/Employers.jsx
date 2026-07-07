@@ -16,7 +16,6 @@ function Nav() {
     }}>
       <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
         <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: BRAND.tealLight, fontSize: '1.5rem', fontWeight: 600 }}>Tere Health</span>
-        <span className="employers-tagline" style={{ color: 'rgba(212,238,240,.45)', fontSize: '.75rem', letterSpacing: '.1em', textTransform: 'uppercase' }}>He tere, he ora</span>
       </Link>
       <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
         <a href="#pricing" className="nav-links-desktop" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: FF }}>Pricing</a>

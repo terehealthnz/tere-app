@@ -41,7 +41,7 @@ export default async function handler(req, res) {
       replyTo: 'terehealthnz@gmail.com',
       to: 'terehealthnz@gmail.com',
       subject: `[URGENT] ${overdue.length} message consultation${overdue.length > 1 ? 's' : ''} unanswered >48h`,
-      text: `The following message consultation${overdue.length > 1 ? 's have' : ' has'} been waiting more than 48 hours without a response:\n\n${rows}\n\nPlease log in and respond:\nhttps://terehealth.co.nz/provider\n\nHe tere, he ora.`,
+      text: `The following message consultation${overdue.length > 1 ? 's have' : ' has'} been waiting more than 48 hours without a response:\n\n${rows}\n\nPlease log in and respond:\nhttps://terehealth.co.nz/provider`,
     })
   } catch (e) {
     console.error('[async-overdue] Email failed:', e.message)

@@ -61,9 +61,6 @@ export default function Intake() {
     <div className="page-shell">
       <header className="page-header">
         <span className="page-logo">TERE</span>
-        <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.45)' }}>
-          He tere, he ora
-        </span>
       </header>
 
       <div className="page-content">

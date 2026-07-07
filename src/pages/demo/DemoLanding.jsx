@@ -13,8 +13,7 @@ export default function DemoLanding() {
       </div>
 
       <div style={{ textAlign: 'center', marginBottom: '3rem', marginTop: '2rem' }}>
-        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '2.8rem', marginBottom: '.375rem' }}>Tere Health</div>
-        <div style={{ color: 'rgba(212,238,240,.45)', fontSize: '.8rem', textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: '.75rem' }}>He tere, he ora</div>
+        <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '2.8rem', marginBottom: '.75rem' }}>Tere Health</div>
         <div style={{ color: 'rgba(212,238,240,.6)', fontSize: '1rem' }}>Interactive product demonstration</div>
       </div>
 

@@ -10,7 +10,6 @@ export default function MessageSent() {
     <div className="page">
       <nav className="navbar">
         <span className="navbar-brand">Tere</span>
-        <span style={{ color: 'rgba(255,255,255,.5)', fontSize: '.875rem', fontStyle: 'italic' }}>He tere, he ora</span>
       </nav>
       <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '3rem', maxWidth: 480, textAlign: 'center' }}>
         <div className="card">
