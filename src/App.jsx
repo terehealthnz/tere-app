@@ -95,6 +95,7 @@ const Employers           = lazy(() => import('./pages/Employers'))
 const PrivacyPolicy       = lazy(() => import('./pages/PrivacyPolicy'))
 const Terms               = lazy(() => import('./pages/Terms'))
 const Careers             = lazy(() => import('./pages/Careers'))
+const CareersApply         = lazy(() => import('./pages/CareersApply'))
 const Rate                = lazy(() => import('./pages/Rate'))
 const StatusPage          = lazy(() => import('./pages/StatusPage'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
@@ -175,6 +176,7 @@ export default function App() {
         <Route path="/clinician/consult/:id"  element={<ConsultView />} />
         <Route path="/clinician/notes/:id"    element={<NotesCompletion />} />
         <Route path="/careers"                element={<Careers />} />
+        <Route path="/careers/apply"          element={<CareersApply />} />
         <Route path="/employers"              element={<Employers />} />
         <Route path="/rate/:id"               element={<Rate />} />
         <Route path="/privacy"                element={<PrivacyPolicy />} />

@@ -95,7 +95,7 @@ function JobListings() {
           <div style={{ background: 'white', borderRadius: 16, padding: '2.5rem', textAlign: 'center', border: '1px solid #E2E8F0' }}>
             <div style={{ fontSize: '1.5rem', marginBottom: '.75rem' }}>📭</div>
             <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.375rem', fontFamily: FF }}>No current openings</div>
-            <div style={{ color: '#6B7280', fontSize: '.9rem', fontFamily: FF }}>Check back soon — or send a speculative application to <a href="mailto:terehealthnz@gmail.com" style={{ color: TEAL, textDecoration: 'none', fontWeight: 600 }}>terehealthnz@gmail.com</a></div>
+            <div style={{ color: '#6B7280', fontSize: '.9rem', fontFamily: FF }}>Check back soon — or send us a <Link to="/careers/apply" style={{ color: TEAL, textDecoration: 'none', fontWeight: 600 }}>speculative application</Link>.</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -109,12 +109,12 @@ function JobListings() {
                       <span style={{ background: '#F0FDF4', color: '#065F46', fontSize: '.75rem', fontWeight: 600, padding: '2px 8px', borderRadius: 99, fontFamily: FF }}>{typeLabel(job.employment_type)}</span>
                     </div>
                   </div>
-                  <a
-                    href={`mailto:terehealthnz@gmail.com?subject=Application: ${encodeURIComponent(job.title)}`}
+                  <Link
+                    to={`/careers/apply?job=${encodeURIComponent(job.id)}`}
                     style={{ background: TEAL, color: 'white', textDecoration: 'none', padding: '9px 20px', borderRadius: 99, fontWeight: 700, fontSize: '.9rem', fontFamily: FF, whiteSpace: 'nowrap', flexShrink: 0 }}
                   >
                     Apply now
-                  </a>
+                  </Link>
                 </div>
 
                 {job.short_description && (
@@ -178,7 +178,7 @@ function WhyTere() {
 
 function HowToApply() {
   const steps = [
-    { n: '1', title: 'Apply by email', desc: 'Send your CV and a short note about why you want to join Tere to terehealthnz@gmail.com — or click Apply now on any listing.' },
+    { n: '1', title: 'Submit your application', desc: 'Click Apply now on any listing, or send a speculative application. Upload your CV and tell us why you want to join Tere.' },
     { n: '2', title: '30-minute video call', desc: 'A quick call with our team to make sure it\'s a good fit. We\'ll walk you through the platform.' },
     { n: '3', title: 'Onboarding', desc: 'Get set up on the platform, complete a short orientation, and start seeing patients.' },
   ]
