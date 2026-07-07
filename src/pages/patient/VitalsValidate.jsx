@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, uploadScanVideo, supabase } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
@@ -151,28 +151,11 @@ function PageWrap({ children }) {
 }
 
 export default function VitalsValidate() {
-  const navigate = useNavigate()
-  const [authChecked, setAuthChecked] = useState(false)
-
-  // Auth gate — accepts either the existing PIN clinician login (sessionStorage
-  // clinicianAuth + providerId) or a Supabase auth session. Server side
-  // requireProvider() honours the same two paths (x-provider-id header or
-  // Authorization bearer JWT).
-  useEffect(() => {
-    let cancelled = false
-    const goLogin = () => navigate('/clinician?redirect=/vitals-validate', { replace: true })
-    const hasClinicianSession = () => {
-      try { return sessionStorage.getItem('clinicianAuth') === 'true' && !!sessionStorage.getItem('providerId') }
-      catch { return false }
-    }
-    if (hasClinicianSession()) { setAuthChecked(true); return }
-    supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return
-      if (data?.session || hasClinicianSession()) setAuthChecked(true)
-      else goLogin()
-    }).catch(() => { if (!cancelled) { hasClinicianSession() ? setAuthChecked(true) : goLogin() } })
-    return () => { cancelled = true }
-  }, [navigate])
+  // Open access — any patient / research subject can use this page to record
+  // their own vitals against a subject profile. The aggregated dashboard at
+  // /vitals-validate/dashboard is still provider-gated so raw research data
+  // isn't exposed. Writes still go through the /api/validation-* endpoints
+  // which have their own column allowlists.
 
   const [phase, setPhase] = useState('select')
 
@@ -606,7 +589,6 @@ export default function VitalsValidate() {
 
   // ── Select profile ────────────────────────────────────────────────────────────
 
-  if (!authChecked) return null
 
   if (phase === 'select') {
     const canStart = !!selectedSubjectId
