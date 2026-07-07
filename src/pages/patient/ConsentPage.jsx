@@ -90,13 +90,16 @@ export default function ConsentPage() {
             ))}
           </ul>
           <a href="https://www.hdc.org.nz/your-rights/about-the-code/code-of-health-and-disability-services-consumers-rights/" target="_blank" rel="noreferrer"
-            style={{ display: 'inline-block', fontSize: '.8125rem', color: '#0B6E76', fontWeight: 600, marginBottom: '1rem', textDecoration: 'none' }}>
+            style={{ display: 'inline-block', fontSize: '.8125rem', color: '#0B6E76', fontWeight: 600, marginBottom: '.875rem', textDecoration: 'none' }}>
             Read the full HDC Code of Rights →
           </a>
+          <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.55, margin: '0 0 .875rem' }}>
+            Your clinical information (including consultation transcript, chief complaint and notes) may be processed by third-party AI services (currently Anthropic Claude) to help your clinician generate notes and check for drug interactions. It is never used to train AI models.
+          </p>
           <Checkbox
             checked={hdcChecked}
             onChange={() => setHdcChecked(c => !c)}
-            label="I understand my rights as a patient"
+            label="I understand my rights as a patient and consent to AI-assisted processing"
             testId="hdc-consent-checkbox"
           />
         </div>
