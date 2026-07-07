@@ -117,7 +117,8 @@ The following sub-processors handle Tere data. All are contractually bound and i
 - **AWS Bedrock / Anthropic:** Transient — consultation transcript + triage data + provider-generated prompts for the duration of a single API call. Not stored beyond the request.
 - **LiveKit:** Transient — audio and video streams during a live consultation. No server-side recording is enabled.
 - **Stripe:** Payment amount, patient email, consultation identifier. No clinical data.
-- **Twilio, Resend, Documo/Telnyx:** Outbound message content only. Contain clinical summaries or prescription details as required by the message purpose.
+- **Twilio, Resend:** Outbound message content only. Contain consultation summaries or notification content as required by the message purpose.
+- **Documo / Telnyx (fax):** Prescriptions transmitted to community pharmacies. Fax pages carry prescriber identifiers, patient identifiers (name, DOB, NHI), drug, dose, and directions. Pharmacies are matched from a curated register of NZ community pharmacies. Fax is the current transmission channel while integration with the New Zealand ePrescription Service (NZePS) is developed — see Section 13.
 - **Sentry:** Application errors with PII scrubbed at ingestion. No transcripts, notes, or identifiers are transmitted.
 
 ### 5.2 AWS Business Associate Agreement (Bedrock)
@@ -251,6 +252,7 @@ Tere maintains a documented list of security controls that are not yet in place 
 | Formal incident-response tabletop exercise | Not conducted | Planned within six months |
 | Dedicated staging environment | In progress | Complete separation of staging from production, with independent database and function domain |
 | Formal disaster recovery documentation | Sub-processor DR relied upon (Vercel, Supabase); no Tere-specific DR playbook | Draft DR playbook within six months |
+| Prescription transmission | Documo / Telnyx fax to community pharmacies (industry-standard channel, universally accepted by NZ pharmacies) | Integration with the New Zealand ePrescription Service (NZePS) — direct HL7 / FHIR transmission to any NZePS-enabled pharmacy. Removes fax dependency and delivers real-time dispensing status. Currently in scoping. |
 
 ---
 
