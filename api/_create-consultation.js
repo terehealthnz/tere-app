@@ -95,6 +95,15 @@ export default async function handler(req, res) {
     payload.payment_amount = CREATE_AMOUNTS_BY_TYPE[payload.consultation_type]
   }
 
+  // Pre-triage rows fired by TereIntro carry only { status, patient_language }.
+  // The `patient_first_name` column has a NOT NULL constraint, so insert
+  // placeholder values for the pre-triage stage — the real values get filled
+  // in during AITriage when we have the patient's name.
+  if (payload.status === 'pre_triage') {
+    if (!payload.patient_first_name) payload.patient_first_name = 'Pending'
+    if (!payload.patient_last_name)  payload.patient_last_name  = ''
+  }
+
   const { data, error } = await supabase.from('consultations').insert(payload).select().single()
 
   if (error) {
