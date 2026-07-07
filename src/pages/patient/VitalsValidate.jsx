@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames, PASS_COUNT } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, uploadScanVideo, supabase } from '../../lib/supabase'
-import { trainModel, predictBP, getLocalMeta } from '../../lib/bpModel'
+import { trainModel, predictBP, getLocalMeta, loadModelFromSupabase } from '../../lib/bpModel'
 import { calculateSpO2, fitSpO2Calibration, getSpO2Calibration, loadSpO2CalibrationFromSupabase } from '../../lib/spo2'
 
 const TEAL = '#0B6E76'
@@ -227,6 +227,12 @@ export default function VitalsValidate() {
       .then(list => { setSubjects(list); setSubjectsLoaded(true) })
       .catch(() => setSubjectsLoaded(true))
     getAmbientTemp().then(setAmbientTemp).catch(() => {})
+    // Pull the latest BP model from Supabase so this device (e.g. a phone
+    // that never ran the training itself) can still show BP estimates after
+    // scanning. Idempotent — if a newer local model exists it stays put.
+    loadModelFromSupabase()
+      .then(meta => { if (meta) setBpModelMeta(getLocalMeta()) })
+      .catch(() => {})
   }, [])
 
   // One-shot bootstrap: if this browser has a local SpO2 calibration (from prior paired

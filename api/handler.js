@@ -22,8 +22,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Validation subsystem (research data)
   //   validation-subjects — GET/POST are anon (patient self-enrolls); guarded inline
   //   validation-readings — GET/POST are anon; PATCH (provider corrections) guarded inline
-  //   model-version stays gated — anon should never publish an ML model
-  'model-version', 'flags',
+  //   model-version — also anon so an unauth /vitals-validate scan auto-persists
+  //     the trained BP model without requiring a clinician sign-in on the device
+  //     that ran the training
+  'flags',
   // Provider clinical work
   'convert-to-acc', 'acc-claims',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',

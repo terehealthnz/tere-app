@@ -1,10 +1,12 @@
 // POST /api/model-version — saves a trained BP model version. Called by
 // src/lib/bpModel.js after training completes on the client. Runs with
-// service_role, requires an authenticated provider (only trusted staff
-// should be able to push new model weights).
+// service_role. Anon-callable so a research-mode /vitals-validate scan can
+// auto-persist the trained model without requiring a clinician sign-in on
+// the device — matches the anon access already granted to validation-subjects
+// and validation-readings, which produced the training data in the first
+// place.
 
 import { createClient } from '@supabase/supabase-js'
-import { guardProvider } from './_auth.js'
 
 function admin() {
   return createClient(
@@ -15,9 +17,6 @@ function admin() {
 }
 
 export default async function handler(req, res) {
-  const auth = await guardProvider(req, res)
-  if (!auth) return
-
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const p = req.body || {}
