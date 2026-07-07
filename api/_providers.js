@@ -29,7 +29,10 @@ const UPDATE_ALLOWLIST = new Set([
   'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_available',
   'availability_message',
   'can_prescribe', 'can_refer', 'can_acc',
-  'prescriber_number', 'cpn',
+  'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
+  'signature_url',
+  'base_rate', 'hourly_rate', 'holiday_pay_pct',
+  'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
 ])
 
 export default async function handler(req, res) {
@@ -111,6 +114,9 @@ export default async function handler(req, res) {
       'can_prescribe', 'can_refer', 'can_acc',
       'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
       'provider_type', 'availability_message',
+      'signature_url',
+      'base_rate', 'hourly_rate', 'holiday_pay_pct',
+      'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
     ])
     const row = { first_name, last_name, email, pin_hash, must_change_password: true }
     for (const [k, v] of Object.entries(raw)) {
@@ -163,6 +169,45 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ provider: data })
+  }
+
+  if (req.method === 'DELETE') {
+    if (!auth.provider?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to delete providers' })
+    }
+    const { id, force } = req.query || {}
+    if (!id) return res.status(400).json({ error: 'id query param required' })
+
+    // Prevent self-delete.
+    if (auth.provider?.id === id) {
+      return res.status(400).json({ error: 'You cannot delete your own admin account' })
+    }
+
+    // FK safety — if the provider has been referenced anywhere in the
+    // consultation record system, refuse hard delete and recommend deactivate.
+    // Admin can pass ?force=1 to override IF they've already unlinked references.
+    if (!force || force !== '1') {
+      const { count: consultCount } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('provider_id', id)
+      if (consultCount && consultCount > 0) {
+        return res.status(409).json({
+          error: `Provider is referenced by ${consultCount} consultation(s). Deactivate instead — hard delete would break historical clinical records. Pass ?force=1 only if you have unlinked all references.`,
+          consultationCount: consultCount,
+        })
+      }
+    }
+
+    const { data: deleted, error } = await supabase
+      .from('providers')
+      .delete()
+      .eq('id', id)
+      .select('id, first_name, last_name, email')
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    if (!deleted) return res.status(404).json({ error: 'Provider not found' })
+    return res.status(200).json({ deleted, note: 'Provider row permanently removed. Their signature image in storage was not deleted.' })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

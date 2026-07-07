@@ -106,12 +106,51 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     cpn: '',
     hpi_number: '',
     acc_provider_number: '',
+    // Payroll
+    contract_type: 'contractor',
+    base_rate: '',
+    hourly_rate: '',
+    holiday_pay_pct: '8',
+    bank_account: '',
+    ird_number: '',
+    tax_code: 'M',
+    // Signature
+    signature_url: '',
+    // Auth
     pin: '',
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
+  const [uploadingSig, setUploadingSig] = React.useState(false)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function handleSignatureUpload(file) {
+    if (!file) return
+    if (file.size > 2 * 1024 * 1024) { setError('Signature file must be under 2MB'); return }
+    if (!/^image\//.test(file.type)) { setError('Signature must be an image (PNG, JPG, WebP)'); return }
+    setUploadingSig(true)
+    setError(null)
+    try {
+      const { supabase } = await import('../../lib/supabase')
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase()
+      // Use timestamp + random suffix so signatures don't clash across
+      // provider creation attempts and don't leak the provider's identity
+      // through the filename.
+      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { error: upErr } = await supabase.storage.from('signatures').upload(path, file, {
+        contentType: file.type,
+        cacheControl: '3600',
+        upsert: false,
+      })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
+      set('signature_url', publicUrl)
+    } catch (e) {
+      setError('Signature upload failed: ' + e.message)
+    }
+    setUploadingSig(false)
+  }
 
   async function submit(e) {
     e?.preventDefault()
@@ -127,10 +166,17 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     setSubmitting(true)
     try {
       const { apiFetch } = await import('../../lib/api')
+      // Normalise payroll numerics — send as numbers, empty strings become null so
+      // the endpoint doesn't try to parse "" as numeric.
+      const payload = { ...form }
+      for (const k of ['base_rate', 'hourly_rate', 'holiday_pay_pct']) {
+        if (payload[k] === '' || payload[k] == null) delete payload[k]
+        else payload[k] = Number(payload[k])
+      }
       const res = await apiFetch('/api/providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create provider')
@@ -248,6 +294,76 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
               </div>
             </div>
           )}
+
+          {/* Signature */}
+          {form.is_provider && form.can_prescribe && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Prescriber signature</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
+                PNG or JPG of the provider's signature. Rendered on prescription, referral, and medical certificate PDFs. Max 2MB.
+              </div>
+              <input type="file" accept="image/*" disabled={uploadingSig}
+                onChange={e => handleSignatureUpload(e.target.files?.[0])}
+                style={{ width:'100%', padding:'8px', border:'1px dashed #E2E8F0', borderRadius:6, fontSize:'.8125rem', cursor: uploadingSig ? 'wait' : 'pointer' }}
+              />
+              {uploadingSig && <div style={{ fontSize:'.75rem', color:'#0B6E76', marginTop:6 }}>Uploading…</div>}
+              {form.signature_url && (
+                <div style={{ marginTop:'.75rem', background:'white', padding:'.75rem', borderRadius:6, border:'1px solid #E2E8F0' }}>
+                  <div style={{ fontSize:'.75rem', color:'#059669', marginBottom:6, fontWeight:600 }}>✓ Uploaded</div>
+                  <img src={form.signature_url} alt="signature preview" style={{ maxHeight:80, maxWidth:'100%', display:'block', background:'#F8FAFC', padding:6, borderRadius:4 }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payroll */}
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Payroll & tax</div>
+            <div style={{ fontSize:'.7rem', color:'#DC2626', marginBottom:'.75rem', fontWeight:600 }}>
+              🔒 Sensitive — visible only to admin roles.
+            </div>
+            <div style={groupStyle}>
+              <div>
+                <div style={labelStyle}>Contract type</div>
+                <select value={form.contract_type} onChange={e => set('contract_type', e.target.value)} style={inputStyle}>
+                  <option value="contractor">Contractor</option>
+                  <option value="employee">Employee</option>
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Tax code</div>
+                <select value={form.tax_code} onChange={e => set('tax_code', e.target.value)} style={inputStyle}>
+                  <option value="M">M (primary income)</option>
+                  <option value="ME">ME (main earner)</option>
+                  <option value="S">S (secondary)</option>
+                  <option value="SB">SB (secondary, low)</option>
+                  <option value="SH">SH (secondary, med)</option>
+                  <option value="ST">ST (secondary, top)</option>
+                  <option value="WT">WT (withholding tax — contractor)</option>
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Base rate ($NZD / consultation)</div>
+                <input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} placeholder="e.g. 45.00" />
+              </div>
+              <div>
+                <div style={labelStyle}>Hourly rate ($NZD, optional)</div>
+                <input type="number" step="0.01" value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} style={inputStyle} placeholder="e.g. 120.00" />
+              </div>
+              <div>
+                <div style={labelStyle}>Holiday pay %</div>
+                <input type="number" step="0.1" value={form.holiday_pay_pct} onChange={e => set('holiday_pay_pct', e.target.value)} style={inputStyle} placeholder="8" />
+              </div>
+              <div>
+                <div style={labelStyle}>IRD number</div>
+                <input value={form.ird_number} onChange={e => set('ird_number', e.target.value)} style={inputStyle} placeholder="123-456-789" />
+              </div>
+              <div style={{ gridColumn:'1 / -1' }}>
+                <div style={labelStyle}>Bank account</div>
+                <input value={form.bank_account} onChange={e => set('bank_account', e.target.value)} style={inputStyle} placeholder="01-1234-5678910-00" />
+              </div>
+            </div>
+          </div>
 
           {/* PIN */}
           <div style={sectionStyle}>
@@ -393,6 +509,25 @@ function ProvidersPanel() {
                       disabled={saving === p.id}
                       style={{ background:'none', border:`1px solid ${p.is_active ? '#FECACA' : '#D1FAE5'}`, color:p.is_active ? '#DC2626' : '#059669', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
                       {p.is_active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button onClick={async () => {
+                      const confirmed = window.confirm(`Permanently delete ${p.first_name} ${p.last_name}? This is irreversible.\n\nIf they have any consultation history, deletion will be refused and you should Deactivate instead.`)
+                      if (!confirmed) return
+                      setSaving(p.id)
+                      try {
+                        const { apiFetch } = await import('../../lib/api')
+                        const r = await apiFetch(`/api/providers?id=${p.id}`, { method: 'DELETE' })
+                        const data = await r.json()
+                        if (!r.ok) {
+                          alert(data.error || 'Delete failed')
+                        } else {
+                          setProviders(ps => ps.filter(q => q.id !== p.id))
+                        }
+                      } catch (e) { alert(e.message) }
+                      setSaving(null)
+                    }} disabled={saving === p.id}
+                      style={{ background:'none', border:'1px solid #FECACA', color:'#991B1B', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
+                      Delete
                     </button>
                   </div>
                 </div>

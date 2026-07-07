@@ -1,6 +1,19 @@
 import PDFDocument from 'pdfkit'
 
-export function buildPrescriptionPdf(data) {
+// Fetch a signature image URL into a Buffer for pdfkit's `doc.image()` API.
+// Returns null on any failure so callers can fall back to a signature line.
+async function fetchSignatureBuffer(url) {
+  if (!url) return null
+  try {
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const arr = await r.arrayBuffer()
+    return Buffer.from(arr)
+  } catch { return null }
+}
+
+export async function buildPrescriptionPdf(data) {
+  const sigBuf = await fetchSignatureBuffer(data.signatureUrl)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
@@ -51,10 +64,17 @@ export function buildPrescriptionPdf(data) {
     if (data.pharmacyAddress) doc.text(data.pharmacyAddress, 50, 333)
 
     const sigY = 420
+    // Prescriber signature — render uploaded image if we have one, else draw the empty signature line.
+    if (sigBuf) {
+      try {
+        doc.image(sigBuf, 50, sigY - 40, { fit: [170, 40], align: 'center' })
+      } catch { /* fall through to line */ }
+    }
     doc.moveTo(50, sigY).lineTo(220, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.fillColor('#999').font('Helvetica').fontSize(9).text('Prescriber signature', 50, sigY + 4)
     doc.moveTo(300, sigY).lineTo(doc.page.width - 50, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.text('Date', 300, sigY + 4)
+    doc.font('Helvetica').fontSize(9).fillColor('#333').text(new Date().toLocaleDateString('en-NZ'), 305, sigY - 12)
 
     doc.fillColor('#AAA').fontSize(8)
       .text('This prescription was electronically issued by Tere Health Limited. Not valid if altered.', 50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 })

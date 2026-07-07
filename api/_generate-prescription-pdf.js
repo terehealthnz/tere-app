@@ -100,7 +100,18 @@ export default async function handler(req, res) {
   }
 
   // ── Direct send path ─────────────────────────────────────────────────
-  const pdfData = { providerName, prescriberNumber, patientName, patientNhi, patientDob, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress }
+  // Look up the provider's signature image (if uploaded via Admin) so the
+  // prescription PDF renders their actual signature above the signature line.
+  // Falls back gracefully to the empty line if no signature is on file.
+  let signatureUrl = null
+  if (providerId) {
+    try {
+      const { data: prov } = await supabase
+        .from('providers').select('signature_url').eq('id', providerId).maybeSingle()
+      if (prov?.signature_url) signatureUrl = prov.signature_url
+    } catch {}
+  }
+  const pdfData = { providerName, prescriberNumber, patientName, patientNhi, patientDob, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress, signatureUrl }
   let pdfBuffer
   try {
     pdfBuffer = await buildPrescriptionPdf(pdfData)
