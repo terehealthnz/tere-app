@@ -204,7 +204,9 @@ Region migration is deferred rather than blocking because the current sub-proces
 
 ## 10. Breach Response
 
-In the event of a suspected or confirmed breach:
+The full incident response process is documented in [`docs/incident-response-plan.md`](./incident-response-plan.md), which covers incident classification, response phases, notification thresholds, and template notification wording. Availability outages without a security angle are handled by [`docs/disaster-recovery-plan.md`](./disaster-recovery-plan.md).
+
+Summary of the breach response process:
 
 1. **Immediate containment** — the affected system component (endpoint, sub-processor, provider account) is isolated using the feature-flag system or credential rotation.
 2. **Scope assessment** — the compliance contact reviews audit logs and Vercel function logs to determine the scope of affected records.
@@ -246,12 +248,13 @@ Tere maintains a documented list of security controls that are not yet in place 
 |---|---|---|
 | SOC 2 Type II | Not held by Tere directly; relies on sub-processor SOC 2 (Vercel, Supabase, AWS) | Consideration in year 2 |
 | ISO 27001 | Not held | Consideration in year 2 |
-| Formal Privacy Impact Assessment | Draft outline only | Complete PIA before first signed PHO contract |
+| Formal Privacy Impact Assessment | Draft v1.0 published 2026-07-08 at `docs/privacy-impact-assessment.md` — under review before external distribution | Review by NZ privacy counsel before first PHO contract |
 | Data residency in New Zealand or Australia | Sub-processors hosted in US | Supabase and Bedrock migration to Sydney (`ap-southeast-2`) planned |
 | Third-party penetration test | Not yet conducted | Planned before scaling beyond initial PHO deployment |
-| Formal incident-response tabletop exercise | Not conducted | Planned within six months |
+| Formal incident-response tabletop exercise | Written scenario ready to run — `docs/incident-tabletop-exercise.md` (Scenario A: credential exposure) | First exercise to be conducted within one month; rotating scenarios semi-annually thereafter |
 | Dedicated staging environment | In progress | Complete separation of staging from production, with independent database and function domain |
-| Formal disaster recovery documentation | Sub-processor DR relied upon (Vercel, Supabase); no Tere-specific DR playbook | Draft DR playbook within six months |
+| Formal disaster recovery documentation | DR playbook v1.0 published 2026-07-08 at `docs/disaster-recovery-plan.md` — covers RTO/RPO, backup strategy, per-service failure runbooks | Semi-annual DR drill to validate playbook |
+| Formal incident response plan | IR plan v1.0 published 2026-07-08 at `docs/incident-response-plan.md` — incident classification, response phases, notification thresholds, roles, templates | Legal review of notification templates before first PHO contract |
 | Prescription transmission | Documo / Telnyx fax to community pharmacies (industry-standard channel, universally accepted by NZ pharmacies) | Integration with the New Zealand ePrescription Service (NZePS) — direct HL7 / FHIR transmission to any NZePS-enabled pharmacy. Removes fax dependency and delivers real-time dispensing status. Currently in scoping. |
 
 ---
@@ -271,7 +274,11 @@ Tere maintains a documented list of security controls that are not yet in place 
 - Supabase Data Processing Addendum
 - Vercel Data Processing Addendum
 - Anthropic Terms and Data Processing Addendum (as sub-processor under AWS BAA)
-- Privacy Impact Assessment (draft, available Q3 2026)
+- Privacy Impact Assessment (draft v1.0 published 2026-07-08 — `docs/privacy-impact-assessment.md`)
+- Disaster Recovery Plan (`docs/disaster-recovery-plan.md`)
+- Incident Response Plan (`docs/incident-response-plan.md`)
+- Incident Response Tabletop Exercise (`docs/incident-tabletop-exercise.md`)
+- Māori Data Sovereignty and Te Tiriti Obligations (working draft — `docs/maori-data-sovereignty.md`)
 - Sub-processor list (this document, Section 5)
 - Data flow diagram (this document, Section 3.1)
 - Consent flow content (in-app; screenshots available on request)
