@@ -1843,39 +1843,24 @@ function AdminBody() {
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
           ]
-          return (<>
-            {/* Desktop horizontal tabs */}
-            <div className="admin-tabs-desktop">
-              {ADMIN_TABS.map(({ id, label }) => (
-                <button key={id} onClick={() => setAdminTab(id)} style={{
-                  background:'none', border:'none', padding:'8px 16px', cursor:'pointer',
-                  fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.9rem',
-                  color: adminTab===id ? '#0B6E76' : '#6B7280',
-                  borderBottom: adminTab===id ? '2px solid #0B6E76' : '2px solid transparent',
-                  marginBottom:'-2px', whiteSpace:'nowrap',
-                }}>{label}</button>
-              ))}
+          return (
+            <div style={{ width:'100%', maxWidth:360, display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'relative', marginBottom:'1.5rem' }}>
+              <select
+                value={adminTab}
+                onChange={e => setAdminTab(e.target.value)}
+                style={{
+                  flex:1, background:'transparent', color:'#0D2B45', border:'none', outline:'none',
+                  borderRadius:10, padding:'10px 40px 10px 14px',
+                  fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700,
+                  appearance:'none', WebkitAppearance:'none', cursor:'pointer', minHeight:44,
+                }}>
+                {ADMIN_TABS.map(({ id, label }) => (
+                  <option key={id} value={id}>{label}</option>
+                ))}
+              </select>
+              <span style={{ position:'absolute', right:12, color:'#6B7280', fontSize:'1.1rem', pointerEvents:'none' }}>▾</span>
             </div>
-            {/* Mobile dropdown */}
-            <div className="admin-tabs-mobile">
-              <div style={{ width:'100%', display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'relative' }}>
-                <select
-                  value={adminTab}
-                  onChange={e => setAdminTab(e.target.value)}
-                  style={{
-                    flex:1, background:'transparent', color:'#0D2B45', border:'none', outline:'none',
-                    borderRadius:10, padding:'10px 40px 10px 14px',
-                    fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700,
-                    appearance:'none', WebkitAppearance:'none', cursor:'pointer', minHeight:44,
-                  }}>
-                  {ADMIN_TABS.map(({ id, label }) => (
-                    <option key={id} value={id}>{label}</option>
-                  ))}
-                </select>
-                <span style={{ position:'absolute', right:12, color:'#6B7280', fontSize:'1.1rem', pointerEvents:'none' }}>▾</span>
-              </div>
-            </div>
-          </>)
+          )
         })()}
 
         {adminTab === 'patients' ? <AdminPatients embedded /> : adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>

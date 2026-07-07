@@ -185,11 +185,3 @@ textarea { resize: vertical; min-height: 80px; }
 /* ── Flex row — wraps and constrains on small screens ── */
 .flex-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; max-width: 100%; }
 
-/* ── Responsive tab navigation ── */
-.admin-tabs-desktop { display: flex; gap: 6px; border-bottom: 2px solid #E2E8F0; padding-bottom: 2px; margin-bottom: 1.5rem; }
-.admin-tabs-mobile { display: none; }
-
-@media (max-width: 768px) {
-  .admin-tabs-desktop { display: none; }
-  .admin-tabs-mobile { display: flex; width: 100%; padding: 0 0 1rem; }
-}
