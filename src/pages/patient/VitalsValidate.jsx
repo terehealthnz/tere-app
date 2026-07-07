@@ -337,9 +337,27 @@ export default function VitalsValidate() {
   const startScan = useCallback(async () => {
     setScanError(null); setScanPhase('inspecting'); setProgress(0); setLiveHR(null); setBpEstimate(null)
     videoChunksRef.current = []; videoBlobRef.current = null
+    // Timeout helper so a hanging await surfaces as a visible error instead of
+    // silently stalling the "Inspecting camera…" screen forever. Common causes:
+    // MediaPipe FaceMesh CDN blocked, WASM init stuck, video element never
+    // reached HAVE_METADATA before startScan fired.
+    const withTimeout = (p, ms, label) => Promise.race([
+      p,
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error(`${label} timed out after ${ms}ms — check camera / network`)), ms
+      )),
+    ])
     try {
-      await loadFaceMesh()
-      const info = await inspectDevice(videoRef.current)
+      console.log('[scan] loadFaceMesh…')
+      await withTimeout(loadFaceMesh(), 15000, 'Face detector load')
+      console.log('[scan] inspectDevice…', {
+        videoAttached: !!videoRef.current,
+        videoWidth: videoRef.current?.videoWidth,
+        readyState: videoRef.current?.readyState,
+        paused: videoRef.current?.paused,
+      })
+      const info = await withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection')
+      console.log('[scan] inspect complete:', info)
       setDeviceInfo(info)
       const calibration = { ...calibrateRPPG(info), captureRaw: true }
       setScanPhase('measuring')
