@@ -420,24 +420,19 @@ export async function setSchedule(nextTimes) {
 }
 
 // ── Chat / Messages ──────────────────────────────────────────────────────────
-
-export async function sendChatMessage(consultationId, sender, message, photoUrl = null) {
-  const { data, error } = await supabase
-    .from('messages')
-    .insert({ consultation_id: consultationId, sender, message: message || null, photo_url: photoUrl })
-    .select().single()
-  if (error) throw error
-  return data
-}
+// sendChatMessage moved lower in the file — it now takes an object and goes
+// through /api/messages. See `sendChatMessage({...})` below.
 
 export async function getChatMessages(consultationId) {
-  const { data, error } = await supabase
-    .from('messages').select('*')
-    .eq('consultation_id', consultationId).order('created_at')
-  if (error) throw error
-  return data || []
+  const res = await apiFetch(`/api/messages?consultation_id=${encodeURIComponent(consultationId)}`)
+  if (!res.ok) return []
+  const { messages } = await res.json()
+  return messages || []
 }
 
+// Realtime subscription still uses postgres_changes for now. Requires an anon
+// SELECT policy on the messages table. Proper fix (task follow-up) is to
+// switch to Supabase Realtime Broadcast so anon clients don't need DB SELECT.
 export function subscribeToChatMessages(consultationId, callback) {
   return supabase
     .channel(`chat-${consultationId}`)

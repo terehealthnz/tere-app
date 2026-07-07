@@ -62,6 +62,23 @@ async function isProvider(req) {
 }
 
 export default async function handler(req, res) {
+  // Read: return all messages for a consultation. Both patient and provider
+  // hit this — same posture as GET /api/patient-consult (consult id is the
+  // auth). No column allowlist; every message column is meant to be visible
+  // to the two parties on the consult.
+  if (req.method === 'GET') {
+    const { consultation_id } = req.query || {}
+    if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
+    const supabase = admin()
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('consultation_id', consultation_id)
+      .order('created_at')
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ messages: data || [] })
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const { consultation_id, message, photo_url, translated_text, detected_language } = req.body || {}

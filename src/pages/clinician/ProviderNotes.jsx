@@ -379,7 +379,7 @@ export default function ProviderNotes() {
     setThreadMsgs(prev => [...prev, { id: optId, sender: 'provider', message: text, created_at: new Date().toISOString() }])
     setThreadInput('')
     try {
-      await sendChatMessage(id, 'provider', text)
+      await sendChatMessage({ consultation_id: id, message: text })
       apiFetch('/api/async-consult', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({

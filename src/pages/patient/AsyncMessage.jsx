@@ -545,7 +545,7 @@ function AsyncMessageInner() {
       if (isComplete) setFollowUpSent(true)
       try {
         const { sendChatMessage } = await import('../../lib/supabase')
-        await sendChatMessage(id, 'patient', text)
+        await sendChatMessage({ consultation_id: id, message: text })
       } catch {
         setThreadMsgs(prev => prev.filter(m => m.id !== optId))
         setReplyText(text)
