@@ -23,6 +23,34 @@ function admin() {
   )
 }
 
+// Realtime broadcast on chat channel — replaces postgres_changes as the
+// live-update signal for ChatPanel / AsyncMessage / ProviderNotes. Uses the
+// HTTP broadcast API so we don't hold a websocket in serverless.
+async function broadcastNewMessage(consultation_id, message) {
+  try {
+    const url = `${process.env.VITE_SUPABASE_URL}/realtime/v1/api/broadcast`
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        messages: [{
+          topic: `chat-${consultation_id}`,
+          event: 'new_message',
+          payload: { message },
+          private: false,
+        }],
+      }),
+    })
+  } catch (e) {
+    console.warn('[messages] broadcast failed:', e?.message)
+  }
+}
+
 async function isProvider(req) {
   // guardProvider isn't run for this route (patient path allowed), so we do
   // a soft check ourselves. If either the Supabase JWT or x-provider-id header
@@ -100,14 +128,20 @@ export default async function handler(req, res) {
   const sender = providerMode ? 'provider' : 'patient'
   const langDefault = providerMode ? 'en' : (detected_language || 'en')
 
-  const { error } = await supabase.from('messages').insert({
+  const { data: inserted, error } = await supabase.from('messages').insert({
     consultation_id,
     sender,
     message: message || null,
     photo_url: photo_url || null,
     translated_text: translated_text || null,
     detected_language: langDefault,
-  })
+  }).select().maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
-  return res.status(200).json({ ok: true })
+
+  // Fire-and-forget broadcast to the chat channel so live subscribers see it.
+  // Failures are logged but don't block the write — the client polls / re-fetches
+  // on reconnect if needed.
+  await broadcastNewMessage(consultation_id, inserted)
+
+  return res.status(200).json({ ok: true, message: inserted })
 }

@@ -430,16 +430,17 @@ export async function getChatMessages(consultationId) {
   return messages || []
 }
 
-// Realtime subscription still uses postgres_changes for now. Requires an anon
-// SELECT policy on the messages table. Proper fix (task follow-up) is to
-// switch to Supabase Realtime Broadcast so anon clients don't need DB SELECT.
+// Realtime subscription now uses Supabase Broadcast, not postgres_changes.
+// Server /api/messages POST fires a broadcast on `chat-<consult_id>` after
+// inserting the row via service_role. Because broadcast is ephemeral and
+// doesn't touch the DB, no anon SELECT on the messages table is required —
+// meaning we can lock the table down completely.
 export function subscribeToChatMessages(consultationId, callback) {
   return supabase
-    .channel(`chat-${consultationId}`)
-    .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'messages',
-      filter: `consultation_id=eq.${consultationId}`,
-    }, ({ new: msg }) => callback(msg))
+    .channel(`chat-${consultationId}`, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+      if (payload?.message) callback(payload.message)
+    })
     .subscribe()
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { supabase, sendChatMessage } from '../lib/supabase'
+import { supabase, sendChatMessage, getChatMessages } from '../lib/supabase'
 import { t, getLangMeta } from '../lib/i18n'
 import MaoriFlagIcon from './MaoriFlagIcon'
 import { apiFetch } from '../lib/api'
@@ -67,19 +67,13 @@ export default function ChatPanel({
 
   useEffect(() => {
     if (!consultationId) return
-    supabase
-      .from('messages')
-      .select('*')
-      .eq('consultation_id', consultationId)
-      .order('created_at')
-      .then(({ data }) => setMessages(data || []))
+    getChatMessages(consultationId).then(msgs => setMessages(msgs || [])).catch(() => {})
 
     channelRef.current = supabase
-      .channel(`chat-${consultationId}`)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'messages',
-        filter: `consultation_id=eq.${consultationId}`,
-      }, ({ new: msg }) => {
+      .channel(`chat-${consultationId}`, { config: { broadcast: { self: false } } })
+      .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+        const msg = payload?.message
+        if (!msg) return
         addMessage(msg)
         if (!open) setUnread(u => u + 1)
         if (msg.sender !== sender && msg.photo_url && onPhotoReceived) {
