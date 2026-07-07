@@ -5,6 +5,7 @@
 // would let anyone post fake listings on the public site.
 
 import { createClient } from '@supabase/supabase-js'
+import { guardProvider } from './_auth.js'
 
 function admin() {
   return createClient(
@@ -28,16 +29,11 @@ function projectPayload(raw) {
   return patch
 }
 
-function isAdmin(req) {
-  return !!(req.auth?.provider?.is_admin)
-}
-
 export default async function handler(req, res) {
   const supabase = admin()
 
-  // GET is public — but this route is in AUTH_REQUIRED_ROUTES so guardProvider
-  // has already run. Careers page reads still hit the anon SELECT policy on the
-  // table directly; this endpoint is the write path.
+  // GET is public — /careers page and /careers/apply?job=<id> read this anon.
+  // Writes require admin, checked inline below.
   if (req.method === 'GET') {
     const { data, error } = await supabase
       .from('job_listings')
@@ -47,7 +43,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ listings: data || [] })
   }
 
-  if (!isAdmin(req)) return res.status(403).json({ error: 'Admin required' })
+  // Writes: authenticate as provider inline (not in AUTH_REQUIRED_ROUTES since
+  // GET is public), then require admin.
+  const auth = await guardProvider(req, res)
+  if (!auth) return
+  if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin required' })
 
   if (req.method === 'POST') {
     const payload = projectPayload(req.body)

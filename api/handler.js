@@ -28,11 +28,13 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'create-room',
   'initiate-call', 'make-call',
   // Provider admin surfaces (task C migrations)
-  'audit-log', 'radiology-referrals', 'job-listings', 'clinic-schedule',
+  'audit-log', 'radiology-referrals', 'clinic-schedule',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
   //   push-subscribe   — anon patient/provider subscription; upsert-only
+  //   job-listings     — GET is public (Careers page); writes guarded inside
+  //   job-applications — POST is anon submit; other verbs guarded inside
   // NOT auth-required (patient-side callers, own guards inside):
   //   assess-acc      — patient triage AI classifies ACC eligibility
   //   verify-acc      — patient triage verifies ACC injury details
