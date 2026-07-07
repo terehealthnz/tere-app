@@ -10,8 +10,11 @@ export const config = { api: { bodyParser: false } }
 // endpoint). If you add a new provider-only route to the ROUTES map below,
 // add its key here too — otherwise anyone can hit it without signing in.
 const AUTH_REQUIRED_ROUTES = new Set([
-  // PHI reads/writes on consultations + related tables
-  'consultations', 'create-consultation', 'patients', 'prescriptions', 'providers',
+  // PHI reads/writes on consultations + related tables. create-consultation
+  // is NOT here — patient triage / repeat-Rx flows call it before login;
+  // security is enforced by the CREATE_REJECT allowlist inside the endpoint.
+  // Same for patient-consult (patient updates own consult with PATIENT_ALLOWLIST).
+  'consultations', 'patients', 'prescriptions', 'providers',
   'get-queue', 'appointments',
   // Validation subsystem (research data)
   'validation-subjects', 'validation-readings', 'model-version', 'flags',
