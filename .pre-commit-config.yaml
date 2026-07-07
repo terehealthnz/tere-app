@@ -1,0 +1,50 @@
+# Pre-commit hook configuration.
+#
+# What this catches: secrets, credentials, and API keys accidentally
+# committed to the repo. Ships as durable-change action #2 from the
+# 2026-07-08 incident tabletop debrief.
+#
+# Install:
+#   1. Install pre-commit framework (once per machine):
+#        brew install pre-commit         # macOS
+#        pip install pre-commit          # alternative
+#   2. Install the hooks in this repo (once per clone):
+#        pre-commit install
+#   3. Auto-runs on every `git commit`.
+#
+# Manual run against all files (for CI or one-off scans):
+#   pre-commit run --all-files
+#
+# When detect-secrets flags a false positive, update the baseline:
+#   detect-secrets scan --baseline .secrets.baseline
+
+repos:
+  # Detect-secrets scans staged files for tokens, keys, and credentials.
+  # Uses the .secrets.baseline file to know which existing (non-secret)
+  # strings to ignore — regenerate the baseline when patterns change.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        # Exclude paths that are known to contain non-secret patterns.
+        exclude: |
+          (?x)^(
+            package-lock\.json|
+            .*\.min\.js|
+            android/.*|
+            ios/.*|
+            test-results/.*|
+            docs/incidents/.*
+          )$
+
+  # Additional guardrail: block large files (>500KB) from commit —
+  # avoids accidentally checking in a database dump, private key blob,
+  # or full backup archive that also happens to contain secrets.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: detect-private-key
+      - id: check-merge-conflict

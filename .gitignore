@@ -3,5 +3,55 @@ dist/
 .DS_Store
 *.bak
 .vercel
-.env*
 1password-setup.md
+
+# ── Secrets and credentials ──────────────────────────────────────────
+# Broad match on env files. .env.example is grandfathered as a tracked
+# template; anything else matching .env* will be blocked from commit.
+.env*
+
+# Common credential file names — block from ever landing in the repo.
+secrets.json
+credentials.json
+*.credentials.json
+*.secrets.json
+
+# Private key material.
+*.pem
+*.key
+!public/*.pem
+!public/*.key
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+
+# AWS local credential files (unusual in a repo but block anyway).
+.aws/credentials
+.aws/config
+
+# Google service account keys.
+*service-account*.json
+*serviceAccountKey*.json
+
+# ── Pre-commit / secret-scanner state ────────────────────────────────
+# Baseline file is tracked (below); detected-secrets audit output is not.
+.secrets.audit.json
+
+# ── OS / editor / build artifacts ────────────────────────────────────
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.log
+
+# ── Test artifacts ───────────────────────────────────────────────────
+test-results/
+playwright-report/
+
+# ── Capacitor native build outputs (regenerated on cap sync) ────────
+android/app/build/
+android/build/
+ios/App/build/
+ios/App/Pods/
+ios/DerivedData/
