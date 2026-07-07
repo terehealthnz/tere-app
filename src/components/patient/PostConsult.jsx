@@ -24,6 +24,15 @@ export default function PostConsult() {
             Start a new consultation
           </a>
         </div>
+        <div style={{marginTop:'1.25rem',background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:12,padding:'1rem 1.25rem',textAlign:'left'}}>
+          <div style={{fontSize:'.9375rem',fontWeight:700,color:'#0D2B45',marginBottom:'.25rem'}}>Need help with something?</div>
+          <p style={{fontSize:'.8125rem',color:'#374151',lineHeight:1.6,margin:'0 0 .75rem'}}>
+            Prescription not received? Question about your consultation? We usually reply within one business day.
+          </p>
+          <a href="/contact?source=post_consult" style={{display:'inline-block',background:'#0B6E76',color:'white',textDecoration:'none',padding:'8px 16px',borderRadius:99,fontSize:'.8125rem',fontWeight:700}}>
+            Get in touch →
+          </a>
+        </div>
         <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem'}}>
           Urgent concern? Call <strong>111</strong>. Non-emergency: return to Tere anytime.
         </p>

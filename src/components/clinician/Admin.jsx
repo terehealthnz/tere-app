@@ -83,6 +83,188 @@ function AdminNavMenu({ navigate }) {
   )
 }
 
+// SupportPanel — patient-submitted "Contact us" tickets. Reads from
+// /api/patient-support. Admin can open a ticket, send a reply email
+// (recorded as an admin note), and change status.
+const CATEGORY_LABEL = {
+  prescription: 'Prescription', billing: 'Billing', follow_up: 'Follow-up',
+  technical: 'Technical', complaint: 'Complaint', other: 'Other',
+}
+const STATUS_STYLE = {
+  new:         { bg:'#EFF6FF', color:'#1D4ED8', label:'New' },
+  in_progress: { bg:'#FEF3C7', color:'#92400E', label:'In progress' },
+  resolved:    { bg:'#DCFCE7', color:'#065F46', label:'Resolved' },
+  archived:    { bg:'#F3F4F6', color:'#6B7280', label:'Archived' },
+}
+
+function SupportPanel() {
+  const [tickets, setTickets] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [statusFilter, setStatusFilter] = React.useState('new')
+  const [open, setOpen] = React.useState(null) // ticket being viewed
+  const [replyText, setReplyText] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [flash, setFlash] = React.useState(null)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const q = statusFilter === 'all' ? '' : `?status=${statusFilter}`
+      const r = await apiFetch(`/api/patient-support${q}`)
+      const data = await r.json()
+      setTickets(data.tickets || [])
+    } catch { setTickets([]) }
+    setLoading(false)
+  }
+
+  React.useEffect(() => { load() }, [statusFilter])
+
+  async function setStatus(id, status) {
+    setBusy(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      await apiFetch(`/api/patient-support?id=${id}`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ status }),
+      })
+      setFlash(`Marked ${STATUS_STYLE[status].label.toLowerCase()}`)
+      setTimeout(() => setFlash(null), 2500)
+      if (open?.id === id) setOpen({ ...open, status })
+      load()
+    } catch {}
+    setBusy(false)
+  }
+
+  async function sendReply() {
+    if (!open || !replyText.trim()) return
+    setBusy(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch(`/api/patient-support?action=reply&id=${open.id}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ body: replyText }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || 'Reply failed')
+      setFlash('Reply sent + logged')
+      setTimeout(() => setFlash(null), 2500)
+      setReplyText('')
+      // Refresh single ticket
+      const t = await apiFetch(`/api/patient-support?id=${open.id}`)
+      const tj = await t.json()
+      if (tj.ticket) setOpen(tj.ticket)
+      load()
+    } catch (e) { alert(e.message) }
+    setBusy(false)
+  }
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+        <div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Patient support tickets</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Messages submitted via /contact or the post-consult "Need help?" link</div>
+        </div>
+        <div style={{ display:'flex', gap:'.5rem', alignItems:'center' }}>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding:'6px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+            <option value="new">New</option>
+            <option value="in_progress">In progress</option>
+            <option value="resolved">Resolved</option>
+            <option value="archived">Archived</option>
+            <option value="all">All</option>
+          </select>
+          <button onClick={load} style={{ background:'#F0F9FA', border:'none', color:'#0B6E76', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>↻</button>
+        </div>
+      </div>
+
+      {flash && <div style={{ background:'#F0FDF4', border:'1px solid #86EFAC', borderRadius:8, padding:'.5rem .75rem', fontSize:'.8125rem', color:'#065F46', marginBottom:'.75rem' }}>{flash}</div>}
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : tickets.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#059669', fontSize:'.9375rem' }}>✓ No tickets in this view</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+          {tickets.map(t => {
+            const s = STATUS_STYLE[t.status] || STATUS_STYLE.new
+            const created = new Date(t.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })
+            return (
+              <div key={t.id} onClick={() => setOpen(t)}
+                style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'.75rem 1rem', cursor:'pointer' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.75rem' }}>
+                  <div style={{ minWidth:0, flex:1 }}>
+                    <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', marginBottom:4 }}>
+                      <span style={{ background:s.bg, color:s.color, fontSize:'.7rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{s.label}</span>
+                      <span style={{ background:'#E0E7FF', color:'#4338CA', fontSize:'.7rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>{CATEGORY_LABEL[t.category] || t.category}</span>
+                      <span style={{ fontSize:'.75rem', color:'#6B7280' }}>{created}</span>
+                    </div>
+                    <div style={{ fontSize:'.875rem', fontWeight:700, color:'#0D2B45', marginBottom:2 }}>{t.patient_name || t.patient_email}</div>
+                    <div style={{ fontSize:'.8125rem', color:'#374151', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.message}</div>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {open && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,0.6)', zIndex:1000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'40px 20px', overflowY:'auto' }} onClick={() => setOpen(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:14, width:'100%', maxWidth:640, boxShadow:'0 20px 60px rgba(0,0,0,.3)', maxHeight:'calc(100vh - 80px)', display:'flex', flexDirection:'column' }}>
+            <div style={{ padding:'1.25rem 1.5rem', borderBottom:'1px solid #E2E8F0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <div style={{ fontSize:'1.125rem', fontWeight:800, color:'#0D2B45' }}>{open.patient_name || open.patient_email}</div>
+                <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>{CATEGORY_LABEL[open.category] || open.category} · {new Date(open.created_at).toLocaleString('en-NZ')}</div>
+              </div>
+              <button onClick={() => setOpen(null)} style={{ background:'none', border:'none', fontSize:'1.5rem', cursor:'pointer', color:'#6B7280', lineHeight:1 }}>×</button>
+            </div>
+            <div style={{ padding:'1.25rem 1.5rem', overflowY:'auto', flex:1 }}>
+              <div style={{ marginBottom:'1rem', fontSize:'.8125rem', color:'#374151' }}>
+                <div><strong>Email:</strong> <a href={`mailto:${open.patient_email}`} style={{ color:'#0B6E76' }}>{open.patient_email}</a></div>
+                {open.patient_phone && <div><strong>Phone:</strong> {open.patient_phone}</div>}
+                {open.consultation_id && <div><strong>Consult:</strong> <code>{open.consultation_id.slice(0,8)}…</code></div>}
+                {open.source && <div><strong>Source:</strong> {open.source}</div>}
+              </div>
+              <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem' }}>
+                <div style={{ fontSize:'.7rem', color:'#6B7280', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Patient's message</div>
+                <div style={{ fontSize:'.875rem', color:'#1A2A33', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.message}</div>
+              </div>
+
+              {open.admin_notes && (
+                <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem' }}>
+                  <div style={{ fontSize:'.7rem', color:'#92400E', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Reply history / notes</div>
+                  <div style={{ fontSize:'.8125rem', color:'#374151', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.admin_notes}</div>
+                </div>
+              )}
+
+              <div style={{ marginBottom:'1rem' }}>
+                <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:6, display:'block', textTransform:'uppercase', letterSpacing:'.04em' }}>Send reply to {open.patient_email}</label>
+                <textarea value={replyText} onChange={e => setReplyText(e.target.value)} rows={5}
+                  placeholder="Type your reply. It will be emailed to the patient and recorded here."
+                  style={{ width:'100%', padding:'.75rem', border:'1px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif', resize:'vertical' }} />
+                <button onClick={sendReply} disabled={busy || !replyText.trim()}
+                  style={{ marginTop:'.5rem', background:'#0B6E76', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: busy ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
+                  {busy ? 'Sending…' : 'Send reply'}
+                </button>
+              </div>
+            </div>
+            <div style={{ padding:'.875rem 1.5rem', borderTop:'1px solid #E2E8F0', display:'flex', gap:'.5rem', flexWrap:'wrap', background:'#F8FAFC' }}>
+              {open.status !== 'in_progress' && <button onClick={() => setStatus(open.id, 'in_progress')} disabled={busy} style={{ background:'#FEF3C7', color:'#92400E', border:'none', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700 }}>Mark in progress</button>}
+              {open.status !== 'resolved' && <button onClick={() => setStatus(open.id, 'resolved')} disabled={busy} style={{ background:'#DCFCE7', color:'#065F46', border:'none', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700 }}>Mark resolved</button>}
+              {open.status !== 'archived' && <button onClick={() => setStatus(open.id, 'archived')} disabled={busy} style={{ background:'white', border:'1px solid #E2E8F0', color:'#6B7280', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>Archive</button>}
+              <div style={{ flex:1 }} />
+              <button onClick={() => setOpen(null)} style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // AddProviderModal — full onboarding form for a new clinician / admin user.
 // Posts to /api/providers with admin auth. Returns a plain initial PIN which
 // the parent surfaces via a green banner. Auto-generates 6-digit PIN if empty.
@@ -2807,6 +2989,7 @@ function AdminBody() {
             { id:'performance',  label:'📈 Performance' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'careers',      label:'💼 Careers' },
+            { id:'support',      label:'🎫 Support' },
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
           ]
@@ -2830,7 +3013,7 @@ function AdminBody() {
           )
         })()}
 
-        {adminTab === 'patients' ? <AdminPatients embedded /> : adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
+        {adminTab === 'patients' ? <AdminPatients embedded /> : adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'support' ? <SupportPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
 
         {/* Providers */}
         <ProvidersPanel />

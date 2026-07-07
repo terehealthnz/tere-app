@@ -205,6 +205,7 @@ const ROUTES = {
   'patients':                  () => import('./_patients.js'),
   'spo2-calibrations':         () => import('./_spo2-calibrations.js'),
   'job-applications':          () => import('./_job-applications.js'),
+  'patient-support':           () => import('./_patient-support.js'),
 }
 
 export default async function handler(req, res) {
