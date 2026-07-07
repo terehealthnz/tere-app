@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, supabase } from '../../lib/supabase'
-import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable } from '../../lib/bpModel'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, supabase } from '../../lib/supabase'
+import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
+import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { fitSpO2Calibration } from '../../lib/spo2'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -347,7 +348,61 @@ function DiversityTracker({ subjects }) {
   )
 }
 
-function ModelPanel({ readings, modelVersions, training, trainingStatus, onTrain }) {
+function SkinToneGapPanel({ readings, subjects }) {
+  const TARGET = 15
+  const FITZ_LABELS = ['I (very fair)', 'II (fair)', 'III (medium)', 'IV (olive)', 'V (brown)', 'VI (dark)']
+  const subjectsByType = [0, 0, 0, 0, 0, 0]
+  const readingsByType = [0, 0, 0, 0, 0, 0]
+  subjects.forEach(s => { if (s.fitzpatrick_scale >= 1 && s.fitzpatrick_scale <= 6) subjectsByType[s.fitzpatrick_scale - 1]++ })
+  readings.forEach(r => {
+    const fitz = r.validation_subjects?.fitzpatrick_scale
+    if (fitz >= 1 && fitz <= 6) readingsByType[fitz - 1]++
+  })
+  const vCount = readingsByType[4] + readingsByType[5]
+  const vTarget = TARGET * 2
+  const criticalGap = vCount < 5
+  const someGap = vCount < vTarget
+
+  return (
+    <div style={{
+      background: criticalGap ? '#FEF2F2' : someGap ? '#FFFBEB' : '#F0FDF4',
+      border: `1.5px solid ${criticalGap ? '#FCA5A5' : someGap ? '#FCD34D' : '#86EFAC'}`,
+      borderRadius: 16, padding: '1.25rem', marginBottom: '1.25rem',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
+        <span style={{ fontSize: '1.1rem' }}>{criticalGap ? '⚠️' : someGap ? '⚡' : '✓'}</span>
+        <div style={{ fontWeight: 700, fontSize: '.95rem', color: criticalGap ? '#991B1B' : someGap ? '#92400E' : '#065F46' }}>
+          {criticalGap ? 'Critical data gap — skin tone coverage' : someGap ? 'Skin tone coverage below target' : 'Skin tone coverage on target'}
+        </div>
+      </div>
+      {someGap && (
+        <div style={{ fontSize: '.85rem', color: criticalGap ? '#991B1B' : '#92400E', marginBottom: '.85rem', lineHeight: 1.45 }}>
+          HR accuracy can be up to 4× worse for darker skin tones without representative training data. Priority: recruit Māori and Pacific volunteers (typically Fitzpatrick V/VI).
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '.4rem' }}>
+        {FITZ_LABELS.map((lbl, i) => {
+          const reads = readingsByType[i]
+          const subs = subjectsByType[i]
+          const pct = Math.min(100, (reads / TARGET) * 100)
+          const isVVI = i >= 4
+          const barColor = reads >= TARGET ? '#10B981' : isVVI && reads < 5 ? '#EF4444' : reads < TARGET / 2 ? '#F59E0B' : '#0B6E76'
+          return (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '8rem 1fr 5rem', alignItems: 'center', gap: '.75rem', fontSize: '.8rem' }}>
+              <div style={{ color: isVVI ? NAVY : '#6B7280', fontWeight: isVVI ? 700 : 500 }}>Type {lbl}</div>
+              <div style={{ background: '#E5E7EB', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+                <div style={{ background: barColor, height: 6, width: `${pct}%`, transition: 'width .3s' }} />
+              </div>
+              <div style={{ color: '#6B7280', textAlign: 'right' }}>{reads} / {TARGET} ({subs} subj)</div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ModelPanel({ readings, modelVersions, training, trainingStatus, onTrain, onReset }) {
   const localMeta   = getLocalMeta()
   const latestDB    = modelVersions[0]
   const meta        = localMeta || latestDB
@@ -381,8 +436,12 @@ function ModelPanel({ readings, modelVersions, training, trainingStatus, onTrain
   return (
     <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 6px rgba(0,0,0,.05)', marginBottom: '1.25rem' }}>
       {(() => {
-        const lastTrainMs = parseInt(localStorage.getItem('tere_last_train_ms') || '0')
-        const minsAgo = lastTrainMs ? Math.round((Date.now() - lastTrainMs) / 60000) : null
+        // Prefer meta.trainedAt — that's stamped inside trainModel() every
+        // retrain, whichever caller triggered it. Fall back to the legacy
+        // tere_last_train_ms key for anything trained before this fix.
+        const trainedAtMs = meta?.trainedAt ? new Date(meta.trainedAt).getTime()
+          : parseInt(localStorage.getItem('tere_last_train_ms') || '0')
+        const minsAgo = trainedAtMs ? Math.round((Date.now() - trainedAtMs) / 60000) : null
         const retrainReason = meta?.retrainReason || null
         return (
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '.85rem' }}>
@@ -401,10 +460,18 @@ function ModelPanel({ readings, modelVersions, training, trainingStatus, onTrain
                 </div>
               )}
             </div>
-            <button onClick={onTrain} disabled={!!training || totalReadings < 5}
-              style={{ background: TEAL, color: 'white', border: 'none', borderRadius: 99, padding: '.4rem 1rem', fontWeight: 700, fontSize: '.8rem', cursor: (training || totalReadings < 5) ? 'not-allowed' : 'pointer', opacity: (training || totalReadings < 5) ? .5 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-              {training ? 'Training…' : '🔄 Retrain now'}
-            </button>
+            <div style={{ display: 'flex', gap: '.4rem' }}>
+              <button onClick={onTrain} disabled={!!training || totalReadings < 5}
+                style={{ background: TEAL, color: 'white', border: 'none', borderRadius: 99, padding: '.4rem 1rem', fontWeight: 700, fontSize: '.8rem', cursor: (training || totalReadings < 5) ? 'not-allowed' : 'pointer', opacity: (training || totalReadings < 5) ? .5 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                {training ? 'Training…' : '🔄 Retrain now'}
+              </button>
+              {onReset && (
+                <button onClick={onReset} disabled={!!training || totalReadings < 5} title="Discard current local model and train fresh"
+                  style={{ background: 'white', color: '#B91C1C', border: '1.5px solid #FCA5A5', borderRadius: 99, padding: '.4rem 1rem', fontWeight: 700, fontSize: '.8rem', cursor: (training || totalReadings < 5) ? 'not-allowed' : 'pointer', opacity: (training || totalReadings < 5) ? .5 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  🗑️ Reset & retrain
+                </button>
+              )}
+            </div>
           </div>
         )
       })()}
@@ -784,6 +851,8 @@ export default function VitalsValidateDashboard() {
   const [trainingStatus, setTrainingStatus] = useState('')
   const [reprocessing, setReprocessing] = useState(false)
   const [reprocessStatus, setReprocessStatus] = useState('')
+  const [reprocessingHr, setReprocessingHr] = useState(false)
+  const [reprocessHrStatus, setReprocessHrStatus] = useState('')
 
   useEffect(() => {
     if (authed !== true) return
@@ -823,6 +892,53 @@ export default function VitalsValidateDashboard() {
       setTraining(false)
     }
   }, [])
+
+  const handleResetAndTrain = useCallback(async () => {
+    if (training) return
+    if (!window.confirm('This will discard the existing local BP model weights and train a fresh model from all readings. Continue?')) return
+    setTraining(true)
+    setTrainingStatus('Clearing local model…')
+    try { await resetLocalModel() } catch {}
+    setTraining(false)
+    handleTrain()
+  }, [training, handleTrain])
+
+  const handleReprocessHrRr = useCallback(async () => {
+    if (reprocessingHr) return
+    if (!window.confirm('This will re-derive Tere HR & RR from stored raw frames for every reading, using the current rPPG pipeline (post-fix). Cuff/manual values are not touched. Continue?')) return
+    setReprocessingHr(true)
+    setReprocessHrStatus('Loading readings…')
+    try {
+      const all = await getValidationReadings()
+      const withRaw = all.filter(r => r.raw_rppg_signal?.frames?.length)
+      let updated = 0, nullResult = 0, failed = 0, noRaw = all.length - withRaw.length
+      for (let i = 0; i < withRaw.length; i++) {
+        const r = withRaw[i]
+        setReprocessHrStatus(`Reprocessing ${i + 1}/${withRaw.length} (updated ${updated}, null ${nullResult}, failed ${failed})…`)
+        try {
+          const fps = r.raw_rppg_signal.fps || 30
+          const result = processStoredFramesMultiPass(r.raw_rppg_signal.frames, fps)
+          if (result) {
+            // Force overwrite — the latest WinConsensus algorithm should fully
+            // replace any prior artifact values left over from older runs.
+            const newQuality = result.hr != null ? 'extracted' : 'no_signal'
+            await updateValidationHrRr(r.id, result.hr ?? null, result.rr ?? null, r.manual_hr ?? null, { forceOverwrite: true, hrQuality: newQuality })
+            if (result.hr == null && result.rr == null) nullResult++
+            else updated++
+          } else { nullResult++ }
+        } catch (e) { console.warn('[reprocess HR/RR] failed for', r.id, e.message); failed++ }
+        // Yield to UI every few iterations so the browser stays responsive
+        if (i % 3 === 2) await new Promise(res => setTimeout(res, 0))
+      }
+      const fresh = await getValidationReadings()
+      setReadings(fresh)
+      setReprocessHrStatus(`Done — updated ${updated}, null ${nullResult}, no raw signal ${noRaw}${failed ? `, failed ${failed}` : ''}.`)
+    } catch (e) {
+      setReprocessHrStatus('Failed: ' + e.message)
+    } finally {
+      setReprocessingHr(false)
+    }
+  }, [reprocessingHr])
 
   const handleReprocessSpo2 = useCallback(async () => {
     setReprocessing(true)
@@ -913,7 +1029,7 @@ export default function VitalsValidateDashboard() {
       <ModelPanel
         readings={readings} modelVersions={modelVersions}
         training={training} trainingStatus={trainingStatus}
-        onTrain={handleTrain}
+        onTrain={handleTrain} onReset={handleResetAndTrain}
       />
 
       {/* Data collection targets */}
@@ -988,6 +1104,26 @@ export default function VitalsValidateDashboard() {
           </div>
         )
       })()}
+
+      {/* Reprocess from stored raw signal */}
+      <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 6px rgba(0,0,0,.05)', marginBottom: '1.25rem' }}>
+        <div style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem', marginBottom: '.5rem' }}>Reprocess from stored raw signal</div>
+        <div style={{ fontSize: '.85rem', color: '#6B7280', marginBottom: '.85rem', lineHeight: 1.45 }}>
+          Re-derive Tere HR &amp; RR for every reading using the current rPPG pipeline. Use after fixing a signal-processing bug to refresh historical numbers in place (rather than waiting for new readings).
+        </div>
+        <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          <button onClick={handleReprocessHrRr} disabled={!!reprocessingHr || !readings.length}
+            style={{ background: 'white', color: '#0B6E76', border: '1.5px solid #0B6E76', borderRadius: 99, padding: '.4rem 1rem', fontWeight: 700, fontSize: '.8rem', cursor: (reprocessingHr || !readings.length) ? 'not-allowed' : 'pointer', opacity: (reprocessingHr || !readings.length) ? .5 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            {reprocessingHr ? 'Reprocessing HR/RR…' : '🔁 Reprocess HR & RR'}
+          </button>
+        </div>
+        {reprocessHrStatus && (
+          <div style={{ fontSize: '.8rem', color: '#6B7280', fontStyle: 'italic', marginTop: '.6rem' }}>{reprocessHrStatus}</div>
+        )}
+      </div>
+
+      {/* Skin tone gap warning */}
+      <SkinToneGapPanel readings={readings} subjects={subjects} />
 
       {/* Diversity tracker */}
       <div style={{ background: 'white', borderRadius: 16, padding: '1.25rem', boxShadow: '0 1px 6px rgba(0,0,0,.05)', marginBottom: '1.25rem' }}>
