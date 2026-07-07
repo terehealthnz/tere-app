@@ -26,7 +26,18 @@ export default async function handler(req, res) {
   const supabase = admin()
 
   if (req.method === 'GET') {
-    const { employerId } = req.query || {}
+    const { employerId, counts } = req.query || {}
+
+    // Grouped counts { employer_id: count } for the admin employer directory
+    // "N employees" badge.
+    if (counts === '1') {
+      const { data, error } = await supabase.from('employer_employees').select('employer_id')
+      if (error) return res.status(500).json({ error: error.message })
+      const map = {}
+      for (const r of (data || [])) map[r.employer_id] = (map[r.employer_id] || 0) + 1
+      return res.status(200).json({ counts: map })
+    }
+
     let q = supabase.from('employer_employees').select('*').order('last_name')
     if (employerId) q = q.eq('employer_id', String(employerId))
     const { data, error } = await q

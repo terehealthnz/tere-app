@@ -558,6 +558,13 @@ export async function addEmployerEmployees(rows) {
   return body.employees || []
 }
 
+export async function getEmployerEmployeeCounts() {
+  const res = await apiFetch('/api/employer-employees?counts=1')
+  if (!res.ok) return {}
+  const { counts } = await res.json()
+  return counts || {}
+}
+
 // ── Prescriptions ────────────────────────────────────────────────────────────
 
 export async function getPendingPrescriptions(columns = null) {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -1102,16 +1102,11 @@ function EmployersPanel() {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data: emps } = await supabase.from('employers').select('*').order('company_name')
+      const emps = await getEmployers({ includeInactive: true })
       setEmployers(emps || [])
       if (emps?.length) {
-        const { data: counts } = await supabase
-          .from('employer_employees')
-          .select('employer_id')
-        const map = {}
-        ;(counts || []).forEach(r => { map[r.employer_id] = (map[r.employer_id] || 0) + 1 })
-        setEmployeeCounts(map)
+        const map = await getEmployerEmployeeCounts()
+        setEmployeeCounts(map || {})
       }
     } catch {}
     setLoading(false)
