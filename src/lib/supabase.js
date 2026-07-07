@@ -615,6 +615,54 @@ export async function updateRadiologyReferral(id, updates) {
   return res.ok
 }
 
+export async function getRadiologyReferrals({ filter, provider_id, columns } = {}) {
+  const params = new URLSearchParams()
+  if (filter) params.set('filter', filter)
+  if (provider_id) params.set('provider_id', provider_id)
+  if (columns) params.set('columns', columns)
+  const qs = params.toString() ? `?${params.toString()}` : ''
+  const res = await apiFetch(`/api/radiology-referrals${qs}`)
+  if (!res.ok) return []
+  const { referrals } = await res.json()
+  return referrals || []
+}
+
+export async function getRadiologyReferralCount({ filter, provider_id } = {}) {
+  const params = new URLSearchParams({ count: '1' })
+  if (filter) params.set('filter', filter)
+  if (provider_id) params.set('provider_id', provider_id)
+  const res = await apiFetch(`/api/radiology-referrals?${params.toString()}`)
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
+}
+
+// ── Appointments ─────────────────────────────────────────────────────────────
+// (updateAppointmentStatus lives further down)
+
+export async function getUpcomingAppointments() {
+  const res = await apiFetch('/api/appointments?type=upcoming')
+  if (!res.ok) return []
+  const { appointments } = await res.json()
+  return appointments || []
+}
+
+export async function getTodaysAppointments(providerId = null) {
+  const qs = providerId ? `?type=today&provider_id=${encodeURIComponent(providerId)}` : '?type=today'
+  const res = await apiFetch(`/api/appointments${qs}`)
+  if (!res.ok) return []
+  const { appointments } = await res.json()
+  return appointments || []
+}
+
+export async function getReservationCount(sinceIso = null) {
+  const qs = sinceIso ? `?type=reservation_count&since=${encodeURIComponent(sinceIso)}` : '?type=reservation_count'
+  const res = await apiFetch(`/api/appointments${qs}`)
+  if (!res.ok) return 0
+  const { count } = await res.json()
+  return count || 0
+}
+
 // ── Job listings ─────────────────────────────────────────────────────────────
 
 export async function createJobListing(payload) {

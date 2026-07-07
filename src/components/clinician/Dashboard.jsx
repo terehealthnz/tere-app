@@ -346,16 +346,14 @@ function ApprovalsTab({ onBadgeChange }) {
 
   async function load() {
     try {
-      // radiology_referrals still reads directly (own follow-up); prescriptions
-      // and consultations go through their server endpoints.
-      const { supabase } = await import('../../lib/supabase')
-      const [rx, refRes, acc] = await Promise.all([
+      const { getRadiologyReferrals } = await import('../../lib/supabase')
+      const [rx, refs, acc] = await Promise.all([
         getPendingPrescriptions().catch(e => { if (e.message?.includes('42P01')) { setMigrationError(true); return null } throw e }),
-        supabase.from('radiology_referrals').select('*').eq('approval_status', 'pending_approval').order('created_at'),
+        getRadiologyReferrals({ filter: 'pending_approval' }),
         getAccPendingConsultations(),
       ])
       if (rx === null) { setLoading(false); return }
-      const loaded = { prescriptions: rx || [], referrals: refRes.data || [], acc: acc || [] }
+      const loaded = { prescriptions: rx || [], referrals: refs || [], acc: acc || [] }
       setItems(loaded)
       onBadgeChange?.(loaded.prescriptions.length + loaded.referrals.length + loaded.acc.length)
       setMigrationError(false)
@@ -678,24 +676,21 @@ export default function Dashboard() {
         supabase.from('providers').select('is_available').eq('id', pid).single()
           .then(({ data }) => { if (data) setProvIsAvail(data.is_available) })
           .catch(() => {})
-        supabase.from('radiology_referrals')
-          .select('id', { count: 'exact', head: true })
-          .eq('provider_id', pid)
-          .not('referral_status', 'eq', 'result_received')
-          .not('referral_status', 'eq', 'dna')
-          .then(({ count }) => { if (count != null) setReferralBadge(count) })
-          .catch(() => {})
+        import('../../lib/supabase').then(({ getRadiologyReferralCount }) =>
+          getRadiologyReferralCount({ filter: 'active', provider_id: pid })
+            .then(c => setReferralBadge(c))
+            .catch(() => {})
+        )
       })
     }
     if (isSupervisor) {
-      // radiology_referrals count still direct (own follow-up).
-      import('../../lib/supabase').then(({ supabase }) => {
+      import('../../lib/supabase').then(({ getRadiologyReferralCount }) => {
         Promise.all([
           getPendingPrescriptionsCount(),
-          supabase.from('radiology_referrals').select('id', { count: 'exact', head: true }).eq('approval_status', 'pending_approval'),
+          getRadiologyReferralCount({ filter: 'pending_approval' }),
           getAccPendingCount(),
-        ]).then(([rxC, ref, accC]) => {
-          setApprovalBadge((rxC || 0) + (ref.count || 0) + (accC || 0))
+        ]).then(([rxC, refC, accC]) => {
+          setApprovalBadge((rxC || 0) + (refC || 0) + (accC || 0))
         }).catch(() => {})
       })
     }

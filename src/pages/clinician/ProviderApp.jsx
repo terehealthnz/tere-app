@@ -164,14 +164,15 @@ function TodayAppointments() {
     async function load() {
       try {
         const pid = sessionStorage.getItem('providerId')
-        const { supabase } = await import('../../lib/supabase')
+        const { supabase, getTodaysAppointments } = await import('../../lib/supabase')
         const today = new Date().toISOString().slice(0, 10)
-        let q = supabase.from('appointments').select('*').eq('appointment_date', today).in('status', ['pending', 'confirmed']).order('slot_time').limit(10)
-        if (pid) q = q.eq('provider_id', pid)
         let bq = supabase.from('bookings').select('*').eq('appointment_date', today).not('status', 'eq', 'cancelled').order('appointment_time').limit(10)
         if (pid) bq = bq.eq('provider_id', pid)
-        const [ar, br] = await Promise.allSettled([q, bq])
-        const apptData = ar.value?.data || []
+        const [ar, br] = await Promise.allSettled([
+          getTodaysAppointments(pid),
+          bq,
+        ])
+        const apptData = ar.value || []
         const bookData = br.value?.data || []
         const merged = [
           ...apptData.map(a => ({ id: a.id, time: a.slot_time, name: a.patient_name, label: a.reason || 'General' })),

@@ -101,6 +101,42 @@ export default async function handler(req, res) {
       return res.status(200).json({ appointments: data || [] })
     }
 
+    // Upcoming (legacy schema: appointment_date + slot_time). Admin panel.
+    if (type === 'upcoming') {
+      const today = new Date().toISOString().slice(0, 10)
+      const { data } = await supabase.from('appointments')
+        .select('*')
+        .gte('appointment_date', today)
+        .in('status', ['pending', 'confirmed'])
+        .order('appointment_date').order('slot_time')
+        .limit(50)
+      return res.status(200).json({ appointments: data || [] })
+    }
+
+    // Today (legacy schema). Provider-scoped when provider_id present.
+    if (type === 'today') {
+      const today = new Date().toISOString().slice(0, 10)
+      let q = supabase.from('appointments').select('*')
+        .eq('appointment_date', today)
+        .in('status', ['pending', 'confirmed'])
+        .order('slot_time').limit(10)
+      if (provider_id) q = q.eq('provider_id', provider_id)
+      const { data } = await q
+      return res.status(200).json({ appointments: data || [] })
+    }
+
+    // Reservation count in the last N days (analytics panel).
+    // ?type=reservation_count&since=<iso>
+    if (type === 'reservation_count') {
+      const { since } = req.query
+      const sinceIso = since || new Date(Date.now() - 30 * 86400000).toISOString()
+      const { count } = await supabase.from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .gte('created_at', sinceIso)
+        .not('reservation_payment_intent_id', 'is', null)
+      return res.status(200).json({ count: count || 0 })
+    }
+
     return res.status(400).json({ error: 'Invalid type' })
   }
 

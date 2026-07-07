@@ -356,14 +356,9 @@ function OutstandingReferrals() {
   async function load() {
     setLoading(true)
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data } = await supabase
-        .from('radiology_referrals')
-        .select('*')
-        .not('referral_status', 'eq', 'result_received')
-        .not('referral_status', 'eq', 'dna')
-        .order('created_at', { ascending: true })
-      setRows(data || [])
+      const { getRadiologyReferrals } = await import('../../lib/supabase')
+      const data = await getRadiologyReferrals({ filter: 'active' })
+      setRows(data)
     } catch { setRows([]) }
     setLoading(false)
   }
@@ -836,16 +831,13 @@ function PendingApprovalsPanel() {
   async function load() {
     setLoading(true)
     try {
-      // radiology_referrals still reads directly — has its own follow-up task
-      // to migrate to /api/radiology-referrals. Not a PHI leak in the same
-      // way consultations is, so migrating incrementally.
-      const { supabase } = await import('../../lib/supabase')
-      const [rx, refRes, acc] = await Promise.all([
+      const { getRadiologyReferrals } = await import('../../lib/supabase')
+      const [rx, refs, acc] = await Promise.all([
         getPendingPrescriptions('id, created_at, patient_name, drafted_by_name, provider_name, drug, urgency'),
-        supabase.from('radiology_referrals').select('id, created_at, patient_name, drafted_by_name, provider_name, investigation, urgency').eq('approval_status', 'pending_approval').order('created_at'),
+        getRadiologyReferrals({ filter: 'pending_approval', columns: 'id, created_at, patient_name, drafted_by_name, provider_name, investigation, urgency' }),
         getAccPendingConsultations('id, created_at, patient_first_name, patient_last_name, provider_display_name'),
       ])
-      setItems({ prescriptions: rx || [], referrals: refRes.data || [], acc: acc || [] })
+      setItems({ prescriptions: rx || [], referrals: refs || [], acc: acc || [] })
     } catch {}
     setLoading(false)
   }
@@ -1251,15 +1243,9 @@ function AppointmentsPanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('appointments')
-          .select('*')
-          .gte('appointment_date', new Date().toISOString().slice(0, 10))
-          .in('status', ['pending', 'confirmed'])
-          .order('appointment_date').order('slot_time')
-          .limit(50)
-        setRows(data || [])
+        const { getUpcomingAppointments } = await import('../../lib/supabase')
+        const data = await getUpcomingAppointments()
+        setRows(data)
       } catch { setRows([]) }
       setLoading(false)
     }
@@ -1383,19 +1369,14 @@ function RevenuePanel() {
   React.useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
+        const { getReservationCount } = await import('../../lib/supabase')
         const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
         const [consultResult, reservationResult] = await Promise.allSettled([
           getCompleteSince(thirtyDaysAgo, 'created_at, payment_amount_nzd, payment_amount, acc_eligible, status'),
-          // appointments read stays direct (own follow-up task)
-          supabase
-            .from('appointments')
-            .select('id', { count: 'exact', head: true })
-            .gte('created_at', thirtyDaysAgo)
-            .not('reservation_payment_intent_id', 'is', null),
+          getReservationCount(thirtyDaysAgo),
         ])
         if (consultResult.status === 'fulfilled') setRows(consultResult.value || [])
-        if (reservationResult.status === 'fulfilled') setReservationCount(reservationResult.value.count || 0)
+        if (reservationResult.status === 'fulfilled') setReservationCount(reservationResult.value || 0)
       } catch { setRows([]) }
       setLoading(false)
     }

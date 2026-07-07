@@ -79,14 +79,14 @@ function DashboardTab() {
       setFlagged(flagCount || 0)
       setAccConversions(accList || [])
     } catch {}
-    // Pending approvals — radiology_referrals still direct (own follow-up)
+    // Pending approvals
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const [rxC, refRes] = await Promise.all([
+      const { getRadiologyReferralCount } = await import('../../lib/supabase')
+      const [rxC, refC] = await Promise.all([
         getPendingPrescriptionsCount(),
-        supabase.from('radiology_referrals').select('*', { count:'exact', head:true }).eq('approval_status','pending_approval'),
+        getRadiologyReferralCount({ filter: 'pending_approval' }),
       ])
-      setApprovals((rxC || 0) + (refRes.count || 0))
+      setApprovals((rxC || 0) + (refC || 0))
     } catch {}
     setLoading(false)
   }, [])
