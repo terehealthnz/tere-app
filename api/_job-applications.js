@@ -58,6 +58,139 @@ async function seedOnboardingIfNeeded(supabase, applicationId) {
   await supabase.from('onboarding_steps').insert(rows)
 }
 
+// ── Notifications on new application ────────────────────────────────────────
+// Fire-and-forget. Failures are logged but never block the applicant's 200.
+async function notifyApplicationSubmitted(supabase, application) {
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) {
+    console.warn('[job-applications] RESEND_API_KEY missing — skipping notifications')
+    return
+  }
+
+  // Look up job listing details if the application references one.
+  let listing = null
+  if (application.job_listing_id) {
+    const { data } = await supabase
+      .from('job_listings')
+      .select('title, location')
+      .eq('id', application.job_listing_id)
+      .maybeSingle()
+    listing = data
+  }
+  const roleLine = listing?.title
+    ? `${listing.title}${listing.location ? ' · ' + listing.location : ''}`
+    : 'General application'
+
+  const fullName = `${application.first_name || ''} ${application.last_name || ''}`.trim()
+  const firstName = (application.first_name || '').trim() || 'there'
+  const cover = (application.cover_note || '').trim()
+  const coverShort = cover.length > 800 ? cover.slice(0, 800) + '…' : cover
+  const cvLine = application.cv_url
+    ? `<a href="${application.cv_url}" style="color:#0B6E76">${application.cv_filename || 'Download CV'}</a>`
+    : 'No CV attached'
+  const adminUrl = `${process.env.VITE_APP_URL || 'https://terehealth.co.nz'}/clinician/admin`
+
+  // ── Internal alert to terehealthnz@gmail.com ─────────────────────────────
+  const internalHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+  <div style="background:#0D2B45;padding:20px 28px">
+    <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+    <div style="color:rgba(212,238,240,.6);font-size:12px;margin-top:2px">New job application</div>
+  </div>
+  <div style="padding:24px 28px">
+    <p style="font-size:15px;margin:0 0 16px"><strong>${fullName}</strong> just applied.</p>
+    <table style="width:100%;font-size:14px;color:#374151;border-collapse:collapse;margin-bottom:18px">
+      <tr><td style="padding:4px 0;color:#6B7280;width:120px">Role</td><td>${roleLine}</td></tr>
+      <tr><td style="padding:4px 0;color:#6B7280">Email</td><td><a href="mailto:${application.email}" style="color:#0B6E76">${application.email}</a></td></tr>
+      ${application.phone ? `<tr><td style="padding:4px 0;color:#6B7280">Phone</td><td>${application.phone}</td></tr>` : ''}
+      ${application.source ? `<tr><td style="padding:4px 0;color:#6B7280">Source</td><td>${application.source}</td></tr>` : ''}
+      <tr><td style="padding:4px 0;color:#6B7280">CV</td><td>${cvLine}</td></tr>
+    </table>
+    ${coverShort ? `
+      <div style="background:#F8FAFC;border-left:3px solid #0B6E76;padding:12px 14px;border-radius:4px;margin-bottom:20px">
+        <div style="font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Cover note</div>
+        <div style="font-size:14px;color:#374151;white-space:pre-wrap">${coverShort.replace(/</g, '&lt;')}</div>
+      </div>` : ''}
+    <div style="text-align:center;margin:28px 0">
+      <a href="${adminUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:12px 24px;border-radius:99px;font-size:14px;font-weight:700">Open in admin →</a>
+    </div>
+  </div>
+</body></html>`
+
+  const internalText = [
+    `New job application`,
+    ``,
+    `Name: ${fullName}`,
+    `Role: ${roleLine}`,
+    `Email: ${application.email}`,
+    application.phone ? `Phone: ${application.phone}` : null,
+    application.source ? `Source: ${application.source}` : null,
+    application.cv_url ? `CV: ${application.cv_url}` : `CV: not attached`,
+    ``,
+    coverShort ? `Cover note:\n${coverShort}\n` : null,
+    `Open in admin: ${adminUrl}`,
+  ].filter(Boolean).join('\n')
+
+  // ── Autoresponder to applicant ────────────────────────────────────────────
+  const autoresponderHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+  <div style="background:#0D2B45;padding:20px 28px">
+    <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+  </div>
+  <div style="padding:24px 28px">
+    <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+      Thank you for applying to Tere Health${listing?.title ? ` for the <strong>${listing.title}</strong> role` : ''}.
+    </p>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+      We have received your application and one of our team will be in touch within the next few working days. If you have any additional information you would like to share, feel free to reply to this email.
+    </p>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">
+      Ngā mihi,<br>
+      The Tere Health team
+    </p>
+  </div>
+  <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
+    Tere Health · Marlborough Sounds, New Zealand · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
+  </div>
+</body></html>`
+
+  const autoresponderText = `Kia ora ${firstName},\n\nThank you for applying to Tere Health${listing?.title ? ` for the ${listing.title} role` : ''}.\n\nWe have received your application and one of our team will be in touch within the next few working days. If you have any additional information you would like to share, feel free to reply to this email.\n\nNgā mihi,\nThe Tere Health team\nterehealth.co.nz`
+
+  // Fire both emails. Log any failure but do not throw.
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
+      body: JSON.stringify({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: application.email,
+        to: ['terehealthnz@gmail.com'],
+        subject: `New applicant: ${fullName} · ${roleLine}`,
+        html: internalHtml,
+        text: internalText,
+      }),
+    })
+  } catch (e) { console.error('[job-applications] internal alert failed:', e.message) }
+
+  if (application.email) {
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
+        body: JSON.stringify({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: [application.email],
+          subject: `We've received your application — Tere Health`,
+          html: autoresponderHtml,
+          text: autoresponderText,
+        }),
+      })
+    } catch (e) { console.error('[job-applications] autoresponder failed:', e.message) }
+  }
+}
+
 export default async function handler(req, res) {
   const { action, id } = req.query || {}
 
@@ -77,9 +210,13 @@ export default async function handler(req, res) {
     const { data, error } = await supabase
       .from('job_applications')
       .insert(payload)
-      .select('id')
+      .select('*')
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
+    // Fire notifications without awaiting — applicant sees fast 200 even if email is slow.
+    notifyApplicationSubmitted(supabase, data).catch(e =>
+      console.error('[job-applications] notify error:', e.message)
+    )
     return res.status(200).json({ ok: true, id: data?.id })
   }
 
