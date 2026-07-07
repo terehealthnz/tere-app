@@ -248,7 +248,10 @@ function applyCal(spo2, cal) {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function calculateSpO2(frames, fitzpatrick = 2) {
-  if (!frames?.length || frames.length < 60) return null
+  if (!frames?.length || frames.length < 60) {
+    console.warn('[spo2] rejected: too few frames (%d < 60)', frames?.length || 0)
+    return null
+  }
 
   const cal = getSpO2Calibration()
   const n   = frames.length
@@ -258,7 +261,16 @@ export function calculateSpO2(frames, fitzpatrick = 2) {
     .map(i => estimateWindowSpO2(frames.slice(i * w, (i + 1) * w), fitzpatrick))
     .filter(Boolean)
 
-  if (windows.length < 2) return null  // need at least 2 agreeing windows
+  if (windows.length < 2) {
+    // Log DC values of the raw window so we can see why estimateWindowSpO2
+    // came back null (dark frames, no AC signal, or channel imbalance).
+    const rMean = frames.reduce((s, f) => s + f.r, 0) / frames.length
+    const gMean = frames.reduce((s, f) => s + f.g, 0) / frames.length
+    const bMean = frames.reduce((s, f) => s + f.b, 0) / frames.length
+    console.warn('[spo2] rejected: only %d/3 windows produced an estimate — likely low signal quality. RGB DC=(%d,%d,%d) frames=%d',
+      windows.length, Math.round(rMean), Math.round(gMean), Math.round(bMean), frames.length)
+    return null
+  }
 
   const raw       = windows.map(win => win.spo2)
   const calibrated = raw.map(s => applyCal(s, cal))
@@ -266,7 +278,11 @@ export function calculateSpO2(frames, fitzpatrick = 2) {
   const median     = sorted.length === 3 ? sorted[1] : (sorted[0] + sorted[1]) / 2
   const spread     = sorted[sorted.length - 1] - sorted[0]
 
-  if (spread > 5) return null  // windows disagree too much
+  if (spread > 5) {
+    console.warn('[spo2] rejected: window spread %d%% (raw=%o, calibrated=%o) — noisy signal, motion, or unstable ROI',
+      Math.round(spread * 10) / 10, raw.map(Math.round), calibrated.map(Math.round))
+    return null
+  }
 
   const bestConf = windows.every(w => w.confidence === 'high') ? 'high'
     : windows.some(w => w.confidence === 'high' || w.confidence === 'medium') ? 'medium' : 'low'

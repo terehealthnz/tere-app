@@ -585,9 +585,14 @@ export async function trainModel(readings, onProgress, reason = 'manual_trigger'
   const meta    = { version, samples: trainRaw.length, finalMae, valMae, valMaeSys, valMaeDia, retrainReason: reason }
   localStorage.setItem(META_KEY, JSON.stringify({ ...meta, trainedAt: new Date().toISOString() }))
   await model.save(MODEL_KEY)
-  await saveToSupabase(meta, normParams, model)
+  // The return value from saveToSupabase was being discarded, so a 401 (or any
+  // other remote failure) silently succeeded locally and the caller had no
+  // idea the model hadn't uploaded. Propagate it now so the UI can surface it.
+  const remote = await saveToSupabase(meta, normParams, model)
   xs.dispose(); ys.dispose(); yMean.dispose(); yStd.dispose(); ysNorm.dispose(); model.dispose()
 
+  meta.savedRemotely = remote?.ok === true
+  meta.remoteError   = remote?.ok ? null : (remote?.error || 'unknown')
   return meta
 }
 

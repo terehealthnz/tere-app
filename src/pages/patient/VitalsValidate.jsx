@@ -468,8 +468,12 @@ export default function VitalsValidate() {
         const pct = Math.round((epoch + 1) / total * 100)
         setTrainingStatus(`Training… ${pct}% (loss ${logs.loss?.toFixed(3) || '?'})`)
       }, reason)
-      if (result) { setTrainingResult(result); setTrainingPhase('done'); setBpModelMeta(getLocalMeta()) }
-      else setTrainingPhase('idle')
+      if (result) {
+        setTrainingResult(result); setTrainingPhase('done'); setBpModelMeta(getLocalMeta())
+        if (result.savedRemotely === false) {
+          setTrainingStatus(`Trained locally, but could NOT save to server: ${result.remoteError || 'auth required'}. Sign in as a clinician and retrain to persist.`)
+        }
+      } else setTrainingPhase('idle')
     } catch (e) {
       console.warn('[VitalsValidate] training failed:', e.message)
       setTrainingPhase('error'); setTrainingStatus('Training failed: ' + e.message)
