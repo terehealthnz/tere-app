@@ -83,7 +83,8 @@ export async function buildPrescriptionPdf(data) {
   })
 }
 
-export function buildReferralPdf(data) {
+export async function buildReferralPdf(data) {
+  const sigBuf = await fetchSignatureBuffer(data.signatureUrl)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
@@ -155,10 +156,14 @@ export function buildReferralPdf(data) {
     if (data.facilityPhone) doc.text(`Ph: ${data.facilityPhone}`, 50, y + 42)
 
     const sigY = doc.page.height - 120
+    if (sigBuf) {
+      try { doc.image(sigBuf, 50, sigY - 40, { fit: [170, 40], align: 'center' }) } catch {}
+    }
     doc.moveTo(50, sigY).lineTo(220, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.fillColor('#999').font('Helvetica').fontSize(9).text('Referring clinician signature', 50, sigY + 4)
     doc.moveTo(300, sigY).lineTo(doc.page.width - 50, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.text('Date', 300, sigY + 4)
+    doc.font('Helvetica').fontSize(9).fillColor('#333').text(new Date().toLocaleDateString('en-NZ'), 305, sigY - 12)
 
     doc.fillColor('#AAA').fontSize(8)
       .text('Electronically issued by Tere Health Limited · For clinical use only', 50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 })

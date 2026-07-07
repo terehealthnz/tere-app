@@ -472,11 +472,205 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
   )
 }
 
+// EditProviderModal — edit an existing provider's editable fields, including
+// re-signing the prescriber signature. Email + PIN are deliberately not
+// editable here (email is identity; PIN goes through a separate rotation flow).
+function EditProviderModal({ provider, onClose, onSaved }) {
+  const [form, setForm] = React.useState({
+    first_name: provider.first_name || '',
+    last_name:  provider.last_name || '',
+    credential: provider.credential || 'Dr',
+    specialty:  provider.specialty || '',
+    color:      provider.color || '#0B6E76',
+    is_provider: !!provider.is_provider,
+    is_admin: !!provider.is_admin,
+    is_supervisor: !!provider.is_supervisor,
+    is_available: !!provider.is_available,
+    availability_message: provider.availability_message || '',
+    can_prescribe: !!provider.can_prescribe,
+    can_refer: !!provider.can_refer,
+    can_acc: !!provider.can_acc,
+    prescriber_number: provider.prescriber_number || '',
+    cpn: provider.cpn || '',
+    hpi_number: provider.hpi_number || '',
+    acc_provider_number: provider.acc_provider_number || '',
+    contract_type: provider.contract_type || 'contractor',
+    base_rate: provider.base_rate ?? '',
+    hourly_rate: provider.hourly_rate ?? '',
+    holiday_pay_pct: provider.holiday_pay_pct ?? 8,
+    bank_account: provider.bank_account || '',
+    ird_number: provider.ird_number || '',
+    tax_code: provider.tax_code || 'M',
+    signature_url: provider.signature_url || '',
+  })
+  const [submitting, setSubmitting] = React.useState(false)
+  const [error, setError] = React.useState(null)
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function submit(e) {
+    e?.preventDefault()
+    setError(null)
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      setError('First name and last name are required'); return
+    }
+    setSubmitting(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const payload = { ...form }
+      for (const k of ['base_rate', 'hourly_rate', 'holiday_pay_pct']) {
+        if (payload[k] === '' || payload[k] == null) delete payload[k]
+        else payload[k] = Number(payload[k])
+      }
+      const res = await apiFetch(`/api/providers?id=${provider.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      onSaved(data.provider)
+    } catch (e) { setError(e.message); setSubmitting(false) }
+  }
+
+  const inputStyle = { width:'100%', padding:'8px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif' }
+  const labelStyle = { fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:'.04em' }
+  const checkboxStyle = { display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', border:'1px solid #E2E8F0', borderRadius:6, background:'#F8FAFC' }
+  const groupStyle = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }
+  const sectionStyle = { padding:'1rem 1.25rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, marginBottom:'.75rem' }
+  const sectionTitle = { fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem', textTransform:'uppercase', letterSpacing:'.04em' }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,0.6)', zIndex:1000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'40px 20px', overflowY:'auto' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:14, width:'100%', maxWidth:640, boxShadow:'0 20px 60px rgba(0,0,0,.3)', maxHeight:'calc(100vh - 80px)', display:'flex', flexDirection:'column' }}>
+        <div style={{ padding:'1.25rem 1.5rem', borderBottom:'1px solid #E2E8F0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:'1.125rem', fontWeight:800, color:'#0D2B45' }}>Edit provider</div>
+            <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>{provider.first_name} {provider.last_name} · {provider.email}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'1.5rem', cursor:'pointer', color:'#6B7280', lineHeight:1 }}>×</button>
+        </div>
+
+        <form onSubmit={submit} style={{ padding:'1.25rem 1.5rem', overflowY:'auto', flex:1 }}>
+          {error && (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#991B1B', padding:'.625rem .875rem', borderRadius:8, fontSize:'.8125rem', marginBottom:'1rem' }}>{error}</div>
+          )}
+
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Identity</div>
+            <div style={groupStyle}>
+              <div><div style={labelStyle}>First name *</div><input value={form.first_name} onChange={e => set('first_name', e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Last name *</div><input value={form.last_name} onChange={e => set('last_name', e.target.value)} style={inputStyle} /></div>
+              <div>
+                <div style={labelStyle}>Credential</div>
+                <select value={form.credential} onChange={e => set('credential', e.target.value)} style={inputStyle}>
+                  <option value="Dr">Dr</option><option value="RN">RN</option><option value="NP">NP</option>
+                  <option value="Nurse">Nurse</option><option value="Paramedic">Paramedic</option>
+                  <option value="Ms">Ms</option><option value="Mr">Mr</option><option value="">(none)</option>
+                </select>
+              </div>
+              <div><div style={labelStyle}>Specialty</div><input value={form.specialty} onChange={e => set('specialty', e.target.value)} style={inputStyle} /></div>
+              <div>
+                <div style={labelStyle}>Colour</div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {COLOR_SWATCHES.map(c => (
+                    <button key={c} type="button" onClick={() => set('color', c)}
+                      style={{ width:26, height:26, borderRadius:'50%', background:c, border: form.color === c ? '2px solid #0D2B45' : '2px solid transparent', cursor:'pointer', padding:0 }} />
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div style={labelStyle}>Availability message</div>
+                <input value={form.availability_message} onChange={e => set('availability_message', e.target.value)} style={inputStyle} placeholder="Optional" />
+              </div>
+            </div>
+          </div>
+
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Roles</div>
+            <div style={groupStyle}>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
+              <label style={checkboxStyle}><input type="checkbox" checked={form.is_available} onChange={e => set('is_available', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Available now</span></label>
+            </div>
+          </div>
+
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Clinical capabilities</div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'.75rem' }}>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
+                <label style={checkboxStyle}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+              </div>
+              <div style={groupStyle}>
+                <div><div style={labelStyle}>MCNZ prescriber number</div><input value={form.prescriber_number} onChange={e => set('prescriber_number', e.target.value)} style={inputStyle} /></div>
+                <div><div style={labelStyle}>HPI-CPN</div><input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} /></div>
+                <div><div style={labelStyle}>HPI number</div><input value={form.hpi_number} onChange={e => set('hpi_number', e.target.value)} style={inputStyle} /></div>
+                <div><div style={labelStyle}>ACC provider number</div><input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} /></div>
+              </div>
+            </div>
+          )}
+
+          {form.is_provider && form.can_prescribe && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Prescriber signature</div>
+              {form.signature_url && (
+                <div style={{ marginBottom:'.75rem', padding:'.5rem', background:'white', border:'1px solid #E2E8F0', borderRadius:6 }}>
+                  <div style={{ fontSize:'.7rem', color:'#6B7280', marginBottom:4, fontWeight:600 }}>Current signature on file:</div>
+                  <img src={form.signature_url} alt="current signature" style={{ maxHeight:60, maxWidth:'100%', display:'block' }} />
+                </div>
+              )}
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.5rem' }}>Draw below to replace the current signature. Leaving it blank keeps the existing one.</div>
+              <SignaturePad onSaved={url => url && set('signature_url', url)} />
+            </div>
+          )}
+
+          <div style={sectionStyle}>
+            <div style={sectionTitle}>Payroll & tax</div>
+            <div style={{ fontSize:'.7rem', color:'#DC2626', marginBottom:'.75rem', fontWeight:600 }}>🔒 Sensitive — visible only to admin roles.</div>
+            <div style={groupStyle}>
+              <div>
+                <div style={labelStyle}>Contract type</div>
+                <select value={form.contract_type} onChange={e => set('contract_type', e.target.value)} style={inputStyle}>
+                  <option value="contractor">Contractor</option><option value="employee">Employee</option>
+                </select>
+              </div>
+              <div>
+                <div style={labelStyle}>Tax code</div>
+                <select value={form.tax_code} onChange={e => set('tax_code', e.target.value)} style={inputStyle}>
+                  <option value="M">M</option><option value="ME">ME</option><option value="S">S</option>
+                  <option value="SB">SB</option><option value="SH">SH</option><option value="ST">ST</option>
+                  <option value="WT">WT (contractor)</option>
+                </select>
+              </div>
+              <div><div style={labelStyle}>Base rate ($NZD / consult)</div><input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Hourly rate ($NZD, optional)</div><input type="number" step="0.01" value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Holiday pay %</div><input type="number" step="0.1" value={form.holiday_pay_pct} onChange={e => set('holiday_pay_pct', e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>IRD number</div><input value={form.ird_number} onChange={e => set('ird_number', e.target.value)} style={inputStyle} /></div>
+              <div style={{ gridColumn:'1 / -1' }}><div style={labelStyle}>Bank account</div><input value={form.bank_account} onChange={e => set('bank_account', e.target.value)} style={inputStyle} /></div>
+            </div>
+          </div>
+        </form>
+
+        <div style={{ padding:'1rem 1.5rem', borderTop:'1px solid #E2E8F0', display:'flex', justifyContent:'flex-end', gap:'.5rem', background:'#F8FAFC' }}>
+          <button onClick={onClose} type="button" disabled={submitting} style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'8px 18px', borderRadius:6, cursor:'pointer', fontSize:'.875rem', fontWeight:600 }}>Cancel</button>
+          <button onClick={submit} disabled={submitting} style={{ background:'#0B6E76', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: submitting ? 'wait' : 'pointer', fontSize:'.875rem', fontWeight:700, opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [saving, setSaving] = React.useState(null)
   const [addOpen, setAddOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState(null)
   const [createdNotice, setCreatedNotice] = React.useState(null)
 
   async function load() {
@@ -537,6 +731,13 @@ function ProvidersPanel() {
           }}
         />
       )}
+      {editing && (
+        <EditProviderModal
+          provider={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load() }}
+        />
+      )}
       {loading ? (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
       ) : providers.length === 0 ? (
@@ -590,6 +791,10 @@ function ProvidersPanel() {
                         Save message
                       </button>
                     )}
+                    <button onClick={() => setEditing(p)} disabled={saving === p.id}
+                      style={{ background:'#F0F9FA', color:'#0B6E76', border:'none', padding:'4px 12px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
+                      Edit
+                    </button>
                     <button onClick={() => update(p.id, { is_active: !p.is_active })}
                       disabled={saving === p.id}
                       style={{ background:'none', border:`1px solid ${p.is_active ? '#FECACA' : '#D1FAE5'}`, color:p.is_active ? '#DC2626' : '#059669', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>

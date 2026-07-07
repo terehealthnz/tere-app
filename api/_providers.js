@@ -199,6 +199,11 @@ export default async function handler(req, res) {
       }
     }
 
+    // Fetch signature_url first so we can clean up the storage file after
+    // the row delete succeeds.
+    const { data: existing } = await supabase
+      .from('providers').select('signature_url').eq('id', id).maybeSingle()
+
     const { data: deleted, error } = await supabase
       .from('providers')
       .delete()
@@ -207,7 +212,26 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
     if (!deleted) return res.status(404).json({ error: 'Provider not found' })
-    return res.status(200).json({ deleted, note: 'Provider row permanently removed. Their signature image in storage was not deleted.' })
+
+    // Fire-and-forget signature cleanup. The URL is of the form
+    //   https://<project>.supabase.co/storage/v1/object/public/signatures/<filename>
+    // We strip everything up to (and including) the bucket name to get the path
+    // relative to the bucket, then remove it. Failure here doesn't roll back
+    // the row delete — the file is orphaned but harmless.
+    let signatureCleanup = 'skipped (no signature)'
+    if (existing?.signature_url) {
+      const marker = '/signatures/'
+      const idx = existing.signature_url.indexOf(marker)
+      if (idx >= 0) {
+        const path = existing.signature_url.slice(idx + marker.length)
+        const { error: rmErr } = await supabase.storage.from('signatures').remove([path])
+        signatureCleanup = rmErr ? `failed: ${rmErr.message}` : `deleted (${path})`
+      } else {
+        signatureCleanup = 'skipped (unrecognised URL shape)'
+      }
+    }
+
+    return res.status(200).json({ deleted, signatureCleanup })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

@@ -90,7 +90,16 @@ export default async function handler(req, res) {
   }
 
   // ── Direct send path ─────────────────────────────────────────────────
-  const pdfData = { providerName, providerCpn, patientName, patientNhi, patientDob, investigation, bodyPart, clinicalIndication, urgency, history, accClaimNumber, facilityName, facilityAddress, facilityPhone }
+  // Look up referring clinician's signature so the PDF renders it above the line.
+  let signatureUrl = null
+  if (providerId) {
+    try {
+      const { data: prov } = await supabase
+        .from('providers').select('signature_url').eq('id', providerId).maybeSingle()
+      if (prov?.signature_url) signatureUrl = prov.signature_url
+    } catch {}
+  }
+  const pdfData = { providerName, providerCpn, patientName, patientNhi, patientDob, investigation, bodyPart, clinicalIndication, urgency, history, accClaimNumber, facilityName, facilityAddress, facilityPhone, signatureUrl }
   let pdfBuffer
   try {
     pdfBuffer = await buildReferralPdf(pdfData)
