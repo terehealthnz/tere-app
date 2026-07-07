@@ -94,7 +94,7 @@ export default function ConsentPage() {
             Read the full HDC Code of Rights →
           </a>
           <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.55, margin: '0 0 .875rem' }}>
-            Your clinical information (including consultation transcript, chief complaint and notes) may be processed by third-party AI services (currently Anthropic Claude) to help your clinician generate notes and check for drug interactions. It is never used to train AI models.
+            Your clinical information (including consultation transcript, chief complaint and notes) is processed by Anthropic Claude, delivered via AWS Bedrock under an executed Business Associate Agreement (BAA) with AWS that provides HIPAA-level safeguards. AI-generated notes are reviewed and finalised by a New Zealand-registered clinician. Your information is never used to train AI models.
           </p>
           <Checkbox
             checked={hdcChecked}
