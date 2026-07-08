@@ -148,8 +148,12 @@ textarea { resize: vertical; min-height: 80px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Modal ── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
-.modal { background: var(--white); border-radius: var(--radius); padding: 1.75rem; width: 100%; max-width: 460px; box-shadow: var(--shadow-lg); }
+/* Modal outer: center on screen, but let content scroll if it grows taller
+   than the viewport. Without max-height + overflow the Prescribe/Imaging
+   modals push their top above the viewport on smaller laptop screens and
+   the provider can't reach the Save button. */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; overflow-y: auto; }
+.modal { background: var(--white); border-radius: var(--radius); padding: 1.75rem; width: 100%; max-width: 460px; box-shadow: var(--shadow-lg); max-height: calc(100vh - 2rem); overflow-y: auto; margin: auto; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .modal-title { font-size: 1.125rem; font-weight: 700; color: var(--navy); }
 .modal-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.25rem; }
