@@ -72,6 +72,12 @@ export default function LiveSubtitles({
       if (from === to) return { translated: text, confidence: 'high' }
       const key = `${from}→${to}:${text}`
       if (cacheRef.current.has(key)) return cacheRef.current.get(key)
+      // On any translate failure we return an empty string with LOW confidence.
+      // Showing the raw source (English) on a Spanish patient's screen is worse
+      // than showing nothing — the whole point is that the patient does not
+      // read the source language. The red LOW badge signals the failure; the
+      // provider on the other side still speaks freely and Bedrock retries
+      // on the next final utterance.
       try {
         const res = await apiFetch('/api/live-translate', {
           method: 'POST',
@@ -83,12 +89,12 @@ export default function LiveSubtitles({
           }),
         })
         const data = await res.json()
-        if (!res.ok) return { translated: text, confidence: 'low' }
+        if (!res.ok) return { translated: '', confidence: 'low' }
         const result = { translated: data.translated || '', confidence: data.confidence || 'medium' }
         cacheRef.current.set(key, result)
         return result
       } catch {
-        return { translated: text, confidence: 'low' }
+        return { translated: '', confidence: 'low' }
       }
     }
 
