@@ -112,22 +112,9 @@ export default async function handler(req, res) {
     }).catch(e => console.error('[initiate-call] sms failed:', e.message))
   }
 
-  // Push notification (best-effort — only fires for the tiny minority of
-  // patients who added Tere to their home screen as a PWA).
-  fetch(`${appUrl}/api/push-notify`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-tere-api-key': process.env.TERE_API_KEY,
-    },
-    body: JSON.stringify({
-      type: 'patient_called',
-      consultationId,
-      ...(consult.user_id ? { userId: consult.user_id } : {}),
-      providerName: providerName || 'Your doctor',
-      consultUrl: `/call?consultation=${consultationId}`,
-    }),
-  }).catch(e => console.error('[initiate-call] push failed:', e.message))
+  // Push notifications intentionally not sent here — they only reach patients
+  // who added Tere to their home screen as a PWA, which is a tiny minority.
+  // SMS + email above cover all real patients regardless of install state.
 
   // Generate LiveKit token for provider
   const lkApiKey = process.env.LIVEKIT_API_KEY
