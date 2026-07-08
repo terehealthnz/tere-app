@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
-import { LiveKitRoom, VideoConference } from '@livekit/components-react'
+import { LiveKitRoom, VideoConference, useParticipants } from '@livekit/components-react'
 import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
 import { getLangMeta } from '../../lib/i18n'
@@ -43,6 +43,25 @@ function VitalBadge({ label, value, unit, status }) {
   )
 }
 
+// PatientPresenceStamp — lives inside <LiveKitRoom>. Watches the participants
+// list; the first time a participant whose identity starts with 'patient-'
+// appears, it (a) reports "yes, patient's here" up to the parent and (b)
+// stamps patient_joined_at on the consult once (idempotent — the parent's
+// stampedRef prevents multiple PATCHes if the patient briefly disconnects).
+function PatientPresenceStamp({ consultationId, onPatientHere }) {
+  const participants = useParticipants()
+  const stampedRef = useRef(false)
+  useEffect(() => {
+    const hasPatient = participants.some(p => (p.identity || '').startsWith('patient-'))
+    if (!hasPatient) return
+    onPatientHere()
+    if (stampedRef.current) return
+    stampedRef.current = true
+    updateConsultation(consultationId, { patient_joined_at: new Date().toISOString() }).catch(() => {})
+  }, [participants, consultationId, onPatientHere])
+  return null
+}
+
 function VitalsRow({ vitals }) {
   if (!vitals || vitals.skipped) return (
     <div style={{ fontSize:'.875rem', color:'#9CA3AF', textAlign:'center', padding:'10px' }}>No vitals captured</div>
@@ -78,6 +97,10 @@ export default function ProviderConsult() {
   const [endingCall, setEndingCall]     = useState(false)
   const [callStart, setCallStart]       = useState(null)
   const [elapsed, setElapsed]           = useState(0)
+  // Patient presence — true once someone with identity `patient-<id>` joins
+  // the LiveKit room. Drives the 90s "Return to queue" button.
+  const [patientHere, setPatientHere]   = useState(false)
+  const markPatientHere = useCallback(() => setPatientHere(true), [])
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
   const recorderRef = useRef(null)
   const pollRef = useRef(null)
@@ -293,7 +316,34 @@ export default function ProviderConsult() {
     navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
   }
 
+  // Return to queue — the "patient never joined" escape hatch. Only enabled
+  // after 90s of ringing (see Two-attempt no-show flow in
+  // supabase-no-show-migration.sql).
+  //
+  // Attempt 1: fires /api/ring-timeout → 5-min cooldown, payment hold stays.
+  // Attempt 2: fires /api/mark-no-show → cancels payment hold, emails patient,
+  //            no charge applied. Row disappears from queue.
+  async function returnToQueue() {
+    if (endingCall) return
+    setEndingCall(true)
+    const isSecondAttempt = (consult?.join_attempts || 0) >= 2
+    const endpoint = isSecondAttempt ? '/api/mark-no-show' : '/api/ring-timeout'
+    try {
+      await apiFetch(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          isSecondAttempt
+            ? { consultationId: id }
+            : { consultationId: id, kind: 'ring' }
+        ),
+      })
+    } catch (e) { console.error('[return-to-queue] failed:', e) }
+    navigate('/provider')
+  }
+
   const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
+  const canReturnToQueue = inCall && !patientHere && elapsed >= 90
+  const secondsUntilReturnable = Math.max(0, 90 - elapsed)
 
   if (loading) return (
     <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
@@ -356,6 +406,7 @@ export default function ProviderConsult() {
         {lkToken && lkUrl ? (
           <LiveKitRoom token={lkToken} serverUrl={lkUrl} video={!isPhone} audio data-lk-theme="default" style={{ width:'100%', height:'100%' }}>
             <VideoConference />
+            <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
             {(() => {
               const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
               const meta = getLangMeta(patientLang)
@@ -379,6 +430,43 @@ export default function ProviderConsult() {
               <div style={{ width:32, height:32, border:'3px solid rgba(255,255,255,.2)', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite', margin:'0 auto 1rem' }} />
               <div>Connecting…</div>
             </div>
+          </div>
+        )}
+
+        {/* Waiting-for-patient banner. The provider is in the room but the
+            patient hasn't joined yet. After 90s ring window the button flips
+            to a clickable "Return to queue" (see returnToQueue above). */}
+        {inCall && !patientHere && (
+          <div style={{
+            position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
+            background:'rgba(0,0,0,.75)', color:'white', padding:'10px 16px', borderRadius:12,
+            fontFamily:FF, fontSize:'.875rem', fontWeight:600, zIndex:15,
+            display:'flex', alignItems:'center', gap:12, backdropFilter:'blur(6px)',
+            boxShadow:'0 4px 20px rgba(0,0,0,.4)',
+          }}>
+            <span style={{ width:8, height:8, background:'#F59E0B', borderRadius:'50%', animation:'blink 1.2s infinite' }} />
+            <span>Waiting for {consult?.patient_first_name || 'patient'}… {fmtTime(elapsed)}</span>
+            <button
+              onClick={returnToQueue}
+              disabled={!canReturnToQueue || endingCall}
+              style={{
+                background: canReturnToQueue ? '#DC2626' : 'rgba(255,255,255,.08)',
+                border:'none', color:'white', borderRadius:8,
+                padding:'6px 12px', fontFamily:FF, fontWeight:700, fontSize:'.8125rem',
+                cursor: canReturnToQueue && !endingCall ? 'pointer' : 'not-allowed',
+                opacity: canReturnToQueue && !endingCall ? 1 : 0.55,
+              }}
+              title={
+                canReturnToQueue
+                  ? ((consult?.join_attempts || 0) >= 2
+                      ? 'Mark no-show — cancels payment hold, emails patient'
+                      : 'Send patient to 5-minute cooldown queue')
+                  : `Available in ${secondsUntilReturnable}s`
+              }>
+              {canReturnToQueue
+                ? ((consult?.join_attempts || 0) >= 2 ? '✕ Mark no-show (no charge)' : '← Return to queue')
+                : `Return to queue in ${secondsUntilReturnable}s`}
+            </button>
           </div>
         )}
 

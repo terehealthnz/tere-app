@@ -652,7 +652,37 @@ export default function Dashboard() {
   const [savingProvAvail, setSavingProvAvail] = useState(false)
   const [referralBadge, setReferralBadge] = useState(0)
   const [approvalBadge, setApprovalBadge] = useState(0)
+  const [nowTick, setNowTick]             = useState(Date.now())
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
+
+  // Cooldown countdown ticker + mid-cooldown reminder trigger. Only runs
+  // while at least one consult is in cooldown; otherwise idle.
+  useEffect(() => {
+    const hasCooldown = consultations.some(c => c.cooldown_until && new Date(c.cooldown_until) > new Date())
+    if (!hasCooldown) return
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [consultations])
+
+  // Fire mid-cooldown SMS when a consult is ~2min into its 5min cooldown and
+  // hasn't been reminded yet. Endpoint is idempotent — safe if this races.
+  useEffect(() => {
+    const now = new Date()
+    for (const c of consultations) {
+      if (!c.cooldown_until) continue
+      if (c.mid_cooldown_reminder_sent_at) continue
+      const cd = new Date(c.cooldown_until)
+      if (cd <= now) continue
+      const msRemaining = cd - now
+      // 5min cooldown → remind when < 3min remain (i.e. ~2min elapsed)
+      if (msRemaining < 3 * 60 * 1000) {
+        apiFetch('/api/ring-timeout', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultationId: c.id, kind: 'mid_cooldown' }),
+        }).catch(() => {})
+      }
+    }
+  }, [consultations, nowTick])
 
   const load = useCallback(async () => {
     try {
@@ -837,7 +867,16 @@ export default function Dashboard() {
                 const st = statusLabel(c.status)
                 const v = c.vitals
                 const currentPid = sessionStorage.getItem('providerId')
-                const isLocked = c.provider_id && c.provider_id !== currentPid
+                const isProviderLock = c.provider_id && c.provider_id !== currentPid
+                // Cooldown: patient didn't join the first ring — row is
+                // clickable for nobody for the 5-min window. See
+                // supabase-no-show-migration.sql.
+                const cooldownUntil = c.cooldown_until ? new Date(c.cooldown_until) : null
+                const isCooldown = cooldownUntil && cooldownUntil > new Date(nowTick)
+                const cooldownSecs = isCooldown ? Math.max(0, Math.round((cooldownUntil - nowTick) / 1000)) : 0
+                const isLocked = isProviderLock || isCooldown
+                const attemptNum = c.join_attempts || 0
+                const isSecondAttempt = attemptNum >= 1 && !c.patient_joined_at
                 const isLast = i === arr.length - 1
                 return (
                   <div
@@ -860,10 +899,20 @@ export default function Dashboard() {
                       <div style={{fontWeight:700,fontSize:'.9375rem',color:'var(--text)'}}>
                         {c.patient_first_name} {c.patient_last_name}
                       </div>
-                      <div style={{display:'flex',gap:'.5rem',marginTop:2,flexWrap:'wrap'}}>
+                      <div style={{display:'flex',gap:'.5rem',marginTop:2,flexWrap:'wrap',alignItems:'center'}}>
                         <span style={{background:st.color+'20',color:st.color,fontSize:'.7rem',fontWeight:700,padding:'1px 7px',borderRadius:99}}>{st.label}</span>
                         {c.acc_eligible === 'yes' && <span className="badge badge-info" style={{fontSize:'.7rem'}}>ACC</span>}
-                        {isLocked && <span style={{fontSize:'.7rem',color:'#6B7280'}}>🔒 {c.provider_display_name || 'In use'}</span>}
+                        {isProviderLock && <span style={{fontSize:'.7rem',color:'#6B7280'}}>🔒 {c.provider_display_name || 'In use'}</span>}
+                        {isCooldown && (
+                          <span style={{background:'#FEF3C7',color:'#92400E',fontSize:'.7rem',fontWeight:700,padding:'1px 7px',borderRadius:99}}>
+                            🕐 Retry in {String(Math.floor(cooldownSecs/60)).padStart(1,'0')}:{String(cooldownSecs%60).padStart(2,'0')}
+                          </span>
+                        )}
+                        {!isCooldown && isSecondAttempt && (
+                          <span style={{background:'#FEE2E2',color:'#991B1B',fontSize:'.7rem',fontWeight:700,padding:'1px 7px',borderRadius:99}}>
+                            2nd attempt
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div style={{fontSize:'.875rem',color:'var(--muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>

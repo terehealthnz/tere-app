@@ -22,11 +22,22 @@ export default async function handler(req, res) {
   if (fetchErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
   const startedAt = new Date().toISOString()
+  const attemptNum = (consult.join_attempts || 0) + 1
+  const history = Array.isArray(consult.join_attempt_history) ? consult.join_attempt_history : []
+  history.push({ at: startedAt, attempt: attemptNum, kind: 'ring_start' })
+
   const { error: updateErr } = await supabase
     .from('consultations')
     .update({
       status: 'in_progress',
       started_at: startedAt,
+      // Ring bookkeeping — the 90s ring window is enforced client-side; these
+      // fields exist for audit + the queue-side cooldown countdown.
+      ring_started_at: startedAt,
+      join_attempts: attemptNum,
+      join_attempt_history: history,
+      cooldown_until: null,
+      mid_cooldown_reminder_sent_at: null,
       ...(providerId ? { provider_id: providerId } : {}),
       ...(providerName ? { provider_display_name: providerName } : {}),
     })
@@ -40,14 +51,16 @@ export default async function handler(req, res) {
   const resendKey = process.env.RESEND_API_KEY
   const appUrl = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
   const firstName = consult.patient_first_name || 'there'
-  const doctorName = providerName || 'Dr Herling'
+  // Patient-facing wording: always "your provider" — keeps copy neutral so it
+  // works for nurses/PAs and doesn't tie the message to one clinician's name.
+  const providerLabel = 'Your provider'
   const consultType = consult.consultation_type || 'video'
   // Include consultation id in the URL so patients opening the email in a
   // different browser/device (empty sessionStorage) can still join their call.
   const callJoinUrl = `${appUrl}/call?consultation=${consultationId}`
 
   if (resendKey && consult.patient_email) {
-    const subject = `${doctorName} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
+    const subject = `${providerLabel} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
@@ -57,7 +70,7 @@ export default async function handler(req, res) {
   <div style="padding:24px 28px">
     <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
     <p style="font-size:16px;font-weight:700;color:#0B6E76;margin:0 0 16px">
-      ${doctorName} is ready for your consultation.
+      ${providerLabel} is ready for your consultation.
     </p>
     <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">
       ${consultType === 'phone'
@@ -81,7 +94,7 @@ export default async function handler(req, res) {
   </div>
 </body></html>`
 
-    const text = `Kia ora ${firstName},\n\n${doctorName} is ready for your consultation.\n\nJoin here: ${callJoinUrl}${consultType === 'phone' ? '\n\nIf you have trouble connecting, we may also try calling your phone.' : ''}\n\nIn an emergency, call 111.\n\nTere Health`
+    const text = `Kia ora ${firstName},\n\n${providerLabel} is ready for your consultation.\n\nJoin here: ${callJoinUrl}${consultType === 'phone' ? '\n\nIf you have trouble connecting, we may also try calling your phone.' : ''}\n\nIn an emergency, call 111.\n\nTere Health`
 
     fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -102,13 +115,21 @@ export default async function handler(req, res) {
   // their home screen, so SMS is the primary real-time channel.
   if (consult.patient_phone) {
     const callUrl = `${appUrl}/call?consultation=${consultationId}`
-    const smsBody = consultType === 'phone'
-      ? `${doctorName} is ready for your phone consultation. Join: ${callUrl}`
-      : `${doctorName} is ready for your video consultation. Join: ${callUrl}`
+    // Attempt 2 gets urgency framing: if they miss this one, they're marked
+    // no-show and the payment hold is released.
+    const isRetry = attemptNum >= 2
+    let smsBody
+    if (isRetry) {
+      smsBody = `Second attempt: ${providerLabel} is trying to reach you now. Please join within 90 seconds or your appointment will be released (no charge). ${callUrl}`
+    } else {
+      smsBody = consultType === 'phone'
+        ? `${providerLabel} is ready for your phone consultation. Join: ${callUrl}`
+        : `${providerLabel} is ready for your video consultation. Join: ${callUrl}`
+    }
     fetch(`${appUrl}/api/sms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
-      body: JSON.stringify({ to: consult.patient_phone, message: smsBody, type: 'call_ready' }),
+      body: JSON.stringify({ to: consult.patient_phone, message: smsBody, type: isRetry ? 'call_retry' : 'call_ready' }),
     }).catch(e => console.error('[initiate-call] sms failed:', e.message))
   }
 

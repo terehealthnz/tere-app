@@ -31,7 +31,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'drug-interactions', 'dismiss-patient',
   'create-room',
-  'initiate-call', 'make-call',
+  'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'clinic-schedule',
   // NOT here:
@@ -181,6 +181,8 @@ const ROUTES = {
   'async-overdue':             () => import('./_async-overdue.js'),
   'admin-patch':               () => import('./_admin-patch.js'),
   'initiate-call':             () => import('./_initiate-call.js'),
+  'ring-timeout':              () => import('./_ring-timeout.js'),
+  'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),
   'twilio-connect':            () => import('./_twilio-connect.js'),
   'twilio-fallback':           () => import('./_twilio-fallback.js'),
