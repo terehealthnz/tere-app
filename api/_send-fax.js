@@ -32,7 +32,9 @@ const DOCUMO_API = 'https://api.documo.com/v1/faxes'
  */
 export async function sendFax({ to, pdf, filename, subject, tag }) {
   const provider = (process.env.FAX_PROVIDER || DEFAULT_PROVIDER).toLowerCase()
-  const apiKey = process.env.FAX_API_KEY
+  // Prefer FAX_API_KEY, fall back to TELNYX_API_KEY so operators only need to
+  // set one V2 key when Telnyx is doing both fax and SMS.
+  const apiKey = process.env.FAX_API_KEY || process.env.TELNYX_API_KEY
 
   if (!to || !to.trim()) return { ok: false, error: 'no destination fax number', provider }
   if (!pdf) return { ok: false, error: 'no PDF supplied', provider }
