@@ -140,6 +140,7 @@ const ROUTES = {
   'generate-referral-pdf':     () => import('./_generate-referral-pdf.js'),
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
   'live-translate':            () => import('./_live-translate.js'),
+  'deepgram-token':            () => import('./_deepgram-token.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
