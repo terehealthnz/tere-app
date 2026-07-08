@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Tere Health</string>
+    <string name="title_activity_main">Tere Health</string>
+    <string name="package_name">co.nz.terehealth.app</string>
+    <string name="custom_url_scheme">co.nz.terehealth.app</string>
+</resources>

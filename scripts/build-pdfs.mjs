@@ -57,6 +57,12 @@ const DOCS_MAP = {
     title: 'Māori Data Sovereignty and Te Tiriti o Waitangi Obligations',
     badges: ['Working draft', 'Pre-Māori review', 'Honest gaps'],
   },
+  'cost-and-unit-economics': {
+    src: 'cost-and-unit-economics.md',
+    out: 'Tere_Health_Cost_Structure.pdf',
+    title: 'Cost Structure & Unit Economics',
+    badges: ['Confidential', 'Internal review', '2026-07-08'],
+  },
 }
 
 const CSS = `

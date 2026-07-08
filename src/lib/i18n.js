@@ -4,8 +4,10 @@
 //   'unsupported' — No AI subtitles offered; UI must show "Request interpreter"
 export const LANGUAGES = [
   { code: 'en', name: 'English',       nativeName: 'English',       flag: '🇬🇧', rtl: false, subtitleSupport: 'excellent' },
-  { code: 'mi', name: 'Te Reo Māori',  nativeName: 'Te Reo Māori',  flag: '🇳🇿', rtl: false, subtitleSupport: 'very_good',
-    // Custom Tino Rangatiratanga SVG rendered where consumers opt-in (patient selector, provider views).
+  { code: 'mi', name: 'Te Reo Māori',  nativeName: 'Te Reo Māori',  flag: '🇳🇿', rtl: false, subtitleSupport: 'unsupported',
+    // AWS Transcribe streaming has no Māori model. LiveSubtitles component
+    // detects 'unsupported' and shows a "AI subtitles unavailable — please
+    // request a Language Line interpreter" banner instead of a broken feed.
     customFlag: 'MaoriFlagIcon',
     note: 'He rereke ētahi kupu hauora — Some medical terms remain in English' },
   { code: 'zh', name: 'Chinese',  nativeName: '中文',       flag: '🇨🇳', rtl: false, subtitleSupport: 'excellent' },
@@ -15,10 +17,15 @@ export const LANGUAGES = [
   { code: 'nl', name: 'Dutch',    nativeName: 'Nederlands', flag: '🇳🇱', rtl: false, subtitleSupport: 'excellent' },
   { code: 'fr', name: 'French',   nativeName: 'Français',   flag: '🇫🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false, subtitleSupport: 'excellent' },
-  { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true,  subtitleSupport: 'excellent' },
-  { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false, subtitleSupport: 'excellent' },
-  // NZ Pacific language: Samoan (Gagana Sāmoa). Google Translate supports 'sm'.
-  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false, subtitleSupport: 'very_good',
+  // Arabic and Hindi: AWS Transcribe streaming coverage is limited (batch-
+  // only for AR, and streaming HI just launched with narrow language pack).
+  // Mark as unsupported for now — patient can still consult without live
+  // subtitles, provider chart is already translated.
+  { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true,  subtitleSupport: 'unsupported' },
+  { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false, subtitleSupport: 'unsupported' },
+  // NZ Pacific language: Samoan (Gagana Sāmoa). Written translation still
+  // works via Bedrock, but AWS Transcribe streaming has no Samoan model.
+  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false, subtitleSupport: 'unsupported',
     note: 'O nisi upu fa\'afoma\'i o le a tumau i le Igilisi — Some medical terms remain in English' },
   // Marshallese and Rohingya are intentionally not offered here. Translation
   // quality is unreliable for legal/clinical text and the confidence signal

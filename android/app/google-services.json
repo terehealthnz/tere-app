@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1086960512674",
+    "project_id": "tere-health",
+    "storage_bucket": "tere-health.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1086960512674:android:5c0635101cedd5aff2f1fb",
+        "android_client_info": {
+          "package_name": "co.nz.terehealth.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgFXjGm5-IrLnGr62ABt-NHyFf3U4jwWs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
