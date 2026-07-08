@@ -300,7 +300,12 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
       <div style={{ padding:'.75rem', fontFamily:FF, display:'flex', flexDirection:'column', gap:'.625rem' }}>
         {queue.map(c => {
           const isLocked   = c.provider_id && c.provider_id !== currentProviderId
-          const isScanning = c.status === 'waiting'
+          // "Scanning" gate: provider previously initiated the vitals capture
+          // flow. In that state the queue row is not clickable — you don't want
+          // to interrupt a running scan. Plain 'waiting' means the patient is
+          // ready in the queue (either fresh consult or post-cooldown retry)
+          // and the row MUST stay clickable.
+          const isScanning = c.status === 'vitals_requested'
           const isBlocked  = isLocked || isScanning
           const buf = bufferInfo(c.created_at, now)
           const sta = queueStatus(c, now)
@@ -414,7 +419,9 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
           {/* Rows */}
           {queue.map((c, i) => {
             const isLocked    = c.provider_id && c.provider_id !== currentProviderId
-            const isScanning  = c.status === 'waiting'
+            // See note in mobile queue above — 'waiting' means ready in queue,
+            // 'vitals_requested' means an in-progress scan.
+            const isScanning  = c.status === 'vitals_requested'
             const isBlocked   = isLocked || isScanning
             const buf = bufferInfo(c.created_at, now)
             const sta = queueStatus(c, now)
