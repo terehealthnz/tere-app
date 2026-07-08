@@ -26,7 +26,7 @@ function admin() {
 // (change via /api/change-password), created_at.
 const UPDATE_ALLOWLIST = new Set([
   'first_name', 'last_name', 'credential', 'specialty', 'color',
-  'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_available',
+  'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin', 'is_billing_admin', 'is_available',
   'availability_message',
   'can_prescribe', 'can_refer', 'can_acc',
   'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     if (filter === 'active-full') {
       const { data, error } = await supabase
         .from('providers')
-        .select('id, first_name, last_name, credential, specialty, color, is_active, is_available, is_provider, is_admin, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn, availability_message')
+        .select('id, first_name, last_name, credential, specialty, color, is_active, is_available, is_provider, is_admin, is_supervisor, is_billing_admin, can_prescribe, can_refer, can_acc, prescriber_number, cpn, availability_message')
         .eq('is_active', true)
         .order('first_name')
       if (error) return res.status(500).json({ error: error.message })
@@ -110,7 +110,7 @@ export default async function handler(req, res) {
     // Build row using column allowlist. is_provider defaults true; is_active true.
     const CREATE_ALLOWLIST = new Set([
       'first_name', 'last_name', 'email', 'credential', 'specialty', 'color',
-      'is_active', 'is_admin', 'is_provider', 'is_supervisor',
+      'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
       'can_prescribe', 'can_refer', 'can_acc',
       'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
       'provider_type', 'availability_message',

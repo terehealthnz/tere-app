@@ -49,7 +49,7 @@ function getSaved() {
 }
 
 function restoreDevice(d) {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
   sessionStorage.setItem('clinicianAuth', 'true')
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }
@@ -1049,6 +1049,7 @@ function AdminMessagesTab({ setMsgBadge }) {
   const [notifs, setNotifs] = useState([])
   const [loading, setLoading] = useState(true)
   const providerId = sessionStorage.getItem('providerId')
+  const isBillingAdmin = sessionStorage.getItem('providerIsBillingAdmin') === 'true'
 
   async function load() {
     setLoading(true)
@@ -1095,7 +1096,11 @@ function AdminMessagesTab({ setMsgBadge }) {
                     <span style={{ fontSize:'.6875rem', color:'#78350F' }}>· {new Date(t.created_at).toLocaleDateString('en-NZ',{ day:'numeric', month:'short' })}</span>
                   </div>
                   <div style={{ fontSize:'.875rem', fontWeight:700, color:NAVY, marginBottom:2 }}>{t.patient_name || t.patient_email}</div>
-                  <div style={{ fontSize:'.8125rem', color:'#374151', lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{t.message}</div>
+                  {isBillingAdmin ? (
+                    <div style={{ fontSize:'.75rem', color:'#78350F', fontStyle:'italic' }}>Message content hidden — clinical access required</div>
+                  ) : (
+                    <div style={{ fontSize:'.8125rem', color:'#374151', lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{t.message}</div>
+                  )}
                 </div>
               ))}
             </>

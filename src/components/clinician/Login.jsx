@@ -14,7 +14,7 @@ function getSaved() {
 }
 
 function restoreDevice(d) {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
   sessionStorage.setItem('clinicianAuth', 'true')
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }
@@ -99,6 +99,7 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerIsAdmin', String(p.is_admin))
       sessionStorage.setItem('providerIsProvider', String(p.is_provider))
       sessionStorage.setItem('providerIsSupervisor', String(p.is_supervisor ?? false))
+      sessionStorage.setItem('providerIsBillingAdmin', String(p.is_billing_admin ?? false))
       sessionStorage.setItem('providerCanPrescribe', String(p.can_prescribe ?? true))
       sessionStorage.setItem('providerCanRefer', String(p.can_refer ?? true))
       sessionStorage.setItem('providerCanAcc', String(p.can_acc ?? true))
@@ -176,7 +177,7 @@ export default function ClinicianLogin() {
               Stay signed in for 30 days on this device. Protected by your screen lock.
             </div>
             <button onClick={() => {
-              const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+              const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
               const d = { savedAt: Date.now() }
               keys.forEach(k => { const v = sessionStorage.getItem(k); if (v) d[k] = v })
               localStorage.setItem('tere_device', JSON.stringify(d))

@@ -6,6 +6,7 @@ import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
+import PhiRevealGate  from './PhiRevealGate'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -228,17 +229,27 @@ function SupportPanel() {
                 {open.consultation_id && <div><strong>Consult:</strong> <code>{open.consultation_id.slice(0,8)}…</code></div>}
                 {open.source && <div><strong>Source:</strong> {open.source}</div>}
               </div>
-              <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem' }}>
-                <div style={{ fontSize:'.7rem', color:'#6B7280', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Patient's message</div>
-                <div style={{ fontSize:'.875rem', color:'#1A2A33', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.message}</div>
+              <div style={{ marginBottom:'1rem' }}>
+                <PhiRevealGate
+                  consultationId={open.id}
+                  action="view_support_ticket_message"
+                  resourceType="support_ticket"
+                  resourceId={open.id}
+                  summary="Patient message (contains PHI — click to view)"
+                  subject={`Support ticket · ${open.category} · from ${open.patient_email}`}>
+                  <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'.875rem 1rem' }}>
+                    <div style={{ fontSize:'.7rem', color:'#6B7280', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Patient's message</div>
+                    <div style={{ fontSize:'.875rem', color:'#1A2A33', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.message}</div>
+                  </div>
+                  {open.admin_notes && (
+                    <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'.875rem 1rem', marginTop:'.75rem' }}>
+                      <div style={{ fontSize:'.7rem', color:'#92400E', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Reply history / notes</div>
+                      <div style={{ fontSize:'.8125rem', color:'#374151', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.admin_notes}</div>
+                    </div>
+                  )}
+                </PhiRevealGate>
               </div>
 
-              {open.admin_notes && (
-                <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem' }}>
-                  <div style={{ fontSize:'.7rem', color:'#92400E', textTransform:'uppercase', letterSpacing:'.05em', fontWeight:600, marginBottom:6 }}>Reply history / notes</div>
-                  <div style={{ fontSize:'.8125rem', color:'#374151', whiteSpace:'pre-wrap', lineHeight:1.6 }}>{open.admin_notes}</div>
-                </div>
-              )}
 
               <div style={{ marginBottom:'1rem' }}>
                 <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:6, display:'block', textTransform:'uppercase', letterSpacing:'.04em' }}>Send reply to {open.patient_email}</label>

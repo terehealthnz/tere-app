@@ -49,7 +49,7 @@ function getSaved() {
 }
 
 function restoreDevice(d) {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
   sessionStorage.setItem('clinicianAuth', 'true')
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }
