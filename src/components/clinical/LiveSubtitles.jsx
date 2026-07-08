@@ -99,10 +99,9 @@ export default function LiveSubtitles({
       role="status"
       aria-live="polite"
       style={{
-        position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'linear-gradient(0deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 100%)',
+        position: 'fixed', bottom: 96, left: 0, right: 0,
         color: 'white',
-        padding: '3rem 1rem 1.25rem',
+        padding: '0 1rem',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
         zIndex: 40,
         pointerEvents: 'none',
