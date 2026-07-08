@@ -140,7 +140,6 @@ export default function PatientCall() {
               enabled={true}
               modalOpen={false}
               consultationId={consultationId}
-              onInterpreter={() => alert('Please ask your provider to arrange an interpreter — 111 for emergencies')}
             />
           )
         })()}

@@ -59,6 +59,11 @@ async function fetchToken() {
 // but linear16 is the most reliable in-browser encoding.
 function pipeMediaStream(stream, onChunk) {
   const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 })
+  // AudioContext starts suspended on many browsers (autoplay policy). Force
+  // resume — the LiveKit call itself is a user gesture in-flight so this is
+  // typically allowed. Without this the pipe silently sends no bytes and
+  // Deepgram never produces a first result.
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {})
   const source = ctx.createMediaStreamSource(stream)
   // ScriptProcessorNode is deprecated but the only widely supported way to
   // access raw PCM without shipping an AudioWorklet file. Fine for MVP.
@@ -97,7 +102,11 @@ export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'pat
         const { token } = await fetchToken()
         if (cancelled) return
         const { model, lang: dgLang } = deepgramConfig(sourceLang)
-        const url = `wss://api.deepgram.com/v1/listen?model=${encodeURIComponent(model)}&language=${encodeURIComponent(dgLang)}&smart_format=true&interim_results=true&encoding=linear16&sample_rate=16000&channels=1`
+        // endpointing=300 → force finalize after 300ms silence (default is longer)
+        // no_delay=true    → emit interim results as soon as they exist (removes
+        //                    the smart_format buffering that was making first
+        //                    subtitle land ~30–60s in)
+        const url = `wss://api.deepgram.com/v1/listen?model=${encodeURIComponent(model)}&language=${encodeURIComponent(dgLang)}&smart_format=true&interim_results=true&no_delay=true&endpointing=300&encoding=linear16&sample_rate=16000&channels=1`
 
         // Deepgram accepts token in Sec-WebSocket-Protocol per docs.
         const ws = new WebSocket(url, ['token', token])

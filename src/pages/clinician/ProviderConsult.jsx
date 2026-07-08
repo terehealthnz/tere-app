@@ -120,6 +120,16 @@ export default function ProviderConsult() {
         setConsult(data)
         const ctx = buildTriageContext(data)
         if (ctx) setCallNotes(ctx + '\n\n')
+        // Auto-enable subtitles when the patient's language is non-English and
+        // on the whitelist — the provider shouldn't have to hunt for the
+        // 💬 Subtitles button for every non-English consult.
+        const patientLang = data?.patient_language || data?.preferred_language
+        if (patientLang && patientLang !== 'en') {
+          const meta = getLangMeta(patientLang)
+          if (meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')) {
+            setSubtitlesOn(true)
+          }
+        }
         if (data.status === 'in_progress') {
           setInCall(true)
           await fetchToken()
@@ -359,7 +369,6 @@ export default function ProviderConsult() {
                   enabled={subtitlesOn}
                   modalOpen={showNotes}
                   consultationId={id}
-                  onInterpreter={() => alert('Language Line integration pending — call +64 800 12345 (placeholder)')}
                 />
               )
             })()}

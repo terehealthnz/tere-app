@@ -119,11 +119,6 @@ export default function LiveSubtitles({
             </span>
             <span style={{ fontWeight: 600 }}>{current.speaker === 'provider' ? 'Provider' : 'Patient'}</span>
             <span style={{ flex: 1 }} />
-            <button
-              onClick={onInterpreter}
-              style={{ background: 'rgba(220,38,38,.25)', color: 'white', border: '1px solid rgba(220,38,38,.5)', padding: '3px 10px', borderRadius: 99, fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Request interpreter
-            </button>
             {onHide && (
               <button
                 onClick={onHide}
