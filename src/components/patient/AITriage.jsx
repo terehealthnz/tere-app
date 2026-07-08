@@ -104,8 +104,9 @@ const STEPS = [
   { id:'tobacco_amount', message:"How much would you say?", field:'tobacco_amount', type:'choices', choices:['Occasional (social smoker)','1–10 per day','10–20 per day','20+ per day'], validate:()=>true, next:'alcohol' },
   { id:'alcohol', message:"Do you drink alcohol?", field:'alcohol_use_raw', type:'yesno', validate:()=>true, next:'alcohol_amount' },
   { id:'alcohol_amount', message:"Roughly how much per week?", field:'alcohol_amount', type:'choices', choices:['Occasional (1–2 drinks/week)','Moderate (3–7 drinks/week)','Heavy (8–14 drinks/week)','Very heavy (15+ drinks/week)'], validate:()=>true, next:'photo' },
-  { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor.", field:'photo_response', type:'photo', validate:()=>true, next:'recording' },
-  { id:'recording', message:"Last thing — do you consent to your consultation being AI-transcribed? The recording is deleted straight after.", field:'recording_consent_raw', type:'yesno', next:'done' },
+  // AI transcription / recording consent is now captured earlier on /consent
+  // (see ConsentPage HDC + rights_check). Do not re-ask here.
+  { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor.", field:'photo_response', type:'photo', validate:()=>true, next:'done' },
 ]
 
 function parseDate(raw) {
@@ -777,7 +778,10 @@ export default function AITriage() {
       await Promise.allSettled([
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'hdc_code_of_rights', granted:true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'prescribing_limitations_acknowledged', granted:true }) }),
-        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'recording_consent', granted: data.recording_consent_raw==='yes' }) }),
+        // recording/AI-transcription consent is captured on /consent (HDC + AI note).
+        // If the patient reached triage, they granted it there. Fall back to the
+        // old triage answer if present, otherwise default to true.
+        apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'recording_consent', granted: data.recording_consent_raw ? data.recording_consent_raw==='yes' : true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'privacy_policy', granted:true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'research_consent', granted: data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes' }) }),
         ...(data.is_acc_raw==='yes' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'acc_three_part_consent', granted:true }) })] : []),

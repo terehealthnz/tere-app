@@ -231,11 +231,25 @@ export default function VitalsCapture() {
         // Store face frames so finger scan can compute PTT
         if (result.rawFrames?.length) faceFramesRef.current = result.rawFrames
         // BP estimate from locally trained model (dynamic import keeps TF.js out of main bundle)
+        // Runs async; when it resolves we PATCH the consult with the BP so it
+        // shows in the provider's vitals bar. Previously the estimate lived
+        // only in local React state and never persisted.
+        const consultIdForBp = sessionStorage.getItem('consultationId')
         if (result.rawFrames?.length) {
           import('../../lib/bpModel').then(({ bpModelReady, predictBP, isBPReliable }) => {
             if (!isBPReliable()) return
             return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-          }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
+          }).then(bp => {
+            if (!bp) return
+            setBpEstimate(bp)
+            if (consultIdForBp && !consultIdForBp.startsWith('demo')) {
+              // Merge into existing vitals payload.
+              const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
+              if (bpString) {
+                updateVitals(consultIdForBp, { bp: bpString }).catch(() => {})
+              }
+            }
+          }).catch(() => {})
         }
         // SpO2: compute synchronously so it's saved with vitals (provider-only, not shown to patient)
         let spo2Result = null

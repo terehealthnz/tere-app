@@ -42,7 +42,9 @@ export default async function handler(req, res) {
   const firstName = consult.patient_first_name || 'there'
   const doctorName = providerName || 'Dr Herling'
   const consultType = consult.consultation_type || 'video'
-  const callJoinUrl = `${appUrl}/call`
+  // Include consultation id in the URL so patients opening the email in a
+  // different browser/device (empty sessionStorage) can still join their call.
+  const callJoinUrl = `${appUrl}/call?consultation=${consultationId}`
 
   if (resendKey && consult.patient_email) {
     const subject = `${doctorName} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
@@ -107,7 +109,7 @@ export default async function handler(req, res) {
       consultationId,
       ...(consult.user_id ? { userId: consult.user_id } : {}),
       providerName: providerName || 'Your doctor',
-      consultUrl: '/call',
+      consultUrl: `/call?consultation=${consultationId}`,
     }),
   }).catch(e => console.error('[initiate-call] push failed:', e.message))
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
@@ -10,10 +10,17 @@ import CallSubtitles from '../clinical/CallSubtitles'
 
 export default function PatientCall() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const [token, setToken] = useState(null)
   const [serverUrl, setServerUrl] = useState(null)
   const [error, setError] = useState(null)
-  const consultationId = sessionStorage.getItem('consultationId')
+  // Prefer ?consultation=<id> from the email deep-link (empty sessionStorage on
+  // a fresh browser). Fall back to sessionStorage for in-app navigation.
+  const urlConsultId = params.get('consultation')
+  if (urlConsultId && !sessionStorage.getItem('consultationId')) {
+    sessionStorage.setItem('consultationId', urlConsultId)
+  }
+  const consultationId = urlConsultId || sessionStorage.getItem('consultationId')
   const ssType = sessionStorage.getItem('consultationType')
   const [consultationType, setConsultationType] = useState(ssType || 'video')
   const isPhone = consultationType === 'phone'
