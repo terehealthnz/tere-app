@@ -5,6 +5,8 @@ import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
 import { getConsultation } from '../../lib/supabase'
+import { getLangMeta } from '../../lib/i18n'
+import CallSubtitles from '../clinical/CallSubtitles'
 
 export default function PatientCall() {
   const navigate = useNavigate()
@@ -115,6 +117,24 @@ export default function PatientCall() {
         onDisconnected={() => navigate('/done')}
       >
         <VideoConference />
+        {(() => {
+          const patientLang = sessionStorage.getItem('patient_language') || 'en'
+          const meta = getLangMeta(patientLang)
+          const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
+          const consented = sessionStorage.getItem('subtitle_consent') === 'yes'
+          if (patientLang === 'en' || !supported || !consented) return null
+          return (
+            <CallSubtitles
+              viewerRole="patient"
+              viewerLang={patientLang}
+              speakerLang="en"
+              enabled={true}
+              modalOpen={false}
+              consultationId={consultationId}
+              onInterpreter={() => alert('Please ask your provider to arrange an interpreter — 111 for emergencies')}
+            />
+          )
+        })()}
       </LiveKitRoom>
       {consultationId && (
         <div style={{ position: 'absolute', bottom: 0, right: 0, top: 0, pointerEvents: 'none' }}>

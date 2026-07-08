@@ -1,20 +1,22 @@
-// CallSubtitles — LiveKit-room-scoped wrapper that streams both sides of a
-// consultation to Deepgram and renders LiveSubtitles on top of the video.
+// CallSubtitles — LiveKit-room-scoped subtitle overlay.
 //
-// MUST be rendered inside <LiveKitRoom> — the useLocalParticipant / useTracks
-// hooks require room context.
+// Per-side model: each viewer sees only what the OTHER person said, translated
+// into the viewer's own language. Provider sees English (patient's speech
+// translated), patient sees their own language (provider's speech translated).
 //
-// Consumes:
-//   • patientLang     — the patient's preferred language (from consultation)
-//   • providerLang    — the provider's spoken language (usually 'en')
+// MUST be rendered inside <LiveKitRoom> — LiveKit hooks require room context.
+//
+// Props:
+//   • viewerRole      — 'provider' | 'patient' — filters utterances (viewer
+//                       only sees the OTHER role's speech)
+//   • viewerLang      — language the viewer reads (e.g. 'en' for provider,
+//                       'es' for a Spanish-speaking patient)
+//   • speakerLang     — language the OTHER person speaks (source lang for STT)
 //   • enabled         — parent toggles this via subtitle button
-//   • modalOpen       — parent passes true when a clinical modal is open,
-//                       which pauses subtitles for safety
+//   • modalOpen       — parent passes true when a clinical modal is open;
+//                       pauses subtitles for safety
 //   • consultationId  — for persistence in transcript_translated
 //   • onInterpreter   — callback fired when "Request interpreter" clicked
-//
-// Merges patient + provider utterances chronologically and passes the
-// combined stream to LiveSubtitles.
 
 import React, { useMemo } from 'react'
 import { useLocalParticipant, useTracks } from '@livekit/components-react'
@@ -23,27 +25,17 @@ import { useLiveTranscription } from '../../lib/useLiveTranscription'
 import LiveSubtitles from './LiveSubtitles'
 
 export default function CallSubtitles({
-  patientLang, providerLang = 'en',
+  viewerRole, viewerLang, speakerLang,
   enabled, modalOpen, consultationId, onInterpreter,
 }) {
   const { localParticipant } = useLocalParticipant()
-
-  // Grab local mic track (provider audio) as a MediaStream.
-  const providerStream = useMemo(() => {
-    if (!enabled || !localParticipant) return null
-    const pub = localParticipant.getTrackPublication?.(Track.Source.Microphone)
-    const track = pub?.track
-    if (!track) return null
-    // LiveKit track.mediaStreamTrack is a MediaStreamTrack; wrap in a MediaStream.
-    const ms = new MediaStream()
-    ms.addTrack(track.mediaStreamTrack)
-    return ms
-  }, [enabled, localParticipant])
-
-  // Remote audio tracks — patient side. In telehealth we expect one remote.
   const remoteAudioTracks = useTracks([{ source: Track.Source.Microphone, withPlaceholder: false }])
     .filter(t => t.participant && t.participant.identity !== localParticipant?.identity)
-  const patientStream = useMemo(() => {
+
+  // The other person's audio = what we want to transcribe (viewer sees it).
+  // On the provider view, that's the patient's remote audio.
+  // On the patient view, that's the provider's remote audio.
+  const otherStream = useMemo(() => {
     if (!enabled || remoteAudioTracks.length === 0) return null
     const track = remoteAudioTracks[0].publication?.track
     if (!track?.mediaStreamTrack) return null
@@ -52,25 +44,18 @@ export default function CallSubtitles({
     return ms
   }, [enabled, remoteAudioTracks])
 
-  const { utterances: providerUtts } = useLiveTranscription({
-    stream: providerStream, sourceLang: providerLang, speaker: 'provider', enabled,
-  })
-  const { utterances: patientUtts } = useLiveTranscription({
-    stream: patientStream, sourceLang: patientLang || 'en', speaker: 'patient', enabled,
+  const otherRole = viewerRole === 'provider' ? 'patient' : 'provider'
+  const { utterances } = useLiveTranscription({
+    stream: otherStream, sourceLang: speakerLang, speaker: otherRole, enabled,
   })
 
-  // Chronologically merge; keep last ~10 lines fresh.
-  const merged = useMemo(() => {
-    return [...providerUtts, ...patientUtts]
-      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-      .slice(-10)
-  }, [providerUtts, patientUtts])
+  const recent = useMemo(() => utterances.slice(-8), [utterances])
 
   if (!enabled) return null
   return (
     <LiveSubtitles
-      recentUtterances={merged}
-      targetLang={patientLang || 'en'}
+      recentUtterances={recent}
+      targetLang={viewerLang}
       paused={!!modalOpen}
       onInterpreter={onInterpreter}
       consultationId={consultationId}

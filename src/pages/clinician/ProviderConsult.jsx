@@ -353,8 +353,9 @@ export default function ProviderConsult() {
               if (!supported || patientLang === 'en') return null
               return (
                 <CallSubtitles
-                  patientLang={patientLang}
-                  providerLang="en"
+                  viewerRole="provider"
+                  viewerLang="en"
+                  speakerLang={patientLang}
                   enabled={subtitlesOn}
                   modalOpen={showNotes}
                   consultationId={id}

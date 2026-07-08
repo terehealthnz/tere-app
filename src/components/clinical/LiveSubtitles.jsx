@@ -42,13 +42,14 @@ export default function LiveSubtitles({
   consultationId,
   onHide,
 }) {
-  const [current, setCurrent] = useState({ tgt: '', en: '', confidence: 'medium', speaker: '' })
-  const cacheRef = useRef(new Map()) // text → { translated, confidence }
+  const [current, setCurrent] = useState({ text: '', confidence: 'medium', speaker: '' })
+  const cacheRef = useRef(new Map()) // "from→to:text" → { translated, confidence }
   const lastRenderedRef = useRef('')
   const targetMeta = getLangMeta(targetLang || 'en')
   const targetIsRTL = !!targetMeta?.rtl
 
   // Translate the most recent utterance whenever the source list changes.
+  // Single-line mode: viewer only sees text translated INTO their own language.
   useEffect(() => {
     if (paused) return
     const last = recentUtterances[recentUtterances.length - 1]
@@ -57,12 +58,9 @@ export default function LiveSubtitles({
     lastRenderedRef.current = last.text
 
     const srcLang = (last.lang || 'en').split('-')[0].toLowerCase()
-    // If the utterance is already in target language, still show it — no
-    // translate call needed, and set English version by asking Claude for
-    // the reverse direction. Simplification: only translate when src !== target.
-    const cacheKey = `${srcLang}→${targetLang}:${last.text}`
 
     async function translate(text, from, to) {
+      if (from === to) return { translated: text, confidence: 'high' }
       const key = `${from}→${to}:${text}`
       if (cacheRef.current.has(key)) return cacheRef.current.get(key)
       try {
@@ -85,22 +83,10 @@ export default function LiveSubtitles({
       }
     }
 
-    // Two translations in parallel: source → target, and source → English.
-    // If source is already English or already the target, skip that direction.
-    const wantTargetTranslation = srcLang !== targetLang
-    const wantEnglishTranslation = srcLang !== 'en'
-    Promise.all([
-      wantTargetTranslation ? translate(last.text, srcLang, targetLang) : Promise.resolve({ translated: last.text, confidence: 'high' }),
-      wantEnglishTranslation ? translate(last.text, srcLang, 'en')      : Promise.resolve({ translated: last.text, confidence: 'high' }),
-    ]).then(([tgt, en]) => {
-      // Pick the lower confidence — the subtitle bar's overall signal reflects
-      // the worst side, since providers rely on both.
-      const order = { high: 3, medium: 2, low: 1 }
-      const conf = order[tgt.confidence] < order[en.confidence] ? tgt.confidence : en.confidence
+    translate(last.text, srcLang, targetLang).then(r => {
       setCurrent({
-        tgt: tgt.translated,
-        en:  en.translated,
-        confidence: conf,
+        text: r.translated,
+        confidence: r.confidence,
         speaker: last.speaker || 'patient',
       })
     })
@@ -147,13 +133,8 @@ export default function LiveSubtitles({
             )}
           </div>
           <div dir={targetIsRTL ? 'rtl' : 'ltr'} style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'white', lineHeight: 1.4, minHeight: '1.4em', textShadow: '0 1px 3px rgba(0,0,0,.7)' }}>
-            {current.tgt || <span style={{ opacity: .35 }}>…</span>}
+            {current.text || <span style={{ opacity: .35 }}>…</span>}
           </div>
-          {targetLang !== 'en' && (
-            <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.85)', lineHeight: 1.4, minHeight: '1.4em', marginTop: '.25rem', textShadow: '0 1px 3px rgba(0,0,0,.7)' }}>
-              {current.en || <span style={{ opacity: .35 }}>…</span>}
-            </div>
-          )}
         </div>
       )}
     </div>
