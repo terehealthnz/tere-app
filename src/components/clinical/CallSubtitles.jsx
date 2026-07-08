@@ -35,14 +35,22 @@ export default function CallSubtitles({
   // The other person's audio = what we want to transcribe (viewer sees it).
   // On the provider view, that's the patient's remote audio.
   // On the patient view, that's the provider's remote audio.
+  //
+  // IMPORTANT: memoize on the concrete MediaStreamTrack.id, NOT on the
+  // remoteAudioTracks array reference. useTracks() returns a fresh array on
+  // every LiveKit render tick — depending on it re-fired the whole
+  // useLiveTranscription effect on every tick, which minted a new Deepgram
+  // ephemeral key each time and burned into the Deepgram Projects API rate
+  // limit within seconds ("Too many requests" 429/502 loop).
+  const remoteTrack = remoteAudioTracks[0]?.publication?.track?.mediaStreamTrack
+  const remoteTrackId = remoteTrack?.id || null
   const otherStream = useMemo(() => {
-    if (!enabled || remoteAudioTracks.length === 0) return null
-    const track = remoteAudioTracks[0].publication?.track
-    if (!track?.mediaStreamTrack) return null
+    if (!enabled || !remoteTrack) return null
     const ms = new MediaStream()
-    ms.addTrack(track.mediaStreamTrack)
+    ms.addTrack(remoteTrack)
     return ms
-  }, [enabled, remoteAudioTracks])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, remoteTrackId])
 
   const otherRole = viewerRole === 'provider' ? 'patient' : 'provider'
   const { utterances } = useLiveTranscription({
