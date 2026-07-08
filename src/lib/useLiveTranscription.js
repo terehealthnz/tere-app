@@ -21,11 +21,31 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from './api'
 
-// Deepgram language codes for the 10 whitelisted languages.
-const DG_LANG = {
-  en: 'en',   zh: 'zh', ja: 'ja', ko: 'ko',
-  de: 'de',   fr: 'fr', es: 'es', ar: 'ar',
-  hi: 'hi',   mi: 'mi', sm: 'multi', // Deepgram doesn't have dedicated Samoan; fall back to multi.
+// Per-language Deepgram config. Each language maps to:
+//   • model: 'nova-3-medical' only supports English. Non-English uses 'nova-3'
+//     (general) which covers major world languages, or 'nova-2' for tokens
+//     Deepgram doesn't have a Nova-3 variant for.
+//   • lang:  the Deepgram language code. Falls back to 'multi' for languages
+//           Deepgram doesn't recognise natively (Māori, Samoan) — quality is
+//           limited but won't crash the WebSocket.
+// Codes verified against Deepgram docs 2026-07. Update if a language moves
+// tiers.
+const DG_CONFIG = {
+  en:  { model: 'nova-3-medical', lang: 'en' },     // English medical model
+  zh:  { model: 'nova-3',         lang: 'zh' },     // Simplified Chinese
+  ja:  { model: 'nova-3',         lang: 'ja' },
+  ko:  { model: 'nova-2',         lang: 'ko' },     // Nova-3 Korean limited
+  de:  { model: 'nova-3',         lang: 'de' },
+  fr:  { model: 'nova-3',         lang: 'fr' },
+  es:  { model: 'nova-3',         lang: 'es' },
+  ar:  { model: 'nova-2',         lang: 'multi' },  // Arabic via multi
+  hi:  { model: 'nova-3',         lang: 'hi' },
+  mi:  { model: 'nova-2',         lang: 'multi' },  // Māori not native — best-effort
+  sm:  { model: 'nova-2',         lang: 'multi' },  // Samoan not native — best-effort
+}
+
+function deepgramConfig(sourceLang) {
+  return DG_CONFIG[sourceLang] || DG_CONFIG.en
 }
 
 async function fetchToken() {
@@ -76,8 +96,8 @@ export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'pat
       try {
         const { token } = await fetchToken()
         if (cancelled) return
-        const dgLang = DG_LANG[sourceLang] || 'multi'
-        const url = `wss://api.deepgram.com/v1/listen?model=nova-3-medical&language=${encodeURIComponent(dgLang)}&smart_format=true&interim_results=true&encoding=linear16&sample_rate=16000&channels=1`
+        const { model, lang: dgLang } = deepgramConfig(sourceLang)
+        const url = `wss://api.deepgram.com/v1/listen?model=${encodeURIComponent(model)}&language=${encodeURIComponent(dgLang)}&smart_format=true&interim_results=true&encoding=linear16&sample_rate=16000&channels=1`
 
         // Deepgram accepts token in Sec-WebSocket-Protocol per docs.
         const ws = new WebSocket(url, ['token', token])
