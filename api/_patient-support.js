@@ -183,7 +183,7 @@ function escapeHtml(s) {
 async function routeTicket(supabase, ticket) {
   const isClinical = CLINICAL_CATEGORIES.has(ticket.category)
   if (!isClinical || !ticket.consultation_id) {
-    return { routing_status: 'admin_inbox' }
+    return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'not_clinical_or_no_consult', isClinical, consultation_id: ticket.consultation_id } }
   }
 
   const { data: consult, error: cLookupErr } = await supabase
@@ -193,10 +193,9 @@ async function routeTicket(supabase, ticket) {
     .maybeSingle()
 
   if (cLookupErr) {
-    console.error('[patient-support] consult lookup failed:', cLookupErr.message)
-    return { routing_status: 'admin_inbox' }
+    return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'lookup_error', err: cLookupErr.message } }
   }
-  if (!consult) return { routing_status: 'admin_inbox' }
+  if (!consult) return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'consult_not_found' } }
   const provider_id = consult.provider_id || null
 
   const refIso = consult.notes_finalised_at || consult.completed_at || consult.updated_at
@@ -225,8 +224,8 @@ async function routeTicket(supabase, ticket) {
       .maybeSingle()
     if (nErr) console.error('[patient-support] notify insert:', nErr.message)
     return {
-      routing_status: 'provider_messages',
-      routed_notification_id: notif?.id || null,
+      routing: { routing_status: 'provider_messages', routed_notification_id: notif?.id || null },
+      debug: { reason: 'within_window', ageDays, provider_id, notif_err: nErr?.message || null },
     }
   }
 
@@ -258,11 +257,11 @@ async function routeTicket(supabase, ticket) {
     .maybeSingle()
   if (cErr) {
     console.error('[patient-support] queue consult insert:', cErr.message)
-    return { routing_status: 'admin_inbox' }
+    return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'queue_insert_failed', err: cErr.message, ageDays, provider_id } }
   }
   return {
-    routing_status: 'new_consult',
-    routed_consultation_id: newConsult?.id || null,
+    routing: { routing_status: 'new_consult', routed_consultation_id: newConsult?.id || null },
+    debug: { reason: 'outside_window', ageDays, provider_id, newConsultId: newConsult?.id || null },
   }
 }
 
@@ -323,13 +322,20 @@ export default async function handler(req, res) {
 
     // Route the ticket: provider Messages tab, new queue consult, or admin inbox.
     let routing = { routing_status: 'admin_inbox' }
+    let routingDebug = null
     try {
-      routing = await routeTicket(supabase, data)
-      if (routing && Object.keys(routing).length > 0) {
-        await supabase.from('patient_support_requests').update(routing).eq('id', data.id)
+      const result = await routeTicket(supabase, data)
+      routing = result.routing || result
+      routingDebug = result.debug || null
+      // Strip debug key before writing to the row
+      const toWrite = { ...routing }
+      delete toWrite.debug
+      if (Object.keys(toWrite).length > 0) {
+        await supabase.from('patient_support_requests').update(toWrite).eq('id', data.id)
       }
     } catch (e) {
       console.error('[patient-support] routing error:', e.message)
+      routingDebug = { threw: e.message }
     }
 
     // Fire-and-forget email notifications. Admin still gets an alert on
@@ -337,7 +343,7 @@ export default async function handler(req, res) {
     sendNotifications(data).catch(e =>
       console.error('[patient-support] notify error:', e.message)
     )
-    return res.status(200).json({ ok: true, id: data?.id, routing_status: routing.routing_status })
+    return res.status(200).json({ ok: true, id: data?.id, routing_status: routing.routing_status, debug: routingDebug })
   }
 
   // ── Everything else requires provider auth ───────────────────────────
