@@ -15,6 +15,52 @@
 // supabase.js createConsultation() goes through this endpoint (task follow-up).
 
 import { createClient } from '@supabase/supabase-js'
+import { aiCallJSON } from './_ai.js'
+
+// Free-text triage fields we want stored in English so the provider chart,
+// note generation, ACC/GP letters, and downstream audit trail all read in
+// English. Anything not on this list is either English-only by nature
+// (phone numbers, NHI, DOB) or gets its own translation pass elsewhere.
+const TRANSLATABLE_FIELDS = [
+  'chief_complaint',
+  'medical_history',
+  'medications',
+  'patient_allergies',
+  'acc_injury_details',
+  'acc_employer',
+  'patient_location',
+]
+
+async function translatePayloadFields(payload) {
+  const src = payload.patient_language
+  if (!src || src === 'en') return payload
+  const toTranslate = {}
+  for (const k of TRANSLATABLE_FIELDS) {
+    const v = payload[k]
+    if (v && typeof v === 'string' && v.trim()) toTranslate[k] = v
+  }
+  if (Object.keys(toTranslate).length === 0) return payload
+
+  try {
+    const translated = await aiCallJSON({
+      tier: 'haiku',
+      system: 'You are a medical translator. Translate each provided field into clear, concise medical English suitable for a NZ clinical record. Preserve clinical accuracy and quantities/durations. Return JSON with the same keys. If a value is already in English, return it unchanged.',
+      user: `Source language: ${src}\n\nTranslate each field to English:\n\n${JSON.stringify(toTranslate, null, 2)}`,
+      maxTokens: 800,
+    })
+    if (translated && typeof translated === 'object') {
+      for (const k of Object.keys(toTranslate)) {
+        if (translated[k] && typeof translated[k] === 'string') payload[k] = translated[k]
+      }
+      console.log('[create-consultation] translated fields:', Object.keys(toTranslate).join(', '), 'from', src)
+    }
+  } catch (e) {
+    console.error('[create-consultation] translation failed:', e.message)
+    // Fall through — worse to block a triage submission than to have Spanish
+    // in the chart temporarily. Note generation still translates at merge time.
+  }
+  return payload
+}
 
 function admin() {
   return createClient(
@@ -105,6 +151,12 @@ export default async function handler(req, res) {
     payload.patient_last_name  = payload.patient_last_name  || ''
     payload.chief_complaint    = payload.chief_complaint    || 'Pending — triage not started'
   }
+
+  // Translate free-text triage fields to English if the patient chose a
+  // non-English language. The provider's chart, notes, and downstream audit
+  // trail must all read in English. Runs once at create; PATCH updates go
+  // through /api/patient-consult which does its own translation pass below.
+  await translatePayloadFields(payload)
 
   const { data, error } = await supabase.from('consultations').insert(payload).select().single()
 

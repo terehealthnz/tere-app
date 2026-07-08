@@ -165,6 +165,33 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No allowed columns in patch' })
   }
 
+  // Translate any free-text field into English before storing. Provider chart,
+  // AI note generation, and downstream audit trail must all read in English.
+  // Only chief_complaint is currently on the patient PATCH allowlist — other
+  // triage free-text goes through /api/create-consultation which does its own
+  // translation pass. If we add more free-text fields to PATIENT_ALLOWLIST,
+  // extend this list too.
+  if (patch.chief_complaint && typeof patch.chief_complaint === 'string' && patch.chief_complaint.trim()) {
+    try {
+      const { data: existing } = await supabase.from('consultations').select('patient_language').eq('id', id).maybeSingle()
+      const lang = existing?.patient_language
+      if (lang && lang !== 'en') {
+        const { aiCallJSON } = await import('./_ai.js')
+        const t = await aiCallJSON({
+          tier: 'haiku',
+          system: 'You are a medical translator. Translate the value into clear, concise medical English for a NZ clinical record. Return JSON: { "chief_complaint": "<english>" }. If already English, return unchanged.',
+          user: `Source language: ${lang}\n\n${JSON.stringify({ chief_complaint: patch.chief_complaint })}`,
+          maxTokens: 300,
+        })
+        if (t && typeof t.chief_complaint === 'string') {
+          patch.chief_complaint = t.chief_complaint
+        }
+      }
+    } catch (e) {
+      console.error('[patient-consult] chief_complaint translation failed:', e.message)
+    }
+  }
+
   patch.updated_at = new Date().toISOString()
 
   const { data, error } = await supabase
