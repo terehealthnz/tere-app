@@ -50,10 +50,19 @@ export default function LiveSubtitles({
 
   // Translate the most recent utterance whenever the source list changes.
   // Single-line mode: viewer only sees text translated INTO their own language.
+  //
+  // IMPORTANT — only translate FINAL utterances, not interim partial results.
+  // AWS Transcribe emits many partials per second while someone's talking
+  // ("Wh", "Who", "Who do", "Who do you"…). If we fire a Bedrock call for
+  // every partial we blow past Bedrock's per-second concurrency limits within
+  // seconds, get 502s back, and the badge drops to LOW showing raw English.
+  // Waiting for isFinal means one Bedrock call per completed phrase — feels
+  // slightly less "live" but produces reliable Spanish.
   useEffect(() => {
     if (paused) return
     const last = recentUtterances[recentUtterances.length - 1]
     if (!last || !last.text?.trim()) return
+    if (!last.isFinal) return
     if (lastRenderedRef.current === last.text) return
     lastRenderedRef.current = last.text
 
