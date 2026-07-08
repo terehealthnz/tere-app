@@ -286,6 +286,7 @@ export default function ProviderNotes() {
 
   const [consult,     setConsult]     = useState(null)
   const [loading,     setLoading]     = useState(true)
+  const [loadError,   setLoadError]   = useState(null)
   const [generating,  setGenerating]  = useState(false)
   const [finalising,  setFinalising]  = useState(false)
   const [finaliseSteps, setFinaliseSteps] = useState([]) // { label, status: 'pending'|'running'|'done'|'error', detail }
@@ -347,11 +348,30 @@ export default function ProviderNotes() {
     }
   }, [navigate])
 
-  // Load consultation + (optionally) generate note
+  // Load consultation + (optionally) generate note.
+  // Uses a small retry loop because /api/consultations occasionally 429s
+  // right after an intense subtitle-heavy call (many concurrent requests
+  // just finished). Silently dropping the load leaves the provider on a
+  // dead "← Back to queue" screen with a full transcript stranded in the
+  // DB — hard to recover, easy to think the whole consult was lost.
   useEffect(() => {
+    async function loadWithRetry() {
+      const attempts = 3
+      let lastErr = null
+      for (let i = 0; i < attempts; i++) {
+        try {
+          return await getConsultation(id)
+        } catch (e) {
+          lastErr = e
+          if (i < attempts - 1) await new Promise(r => setTimeout(r, 500 * (i + 1)))
+        }
+      }
+      throw lastErr
+    }
     async function load() {
       try {
-        const data = await getConsultation(id)
+        setLoadError(null)
+        const data = await loadWithRetry()
         setConsult(data)
         setActualMethod(data.consultation_type || sessionStorage.getItem('consultationType') || 'video')
 
@@ -378,7 +398,11 @@ export default function ProviderNotes() {
         }
         setLoading(false)
         await runGenerate(data)
-      } catch (e) { console.error(e); setLoading(false) }
+      } catch (e) {
+        console.error('[ProviderNotes] load failed:', e)
+        setLoadError(e?.message || 'Failed to load consultation')
+        setLoading(false)
+      }
     }
     load()
   }, [id])
@@ -785,8 +809,21 @@ export default function ProviderNotes() {
   )
 
   if (!consult) return (
-    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
-      <button onClick={() => navigate('/provider')} style={{ background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer' }}>← Back to queue</button>
+    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontFamily:FF, gap:'1rem', padding:'2rem', textAlign:'center' }}>
+      <div style={{ fontSize:'2rem' }}>⚠️</div>
+      <div style={{ fontSize:'1.125rem', fontWeight:700, color:NAVY }}>Couldn't load this consultation</div>
+      {loadError && <div style={{ fontSize:'.875rem', color:'#6B7280', maxWidth:480 }}>{loadError}</div>}
+      <div style={{ fontSize:'.8125rem', color:'#6B7280', maxWidth:480, lineHeight:1.5 }}>
+        The transcript and any notes you already recorded are saved. Reloading this page will bring them back — nothing was lost.
+      </div>
+      <div style={{ display:'flex', gap:'.75rem', marginTop:'.5rem' }}>
+        <button onClick={() => window.location.reload()} style={{ background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer', fontWeight:700 }}>
+          Reload notes
+        </button>
+        <button onClick={() => navigate('/provider')} style={{ background:'white', color:NAVY, border:'1.5px solid #E2E8F0', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer' }}>
+          ← Back to queue
+        </button>
+      </div>
     </div>
   )
 
