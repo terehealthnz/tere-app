@@ -122,7 +122,12 @@ export default function ClinicianPatient() {
 
   const v = consult.vitals
   const typeIcon = consult.consultation_type === 'phone' ? '📞' : consult.consultation_type === 'message' ? '💬' : '📹'
-  const isCallable = ['vitals_complete', 'ready', 'reviewing'].includes(consult.status)
+  // Callable includes 'waiting' (patient in room, hasn't run vitals) and
+  // 'vitals_requested' (vitals prompt fired, still capturing). Previously the
+  // Start-call button was hidden until vitals came back, but for phone-only
+  // Playwright / low-camera-quality patients the vitals step can be skipped,
+  // and providers still need to be able to open the call.
+  const isCallable = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing'].includes(consult.status)
   const isMessage = consult.consultation_type === 'message'
 
   return (
