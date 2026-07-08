@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const apiKey = process.env.DEEPGRAM_API_KEY
-  console.log('DEEPGRAM_API_KEY:', apiKey ? 'SET' : 'MISSING')
+  // Accept either name so operators don't need to reconfigure Vercel.
+  const apiKey = process.env.DEEPGRAM_API_KEY || process.env.DEEPGRAM_API_SECRET_KEY
   if (!apiKey) return res.status(500).json({ error: 'Deepgram API key not configured' })
 
   try {
