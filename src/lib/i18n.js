@@ -244,6 +244,136 @@ const T = {
     hi: "कोई एलर्जी है — दवाएं, खाना, कुछ भी?",
   },
 
+  acc_check: {
+    en: "Is your visit related to an accident or injury? ACC may cover your treatment costs.",
+    mi: "He whara, he mate rānei tō haerenga? Ka taea pea e ACC ō utu maimoatanga.", // TODO cert
+    sm: "Pe fa'atatau lau asiasiga i se fa'alavelave po'o se manu'a? E mafai e le ACC ona totogi au tau togafitiga.", // TODO cert
+    zh: "您的就诊是否与事故或受伤有关？ACC 可能承担您的治疗费用。",
+    ja: "今回の受診は事故または怪我に関連していますか？ACC が治療費をカバーする可能性があります。",
+    ko: "이번 방문이 사고나 부상과 관련이 있습니까? ACC가 치료비를 부담할 수 있습니다.",
+    de: "Steht Ihr Besuch im Zusammenhang mit einem Unfall oder einer Verletzung? ACC übernimmt möglicherweise Ihre Behandlungskosten.",
+    fr: "Votre visite est-elle liée à un accident ou une blessure ? L'ACC peut couvrir vos frais de traitement.",
+    es: "¿Su visita está relacionada con un accidente o lesión? ACC podría cubrir sus costos de tratamiento.",
+    ar: "هل تتعلق زيارتك بحادث أو إصابة؟ قد تغطي ACC تكاليف علاجك.",
+    hi: "क्या आपकी यह मुलाकात किसी दुर्घटना या चोट से संबंधित है? ACC आपके इलाज का खर्च कवर कर सकता है।",
+  },
+
+  gp_name: {
+    en: "Do you have a regular GP or family doctor? If so, what's their name?",
+    mi: "He tākuta whānau tō? Ki te pēnā, ko wai tōna ingoa?", // TODO cert
+    sm: "E i ai sau foma'i masani po'o le foma'i o le aiga? Afai ioe, o ai le igoa?", // TODO cert
+    zh: "您有固定的家庭医生（GP）吗？如有，请告诉我他/她的名字。",
+    ja: "かかりつけの医師（GP）はいますか？いる場合、お名前を教えてください。",
+    ko: "정기적으로 진료받는 GP나 가정의가 있습니까? 있다면 이름이 무엇입니까?",
+    de: "Haben Sie einen festen Hausarzt (GP)? Wenn ja, wie heißt er/sie?",
+    fr: "Avez-vous un médecin traitant (GP) régulier ? Si oui, quel est son nom ?",
+    es: "¿Tiene un médico de cabecera (GP) habitual? Si es así, ¿cuál es su nombre?",
+    ar: "هل لديك طبيب عام (GP) أو طبيب عائلة تراجعه بانتظام؟ إذا كان الأمر كذلك، ما اسمه؟",
+    hi: "क्या आपके पास कोई नियमित जीपी या फैमिली डॉक्टर है? यदि हाँ, तो उनका नाम क्या है?",
+  },
+
+  gp_clinic: {
+    en: "What's the name of their clinic or practice?",
+    mi: "He aha te ingoa o tā rātou hōhipera, whare tākuta rānei?", // TODO cert
+    sm: "O le a le igoa o la latou falema'i po'o le kilinika?", // TODO cert
+    zh: "他们的诊所或医疗机构叫什么名字？",
+    ja: "そのクリニックまたは医院の名前は何ですか？",
+    ko: "그 진료소나 병원의 이름은 무엇입니까?",
+    de: "Wie heißt die Praxis oder Klinik?",
+    fr: "Quel est le nom de leur cabinet ou clinique ?",
+    es: "¿Cómo se llama su clínica o consultorio?",
+    ar: "ما اسم عيادتهم أو مركزهم الطبي؟",
+    hi: "उनके क्लिनिक या अभ्यास का नाम क्या है?",
+  },
+
+  gp_confirm: {
+    en: "Found {gpName} at {gpClinic} — is that right? We'll send them a copy of your notes automatically.",
+    mi: "I kitea a {gpName} i {gpClinic} — he tika tērā? Ka tukua atu he tārua o ō tuhinga ki a rātou.", // TODO cert
+    sm: "Ua maua {gpName} i {gpClinic} — e sa'o le lea? O le a matou lafo atu se kopi o au fa'amaumauga.", // TODO cert
+    zh: "找到了 {gpName} 在 {gpClinic} — 对吗？我们会自动将您的记录副本发送给他们。",
+    ja: "{gpClinic} の {gpName} 先生ですね — 合っていますか？診療記録のコピーを自動的にお送りします。",
+    ko: "{gpClinic}의 {gpName}을(를) 찾았습니다 — 맞습니까? 진료 기록 사본을 자동으로 보내드립니다.",
+    de: "{gpName} in {gpClinic} gefunden — stimmt das? Wir senden eine Kopie Ihrer Notizen automatisch dorthin.",
+    fr: "Trouvé {gpName} à {gpClinic} — c'est correct ? Nous leur enverrons une copie de vos notes automatiquement.",
+    es: "Encontrado {gpName} en {gpClinic} — ¿es correcto? Les enviaremos una copia de sus notas automáticamente.",
+    ar: "تم العثور على {gpName} في {gpClinic} — هل هذا صحيح؟ سنرسل لهم نسخة من ملاحظاتك تلقائيًا.",
+    hi: "{gpClinic} में {gpName} मिला — क्या यह सही है? हम स्वचालित रूप से आपकी नोट्स की एक प्रति उन्हें भेज देंगे।",
+  },
+
+  tobacco: {
+    en: "Do you currently smoke or use tobacco?",
+    mi: "Kei te momi paipa, kei te whakamahi tupeka rānei koe?", // TODO cert
+    sm: "O e ulaula pe fa'aaogaina le tapaa i le taimi nei?", // TODO cert
+    zh: "您目前吸烟或使用烟草吗？",
+    ja: "現在、タバコを吸ったり、タバコ製品を使用したりしていますか？",
+    ko: "현재 담배를 피우거나 담배 제품을 사용하십니까?",
+    de: "Rauchen Sie derzeit oder konsumieren Sie Tabak?",
+    fr: "Fumez-vous ou consommez-vous du tabac actuellement ?",
+    es: "¿Actualmente fuma o usa tabaco?",
+    ar: "هل تدخن أو تستخدم التبغ حاليًا؟",
+    hi: "क्या आप वर्तमान में धूम्रपान करते हैं या तंबाकू का उपयोग करते हैं?",
+  },
+
+  tobacco_amount: {
+    en: "How much would you say?",
+    mi: "E hia te nui i tō whakaaro?", // TODO cert
+    sm: "E fia lau manatu?", // TODO cert
+    zh: "您觉得大约多少？",
+    ja: "だいたいどれくらいですか？",
+    ko: "얼마나 되십니까?",
+    de: "Wie viel wäre das ungefähr?",
+    fr: "Combien diriez-vous ?",
+    es: "¿Cuánto diría?",
+    ar: "كم تقريبًا؟",
+    hi: "आप कितना कहेंगे?",
+  },
+
+  alcohol: {
+    en: "Do you drink alcohol?",
+    mi: "Kei te inu waipiro koe?", // TODO cert
+    sm: "E te inu 'ava malosi?", // TODO cert
+    zh: "您喝酒吗？",
+    ja: "お酒を飲みますか？",
+    ko: "술을 마십니까?",
+    de: "Trinken Sie Alkohol?",
+    fr: "Buvez-vous de l'alcool ?",
+    es: "¿Bebe alcohol?",
+    ar: "هل تشرب الكحول؟",
+    hi: "क्या आप शराब पीते हैं?",
+  },
+
+  alcohol_amount: {
+    en: "Roughly how much per week?",
+    mi: "E hia te nui ia wiki?", // TODO cert
+    sm: "E fia i le vaiaso?", // TODO cert
+    zh: "每周大约多少？",
+    ja: "週にだいたいどれくらいですか？",
+    ko: "일주일에 대략 얼마나 되십니까?",
+    de: "Wie viel ungefähr pro Woche?",
+    fr: "À peu près combien par semaine ?",
+    es: "¿Aproximadamente cuánto por semana?",
+    ar: "كم تقريبًا في الأسبوع؟",
+    hi: "प्रति सप्ताह लगभग कितना?",
+  },
+
+  btn_skip_arrow: {
+    en: "Skip →",
+    mi: "Tukua →", sm: "Preterisi →",
+    zh: "跳过 →", ja: "スキップ →", ko: "건너뛰기 →",
+    de: "Überspringen →", fr: "Passer →", es: "Omitir →",
+    ar: "تخطي ←", hi: "छोड़ें →",
+  },
+
+  btn_undo_last: {
+    en: "← Undo last answer",
+    mi: "← Whakakore i te whakautu whakamutunga", // TODO cert
+    sm: "← Fa'aleaogaina le tali mulimuli", // TODO cert
+    zh: "← 撤销上一个回答", ja: "← 前の回答を取り消す", ko: "← 마지막 답변 취소",
+    de: "← Letzte Antwort rückgängig machen", fr: "← Annuler la dernière réponse",
+    es: "← Deshacer última respuesta",
+    ar: "→ التراجع عن الإجابة الأخيرة", hi: "← अंतिम उत्तर पूर्ववत करें",
+  },
+
   acc_description: {
     en: "That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?",
     mi: "He āhua ACC pea tērā — ka taea e koe te whakamārama mai me pēhea i pā ai? He aha tāu i mahi ai, i hea?", // TODO cert
@@ -663,7 +793,18 @@ const T = {
   // ── Buttons ──────────────────────────────────────────────────────────────
   btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau' },
   btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i' },
-  btn_skip:     { en: 'Skip',     mi: 'Tukua',      sm: 'Preterisi' },
+  btn_skip:     {
+    en: 'Skip', mi: 'Tukua', sm: 'Preterisi', // TODO cert (mi/sm)
+    zh: '跳过', ja: 'スキップ', ko: '건너뛰기',
+    de: 'Überspringen', fr: 'Passer', es: 'Omitir',
+    ar: 'تخطي', hi: 'छोड़ें',
+  },
+  btn_send:     {
+    en: 'Send', mi: 'Tuku', sm: 'Auina atu', // TODO cert (mi/sm)
+    zh: '发送', ja: '送信', ko: '보내기',
+    de: 'Senden', fr: 'Envoyer', es: 'Enviar',
+    ar: 'إرسال', hi: 'भेजें',
+  },
   btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu' },
 
   // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─

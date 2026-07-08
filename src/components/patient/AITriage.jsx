@@ -1089,7 +1089,7 @@ export default function AITriage() {
                 onClick={() => { if (pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery(''); setPharmacyResults([]) } }}
                 disabled={!pharmacyQuery.trim()}
                 style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:pharmacyQuery.trim()?1:.5}}>
-                {pharmacyLoading ? '…' : 'Send'}
+                {pharmacyLoading ? '…' : t('btn_send', lang)}
               </button>
             </div>
             {pharmacyResults.length > 0 && (
@@ -1109,7 +1109,7 @@ export default function AITriage() {
           </div>
           <button onClick={() => handleSendValue('skip')}
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
-            Skip →
+            {t('btn_skip_arrow', lang)}
           </button>
         </div>
       )}
@@ -1118,7 +1118,7 @@ export default function AITriage() {
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
-            Skip →
+            {t('btn_skip_arrow', lang)}
           </button>
         </div>
       )}
@@ -1135,7 +1135,7 @@ export default function AITriage() {
         {stepHistory.length > 0 && !tereTyping && !saving && (
           <div style={{maxWidth:600,margin:'0 auto 8px',display:'flex'}}>
             <button onClick={handleBack} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',padding:'0',display:'flex',alignItems:'center',gap:3,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
-              ← Undo last answer
+              {t('btn_undo_last', lang)}
             </button>
           </div>
         )}
@@ -1144,7 +1144,7 @@ export default function AITriage() {
             <>
               <button onClick={()=>fileRef.current?.click()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 14px',cursor:'pointer',flexShrink:0,fontSize:'1.1rem',color:'white'}}>📷</button>
               <input ref={fileRef} type="file" accept="image/*" multiple capture="environment" style={{display:'none'}} onChange={handlePhoto}/>
-              <button onClick={()=>handleSendValue('skip')} style={{background:'white',border:'1.5px solid var(--border)',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'var(--muted)',fontWeight:600,fontSize:'.9rem',fontFamily:'Plus Jakarta Sans, sans-serif'}}>Skip</button>
+              <button onClick={()=>handleSendValue('skip')} style={{background:'white',border:'1.5px solid var(--border)',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'var(--muted)',fontWeight:600,fontSize:'.9rem',fontFamily:'Plus Jakarta Sans, sans-serif'}}>{t('btn_skip', lang)}</button>
             </>
           )}
           <textarea ref={inputRef} value={input} onChange={e=>setInput(e.target.value)}
