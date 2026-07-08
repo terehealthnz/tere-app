@@ -400,7 +400,20 @@ export default function ProviderConsult() {
       {/* Video / Audio */}
       <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
         {lkToken && lkUrl ? (
-          <LiveKitRoom token={lkToken} serverUrl={lkUrl} video={!isPhone} audio data-lk-theme="default" style={{ width:'100%', height:'100%' }}>
+          <LiveKitRoom
+            token={lkToken}
+            serverUrl={lkUrl}
+            video={!isPhone}
+            audio
+            data-lk-theme="default"
+            style={{ width:'100%', height:'100%' }}
+            // LiveKit's built-in "Leave" button in the control strip only
+            // disconnects the room — without this handler the provider would
+            // be stranded on the video screen with no way into notes. Route
+            // the disconnect through endCall so either the LK Leave button
+            // OR our red "🔴 End call" reaches the same finalization flow.
+            onDisconnected={() => { if (!endingCall) endCall() }}
+          >
             <VideoConference />
             <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
             {(() => {
