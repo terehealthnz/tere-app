@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import { PrescribeModal, XrayModal } from '../../components/clinician/ClinicalActionModals'
+import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
 
 const FF    = 'Plus Jakarta Sans, sans-serif'
 const TEAL  = '#0B6E76'
@@ -296,7 +296,8 @@ export default function ProviderNotes() {
   // Clinical note
   const [noteText,      setNoteText]      = useState('')
   const [noteConfirmed, setNoteConfirmed] = useState(false)
-  const [modals,        setModals]        = useState({ rx: false, xr: false })
+  const [modals,        setModals]        = useState({ rx: false, xr: false, medcert: false })
+  const [medCertSent,   setMedCertSent]   = useState(false)
 
   // Work / ACC / outcome
   const [workCapacity,   setWorkCapacity]   = useState('fit')
@@ -1237,6 +1238,10 @@ export default function ProviderNotes() {
                   style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                   🩻 Imaging
                 </button>
+                <button onClick={() => setModals(m => ({ ...m, medcert:true }))}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: medCertSent ? '#D1FAE5' : 'white', color: medCertSent ? '#065F46' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  {medCertSent ? '✓ Med cert sent' : '📄 Med cert'}
+                </button>
               </>
             )}
           </div>
@@ -1532,6 +1537,12 @@ export default function ProviderNotes() {
         onClose={() => setModals(m => ({ ...m, xr:false }))}
         consult={consult}
         onDone={action => { addAction(action); setModals(m => ({ ...m, xr:false })) }}
+      />
+      <MedCertModal
+        open={modals.medcert}
+        onClose={() => setModals(m => ({ ...m, medcert:false }))}
+        consult={{ ...consult, diagnosis_description: consult?.diagnosis_code_description || consult?.notes_final?.icd10?.description }}
+        onDone={() => { setMedCertSent(true); setModals(m => ({ ...m, medcert:false })) }}
       />
     </div>
   )

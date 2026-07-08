@@ -20,6 +20,11 @@ export default async function handler(req, res) {
     modifiedHours,
     modifiedDays,
     reviewDate,
+    // data-URL PNG captured from the provider's signature canvas. Rendered
+    // inline in the certificate above the printed name so it looks like a
+    // real signed document. Sanity-cap the size at ~200KB so a rogue
+    // client can't blow up the email payload.
+    providerSignature,
   } = req.body || {}
 
   if (!consultationId || !patientEmail) return res.status(400).json({ error: 'consultationId and patientEmail required' })
@@ -37,6 +42,16 @@ export default async function handler(req, res) {
 
   const capacityLabel = workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'
   const capacityColor = workCapacity === 'unfit' ? '#DC2626' : '#D97706'
+
+  // Accept the provider signature only if it looks like a small PNG data URL.
+  // Anything larger than ~200 KB or that doesn't parse gets dropped and we
+  // fall through to the printed-name-only footer.
+  const sigOk = typeof providerSignature === 'string'
+    && providerSignature.startsWith('data:image/png;base64,')
+    && providerSignature.length < 250_000
+  const signatureBlock = sigOk
+    ? `<div style="margin-top:12px"><img src="${providerSignature}" alt="Provider signature" style="max-height:60px;max-width:280px;display:block" /></div>`
+    : ''
 
   const html = `<!DOCTYPE html>
 <html>
@@ -91,7 +106,8 @@ export default async function handler(req, res) {
   </p>
 
   <div style="margin-top:20px;border-top:1px solid #E2E8F0;padding-top:16px">
-    <div style="font-size:14px;font-weight:700;color:#0D2B45">${providerName}</div>
+    ${signatureBlock}
+    <div style="font-size:14px;font-weight:700;color:#0D2B45;margin-top:${sigOk ? '4px' : '0'}">${providerName}</div>
     ${providerReg ? `<div style="font-size:12px;color:#6B7280">${providerReg}</div>` : ''}
     <div style="font-size:12px;color:#6B7280">Tere Health · terehealthnz@gmail.com</div>
     <div style="font-size:12px;color:#6B7280">Issued: ${dateStr}</div>

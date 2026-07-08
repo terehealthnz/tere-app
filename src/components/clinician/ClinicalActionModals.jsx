@@ -722,3 +722,228 @@ export function ACCModal({ open, onClose, consult, onDone }) {
     </Modal>
   )
 }
+
+// MedCertModal — telehealth medical certificate for absence-from-work.
+// Capped at 7 days per MCNZ Telehealth Standards guidance (anything longer
+// requires a follow-up in-person assessment). Days off pushes certTo out
+// from today; diagnosis is pre-filled from the extracted ICD-10-AM
+// suggestion; the provider signs on a canvas which we cache in localStorage
+// so they only draw it once per device.
+//
+// The generated cert is emailed directly to the patient via Resend (existing
+// /api/generate-med-cert endpoint). We also stamp
+// consultations.medical_certificate_issued = true so the notes page shows
+// it as done.
+export function MedCertModal({ open, onClose, consult, onDone }) {
+  const [days, setDays] = useState(3)
+  const [diagnosis, setDiagnosis] = useState('')
+  const [restrictions, setRestrictions] = useState('')
+  const [signatureUrl, setSignatureUrl] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const canvasRef = React.useRef(null)
+  const drawingRef = React.useRef(false)
+  const providerId = sessionStorage.getItem('providerId') || 'default'
+  const sigKey = `tere_provider_signature_${providerId}`
+
+  useEffect(() => {
+    if (!open || !consult) return
+    const finalDiag = consult.notes_final?.icd10?.description
+      || consult.diagnosis
+      || consult.diagnosis_description
+      || consult.chief_complaint
+      || ''
+    setDiagnosis(finalDiag)
+    setDays(3)
+    setRestrictions('')
+    setError('')
+    try {
+      const cached = localStorage.getItem(sigKey)
+      if (cached) {
+        setSignatureUrl(cached)
+        setTimeout(() => {
+          const c = canvasRef.current
+          if (!c) return
+          const ctx = c.getContext('2d')
+          const img = new Image()
+          img.onload = () => { ctx.drawImage(img, 0, 0, c.width, c.height) }
+          img.src = cached
+        }, 50)
+      }
+    } catch {}
+  }, [open, consult, sigKey])
+
+  function pointerXY(e) {
+    const c = canvasRef.current
+    const rect = c.getBoundingClientRect()
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY
+    return { x: (clientX - rect.left) * (c.width / rect.width), y: (clientY - rect.top) * (c.height / rect.height) }
+  }
+  function beginStroke(e) {
+    e.preventDefault()
+    drawingRef.current = true
+    const c = canvasRef.current
+    const ctx = c.getContext('2d')
+    const { x, y } = pointerXY(e)
+    ctx.strokeStyle = '#0D2B45'
+    ctx.lineWidth = 2.2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+  function continueStroke(e) {
+    if (!drawingRef.current) return
+    e.preventDefault()
+    const c = canvasRef.current
+    const ctx = c.getContext('2d')
+    const { x, y } = pointerXY(e)
+    ctx.lineTo(x, y)
+    ctx.stroke()
+  }
+  function endStroke() {
+    if (!drawingRef.current) return
+    drawingRef.current = false
+    const c = canvasRef.current
+    const dataUrl = c.toDataURL('image/png')
+    setSignatureUrl(dataUrl)
+    try { localStorage.setItem(sigKey, dataUrl) } catch {}
+  }
+  function clearSignature() {
+    const c = canvasRef.current
+    if (!c) return
+    const ctx = c.getContext('2d')
+    ctx.clearRect(0, 0, c.width, c.height)
+    setSignatureUrl('')
+    try { localStorage.removeItem(sigKey) } catch {}
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (saving) return
+    setError('')
+    if (!diagnosis.trim()) { setError('Diagnosis is required.'); return }
+    if (!signatureUrl) { setError('Please sign in the box before sending.'); return }
+    if (days < 1 || days > 7) { setError('Days off must be between 1 and 7.'); return }
+    setSaving(true)
+    try {
+      const today = new Date()
+      const certTo = new Date(today)
+      certTo.setDate(certTo.getDate() + (days - 1))
+      const providerName = sessionStorage.getItem('providerDisplayName') || 'Tere Health clinician'
+      const providerReg  = sessionStorage.getItem('providerCpn') || sessionStorage.getItem('prescriberNumber') || ''
+      const res = await apiFetch('/api/generate-med-cert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: consult.id,
+          patientName:    `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim(),
+          patientDob:     consult.patient_dob,
+          patientEmail:   consult.patient_email,
+          patientNhi:     consult.patient_nhi,
+          employer:       consult.acc_employer || consult.employer || '',
+          consultationDate: consult.created_at,
+          providerName,
+          providerReg,
+          workCapacity:   'unfit',
+          certFrom:       today.toISOString(),
+          certTo:         certTo.toISOString(),
+          restrictions:   restrictions.trim() || null,
+          diagnosis:      diagnosis.trim(),
+          providerSignature: signatureUrl,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      onDone && onDone({ days, diagnosis })
+      onClose()
+    } catch (e) {
+      setError(e.message || 'Failed to send certificate')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="📄 Medical certificate">
+      <div style={{background:'#FEF3C7',border:'1px solid #D97706',borderRadius:8,padding:'.625rem .875rem',marginBottom:'1rem',fontSize:'.8125rem',color:'#92400E',lineHeight:1.5}}>
+        <strong>Telehealth cert limit:</strong> Maximum 7 days off work per MCNZ Telehealth Standards. For longer absences the patient must be seen in person.
+      </div>
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.375rem'}}>Days off work</label>
+          <div style={{display:'flex',gap:6}}>
+            {[1,2,3,4,5,6,7].map(n => (
+              <button type="button" key={n} onClick={() => setDays(n)}
+                style={{ flex:1, minHeight:44, borderRadius:8,
+                  border:`2px solid ${days === n ? '#0B6E76' : '#E2E8F0'}`,
+                  background: days === n ? '#E6F5F6' : 'white',
+                  color: days === n ? '#0B6E76' : '#374151',
+                  fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'1rem', cursor:'pointer' }}>
+                {n}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:6}}>
+            From {new Date().toLocaleDateString('en-NZ',{day:'numeric',month:'short'})} to {(() => { const d = new Date(); d.setDate(d.getDate() + days - 1); return d.toLocaleDateString('en-NZ',{day:'numeric',month:'short'}) })()}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.25rem'}}>Diagnosis (visible on certificate)</label>
+          <input type="text" value={diagnosis} onChange={e => setDiagnosis(e.target.value)}
+            placeholder="e.g. Gastroenteritis and colitis of unspecified origin"
+            style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem'}} />
+        </div>
+
+        <div className="form-group">
+          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.25rem'}}>Restrictions / notes for employer (optional)</label>
+          <textarea value={restrictions} onChange={e => setRestrictions(e.target.value)}
+            placeholder="e.g. no lifting >5kg, no prolonged standing"
+            rows={2}
+            style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',resize:'vertical'}} />
+        </div>
+
+        <div className="form-group">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'.25rem'}}>
+            <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)'}}>Provider signature</label>
+            <button type="button" onClick={clearSignature}
+              style={{background:'none',border:'none',color:'#DC2626',fontSize:'.75rem',fontWeight:600,cursor:'pointer',padding:0}}>
+              Clear
+            </button>
+          </div>
+          <div style={{border:'1.5px solid var(--border)',borderRadius:8,background:'#FAFAFA',overflow:'hidden'}}>
+            <canvas
+              ref={canvasRef}
+              width={520} height={110}
+              style={{width:'100%',height:110,touchAction:'none',cursor:'crosshair',display:'block'}}
+              onMouseDown={beginStroke} onMouseMove={continueStroke} onMouseUp={endStroke} onMouseLeave={endStroke}
+              onTouchStart={beginStroke} onTouchMove={continueStroke} onTouchEnd={endStroke}
+            />
+          </div>
+          <div style={{fontSize:'.6875rem',color:'var(--muted)',marginTop:4}}>
+            {signatureUrl ? 'Signature saved on this device — you won\'t need to redraw it.' : 'Sign with mouse or finger — cached in your browser after the first cert.'}
+          </div>
+        </div>
+
+        {error && (
+          <div className="alert alert-danger" style={{fontSize:'.8125rem',marginBottom:'.75rem'}}>{error}</div>
+        )}
+
+        <div style={{display:'flex',gap:8,marginTop:'1rem'}}>
+          <button type="button" onClick={onClose}
+            style={{flex:1,minHeight:44,borderRadius:10,border:'1.5px solid #E2E8F0',background:'white',color:'#0D2B45',fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:700,cursor:'pointer'}}>
+            Cancel
+          </button>
+          <button type="submit" disabled={saving}
+            style={{flex:2,minHeight:44,borderRadius:10,border:'none',background:'#0B6E76',color:'white',fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:700,cursor:saving?'wait':'pointer',opacity:saving?0.6:1}}>
+            {saving ? 'Sending…' : `📧 Email certificate to ${consult?.patient_first_name || 'patient'}`}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
