@@ -665,6 +665,138 @@ const T = {
   // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─
   // Rendered by t_bilingual() helper so critical warnings never appear in Te Reo only.
   red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei' },
+
+  // ── /consent page (ConsentPage.jsx) ──────────────────────────────────────
+  // Every string on the /consent screen. mi + sm marked TODO cert.
+  consent_header:      { en: 'Before we begin', mi: 'I mua i tā tāua tīmatanga', sm: 'A\'o le\'i amata', zh: '开始之前', ja: '始める前に', ko: '시작하기 전에', de: 'Bevor wir beginnen', fr: 'Avant de commencer', es: 'Antes de comenzar', ar: 'قبل أن نبدأ', hi: 'शुरू करने से पहले' }, // TODO cert (mi/sm)
+  consent_subheader:   { en: 'Please read and agree to the following', mi: 'Tēnā, pānuihia me whakaae ki ēnei', sm: 'Fa\'amolemole faitau ma malie i mea nei', zh: '请阅读并同意以下内容', ja: '以下をお読みになり、同意してください', ko: '아래를 읽고 동의해 주세요', de: 'Bitte lesen und stimmen Sie Folgendem zu', fr: 'Veuillez lire et accepter ce qui suit', es: 'Por favor lea y acepte lo siguiente', ar: 'يرجى قراءة ما يلي والموافقة عليه', hi: 'कृपया निम्नलिखित पढ़ें और सहमत हों' }, // TODO cert (mi/sm)
+
+  consent_rights_title: { en: 'Your rights as a patient', mi: 'Ōu mōtika hei tūroro', sm: 'O ou aia tatau o se ma\'i', zh: '您作为患者的权利', ja: '患者としてのあなたの権利', ko: '환자로서 당신의 권리', de: 'Ihre Rechte als Patient', fr: 'Vos droits en tant que patient', es: 'Sus derechos como paciente', ar: 'حقوقك كمريض', hi: 'रोगी के रूप में आपके अधिकार' }, // TODO cert (mi/sm)
+  consent_rights_intro: {
+    en: 'As a patient using Tere Health you have the following rights under the NZ Health and Disability Commissioner Code of Rights:',
+    mi: 'Hei tūroro e whakamahi ana i a Tere Health, ka whai koe i ēnei mōtika i raro i te Waehere Mōtika a te Kaikōmihana Hauora, Hauātanga o Aotearoa:', // TODO cert
+    sm: 'I le avea ai o se ma\'i o lo\'o fa\'aogaina Tere Health, e i ai ou aia tatau nei i lalo o le Tulafono a le Komesina o le Soifua Maloloina ma le Fa\'aletonu o Niu Sila:', // TODO cert
+    zh: '作为使用 Tere Health 的患者，您根据新西兰健康和残疾专员权利守则享有以下权利：',
+    ja: 'Tere Healthを利用する患者として、ニュージーランドの健康・障害委員会権利規範に基づき、以下の権利があります：',
+    ko: 'Tere Health를 이용하는 환자로서, 뉴질랜드 건강 및 장애 커미셔너 권리 강령에 따라 다음과 같은 권리가 있습니다:',
+    de: 'Als Patient, der Tere Health nutzt, haben Sie folgende Rechte gemäß dem NZ Health and Disability Commissioner Code of Rights:',
+    fr: 'En tant que patient utilisant Tere Health, vous avez les droits suivants en vertu du Code des droits du Commissaire à la santé et au handicap de NZ :',
+    es: 'Como paciente que usa Tere Health, tiene los siguientes derechos bajo el Código de Derechos del Comisionado de Salud y Discapacidad de NZ:',
+    ar: 'بصفتك مريضاً يستخدم Tere Health، لديك الحقوق التالية بموجب مدونة حقوق مفوض الصحة والإعاقة النيوزيلندية:',
+    hi: 'Tere Health का उपयोग करने वाले रोगी के रूप में, आपके पास NZ स्वास्थ्य और विकलांगता आयुक्त अधिकार संहिता के तहत निम्नलिखित अधिकार हैं:',
+  },
+  consent_right_respect:     { en: 'Right to be treated with respect', mi: 'Te mōtika kia manaakitia', sm: 'Aia tatau ia faia ma le fa\'aaloalo', zh: '受尊重的权利', ja: '敬意をもって扱われる権利', ko: '존중받을 권리', de: 'Recht auf respektvolle Behandlung', fr: 'Droit d\'être traité avec respect', es: 'Derecho a ser tratado con respeto', ar: 'الحق في المعاملة باحترام', hi: 'सम्मान के साथ व्यवहार पाने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_info:        { en: 'Right to receive information', mi: 'Te mōtika kia whakamōhio', sm: 'Aia tatau ia maua fa\'amatalaga', zh: '获得信息的权利', ja: '情報を受け取る権利', ko: '정보를 받을 권리', de: 'Recht auf Information', fr: 'Droit à l\'information', es: 'Derecho a recibir información', ar: 'الحق في الحصول على المعلومات', hi: 'जानकारी प्राप्त करने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_informed:    { en: 'Right to make an informed choice', mi: 'Te mōtika ki te whiriwhiri whai mōhiotanga', sm: 'Aia tatau ia faia se filifiliga malamalama', zh: '做出知情选择的权利', ja: 'インフォームド・チョイスの権利', ko: '충분한 정보에 근거한 선택의 권리', de: 'Recht auf informierte Entscheidung', fr: 'Droit à un choix éclairé', es: 'Derecho a tomar una decisión informada', ar: 'الحق في اتخاذ خيار مستنير', hi: 'सूचित विकल्प चुनने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_consent:     { en: 'Right to give informed consent', mi: 'Te mōtika ki te whakaae whai mōhiotanga', sm: 'Aia tatau ia tuu le malie malamalama', zh: '给予知情同意的权利', ja: 'インフォームド・コンセントの権利', ko: '충분한 정보에 근거한 동의의 권리', de: 'Recht auf informierte Einwilligung', fr: 'Droit de donner un consentement éclairé', es: 'Derecho a dar consentimiento informado', ar: 'الحق في تقديم موافقة مستنيرة', hi: 'सूचित सहमति देने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_complain:    { en: 'Right to complain', mi: 'Te mōtika ki te amuamu', sm: 'Aia tatau ia fai se faitioga', zh: '投诉的权利', ja: '苦情を申し立てる権利', ko: '불만을 제기할 권리', de: 'Recht auf Beschwerde', fr: 'Droit de porter plainte', es: 'Derecho a quejarse', ar: 'الحق في الشكوى', hi: 'शिकायत करने का अधिकार' }, // TODO cert (mi/sm)
+  consent_rights_link:       { en: 'Read the full HDC Code of Rights →', mi: 'Pānuihia te Waehere Mōtika HDC katoa →', sm: 'Faitau le Tulafono atoa a le HDC →', zh: '阅读完整的 HDC 权利守则 →', ja: 'HDC権利規範の全文を読む →', ko: '전체 HDC 권리 강령 읽기 →', de: 'Vollständigen HDC-Rechtekodex lesen →', fr: 'Lire le Code des droits HDC complet →', es: 'Leer el Código de Derechos completo del HDC →', ar: 'اقرأ مدونة حقوق HDC كاملة →', hi: 'पूरा HDC अधिकार संहिता पढ़ें →' }, // TODO cert (mi/sm)
+  consent_ai_note: {
+    en: 'Your clinical information (including consultation transcript, chief complaint and notes) is processed by Anthropic Claude, delivered via AWS Bedrock under an executed Business Associate Agreement (BAA) with AWS that provides HIPAA-level safeguards. AI-generated notes are reviewed and finalised by a New Zealand-registered clinician. Your information is never used to train AI models.',
+    mi: 'Ka tukatukahia ō kōrero hauora (tae atu ki te tuhinga tirohanga, te take matua me ngā tuhinga) e Anthropic Claude, ka tukua mā AWS Bedrock i raro i tētahi Kirimana Whakahoahoa Pakihi (BAA) me AWS e whakarato ana i ngā ārai HIPAA. Ka arotakengia, ka whakaotia ngā tuhinga i hangaia e te AI e tētahi mātanga hauora kua rēhita ki Aotearoa. E kore ō kōrero e whakamahia ki te whakangungu tauira AI.', // TODO cert
+    sm: 'O ou fa\'amatalaga fa\'afoma\'i (e aofia ai le tusiga o le asiasiga, mafua\'aga o le sau ma tusi manatu) e fa\'agaioia e Anthropic Claude, fa\'atino atu e ala i le AWS Bedrock i lalo o se Maliliega Fa\'apisinisi Fa\'aletagata (BAA) ma le AWS lea e tuu atu ai puipuiga tulaga HIPAA. O tusi manatu na faia e le AI e iloilo ma fa\'amaonia e se foma\'i o Niu Sila. O ou fa\'amatalaga e le\'i fa\'aogaina lava mo le a\'oa\'oina o fa\'ata\'ita\'iga AI.', // TODO cert
+    zh: '您的临床信息（包括会诊转录、主诉和笔记）由 Anthropic Claude 处理，通过 AWS Bedrock 提供服务，AWS 已签署业务伙伴协议（BAA），提供 HIPAA 级别的保护。AI 生成的笔记由新西兰注册的临床医生审查并最终确认。您的信息绝不会用于训练 AI 模型。',
+    ja: 'あなたの臨床情報（診察記録、主訴、メモを含む）は、AWSと締結したビジネスアソシエート契約（BAA）に基づきHIPAAレベルの保護措置が提供されるAWS Bedrock経由で、Anthropic Claudeによって処理されます。AI生成のメモは、ニュージーランド登録の臨床医によりレビューおよび最終化されます。あなたの情報はAIモデルの訓練に使用されることはありません。',
+    ko: '귀하의 임상 정보(상담 기록, 주요 증상 및 노트 포함)는 Anthropic Claude에 의해 처리되며, AWS와 체결된 비즈니스 어소시에이트 계약(BAA)에 따라 HIPAA 수준의 보호가 제공되는 AWS Bedrock을 통해 전달됩니다. AI 생성 노트는 뉴질랜드 등록 임상의에 의해 검토 및 최종화됩니다. 귀하의 정보는 AI 모델 학습에 절대 사용되지 않습니다.',
+    de: 'Ihre klinischen Informationen (einschließlich Konsultationstranskript, Hauptbeschwerde und Notizen) werden von Anthropic Claude verarbeitet, bereitgestellt über AWS Bedrock unter einer geschlossenen Business Associate Agreement (BAA) mit AWS, die HIPAA-Niveau-Schutzmaßnahmen bietet. Von KI generierte Notizen werden von einem in Neuseeland registrierten Kliniker überprüft und finalisiert. Ihre Informationen werden nie zur Schulung von KI-Modellen verwendet.',
+    fr: 'Vos informations cliniques (y compris la transcription de consultation, la plainte principale et les notes) sont traitées par Anthropic Claude, fournies via AWS Bedrock dans le cadre d\'un Accord de Partenaire Commercial (BAA) exécuté avec AWS qui fournit des protections de niveau HIPAA. Les notes générées par IA sont examinées et finalisées par un clinicien enregistré en Nouvelle-Zélande. Vos informations ne sont jamais utilisées pour entraîner des modèles d\'IA.',
+    es: 'Su información clínica (incluida la transcripción de la consulta, la queja principal y las notas) es procesada por Anthropic Claude, entregada a través de AWS Bedrock bajo un Acuerdo de Asociado Comercial (BAA) ejecutado con AWS que proporciona protecciones a nivel HIPAA. Las notas generadas por IA son revisadas y finalizadas por un clínico registrado en Nueva Zelanda. Su información nunca se utiliza para entrenar modelos de IA.',
+    ar: 'تتم معالجة معلوماتك السريرية (بما في ذلك نص الاستشارة والشكوى الرئيسية والملاحظات) بواسطة Anthropic Claude، ويتم تسليمها عبر AWS Bedrock بموجب اتفاقية شريك أعمال (BAA) مبرمة مع AWS توفر ضمانات على مستوى HIPAA. تتم مراجعة الملاحظات التي أنشأها الذكاء الاصطناعي وإكمالها من قبل طبيب مسجل في نيوزيلندا. لا يتم استخدام معلوماتك أبداً لتدريب نماذج الذكاء الاصطناعي.',
+    hi: 'आपकी नैदानिक जानकारी (परामर्श प्रतिलेख, मुख्य शिकायत और नोट्स सहित) Anthropic Claude द्वारा संसाधित की जाती है, जो AWS के साथ निष्पादित बिजनेस एसोसिएट एग्रीमेंट (BAA) के तहत AWS Bedrock के माध्यम से वितरित की जाती है जो HIPAA-स्तर की सुरक्षा प्रदान करता है। AI द्वारा उत्पन्न नोट्स की समीक्षा और अंतिम रूप न्यूजीलैंड-पंजीकृत चिकित्सक द्वारा किया जाता है। आपकी जानकारी का उपयोग AI मॉडल को प्रशिक्षित करने के लिए कभी नहीं किया जाता है।',
+  },
+  consent_rights_check: { en: 'I understand my rights as a patient and consent to AI-assisted processing', mi: 'Kei te mārama ahau ki ōku mōtika hei tūroro, ā, kei te whakaae ki te tukatuka āwhinatia e te AI', sm: 'Ou te malamalama i o\'u aia tatau o se ma\'i ma malie i le fa\'agasologa fesoasoani a le AI', zh: '我了解我作为患者的权利，并同意 AI 辅助处理', ja: '患者としての権利を理解し、AI支援処理に同意します', ko: '환자로서의 권리를 이해하며 AI 지원 처리에 동의합니다', de: 'Ich verstehe meine Rechte als Patient und stimme der KI-gestützten Verarbeitung zu', fr: 'Je comprends mes droits en tant que patient et consens au traitement assisté par IA', es: 'Entiendo mis derechos como paciente y consiento el procesamiento asistido por IA', ar: 'أفهم حقوقي كمريض وأوافق على المعالجة بمساعدة الذكاء الاصطناعي', hi: 'मैं रोगी के रूप में अपने अधिकारों को समझता/समझती हूं और AI-सहायता प्राप्त प्रसंस्करण के लिए सहमति देता/देती हूं' }, // TODO cert (mi/sm)
+
+  consent_rx_title: { en: 'Prescribing limitations', mi: 'Ngā herenga tuku rongoā', sm: 'Fa\'atapula\'aga o le tuu atu o fualaau', zh: '处方限制', ja: '処方の制限', ko: '처방 제한 사항', de: 'Verschreibungsbeschränkungen', fr: 'Limitations de prescription', es: 'Limitaciones de prescripción', ar: 'قيود الوصفات الطبية', hi: 'दवा लिखने की सीमाएं' }, // TODO cert (mi/sm)
+  consent_rx_intro: {
+    en: 'Tere Health providers can prescribe many medications for acute conditions. However we are unable to prescribe via telehealth:',
+    mi: 'Ka taea e ngā kaiwhakarato o Tere Health te tuku i te maha o ngā rongoā mō ngā mate ohorere. Heoi anō, kāore mātou e taea te tuku i ngā rongoā e whai ake nei mā te telehealth:', // TODO cert
+    sm: 'E mafai e le au foma\'i o Tere Health ona tuu atu le tele o fualaau mo tulaga fa\'afuase\'i. Peita\'i, e le mafai ona matou tuu atu e ala i le telehealth:', // TODO cert
+    zh: 'Tere Health 的医生可以为急性病症开具许多药物。但我们无法通过远程医疗开具以下药物：',
+    ja: 'Tere Healthの医師は急性症状に対する多くの薬を処方できます。ただし、テレヘルスでは以下の薬は処方できません：',
+    ko: 'Tere Health 의사들은 급성 질환에 대한 많은 약을 처방할 수 있습니다. 그러나 원격 진료를 통해서는 다음을 처방할 수 없습니다:',
+    de: 'Tere-Health-Ärzte können viele Medikamente für akute Erkrankungen verschreiben. Wir können jedoch nicht per Telemedizin verschreiben:',
+    fr: 'Les médecins de Tere Health peuvent prescrire de nombreux médicaments pour des conditions aiguës. Cependant, nous ne pouvons pas prescrire via la télémédecine :',
+    es: 'Los médicos de Tere Health pueden recetar muchos medicamentos para condiciones agudas. Sin embargo, no podemos recetar mediante telemedicina:',
+    ar: 'يمكن لأطباء Tere Health وصف كثير من الأدوية للحالات الحادة. ومع ذلك، لا يمكننا الوصف عبر الرعاية الصحية عن بُعد:',
+    hi: 'Tere Health के डॉक्टर तीव्र स्थितियों के लिए कई दवाएं लिख सकते हैं। हालांकि, हम टेलीहेल्थ के माध्यम से निम्नलिखित नहीं लिख सकते:',
+  },
+  consent_rx_footer: {
+    en: 'For these medications please contact your regular GP or visit an in-person clinic.',
+    mi: 'Mō ēnei rongoā tēnā koa whakapā atu ki tō GP, haere rānei ki tētahi hōkinga tirohanga kanohi.', // TODO cert
+    sm: 'Mo nei fualaau fa\'amolemole feso\'ota\'i ma lou GP masani po\'o asiasi i se falema\'i tino.', // TODO cert
+    zh: '如需这些药物，请联系您的常规全科医生或前往面对面诊所就诊。',
+    ja: 'これらの薬については、通常のかかりつけ医に連絡するか、対面クリニックを受診してください。',
+    ko: '이러한 약이 필요하시면 정기적인 GP에게 연락하거나 대면 클리닉을 방문해 주세요.',
+    de: 'Für diese Medikamente wenden Sie sich bitte an Ihren regulären Hausarzt oder besuchen Sie eine Klinik persönlich.',
+    fr: 'Pour ces médicaments, veuillez contacter votre médecin traitant ou consulter une clinique en personne.',
+    es: 'Para estos medicamentos, por favor contacte a su médico de cabecera habitual o visite una clínica en persona.',
+    ar: 'لهذه الأدوية يرجى الاتصال بطبيبك العام العادي أو زيارة عيادة شخصياً.',
+    hi: 'इन दवाओं के लिए कृपया अपने नियमित GP से संपर्क करें या व्यक्तिगत रूप से क्लिनिक जाएं।',
+  },
+  consent_rx_check: { en: 'I understand these prescribing limitations', mi: 'Kei te mārama ahau ki ēnei herenga tuku rongoā', sm: 'Ou te malamalama i nei fa\'atapula\'aga', zh: '我理解这些处方限制', ja: 'これらの処方制限を理解しました', ko: '이 처방 제한 사항을 이해합니다', de: 'Ich verstehe diese Verschreibungsbeschränkungen', fr: 'Je comprends ces limitations de prescription', es: 'Entiendo estas limitaciones de prescripción', ar: 'أفهم هذه القيود على الوصفات الطبية', hi: 'मैं इन दवा लिखने की सीमाओं को समझता/समझती हूं' }, // TODO cert (mi/sm)
+
+  consent_research_title:    { en: 'Help improve rural healthcare', mi: 'Āwhinaia te whakapai ake i te hauora tuawhenua', sm: 'Fesoasoani e fa\'aleleia le tausiga o le soifua maloloina i nu\'u maotua', zh: '帮助改善农村医疗保健', ja: '地方医療の改善に貢献', ko: '농촌 의료 개선을 돕기', de: 'Ländliche Gesundheitsversorgung verbessern helfen', fr: 'Aider à améliorer les soins de santé ruraux', es: 'Ayudar a mejorar la atención sanitaria rural', ar: 'ساعد في تحسين الرعاية الصحية الريفية', hi: 'ग्रामीण स्वास्थ्य देखभाल में सुधार करने में मदद करें' }, // TODO cert (mi/sm)
+  consent_research_optional: { en: '(optional)', mi: '(kōwhiringa)', sm: '(filifili)', zh: '（可选）', ja: '（任意）', ko: '(선택 사항)', de: '(optional)', fr: '(facultatif)', es: '(opcional)', ar: '(اختياري)', hi: '(वैकल्पिक)' }, // TODO cert (mi/sm)
+  consent_research_intro: {
+    en: 'Would you be willing for your de-identified data (no name, no contact details, no NHI) to contribute to NZ rural health research? This helps improve healthcare for rural communities across Aotearoa.',
+    mi: 'E hiahia ana koe ki te whakaae kia whakauruhia ō raraunga kāore i te whakatinana (kāore he ingoa, kāore he whakapā, kāore he NHI) hei tautoko i te rangahau hauora tuawhenua o Aotearoa? Ka āwhina tēnei ki te whakapai ake i te hauora mō ngā hapori tuawhenua puta noa i Aotearoa.', // TODO cert
+    sm: 'E te malie e faia ni sao mai au fa\'amatalaga e le\'i fa\'ailoaina (leai se igoa, leai ni fa\'amatalaga fa\'afeso\'ota\'i, leai se NHI) i su\'esu\'ega o le soifua maloloina i nu\'u maotua o Niu Sila? E fesoasoani lenei mea e fa\'aleleia le tausiga o le soifua maloloina mo nu\'u maotua i Aotearoa.', // TODO cert
+    zh: '您是否愿意让您的去标识化数据（无姓名、无联系方式、无 NHI）为新西兰农村健康研究做出贡献？这有助于改善新西兰农村社区的医疗保健。',
+    ja: '匿名化されたデータ（名前、連絡先、NHIなし）をニュージーランドの地方医療研究に貢献させることに同意されますか？これは、アオテアロア（NZ）全土の地方コミュニティの医療改善に役立ちます。',
+    ko: '귀하의 비식별화된 데이터(이름, 연락처, NHI 없음)를 뉴질랜드 농촌 건강 연구에 기여하도록 하시겠습니까? 이는 아오테아로아 전역의 농촌 지역사회 의료 개선에 도움이 됩니다.',
+    de: 'Wären Sie bereit, dass Ihre anonymisierten Daten (kein Name, keine Kontaktdaten, keine NHI) zur ländlichen Gesundheitsforschung in Neuseeland beitragen? Dies hilft, die Gesundheitsversorgung für ländliche Gemeinden in ganz Aotearoa zu verbessern.',
+    fr: 'Seriez-vous prêt à ce que vos données anonymisées (sans nom, sans coordonnées, sans NHI) contribuent à la recherche sur la santé rurale en NZ ? Cela contribue à améliorer les soins de santé pour les communautés rurales dans toute l\'Aotearoa.',
+    es: '¿Estaría dispuesto a que sus datos desidentificados (sin nombre, sin datos de contacto, sin NHI) contribuyan a la investigación de salud rural de NZ? Esto ayuda a mejorar la atención sanitaria para las comunidades rurales en todo Aotearoa.',
+    ar: 'هل ستكون على استعداد لأن تساهم بياناتك مجهولة الهوية (بدون اسم أو بيانات اتصال أو NHI) في أبحاث الصحة الريفية النيوزيلندية؟ يساعد ذلك في تحسين الرعاية الصحية لمجتمعات المناطق الريفية في جميع أنحاء أوتياروا.',
+    hi: 'क्या आप अपने डी-आइडेंटिफाइड डेटा (कोई नाम नहीं, कोई संपर्क विवरण नहीं, कोई NHI नहीं) को NZ ग्रामीण स्वास्थ्य अनुसंधान में योगदान करने के लिए तैयार होंगे? यह पूरे Aotearoa में ग्रामीण समुदायों के लिए स्वास्थ्य देखभाल में सुधार करने में मदद करता है।',
+  },
+  consent_research_yes:  { en: '✓ Yes, I\'m happy to contribute', mi: '✓ Āe, kei te pai ki ahau ki te tautoko', sm: '✓ Ioe, ou te fiafia e sao mai', zh: '✓ 是的，我愿意贡献', ja: '✓ はい、貢献します', ko: '✓ 네, 기여하겠습니다', de: '✓ Ja, ich möchte beitragen', fr: '✓ Oui, je souhaite contribuer', es: '✓ Sí, me gustaría contribuir', ar: '✓ نعم، أنا سعيد بالمساهمة', hi: '✓ हाँ, मैं योगदान करने के लिए तैयार हूं' }, // TODO cert (mi/sm)
+  consent_research_skip: { en: 'Skip →', mi: 'Tukua →', sm: 'Preterisi →', zh: '跳过 →', ja: 'スキップ →', ko: '건너뛰기 →', de: 'Überspringen →', fr: 'Passer →', es: 'Omitir →', ar: 'تخطي ←', hi: 'छोड़ें →' }, // TODO cert (mi/sm)
+  consent_research_footnote: {
+    en: 'Your decision won\'t affect your care. You can withdraw consent at any time by contacting',
+    mi: 'Kāore tō whiringa e pā ki tō tiaki hauora. Ka taea e koe te unu i tō whakaae i te wā e hiahia ana koe mā te whakapā atu ki', // TODO cert
+    sm: 'O lau fa\'ai\'uga e le a\'afia ai lou tausiga. E mafai ona e toe aveese lau malie i so\'o se taimi e ala i le feso\'ota\'i atu i', // TODO cert
+    zh: '您的决定不会影响您的医疗服务。您可以随时通过联系以下方式撤回同意：',
+    ja: 'あなたの決定はケアに影響しません。次にご連絡いただくことで、いつでも同意を撤回できます：',
+    ko: '귀하의 결정은 진료에 영향을 미치지 않습니다. 다음 연락처로 언제든지 동의를 철회할 수 있습니다:',
+    de: 'Ihre Entscheidung beeinflusst nicht Ihre Versorgung. Sie können Ihre Einwilligung jederzeit widerrufen, indem Sie kontaktieren',
+    fr: 'Votre décision n\'affectera pas vos soins. Vous pouvez retirer votre consentement à tout moment en contactant',
+    es: 'Su decisión no afectará su atención. Puede retirar el consentimiento en cualquier momento contactando a',
+    ar: 'قرارك لن يؤثر على رعايتك. يمكنك سحب الموافقة في أي وقت بالتواصل مع',
+    hi: 'आपका निर्णय आपकी देखभाल को प्रभावित नहीं करेगा। आप किसी भी समय संपर्क करके सहमति वापस ले सकते हैं',
+  },
+
+  consent_camera_title: { en: 'Camera used for vitals', mi: 'Ka whakamahia te kāmera mō ngā tohu ora', sm: 'E fa\'aogaina le meapu\'e ata mo tulaga o le tino', zh: '使用相机进行生命体征测量', ja: 'バイタル測定のためにカメラを使用します', ko: '활력징후 측정에 카메라 사용', de: 'Kamera für Vitalzeichen verwendet', fr: 'Caméra utilisée pour les signes vitaux', es: 'Cámara utilizada para signos vitales', ar: 'الكاميرا مستخدمة للعلامات الحيوية', hi: 'वाइटल्स के लिए कैमरे का उपयोग' }, // TODO cert (mi/sm)
+  consent_camera_desc: {
+    en: 'For accurate vitals, Tere may use your camera during the consultation. No video is recorded — only anonymised colour measurements are used to estimate heart rate and blood oxygen.',
+    mi: 'Mō ngā tohu ora tika, ka whakamahia pea e Tere tō kāmera i te wā o te tirohanga. Kāore he ataata e hopukina ana — ka whakamahia noa ngā ine tae kua whakaingoakorehia hei whakatau i te tere manawa me te hāora toto.', // TODO cert
+    sm: 'Mo tulaga sa\'o o le tino, atonu e fa\'aaoga e Tere lau meapu\'e ata i le taimi o le asiasiga. E leai se ata na pu\'eina — na\'o fua o lanu e le\'i fa\'ailoaina e fa\'aogaina e fa\'atatau ai le saoasaoa o le fatu ma le okesene o le toto.', // TODO cert
+    zh: '为了准确测量生命体征，Tere 可能会在会诊期间使用您的相机。不会录制视频——仅使用匿名颜色测量来估计心率和血氧。',
+    ja: '正確なバイタル測定のため、Tereは診察中にカメラを使用することがあります。動画は記録されず、匿名化された色測定のみを使用して心拍数と血中酸素を推定します。',
+    ko: '정확한 활력징후를 위해, Tere는 상담 중 카메라를 사용할 수 있습니다. 비디오는 녹화되지 않으며 — 익명화된 색상 측정값만 사용하여 심박수와 혈중 산소를 추정합니다.',
+    de: 'Für genaue Vitalwerte kann Tere während der Konsultation Ihre Kamera verwenden. Es wird kein Video aufgezeichnet — nur anonymisierte Farbmessungen werden verwendet, um Herzfrequenz und Blutsauerstoff zu schätzen.',
+    fr: 'Pour des signes vitaux précis, Tere peut utiliser votre caméra pendant la consultation. Aucune vidéo n\'est enregistrée — seules des mesures de couleur anonymisées sont utilisées pour estimer le rythme cardiaque et l\'oxygène du sang.',
+    es: 'Para obtener signos vitales precisos, Tere puede usar su cámara durante la consulta. No se graba ningún video — solo se utilizan mediciones de color anonimizadas para estimar la frecuencia cardíaca y el oxígeno en la sangre.',
+    ar: 'للحصول على علامات حيوية دقيقة، قد يستخدم Tere الكاميرا الخاصة بك أثناء الاستشارة. لا يتم تسجيل أي فيديو — يتم استخدام قياسات الألوان مجهولة الهوية فقط لتقدير معدل ضربات القلب والأكسجين في الدم.',
+    hi: 'सटीक वाइटल्स के लिए, Tere परामर्श के दौरान आपके कैमरे का उपयोग कर सकता है। कोई वीडियो रिकॉर्ड नहीं किया जाता — केवल गुमनाम रंग मापों का उपयोग हृदय गति और रक्त ऑक्सीजन का अनुमान लगाने के लिए किया जाता है।',
+  },
+
+  consent_emergency_111:  { en: 'Emergency? Call 111',                    mi: 'He whawhati tata? Waea atu ki te 111',                  sm: 'Fa\'afuase\'i? Vala\'au le 111',                     zh: '紧急情况？请拨打 111',              ja: '緊急ですか？111に電話してください',       ko: '응급 상황? 111에 전화하세요',            de: 'Notfall? 111 anrufen',                       fr: 'Urgence ? Appelez le 111',                    es: '¿Emergencia? Llame al 111',                        ar: 'حالة طارئة؟ اتصل بـ 111',                    hi: 'आपातकाल? 111 पर कॉल करें' }, // TODO cert (mi/sm)
+  consent_emergency_1737: { en: 'Mental health crisis? Call or text 1737', mi: 'He raru hinengaro? Waea, tuku pānui rānei ki te 1737', sm: 'Fa\'afitauli o le mafaufau? Vala\'au po\'o tusi 1737', zh: '心理健康危机？请拨打或发短信 1737', ja: 'メンタルヘルス危機？1737に電話またはテキストしてください', ko: '정신 건강 위기? 1737에 전화 또는 문자하세요', de: 'Mental-Health-Krise? Rufen Sie 1737 an oder senden Sie eine SMS', fr: 'Crise de santé mentale ? Appelez ou envoyez un SMS au 1737', es: '¿Crisis de salud mental? Llame o envíe un mensaje al 1737', ar: 'أزمة صحية نفسية؟ اتصل أو راسل نصياً 1737', hi: 'मानसिक स्वास्थ्य संकट? 1737 पर कॉल करें या टेक्स्ट करें' }, // TODO cert (mi/sm)
+
+  consent_continue:     { en: 'Continue →', mi: 'Haere tonu →', sm: 'Fa\'aauau →', zh: '继续 →', ja: '続ける →', ko: '계속 →', de: 'Weiter →', fr: 'Continuer →', es: 'Continuar →', ar: 'متابعة ←', hi: 'जारी रखें →' }, // TODO cert (mi/sm)
+  consent_continue_hint:{ en: 'Tick both required boxes above to continue',
+    mi: 'Tirohia ngā pouaka rua e hiahiatia ana ki runga hei haere tonu', // TODO cert
+    sm: 'Fa\'ailoga pusa e lua e mana\'omia i luga e fa\'aauau ai', // TODO cert
+    zh: '请勾选上面两个必需的复选框以继续',
+    ja: '続けるには、上記の必須ボックスを両方チェックしてください',
+    ko: '계속하려면 위의 두 필수 상자에 모두 체크하세요',
+    de: 'Kreuzen Sie die beiden erforderlichen Kästchen oben an, um fortzufahren',
+    fr: 'Cochez les deux cases requises ci-dessus pour continuer',
+    es: 'Marque las dos casillas requeridas arriba para continuar',
+    ar: 'ضع علامة على المربعين المطلوبين أعلاه للمتابعة',
+    hi: 'जारी रखने के लिए ऊपर दिए गए दोनों आवश्यक बॉक्स पर टिक करें',
+  },
 }
 
 /**

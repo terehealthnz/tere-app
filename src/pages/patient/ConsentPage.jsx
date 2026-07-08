@@ -2,9 +2,35 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { t, getLang } from '../../lib/i18n'
+
+// Prescribing-limitations items. Drug names kept in English on purpose —
+// medication names must not be translated (safety), but the category label
+// runs through t() so the row reads correctly in the patient's language.
+const RX_ITEMS = [
+  { catKey: 'rx_opioid',     examples: 'codeine, tramadol, morphine, oxycodone' },
+  { catKey: 'rx_benzo',      examples: 'diazepam, lorazepam, temazepam' },
+  { catKey: 'rx_glp1',       examples: 'Ozempic, Wegovy, semaglutide' },
+  { catKey: 'rx_controlled', examples: '' },
+  { catKey: 'rx_stimulant',  examples: 'Ritalin, Adderall, dexamphetamine' },
+  { catKey: 'rx_sleep',      examples: 'zopiclone, zolpidem' },
+]
+
+// English fallbacks for the rx category labels. Translations added inline via
+// t() at render time so the labels track patient_language even though the drug
+// examples don't. Keys are declared inside i18n.js like every other consent key.
+const RX_LABELS_EN = {
+  rx_opioid:     'Opioid pain medications',
+  rx_benzo:      'Benzodiazepines',
+  rx_glp1:       'GLP-1 medications',
+  rx_controlled: 'Controlled drugs of any kind',
+  rx_stimulant:  'Stimulant medications',
+  rx_sleep:      'Sleeping medications',
+}
 
 export default function ConsentPage() {
   const navigate = useNavigate()
+  const [lang] = useState(() => getLang())
   const [hdcChecked, setHdcChecked]           = useState(false)
   const [prescribingChecked, setPrescribingChecked] = useState(false)
   const [researchConsent, setResearchConsent] = useState(null) // null | true | false
@@ -25,7 +51,7 @@ export default function ConsentPage() {
       // schema — the `timestamp` column doesn't exist; created_at is DB-auto).
       const post = (consent_type, granted) => apiFetch('/api/consents', {
         method: 'POST',
-        body: JSON.stringify({ consultation_id: consultationId || null, consent_type, granted }),
+        body: JSON.stringify({ consultation_id: consultationId || null, consent_type, granted, language: lang }),
       })
       await Promise.all([
         post('hdc_code_of_rights', true),
@@ -55,6 +81,14 @@ export default function ConsentPage() {
     )
   }
 
+  const rightsList = [
+    'consent_right_respect',
+    'consent_right_info',
+    'consent_right_informed',
+    'consent_right_consent',
+    'consent_right_complain',
+  ]
+
   return (
     <div style={{ minHeight: '100dvh', background: '#F0F2F5', fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', flexDirection: 'column' }}>
       {/* Nav */}
@@ -65,75 +99,67 @@ export default function ConsentPage() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1rem 2rem', maxWidth: 600, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         {/* Header */}
         <div style={{ marginBottom: '1.25rem' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Before we begin</h2>
-          <p style={{ fontSize: '.875rem', color: '#6B7280', margin: 0 }}>Please read and agree to the following</p>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>{t('consent_header', lang)}</h2>
+          <p style={{ fontSize: '.875rem', color: '#6B7280', margin: 0 }}>{t('consent_subheader', lang)}</p>
         </div>
 
         {/* Section 1 — HDC rights */}
         <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.75rem' }}>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45', marginBottom: '.625rem' }}>Your rights as a patient</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45', marginBottom: '.625rem' }}>{t('consent_rights_title', lang)}</div>
           <p style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6, margin: '0 0 .875rem' }}>
-            As a patient using Tere Health you have the following rights under the NZ Health and Disability Commissioner Code of Rights:
+            {t('consent_rights_intro', lang)}
           </p>
           <ul style={{ margin: '0 0 .875rem', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '.375rem' }}>
-            {[
-              'Right to be treated with respect',
-              'Right to receive information',
-              'Right to make an informed choice',
-              'Right to give informed consent',
-              'Right to complain',
-            ].map(r => (
-              <li key={r} style={{ fontSize: '.875rem', color: '#374151', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            {rightsList.map(key => (
+              <li key={key} style={{ fontSize: '.875rem', color: '#374151', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <span style={{ color: '#059669', fontWeight: 700, flexShrink: 0 }}>✓</span>
-                {r}
+                {t(key, lang)}
               </li>
             ))}
           </ul>
           <a href="https://www.hdc.org.nz/your-rights/about-the-code/code-of-health-and-disability-services-consumers-rights/" target="_blank" rel="noreferrer"
             style={{ display: 'inline-block', fontSize: '.8125rem', color: '#0B6E76', fontWeight: 600, marginBottom: '.875rem', textDecoration: 'none' }}>
-            Read the full HDC Code of Rights →
+            {t('consent_rights_link', lang)}
           </a>
           <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.55, margin: '0 0 .875rem' }}>
-            Your clinical information (including consultation transcript, chief complaint and notes) is processed by Anthropic Claude, delivered via AWS Bedrock under an executed Business Associate Agreement (BAA) with AWS that provides HIPAA-level safeguards. AI-generated notes are reviewed and finalised by a New Zealand-registered clinician. Your information is never used to train AI models.
+            {t('consent_ai_note', lang)}
           </p>
           <Checkbox
             checked={hdcChecked}
             onChange={() => setHdcChecked(c => !c)}
-            label="I understand my rights as a patient and consent to AI-assisted processing"
+            label={t('consent_rights_check', lang)}
             testId="hdc-consent-checkbox"
           />
         </div>
 
         {/* Section 2 — Prescribing limitations */}
         <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.75rem' }}>
-          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45', marginBottom: '.625rem' }}>Prescribing limitations</div>
+          <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45', marginBottom: '.625rem' }}>{t('consent_rx_title', lang)}</div>
           <p style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6, margin: '0 0 .875rem' }}>
-            Tere Health providers can prescribe many medications for acute conditions. However we are unable to prescribe via telehealth:
+            {t('consent_rx_intro', lang)}
           </p>
           <ul style={{ margin: '0 0 .875rem', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-            {[
-              ['Opioid pain medications', 'codeine, tramadol, morphine, oxycodone'],
-              ['Benzodiazepines', 'diazepam, lorazepam, temazepam'],
-              ['GLP-1 medications', 'Ozempic, Wegovy, semaglutide'],
-              ['Controlled drugs of any kind', ''],
-              ['Stimulant medications', 'Ritalin, Adderall, dexamphetamine'],
-              ['Sleeping medications', 'zopiclone, zolpidem'],
-            ].map(([name, examples]) => (
-              <li key={name} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ color: '#F59E0B', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>—</span>
-                <span style={{ fontSize: '.875rem', color: '#374151' }}>
-                  {name}{examples ? <span style={{ color: '#9CA3AF' }}> ({examples})</span> : ''}
-                </span>
-              </li>
-            ))}
+            {RX_ITEMS.map(({ catKey, examples }) => {
+              // Prefer i18n version of the category label; fall back to English.
+              const cat = t(catKey, lang)
+              const catLabel = cat === catKey ? RX_LABELS_EN[catKey] : cat
+              return (
+                <li key={catKey} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <span style={{ color: '#F59E0B', fontWeight: 700, flexShrink: 0, marginTop: 1 }}>—</span>
+                  <span style={{ fontSize: '.875rem', color: '#374151' }}>
+                    {catLabel}{examples ? <span style={{ color: '#9CA3AF' }}> ({examples})</span> : ''}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
           <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.6, margin: '0 0 1rem' }}>
-            For these medications please contact your regular GP or visit an in-person clinic.
+            {t('consent_rx_footer', lang)}
           </p>
           <Checkbox
             checked={prescribingChecked}
             onChange={() => setPrescribingChecked(c => !c)}
-            label="I understand these prescribing limitations"
+            label={t('consent_rx_check', lang)}
             testId="prescribing-acknowledge"
           />
         </div>
@@ -143,29 +169,29 @@ export default function ConsentPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '.5rem' }}>
             <span style={{ fontSize: '1.25rem' }}>🌿</span>
             <div>
-              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45' }}>Help improve rural healthcare </span>
-              <span style={{ fontSize: '.8125rem', color: '#9CA3AF', fontWeight: 400 }}>(optional)</span>
+              <span style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45' }}>{t('consent_research_title', lang)} </span>
+              <span style={{ fontSize: '.8125rem', color: '#9CA3AF', fontWeight: 400 }}>{t('consent_research_optional', lang)}</span>
             </div>
           </div>
           <p style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6, margin: '0 0 1rem' }}>
-            Would you be willing for your <strong>de-identified data</strong> (no name, no contact details, no NHI) to contribute to NZ rural health research? This helps improve healthcare for rural communities across Aotearoa.
+            {t('consent_research_intro', lang)}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '.75rem' }}>
             <button
               data-testid="research-yes"
               onClick={() => setResearchConsent(true)}
               style={{ padding: '.75rem 1rem', borderRadius: 10, border: `2px solid ${researchConsent === true ? '#0B6E76' : '#E2E8F0'}`, background: researchConsent === true ? '#EFF9F9' : 'white', color: researchConsent === true ? '#0B6E76' : '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', textAlign: 'left', transition: 'all .15s' }}>
-              ✓ Yes, I'm happy to contribute
+              {t('consent_research_yes', lang)}
             </button>
             <button
               data-testid="research-no"
               onClick={() => setResearchConsent(false)}
               style={{ padding: '.5rem', background: 'none', border: 'none', color: researchConsent === false ? '#374151' : '#9CA3AF', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500, fontSize: '.875rem', cursor: 'pointer', textDecoration: researchConsent === false ? 'underline' : 'none' }}>
-              Skip →
+              {t('consent_research_skip', lang)}
             </button>
           </div>
           <p style={{ fontSize: '.75rem', color: '#9CA3AF', margin: 0, lineHeight: 1.5 }}>
-            Your decision won't affect your care. You can withdraw consent at any time by contacting{' '}
+            {t('consent_research_footnote', lang)}{' '}
             <a href="mailto:terehealthnz@gmail.com" style={{ color: '#9CA3AF' }}>terehealthnz@gmail.com</a>
           </p>
         </div>
@@ -174,17 +200,17 @@ export default function ConsentPage() {
         <div style={{ background: '#EFF6FF', borderRadius: 12, border: '1px solid #BFDBFE', padding: '1rem 1.25rem', marginBottom: '.75rem', display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
           <span style={{ fontSize: '1.25rem', flexShrink: 0, marginTop: 1 }}>📷</span>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '.9375rem', color: '#1E40AF', marginBottom: '.25rem' }}>Camera used for vitals</div>
+            <div style={{ fontWeight: 700, fontSize: '.9375rem', color: '#1E40AF', marginBottom: '.25rem' }}>{t('consent_camera_title', lang)}</div>
             <p style={{ fontSize: '.875rem', color: '#1D4ED8', lineHeight: 1.5, margin: 0 }}>
-              For accurate vitals, Tere may use your camera during the consultation. <strong>No video is recorded</strong> — only anonymised colour measurements are used to estimate heart rate and blood oxygen.
+              {t('consent_camera_desc', lang)}
             </p>
           </div>
         </div>
 
         {/* Emergency links */}
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
-          <p style={{ fontSize: '.8125rem', color: '#9CA3AF', margin: 0 }}>Emergency? Call <strong>111</strong></p>
-          <p style={{ fontSize: '.8125rem', color: '#9CA3AF', margin: 0 }}>Mental health crisis? Call or text <strong>1737</strong></p>
+          <p style={{ fontSize: '.8125rem', color: '#9CA3AF', margin: 0 }}>{t('consent_emergency_111', lang)}</p>
+          <p style={{ fontSize: '.8125rem', color: '#9CA3AF', margin: 0 }}>{t('consent_emergency_1737', lang)}</p>
         </div>
 
         {/* Continue button */}
@@ -193,12 +219,12 @@ export default function ConsentPage() {
           onClick={handleContinue}
           disabled={!canContinue}
           style={{ width: '100%', height: 56, borderRadius: 12, border: 'none', background: canContinue ? '#0B6E76' : '#E2E8F0', color: canContinue ? 'white' : '#9CA3AF', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '1rem', cursor: canContinue ? 'pointer' : 'default', transition: 'background .2s, color .2s' }}>
-          {saving ? 'Saving…' : 'Continue →'}
+          {saving ? 'Saving…' : t('consent_continue', lang)}
         </button>
 
         {!hdcChecked || !prescribingChecked ? (
           <p style={{ fontSize: '.8125rem', color: '#9CA3AF', textAlign: 'center', margin: '.75rem 0 0', lineHeight: 1.4 }}>
-            Tick both required boxes above to continue
+            {t('consent_continue_hint', lang)}
           </p>
         ) : null}
       </div>
