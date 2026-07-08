@@ -7,6 +7,26 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "tere.co.nz" }],
+      "destination": "https://terehealth.co.nz/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.tere.co.nz" }],
+      "destination": "https://terehealth.co.nz/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "www.terehealth.co.nz" }],
+      "destination": "https://terehealth.co.nz/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/api/:route*", "destination": "/api/handler?route=:route*" },
     { "source": "/((?!manifest\\.json|sw\\.js|tere-logo\\..+|tere-preview\\..+).*)", "destination": "/index.html" }
