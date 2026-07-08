@@ -331,11 +331,7 @@ export default function ProviderConsult() {
     try {
       await apiFetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          isSecondAttempt
-            ? { consultationId: id }
-            : { consultationId: id, kind: 'ring' }
-        ),
+        body: JSON.stringify({ consultationId: id }),
       })
     } catch (e) { console.error('[return-to-queue] failed:', e) }
     navigate('/provider')

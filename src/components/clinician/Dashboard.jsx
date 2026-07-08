@@ -655,34 +655,15 @@ export default function Dashboard() {
   const [nowTick, setNowTick]             = useState(Date.now())
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
 
-  // Cooldown countdown ticker + mid-cooldown reminder trigger. Only runs
-  // while at least one consult is in cooldown; otherwise idle.
+  // Cooldown countdown ticker. Only runs while at least one consult is in
+  // cooldown; otherwise idle. The patient only ever gets two SMSes: the
+  // first at ring start and the second when the provider starts attempt 2.
   useEffect(() => {
     const hasCooldown = consultations.some(c => c.cooldown_until && new Date(c.cooldown_until) > new Date())
     if (!hasCooldown) return
     const t = setInterval(() => setNowTick(Date.now()), 1000)
     return () => clearInterval(t)
   }, [consultations])
-
-  // Fire mid-cooldown SMS when a consult is ~2min into its 5min cooldown and
-  // hasn't been reminded yet. Endpoint is idempotent — safe if this races.
-  useEffect(() => {
-    const now = new Date()
-    for (const c of consultations) {
-      if (!c.cooldown_until) continue
-      if (c.mid_cooldown_reminder_sent_at) continue
-      const cd = new Date(c.cooldown_until)
-      if (cd <= now) continue
-      const msRemaining = cd - now
-      // 5min cooldown → remind when < 3min remain (i.e. ~2min elapsed)
-      if (msRemaining < 3 * 60 * 1000) {
-        apiFetch('/api/ring-timeout', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultationId: c.id, kind: 'mid_cooldown' }),
-        }).catch(() => {})
-      }
-    }
-  }, [consultations, nowTick])
 
   const load = useCallback(async () => {
     try {

@@ -68,8 +68,7 @@ const UPDATE_ALLOWLIST = new Set([
   'patient_language', 'preferred_language',
   // Two-attempt no-show flow (see supabase-no-show-migration.sql)
   'ring_started_at', 'patient_joined_at', 'cooldown_until',
-  'join_attempts', 'join_attempt_history',
-  'mid_cooldown_reminder_sent_at', 'no_show_at',
+  'join_attempts', 'join_attempt_history', 'no_show_at',
 ])
 
 export default async function handler(req, res) {

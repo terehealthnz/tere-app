@@ -14,6 +14,20 @@ export default function PatientCall() {
   const [token, setToken] = useState(null)
   const [serverUrl, setServerUrl] = useState(null)
   const [error, setError] = useState(null)
+  // Consult status gate — determines whether the patient can join now, has to
+  // wait through a cooldown, or has been marked no-show. See the two-attempt
+  // no-show flow in supabase-no-show-migration.sql.
+  //
+  // gate:
+  //   'loading'              — still checking DB
+  //   'no_show'              — provider marked no-show; show sorry screen
+  //   'cooldown'             — provider timed out ring; wait until cooldown_until
+  //   'waiting_for_provider' — cooldown elapsed but provider hasn't restarted
+  //                            call yet; poll until status=in_progress
+  //   'ready'                — status is joinable; fetch LiveKit token
+  const [gate, setGate] = useState('loading')
+  const [cooldownUntil, setCooldownUntil] = useState(null)
+  const [nowTick, setNowTick] = useState(Date.now())
   // Prefer ?consultation=<id> from the email deep-link (empty sessionStorage on
   // a fresh browser). Fall back to sessionStorage for in-app navigation.
   const urlConsultId = params.get('consultation')
@@ -36,6 +50,52 @@ export default function PatientCall() {
     }).catch(() => {})
   }, [consultationId])
 
+  // Poll consult status. Runs every 3s whenever we're in a gated state so we
+  // can detect status flips (cooldown → waiting → in_progress) without the
+  // patient having to click anything.
+  useEffect(() => {
+    if (!consultationId) return
+    let cancelled = false
+    async function checkStatus() {
+      try {
+        const c = await getConsultation(consultationId)
+        if (cancelled || !c) return
+        if (c.status === 'no_show') {
+          setGate('no_show')
+          return
+        }
+        const cd = c.cooldown_until ? new Date(c.cooldown_until) : null
+        if (cd && cd > new Date()) {
+          setCooldownUntil(cd)
+          setGate('cooldown')
+          return
+        }
+        if (c.status === 'in_progress' || c.status === 'ready') {
+          setGate('ready')
+          return
+        }
+        // 'waiting' post-cooldown, or any other joinable-ish state: sit tight
+        // and keep polling; the provider will re-initiate the call soon.
+        if (cd && cd <= new Date()) {
+          setGate('waiting_for_provider')
+          return
+        }
+        // Normal fresh call — go straight through.
+        setGate('ready')
+      } catch { /* transient — keep last gate */ }
+    }
+    checkStatus()
+    const interval = setInterval(checkStatus, 3000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [consultationId])
+
+  // Cooldown countdown ticker — only ticks while in cooldown gate.
+  useEffect(() => {
+    if (gate !== 'cooldown') return
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [gate])
+
   // Keep screen awake during consultation
   useEffect(() => {
     let wakeLock = null
@@ -53,6 +113,10 @@ export default function PatientCall() {
 
   useEffect(() => {
     if (!consultationId) { navigate('/triage'); return }
+    // Only fetch a LiveKit token once the status gate says it's OK to join.
+    // While cooldown/waiting/no_show we render a dedicated screen instead.
+    if (gate !== 'ready') return
+    if (token) return
 
     async function fetchToken() {
       try {
@@ -76,7 +140,77 @@ export default function PatientCall() {
     }
 
     fetchToken()
-  }, [consultationId, navigate])
+  }, [consultationId, navigate, gate, token])
+
+  // Gated: no-show — provider tried twice and marked us as missed. Payment
+  // hold has been released. Offer patient a path back into triage.
+  if (gate === 'no_show') return (
+    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0D1117', fontFamily:'Plus Jakarta Sans, sans-serif', color:'white', gap:'1.25rem', padding:'2rem', textAlign:'center' }}>
+      <div style={{ fontSize:'2.5rem' }}>💔</div>
+      <div style={{ fontWeight:800, fontSize:'1.5rem' }}>We missed you today</div>
+      <p style={{ color:'rgba(255,255,255,.7)', maxWidth:400, lineHeight:1.6 }}>
+        We tried to reach you twice and weren't able to connect. <strong style={{ color:'white' }}>No charge has been applied.</strong> Please start a new consultation whenever you're ready.
+      </p>
+      <button onClick={() => { sessionStorage.clear(); navigate('/triage') }}
+        style={{ background:'var(--teal, #0B6E76)', border:'none', color:'white', padding:'12px 28px', borderRadius:99, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'1rem', marginTop:'.5rem' }}>
+        Start a new consultation →
+      </button>
+      <div style={{ marginTop:'2rem', fontSize:'.8125rem', color:'rgba(255,255,255,.4)' }}>
+        Emergency? <a href="tel:111" style={{ color:'white', fontWeight:700 }}>Call 111</a>
+      </div>
+    </div>
+  )
+
+  // Gated: cooldown — provider tried once and stepped away. Countdown until
+  // they're able to try again. Poll flips gate to 'waiting_for_provider' at 0,
+  // then to 'ready' once the provider re-initiates the call.
+  if (gate === 'cooldown' && cooldownUntil) {
+    const msLeft = Math.max(0, cooldownUntil - nowTick)
+    const secs = Math.round(msLeft / 1000)
+    const mm = String(Math.floor(secs / 60))
+    const ss = String(secs % 60).padStart(2, '0')
+    return (
+      <div style={{ height:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0D1117', fontFamily:'Plus Jakarta Sans, sans-serif', color:'white', gap:'1.25rem', padding:'2rem', textAlign:'center' }}>
+        <div style={{ fontSize:'2.5rem' }}>🕐</div>
+        <div style={{ fontWeight:800, fontSize:'1.5rem' }}>Your provider will try again shortly</div>
+        <div style={{ fontFamily:'monospace', fontSize:'3rem', fontWeight:800, color:'#0B6E76', lineHeight:1 }}>
+          {mm}:{ss}
+        </div>
+        <p style={{ color:'rgba(255,255,255,.7)', maxWidth:380, lineHeight:1.6 }}>
+          Please keep this page open. When your provider is ready, this screen will connect you automatically.
+        </p>
+        <div style={{ marginTop:'2rem', fontSize:'.8125rem', color:'rgba(255,255,255,.4)' }}>
+          Emergency? <a href="tel:111" style={{ color:'white', fontWeight:700 }}>Call 111</a>
+        </div>
+      </div>
+    )
+  }
+
+  // Gated: cooldown elapsed, provider hasn't started attempt 2 yet. Spinner
+  // + status polling every 3s; gate flips to 'ready' when they click Start.
+  if (gate === 'waiting_for_provider') return (
+    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', background:'#0D1117', fontFamily:'Plus Jakarta Sans, sans-serif', color:'white', gap:'1.25rem', padding:'2rem', textAlign:'center' }}>
+      <div style={{ width:52, height:52, border:'4px solid rgba(255,255,255,.15)', borderTopColor:'#0B6E76', borderRadius:'50%', animation:'spin 0.8s linear infinite' }} />
+      <div style={{ fontWeight:800, fontSize:'1.25rem', marginTop:'.5rem' }}>Waiting for your provider…</div>
+      <p style={{ color:'rgba(255,255,255,.6)', maxWidth:380, lineHeight:1.6, fontSize:'.9375rem' }}>
+        Please keep this page open. You'll be connected automatically as soon as your provider is ready.
+      </p>
+      <div style={{ marginTop:'2rem', fontSize:'.8125rem', color:'rgba(255,255,255,.4)' }}>
+        Emergency? <a href="tel:111" style={{ color:'white', fontWeight:700 }}>Call 111</a>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
+
+  if (gate === 'loading') return (
+    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0D1117', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+      <div style={{ textAlign:'center', color:'rgba(255,255,255,.6)' }}>
+        <div style={{ width:36, height:36, border:'3px solid var(--teal, #0B6E76)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 1rem' }}/>
+        <div>Checking your appointment…</div>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  )
 
   if (error) return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',color:'white',gap:'1rem',padding:'2rem',textAlign:'center'}}>

@@ -37,7 +37,6 @@ export default async function handler(req, res) {
       join_attempts: attemptNum,
       join_attempt_history: history,
       cooldown_until: null,
-      mid_cooldown_reminder_sent_at: null,
       ...(providerId ? { provider_id: providerId } : {}),
       ...(providerName ? { provider_display_name: providerName } : {}),
     })
