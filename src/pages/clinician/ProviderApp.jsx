@@ -48,8 +48,13 @@ function queueStatus(c, now) {
   if (s === 'expired')    return { label: 'Expired',    color: '#6B7280', bg: '#F3F4F6' }
   if (s === 'in_progress') return { label: 'In Progress', color: '#7C3AED', bg: '#EDE9FE' }
   if (s === 'reviewing')  return { label: `Reviewing — ${c.provider_display_name || 'Provider'}`, color: '#92400E', bg: '#FEF3C7' }
-  if (s === 'waiting')    return { label: '📸 Scanning vitals', color: '#D97706', bg: '#FEF3C7' }
-  if (s === 'vitals_complete') return { label: '✓ Vitals ready', color: '#059669', bg: '#D1FAE5' }
+  // 'waiting' is the standard "queued, ready to pick up" state now that the
+  // post-payment vitals scan is gone. 'vitals_requested' is the transient
+  // "provider asked the patient to run a scan during the call" state; label
+  // that one with the camera badge.
+  if (s === 'waiting')          return { label: 'In queue',            color: '#065F46', bg: '#D1FAE5' }
+  if (s === 'vitals_requested') return { label: '📸 Scanning vitals',  color: '#D97706', bg: '#FEF3C7' }
+  if (s === 'vitals_complete')  return { label: '✓ Vitals ready',      color: '#059669', bg: '#D1FAE5' }
   const deadline = new Date(c.created_at).getTime() + 2 * 60 * 60 * 1000
   const minsLeft = (deadline - now) / 60000
   if (minsLeft <= 30) return { label: 'Upcoming', color: '#1E40AF', bg: '#DBEAFE' }
