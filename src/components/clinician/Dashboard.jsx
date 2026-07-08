@@ -874,7 +874,15 @@ export default function Dashboard() {
                       {v && !v.skipped && v.hr && <span style={{fontSize:'.75rem',color:'var(--success)',fontWeight:600,marginLeft:4}}>❤️ {v.hr}</span>}
                     </div>
                     <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>{timeAgo(c.created_at)}</div>
-                    <div onClick={e => e.stopPropagation()}>
+                    <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center' }}>
+                      {!isLocked && (
+                        <button
+                          onClick={() => navigate('/provider/consult/' + c.id)}
+                          disabled={joiningId === c.id}
+                          style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor: joiningId === c.id ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700, fontFamily:'Plus Jakarta Sans,sans-serif', whiteSpace:'nowrap' }}>
+                          {c.consultation_type === 'phone' ? '📞 Start call' : '📹 Start call'}
+                        </button>
+                      )}
                       {!isLocked && (
                         <button onClick={() => dismissConsult(c.id)}
                           style={{background:'none',border:'1px solid #FECACA',color:'#DC2626',padding:'4px 8px',borderRadius:6,cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans,sans-serif'}}>
