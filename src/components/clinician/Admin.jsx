@@ -2646,6 +2646,12 @@ function AuditLogPanel() {
   const [loading, setLoading] = React.useState(true)
   const [filterEvent, setFilterEvent] = React.useState('')
   const [filterReason, setFilterReason] = React.useState('')
+  // Date range — default to last 7 days. `from` inclusive, `to` end-of-day inclusive.
+  const [dateFrom, setDateFrom] = React.useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 7)
+    return d.toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = React.useState(() => new Date().toISOString().slice(0, 10))
   const [expanded, setExpanded] = React.useState(null)
 
   React.useEffect(() => {
@@ -2653,7 +2659,9 @@ function AuditLogPanel() {
       setLoading(true)
       try {
         const params = new URLSearchParams({ limit: '100' })
-        if (filterEvent)  params.set('event_type', filterEvent)
+        if (filterEvent) params.set('event_type', filterEvent)
+        if (dateFrom)    params.set('from', new Date(dateFrom + 'T00:00:00').toISOString())
+        if (dateTo)      params.set('to',   new Date(dateTo   + 'T23:59:59.999').toISOString())
         const res = await apiFetch('/api/audit?' + params.toString())
         const { logs } = await res.json()
         setLogs(logs || [])
@@ -2661,7 +2669,15 @@ function AuditLogPanel() {
       setLoading(false)
     }
     load()
-  }, [filterEvent])
+  }, [filterEvent, dateFrom, dateTo])
+
+  function applyPreset(days) {
+    const to = new Date()
+    const from = new Date()
+    from.setDate(from.getDate() - days)
+    setDateFrom(from.toISOString().slice(0, 10))
+    setDateTo(to.toISOString().slice(0, 10))
+  }
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
   const EVENT_COLOR = {
@@ -2682,7 +2698,7 @@ function AuditLogPanel() {
 
   return (
     <div style={card}>
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem', marginBottom:'1rem', flexWrap:'wrap' }}>
         <div>
           <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Audit log</div>
           <div style={{ fontSize:'.875rem', color:'#6B7280' }}>PHI-access + provider activity trail (HIPC Rule 5 / Privacy Act 2020 IPP5)</div>
@@ -2699,6 +2715,23 @@ function AuditLogPanel() {
             {Object.entries(REASON_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:'1rem', padding:'.625rem .75rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8 }}>
+        <span style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:600, textTransform:'uppercase', letterSpacing:'.04em' }}>Date range</span>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} max={dateTo}
+          style={{ padding:'5px 8px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif' }} />
+        <span style={{ color:'#9CA3AF', fontSize:'.75rem' }}>→</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} min={dateFrom} max={new Date().toISOString().slice(0,10)}
+          style={{ padding:'5px 8px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif' }} />
+        <span style={{ flex:1 }} />
+        {[
+          { label:'Today', days:0 }, { label:'7d', days:7 }, { label:'30d', days:30 }, { label:'90d', days:90 },
+        ].map(p => (
+          <button key={p.label} onClick={() => applyPreset(p.days)}
+            style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'4px 10px', borderRadius:6, fontSize:'.75rem', fontWeight:600, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+            {p.label}
+          </button>
+        ))}
       </div>
       {loading ? (
         <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
