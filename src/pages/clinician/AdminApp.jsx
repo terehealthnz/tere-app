@@ -1008,13 +1008,13 @@ function ResearchTab() {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, dashBadge }) {
+function BottomNav({ tab, setTab, dashBadge, msgBadge }) {
   const items = [
     { id:'dashboard', icon:'🏠', label:'Dashboard', badge:dashBadge },
+    { id:'messages',  icon:'✉️', label:'Messages',  badge:msgBadge },
     { id:'analytics', icon:'📊', label:'Analytics',  badge:0 },
     { id:'bookings',  icon:'📆', label:'Bookings',   badge:0 },
     { id:'schedule',  icon:'📅', label:'Schedule',   badge:0 },
-    { id:'research',  icon:'🔬', label:'Research',   badge:0 },
     { id:'settings',  icon:'⚙️', label:'Settings',   badge:0 },
   ]
   return (
@@ -1031,6 +1031,91 @@ function BottomNav({ tab, setTab, dashBadge }) {
           <span style={{ fontSize:'.5625rem', fontWeight:tab===item.id?700:400, letterSpacing:'.01em', fontFamily:FF, whiteSpace:'nowrap', overflow:'hidden', maxWidth:'100%' }}>{item.label}</span>
         </button>
       ))}
+    </div>
+  )
+}
+
+// ── Messages tab ─────────────────────────────────────────────────────────────
+// Shows patient support tickets that routed to admin_inbox (billing / technical /
+// complaints / >7d follow-ups without provider) plus any broadcast provider
+// notifications. Clinical follow-ups within 7d go to the provider Messages tab,
+// not here.
+const TICKET_CATEGORY_LABEL = {
+  prescription: '💊 Prescription', billing: '💳 Billing', follow_up: '📋 Follow-up',
+  technical: '🔧 Technical', complaint: '⚠️ Complaint', other: '💬 Other',
+}
+function AdminMessagesTab({ setMsgBadge }) {
+  const [tickets, setTickets] = useState(null)
+  const [notifs, setNotifs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const providerId = sessionStorage.getItem('providerId')
+
+  async function load() {
+    setLoading(true)
+    try {
+      const [tRes, nRes] = await Promise.all([
+        apiFetch('/api/patient-support?status=new'),
+        apiFetch('/api/provider-notifications?providerId=' + (providerId || '')),
+      ])
+      const tData = await tRes.json()
+      const nData = await nRes.json()
+      const t = (tData.tickets || []).filter(x => !x.routing_status || x.routing_status === 'admin_inbox')
+      const n = (nData.notifications || []).filter(x => !x.to_provider_id && !x.resolved_at)
+      setTickets(t)
+      setNotifs(n)
+      const unread = t.length + n.filter(x => !x.is_read).length
+      setMsgBadge?.(unread)
+    } catch {}
+    finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  if (loading) return <div style={{ padding:'4rem', textAlign:'center' }}><div className="spinner" /></div>
+  const nothing = (!tickets || tickets.length === 0) && notifs.length === 0
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+      {nothing ? (
+        <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
+          <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>✉️</div>
+          <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No messages</div>
+          <div style={{ color:'#6B7280', fontSize:'.9375rem' }}>Patient support requests and admin broadcasts will appear here</div>
+        </div>
+      ) : (
+        <>
+          {tickets && tickets.length > 0 && (
+            <>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#6B7280', margin:'0 0 .5rem' }}>
+                Patient support · {tickets.length}
+              </div>
+              {tickets.map(t => (
+                <div key={t.id} onClick={() => window.location.href = '/clinician/admin'}
+                  style={{ background:'#FFF7ED', borderRadius:14, border:'1px solid #FED7AA', borderLeft:'4px solid #F97316', padding:'.875rem 1rem', marginBottom:'.75rem', cursor:'pointer' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:4 }}>
+                    <span style={{ fontSize:'.75rem', fontWeight:700, color:'#9A3412' }}>{TICKET_CATEGORY_LABEL[t.category] || t.category}</span>
+                    <span style={{ fontSize:'.6875rem', color:'#78350F' }}>· {new Date(t.created_at).toLocaleDateString('en-NZ',{ day:'numeric', month:'short' })}</span>
+                  </div>
+                  <div style={{ fontSize:'.875rem', fontWeight:700, color:NAVY, marginBottom:2 }}>{t.patient_name || t.patient_email}</div>
+                  <div style={{ fontSize:'.8125rem', color:'#374151', lineHeight:1.5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{t.message}</div>
+                </div>
+              ))}
+            </>
+          )}
+          {notifs.length > 0 && (
+            <>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#6B7280', margin:'1rem 0 .5rem' }}>
+                Announcements
+              </div>
+              {notifs.map(n => (
+                <div key={n.id} style={{ background: n.is_read ? 'white' : '#EFF9F9', borderRadius:14, border:`1px solid ${n.is_read ? '#E2E8F0' : '#A7D4D8'}`, padding:'.875rem 1rem', marginBottom:'.75rem' }}>
+                  <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem', marginBottom:2 }}>{n.subject}</div>
+                  <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginBottom:6 }}>{n.from_name} · {new Date(n.created_at).toLocaleDateString('en-NZ',{ day:'numeric', month:'short' })}</div>
+                  <div style={{ fontSize:'.8125rem', color:'#374151', whiteSpace:'pre-wrap', lineHeight:1.5 }}>{n.body}</div>
+                </div>
+              ))}
+            </>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -1057,6 +1142,7 @@ export default function AdminApp() {
   const [tab, setTab]               = useState('dashboard')
   const [isOnline, setIsOnline]     = useState(navigator.onLine)
   const [dashBadge, setDashBadge]   = useState(0)
+  const [msgBadge, setMsgBadge]     = useState(0)
 
   // Register push
   useEffect(() => {
@@ -1071,6 +1157,28 @@ export default function AdminApp() {
     window.addEventListener('offline', off)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
+
+  // Messages badge — new admin_inbox tickets + unread broadcasts, polled every 30s
+  useEffect(() => {
+    if (!providerId) return
+    let cancelled = false
+    async function refresh() {
+      try {
+        const [tRes, nRes] = await Promise.all([
+          apiFetch('/api/patient-support?status=new'),
+          apiFetch('/api/provider-notifications?providerId=' + providerId),
+        ])
+        const t = (await tRes.json()).tickets || []
+        const n = (await nRes.json()).notifications || []
+        const tCount = t.filter(x => !x.routing_status || x.routing_status === 'admin_inbox').length
+        const nCount = n.filter(x => !x.to_provider_id && !x.resolved_at && !x.is_read).length
+        if (!cancelled) setMsgBadge(tCount + nCount)
+      } catch {}
+    }
+    refresh()
+    const iv = setInterval(refresh, 30000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [providerId])
 
   // Dashboard badge (queue + pending approvals)
   useEffect(() => {
@@ -1115,6 +1223,7 @@ export default function AdminApp() {
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'dashboard' && <DashboardTab />}
+        {tab === 'messages'  && <AdminMessagesTab setMsgBadge={setMsgBadge} />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'bookings'  && <BookingsTab />}
         {tab === 'schedule'  && <AdminSchedule embedded />}
@@ -1124,7 +1233,7 @@ export default function AdminApp() {
       </div>
 
       {/* Bottom nav — in-flow, no position:fixed */}
-      <BottomNav tab={tab} setTab={setTab} dashBadge={dashBadge} />
+      <BottomNav tab={tab} setTab={setTab} dashBadge={dashBadge} msgBadge={msgBadge} />
     </div>
   )
 }
