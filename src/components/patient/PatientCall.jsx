@@ -128,8 +128,10 @@ export default function PatientCall() {
           const patientLang = sessionStorage.getItem('patient_language') || 'en'
           const meta = getLangMeta(patientLang)
           const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-          const consented = sessionStorage.getItem('subtitle_consent') === 'yes'
-          if (patientLang === 'en' || !supported || !consented) return null
+          // AI-processing consent is covered by the rights checkbox on /consent
+          // (see consent_rights_check). Non-English patients on a whitelisted
+          // language auto-get subtitles.
+          if (patientLang === 'en' || !supported) return null
           return (
             <CallSubtitles
               viewerRole="patient"
