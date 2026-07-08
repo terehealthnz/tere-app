@@ -139,6 +139,15 @@ export default async function handler(req, res) {
     tobacco_use:                   null,
     alcohol_use:                   null,
     occupation:                    null,
+    // Diagnosis picked by Sonnet 4.5 based on the full clinical picture
+    // (chief complaint + transcript). We used to hand-roll a keyword rule
+    // chain here; that chain misfired on "come back if" → M54.5 low back
+    // pain for a gastroenteritis presentation. LLM-based selection handles
+    // multi-symptom contexts natively. Keyword rules stay as a fallback for
+    // when Sonnet returns null (transcript too thin to be sure).
+    diagnosis_code:                null,
+    diagnosis_description:         null,
+    diagnosis_confidence:          null,
   }
   const hasTranscript = transcript && transcript.trim().length > 50
 
@@ -218,7 +227,10 @@ For each clinical field include a confidence rating based on the clarity and com
   "return_precautions_confidence": "high|medium|low|null",
   "tobacco_use": "Smoking/vaping status only if mentioned. null if not mentioned.",
   "alcohol_use": "Alcohol use only if mentioned. null if not mentioned.",
-  "occupation": "Occupation details only if mentioned beyond triage employer field. null if not mentioned."
+  "occupation": "Occupation details only if mentioned beyond triage employer field. null if not mentioned.",
+  "diagnosis_code": "The single most likely working diagnosis for this consultation, expressed as an ICD-10-AM code (Australian/NZ hospital coding standard). Base it on the WHOLE clinical picture (chief complaint + your extracted findings + provider's spoken reasoning), not just keywords. If the provider explicitly named a diagnosis in the transcript, use theirs. If the presentation is too vague to code confidently, return null and Z00.0 will be used as the placeholder. Examples: 'A09' for gastroenteritis, 'J06.9' for URTI, 'M54.5' for low back pain, 'H66.9' for otitis media unspecified, 'N39.0' for UTI, 'R10.4' for undifferentiated abdominal pain, 'S93.4' for ankle sprain. Do NOT return anything outside ICD-10-AM.",
+  "diagnosis_description": "Plain-English description of the diagnosis_code above, exactly as it appears in ICD-10-AM. e.g. 'Gastroenteritis and colitis of unspecified origin' for A09.",
+  "diagnosis_confidence": "high|medium|low|null — high means the presentation clearly matches this code, medium means it's the most likely but not the only fit, low means the transcript was too thin and the provider should review."
 }`
 
     try {
@@ -245,13 +257,23 @@ For each clinical field include a confidence rating based on the clarity and com
 
   // ── Step 2: JS merge — deterministic triage + extracted combination ────────
   const accCode  = suggestReadCode(triage.chiefComplaint, triage.accInjuryDescription)
-  const icd10    = suggestIcd10(triage.chiefComplaint, triage.accInjuryDescription, transcript)
+  // Diagnosis code — prefer Sonnet 4.5's ICD-10-AM pick over the keyword
+  // fallback. Sonnet sees the full clinical picture (chief complaint +
+  // transcript + its own extracted findings) and picks the code that matches
+  // the whole presentation, not just a substring hit. If Sonnet returned
+  // null (transcript too thin), the keyword rules take over as a safety
+  // net. If BOTH return nothing usable, the merger returns Z00.0 as the
+  // "general medical examination" placeholder.
+  const icd10 = (extracted.diagnosis_code && extracted.diagnosis_description)
+    ? { code: extracted.diagnosis_code, description: extracted.diagnosis_description }
+    : suggestIcd10(triage.chiefComplaint, triage.accInjuryDescription, transcript)
   const planAdditions = Array.isArray(extracted.plan_additions)
     ? extracted.plan_additions.filter(Boolean) : []
 
   // Source + confidence tracking
   const _sources = {
     presentingHistory: extracted.additional_history                          ? 'transcript' : (triage.chiefComplaint ? 'triage' : 'none'),
+    diagnosis:         extracted.diagnosis_code                              ? 'transcript' : 'keyword_fallback',
     medicalHistory:    triage.medicalHistory                                 ? 'triage'     : 'none',
     medications:       triage.medications                                    ? 'triage'     : 'none',
     allergies:         triage.allergies                                      ? 'triage'     : 'none',
@@ -265,6 +287,7 @@ For each clinical field include a confidence rating based on the clarity and com
 
   const _confidence = {
     presentingHistory: extracted.additional_history_confidence || null,
+    diagnosis:         extracted.diagnosis_confidence          || null,
     generalAppearance: extracted.general_appearance_confidence || null,
     visibleFindings:   extracted.visible_findings_confidence   || null,
     mdm:               extracted.mdm_confidence                || null,
