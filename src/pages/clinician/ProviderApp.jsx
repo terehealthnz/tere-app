@@ -594,17 +594,45 @@ function fmtDeadline(iso) {
 function MessagesTab({ msgBadge, setMsgBadge }) {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading]             = useState(true)
+  const [busy, setBusy]                   = useState(null) // notification id currently actioning
+  const [error, setError]                 = useState(null)
+  const navigate                          = useNavigate()
   const providerId = sessionStorage.getItem('providerId')
 
   async function load() {
     try {
       const res = await apiFetch('/api/provider-notifications?providerId=' + (providerId || ''))
       const data = await res.json()
-      const notifs = data.notifications || []
+      // Hide already-resolved routed notifications (support tickets that have been actioned)
+      const notifs = (data.notifications || []).filter(n => !n.resolved_at)
       setNotifications(notifs)
       const unread = notifs.filter(n => !n.is_read).length
       if (setMsgBadge) setMsgBadge(unread)
     } catch {} finally { setLoading(false) }
+  }
+
+  async function ticketAction(notif, kind) {
+    if (!notif.context_id) return
+    setBusy(notif.id); setError(null)
+    try {
+      const res = await apiFetch(`/api/patient-support?action=ticket_action&id=${notif.context_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed')
+      // Remove the notification locally so it disappears from the tab
+      setNotifications(ns => ns.filter(n => n.id !== notif.id))
+      setMsgBadge?.(prev => Math.max(0, (prev || 0) - (notif.is_read ? 0 : 1)))
+      if (kind === 'handle_now' && notif.action_url) {
+        navigate(notif.action_url)
+      }
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(null)
+    }
   }
 
   async function markRead(id) {
@@ -647,12 +675,18 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
               Mark all read ✓
             </button>
           )}
-          {notifications.map(n => (
+          {error && (
+            <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', color: '#991B1B', padding: '.5rem .75rem', borderRadius: 8, fontSize: '.8125rem', marginBottom: '.75rem' }}>{error}</div>
+          )}
+          {notifications.map(n => {
+            const isTicket = n.context_type === 'support_ticket'
+            return (
             <div key={n.id} onClick={() => !n.is_read && markRead(n.id)}
               style={{ background: n.is_read ? 'white' : '#EFF9F9', borderRadius: 14, border: `1px solid ${n.is_read ? '#E2E8F0' : '#A7D4D8'}`, borderLeft: `4px solid ${n.is_pinned ? '#D97706' : n.is_read ? '#E2E8F0' : TEAL}`, padding: '1rem 1.25rem', marginBottom: '.75rem', cursor: n.is_read ? 'default' : 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '.5rem', marginBottom: '.25rem' }}>
                 <div style={{ fontWeight: n.is_read ? 600 : 700, fontSize: '.9375rem', color: NAVY }}>{n.subject}</div>
                 <div style={{ display: 'flex', gap: '.375rem', flexShrink: 0 }}>
+                  {isTicket && <span style={{ background: '#EDE9FE', color: '#5B21B6', fontSize: '.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>PATIENT</span>}
                   {!n.is_read && <span style={{ background: TEAL, color: 'white', fontSize: '.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>NEW</span>}
                   {n.is_pinned && <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: '.625rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>PINNED</span>}
                 </div>
@@ -661,8 +695,31 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
                 {n.from_name} · {new Date(n.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </div>
               <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{n.body}</div>
+              {isTicket && (
+                <div style={{ marginTop: '.875rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+                  <button
+                    disabled={busy === n.id}
+                    onClick={e => { e.stopPropagation(); ticketAction(n, 'handle_now') }}
+                    style={{ background: TEAL, color: 'white', border: 'none', padding: '.5rem .875rem', borderRadius: 99, fontSize: '.8125rem', fontWeight: 700, cursor: busy === n.id ? 'wait' : 'pointer', fontFamily: FF }}>
+                    Handle now (no charge) →
+                  </button>
+                  <button
+                    disabled={busy === n.id}
+                    onClick={e => { e.stopPropagation(); if (confirm('Create a new async consult in the queue? Patient may be billed the standard $25 async fee on sign-off.')) ticketAction(n, 'convert_to_consult') }}
+                    style={{ background: 'white', color: NAVY, border: `1px solid ${NAVY}`, padding: '.5rem .875rem', borderRadius: 99, fontSize: '.8125rem', fontWeight: 700, cursor: busy === n.id ? 'wait' : 'pointer', fontFamily: FF }}>
+                    Convert to async consult
+                  </button>
+                  <button
+                    disabled={busy === n.id}
+                    onClick={e => { e.stopPropagation(); ticketAction(n, 'bounce_to_admin') }}
+                    style={{ background: 'transparent', color: '#6B7280', border: 'none', padding: '.5rem .5rem', fontSize: '.8125rem', fontWeight: 600, cursor: busy === n.id ? 'wait' : 'pointer', fontFamily: FF, textDecoration: 'underline' }}>
+                    Not clinical — bounce to admin
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </>
       )}
     </div>

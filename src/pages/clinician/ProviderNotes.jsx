@@ -155,6 +155,130 @@ function buildNZNote(data, consult, actions) {
   return lines.join('\n')
 }
 
+// ── ChangePharmacyModal ──────────────────────────────────────────────────────
+// Reused pattern from ClinicalActionModals: lazy-load /pharmacies.json,
+// filter by query, submit selection to /api/redirect-prescription.
+function ChangePharmacyModal({ rx, onClose, onDone }) {
+  const [medsafeList, setMedsafeList] = useState(null)
+  const [query, setQuery] = useState('')
+  const [picked, setPicked] = useState(null)
+  const [fax, setFax] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    fetch('/pharmacies.json').then(r => r.ok ? r.json() : []).then(list => setMedsafeList(Array.isArray(list) ? list : [])).catch(() => setMedsafeList([]))
+  }, [])
+
+  const filtered = (() => {
+    if (!medsafeList) return []
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of medsafeList) {
+      const name = (p.premises_name || '').toLowerCase()
+      const address = (p.address || '').toLowerCase()
+      const town = (p.town || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function submit() {
+    if (!picked) { setError('Pick a pharmacy first'); return }
+    if (!fax.trim() && !email.trim()) { setError('Provide a fax number OR email so we can send the prescription'); return }
+    setSubmitting(true); setError(null)
+    try {
+      const res = await apiFetch('/api/redirect-prescription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prescriptionId: rx.id,
+          pharmacyId: picked.id,
+          pharmacyName: picked.premises_name,
+          pharmacyAddress: picked.address || '',
+          pharmacyFax: fax.trim(),
+          pharmacyEmail: email.trim(),
+          pharmacyPhone: phone.trim(),
+          deliveryChannel: fax.trim() && email.trim() ? 'both' : fax.trim() ? 'fax' : 'email',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Redirect failed')
+      onDone?.(data)
+    } catch (e) {
+      setError(e.message)
+    } finally { setSubmitting(false) }
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.6)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+      <div style={{ background:'white', borderRadius:14, padding:'1.5rem', maxWidth:520, width:'100%', maxHeight:'90vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+          <div style={{ fontWeight:800, fontSize:'1.0625rem', color:'#0D2B45' }}>Change pharmacy</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#6B7280', fontSize:'1.25rem', cursor:'pointer' }}>×</button>
+        </div>
+        <div style={{ background:'#F8FAFC', borderRadius:8, padding:'10px 12px', fontSize:'.8125rem', color:'#374151', marginBottom:12 }}>
+          <div><strong>{rx.drug}</strong> · Qty {rx.quantity}</div>
+          <div style={{ color:'#6B7280', marginTop:2 }}>Currently at: {rx.pharmacy_name || '—'}</div>
+        </div>
+        {!picked ? (
+          <>
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search new pharmacy by name or town"
+              autoFocus
+              style={{ width:'100%', boxSizing:'border-box', padding:'.75rem', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.9375rem' }} />
+            {medsafeList === null && <div style={{ marginTop:12, color:'#6B7280', fontSize:'.8125rem' }}>Loading pharmacy register…</div>}
+            {medsafeList && query.trim().length >= 2 && filtered.length === 0 && (
+              <div style={{ marginTop:12, color:'#6B7280', fontSize:'.8125rem' }}>No matches. Try a broader term.</div>
+            )}
+            <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
+              {filtered.map(p => (
+                <button key={p.id} onClick={() => setPicked(p)}
+                  style={{ textAlign:'left', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, padding:'10px 12px', cursor:'pointer', fontFamily:'Plus Jakarta Sans,sans-serif' }}>
+                  <div style={{ fontWeight:700, color:'#0D2B45' }}>{p.premises_name}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{p.address} · {p.town}</div>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ background:'#EFF9F9', border:'1px solid #A7D4D8', borderRadius:8, padding:'10px 12px', marginBottom:12 }}>
+              <div style={{ fontWeight:700, color:'#0B6E76' }}>{picked.premises_name}</div>
+              <div style={{ fontSize:'.75rem', color:'#374151' }}>{picked.address} · {picked.town}</div>
+              <button onClick={() => setPicked(null)} style={{ marginTop:6, background:'none', border:'none', color:'#0B6E76', fontSize:'.75rem', fontWeight:700, cursor:'pointer', padding:0 }}>Change</button>
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Fax number (E.164 or +64…)</label>
+              <input value={fax} onChange={e => setFax(e.target.value)} placeholder="+64 3 555 1234"
+                style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Email (optional if fax provided)</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pharmacy@example.co.nz"
+                style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
+            </div>
+            <div style={{ marginBottom:12 }}>
+              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Phone (optional)</label>
+              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+64 3 555 4567"
+                style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
+            </div>
+            {error && <div style={{ background:'#FEE2E2', color:'#991B1B', padding:'8px 12px', borderRadius:6, fontSize:'.8125rem', marginBottom:10 }}>{error}</div>}
+            <button onClick={submit} disabled={submitting}
+              style={{ width:'100%', background:'#0B6E76', color:'white', border:'none', padding:'.75rem', borderRadius:8, fontFamily:'Plus Jakarta Sans,sans-serif', fontWeight:800, fontSize:'.9375rem', cursor: submitting ? 'wait' : 'pointer' }}>
+              {submitting ? 'Sending…' : 'Redirect & re-send prescription'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ProviderNotes() {
   const { id }     = useParams()
   const navigate   = useNavigate()
@@ -202,6 +326,13 @@ export default function ProviderNotes() {
   const [escalate,        setEscalate]        = useState(null) // null | 'phone' | 'video' | 'gp' | 'er'
   const [escalateNote,    setEscalateNote]    = useState('')
   const [escalateSending, setEscalateSending] = useState(false)
+
+  // Support-ticket context (present when opened from Messages tab notification)
+  const ticketId = new URLSearchParams(location.search).get('ticket')
+  const [ticket, setTicket] = useState(null)
+  const [ticketRxList, setTicketRxList] = useState(null)
+  const [redirectingRx, setRedirectingRx] = useState(null) // rx row being redirected
+  const [redirectResult, setRedirectResult] = useState(null)
 
   const actionsRef    = useRef([])
   const transcriptRef = useRef('')
@@ -251,6 +382,24 @@ export default function ProviderNotes() {
     }
     load()
   }, [id])
+
+  // Support ticket context — load ticket + finalised prescriptions when deep-linked
+  useEffect(() => {
+    if (!ticketId || !consult) return
+    async function loadTicket() {
+      try {
+        const tRes = await apiFetch(`/api/patient-support?id=${ticketId}`)
+        const tData = await tRes.json()
+        if (tRes.ok && tData.ticket) setTicket(tData.ticket)
+      } catch {}
+      try {
+        const pRes = await apiFetch(`/api/prescriptions?consultationId=${consult.id}`)
+        const pData = await pRes.json()
+        if (pRes.ok && Array.isArray(pData.prescriptions)) setTicketRxList(pData.prescriptions)
+      } catch {}
+    }
+    loadTicket()
+  }, [ticketId, consult])
 
   // Thread subscription for async message consultations
   useEffect(() => {
@@ -778,6 +927,74 @@ export default function ProviderNotes() {
             </div>
           )}
         </div>
+
+        {/* ── SUPPORT TICKET banner — shown when opened from Messages tab ────── */}
+        {ticket && (
+          <div style={{ background:'#FFF7ED', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1.5px solid #FED7AA' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+              <span style={{ fontSize:'.6875rem', fontWeight:800, textTransform:'uppercase', letterSpacing:'.05em', color:'#9A3412' }}>
+                🎫 Patient support request
+              </span>
+              <span style={{ background:'#F97316', color:'white', fontSize:'.625rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>
+                {ticket.category?.replace('_',' ')}
+              </span>
+            </div>
+            <div style={{ fontSize:'.75rem', color:'#78350F', marginBottom:10 }}>
+              From {ticket.patient_name || ticket.patient_email} · {new Date(ticket.created_at).toLocaleString('en-NZ',{ day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}
+            </div>
+            <div style={{ background:'white', borderRadius:8, padding:'12px 14px', fontSize:'.9375rem', color:'#374151', lineHeight:1.7, whiteSpace:'pre-wrap', marginBottom:12 }}>
+              {ticket.message}
+            </div>
+            {redirectResult && (
+              <div style={{ background:'#D1FAE5', border:'1px solid #6EE7B7', color:'#065F46', padding:'8px 12px', borderRadius:8, fontSize:'.8125rem', marginBottom:10 }}>
+                ✓ Prescription redirected: {redirectResult.previousPharmacy || '—'} → <strong>{redirectResult.newPharmacy}</strong>
+                {redirectResult.deliveryErrors?.length ? (
+                  <div style={{ marginTop:6, color:'#92400E' }}>Delivery issues: {redirectResult.deliveryErrors.join('; ')}</div>
+                ) : null}
+              </div>
+            )}
+            {ticketRxList && ticketRxList.length > 0 && (
+              <div>
+                <div style={{ fontSize:'.75rem', fontWeight:700, color:'#9A3412', marginBottom:6 }}>Prescriptions on this consult</div>
+                {ticketRxList.map(rx => (
+                  <div key={rx.id} style={{ background:'white', borderRadius:8, padding:'10px 12px', marginBottom:6, display:'flex', alignItems:'center', gap:10, border:'1px solid #FED7AA' }}>
+                    <div style={{ flex:1, fontSize:'.8125rem' }}>
+                      <div style={{ fontWeight:700, color:NAVY }}>{rx.drug}</div>
+                      <div style={{ color:'#6B7280' }}>
+                        {rx.directions} · Qty {rx.quantity} · Pharmacy: {rx.pharmacy_name || '—'}
+                        {rx.redirected_at && <span style={{ color:'#059669', marginLeft:6 }}>· redirected {new Date(rx.redirected_at).toLocaleDateString('en-NZ')}</span>}
+                      </div>
+                    </div>
+                    <button onClick={() => setRedirectingRx(rx)}
+                      style={{ background:TEAL, color:'white', border:'none', padding:'6px 12px', borderRadius:6, fontFamily:FF, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>
+                      Change pharmacy →
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ticketRxList && ticketRxList.length === 0 && (
+              <div style={{ fontSize:'.8125rem', color:'#78350F', fontStyle:'italic' }}>No prescriptions on this consult.</div>
+            )}
+          </div>
+        )}
+
+        {redirectingRx && (
+          <ChangePharmacyModal
+            rx={redirectingRx}
+            onClose={() => setRedirectingRx(null)}
+            onDone={async (result) => {
+              setRedirectResult(result)
+              setRedirectingRx(null)
+              // Reload the rx list to show the updated pharmacy
+              try {
+                const pRes = await apiFetch(`/api/prescriptions?consultationId=${consult.id}`)
+                const pData = await pRes.json()
+                if (pRes.ok && Array.isArray(pData.prescriptions)) setTicketRxList(pData.prescriptions)
+              } catch {}
+            }}
+          />
+        )}
 
         {/* ── ASYNC MESSAGE — Patient message panel ───────────────────────────── */}
         {isAsyncMessage && (

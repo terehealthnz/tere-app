@@ -47,6 +47,16 @@ const CATEGORY_LABEL = {
   other: 'Other',
 }
 
+// Days after consultation sign-off within which a follow-up is treated as
+// "reasonable courtesy" — routes to the original provider's Messages tab
+// (no extra charge). After this window it becomes a new async consult in
+// the queue (billable).
+const FOLLOW_UP_WINDOW_DAYS = 7
+
+// Categories that can be routed to the original provider (clinical follow-ups).
+// Complaints go straight to admin regardless — HDC audit trail requirement.
+const CLINICAL_CATEGORIES = new Set(['prescription', 'follow_up'])
+
 async function sendNotifications(row) {
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) {
@@ -164,6 +174,117 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+// Route a support ticket to the right surface:
+//   - clinical + linked to consult + within window → provider Messages tab
+//   - clinical + linked to consult + outside window → new async consult in queue
+//   - everything else → admin Support inbox (no extra routing, current behavior)
+//
+// Returns a routing summary that we write back to the ticket for observability.
+async function routeTicket(supabase, ticket) {
+  const isClinical = CLINICAL_CATEGORIES.has(ticket.category)
+  if (!isClinical || !ticket.consultation_id) {
+    return { routing_status: 'admin_inbox' }
+  }
+
+  const { data: consult } = await supabase
+    .from('consultations')
+    .select('id, provider_id, completed_at, signed_off_at, updated_at, patient_first_name, patient_last_name, patient_email, patient_phone, patient_dob, patient_id')
+    .eq('id', ticket.consultation_id)
+    .maybeSingle()
+
+  if (!consult) return { routing_status: 'admin_inbox' }
+  const provider_id = consult.provider_id || null
+
+  const refIso = consult.signed_off_at || consult.completed_at || consult.updated_at
+  const ageDays = refIso ? (Date.now() - new Date(refIso).getTime()) / 86400000 : Infinity
+  const withinWindow = provider_id && ageDays <= FOLLOW_UP_WINDOW_DAYS
+
+  if (withinWindow) {
+    const subject = ticket.category === 'prescription'
+      ? '✏️ Prescription follow-up'
+      : '✉️ Patient follow-up'
+    const preview = String(ticket.message || '').trim().slice(0, 800)
+    const patientName = ticket.patient_name || 'Patient'
+    const { data: notif, error: nErr } = await supabase
+      .from('provider_notifications')
+      .insert({
+        from_name: patientName,
+        subject: `${subject} — ${patientName}`,
+        body: preview,
+        is_pinned: false,
+        to_provider_id: provider_id,
+        context_type: 'support_ticket',
+        context_id: ticket.id,
+        action_url: `/provider/notes/${consult.id}?ticket=${ticket.id}`,
+      })
+      .select('id')
+      .maybeSingle()
+    if (nErr) console.error('[patient-support] notify insert:', nErr.message)
+    return {
+      routing_status: 'provider_messages',
+      routed_notification_id: notif?.id || null,
+    }
+  }
+
+  // Outside window (or no provider on file) → new async consult in queue.
+  // No upfront payment: the queue item flags it as a support-ticket follow-up
+  // and the reviewing provider decides whether to bill.
+  const chief = String(ticket.message || '').trim().slice(0, 200)
+  const { data: newConsult, error: cErr } = await supabase
+    .from('consultations')
+    .insert({
+      consultation_type: 'message',
+      consultation_subtype: 'async_message',
+      status: 'waiting',
+      chief_complaint: `Follow-up from support ticket: ${chief}`,
+      async_symptom_detail: ticket.message || null,
+      async_requests: [],
+      async_deadline: calcAsyncDeadline(),
+      patient_id: consult.patient_id || null,
+      patient_first_name: consult.patient_first_name || (ticket.patient_name || '').split(' ')[0] || null,
+      patient_last_name: consult.patient_last_name || (ticket.patient_name || '').split(' ').slice(1).join(' ') || null,
+      patient_email: consult.patient_email || ticket.patient_email || null,
+      patient_phone: consult.patient_phone || ticket.patient_phone || null,
+      patient_dob: consult.patient_dob || null,
+      source: 'support_ticket_followup',
+    })
+    .select('id')
+    .maybeSingle()
+  if (cErr) {
+    console.error('[patient-support] queue consult insert:', cErr.message)
+    return { routing_status: 'admin_inbox' }
+  }
+  return {
+    routing_status: 'new_consult',
+    routed_consultation_id: newConsult?.id || null,
+  }
+}
+
+// NZ business hours deadline (mirrors _async-consult.calcDeadline).
+// Duplicated here to avoid importing that module's side effects (Stripe, AI).
+function calcAsyncDeadline() {
+  const now = new Date()
+  const utcMonth = now.getUTCMonth()
+  const nzOffsetMs = (utcMonth >= 9 || utcMonth <= 2) ? 13 * 3600000 : 12 * 3600000
+  const nzMs = now.getTime() + nzOffsetMs
+  const nzDate = new Date(nzMs)
+  const day = nzDate.getUTCDay()
+  const h = nzDate.getUTCHours()
+  const min = h * 60 + nzDate.getUTCMinutes()
+  const inBH = day >= 1 && day <= 5 && min >= 480 && min < 1080
+  const toUtc = ms => new Date(ms - nzOffsetMs).toISOString()
+  if (inBH) {
+    const dlMs = nzMs + 4 * 60 * 60 * 1000
+    const dlDate = new Date(dlMs)
+    if (dlDate.getUTCHours() * 60 + dlDate.getUTCMinutes() < 1080) return toUtc(dlMs)
+    const capMs = Date.UTC(nzDate.getUTCFullYear(), nzDate.getUTCMonth(), nzDate.getUTCDate(), 18, 0, 0, 0)
+    return toUtc(capMs)
+  }
+  let next = new Date(Date.UTC(nzDate.getUTCFullYear(), nzDate.getUTCMonth(), nzDate.getUTCDate(), 10, 0, 0, 0))
+  do { next = new Date(next.getTime() + 86400000) } while (next.getUTCDay() === 0 || next.getUTCDay() === 6)
+  return toUtc(next.getTime())
+}
+
 export default async function handler(req, res) {
   const { action, id } = req.query || {}
 
@@ -194,17 +315,108 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
 
-    // Fire-and-forget notifications
+    // Route the ticket: provider Messages tab, new queue consult, or admin inbox.
+    let routing = { routing_status: 'admin_inbox' }
+    try {
+      routing = await routeTicket(supabase, data)
+      if (routing && Object.keys(routing).length > 0) {
+        await supabase.from('patient_support_requests').update(routing).eq('id', data.id)
+      }
+    } catch (e) {
+      console.error('[patient-support] routing error:', e.message)
+    }
+
+    // Fire-and-forget email notifications. Admin still gets an alert on
+    // every ticket for oversight; the patient always gets an autoresponder.
     sendNotifications(data).catch(e =>
       console.error('[patient-support] notify error:', e.message)
     )
-    return res.status(200).json({ ok: true, id: data?.id })
+    return res.status(200).json({ ok: true, id: data?.id, routing_status: routing.routing_status })
   }
 
   // ── Everything else requires provider auth ───────────────────────────
   const auth = await guardProvider(req, res)
   if (!auth) return
   const supabase = admin()
+
+  // ── Provider takes action on a routed ticket from their Messages tab ─────
+  // action: 'handle_now' | 'convert_to_consult' | 'bounce_to_admin'
+  if (req.method === 'POST' && action === 'ticket_action') {
+    if (!id) return res.status(400).json({ error: 'id required' })
+    const { kind } = req.body || {}
+    if (!['handle_now', 'convert_to_consult', 'bounce_to_admin'].includes(kind)) {
+      return res.status(400).json({ error: 'invalid kind' })
+    }
+    const { data: ticket, error: fErr } = await supabase
+      .from('patient_support_requests').select('*').eq('id', id).maybeSingle()
+    if (fErr || !ticket) return res.status(404).json({ error: 'Ticket not found' })
+    const provider = auth.provider || {}
+    const now = new Date().toISOString()
+
+    let newConsultId = null
+    if (kind === 'convert_to_consult') {
+      // Spawn a new async consult in the queue — the provider (or any provider)
+      // will pick it up like any other queued item and get paid on sign-off.
+      const { data: originalConsult } = ticket.consultation_id
+        ? await supabase.from('consultations')
+            .select('patient_id, patient_first_name, patient_last_name, patient_email, patient_phone, patient_dob')
+            .eq('id', ticket.consultation_id).maybeSingle()
+        : { data: null }
+      const chief = String(ticket.message || '').trim().slice(0, 200)
+      const { data: nc, error: cErr } = await supabase.from('consultations').insert({
+        consultation_type: 'message',
+        consultation_subtype: 'async_message',
+        status: 'waiting',
+        chief_complaint: `Follow-up from support ticket: ${chief}`,
+        async_symptom_detail: ticket.message || null,
+        async_requests: [],
+        async_deadline: calcAsyncDeadline(),
+        patient_id: originalConsult?.patient_id || null,
+        patient_first_name: originalConsult?.patient_first_name || (ticket.patient_name || '').split(' ')[0] || null,
+        patient_last_name: originalConsult?.patient_last_name || (ticket.patient_name || '').split(' ').slice(1).join(' ') || null,
+        patient_email: originalConsult?.patient_email || ticket.patient_email || null,
+        patient_phone: originalConsult?.patient_phone || ticket.patient_phone || null,
+        patient_dob: originalConsult?.patient_dob || null,
+        source: 'support_ticket_followup',
+      }).select('id').maybeSingle()
+      if (cErr) return res.status(500).json({ error: 'Failed to create consult: ' + cErr.message })
+      newConsultId = nc?.id || null
+    }
+
+    const patch = {
+      handled_by_provider_id: provider.id || null,
+      handled_at: now,
+      handling_action: kind,
+      handled_by: provider.id || null,
+      handled_by_name: [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null,
+    }
+    if (kind === 'handle_now') patch.status = 'resolved'
+    if (kind === 'convert_to_consult') {
+      patch.status = 'resolved'
+      patch.routed_consultation_id = newConsultId
+      patch.routing_status = 'new_consult'
+    }
+    if (kind === 'bounce_to_admin') {
+      patch.status = 'new'
+      patch.routing_status = 'admin_inbox'
+    }
+    if (kind === 'handle_now' || kind === 'convert_to_consult') {
+      patch.resolved_at = now
+      patch.resolved_by = provider.id || null
+    }
+    await supabase.from('patient_support_requests').update(patch).eq('id', id)
+
+    // Close out the notification row so it disappears from the provider's Messages tab.
+    if (ticket.routed_notification_id) {
+      await supabase.from('provider_notifications').update({
+        resolved_at: now,
+        resolved_by: provider.id || null,
+        resolution_note: kind,
+      }).eq('id', ticket.routed_notification_id)
+    }
+
+    return res.status(200).json({ ok: true, kind, consultationId: newConsultId })
+  }
 
   // Admin reply — record and email
   if (req.method === 'POST' && action === 'reply') {

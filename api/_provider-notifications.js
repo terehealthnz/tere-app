@@ -8,11 +8,20 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       const { providerId } = req.query
-      const { data, error } = await supabase
+      // Provider sees:
+      //   1. Broadcast notifications (to_provider_id IS NULL) — admin announcements
+      //   2. Notifications targeted specifically at them (to_provider_id = providerId)
+      let query = supabase
         .from('provider_notifications')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
+      if (providerId) {
+        query = query.or(`to_provider_id.is.null,to_provider_id.eq.${providerId}`)
+      } else {
+        query = query.is('to_provider_id', null)
+      }
+      const { data, error } = await query
       if (error) throw error
       const notifications = (data || []).map(n => ({
         ...n,
