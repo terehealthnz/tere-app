@@ -97,7 +97,23 @@ export default async function handler(req, res) {
     }).catch(e => console.error('[initiate-call] email failed:', e.message))
   }
 
-  // Push notification to patient (if they have the app installed)
+  // SMS to patient — reliable delivery for any phone (no PWA install needed).
+  // Push notifications only work for the ~0% of patients with Tere added to
+  // their home screen, so SMS is the primary real-time channel.
+  if (consult.patient_phone) {
+    const callUrl = `${appUrl}/call?consultation=${consultationId}`
+    const smsBody = consultType === 'phone'
+      ? `${doctorName} is ready for your phone consultation. Join: ${callUrl}`
+      : `${doctorName} is ready for your video consultation. Join: ${callUrl}`
+    fetch(`${appUrl}/api/sms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
+      body: JSON.stringify({ to: consult.patient_phone, message: smsBody, type: 'call_ready' }),
+    }).catch(e => console.error('[initiate-call] sms failed:', e.message))
+  }
+
+  // Push notification (best-effort — only fires for the tiny minority of
+  // patients who added Tere to their home screen as a PWA).
   fetch(`${appUrl}/api/push-notify`, {
     method: 'POST',
     headers: {
