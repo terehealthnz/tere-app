@@ -1,19 +1,23 @@
+// subtitleSupport tiers:
+//   'excellent'  — Claude Sonnet 4.5 near-native, safe for live subtitles
+//   'very_good'  — Solid quality, subtitles enabled but with the same guardrails
+//   'unsupported' — No AI subtitles offered; UI must show "Request interpreter"
 export const LANGUAGES = [
-  { code: 'en', name: 'English',       nativeName: 'English',       flag: '🇬🇧', rtl: false },
-  { code: 'mi', name: 'Te Reo Māori',  nativeName: 'Te Reo Māori',  flag: '🇳🇿', rtl: false,
+  { code: 'en', name: 'English',       nativeName: 'English',       flag: '🇬🇧', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'mi', name: 'Te Reo Māori',  nativeName: 'Te Reo Māori',  flag: '🇳🇿', rtl: false, subtitleSupport: 'very_good',
     // Custom Tino Rangatiratanga SVG rendered where consumers opt-in (patient selector, provider views).
     customFlag: 'MaoriFlagIcon',
     note: 'He rereke ētahi kupu hauora — Some medical terms remain in English' },
-  { code: 'zh', name: 'Chinese',  nativeName: '中文',       flag: '🇨🇳', rtl: false },
-  { code: 'ja', name: 'Japanese', nativeName: '日本語',     flag: '🇯🇵', rtl: false },
-  { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false },
-  { code: 'de', name: 'German',   nativeName: 'Deutsch',    flag: '🇩🇪', rtl: false },
-  { code: 'fr', name: 'French',   nativeName: 'Français',   flag: '🇫🇷', rtl: false },
-  { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false },
-  { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true  },
-  { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false },
+  { code: 'zh', name: 'Chinese',  nativeName: '中文',       flag: '🇨🇳', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'ja', name: 'Japanese', nativeName: '日本語',     flag: '🇯🇵', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'de', name: 'German',   nativeName: 'Deutsch',    flag: '🇩🇪', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'fr', name: 'French',   nativeName: 'Français',   flag: '🇫🇷', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true,  subtitleSupport: 'excellent' },
+  { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false, subtitleSupport: 'excellent' },
   // NZ Pacific language: Samoan (Gagana Sāmoa). Google Translate supports 'sm'.
-  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false,
+  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false, subtitleSupport: 'very_good',
     note: 'O nisi upu fa\'afoma\'i o le a tumau i le Igilisi — Some medical terms remain in English' },
   // Marshallese and Rohingya are intentionally not offered here. Translation
   // quality is unreliable for legal/clinical text and the confidence signal
