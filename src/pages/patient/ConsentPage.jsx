@@ -44,7 +44,8 @@ export default function ConsentPage() {
     const granted = researchConsent === true
     sessionStorage.setItem('research_consent', granted ? 'yes' : 'no')
     sessionStorage.setItem('bg_rppg_consent', '1')
-    sessionStorage.setItem('subtitle_consent', subtitleConsent ? 'yes' : 'no')
+    // AI subtitle consent is covered by the HDC rights checkbox above
+    // (the copy explicitly names AI processing). No separate flag.
     const consultationId = sessionStorage.getItem('consultation_id')
     const now = new Date().toISOString()
     try {
@@ -58,7 +59,7 @@ export default function ConsentPage() {
         post('hdc_code_of_rights', true),
         post('prescribing_limitations_acknowledged', true),
         post('research_consent', granted),
-        ...(lang !== 'en' ? [post('ai_subtitle_consent', subtitleConsent)] : []),
+        // No separate ai_subtitle_consent — covered by HDC rights checkbox.
       ])
       if (consultationId) {
         await patientUpdateConsultation(consultationId, {
