@@ -250,7 +250,9 @@ async function routeTicket(supabase, ticket) {
       patient_email: consult.patient_email || ticket.patient_email || null,
       patient_phone: consult.patient_phone || ticket.patient_phone || null,
       patient_dob: consult.patient_dob || null,
-      source: 'support_ticket_followup',
+      // consult carries no `source` column; provenance is captured in
+      // chief_complaint prefix ("Follow-up from support ticket: …") and the
+      // support ticket row (patient_support_requests.routed_consultation_id).
     })
     .select('id')
     .maybeSingle()
@@ -381,7 +383,9 @@ export default async function handler(req, res) {
         patient_email: originalConsult?.patient_email || ticket.patient_email || null,
         patient_phone: originalConsult?.patient_phone || ticket.patient_phone || null,
         patient_dob: originalConsult?.patient_dob || null,
-        source: 'support_ticket_followup',
+        // consult carries no `source` column; provenance is captured in
+      // chief_complaint prefix ("Follow-up from support ticket: …") and the
+      // support ticket row (patient_support_requests.routed_consultation_id).
       }).select('id').maybeSingle()
       if (cErr) return res.status(500).json({ error: 'Failed to create consult: ' + cErr.message })
       newConsultId = nc?.id || null
