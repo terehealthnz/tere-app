@@ -2644,42 +2644,104 @@ function RevenuePanel() {
 function AuditLogPanel() {
   const [logs, setLogs] = React.useState([])
   const [loading, setLoading] = React.useState(true)
+  const [filterEvent, setFilterEvent] = React.useState('')
+  const [filterReason, setFilterReason] = React.useState('')
+  const [expanded, setExpanded] = React.useState(null)
 
   React.useEffect(() => {
     async function load() {
+      setLoading(true)
       try {
-        const { apiFetch } = await import('../../lib/api')
-        const res = await apiFetch('/api/audit?limit=50')
+        const params = new URLSearchParams({ limit: '100' })
+        if (filterEvent)  params.set('event_type', filterEvent)
+        const res = await apiFetch('/api/audit?' + params.toString())
         const { logs } = await res.json()
         setLogs(logs || [])
       } catch { setLogs([]) }
       setLoading(false)
     }
     load()
-  }, [])
+  }, [filterEvent])
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
-  const EVENT_COLOR = { view_notes:'#0B6E76', finalise_notes:'#059669', prescribe:'#7C3AED', login:'#6B7280', payment:'#D97706' }
+  const EVENT_COLOR = {
+    view_notes:'#0B6E76', view_consult_notes:'#0B6E76', view_support_ticket_message:'#7C3AED',
+    view_consultation_log_bulk:'#D97706', view_phi:'#F59E0B',
+    finalise_notes:'#059669', prescribe:'#7C3AED', login:'#6B7280', payment:'#D97706',
+    post_migration_smoke_test:'#94A3B8',
+  }
+  const ROLE_COLOR = { admin:'#7C3AED', billing_admin:'#F97316', supervisor:'#059669', provider:'#0B6E76' }
+  const REASON_LABEL = {
+    billing_dispute:'💳 Billing dispute', complaint_investigation:'⚠️ Complaint',
+    quality_audit:'📊 Audit', support_ticket_response:'🎫 Support', patient_request:'👤 Patient request',
+    clinical_care:'🩺 Clinical care', other:'💬 Other',
+  }
+
+  const eventTypes = Array.from(new Set(logs.map(l => l.event_type))).sort()
+  const filtered = filterReason ? logs.filter(l => l.reason === filterReason) : logs
 
   return (
     <div style={card}>
-      <div style={{ marginBottom:'1.25rem' }}>
-        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Audit log</div>
-        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Recent provider activity (last 50 events)</div>
+      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'1rem', marginBottom:'1.25rem', flexWrap:'wrap' }}>
+        <div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Audit log</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>PHI-access + provider activity trail (HIPC Rule 5 / Privacy Act 2020 IPP5)</div>
+        </div>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          <select value={filterEvent} onChange={e => setFilterEvent(e.target.value)}
+            style={{ padding:'6px 10px', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', minWidth:180 }}>
+            <option value="">All events</option>
+            {eventTypes.map(e => <option key={e} value={e}>{e}</option>)}
+          </select>
+          <select value={filterReason} onChange={e => setFilterReason(e.target.value)}
+            style={{ padding:'6px 10px', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', minWidth:160 }}>
+            <option value="">All reasons</option>
+            {Object.entries(REASON_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
       </div>
       {loading ? (
         <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
-      ) : logs.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No audit events yet</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No audit events match your filters</div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-          {logs.map(l => (
-            <div key={l.id} style={{ display:'flex', alignItems:'center', gap:'.75rem', padding:'.5rem .75rem', borderRadius:6, background:'#FAFAFA', fontSize:'.8125rem' }}>
-              <span style={{ fontWeight:700, color: EVENT_COLOR[l.event_type] || '#9CA3AF', minWidth:120, flexShrink:0 }}>{l.event_type}</span>
-              <span style={{ color:'#374151', flex:1 }}>{l.provider_name || '—'}</span>
-              <span style={{ color:'#9CA3AF', whiteSpace:'nowrap' }}>{new Date(l.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
-            </div>
-          ))}
+          {filtered.map(l => {
+            const isOpen = expanded === l.id
+            const hasDetail = l.reason_notes || l.metadata || l.consultation_id || l.patient_ref || l.ip
+            return (
+              <div key={l.id} style={{ background:'#FAFAFA', borderRadius:6, border:'1px solid #F3F4F6', overflow:'hidden' }}>
+                <div onClick={() => hasDetail && setExpanded(isOpen ? null : l.id)}
+                  style={{ display:'flex', alignItems:'center', gap:'.625rem', padding:'.5rem .75rem', fontSize:'.8125rem', cursor: hasDetail ? 'pointer' : 'default' }}>
+                  <span style={{ fontWeight:700, color: EVENT_COLOR[l.event_type] || '#6B7280', minWidth:200, flexShrink:0, fontSize:'.75rem' }}>{l.event_type}</span>
+                  <span style={{ color:'#374151', minWidth:140, flexShrink:0 }}>{l.provider_name || '—'}</span>
+                  {l.provider_role && (
+                    <span style={{ background: (ROLE_COLOR[l.provider_role] || '#94A3B8') + '20', color: ROLE_COLOR[l.provider_role] || '#94A3B8', fontSize:'.6875rem', fontWeight:700, padding:'1px 7px', borderRadius:99, textTransform:'uppercase' }}>
+                      {l.provider_role}
+                    </span>
+                  )}
+                  {l.reason && (
+                    <span style={{ background:'#FEF3C7', color:'#78350F', fontSize:'.6875rem', fontWeight:600, padding:'1px 7px', borderRadius:99 }}>
+                      {REASON_LABEL[l.reason] || l.reason}
+                    </span>
+                  )}
+                  <span style={{ flex:1 }} />
+                  <span style={{ color:'#9CA3AF', whiteSpace:'nowrap', fontSize:'.75rem' }}>{new Date(l.created_at).toLocaleString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
+                  {hasDetail && <span style={{ color:'#94A3B8', fontSize:'.75rem' }}>{isOpen ? '▲' : '▼'}</span>}
+                </div>
+                {isOpen && (
+                  <div style={{ padding:'.5rem .75rem .75rem', fontSize:'.75rem', color:'#374151', borderTop:'1px solid #F3F4F6', background:'white', display:'grid', gridTemplateColumns:'auto 1fr', gap:'2px 12px' }}>
+                    {l.consultation_id && (<><span style={{ color:'#6B7280' }}>Consultation</span><code style={{ background:'#F3F4F6', padding:'0 4px', borderRadius:3 }}>{l.consultation_id}</code></>)}
+                    {l.patient_ref && (<><span style={{ color:'#6B7280' }}>Patient ref</span><code style={{ background:'#F3F4F6', padding:'0 4px', borderRadius:3 }}>{l.patient_ref}</code></>)}
+                    {l.resource_type && (<><span style={{ color:'#6B7280' }}>Resource</span><span>{l.resource_type}{l.resource_id ? ` · ${String(l.resource_id).slice(0,8)}…` : ''}</span></>)}
+                    {l.reason_notes && (<><span style={{ color:'#6B7280' }}>Notes</span><span style={{ whiteSpace:'pre-wrap' }}>{l.reason_notes}</span></>)}
+                    {l.ip && (<><span style={{ color:'#6B7280' }}>IP</span><span>{l.ip}</span></>)}
+                    {l.metadata && (<><span style={{ color:'#6B7280' }}>Metadata</span><code style={{ background:'#F3F4F6', padding:'0 4px', borderRadius:3, fontSize:'.6875rem' }}>{JSON.stringify(l.metadata)}</code></>)}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
