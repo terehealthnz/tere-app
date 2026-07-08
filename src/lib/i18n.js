@@ -13,7 +13,8 @@ export const LANGUAGES = [
   { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true  },
   { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false },
   // NZ Pacific language: Samoan (Gagana Sāmoa). Google Translate supports 'sm'.
-  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false },
+  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false,
+    note: 'O nisi upu fa\'afoma\'i o le a tumau i le Igilisi — Some medical terms remain in English' },
   // Marshallese and Rohingya are intentionally not offered here. Translation
   // quality is unreliable for legal/clinical text and the confidence signal
   // is uncalibrated for low-resource languages. Patients from these
@@ -29,10 +30,15 @@ export function getLangMeta(code) {
 }
 
 // ─── Translation table ────────────────────────────────────────────────────────
+// Māori (mi) and Samoan (sm) strings marked with "// TODO cert" are AI-drafted
+// and pending certified-translator review before broad rollout. Existing
+// zh/ja/ko/de/fr/es/ar/hi entries have been in production since 2026-Q1.
 const T = {
   // ── Triage questions ──────────────────────────────────────────────────────
   greeting: {
     en: "Kia ora! I'm Tere, your health assistant. What's your full name?",
+    mi: "Kia ora! Ko Tere ahau, tō āwhina hauora. He aha tō ingoa katoa?", // TODO cert
+    sm: "Talofa! O a'u o Tere, o lau fesoasoani soifua maloloina. O ai lou igoa atoa?", // TODO cert
     zh: "你好！我是Tere，您的健康助手。请问您的全名是什么？",
     ja: "こんにちは！私はTere、あなたの健康アシスタントです。お名前（フルネーム）を教えてください。",
     ko: "안녕하세요! 저는 Tere, 당신의 건강 어시스턴트입니다. 성함이 어떻게 되십니까?",
@@ -44,6 +50,8 @@ const T = {
   },
   greeting_error: {
     en: "Can you type your full name?",
+    mi: "Ka taea e koe te tāpiri i tō ingoa katoa?", // TODO cert
+    sm: "E mafai ona e tusia lou igoa atoa?", // TODO cert
     zh: "请您输入全名？",
     ja: "フルネームを入力してください。",
     ko: "성함을 전부 입력해 주세요.",
@@ -56,6 +64,8 @@ const T = {
 
   dob_question: {
     en: "And your date of birth, ${firstName}? (e.g. 14 March 1986)",
+    mi: "Ā, tō rā whānau, ${firstName}? (hei tauira, 14 Poutū-te-rangi 1986)", // TODO cert
+    sm: "Ma le aso na e fanau ai, ${firstName}? (fa'ata'ita'iga, 14 Mati 1986)", // TODO cert
     zh: "${firstName}，您的出生日期是什么？（例如：1986年3月14日）",
     ja: "${firstName}さん、生年月日を教えてください。（例：1986年3月14日）",
     ko: "${firstName}님, 생년월일이 어떻게 되십니까? (예: 1986년 3월 14일)",
@@ -67,6 +77,8 @@ const T = {
   },
   dob_error: {
     en: "Can you give me your date of birth? (e.g. 14 March 1986)",
+    mi: "Ka taea e koe te tuku mai tō rā whānau? (hei tauira, 14 Poutū-te-rangi 1986)", // TODO cert
+    sm: "E mafai ona e tuu mai lou aso fanau? (fa'ata'ita'iga, 14 Mati 1986)", // TODO cert
     zh: "请告诉我您的出生日期？（例如：1986年3月14日）",
     ja: "生年月日を教えてください。（例：1986年3月14日）",
     ko: "생년월일을 알려주시겠습니까? (예: 1986년 3월 14일)",
@@ -79,6 +91,8 @@ const T = {
 
   phone: {
     en: "What's your mobile number?",
+    mi: "He aha tō nama waea pūkoro?", // TODO cert
+    sm: "O le a lou numera telefoni feavea'i?", // TODO cert
     zh: "您的手机号码是什么？",
     ja: "携帯電話番号を教えてください。",
     ko: "휴대폰 번호가 어떻게 되십니까?",
@@ -90,6 +104,8 @@ const T = {
   },
   phone_error: {
     en: "Can you pop in your mobile number?",
+    mi: "Ka taea e koe te tāpiri i tō nama waea pūkoro?", // TODO cert
+    sm: "E mafai ona e tusia lou numera telefoni feavea'i?", // TODO cert
     zh: "请输入您的手机号码。",
     ja: "携帯電話番号を入力してください。",
     ko: "휴대폰 번호를 입력해 주세요.",
@@ -102,6 +118,8 @@ const T = {
 
   email: {
     en: "What's your email? We'll send your consultation summary there.",
+    mi: "He aha tō īmēra? Ka tukua e mātou tō whakarāpopoto tirohanga ki reira.", // TODO cert
+    sm: "O le a lau imeli? Matou te lafo atu i ai le aotelega o lau asiasiga.", // TODO cert
     zh: "您的电子邮件地址是什么？我们将把会诊摘要发送到那里。",
     ja: "メールアドレスを教えてください。診察の要約をそちらに送ります。",
     ko: "이메일 주소가 어떻게 되십니까? 상담 요약을 그곳으로 보내드리겠습니다.",
@@ -113,6 +131,8 @@ const T = {
   },
   email_error: {
     en: "Can you double-check that email address?",
+    mi: "Ka taea e koe te tirotiro anō i taua wāhitau īmēra?", // TODO cert
+    sm: "E mafai ona e toe siaki lena tuatusi imeli?", // TODO cert
     zh: "请再次检查您的电子邮件地址。",
     ja: "メールアドレスをご確認ください。",
     ko: "이메일 주소를 다시 확인해 주세요.",
@@ -125,6 +145,8 @@ const T = {
 
   nhi: {
     en: "Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.",
+    mi: "Kei te mōhio koe ki tō nama NHI? Kei runga i tō Kāri Ratonga Hapori, i tētahi reta hōhipera rānei — pēnei i te ABC1234.", // TODO cert
+    sm: "E te iloa lou numera NHI? O lo'o i luga o lau Kata Auaunaga Fa'alenu'u po'o so'o se tusi mai le falema'i — e foliga mai o le ABC1234.", // TODO cert
     zh: "您知道您的NHI编号吗？它在您的社区服务卡或医院信件上，格式如ABC1234。",
     ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。",
     ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234).",
@@ -137,6 +159,8 @@ const T = {
 
   pharmacy: {
     en: "What's your preferred pharmacy? (e.g. Havelock Pharmacy)",
+    mi: "He aha tō whare rongoā e pai ai koe? (hei tauira, Havelock Pharmacy)", // TODO cert
+    sm: "O le a le fale talavai e sili ona e mana'o ai? (fa'ata'ita'iga, Havelock Pharmacy)", // TODO cert
     zh: "您首选的药店是哪家？（例如：Havelock Pharmacy）",
     ja: "お好みの薬局はどこですか？（例：Havelock Pharmacy）",
     ko: "선호하시는 약국이 어디입니까? (예: Havelock Pharmacy)",
@@ -150,6 +174,7 @@ const T = {
   complaint: {
     en: "What's brought you in today? Tell me what's going on — including how long it's been happening.",
     mi: "He aha tō raruraru i tēnei rā? Kōrero mai — me pēhea te roa o tēnei raruraru.",
+    sm: "O le a le mafua'aga o lou sau i le aso? Ta'u mai le mea o lo'o tupu — atoa ma le umi o lona tupu mai.", // TODO cert
     zh: "今天是什么原因来就诊？请告诉我发生了什么——包括已经持续多久了。",
     ja: "本日はどのようなことでお越しですか？症状がいつ頃から続いているかも含めて教えてください。",
     ko: "오늘 오신 이유가 무엇입니까? 얼마나 됐는지 포함해서 무슨 일인지 말씀해 주세요.",
@@ -161,6 +186,8 @@ const T = {
   },
   complaint_error: {
     en: "Can you tell me a bit more?",
+    mi: "Ka taea e koe te kōrero mai anō?", // TODO cert
+    sm: "E mafai ona e ta'u mai i sisi atu?", // TODO cert
     zh: "您能告诉我多一点吗？",
     ja: "もう少し詳しく教えてもらえますか？",
     ko: "조금 더 말씀해 주시겠습니까?",
@@ -173,6 +200,8 @@ const T = {
 
   history: {
     en: "Any relevant medical history? Past conditions, surgeries — say none if not.",
+    mi: "He hītori hauora e whai pānga ana? Mate o mua, tapahi hauora — ki te kore, mea mai 'kāhore'.", // TODO cert
+    sm: "E i ai ni mea taua i lou tala fa'asolopito o le soifua maloloina? Ma'i muamua, ta'otoga — fai mai 'leai' pe afai leai.", // TODO cert
     zh: "有什么相关的病史吗？过去的病症、手术——没有的话请说「无」。",
     ja: "関連する病歴はありますか？過去の病気、手術など。なければ「なし」と入力してください。",
     ko: "관련 병력이 있으십니까? 과거 질병, 수술 등 — 없으시면 '없음'이라고 하세요.",
@@ -186,6 +215,7 @@ const T = {
   medications: {
     en: "Are you on any regular medications?",
     mi: "E kai ana koe i ētahi rongoā?",
+    sm: "E te inuina ni fualaau i taimi uma?", // TODO cert
     zh: "您有定期服药吗？",
     ja: "定期的に服用している薬はありますか？",
     ko: "정기적으로 복용하는 약이 있습니까?",
@@ -199,6 +229,7 @@ const T = {
   allergies: {
     en: "Any allergies — medications, foods, anything?",
     mi: "He mate huka/hukarere ōu? He rongoā, kai, aha rānei?",
+    sm: "E i ai ni au allergy — fualaau, mea'ai, so'o se mea?", // TODO cert
     zh: "有过敏症吗——药物、食物或其他任何东西？",
     ja: "アレルギーはありますか？薬、食べ物、その他何でも。",
     ko: "알레르기가 있습니까? 약물, 음식, 그 외 무엇이든요.",
@@ -211,6 +242,8 @@ const T = {
 
   acc_description: {
     en: "That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?",
+    mi: "He āhua ACC pea tērā — ka taea e koe te whakamārama mai me pēhea i pā ai? He aha tāu i mahi ai, i hea?", // TODO cert
+    sm: "E foliga mai o se talosaga ACC lena — e mafai ona e fa'amatala pe na fa'apefea ona tupu? O le a le mea sa e faia, ma o fea?", // TODO cert
     zh: "这听起来可能是ACC索赔——您能描述一下具体是如何发生的吗？您当时在做什么，在哪里？",
     ja: "ACCの請求になる可能性がありますね。どのように起きたか詳しく教えてください。何をしていて、どこにいましたか？",
     ko: "ACC 청구가 될 수 있을 것 같습니다 — 어떻게 일어났는지 정확히 설명해 주시겠습니까? 무엇을 하고 있었고 어디에 있었습니까?",
@@ -222,6 +255,8 @@ const T = {
   },
   acc_description_error: {
     en: "Can you describe how it happened?",
+    mi: "Ka taea e koe te whakamārama me pēhea i pā ai?", // TODO cert
+    sm: "E mafai ona e fa'amatala pe na fa'apefea ona tupu?", // TODO cert
     zh: "您能描述一下是怎么发生的吗？",
     ja: "どのように起きたか教えてください。",
     ko: "어떻게 일어났는지 설명해 주시겠습니까?",
@@ -234,6 +269,8 @@ const T = {
 
   acc_date: {
     en: "When did it happen? (e.g. today, yesterday, 3 days ago)",
+    mi: "Nō nāhea tēnei i pā ai? (hei tauira: i tēnei rā, inanahi, 3 rā ki muri)", // TODO cert
+    sm: "O anafea na tupu ai? (fa'ata'ita'iga: aso nei, ananafi, 3 aso talu ai)", // TODO cert
     zh: "这是什么时候发生的？（例如：今天、昨天、3天前）",
     ja: "いつ起きましたか？（例：今日、昨日、3日前）",
     ko: "언제 일어났습니까? (예: 오늘, 어제, 3일 전)",
@@ -246,6 +283,8 @@ const T = {
 
   acc_employer: {
     en: "Who's your employer?",
+    mi: "Ko wai tō kaituku mahi?", // TODO cert
+    sm: "O ai le kamupani e te faigaluega ai?", // TODO cert
     zh: "您的雇主是谁？",
     ja: "雇用主はどなたですか？",
     ko: "고용주가 누구입니까?",
@@ -258,6 +297,8 @@ const T = {
 
   photo: {
     en: "Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor. Or type skip.",
+    mi: "Ka taea e koe te tango whakaahua o te wāhi mate? Pāwhiritia te tohu kāmera — he tino āwhina tērā mō te rata. Me tāpiri rānei 'tukua'.", // TODO cert
+    sm: "E mafai ona e pu'e se ata o le vaega e tiga? O'omi le tama'i ata o le meapu'e ata — e fesoasoani tele i le foma'i. Pe tusia 'preterisi'.", // TODO cert
     zh: "您能拍一张患处的照片吗？点击相机图标——对医生很有帮助。或者输入「跳过」。",
     ja: "患部の写真を撮ってもらえますか？カメラアイコンをタップしてください — 医師の診断にとても役立ちます。スキップと入力してもOKです。",
     ko: "영향을 받은 부위의 사진을 찍어 주시겠습니까? 카메라 아이콘을 탭하세요 — 의사에게 매우 도움이 됩니다. 또는 '건너뛰기'를 입력하세요.",
@@ -270,6 +311,8 @@ const T = {
 
   recording: {
     en: "One more thing — do you consent to your consultation being AI-transcribed? The recording is deleted straight after.",
+    mi: "Kotahi anō mea — kei te whakaae koe kia tuhia tō tirohanga e te AI? Ka mukua te rīpene i muri tonu.", // TODO cert
+    sm: "Toe tasi le mea — e te malie e tusia lau asiasiga e le AI? E soloi ese le pu'ega ina ua uma.", // TODO cert
     zh: "最后一个问题——您是否同意对您的会诊进行AI转录？录音会在之后立即删除。",
     ja: "最後です — 診察のAI文字起こしに同意しますか？録音はすぐに削除されます。",
     ko: "마지막으로 — 상담을 AI로 녹취하는 것에 동의하십니까? 녹음은 바로 삭제됩니다.",
@@ -283,6 +326,8 @@ const T = {
   // ── Triage flow messages ──────────────────────────────────────────────────
   sweet_as: {
     en: "Sweet as! I've got everything I need — setting you up now...",
+    mi: "Ka pai! Kua whiwhi au i ngā mea katoa — kei te whakarite ināianei...", // TODO cert
+    sm: "Manaia! Ua ou maua mea uma sa manaomia — o lo'o fa'atulaga nei oe...", // TODO cert
     zh: "太好了！我已经获得了所需的一切——正在为您设置……",
     ja: "完璧です！必要なものがすべて揃いました — 今すぐ設定します...",
     ko: "완벽합니다! 필요한 모든 것을 갖췄습니다 — 지금 설정 중입니다...",
@@ -294,6 +339,8 @@ const T = {
   },
   welcome_back: {
     en: "Welcome back, ${firstName}! I've got your details — let's get you sorted.",
+    mi: "Nau mai anō, ${firstName}! Kua whiwhi au i ō kōrero — me whakatika tāua.", // TODO cert
+    sm: "Talofa mai fo'i, ${firstName}! Ua ou maua au fa'amatalaga — ta fai lena mea nei.", // TODO cert
     zh: "欢迎回来，${firstName}！我已经有您的信息了——让我们来解决您的问题。",
     ja: "おかえりなさい、${firstName}さん！詳細を確認しました — すぐに対応します。",
     ko: "다시 오셨군요, ${firstName}님! 정보를 확인했습니다 — 바로 도와드리겠습니다.",
@@ -305,6 +352,8 @@ const T = {
   },
   cheers_photo: {
     en: "Cheers! The doctor will be able to see those.",
+    mi: "Ngā mihi! Ka taea e te rata te tiro atu ki ērā.", // TODO cert
+    sm: "Fa'afetai! O le a mafai e le foma'i ona va'ai i na mea.", // TODO cert
     zh: "谢谢！医生将能看到这些照片。",
     ja: "ありがとうございます！医師が確認できます。",
     ko: "감사합니다! 의사가 확인할 수 있습니다.",
@@ -316,6 +365,8 @@ const T = {
   },
   clinic_closed_suffix: {
     en: " Just so you know, our doctor isn't available right now — but go ahead and fill in your details and we'll hold your spot at the front of the queue. You'll get an email as soon as they're available.",
+    mi: " Kia mōhio mai koe, kāore tō mātou rata e wātea ana ināianei — engari haere tonu, whakakīa ō kōrero ā, ka pupuri mātou i tō tūranga ki mua o te rārangi. Ka whiwhi koe i tētahi īmēra ina wātea mai ia.", // TODO cert
+    sm: " Ia e iloa, e le'o avanoa la matou foma'i i le taimi nei — ae fa'aauau pea ma tusi au fa'amatalaga ma o le a matou taofia lou nofoaga i luma o le lisi. E te maua se imeli i le taimi lava e avanoa ai.", // TODO cert
     zh: " 请注意，我们的医生目前不可用——请继续填写您的信息，我们将为您保留排队前位。医生一旦有空，您将收到电子邮件通知。",
     ja: " なお、現在担当医が対応できない状況ですが、詳細を入力していただければ順番待ちリストの先頭にお名前を確保します。担当医が対応可能になり次第、メールでお知らせします。",
     ko: " 참고로, 현재 의사가 없습니다 — 하지만 정보를 입력하시면 대기열 앞자리를 보장해 드립니다. 의사가 가능해지는 즉시 이메일로 알려드리겠습니다.",
@@ -327,6 +378,8 @@ const T = {
   },
   generic_error: {
     en: "Can you try that again?",
+    mi: "Ka taea e koe te whakamātau anō?", // TODO cert
+    sm: "E mafai ona e toe taumafai?", // TODO cert
     zh: "您能再试一次吗？",
     ja: "もう一度お試しください。",
     ko: "다시 시도해 주세요.",
@@ -339,11 +392,11 @@ const T = {
 
   // ── Yes/No buttons ────────────────────────────────────────────────────────
   yes_label: {
-    en: 'Yes', zh: '是', ja: 'はい', ko: '예',
+    en: 'Yes', mi: 'Āe', sm: 'Ioe', zh: '是', ja: 'はい', ko: '예',
     de: 'Ja', fr: 'Oui', es: 'Sí', ar: 'نعم', hi: 'हाँ',
   },
   no_label: {
-    en: 'No', zh: '否', ja: 'いいえ', ko: '아니요',
+    en: 'No', mi: 'Kāo', sm: 'Leai', zh: '否', ja: 'いいえ', ko: '아니요',
     de: 'Nein', fr: 'Non', es: 'No', ar: 'لا', hi: 'नहीं',
   },
 
@@ -351,6 +404,7 @@ const T = {
   physical_heading: {
     en: 'Call 111 Now',
     mi: 'Waea atu ki te 111 ināianei',
+    sm: 'Vala\'au le 111 i le taimi nei', // TODO cert
     zh: '立即拨打111',
     ja: '今すぐ111に電話',
     ko: '지금 111에 전화',
@@ -362,6 +416,8 @@ const T = {
   },
   physical_body: {
     en: 'Your symptoms need immediate emergency care. Please call 111 right now.',
+    mi: 'Me hui atu koe ki te whare hauora ināianei tonu. Waea atu ki te 111 ināianei.', // TODO cert
+    sm: 'O ou fa\'ailoga e mana\'omia le va\'aiga fa\'afuase\'i. Fa\'amolemole vala\'au le 111 i le taimi nei.', // TODO cert
     zh: '您的症状需要立即急救护理。请立即拨打111。',
     ja: 'あなたの症状は緊急医療処置が必要です。今すぐ111に電話してください。',
     ko: '귀하의 증상에는 즉각적인 응급 치료가 필요합니다. 지금 바로 111에 전화하세요.',
@@ -373,6 +429,8 @@ const T = {
   },
   physical_back: {
     en: 'This was a mistake — go back',
+    mi: 'He hē tēnei — hoki atu', // TODO cert
+    sm: 'O se mea sese lena — toe fo\'i i tua', // TODO cert
     zh: '这是个错误——返回',
     ja: '間違えました — 戻る',
     ko: '잘못 입력했습니다 — 돌아가기',
@@ -384,6 +442,8 @@ const T = {
   },
   mental_heading: {
     en: "You don't have to face this alone",
+    mi: 'Kāore he take kia noho koe kotahi ki tēnei', // TODO cert
+    sm: 'E le tatau ona e feagai ma lenei mea na o oe', // TODO cert
     zh: '您不必独自面对这一切',
     ja: '一人で抱え込まないでください',
     ko: '혼자 감당하지 않아도 됩니다',
@@ -395,6 +455,8 @@ const T = {
   },
   mental_body: {
     en: "What you're feeling matters. Please reach out to someone who can really help right now.",
+    mi: 'He tino nui tō e rongo ana. Tēnā, whakapā atu ki tētahi ka taea te āwhina i a koe ināianei tonu.', // TODO cert
+    sm: 'O lou lagona e taua. Fa\'amolemole feso\'ota\'i ma se tasi e mafai ona fesoasoani moni i lenei taimi.', // TODO cert
     zh: '您的感受很重要。请立即联系能真正帮助您的人。',
     ja: 'あなたの気持ちは大切です。今すぐ本当に助けてくれる人に連絡してください。',
     ko: '당신이 느끼는 것이 중요합니다. 지금 당장 정말로 도움을 줄 수 있는 사람에게 연락하세요.',
@@ -407,6 +469,7 @@ const T = {
   emergency_danger: {
     en: 'If you are in immediate danger, call 111',
     mi: 'Mēnā kei roto koe i te tino kino, waea atu ki te 111',
+    sm: 'A fai o lo\'o e i ai i se tulaga lamatia fa\'afuase\'i, vala\'au le 111', // TODO cert
     zh: '如果您面临立即危险，请拨打111',
     ja: 'すぐに危険な状況にある場合は111に電話してください',
     ko: '즉각적인 위험에 처해 있다면 111에 전화하세요',
@@ -418,6 +481,8 @@ const T = {
   },
   addiction_heading: {
     en: 'Help is available',
+    mi: 'He āwhina kei te wātea', // TODO cert
+    sm: 'O lo\'o avanoa le fesoasoani', // TODO cert
     zh: '帮助就在眼前',
     ja: 'サポートを受けられます',
     ko: '도움을 받을 수 있습니다',
@@ -429,6 +494,8 @@ const T = {
   },
   addiction_body: {
     en: 'Reaching out takes courage. These services are free, confidential, and ready to help.',
+    mi: 'He māia te whakapā atu. He kore utu ēnei ratonga, he muna, ā, kua rite ki te āwhina.', // TODO cert
+    sm: 'E mana\'omia le lototetele e feso\'ota\'i ai. O nei auaunaga e leai se totogi, e fa\'alilolilo, ma sauni e fesoasoani.', // TODO cert
     zh: '寻求帮助需要勇气。这些服务免费、保密，随时准备好帮助您。',
     ja: '助けを求めることには勇気が必要です。これらのサービスは無料で、秘密が守られ、いつでもサポートします。',
     ko: '도움을 요청하는 것은 용기가 필요합니다. 이 서비스들은 무료이고 비밀이 보장되며 도움을 줄 준비가 되어 있습니다.',
@@ -442,6 +509,8 @@ const T = {
   // ── Chat / translation ────────────────────────────────────────────────────
   translation_disclaimer: {
     en: 'Translations are provided as assistance only. For complex medical discussions, a professional interpreter is recommended.',
+    mi: 'Ka whakaratohia ngā whakamāoritanga hei āwhina noa. Mō ngā kōrero hauora uaua, e tūtohutia ana kia whakamahia tētahi kaiwhakamāori mātanga.', // TODO cert
+    sm: 'O fa\'aliliuga ua na\'o le fesoasoani. Mo talanoaga fa\'afoma\'i faigata, e fa\'amaonia le fa\'aaogaina o se fa\'aliliu upu fa\'apolofesa.', // TODO cert
     zh: '翻译仅作参考。对于复杂的医疗讨论，建议使用专业口译员。',
     ja: '翻訳はサポートとして提供されています。複雑な医療相談には専門の通訳者をお勧めします。',
     ko: '번역은 보조 용도로만 제공됩니다. 복잡한 의료 상담의 경우 전문 통역사가 권장됩니다.',
@@ -452,51 +521,53 @@ const T = {
     hi: 'अनुवाद केवल सहायता के रूप में प्रदान किए जाते हैं। जटिल चिकित्सा चर्चाओं के लिए एक पेशेवर दुभाषिया अनुशंसित है।',
   },
   show_original: {
-    en: 'Show original', zh: '显示原文', ja: '原文を表示', ko: '원문 보기',
+    en: 'Show original', mi: 'Whakaatu i te taketake', sm: 'Fa\'aali le mea muamua', zh: '显示原文', ja: '原文を表示', ko: '원문 보기',
     de: 'Original anzeigen', fr: 'Voir l\'original', es: 'Ver original', ar: 'عرض الأصل', hi: 'मूल दिखाएं',
   },
   hide_original: {
-    en: 'Hide', zh: '隐藏', ja: '非表示', ko: '숨기기',
+    en: 'Hide', mi: 'Huna', sm: 'Natia', zh: '隐藏', ja: '非表示', ko: '숨기기',
     de: 'Ausblenden', fr: 'Masquer', es: 'Ocultar', ar: 'إخفاء', hi: 'छुपाएं',
   },
   translating: {
-    en: 'Translating…', zh: '翻译中…', ja: '翻訳中…', ko: '번역 중…',
+    en: 'Translating…', mi: 'Kei te whakamāori…', sm: 'Fa\'aliliuina…', zh: '翻译中…', ja: '翻訳中…', ko: '번역 중…',
     de: 'Übersetzen…', fr: 'Traduction…', es: 'Traduciendo…', ar: 'جارٍ الترجمة…', hi: 'अनुवाद हो रहा है…',
   },
   chat_label: {
-    en: 'Chat', zh: '聊天', ja: 'チャット', ko: '채팅',
+    en: 'Chat', mi: 'Kōrero', sm: 'Talanoa', zh: '聊天', ja: 'チャット', ko: '채팅',
     de: 'Chat', fr: 'Chat', es: 'Chat', ar: 'دردشة', hi: 'चैट',
   },
 
   // ── TereIntro ─────────────────────────────────────────────────────────────
   choose_language: {
-    en: 'Choose your language', zh: '选择语言', ja: '言語を選択', ko: '언어 선택',
+    en: 'Choose your language', mi: 'Kōwhiria tō reo', sm: 'Filifili lau gagana', zh: '选择语言', ja: '言語を選択', ko: '언어 선택',
     de: 'Sprache wählen', fr: 'Choisir la langue', es: 'Elige tu idioma', ar: 'اختر لغتك', hi: 'अपनी भाषा चुनें',
   },
   get_started: {
-    en: 'Get started →', zh: '开始 →', ja: '始める →', ko: '시작하기 →',
+    en: 'Get started →', mi: 'Tīmata →', sm: 'Amata →', zh: '开始 →', ja: '始める →', ko: '시작하기 →',
     de: 'Loslegen →', fr: 'Commencer →', es: 'Comenzar →', ar: 'ابدأ ←', hi: 'शुरू करें →',
   },
   step_1: {
-    en: 'Quick chat', zh: '快速问诊', ja: 'クイック問診', ko: '빠른 상담',
+    en: 'Quick chat', mi: 'Kōrero poto', sm: 'Talanoaga puupuu', zh: '快速问诊', ja: 'クイック問診', ko: '빠른 상담',
     de: 'Kurzes Gespräch', fr: 'Chat rapide', es: 'Chat rápido', ar: 'دردشة سريعة', hi: 'त्वरित चैट',
   },
   step_2: {
-    en: 'Vitals scan', zh: '体征扫描', ja: 'バイタル測定', ko: '활력징후 측정',
+    en: 'Vitals scan', mi: 'Matawai ora', sm: 'Su\'ega o le tino', zh: '体征扫描', ja: 'バイタル測定', ko: '활력징후 측정',
     de: 'Vitalwerte', fr: 'Bilan santé', es: 'Signos vitales', ar: 'قياس الحيوية', hi: 'वाइटल स्कैन',
   },
   step_3: {
-    en: 'See doctor', zh: '看医生', ja: '医師に診てもらう', ko: '의사 진찰',
+    en: 'See doctor', mi: 'Kite rata', sm: 'Va\'ai i le foma\'i', zh: '看医生', ja: '医師に診てもらう', ko: '의사 진찰',
     de: 'Arzt sehen', fr: 'Voir le médecin', es: 'Ver al médico', ar: 'رؤية الطبيب', hi: 'डॉक्टर से मिलें',
   },
   step_4: {
-    en: 'Get sorted', zh: '获得诊治', ja: '治療を受ける', ko: '해결하기',
+    en: 'Get sorted', mi: 'Whakatikahia', sm: 'Fa\'atulaga', zh: '获得诊治', ja: '治療を受ける', ko: '해결하기',
     de: 'Behandlung', fr: 'Être soigné', es: 'Resolver', ar: 'الحصول على الحل', hi: 'समाधान पाएं',
   },
 
   // ── Prescribing limitations gate ─────────────────────────────────────────
   prescribing_gate_intro: {
     en: 'Before we begin',
+    mi: 'I mua i tā tāua tīmatanga', // TODO cert
+    sm: 'A\'o le\'i amata', // TODO cert
     zh: '开始之前',
     ja: '始める前に',
     ko: '시작하기 전에',
@@ -508,6 +579,8 @@ const T = {
   },
   prescribing_gate_title: {
     en: 'What Tere Health can and cannot prescribe',
+    mi: 'Ngā mea ka taea, ngā mea kāore e taea e Tere Health te tuku hei rongoā', // TODO cert
+    sm: 'O mea e mafai ma le mafai e Tere Health ona tuu atu ni fualaau', // TODO cert
     zh: 'Tere Health 能开和不能开的处方',
     ja: 'Tere Health が処方できるものとできないもの',
     ko: 'Tere Health가 처방할 수 있는 것과 없는 것',
@@ -519,6 +592,8 @@ const T = {
   },
   prescribing_gate_body: {
     en: 'Tere Health doctors can prescribe many common medications via telehealth. However, New Zealand law places restrictions on certain controlled drugs and medications requiring specialist oversight. Please read and acknowledge the following before continuing.',
+    mi: 'Ka taea e ngā rata o Tere Health te tuku i te maha o ngā rongoā noa mā te telehealth. Heoi anō, e whakatakoto ana te ture o Aotearoa i ngā herenga mō ētahi rongoā whakahaere me ngā rongoā me tirotiro e te mātanga. Tēnā, pānuihia me whakaae ki ngā mea e whai ake nei i mua i te haere tonu.', // TODO cert
+    sm: 'E mafai e foma\'i o Tere Health ona tu\'uina atu le tele o fualaau masani e ala i le telehealth. Peita\'i, e i ai tulafono a Niu Sila e fa\'atapula\'a ai nisi fualaau fa\'atonutonuina ma fualaau e mana\'omia ai le va\'ava\'aiga a se foma\'i fa\'apitoa. Fa\'amolemole faitau ma fa\'amaonia mea nei a\'o le\'i fa\'aauau.', // TODO cert
     zh: 'Tere Health 的医生可以通过远程医疗开具许多常见药物。但是，新西兰法律对某些受管制药物和需要专科监督的药物有限制。请在继续之前阅读并确认以下内容。',
     ja: 'Tere Healthの医師はテレヘルスを通じて多くの一般的な薬を処方できます。ただし、ニュージーランドの法律により、一部の規制薬物および専門家の監督を必要とする薬物には制限があります。続ける前に以下をお読みになり、確認してください。',
     ko: 'Tere Health 의사들은 원격 진료를 통해 많은 일반 의약품을 처방할 수 있습니다. 그러나 뉴질랜드 법률은 특정 규제 약물 및 전문가 감독이 필요한 약물에 제한을 두고 있습니다. 계속하기 전에 다음 내용을 읽고 확인해 주세요.',
@@ -530,6 +605,8 @@ const T = {
   },
   prescribing_gate_checkbox: {
     en: 'I understand that Tere Health cannot prescribe controlled drugs (opioids, benzodiazepines, stimulants) or GLP-1 weight loss injections (Ozempic/Wegovy) via telehealth, and I will see my GP or a specialist for these.',
+    mi: 'Kei te mārama ahau kāore e taea e Tere Health te tuku i ngā rongoā whakahaere (opioids, benzodiazepines, stimulants) me ngā werohanga GLP-1 mō te ngaronga taumaha (Ozempic/Wegovy) mā te telehealth, ā, ka haere ahau ki tōku GP, ki tētahi mātanga rānei mō ēnei mea.', // TODO cert
+    sm: 'Ou te malamalama e le mafai e Tere Health ona tuu atu fualaau fa\'atonutonuina (opioids, benzodiazepines, fualaau fa\'ao\'e) po\'o tui GLP-1 mo le fa\'aitiitia o le mamafa (Ozempic/Wegovy) e ala i le telehealth, ma o le a ou va\'ai i lo\'u GP po\'o se foma\'i fa\'apitoa mo nei mea.', // TODO cert
     zh: '我理解 Tere Health 不能通过远程医疗开具管制药物（阿片类药物、苯二氮䓬类药物、兴奋剂）或 GLP-1 减重注射剂（Ozempic/Wegovy），如需这些药物，我将去看全科医生或专科医生。',
     ja: 'Tere Healthはテレヘルスを通じて規制薬物（オピオイド、ベンゾジアゼピン、覚醒剤）やGLP-1体重減少注射（Ozempic/Wegovy）を処方できないことを理解しており、これらが必要な場合はかかりつけ医または専門医を受診します。',
     ko: 'Tere Health는 원격 진료를 통해 규제 약물(오피오이드, 벤조디아제핀, 자극제) 또는 GLP-1 체중 감량 주사(Ozempic/Wegovy)를 처방할 수 없으며, 이러한 약물이 필요한 경우 GP나 전문의를 방문하겠음을 이해합니다.',
@@ -541,6 +618,8 @@ const T = {
   },
   prescribing_gate_button: {
     en: 'I understand — continue',
+    mi: 'Kei te mārama ahau — haere tonu', // TODO cert
+    sm: 'Ua ou malamalama — fa\'aauau', // TODO cert
     zh: '我理解——继续',
     ja: '理解しました——続ける',
     ko: '이해했습니다 — 계속',
@@ -552,6 +631,8 @@ const T = {
   },
   controlled_med_notice: {
     en: "I've noted that. Just so you know — controlled medications (such as opioids, benzodiazepines, or GLP-1 injections like Ozempic) cannot be prescribed via telehealth. Your doctor will discuss what options are available for you today.",
+    mi: 'Kua mārama mai ki ahau. Kia mōhio mai koe — kāore e taea te tuku i ngā rongoā whakahaere (pēnei i te opioids, benzodiazepines, i ngā werohanga GLP-1 pēnei i te Ozempic) mā te telehealth. Ka kōrero tō rata mō ngā kōwhiringa e wātea ana mō koe i tēnei rā.', // TODO cert
+    sm: 'Ua ou fa\'ailoaina lena mea. Ia e iloa — o fualaau fa\'atonutonuina (e pei o opioids, benzodiazepines, po\'o tui GLP-1 e pei o Ozempic) e le mafai ona tuu atu e ala i le telehealth. O le a talanoaina e lou foma\'i ni filifiliga e avanoa mo oe i le aso nei.', // TODO cert
     zh: '我注意到了。请您知悉——管制药物（如阿片类药物、苯二氮䓬类药物或 Ozempic 等 GLP-1 注射剂）无法通过远程医疗开具处方。您的医生将与您讨论今天可用的选择。',
     ja: '承知しました。ご参考までに——オピオイド、ベンゾジアゼピン、OzempicなどのGLP-1注射といった規制薬物はテレヘルスでは処方できません。本日どのような選択肢があるかについて、担当医が説明します。',
     ko: '알겠습니다. 참고로 — 오피오이드, 벤조디아제핀, Ozempic과 같은 GLP-1 주사 등 규제 약물은 원격 진료를 통해 처방받을 수 없습니다. 의사가 오늘 이용 가능한 옵션에 대해 논의해 드릴 것입니다.',
@@ -563,27 +644,27 @@ const T = {
   },
 
   // ── Symptom follow-ups (added for Te Reo bring-up 2026-07-04) ─────────────
-  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?' },
-  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?' },
-  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)' },
-  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?' },
-  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?' },
-  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?' },
-  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?' },
-  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?' },
+  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?', sm: 'O le a le umi ua e maua ai lenei fa\'afitauli?' },
+  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?', sm: 'O anafea na amata ai lenei mea?' },
+  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)', sm: 'O le a le tuga o lou tiga? (1-10)' },
+  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?', sm: 'E te tiga i le fatafata?' },
+  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?', sm: 'E te faigata ona manava?' },
+  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?', sm: 'E te lagona le niniva?' },
+  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?', sm: 'Ua e pua\'i?' },
+  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?', sm: 'E te fiva?' },
 
   // ── Provider status ──────────────────────────────────────────────────────
-  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata' },
+  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata', sm: 'O le a o\'o atu lou foma\'i i se taimi puupuu' },
 
   // ── Buttons ──────────────────────────────────────────────────────────────
-  btn_continue: { en: 'Continue', mi: 'Haere tonu' },
-  btn_back:     { en: 'Back',     mi: 'Hoki' },
-  btn_skip:     { en: 'Skip',     mi: 'Tukua' },
-  btn_submit:   { en: 'Submit',   mi: 'Tukua atu' },
+  btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau' },
+  btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i' },
+  btn_skip:     { en: 'Skip',     mi: 'Tukua',      sm: 'Preterisi' },
+  btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu' },
 
   // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─
   // Rendered by t_bilingual() helper so critical warnings never appear in Te Reo only.
-  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei' },
+  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei' },
 }
 
 /**
