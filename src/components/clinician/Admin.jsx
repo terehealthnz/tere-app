@@ -6,7 +6,7 @@ import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
-import PhiRevealGate  from './PhiRevealGate'
+import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1027,6 +1027,11 @@ function ConsultationLog() {
   const [rows, setRows] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [search, setSearch] = React.useState('')
+  const [showReveal, setShowReveal] = React.useState(false)
+  const isProvider = sessionStorage.getItem('providerIsProvider') === 'true'
+  const isBillingAdmin = sessionStorage.getItem('providerIsBillingAdmin') === 'true'
+  // Providers have direct clinical need → auto-revealed. Billing admins never reveal.
+  const [revealed, setRevealed] = React.useState(() => isProvider || sessionStorage.getItem('tere_consultlog_revealed') === 'true')
 
   React.useEffect(() => {
     async function load() {
@@ -1073,14 +1078,47 @@ function ConsultationLog() {
           <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Last 100 consultations</div>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          {!isBillingAdmin && !revealed && (
+            <button onClick={() => setShowReveal(true)}
+              style={{ background:'#FEF3C7', color:'#78350F', border:'1px solid #FCD34D', padding:'7px 12px', borderRadius:8, cursor:'pointer', fontSize:'.8125rem', fontWeight:700, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
+              🔒 Reveal clinical detail
+            </button>
+          )}
+          {!isBillingAdmin && revealed && (
+            <span style={{ background:'#D1FAE5', color:'#065F46', padding:'6px 10px', borderRadius:8, fontSize:'.75rem', fontWeight:700, whiteSpace:'nowrap' }}>🔓 Revealed · audited</span>
+          )}
           <button onClick={exportAccCsv} style={{ background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', padding:'7px 12px', borderRadius:8, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>↓ ACC export</button>
           <input
-            placeholder="Search patient or complaint…"
+            placeholder={revealed ? 'Search patient or complaint…' : 'Search patient…'}
             value={search} onChange={e => setSearch(e.target.value)}
             style={{ padding:'7px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:200 }}
           />
         </div>
       </div>
+      {showReveal && (
+        <ReasonPicker
+          open={true}
+          subject={`Consultation log · ${rows.length} rows`}
+          onCancel={() => setShowReveal(false)}
+          onConfirm={async ({ reason, reason_notes }) => {
+            try {
+              await apiFetch('/api/audit-log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'view_consultation_log_bulk',
+                  reason, reason_notes,
+                  resource_type: 'consultation_list',
+                  metadata: { row_count: rows.length, view_scope: 'admin_consultation_log' },
+                }),
+              })
+            } catch {}
+            sessionStorage.setItem('tere_consultlog_revealed', 'true')
+            setRevealed(true)
+            setShowReveal(false)
+          }}
+        />
+      )}
       {loading ? (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
       ) : filtered.length === 0 ? (
@@ -1100,7 +1138,9 @@ function ConsultationLog() {
                 <tr key={r.id} style={{ borderBottom:'1px solid #F3F4F6' }}>
                   <td style={{ padding:'8px', whiteSpace:'nowrap', fontSize:'.8125rem' }}>{new Date(r.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })}</td>
                   <td style={{ padding:'8px', fontWeight:600 }}>{r.patient_first_name} {r.patient_last_name}</td>
-                  <td style={{ padding:'8px', color:'#6B7280', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{r.chief_complaint}</td>
+                  <td style={{ padding:'8px', color:'#6B7280', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {isBillingAdmin ? <span style={{ color:'#94A3B8', fontStyle:'italic' }}>—</span> : revealed ? r.chief_complaint : <span style={{ color:'#94A3B8' }}>🔒 hidden</span>}
+                  </td>
                   <td style={{ padding:'8px' }}>
                     <span style={{ background: statusColor[r.status] ? statusColor[r.status]+'20' : '#F3F4F6', color: statusColor[r.status] || '#6B7280', fontWeight:600, fontSize:'.75rem', padding:'2px 8px', borderRadius:99 }}>
                       {r.status}
