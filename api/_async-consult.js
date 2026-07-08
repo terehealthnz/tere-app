@@ -21,16 +21,6 @@ const LANGUAGE_BLOCKS = {
 - The patient has selected Gagana Sāmoa (Samoan) — respond in Samoan where possible; use English for medical terms lacking established Samoan equivalents, with a brief Samoan explanation.
 - Any critical safety warning (e.g. call 111) must appear in both Samoan AND English — e.g. "Vala'au le 111 nei — Call 111 immediately". Never render a safety warning in Samoan only.
 - Acknowledge 'āiga (family) context if the patient mentioned family being present or involved in their care. Be sensitive to fa'aSāmoa (the Samoan way) around health decisions.`,
-  mh: `
-- The patient has selected Kajin M̧ajeļ (Marshallese) — respond in Marshallese where possible. Marshallese medical vocabulary is limited; use plain English for medical terms with a brief Marshallese explanation.
-- Any critical safety warning (e.g. call 111) must appear in both Marshallese AND English — never render a safety warning in Marshallese only.
-- If you are uncertain of the correct Marshallese translation, prefer English + a note recommending a human interpreter. The patient's safety comes before language style.
-- Acknowledge extended family / bwij context if mentioned.`,
-  rhg: `
-- The patient has selected Ruáingga (Rohingya) — respond in Rohingya where possible using Latin script (Ruáingga Zuban). Medical vocabulary is limited; use plain English for medical terms with a brief Rohingya explanation.
-- Any critical safety warning (e.g. call 111) must appear in both Rohingya AND English — never render a safety warning in Rohingya only.
-- If uncertain of the correct Rohingya translation, prefer English + a note recommending a human interpreter. Patient safety comes before language style.
-- Be sensitive to refugee-community context: patients may be recent arrivals unfamiliar with NZ health system norms. Explain services simply.`,
 }
 
 function languageBlock(lang) {
