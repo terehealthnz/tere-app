@@ -3,9 +3,13 @@ import { Link } from 'react-router-dom'
 
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
 
-const CONSULT_URL = (window.location.hostname === 'terehealth.co.nz' || window.location.hostname === 'www.terehealth.co.nz')
-  ? 'https://tere.co.nz/start'
-  : '/start'
+// Always use a relative URL. An earlier iteration routed prod traffic to
+// https://tere.co.nz/start (the short vanity domain), which 308-redirects
+// to terehealth.co.nz/start. That extra hop revived a stale service worker
+// registered on the tere.co.nz origin, causing cross-origin blocks
+// ("Unsafe attempt to load URL"), double Supabase clients, and downstream
+// React "removeChild" crashes when the SW served stale HTML.
+const CONSULT_URL = '/start'
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
