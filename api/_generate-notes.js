@@ -41,6 +41,7 @@ export default async function handler(req, res) {
       body = {
         consultationId: body.consultationId,
         transcript: c.transcript || '',
+        patientLanguage:      c.patient_language || 'en',
         triage: {
           patientName:          `${c.patient_first_name || ''} ${c.patient_last_name || ''}`.trim(),
           patientDob:           c.patient_dob,
@@ -78,7 +79,46 @@ export default async function handler(req, res) {
     prescriptions = [],
     referrals = [],
     durationMinutes = 0,
+    patientLanguage = 'en',
   } = body
+
+  // ── Step 0: translate triage free-text into English if needed ─────────────
+  // Clinical notes must be in English regardless of the patient's chosen
+  // language. Do this before feeding triage into the extraction prompt so the
+  // merged output never mixes languages.
+  if (patientLanguage && patientLanguage !== 'en') {
+    const toTranslate = {
+      chiefComplaint:       triage.chiefComplaint,
+      medicalHistory:       triage.medicalHistory,
+      medications:          triage.medications,
+      allergies:            triage.allergies,
+      accInjuryDescription: triage.accInjuryDescription,
+      accEmployer:          triage.accEmployer,
+      patientLocation:      triage.patientLocation,
+    }
+    const nonEmpty = Object.fromEntries(
+      Object.entries(toTranslate).filter(([_, v]) => v && String(v).trim())
+    )
+    if (Object.keys(nonEmpty).length > 0) {
+      try {
+        const translated = await aiCallJSON({
+          tier: 'haiku',
+          system: 'You are a medical translator. Translate each provided field into clear, concise medical English. Preserve clinical accuracy. Return JSON with the same keys. If a value is already in English, return it unchanged.',
+          user: `Source language: ${patientLanguage}\n\nTranslate each of these triage fields into English and return JSON with the same keys:\n\n${JSON.stringify(nonEmpty, null, 2)}`,
+          maxTokens: 800,
+        })
+        if (translated && typeof translated === 'object') {
+          for (const k of Object.keys(nonEmpty)) {
+            if (translated[k] && typeof translated[k] === 'string') triage[k] = translated[k]
+          }
+          console.log('[generate-notes] translated triage fields:', Object.keys(nonEmpty).join(', '), 'from', patientLanguage)
+        }
+      } catch (e) {
+        console.error('[generate-notes] triage translation failed:', e.message)
+        // Fall through — extraction prompt also has a translate-to-English rule
+      }
+    }
+  }
 
   const billingCode = durationMinutes >= 30 ? 'CS2T' : 'CS1T'
 
@@ -110,7 +150,14 @@ Knowledge you draw on strictly for accurate transcription and NZ-appropriate doc
 - MCNZ medical record keeping conventions
 - HDC Code of Rights documentation obligations
 
-You write in clear, concise medical English, third person past tense. You extract only clinically relevant information voiced during the consultation. You do not include greetings, small talk, or non-clinical conversation. You do not add clinical opinions, differentials, or "should be considered" language of your own.`
+You write in clear, concise medical English, third person past tense. You extract only clinically relevant information voiced during the consultation. You do not include greetings, small talk, or non-clinical conversation. You do not add clinical opinions, differentials, or "should be considered" language of your own.
+
+CRITICAL LANGUAGE RULE — all output MUST be in English regardless of the source language.
+If the transcript, chief complaint, or triage fields contain Spanish, Chinese, Japanese, Korean,
+German, Dutch, French, Arabic, Hindi, Te Reo Māori, Samoan, or any other language, translate the
+clinical meaning into medical English before writing the note. Do not include the original-language
+text. Do not code-switch. The clinician who reads this record works in English and the record must
+be accessible to any downstream provider, ACC assessor, or auditor.`
 
   if (hasTranscript) {
     const isDiarized = transcript.includes('[PROVIDER]') || transcript.includes('[PATIENT]')
@@ -149,6 +196,8 @@ TRANSCRIPT:
 ${transcript}
 
 Return ONLY valid JSON. For fields with no relevant content return null. Do not invent content.
+ALL string field values MUST be in English. If the transcript is in another language, translate to
+medical English. Do not return any non-English text in any field.
 For each clinical field include a confidence rating based on the clarity and completeness of transcript content:
 - "high": clear, complete information — confident extraction
 - "medium": some information but gaps or unclear audio — provider should review
