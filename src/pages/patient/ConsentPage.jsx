@@ -34,6 +34,7 @@ export default function ConsentPage() {
   const [hdcChecked, setHdcChecked]           = useState(false)
   const [prescribingChecked, setPrescribingChecked] = useState(false)
   const [researchConsent, setResearchConsent] = useState(null) // null | true | false
+  const [subtitleConsent, setSubtitleConsent] = useState(false)
   const [saving, setSaving]                   = useState(false)
 
   const canContinue = hdcChecked && prescribingChecked && !saving
@@ -44,6 +45,7 @@ export default function ConsentPage() {
     const granted = researchConsent === true
     sessionStorage.setItem('research_consent', granted ? 'yes' : 'no')
     sessionStorage.setItem('bg_rppg_consent', '1')
+    sessionStorage.setItem('subtitle_consent', subtitleConsent ? 'yes' : 'no')
     const consultationId = sessionStorage.getItem('consultation_id')
     const now = new Date().toISOString()
     try {
@@ -57,6 +59,7 @@ export default function ConsentPage() {
         post('hdc_code_of_rights', true),
         post('prescribing_limitations_acknowledged', true),
         post('research_consent', granted),
+        ...(lang !== 'en' ? [post('ai_subtitle_consent', subtitleConsent)] : []),
       ])
       if (consultationId) {
         await patientUpdateConsultation(consultationId, {
@@ -195,6 +198,30 @@ export default function ConsentPage() {
             <a href="mailto:terehealthnz@gmail.com" style={{ color: '#9CA3AF' }}>terehealthnz@gmail.com</a>
           </p>
         </div>
+
+        {/* Section 3b — AI subtitle consent (only when non-English lang picked) */}
+        {lang !== 'en' && (
+          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>💬</span>
+              <div>
+                <span style={{ fontWeight: 700, fontSize: '1rem', color: '#0D2B45' }}>{t('consent_subtitle_title', lang)}</span>
+              </div>
+            </div>
+            <p style={{ fontSize: '.875rem', color: '#6B7280', lineHeight: 1.6, margin: '0 0 .5rem' }}>
+              {t('consent_subtitle_desc', lang)}
+            </p>
+            <p style={{ fontSize: '.8125rem', color: '#6B7280', lineHeight: 1.7, whiteSpace: 'pre-line', margin: '0 0 1rem' }}>
+              {t('consent_subtitle_bullets', lang)}
+            </p>
+            <Checkbox
+              checked={subtitleConsent}
+              onChange={() => setSubtitleConsent(c => !c)}
+              label={t('consent_subtitle_check', lang)}
+              testId="subtitle-consent-checkbox"
+            />
+          </div>
+        )}
 
         {/* Section 4 — Camera / vitals notice */}
         <div style={{ background: '#EFF6FF', borderRadius: 12, border: '1px solid #BFDBFE', padding: '1rem 1.25rem', marginBottom: '.75rem', display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>

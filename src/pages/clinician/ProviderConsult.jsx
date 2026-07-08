@@ -5,6 +5,8 @@ import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
+import { getLangMeta } from '../../lib/i18n'
+import CallSubtitles from '../../components/clinical/CallSubtitles'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -70,6 +72,7 @@ export default function ProviderConsult() {
   const [scribeState, setScribeState]   = useState('idle') // idle|recording|transcribing
   const [transcript, setTranscript]     = useState('')
   const [showNotes, setShowNotes]       = useState(false)
+  const [subtitlesOn, setSubtitlesOn]   = useState(false)
   const [callNotes, setCallNotes]       = useState('')
   const [actions, setActions]           = useState([])
   const [endingCall, setEndingCall]     = useState(false)
@@ -343,6 +346,22 @@ export default function ProviderConsult() {
         {lkToken && lkUrl ? (
           <LiveKitRoom token={lkToken} serverUrl={lkUrl} video={!isPhone} audio data-lk-theme="default" style={{ width:'100%', height:'100%' }}>
             <VideoConference />
+            {(() => {
+              const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+              const meta = getLangMeta(patientLang)
+              const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
+              if (!supported || patientLang === 'en') return null
+              return (
+                <CallSubtitles
+                  patientLang={patientLang}
+                  providerLang="en"
+                  enabled={subtitlesOn}
+                  modalOpen={showNotes}
+                  consultationId={id}
+                  onInterpreter={() => alert('Language Line integration pending — call +64 800 12345 (placeholder)')}
+                />
+              )
+            })()}
           </LiveKitRoom>
         ) : (
           <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -418,6 +437,20 @@ export default function ProviderConsult() {
           style={{ minHeight:56, flex:1, borderRadius:12, border:`1.5px solid ${showNotes?TEAL:'rgba(255,255,255,.2)'}`, background: showNotes ? 'rgba(11,110,118,.3)' : 'rgba(255,255,255,.08)', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
           📋 Notes {transcript && '✓'}
         </button>
+        {/* Subtitle toggle — only if patient's language is on the whitelist */}
+        {(() => {
+          const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+          const meta = getLangMeta(patientLang)
+          const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good') && patientLang !== 'en'
+          if (!supported) return null
+          return (
+            <button
+              onClick={() => setSubtitlesOn(v => !v)}
+              style={{ minHeight:56, flex:1, borderRadius:12, border:`1.5px solid ${subtitlesOn?TEAL:'rgba(255,255,255,.2)'}`, background: subtitlesOn ? 'rgba(11,110,118,.3)' : 'rgba(255,255,255,.08)', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              💬 Subtitles {subtitlesOn && '✓'}
+            </button>
+          )
+        })()}
         {/* End call */}
         <button
           onClick={endCall}
