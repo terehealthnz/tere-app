@@ -198,7 +198,13 @@ async function routeTicket(supabase, ticket) {
   if (!consult) return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'consult_not_found' } }
   const provider_id = consult.provider_id || null
 
-  const refIso = consult.notes_finalised_at || consult.completed_at || consult.updated_at
+  // Use the most recent of completed_at / notes_finalised_at — completed_at is
+  // when the visit ended, notes_finalised_at is when notes were signed off.
+  // Either may be null; either represents a "post-consult" clock start.
+  const candidates = [consult.completed_at, consult.notes_finalised_at, consult.updated_at]
+    .filter(Boolean).map(d => new Date(d).getTime()).filter(t => !isNaN(t))
+  const refMs = candidates.length ? Math.max(...candidates) : null
+  const refIso = refMs ? new Date(refMs).toISOString() : null
   const ageDays = refIso ? (Date.now() - new Date(refIso).getTime()) / 86400000 : Infinity
   const withinWindow = provider_id && ageDays <= FOLLOW_UP_WINDOW_DAYS
 
