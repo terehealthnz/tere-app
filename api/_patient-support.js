@@ -198,12 +198,13 @@ async function routeTicket(supabase, ticket) {
   if (!consult) return { routing: { routing_status: 'admin_inbox' }, debug: { reason: 'consult_not_found' } }
   const provider_id = consult.provider_id || null
 
-  // Use the most recent of completed_at / notes_finalised_at — completed_at is
-  // when the visit ended, notes_finalised_at is when notes were signed off.
-  // Either may be null; either represents a "post-consult" clock start.
-  const candidates = [consult.completed_at, consult.notes_finalised_at, consult.updated_at]
-    .filter(Boolean).map(d => new Date(d).getTime()).filter(t => !isNaN(t))
-  const refMs = candidates.length ? Math.max(...candidates) : null
+  // v2 clock: prefer completed_at (visit end), fall back to notes_finalised_at
+  // or updated_at. Pick whichever is most recent — either may be null.
+  const dates = [consult.completed_at, consult.notes_finalised_at, consult.updated_at]
+    .filter(Boolean)
+    .map(d => new Date(d).getTime())
+    .filter(t => !isNaN(t))
+  const refMs = dates.length ? Math.max(...dates) : null
   const refIso = refMs ? new Date(refMs).toISOString() : null
   const ageDays = refIso ? (Date.now() - new Date(refIso).getTime()) / 86400000 : Infinity
   const withinWindow = provider_id && ageDays <= FOLLOW_UP_WINDOW_DAYS
@@ -231,7 +232,7 @@ async function routeTicket(supabase, ticket) {
     if (nErr) console.error('[patient-support] notify insert:', nErr.message)
     return {
       routing: { routing_status: 'provider_messages', routed_notification_id: notif?.id || null },
-      debug: { reason: 'within_window', ageDays, provider_id, notif_err: nErr?.message || null },
+      debug: { reason: 'within_window', ageDays, provider_id, notif_err: nErr?.message || null, v: 'router-v2' },
     }
   }
 
@@ -267,7 +268,7 @@ async function routeTicket(supabase, ticket) {
   }
   return {
     routing: { routing_status: 'new_consult', routed_consultation_id: newConsult?.id || null },
-    debug: { reason: 'outside_window', ageDays, provider_id, newConsultId: newConsult?.id || null },
+    debug: { reason: 'outside_window', ageDays, provider_id, newConsultId: newConsult?.id || null, v: 'router-v2', refIso },
   }
 }
 
