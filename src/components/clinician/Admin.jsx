@@ -858,6 +858,194 @@ function EditProviderModal({ provider, onClose, onSaved }) {
   )
 }
 
+// ── OverviewDashboard ────────────────────────────────────────────────────────
+// Mission-control landing for /clinician/admin. Replaces the previous 12-panel
+// scroll with a KPI cockpit + alerts + activity feed. All numbers refresh on
+// mount and every 30s. Everything else moved to Operations / Finance / Quality
+// / Compliance tabs.
+function OverviewDashboard({ setAdminTab }) {
+  const [kpis, setKpis]           = React.useState(null)
+  const [alerts, setAlerts]       = React.useState([])
+  const [activity, setActivity]   = React.useState([])
+  const [loading, setLoading]     = React.useState(true)
+
+  const load = React.useCallback(async () => {
+    try {
+      // NZ-local start-of-day
+      const nzNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Pacific/Auckland' }))
+      const startOfDayIso = new Date(nzNow.getFullYear(), nzNow.getMonth(), nzNow.getDate()).toISOString()
+
+      const [queueR, pendingR, ticketsR, todayR, flaggedR, complaintsR, failedR, auditR] = await Promise.allSettled([
+        apiFetch('/api/get-queue').then(r => r.json()),
+        apiFetch('/api/prescriptions?filter=pending_count').then(r => r.json()),
+        apiFetch('/api/patient-support?status=new').then(r => r.json()),
+        getCompleteSince(startOfDayIso, 'id, payment_amount, completed_at, patient_first_name, patient_last_name, provider_display_name'),
+        getFlaggedNotes('id, patient_first_name, patient_last_name, created_at').catch(() => []),
+        apiFetch('/api/complaints').then(r => r.json()).catch(() => ({ complaints: [] })),
+        getPaymentPendingConsultations('id, patient_first_name, patient_last_name, payment_amount, created_at').catch(() => []),
+        apiFetch('/api/audit?limit=15').then(r => r.json()).catch(() => ({ logs: [] })),
+      ])
+
+      const queue         = queueR.status === 'fulfilled' ? (queueR.value?.consultations || []) : []
+      const pendingCount  = pendingR.status === 'fulfilled' ? (pendingR.value?.count || 0) : 0
+      const tickets       = ticketsR.status === 'fulfilled' ? (ticketsR.value?.tickets || []) : []
+      const todayConsults = todayR.status === 'fulfilled' ? (todayR.value || []) : []
+      const flagged       = flaggedR.status === 'fulfilled' ? (flaggedR.value || []) : []
+      const complaints    = complaintsR.status === 'fulfilled' ? (complaintsR.value?.complaints || []) : []
+      const failed        = failedR.status === 'fulfilled' ? (failedR.value || []) : []
+      const auditLogs     = auditR.status === 'fulfilled' ? (auditR.value?.logs || []) : []
+
+      const activeQueue = queue.filter(c => ['waiting','vitals_requested','vitals_complete','ready'].includes(c.status))
+      const revenueTodayCents = todayConsults.reduce((s, c) => s + (c.payment_amount || 0), 0)
+      const adminTickets = tickets.filter(t => !t.routing_status || t.routing_status === 'admin_inbox')
+
+      setKpis({
+        revenueToday:      revenueTodayCents,
+        queueCount:        activeQueue.length,
+        pendingApprovals:  pendingCount,
+        unreadTickets:     adminTickets.length,
+        consultsToday:     todayConsults.length,
+      })
+
+      const newAlerts = []
+      failed.slice(0, 5).forEach(f => newAlerts.push({
+        kind: 'payment_failed',
+        color: '#DC2626',
+        icon: '💳',
+        title: `Failed payment — $${((f.payment_amount || 0) / 100).toFixed(0)}`,
+        subtitle: `${f.patient_first_name || 'Patient'} ${f.patient_last_name || ''}`,
+        goto: 'finance',
+      }))
+      flagged.slice(0, 5).forEach(f => newAlerts.push({
+        kind: 'flagged_note',
+        color: '#D97706',
+        icon: '⚠',
+        title: `Flagged note`,
+        subtitle: `${f.patient_first_name || 'Patient'} ${f.patient_last_name || ''} · ${new Date(f.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' })}`,
+        goto: 'quality',
+      }))
+      complaints.filter(c => c.status === 'open').slice(0, 3).forEach(c => newAlerts.push({
+        kind: 'complaint',
+        color: '#7C3AED',
+        icon: '📢',
+        title: 'Open complaint',
+        subtitle: c.complaint_type + ' · ' + (c.patient_name || 'anonymous'),
+        goto: 'compliance',
+      }))
+      adminTickets.slice(0, 5).forEach(t => newAlerts.push({
+        kind: 'ticket',
+        color: '#F97316',
+        icon: '🎫',
+        title: `New support ticket — ${t.category}`,
+        subtitle: t.patient_name || t.patient_email,
+        goto: 'support',
+      }))
+      setAlerts(newAlerts)
+
+      // Activity feed = union of today's consults + last audit events, sorted desc
+      const feed = []
+      todayConsults.slice(0, 8).forEach(c => feed.push({
+        icon: '✅',
+        at: c.completed_at,
+        label: `${c.patient_first_name || 'Patient'} ${c.patient_last_name || ''}`,
+        detail: `Consult complete · $${((c.payment_amount || 0) / 100).toFixed(0)} · ${c.provider_display_name || '—'}`,
+      }))
+      auditLogs.slice(0, 8).forEach(a => feed.push({
+        icon: '📋',
+        at: a.created_at,
+        label: a.provider_name || 'system',
+        detail: `${a.event_type}${a.reason ? ` · ${a.reason}` : ''}`,
+      }))
+      feed.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      setActivity(feed.slice(0, 12))
+    } catch (e) {
+      console.error('[overview] load failed', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    load()
+    const iv = setInterval(load, 30000)
+    return () => clearInterval(iv)
+  }, [load])
+
+  const NAVY = '#0D2B45'
+  const TEAL = '#0B6E76'
+  const kpiCard = { background:'white', borderRadius:12, padding:'1.25rem 1.5rem', border:'1px solid #E2E8F0', flex:1, minWidth:180 }
+  const KPI = ({ label, value, sub, color }) => (
+    <div style={kpiCard}>
+      <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:6 }}>{label}</div>
+      <div style={{ fontSize:'2rem', fontWeight:800, color: color || NAVY, lineHeight:1 }}>{value}</div>
+      {sub && <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:6 }}>{sub}</div>}
+    </div>
+  )
+
+  if (loading || !kpis) {
+    return <div style={{ background:'white', borderRadius:12, padding:'3rem', textAlign:'center', color:'#9CA3AF', border:'1px solid #E2E8F0' }}><div className="spinner" style={{ margin:'0 auto 1rem' }} />Loading dashboard…</div>
+  }
+
+  return (
+    <>
+      {/* KPI strip */}
+      <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap', marginBottom:'1rem' }}>
+        <KPI label="Revenue today" value={`$${(kpis.revenueToday / 100).toFixed(0)}`} sub={`${kpis.consultsToday} consult${kpis.consultsToday === 1 ? '' : 's'}`} color="#059669" />
+        <KPI label="In queue now" value={kpis.queueCount} sub={kpis.queueCount ? 'Live patients waiting' : 'Empty'} color={kpis.queueCount ? '#D97706' : NAVY} />
+        <KPI label="Pending approvals" value={kpis.pendingApprovals} sub="Prescriptions to review" color={kpis.pendingApprovals ? '#7C3AED' : NAVY} />
+        <KPI label="Unread tickets" value={kpis.unreadTickets} sub="Patient support inbox" color={kpis.unreadTickets ? '#F97316' : NAVY} />
+      </div>
+
+      {/* Alerts */}
+      <div style={{ background:'white', borderRadius:12, padding:'1.5rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }}>
+        <div style={{ display:'flex', alignItems:'baseline', justifyContent:'space-between', marginBottom:'1rem' }}>
+          <div>
+            <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY }}>{alerts.length === 0 ? '✅ No alerts' : `⚠ ${alerts.length} alert${alerts.length === 1 ? '' : 's'}`}</div>
+            <div style={{ fontSize:'.75rem', color:'#6B7280' }}>Failed payments, flagged notes, complaints, new tickets</div>
+          </div>
+        </div>
+        {alerts.length === 0 ? (
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>All clear — nothing needing your attention right now.</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {alerts.map((a, i) => (
+              <div key={i} onClick={() => a.goto && setAdminTab(a.goto)}
+                style={{ background:'#FAFAFA', border:'1px solid #F3F4F6', borderLeft:`3px solid ${a.color}`, borderRadius:6, padding:'.5rem .75rem', display:'flex', alignItems:'center', gap:'.75rem', cursor: a.goto ? 'pointer' : 'default' }}>
+                <span style={{ fontSize:'1.125rem' }}>{a.icon}</span>
+                <div style={{ flex:1, fontSize:'.8125rem' }}>
+                  <div style={{ fontWeight:700, color:NAVY }}>{a.title}</div>
+                  <div style={{ color:'#6B7280', fontSize:'.75rem' }}>{a.subtitle}</div>
+                </div>
+                {a.goto && <span style={{ color:'#9CA3AF', fontSize:'.75rem' }}>→</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Activity feed */}
+      <div style={{ background:'white', borderRadius:12, padding:'1.5rem', border:'1px solid #E2E8F0' }}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY, marginBottom:6 }}>Recent activity</div>
+        <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'1rem' }}>Consultations completed today + last audit events</div>
+        {activity.length === 0 ? (
+          <div style={{ fontSize:'.875rem', color:'#9CA3AF' }}>No recent activity.</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+            {activity.map((a, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:'.625rem', padding:'.375rem 0', borderBottom: i < activity.length - 1 ? '1px solid #F3F4F6' : 'none', fontSize:'.8125rem' }}>
+                <span style={{ fontSize:'.875rem', width:20 }}>{a.icon}</span>
+                <span style={{ color:'#9CA3AF', fontSize:'.75rem', minWidth:70 }}>{new Date(a.at).toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit' })}</span>
+                <span style={{ fontWeight:600, color:NAVY, minWidth:140 }}>{a.label}</span>
+                <span style={{ color:'#6B7280', flex:1 }}>{a.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -3129,10 +3317,13 @@ function AdminBody() {
         {(() => {
           const ADMIN_TABS = [
             { id:'overview',     label:'📊 Overview' },
+            { id:'operations',   label:'🩺 Operations' },
+            { id:'finance',      label:'💰 Finance' },
+            { id:'quality',      label:'📈 Quality' },
+            { id:'compliance',   label:'🔒 Compliance' },
             { id:'schedule',     label:'📅 Schedule' },
-            { id:'payroll',      label:'💰 Payroll' },
+            { id:'payroll',      label:'👛 Payroll' },
             { id:'safety',       label:'⚠ Safety' },
-            { id:'performance',  label:'📈 Performance' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'careers',      label:'💼 Careers' },
             { id:'support',      label:'🎫 Support' },
@@ -3159,72 +3350,56 @@ function AdminBody() {
           )
         })()}
 
-        {adminTab === 'patients' ? <AdminPatients embedded /> : adminTab === 'research' ? <AdminResearch embedded /> : adminTab === 'careers' ? <CareersPanel /> : adminTab === 'support' ? <SupportPanel /> : adminTab === 'employers' ? <EmployersPanel /> : adminTab === 'schedule' ? <AdminSchedule embedded /> : adminTab === 'payroll' ? <AdminPayroll embedded /> : adminTab === 'performance' ? <><ProviderMetricsPanel /></> : adminTab === 'safety' ? <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></> : <>
-
-        {/* Providers */}
-        <ProvidersPanel />
-
-        {/* Upcoming appointments */}
-        <AppointmentsPanel />
-
-        {/* Patient recalls */}
-        <RecallsPanel />
-
-        {/* Pending approvals */}
-        <PendingApprovalsPanel />
-
-        {/* Outstanding referrals */}
-        <OutstandingReferrals />
-
-        {/* Recent prescriptions */}
-        <OutstandingPrescriptions />
-
-        {/* Analytics */}
-        <AnalyticsPanel />
-
-        {/* Revenue */}
-        <RevenuePanel />
-
-        {/* Consultation Log */}
-        <ConsultationLog />
-
-        {/* Failed Payments */}
-        <FailedPayments />
-
-        {/* Flagged Notes */}
-        <FlaggedNotes />
-
-        {/* Audit log */}
-        <AuditLogPanel />
-
-        {/* Waitlist */}
-
-        <div style={card}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
-            <div>
-              <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Waitlist</div>
-              <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Patients waiting to be notified when you open</div>
-            </div>
-            <div style={{ background:waitlist.length > 0 ? '#FEF3C7' : '#F0F9FA', color:waitlist.length > 0 ? '#92400E' : '#0B6E76', fontWeight:700, fontSize:'1.25rem', padding:'.375rem .875rem', borderRadius:8 }}>{waitlist.length}</div>
-          </div>
-          {waitlist.length === 0 ? (
-            <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>{notified ? '✓ All patients notified' : 'No one on the waitlist right now'}</div>
-          ) : (
-            <>
-              <div style={{ marginBottom:'1rem', border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
-                {waitlist.map((w,i) => (
-                  <div key={w.id} style={{ display:'flex', justifyContent:'space-between', padding:'.75rem 1rem', borderBottom:i<waitlist.length-1 ? '1px solid #F3F4F6' : 'none', fontSize:'.9375rem' }}>
-                    <span style={{ fontWeight:600 }}>{w.name}</span>
-                    <span style={{ color:'#6B7280' }}>{w.email}</span>
-                  </div>
-                ))}
+        {(() => {
+          const WaitlistPanel = (
+            <div style={card}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+                <div>
+                  <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Waitlist</div>
+                  <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Patients waiting to be notified when you open</div>
+                </div>
+                <div style={{ background:waitlist.length > 0 ? '#FEF3C7' : '#F0F9FA', color:waitlist.length > 0 ? '#92400E' : '#0B6E76', fontWeight:700, fontSize:'1.25rem', padding:'.375rem .875rem', borderRadius:8 }}>{waitlist.length}</div>
               </div>
-              <button style={btn} onClick={notifyWaitlist} disabled={notifying}>{notifying ? 'Sending…' : `Email all ${waitlist.length} patient${waitlist.length > 1 ? 's' : ''}`}</button>
-            </>
-          )}
-        </div>
+              {waitlist.length === 0 ? (
+                <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>{notified ? '✓ All patients notified' : 'No one on the waitlist right now'}</div>
+              ) : (
+                <>
+                  <div style={{ marginBottom:'1rem', border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
+                    {waitlist.map((w,i) => (
+                      <div key={w.id} style={{ display:'flex', justifyContent:'space-between', padding:'.75rem 1rem', borderBottom:i<waitlist.length-1 ? '1px solid #F3F4F6' : 'none', fontSize:'.9375rem' }}>
+                        <span style={{ fontWeight:600 }}>{w.name}</span>
+                        <span style={{ color:'#6B7280' }}>{w.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button style={btn} onClick={notifyWaitlist} disabled={notifying}>{notifying ? 'Sending…' : `Email all ${waitlist.length} patient${waitlist.length > 1 ? 's' : ''}`}</button>
+                </>
+              )}
+            </div>
+          )
 
-        </>}
+          switch (adminTab) {
+            case 'overview':
+              return <><OverviewDashboard setAdminTab={setAdminTab} /></>
+            case 'operations':
+              return <><AppointmentsPanel /><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<ProvidersPanel /></>
+            case 'finance':
+              return <><RevenuePanel /><AnalyticsPanel /><FailedPayments /><OutstandingPrescriptions /><OutstandingReferrals /></>
+            case 'quality':
+              return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
+            case 'compliance':
+              return <><AuditLogPanel /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+            case 'schedule':   return <AdminSchedule embedded />
+            case 'payroll':    return <AdminPayroll embedded />
+            case 'safety':     return <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></>
+            case 'employers':  return <EmployersPanel />
+            case 'careers':    return <CareersPanel />
+            case 'support':    return <SupportPanel />
+            case 'research':   return <AdminResearch embedded />
+            case 'patients':   return <AdminPatients embedded />
+            default:           return <OverviewDashboard setAdminTab={setAdminTab} />
+          }
+        })()}
 
       </div>
     </div>
