@@ -49,8 +49,15 @@ function deepgramConfig(sourceLang) {
   return DG_CONFIG[sourceLang] || DG_CONFIG.en
 }
 
-async function fetchToken() {
-  const res = await apiFetch('/api/deepgram-token', { method: 'POST' })
+async function fetchToken(consultationId) {
+  const res = await apiFetch('/api/deepgram-token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // consultationId is the patient-side auth token — the endpoint verifies
+    // the consult is in_progress before minting a Deepgram key. Provider
+    // callers still get through via x-provider-id / JWT.
+    body: JSON.stringify({ consultationId: consultationId || null }),
+  })
   if (!res.ok) throw new Error(`deepgram-token failed: ${res.status}`)
   return res.json()
 }
@@ -87,7 +94,7 @@ function pipeMediaStream(stream, onChunk) {
   }
 }
 
-export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'patient', enabled = false }) {
+export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'patient', enabled = false, consultationId = null }) {
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState(null)
   const [utterances, setUtterances] = useState([])
@@ -100,7 +107,7 @@ export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'pat
     let cancelled = false
     async function connect() {
       try {
-        const { token } = await fetchToken()
+        const { token } = await fetchToken(consultationId)
         if (cancelled) return
         const { model, lang: dgLang } = deepgramConfig(sourceLang)
         // endpointing=300 → force finalize after 300ms silence (default is longer)
@@ -158,7 +165,7 @@ export function useLiveTranscription({ stream, sourceLang = 'en', speaker = 'pat
       wsRef.current = null
       setConnected(false)
     }
-  }, [enabled, stream, sourceLang, speaker])
+  }, [enabled, stream, sourceLang, speaker, consultationId])
 
   function stop() {
     try { cleanupRef.current?.() } catch {}

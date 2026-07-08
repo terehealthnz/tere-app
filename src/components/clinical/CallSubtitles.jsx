@@ -47,6 +47,7 @@ export default function CallSubtitles({
   const otherRole = viewerRole === 'provider' ? 'patient' : 'provider'
   const { utterances } = useLiveTranscription({
     stream: otherStream, sourceLang: speakerLang, speaker: otherRole, enabled,
+    consultationId,
   })
 
   const recent = useMemo(() => utterances.slice(-8), [utterances])
