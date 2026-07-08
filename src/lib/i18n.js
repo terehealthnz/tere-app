@@ -12,6 +12,14 @@ export const LANGUAGES = [
   { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false },
   { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true  },
   { code: 'hi', name: 'Hindi',    nativeName: 'हिन्दी',    flag: '🇮🇳', rtl: false },
+  // NZ Pacific + refugee community languages. Translation quality varies:
+  // Samoan is well-supported; Marshallese and Rohingya rely on Claude only.
+  { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false },
+  { code: 'mh',  name: 'Marshallese', nativeName: 'Kajin M̧ajeļ',    flag: '🇲🇭', rtl: false,
+    note: 'AI translation may be limited — a human interpreter is recommended for complex conversations' },
+  // Rohingya are a stateless people; no state flag used out of respect.
+  { code: 'rhg', name: 'Rohingya',    nativeName: 'Ruáingga',       flag: '🕊️', rtl: false,
+    note: 'AI translation may be limited — a human interpreter is recommended for complex conversations' },
 ]
 
 export function getLang() {

@@ -8,6 +8,35 @@ function getSupabase() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
+// Language-mode instructions for Claude when the patient prefers a non-English
+// language. Each block is appended to the system prompt when the patient's
+// preferred_language matches. Kept in one place so we don't drift across the
+// two callsites that ask Claude to write to the patient (polish + async summary).
+const LANGUAGE_BLOCKS = {
+  mi: `
+- The patient has selected Te Reo Māori — respond in Te Reo Māori where possible; use English for medical terms lacking established Te Reo equivalents, with a brief Te Reo explanation.
+- Any critical safety warning (e.g. call 111) must appear in both Te Reo AND English — e.g. "Waea atu ki te 111 ināianei — Call 111 immediately". Never render a safety warning in Te Reo only.
+- Acknowledge whānau context if the patient mentioned whānau being present or involved in their care.`,
+  sm: `
+- The patient has selected Gagana Sāmoa (Samoan) — respond in Samoan where possible; use English for medical terms lacking established Samoan equivalents, with a brief Samoan explanation.
+- Any critical safety warning (e.g. call 111) must appear in both Samoan AND English — e.g. "Vala'au le 111 nei — Call 111 immediately". Never render a safety warning in Samoan only.
+- Acknowledge 'āiga (family) context if the patient mentioned family being present or involved in their care. Be sensitive to fa'aSāmoa (the Samoan way) around health decisions.`,
+  mh: `
+- The patient has selected Kajin M̧ajeļ (Marshallese) — respond in Marshallese where possible. Marshallese medical vocabulary is limited; use plain English for medical terms with a brief Marshallese explanation.
+- Any critical safety warning (e.g. call 111) must appear in both Marshallese AND English — never render a safety warning in Marshallese only.
+- If you are uncertain of the correct Marshallese translation, prefer English + a note recommending a human interpreter. The patient's safety comes before language style.
+- Acknowledge extended family / bwij context if mentioned.`,
+  rhg: `
+- The patient has selected Ruáingga (Rohingya) — respond in Rohingya where possible using Latin script (Ruáingga Zuban). Medical vocabulary is limited; use plain English for medical terms with a brief Rohingya explanation.
+- Any critical safety warning (e.g. call 111) must appear in both Rohingya AND English — never render a safety warning in Rohingya only.
+- If uncertain of the correct Rohingya translation, prefer English + a note recommending a human interpreter. Patient safety comes before language style.
+- Be sensitive to refugee-community context: patients may be recent arrivals unfamiliar with NZ health system norms. Explain services simply.`,
+}
+
+function languageBlock(lang) {
+  return LANGUAGE_BLOCKS[lang] || ''
+}
+
 // NZ business hours deadline (8am–6pm Mon–Fri)
 // Pure UTC arithmetic — no string parsing, no Intl, works on any Node version
 function calcDeadline() {
@@ -283,10 +312,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const teReoBlock = patientLanguage === 'mi' ? `
-- The patient has selected Te Reo Māori — rewrite in Te Reo Māori where possible; use English for medical terms lacking established Te Reo equivalents, with a brief Te Reo explanation.
-- Any critical safety warning (e.g. call 111) must appear in both Te Reo AND English — e.g. "Waea atu ki te 111 ināianei — Call 111 immediately". Never render a safety warning in Te Reo only.
-- Acknowledge whānau context if the patient mentioned whānau being present or involved in their care.` : ''
+    const langBlock = languageBlock(patientLanguage)
 
     const prompt = `You are a medical communications specialist helping a New Zealand telehealth provider polish their patient message.
 
@@ -297,7 +323,7 @@ Rewrite the following draft as a warm, professional, clear response. Rules:
 - Preserve every clinical fact and instruction exactly — do not add or remove clinical content
 - Keep appropriate length — do not pad or truncate meaning
 - Do NOT add a greeting or sign-off — those are added automatically
-- Return ONLY the rewritten message body, nothing else${teReoBlock}
+- Return ONLY the rewritten message body, nothing else${langBlock}
 
 ${context ? `Context:\n${context}\n\n` : ''}Draft to polish:
 ${draft}`
@@ -572,15 +598,8 @@ ${draft}`
       c.acc_eligible === 'yes' ? 'ACC: eligible injury' : null,
     ].filter(Boolean).join('\n')
 
-    const teReoBlock = c.preferred_language === 'mi' ? `
-
-Cultural + language context:
-- The patient has selected Te Reo Māori as their preferred language.
-- Write the response in Te Reo Māori where possible. For medical terms that do not have established Te Reo equivalents, use the English term with a brief Te Reo explanation alongside it.
-- If the patient's message referred to whānau being present or involved in their care, acknowledge that whānau context.
-- Any critical safety warning (e.g. call 111) must appear in both Te Reo AND English — e.g. "Waea atu ki te 111 ināianei — Call 111 immediately". Never render a safety warning in Te Reo only.
-- If you are uncertain of the correct Te Reo medical term, use English with a brief Te Reo explanation.
-` : ''
+    const langBlock = languageBlock(c.preferred_language)
+    const langHeader = langBlock ? `\nCultural + language context:${langBlock}\n` : ''
 
     const prompt = `You are a New Zealand GP writing a final response to a patient after an async message consultation.
 
@@ -589,7 +608,7 @@ ${patientLines}
 
 The provider sent the following messages to the patient during the consultation:
 ${providerText}
-${teReoBlock}
+${langHeader}
 Write a concise, warm, professional closing response (3–5 sentences) that:
 1. Briefly states your assessment of what is going on
 2. Summarises the management plan based on what the provider communicated
@@ -597,7 +616,7 @@ Write a concise, warm, professional closing response (3–5 sentences) that:
 
 Rules:
 - Address the patient directly ("I" / "you") — do not use third person
-- Plain English, NZ spelling${c.preferred_language === 'mi' ? ' (write in Te Reo Māori as directed above)' : ''}
+- Plain English, NZ spelling${langBlock ? ' (write in the patient\'s preferred language as directed above)' : ''}
 - Do NOT add a greeting or sign-off — those are added separately
 - Do NOT add information not already in the provider messages
 - Return ONLY the response body, nothing else`

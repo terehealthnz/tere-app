@@ -1,7 +1,12 @@
-// DeepL target_lang codes (use EN-US for English target). No Māori — DeepL doesn't support 'mi', so the code falls through to Google.
+// DeepL target_lang codes (use EN-US for English target). DeepL does not
+// support 'mi' (Māori), 'sm' (Samoan), 'mh' (Marshallese), or 'rhg' (Rohingya)
+// — those fall through to Google, then to Claude via the AI-triage prompt.
 const DEEPL_CODES = { en: 'EN-US', zh: 'ZH', ja: 'JA', ko: 'KO', de: 'DE', fr: 'FR', es: 'ES', ar: 'AR', hi: 'HI' }
-// Google Translate codes (Google supports Te Reo Māori as 'mi').
-const GOOGLE_CODES = { en: 'en', mi: 'mi', zh: 'zh-CN', ja: 'ja', ko: 'ko', de: 'de', fr: 'fr', es: 'es', ar: 'ar', hi: 'hi' }
+// Google Translate codes. Google supports Te Reo Māori ('mi') and Samoan ('sm').
+// Marshallese ('mh') and Rohingya ('rhg') are not in Google Translate; those
+// requests degrade to a source-text passthrough and rely on the AI-triage
+// prompt in _assess-acc / _patient-consult to respond in the target language.
+const GOOGLE_CODES = { en: 'en', mi: 'mi', sm: 'sm', zh: 'zh-CN', ja: 'ja', ko: 'ko', de: 'de', fr: 'fr', es: 'es', ar: 'ar', hi: 'hi' }
 
 async function withDeepL(text, targetLang) {
   const key = process.env.DEEPL_API_KEY
