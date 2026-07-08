@@ -64,6 +64,8 @@ const UPDATE_ALLOWLIST = new Set([
   'recall_completed', 'controlled_medication_mentioned',
   // Pharmacy
   'pharmacy', 'pharmacy_id',
+  // Language / accessibility
+  'patient_language', 'preferred_language',
 ])
 
 export default async function handler(req, res) {
