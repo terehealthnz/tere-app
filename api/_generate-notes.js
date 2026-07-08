@@ -390,41 +390,87 @@ function suggestReadCode(chiefComplaint, injuryDescription) {
 }
 
 // ── ICD-10 code suggestion ────────────────────────────────────────────────────
+// ICD-10 keyword rules. Each rule fires only if ALL of its `must` substrings
+// appear AND none of its `not` substrings do — that stops noisy transcript
+// words ("come back", "go back") from beating a clear chief-complaint match
+// further down the chain. We evaluate against the chief_complaint FIRST (it's
+// the ground truth of what the patient came in for) and only fall back to
+// the full text (with transcript) if nothing on the chief-complaint pass
+// matches.
+const ICD10_RULES = [
+  { must: ['ankle', 'sprain'],           code: 'S93.4',  description: 'Sprain and strain of ankle' },
+  { must: ['ankle', 'ligament'],         code: 'S93.4',  description: 'Sprain and strain of ankle' },
+  { must: ['ankle'],                     code: 'S99',    description: 'Other injury of ankle' },
+  { must: ['knee', 'ligament'],          code: 'S83.6',  description: 'Sprain of other and unspecified parts of knee' },
+  { must: ['knee'],                      code: 'S89',    description: 'Other injury of knee' },
+  { must: ['shoulder'],                  code: 'S49',    description: 'Other injury of shoulder' },
+  { must: ['wrist', 'sprain'],           code: 'S63.5',  description: 'Sprain of wrist' },
+  { must: ['wrist'],                     code: 'S69',    description: 'Other injury of wrist and hand' },
+  { must: ['finger'],                    code: 'S69.9',  description: 'Injury of finger, unspecified' },
+  { must: ['toe'],                       code: 'S99.9',  description: 'Injury of toe, unspecified' },
+  { must: ['elbow'],                     code: 'S59',    description: 'Other injury of elbow and forearm' },
+  { must: ['hip'],                       code: 'S79',    description: 'Other injury of hip' },
+  { must: ['whiplash'],                  code: 'S13.4',  description: 'Sprain and strain of cervical spine' },
+  // "back" alone is too greedy (matches "come back", "go back"). Require a
+  // clinical phrase — "back pain", "lower back", "lumbar", "back injury".
+  { must: ['back pain'],                 code: 'M54.5',  description: 'Low back pain' },
+  { must: ['lower back'],                code: 'M54.5',  description: 'Low back pain' },
+  { must: ['lumbar'],                    code: 'M54.5',  description: 'Low back pain' },
+  { must: ['back injury'],               code: 'M54.5',  description: 'Low back pain' },
+  { must: ['rib'],                       code: 'S22.4',  description: 'Multiple fractures of ribs' },
+  { must: ['lacerat'],                   code: 'S01.9',  description: 'Open wound of head, unspecified' },
+  { must: ['burn'],                      code: 'T30',    description: 'Burn and corrosion, unspecified' },
+  { must: ['scald'],                     code: 'T30',    description: 'Burn and corrosion, unspecified' },
+  { must: ['uti'],                       code: 'N39.0',  description: 'Urinary tract infection' },
+  { must: ['urinary'],                   code: 'N39.0',  description: 'Urinary tract infection' },
+  { must: ['tonsil'],                    code: 'J03',    description: 'Acute tonsillitis' },
+  { must: ['strep'],                     code: 'J03',    description: 'Acute tonsillitis' },
+  { must: ['urti'],                      code: 'J06.9',  description: 'Acute upper respiratory infection, unspecified' },
+  // "throat" alone hits "sore throat" complaints correctly.
+  { must: ['sore throat'],               code: 'J06.9',  description: 'Acute upper respiratory infection, unspecified' },
+  { must: ['throat'],                    code: 'J06.9',  description: 'Acute upper respiratory infection, unspecified' },
+  { must: ['bronch'],                    code: 'J20',    description: 'Acute bronchitis' },
+  { must: ['cough'],                     code: 'J20',    description: 'Acute bronchitis' },
+  { must: ['sinusit'],                   code: 'J01',    description: 'Acute sinusitis' },
+  { must: ['otitis'],                    code: 'H66',    description: 'Otitis media' },
+  { must: ['ear infect'],                code: 'H66',    description: 'Otitis media' },
+  { must: ['ear pain'],                  code: 'H66',    description: 'Otitis media' },
+  { must: ['cellulitis'],                code: 'L03',    description: 'Cellulitis' },
+  { must: ['conjunctivit'],              code: 'H10',    description: 'Conjunctivitis' },
+  { must: ['chest pain'],                code: 'R07.4',  description: 'Chest pain, unspecified' },
+  { must: ['asthma'],                    code: 'J45',    description: 'Asthma' },
+  { must: ['concuss'],                   code: 'S09.90', description: 'Concussion' },
+  { must: ['migraine'],                  code: 'G43',    description: 'Migraine / headache' },
+  { must: ['headache'],                  code: 'G43',    description: 'Migraine / headache' },
+  { must: ['vertigo'],                   code: 'H81',    description: 'Disorders of vestibular function' },
+  { must: ['dizz'],                      code: 'H81',    description: 'Disorders of vestibular function' },
+  // Gastro rules must sit ABOVE the generic "stomach/abdominal" fallback so
+  // "stomach pain + diarrhoea" resolves to gastroenteritis, not just
+  // "abdominal pain, unspecified".
+  { must: ['gastro'],                    code: 'A09',    description: 'Gastroenteritis' },
+  { must: ['diarrhoea'],                 code: 'A09',    description: 'Gastroenteritis' },
+  { must: ['diarrhea'],                  code: 'A09',    description: 'Gastroenteritis' },
+  { must: ['vomit'],                     code: 'R11',    description: 'Nausea and vomiting' },
+  { must: ['nausea'],                    code: 'R11',    description: 'Nausea and vomiting' },
+  { must: ['abdominal'],                 code: 'R10.4',  description: 'Abdominal pain, unspecified' },
+  { must: ['stomach'],                   code: 'R10.4',  description: 'Abdominal pain, unspecified' },
+  { must: ['rash'],                      code: 'L30.9',  description: 'Dermatitis, unspecified' },
+  { must: ['dermatit'],                  code: 'L30.9',  description: 'Dermatitis, unspecified' },
+]
+
+function matchIcd10Against(text) {
+  for (const rule of ICD10_RULES) {
+    if (rule.must.every(m => text.includes(m))) return { code: rule.code, description: rule.description }
+  }
+  return null
+}
+
 function suggestIcd10(chiefComplaint, injuryDescription, transcript) {
-  // Include transcript for higher-precision matching (e.g. provider says "ankle sprain" in transcript)
-  const text = ((chiefComplaint || '') + ' ' + (injuryDescription || '') + ' ' + (transcript || '')).toLowerCase()
-  if (text.includes('ankle') && (text.includes('sprain') || text.includes('ligament'))) return { code:'S93.4', description:'Sprain and strain of ankle' }
-  if (text.includes('ankle'))                                                      return { code:'S99', description:'Other injury of ankle' }
-  if (text.includes('knee') && text.includes('ligament'))                         return { code:'S83.6', description:'Sprain of other and unspecified parts of knee' }
-  if (text.includes('knee'))                                                       return { code:'S89', description:'Other injury of knee' }
-  if (text.includes('shoulder'))                                                   return { code:'S49', description:'Other injury of shoulder' }
-  if (text.includes('wrist') && text.includes('sprain'))                          return { code:'S63.5', description:'Sprain of wrist' }
-  if (text.includes('wrist'))                                                      return { code:'S69', description:'Other injury of wrist and hand' }
-  if (text.includes('finger'))                                                     return { code:'S69.9', description:'Injury of finger, unspecified' }
-  if (text.includes('toe'))                                                        return { code:'S99.9', description:'Injury of toe, unspecified' }
-  if (text.includes('elbow'))                                                      return { code:'S59', description:'Other injury of elbow and forearm' }
-  if (text.includes('hip'))                                                        return { code:'S79', description:'Other injury of hip' }
-  if (text.includes('neck') && text.includes('whiplash'))                         return { code:'S13.4', description:'Sprain and strain of cervical spine' }
-  if (text.includes('back') || text.includes('lumbar'))                           return { code:'M54.5', description:'Low back pain' }
-  if (text.includes('rib'))                                                        return { code:'S22.4', description:'Multiple fractures of ribs' }
-  if (text.includes('lacerat'))                                                    return { code:'S01.9', description:'Open wound of head, unspecified' }
-  if (text.includes('burn') || text.includes('scald'))                            return { code:'T30', description:'Burn and corrosion, unspecified' }
-  if (text.includes('uti') || text.includes('urinary'))                           return { code:'N39.0', description:'Urinary tract infection' }
-  if (text.includes('tonsil') || text.includes('strep'))                          return { code:'J03', description:'Acute tonsillitis' }
-  if (text.includes('urti') || text.includes('cold') || text.includes('throat'))  return { code:'J06.9', description:'Acute upper respiratory infection, unspecified' }
-  if (text.includes('cough') || text.includes('bronch'))                          return { code:'J20', description:'Acute bronchitis' }
-  if (text.includes('sinusit'))                                                    return { code:'J01', description:'Acute sinusitis' }
-  if (text.includes('otitis') || text.includes('ear infect'))                     return { code:'H66', description:'Otitis media' }
-  if (text.includes('cellulitis'))                                                 return { code:'L03', description:'Cellulitis' }
-  if (text.includes('conjunctivit'))                                               return { code:'H10', description:'Conjunctivitis' }
-  if (text.includes('chest pain'))                                                 return { code:'R07.4', description:'Chest pain, unspecified' }
-  if (text.includes('asthma'))                                                     return { code:'J45', description:'Asthma' }
-  if (text.includes('concuss'))                                                    return { code:'S09.90', description:'Concussion' }
-  if (text.includes('headache') || text.includes('migraine'))                     return { code:'G43', description:'Migraine / headache' }
-  if (text.includes('dizz') || text.includes('vertigo'))                          return { code:'H81', description:'Disorders of vestibular function' }
-  if (text.includes('nausea') || text.includes('vomit'))                          return { code:'R11', description:'Nausea and vomiting' }
-  if (text.includes('diarrhoea') || text.includes('gastro'))                      return { code:'A09', description:'Gastroenteritis' }
-  if (text.includes('abdominal') || text.includes('stomach'))                     return { code:'R10.4', description:'Abdominal pain, unspecified' }
-  if (text.includes('rash') || text.includes('dermatit'))                         return { code:'L30.9', description:'Dermatitis, unspecified' }
-  return { code:'Z00.0', description:'General medical examination' }
+  const primary = ((chiefComplaint || '') + ' ' + (injuryDescription || '')).toLowerCase()
+  const full = (primary + ' ' + (transcript || '')).toLowerCase()
+  // Chief complaint + injury description is the strong signal — try it first
+  // so transcript noise ("come back", "go back") can't override a clear
+  // presentation. Only fall through to the fuller text if the ground truth
+  // doesn't match any rule.
+  return matchIcd10Against(primary) || matchIcd10Against(full) || { code:'Z00.0', description:'General medical examination' }
 }
