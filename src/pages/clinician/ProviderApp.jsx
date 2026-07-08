@@ -1184,6 +1184,26 @@ export default function ProviderApp() {
     })
   }, [providerId])
 
+  // Poll unread message count so the ✉️ badge stays fresh even when the
+  // provider hasn't opened the Messages tab yet. Filters out already-resolved
+  // support-ticket notifications (they're closed and shouldn't nag).
+  useEffect(() => {
+    if (!providerId) return
+    let cancelled = false
+    async function refresh() {
+      try {
+        const res = await apiFetch('/api/provider-notifications?providerId=' + providerId)
+        const data = await res.json()
+        const notifs = (data.notifications || []).filter(n => !n.resolved_at)
+        const unread = notifs.filter(n => !n.is_read).length
+        if (!cancelled) setMsgBadge(unread)
+      } catch {}
+    }
+    refresh()
+    const iv = setInterval(refresh, 30000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [providerId])
+
   // Register push + service worker
   useEffect(() => {
     if (providerId) registerPush(providerId)

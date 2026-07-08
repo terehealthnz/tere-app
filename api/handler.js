@@ -207,6 +207,7 @@ const ROUTES = {
   'spo2-calibrations':         () => import('./_spo2-calibrations.js'),
   'job-applications':          () => import('./_job-applications.js'),
   'patient-support':           () => import('./_patient-support.js'),
+  'provider-notifications':    () => import('./_provider-notifications.js'),
 }
 
 export default async function handler(req, res) {
