@@ -12,6 +12,7 @@ export const LANGUAGES = [
   { code: 'ja', name: 'Japanese', nativeName: '日本語',     flag: '🇯🇵', rtl: false, subtitleSupport: 'excellent' },
   { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'de', name: 'German',   nativeName: 'Deutsch',    flag: '🇩🇪', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'nl', name: 'Dutch',    nativeName: 'Nederlands', flag: '🇳🇱', rtl: false, subtitleSupport: 'excellent' },
   { code: 'fr', name: 'French',   nativeName: 'Français',   flag: '🇫🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false, subtitleSupport: 'excellent' },
   { code: 'ar', name: 'Arabic',   nativeName: 'العربية',    flag: '🇸🇦', rtl: true,  subtitleSupport: 'excellent' },
@@ -47,6 +48,7 @@ const T = {
     ja: "こんにちは！私はTere、あなたの健康アシスタントです。お名前（フルネーム）を教えてください。",
     ko: "안녕하세요! 저는 Tere, 당신의 건강 어시스턴트입니다. 성함이 어떻게 되십니까?",
     de: "Hallo! Ich bin Tere, Ihr Gesundheitsassistent. Wie ist Ihr vollständiger Name?",
+    nl: "Hallo! Ik ben Tere, uw gezondheidsassistent. Wat is uw volledige naam?",
     fr: "Bonjour ! Je suis Tere, votre assistant santé. Quel est votre nom complet ?",
     es: "¡Hola! Soy Tere, tu asistente de salud. ¿Cuál es tu nombre completo?",
     ar: "مرحباً! أنا Tere، مساعدك الصحي. ما اسمك الكامل؟",
@@ -60,6 +62,7 @@ const T = {
     ja: "フルネームを入力してください。",
     ko: "성함을 전부 입력해 주세요.",
     de: "Können Sie Ihren vollständigen Namen eingeben?",
+    nl: "Kunt u uw volledige naam intypen?",
     fr: "Pouvez-vous entrer votre nom complet ?",
     es: "¿Puede escribir su nombre completo?",
     ar: "هل يمكنك كتابة اسمك الكامل؟",
@@ -74,6 +77,7 @@ const T = {
     ja: "${firstName}さん、生年月日を教えてください。（例：1986年3月14日）",
     ko: "${firstName}님, 생년월일이 어떻게 되십니까? (예: 1986년 3월 14일)",
     de: "Und Ihr Geburtsdatum, ${firstName}? (z.B. 14. März 1986)",
+    nl: "En uw geboortedatum, ${firstName}? (bijv. 14 maart 1986)",
     fr: "Et votre date de naissance, ${firstName} ? (ex. 14 mars 1986)",
     es: "¿Y su fecha de nacimiento, ${firstName}? (ej. 14 de marzo de 1986)",
     ar: "وتاريخ ميلادك يا ${firstName}؟ (مثلاً: 14 مارس 1986)",
@@ -87,6 +91,7 @@ const T = {
     ja: "生年月日を教えてください。（例：1986年3月14日）",
     ko: "생년월일을 알려주시겠습니까? (예: 1986년 3월 14일)",
     de: "Können Sie mir Ihr Geburtsdatum nennen? (z.B. 14. März 1986)",
+    nl: "Kunt u mij uw geboortedatum geven? (bijv. 14 maart 1986)",
     fr: "Pouvez-vous me donner votre date de naissance ? (ex. 14 mars 1986)",
     es: "¿Puede darme su fecha de nacimiento? (ej. 14 de marzo de 1986)",
     ar: "هل يمكنك إعطائي تاريخ ميلادك؟ (مثلاً: 14 مارس 1986)",
@@ -101,6 +106,7 @@ const T = {
     ja: "携帯電話番号を教えてください。",
     ko: "휴대폰 번호가 어떻게 되십니까?",
     de: "Wie ist Ihre Handynummer?",
+    nl: "Wat is uw mobiele nummer?",
     fr: "Quel est votre numéro de portable ?",
     es: "¿Cuál es su número de móvil?",
     ar: "ما هو رقم هاتفك المحمول؟",
@@ -114,6 +120,7 @@ const T = {
     ja: "携帯電話番号を入力してください。",
     ko: "휴대폰 번호를 입력해 주세요.",
     de: "Können Sie Ihre Handynummer eingeben?",
+    nl: "Kunt u uw mobiele nummer invoeren?",
     fr: "Pouvez-vous entrer votre numéro de portable ?",
     es: "¿Puede ingresar su número de móvil?",
     ar: "هل يمكنك إدخال رقم هاتفك المحمول؟",
@@ -128,6 +135,7 @@ const T = {
     ja: "メールアドレスを教えてください。診察の要約をそちらに送ります。",
     ko: "이메일 주소가 어떻게 되십니까? 상담 요약을 그곳으로 보내드리겠습니다.",
     de: "Wie ist Ihre E-Mail-Adresse? Wir senden Ihnen die Zusammenfassung dorthin.",
+    nl: "Wat is uw e-mailadres? Wij sturen de samenvatting van uw consult daarnaartoe.",
     fr: "Quelle est votre adresse e-mail ? Nous vous y enverrons le résumé de la consultation.",
     es: "¿Cuál es su correo electrónico? Le enviaremos el resumen de la consulta allí.",
     ar: "ما هو بريدك الإلكتروني؟ سنرسل ملخص استشارتك إليه.",
@@ -141,6 +149,7 @@ const T = {
     ja: "メールアドレスをご確認ください。",
     ko: "이메일 주소를 다시 확인해 주세요.",
     de: "Können Sie diese E-Mail-Adresse nochmals überprüfen?",
+    nl: "Kunt u dat e-mailadres nog eens controleren?",
     fr: "Pouvez-vous vérifier cette adresse e-mail ?",
     es: "¿Puede verificar esa dirección de correo electrónico?",
     ar: "هل يمكنك التحقق من عنوان البريد الإلكتروني مرة أخرى؟",
@@ -155,6 +164,7 @@ const T = {
     ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。",
     ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234).",
     de: "Kennen Sie Ihre NHI-Nummer? Sie steht auf Ihrer Community Services Card oder einem Krankenhausbrief — sieht aus wie ABC1234.",
+    nl: "Kent u uw NHI-nummer? Het staat op uw Community Services Card of op een ziekenhuisbrief — het ziet eruit als ABC1234.",
     fr: "Connaissez-vous votre numéro NHI ? Il figure sur votre carte de services communautaires ou toute lettre d'hôpital — ressemble à ABC1234.",
     es: "¿Conoce su número NHI? Está en su Tarjeta de Servicios Comunitarios o en cualquier carta del hospital — parece ABC1234.",
     ar: "هل تعرف رقم NHI الخاص بك؟ إنه موجود على بطاقة خدمات المجتمع أو أي رسالة مستشفى — يبدو مثل ABC1234.",
@@ -169,6 +179,7 @@ const T = {
     ja: "お好みの薬局はどこですか？（例：Havelock Pharmacy）",
     ko: "선호하시는 약국이 어디입니까? (예: Havelock Pharmacy)",
     de: "Was ist Ihre bevorzugte Apotheke? (z.B. Havelock Pharmacy)",
+    nl: "Welke apotheek heeft uw voorkeur? (bijv. Havelock Pharmacy)",
     fr: "Quelle est votre pharmacie préférée ? (ex. Havelock Pharmacy)",
     es: "¿Cuál es su farmacia preferida? (ej. Havelock Pharmacy)",
     ar: "ما هي صيدليتك المفضلة؟ (مثلاً: Havelock Pharmacy)",
@@ -183,6 +194,7 @@ const T = {
     ja: "本日はどのようなことでお越しですか？症状がいつ頃から続いているかも含めて教えてください。",
     ko: "오늘 오신 이유가 무엇입니까? 얼마나 됐는지 포함해서 무슨 일인지 말씀해 주세요.",
     de: "Was führt Sie heute zu uns? Erzählen Sie mir, was los ist — und wie lange das schon so ist.",
+    nl: "Wat brengt u vandaag hier? Vertel mij wat er aan de hand is — inclusief hoe lang het al speelt.",
     fr: "Qu'est-ce qui vous amène aujourd'hui ? Dites-moi ce qui se passe — y compris depuis combien de temps.",
     es: "¿Qué le trae hoy? Cuénteme qué está pasando, incluido cuánto tiempo lleva así.",
     ar: "ما الذي جاء بك اليوم؟ أخبرني بما يحدث — بما في ذلك المدة التي مضت على ذلك.",
@@ -196,6 +208,7 @@ const T = {
     ja: "もう少し詳しく教えてもらえますか？",
     ko: "조금 더 말씀해 주시겠습니까?",
     de: "Können Sie mir etwas mehr erzählen?",
+    nl: "Kunt u mij iets meer vertellen?",
     fr: "Pouvez-vous m'en dire un peu plus ?",
     es: "¿Puede contarme un poco más?",
     ar: "هل يمكنك إخباري بمزيد من التفاصيل؟",
@@ -210,6 +223,7 @@ const T = {
     ja: "関連する病歴はありますか？過去の病気、手術など。なければ「なし」と入力してください。",
     ko: "관련 병력이 있으십니까? 과거 질병, 수술 등 — 없으시면 '없음'이라고 하세요.",
     de: "Gibt es relevante Krankengeschichte? Frühere Erkrankungen, Operationen — sagen Sie 'keine' wenn nicht.",
+    nl: "Is er relevante medische voorgeschiedenis? Eerdere aandoeningen, operaties — zeg 'geen' als er niets is.",
     fr: "Avez-vous des antécédents médicaux pertinents ? Maladies passées, opérations — dites 'aucun' si non.",
     es: "¿Tiene algún historial médico relevante? Condiciones pasadas, cirugías — diga 'ninguno' si no.",
     ar: "هل لديك تاريخ طبي ذو صلة؟ حالات سابقة، عمليات — قل 'لا شيء' إذا لم يكن.",
@@ -224,6 +238,7 @@ const T = {
     ja: "定期的に服用している薬はありますか？",
     ko: "정기적으로 복용하는 약이 있습니까?",
     de: "Nehmen Sie regelmäßig Medikamente?",
+    nl: "Gebruikt u regelmatig medicijnen?",
     fr: "Prenez-vous des médicaments régulièrement ?",
     es: "¿Toma algún medicamento regularmente?",
     ar: "هل تتناول أدوية منتظمة؟",
@@ -238,6 +253,7 @@ const T = {
     ja: "アレルギーはありますか？薬、食べ物、その他何でも。",
     ko: "알레르기가 있습니까? 약물, 음식, 그 외 무엇이든요.",
     de: "Haben Sie Allergien — Medikamente, Lebensmittel, irgendetwas?",
+    nl: "Heeft u allergieën — medicijnen, voedsel, wat dan ook?",
     fr: "Avez-vous des allergies — médicaments, aliments, quoi que ce soit ?",
     es: "¿Tiene alguna alergia — medicamentos, alimentos, lo que sea?",
     ar: "هل لديك حساسية — أدوية، أطعمة، أي شيء؟",
@@ -252,6 +268,7 @@ const T = {
     ja: "今回の受診は事故または怪我に関連していますか？ACC が治療費をカバーする可能性があります。",
     ko: "이번 방문이 사고나 부상과 관련이 있습니까? ACC가 치료비를 부담할 수 있습니다.",
     de: "Steht Ihr Besuch im Zusammenhang mit einem Unfall oder einer Verletzung? ACC übernimmt möglicherweise Ihre Behandlungskosten.",
+    nl: "Heeft uw bezoek te maken met een ongeval of letsel? ACC kan mogelijk uw behandelkosten dekken.",
     fr: "Votre visite est-elle liée à un accident ou une blessure ? L'ACC peut couvrir vos frais de traitement.",
     es: "¿Su visita está relacionada con un accidente o lesión? ACC podría cubrir sus costos de tratamiento.",
     ar: "هل تتعلق زيارتك بحادث أو إصابة؟ قد تغطي ACC تكاليف علاجك.",
@@ -266,6 +283,7 @@ const T = {
     ja: "かかりつけの医師（GP）はいますか？いる場合、お名前を教えてください。",
     ko: "정기적으로 진료받는 GP나 가정의가 있습니까? 있다면 이름이 무엇입니까?",
     de: "Haben Sie einen festen Hausarzt (GP)? Wenn ja, wie heißt er/sie?",
+    nl: "Heeft u een vaste huisarts (GP)? Zo ja, wat is zijn/haar naam?",
     fr: "Avez-vous un médecin traitant (GP) régulier ? Si oui, quel est son nom ?",
     es: "¿Tiene un médico de cabecera (GP) habitual? Si es así, ¿cuál es su nombre?",
     ar: "هل لديك طبيب عام (GP) أو طبيب عائلة تراجعه بانتظام؟ إذا كان الأمر كذلك، ما اسمه؟",
@@ -280,6 +298,7 @@ const T = {
     ja: "そのクリニックまたは医院の名前は何ですか？",
     ko: "그 진료소나 병원의 이름은 무엇입니까?",
     de: "Wie heißt die Praxis oder Klinik?",
+    nl: "Wat is de naam van hun praktijk of kliniek?",
     fr: "Quel est le nom de leur cabinet ou clinique ?",
     es: "¿Cómo se llama su clínica o consultorio?",
     ar: "ما اسم عيادتهم أو مركزهم الطبي؟",
@@ -294,6 +313,7 @@ const T = {
     ja: "{gpClinic} の {gpName} 先生ですね — 合っていますか？診療記録のコピーを自動的にお送りします。",
     ko: "{gpClinic}의 {gpName}을(를) 찾았습니다 — 맞습니까? 진료 기록 사본을 자동으로 보내드립니다.",
     de: "{gpName} in {gpClinic} gefunden — stimmt das? Wir senden eine Kopie Ihrer Notizen automatisch dorthin.",
+    nl: "{gpName} bij {gpClinic} gevonden — klopt dat? Wij sturen hen automatisch een kopie van uw notities.",
     fr: "Trouvé {gpName} à {gpClinic} — c'est correct ? Nous leur enverrons une copie de vos notes automatiquement.",
     es: "Encontrado {gpName} en {gpClinic} — ¿es correcto? Les enviaremos una copia de sus notas automáticamente.",
     ar: "تم العثور على {gpName} في {gpClinic} — هل هذا صحيح؟ سنرسل لهم نسخة من ملاحظاتك تلقائيًا.",
@@ -308,6 +328,7 @@ const T = {
     ja: "現在、タバコを吸ったり、タバコ製品を使用したりしていますか？",
     ko: "현재 담배를 피우거나 담배 제품을 사용하십니까?",
     de: "Rauchen Sie derzeit oder konsumieren Sie Tabak?",
+    nl: "Rookt u op dit moment of gebruikt u tabak?",
     fr: "Fumez-vous ou consommez-vous du tabac actuellement ?",
     es: "¿Actualmente fuma o usa tabaco?",
     ar: "هل تدخن أو تستخدم التبغ حاليًا؟",
@@ -322,6 +343,7 @@ const T = {
     ja: "だいたいどれくらいですか？",
     ko: "얼마나 되십니까?",
     de: "Wie viel wäre das ungefähr?",
+    nl: "Hoeveel zou u zeggen?",
     fr: "Combien diriez-vous ?",
     es: "¿Cuánto diría?",
     ar: "كم تقريبًا؟",
@@ -336,6 +358,7 @@ const T = {
     ja: "お酒を飲みますか？",
     ko: "술을 마십니까?",
     de: "Trinken Sie Alkohol?",
+    nl: "Drinkt u alcohol?",
     fr: "Buvez-vous de l'alcool ?",
     es: "¿Bebe alcohol?",
     ar: "هل تشرب الكحول؟",
@@ -350,6 +373,7 @@ const T = {
     ja: "週にだいたいどれくらいですか？",
     ko: "일주일에 대략 얼마나 되십니까?",
     de: "Wie viel ungefähr pro Woche?",
+    nl: "Ongeveer hoeveel per week?",
     fr: "À peu près combien par semaine ?",
     es: "¿Aproximadamente cuánto por semana?",
     ar: "كم تقريبًا في الأسبوع؟",
@@ -360,7 +384,7 @@ const T = {
     en: "Skip →",
     mi: "Tukua →", sm: "Preterisi →",
     zh: "跳过 →", ja: "スキップ →", ko: "건너뛰기 →",
-    de: "Überspringen →", fr: "Passer →", es: "Omitir →",
+    de: "Überspringen →", nl: "Overslaan →", fr: "Passer →", es: "Omitir →",
     ar: "تخطي ←", hi: "छोड़ें →",
   },
 
@@ -369,7 +393,7 @@ const T = {
     mi: "← Whakakore i te whakautu whakamutunga", // TODO cert
     sm: "← Fa'aleaogaina le tali mulimuli", // TODO cert
     zh: "← 撤销上一个回答", ja: "← 前の回答を取り消す", ko: "← 마지막 답변 취소",
-    de: "← Letzte Antwort rückgängig machen", fr: "← Annuler la dernière réponse",
+    de: "← Letzte Antwort rückgängig machen", nl: "← Laatste antwoord ongedaan maken", fr: "← Annuler la dernière réponse",
     es: "← Deshacer última respuesta",
     ar: "→ التراجع عن الإجابة الأخيرة", hi: "← अंतिम उत्तर पूर्ववत करें",
   },
@@ -382,6 +406,7 @@ const T = {
     ja: "ACCの請求になる可能性がありますね。どのように起きたか詳しく教えてください。何をしていて、どこにいましたか？",
     ko: "ACC 청구가 될 수 있을 것 같습니다 — 어떻게 일어났는지 정확히 설명해 주시겠습니까? 무엇을 하고 있었고 어디에 있었습니까?",
     de: "Das könnte ein ACC-Anspruch sein — können Sie genau beschreiben, wie es passiert ist? Was haben Sie gemacht und wo?",
+    nl: "Dat zou een ACC-claim kunnen zijn — kunt u precies beschrijven hoe het is gebeurd? Wat was u aan het doen en waar?",
     fr: "Cela pourrait être une demande ACC — pouvez-vous décrire exactement comment c'est arrivé ? Que faisiez-vous et où ?",
     es: "Eso podría ser una reclamación de ACC — ¿puede describir exactamente cómo ocurrió? ¿Qué estaba haciendo y dónde?",
     ar: "يبدو أن هذا يمكن أن يكون مطالبة ACC — هل يمكنك وصف كيف حدث بالضبط؟ ماذا كنت تفعل وأين؟",
@@ -395,6 +420,7 @@ const T = {
     ja: "どのように起きたか教えてください。",
     ko: "어떻게 일어났는지 설명해 주시겠습니까?",
     de: "Können Sie beschreiben, wie es passiert ist?",
+    nl: "Kunt u beschrijven hoe het is gebeurd?",
     fr: "Pouvez-vous décrire comment c'est arrivé ?",
     es: "¿Puede describir cómo ocurrió?",
     ar: "هل يمكنك وصف كيف حدث ذلك؟",
@@ -409,6 +435,7 @@ const T = {
     ja: "いつ起きましたか？（例：今日、昨日、3日前）",
     ko: "언제 일어났습니까? (예: 오늘, 어제, 3일 전)",
     de: "Wann ist es passiert? (z.B. heute, gestern, vor 3 Tagen)",
+    nl: "Wanneer is het gebeurd? (bijv. vandaag, gisteren, 3 dagen geleden)",
     fr: "Quand est-ce arrivé ? (ex. aujourd'hui, hier, il y a 3 jours)",
     es: "¿Cuándo ocurrió? (ej. hoy, ayer, hace 3 días)",
     ar: "متى حدث ذلك؟ (مثلاً: اليوم، أمس، منذ 3 أيام)",
@@ -423,6 +450,7 @@ const T = {
     ja: "雇用主はどなたですか？",
     ko: "고용주가 누구입니까?",
     de: "Wer ist Ihr Arbeitgeber?",
+    nl: "Wie is uw werkgever?",
     fr: "Qui est votre employeur ?",
     es: "¿Quién es su empleador?",
     ar: "من هو صاحب العمل الخاص بك؟",
@@ -437,6 +465,7 @@ const T = {
     ja: "患部の写真を撮ってもらえますか？カメラアイコンをタップしてください — 医師の診断にとても役立ちます。スキップと入力してもOKです。",
     ko: "영향을 받은 부위의 사진을 찍어 주시겠습니까? 카메라 아이콘을 탭하세요 — 의사에게 매우 도움이 됩니다. 또는 '건너뛰기'를 입력하세요.",
     de: "Können Sie ein Foto des betroffenen Bereichs machen? Tippen Sie auf das Kamerasymbol — das hilft dem Arzt wirklich. Oder geben Sie 'weiter' ein.",
+    nl: "Kunt u een foto maken van het betrokken gebied? Tik op het camerapictogram — dat helpt de arts echt. Of typ 'overslaan'.",
     fr: "Pouvez-vous prendre une photo de la zone touchée ? Appuyez sur l'icône de la caméra — ça aide vraiment le médecin. Ou tapez 'ignorer'.",
     es: "¿Puede tomar una foto del área afectada? Toque el ícono de la cámara — realmente ayuda al médico. O escriba 'omitir'.",
     ar: "هل يمكنك التقاط صورة للمنطقة المصابة؟ اضغط على أيقونة الكاميرا — إنها تساعد الطبيب كثيراً. أو اكتب 'تخطي'.",
@@ -451,6 +480,7 @@ const T = {
     ja: "最後です — 診察のAI文字起こしに同意しますか？録音はすぐに削除されます。",
     ko: "마지막으로 — 상담을 AI로 녹취하는 것에 동의하십니까? 녹음은 바로 삭제됩니다.",
     de: "Letzte Frage — stimmen Sie der KI-Transkription Ihrer Konsultation zu? Die Aufnahme wird danach sofort gelöscht.",
+    nl: "Nog één ding — geeft u toestemming dat uw consult door AI wordt uitgeschreven? De opname wordt direct daarna verwijderd.",
     fr: "Dernière question — consentez-vous à la transcription par IA de votre consultation ? L'enregistrement est supprimé juste après.",
     es: "Última pregunta — ¿consiente que su consulta sea transcrita por IA? La grabación se elimina inmediatamente después.",
     ar: "السؤال الأخير — هل توافق على نسخ استشارتك بالذكاء الاصطناعي؟ يُحذف التسجيل مباشرة بعد ذلك.",
@@ -466,6 +496,7 @@ const T = {
     ja: "完璧です！必要なものがすべて揃いました — 今すぐ設定します...",
     ko: "완벽합니다! 필요한 모든 것을 갖췄습니다 — 지금 설정 중입니다...",
     de: "Super! Ich habe alles, was ich brauche — richte Sie jetzt ein...",
+    nl: "Prima! Ik heb alles wat ik nodig heb — ik zet het nu voor u klaar...",
     fr: "Parfait ! J'ai tout ce qu'il me faut — je vous configure maintenant...",
     es: "¡Perfecto! Tengo todo lo que necesito — configurándolo ahora...",
     ar: "ممتاز! لدي كل ما أحتاجه — إعداد حسابك الآن...",
@@ -479,6 +510,7 @@ const T = {
     ja: "おかえりなさい、${firstName}さん！詳細を確認しました — すぐに対応します。",
     ko: "다시 오셨군요, ${firstName}님! 정보를 확인했습니다 — 바로 도와드리겠습니다.",
     de: "Willkommen zurück, ${firstName}! Ich habe Ihre Daten — lassen Sie uns das klären.",
+    nl: "Welkom terug, ${firstName}! Ik heb uw gegevens — laten we u helpen.",
     fr: "Bon retour, ${firstName} ! J'ai vos informations — réglons ça.",
     es: "¡Bienvenido de nuevo, ${firstName}! Tengo sus datos — vamos a solucionarlo.",
     ar: "مرحباً بعودتك، ${firstName}! لدي تفاصيلك — لنحل هذا.",
@@ -492,6 +524,7 @@ const T = {
     ja: "ありがとうございます！医師が確認できます。",
     ko: "감사합니다! 의사가 확인할 수 있습니다.",
     de: "Danke! Der Arzt wird das sehen können.",
+    nl: "Bedankt! De arts zal ze kunnen bekijken.",
     fr: "Merci ! Le médecin pourra les voir.",
     es: "¡Gracias! El médico podrá verlas.",
     ar: "شكراً! سيتمكن الطبيب من رؤيتها.",
@@ -505,6 +538,7 @@ const T = {
     ja: " なお、現在担当医が対応できない状況ですが、詳細を入力していただければ順番待ちリストの先頭にお名前を確保します。担当医が対応可能になり次第、メールでお知らせします。",
     ko: " 참고로, 현재 의사가 없습니다 — 하지만 정보를 입력하시면 대기열 앞자리를 보장해 드립니다. 의사가 가능해지는 즉시 이메일로 알려드리겠습니다.",
     de: " Zu Ihrer Information: Unser Arzt ist gerade nicht verfügbar — füllen Sie einfach Ihre Daten aus, und wir halten Ihnen einen Platz am Anfang der Warteschlange frei. Sie erhalten eine E-Mail, sobald er verfügbar ist.",
+    nl: " Ter informatie: onze arts is op dit moment niet beschikbaar — maar vul gerust uw gegevens in en wij houden uw plek vooraan in de wachtrij. U ontvangt een e-mail zodra de arts beschikbaar is.",
     fr: " Pour information, notre médecin n'est pas disponible en ce moment — remplissez vos informations et nous vous réserverons une place en tête de file. Vous recevrez un e-mail dès qu'il sera disponible.",
     es: " Para su información, nuestro médico no está disponible ahora mismo — continúe con sus datos y le guardaremos el lugar al frente de la cola. Recibirá un correo electrónico en cuanto esté disponible.",
     ar: " فقط لمعلوماتك، طبيبنا غير متاح الآن — لكن استمر في إدخال تفاصيلك وسنحتفظ بمكانك في مقدمة الطابور. ستتلقى بريداً إلكترونياً بمجرد توفره.",
@@ -518,6 +552,7 @@ const T = {
     ja: "もう一度お試しください。",
     ko: "다시 시도해 주세요.",
     de: "Können Sie das nochmals versuchen?",
+    nl: "Kunt u dat nog eens proberen?",
     fr: "Pouvez-vous réessayer ?",
     es: "¿Puede intentarlo de nuevo?",
     ar: "هل يمكنك المحاولة مرة أخرى؟",
@@ -527,11 +562,11 @@ const T = {
   // ── Yes/No buttons ────────────────────────────────────────────────────────
   yes_label: {
     en: 'Yes', mi: 'Āe', sm: 'Ioe', zh: '是', ja: 'はい', ko: '예',
-    de: 'Ja', fr: 'Oui', es: 'Sí', ar: 'نعم', hi: 'हाँ',
+    de: 'Ja', nl: 'Ja', fr: 'Oui', es: 'Sí', ar: 'نعم', hi: 'हाँ',
   },
   no_label: {
     en: 'No', mi: 'Kāo', sm: 'Leai', zh: '否', ja: 'いいえ', ko: '아니요',
-    de: 'Nein', fr: 'Non', es: 'No', ar: 'لا', hi: 'नहीं',
+    de: 'Nein', nl: 'Nee', fr: 'Non', es: 'No', ar: 'لا', hi: 'नहीं',
   },
 
   // ── Emergency screens ─────────────────────────────────────────────────────
@@ -543,6 +578,7 @@ const T = {
     ja: '今すぐ111に電話',
     ko: '지금 111에 전화',
     de: 'Jetzt 111 anrufen',
+    nl: 'Bel nu 111',
     fr: 'Appelez le 111 maintenant',
     es: 'Llame al 111 ahora',
     ar: 'اتصل بـ 111 الآن',
@@ -556,6 +592,7 @@ const T = {
     ja: 'あなたの症状は緊急医療処置が必要です。今すぐ111に電話してください。',
     ko: '귀하의 증상에는 즉각적인 응급 치료가 필요합니다. 지금 바로 111에 전화하세요.',
     de: 'Ihre Symptome erfordern sofortige Notfallversorgung. Bitte rufen Sie jetzt 111 an.',
+    nl: 'Uw symptomen vereisen onmiddellijke spoedeisende zorg. Bel nu direct 111.',
     fr: 'Vos symptômes nécessitent des soins d\'urgence immédiats. Veuillez appeler le 111 maintenant.',
     es: 'Sus síntomas requieren atención de emergencia inmediata. Por favor llame al 111 ahora.',
     ar: 'أعراضك تحتاج إلى رعاية طارئة فورية. يرجى الاتصال بـ 111 الآن.',
@@ -569,6 +606,7 @@ const T = {
     ja: '間違えました — 戻る',
     ko: '잘못 입력했습니다 — 돌아가기',
     de: 'Das war ein Fehler — zurück',
+    nl: 'Dit was een vergissing — ga terug',
     fr: 'C\'était une erreur — retour',
     es: 'Fue un error — volver',
     ar: 'كان هذا خطأ — رجوع',
@@ -582,6 +620,7 @@ const T = {
     ja: '一人で抱え込まないでください',
     ko: '혼자 감당하지 않아도 됩니다',
     de: 'Sie müssen das nicht alleine bewältigen',
+    nl: 'U hoeft dit niet alleen te doorstaan',
     fr: 'Vous n\'avez pas à faire face à cela seul',
     es: 'No tiene que enfrentar esto solo',
     ar: 'لست وحدك في مواجهة هذا',
@@ -595,6 +634,7 @@ const T = {
     ja: 'あなたの気持ちは大切です。今すぐ本当に助けてくれる人に連絡してください。',
     ko: '당신이 느끼는 것이 중요합니다. 지금 당장 정말로 도움을 줄 수 있는 사람에게 연락하세요.',
     de: 'Was Sie fühlen, ist wichtig. Bitte wenden Sie sich jetzt an jemanden, der wirklich helfen kann.',
+    nl: 'Wat u voelt is belangrijk. Neem alstublieft contact op met iemand die u nu echt kan helpen.',
     fr: 'Ce que vous ressentez a de l\'importance. Contactez quelqu\'un qui peut vraiment vous aider maintenant.',
     es: 'Lo que sientes importa. Por favor comunícate con alguien que pueda ayudarte de verdad ahora.',
     ar: 'ما تشعر به مهم. يرجى التواصل مع شخص يمكنه مساعدتك حقاً الآن.',
@@ -608,6 +648,7 @@ const T = {
     ja: 'すぐに危険な状況にある場合は111に電話してください',
     ko: '즉각적인 위험에 처해 있다면 111에 전화하세요',
     de: 'Wenn Sie in unmittelbarer Gefahr sind, rufen Sie 111 an',
+    nl: 'Als u in direct gevaar bent, bel dan 111',
     fr: 'Si vous êtes en danger immédiat, appelez le 111',
     es: 'Si está en peligro inmediato, llame al 111',
     ar: 'إذا كنت في خطر فوري، اتصل بـ 111',
@@ -621,6 +662,7 @@ const T = {
     ja: 'サポートを受けられます',
     ko: '도움을 받을 수 있습니다',
     de: 'Hilfe ist verfügbar',
+    nl: 'Er is hulp beschikbaar',
     fr: 'De l\'aide est disponible',
     es: 'Hay ayuda disponible',
     ar: 'المساعدة متاحة',
@@ -634,6 +676,7 @@ const T = {
     ja: '助けを求めることには勇気が必要です。これらのサービスは無料で、秘密が守られ、いつでもサポートします。',
     ko: '도움을 요청하는 것은 용기가 필요합니다. 이 서비스들은 무료이고 비밀이 보장되며 도움을 줄 준비가 되어 있습니다.',
     de: 'Sich Hilfe zu holen braucht Mut. Diese Dienste sind kostenlos, vertraulich und bereit zu helfen.',
+    nl: 'Om hulp vragen vereist moed. Deze diensten zijn gratis, vertrouwelijk en klaar om u te helpen.',
     fr: 'Demander de l\'aide demande du courage. Ces services sont gratuits, confidentiels et prêts à vous aider.',
     es: 'Pedir ayuda requiere valentía. Estos servicios son gratuitos, confidenciales y listos para ayudar.',
     ar: 'يتطلب طلب المساعدة شجاعة. هذه الخدمات مجانية وسرية وجاهزة للمساعدة.',
@@ -649,6 +692,7 @@ const T = {
     ja: '翻訳はサポートとして提供されています。複雑な医療相談には専門の通訳者をお勧めします。',
     ko: '번역은 보조 용도로만 제공됩니다. 복잡한 의료 상담의 경우 전문 통역사가 권장됩니다.',
     de: 'Übersetzungen dienen nur als Unterstützung. Für komplexe medizinische Gespräche wird ein professioneller Dolmetscher empfohlen.',
+    nl: 'Vertalingen worden alleen als hulpmiddel aangeboden. Voor complexe medische gesprekken wordt een professionele tolk aanbevolen.',
     fr: 'Les traductions sont fournies à titre d\'aide seulement. Pour les discussions médicales complexes, un interprète professionnel est recommandé.',
     es: 'Las traducciones se proporcionan solo como asistencia. Para discusiones médicas complejas, se recomienda un intérprete profesional.',
     ar: 'تُقدَّم الترجمات كمساعدة فقط. للمناقشات الطبية المعقدة، يُوصى بمترجم متخصص.',
@@ -656,45 +700,45 @@ const T = {
   },
   show_original: {
     en: 'Show original', mi: 'Whakaatu i te taketake', sm: 'Fa\'aali le mea muamua', zh: '显示原文', ja: '原文を表示', ko: '원문 보기',
-    de: 'Original anzeigen', fr: 'Voir l\'original', es: 'Ver original', ar: 'عرض الأصل', hi: 'मूल दिखाएं',
+    de: 'Original anzeigen', nl: 'Origineel tonen', fr: 'Voir l\'original', es: 'Ver original', ar: 'عرض الأصل', hi: 'मूल दिखाएं',
   },
   hide_original: {
     en: 'Hide', mi: 'Huna', sm: 'Natia', zh: '隐藏', ja: '非表示', ko: '숨기기',
-    de: 'Ausblenden', fr: 'Masquer', es: 'Ocultar', ar: 'إخفاء', hi: 'छुपाएं',
+    de: 'Ausblenden', nl: 'Verbergen', fr: 'Masquer', es: 'Ocultar', ar: 'إخفاء', hi: 'छुपाएं',
   },
   translating: {
     en: 'Translating…', mi: 'Kei te whakamāori…', sm: 'Fa\'aliliuina…', zh: '翻译中…', ja: '翻訳中…', ko: '번역 중…',
-    de: 'Übersetzen…', fr: 'Traduction…', es: 'Traduciendo…', ar: 'جارٍ الترجمة…', hi: 'अनुवाद हो रहा है…',
+    de: 'Übersetzen…', nl: 'Vertalen…', fr: 'Traduction…', es: 'Traduciendo…', ar: 'جارٍ الترجمة…', hi: 'अनुवाद हो रहा है…',
   },
   chat_label: {
     en: 'Chat', mi: 'Kōrero', sm: 'Talanoa', zh: '聊天', ja: 'チャット', ko: '채팅',
-    de: 'Chat', fr: 'Chat', es: 'Chat', ar: 'دردشة', hi: 'चैट',
+    de: 'Chat', nl: 'Chat', fr: 'Chat', es: 'Chat', ar: 'دردشة', hi: 'चैट',
   },
 
   // ── TereIntro ─────────────────────────────────────────────────────────────
   choose_language: {
     en: 'Choose your language', mi: 'Kōwhiria tō reo', sm: 'Filifili lau gagana', zh: '选择语言', ja: '言語を選択', ko: '언어 선택',
-    de: 'Sprache wählen', fr: 'Choisir la langue', es: 'Elige tu idioma', ar: 'اختر لغتك', hi: 'अपनी भाषा चुनें',
+    de: 'Sprache wählen', nl: 'Kies uw taal', fr: 'Choisir la langue', es: 'Elige tu idioma', ar: 'اختر لغتك', hi: 'अपनी भाषा चुनें',
   },
   get_started: {
     en: 'Get started →', mi: 'Tīmata →', sm: 'Amata →', zh: '开始 →', ja: '始める →', ko: '시작하기 →',
-    de: 'Loslegen →', fr: 'Commencer →', es: 'Comenzar →', ar: 'ابدأ ←', hi: 'शुरू करें →',
+    de: 'Loslegen →', nl: 'Beginnen →', fr: 'Commencer →', es: 'Comenzar →', ar: 'ابدأ ←', hi: 'शुरू करें →',
   },
   step_1: {
     en: 'Quick chat', mi: 'Kōrero poto', sm: 'Talanoaga puupuu', zh: '快速问诊', ja: 'クイック問診', ko: '빠른 상담',
-    de: 'Kurzes Gespräch', fr: 'Chat rapide', es: 'Chat rápido', ar: 'دردشة سريعة', hi: 'त्वरित चैट',
+    de: 'Kurzes Gespräch', nl: 'Kort gesprek', fr: 'Chat rapide', es: 'Chat rápido', ar: 'دردشة سريعة', hi: 'त्वरित चैट',
   },
   step_2: {
     en: 'Vitals scan', mi: 'Matawai ora', sm: 'Su\'ega o le tino', zh: '体征扫描', ja: 'バイタル測定', ko: '활력징후 측정',
-    de: 'Vitalwerte', fr: 'Bilan santé', es: 'Signos vitales', ar: 'قياس الحيوية', hi: 'वाइटल स्कैन',
+    de: 'Vitalwerte', nl: 'Vitale functies', fr: 'Bilan santé', es: 'Signos vitales', ar: 'قياس الحيوية', hi: 'वाइटल स्कैन',
   },
   step_3: {
     en: 'See doctor', mi: 'Kite rata', sm: 'Va\'ai i le foma\'i', zh: '看医生', ja: '医師に診てもらう', ko: '의사 진찰',
-    de: 'Arzt sehen', fr: 'Voir le médecin', es: 'Ver al médico', ar: 'رؤية الطبيب', hi: 'डॉक्टर से मिलें',
+    de: 'Arzt sehen', nl: 'Arts spreken', fr: 'Voir le médecin', es: 'Ver al médico', ar: 'رؤية الطبيب', hi: 'डॉक्टर से मिलें',
   },
   step_4: {
     en: 'Get sorted', mi: 'Whakatikahia', sm: 'Fa\'atulaga', zh: '获得诊治', ja: '治療を受ける', ko: '해결하기',
-    de: 'Behandlung', fr: 'Être soigné', es: 'Resolver', ar: 'الحصول على الحل', hi: 'समाधान पाएं',
+    de: 'Behandlung', nl: 'Geholpen worden', fr: 'Être soigné', es: 'Resolver', ar: 'الحصول على الحل', hi: 'समाधान पाएं',
   },
 
   // ── Prescribing limitations gate ─────────────────────────────────────────
@@ -706,6 +750,7 @@ const T = {
     ja: '始める前に',
     ko: '시작하기 전에',
     de: 'Bevor wir beginnen',
+    nl: 'Voordat we beginnen',
     fr: 'Avant de commencer',
     es: 'Antes de comenzar',
     ar: 'قبل أن نبدأ',
@@ -719,6 +764,7 @@ const T = {
     ja: 'Tere Health が処方できるものとできないもの',
     ko: 'Tere Health가 처방할 수 있는 것과 없는 것',
     de: 'Was Tere Health verschreiben kann und was nicht',
+    nl: 'Wat Tere Health wel en niet kan voorschrijven',
     fr: 'Ce que Tere Health peut et ne peut pas prescrire',
     es: 'Lo que Tere Health puede y no puede recetar',
     ar: 'ما يمكن وما لا يمكن لـ Tere Health وصفه',
@@ -732,6 +778,7 @@ const T = {
     ja: 'Tere Healthの医師はテレヘルスを通じて多くの一般的な薬を処方できます。ただし、ニュージーランドの法律により、一部の規制薬物および専門家の監督を必要とする薬物には制限があります。続ける前に以下をお読みになり、確認してください。',
     ko: 'Tere Health 의사들은 원격 진료를 통해 많은 일반 의약품을 처방할 수 있습니다. 그러나 뉴질랜드 법률은 특정 규제 약물 및 전문가 감독이 필요한 약물에 제한을 두고 있습니다. 계속하기 전에 다음 내용을 읽고 확인해 주세요.',
     de: 'Tere-Health-Ärzte können viele gängige Medikamente über Telemedizin verschreiben. Das neuseeländische Recht setzt jedoch bestimmten Betäubungsmitteln und Medikamenten, die eine fachärztliche Überwachung erfordern, Grenzen. Bitte lesen und bestätigen Sie Folgendes, bevor Sie fortfahren.',
+    nl: 'Artsen van Tere Health kunnen veel gangbare medicijnen voorschrijven via telezorg. De Nieuw-Zeelandse wet stelt echter beperkingen aan bepaalde gereguleerde middelen en medicijnen die specialistisch toezicht vereisen. Lees en bevestig het volgende voordat u verdergaat.',
     fr: 'Les médecins de Tere Health peuvent prescrire de nombreux médicaments courants via la télémédecine. Cependant, la loi néo-zélandaise impose des restrictions sur certains médicaments contrôlés et ceux nécessitant une surveillance spécialisée. Veuillez lire et accepter ce qui suit avant de continuer.',
     es: 'Los médicos de Tere Health pueden recetar muchos medicamentos comunes mediante telemedicina. Sin embargo, la ley de Nueva Zelanda impone restricciones sobre ciertos medicamentos controlados y los que requieren supervisión especializada. Por favor lea y confirme lo siguiente antes de continuar.',
     ar: 'يمكن لأطباء Tere Health وصف كثير من الأدوية الشائعة عبر الرعاية الصحية عن بُعد. غير أن القانون النيوزيلندي يفرض قيوداً على بعض الأدوية الخاضعة للرقابة والأدوية التي تستلزم إشراف أخصائي. يرجى قراءة ما يلي والإقرار به قبل المتابعة.',
@@ -745,6 +792,7 @@ const T = {
     ja: 'Tere Healthはテレヘルスを通じて規制薬物（オピオイド、ベンゾジアゼピン、覚醒剤）やGLP-1体重減少注射（Ozempic/Wegovy）を処方できないことを理解しており、これらが必要な場合はかかりつけ医または専門医を受診します。',
     ko: 'Tere Health는 원격 진료를 통해 규제 약물(오피오이드, 벤조디아제핀, 자극제) 또는 GLP-1 체중 감량 주사(Ozempic/Wegovy)를 처방할 수 없으며, 이러한 약물이 필요한 경우 GP나 전문의를 방문하겠음을 이해합니다.',
     de: 'Ich verstehe, dass Tere Health über Telemedizin keine Betäubungsmittel (Opioide, Benzodiazepine, Stimulanzien) oder GLP-1-Gewichtsabnahmespritzen (Ozempic/Wegovy) verschreiben kann und ich für diese Medikamente meinen Hausarzt oder einen Spezialisten aufsuchen werde.',
+    nl: 'Ik begrijp dat Tere Health via telezorg geen gereguleerde middelen (opioïden, benzodiazepines, stimulantia) of GLP-1-injecties voor gewichtsverlies (Ozempic/Wegovy) mag voorschrijven, en dat ik hiervoor mijn huisarts of een specialist zal raadplegen.',
     fr: 'Je comprends que Tere Health ne peut pas prescrire de médicaments contrôlés (opioïdes, benzodiazépines, stimulants) ou d\'injections amaigrissantes GLP-1 (Ozempic/Wegovy) via la télémédecine, et que je devrai consulter mon médecin généraliste ou un spécialiste pour ces médicaments.',
     es: 'Entiendo que Tere Health no puede recetar medicamentos controlados (opioides, benzodiacepinas, estimulantes) ni inyecciones para pérdida de peso GLP-1 (Ozempic/Wegovy) mediante telemedicina, y que visitaré a mi médico de cabecera o especialista para estos.',
     ar: 'أفهم أن Tere Health لا يمكنه وصف الأدوية الخاضعة للرقابة (المواد الأفيونية، البنزوديازيبينات، المنشطات) أو حقن إنقاص الوزن GLP-1 (أوزيمبيك/ويغوفي) عبر الرعاية عن بُعد، وسأتوجه إلى طبيبي العام أو أخصائي للحصول عليها.',
@@ -758,6 +806,7 @@ const T = {
     ja: '理解しました——続ける',
     ko: '이해했습니다 — 계속',
     de: 'Ich verstehe — weiter',
+    nl: 'Ik begrijp het — doorgaan',
     fr: 'Je comprends — continuer',
     es: 'Entiendo — continuar',
     ar: 'أفهم — متابعة',
@@ -771,6 +820,7 @@ const T = {
     ja: '承知しました。ご参考までに——オピオイド、ベンゾジアゼピン、OzempicなどのGLP-1注射といった規制薬物はテレヘルスでは処方できません。本日どのような選択肢があるかについて、担当医が説明します。',
     ko: '알겠습니다. 참고로 — 오피오이드, 벤조디아제핀, Ozempic과 같은 GLP-1 주사 등 규제 약물은 원격 진료를 통해 처방받을 수 없습니다. 의사가 오늘 이용 가능한 옵션에 대해 논의해 드릴 것입니다.',
     de: 'Ich habe das zur Kenntnis genommen. Nur zur Information — kontrollierte Medikamente (wie Opioide, Benzodiazepine oder GLP-1-Spritzen wie Ozempic) können nicht über Telemedizin verschrieben werden. Ihr Arzt wird mit Ihnen besprechen, welche Optionen heute für Sie verfügbar sind.',
+    nl: 'Ik heb dat genoteerd. Ter informatie — gereguleerde medicijnen (zoals opioïden, benzodiazepines of GLP-1-injecties zoals Ozempic) kunnen niet via telezorg worden voorgeschreven. Uw arts zal met u bespreken welke opties er vandaag voor u beschikbaar zijn.',
     fr: 'J\'en ai pris note. Pour information — les médicaments contrôlés (comme les opioïdes, les benzodiazépines ou les injections GLP-1 telles qu\'Ozempic) ne peuvent pas être prescrits via la télémédecine. Votre médecin discutera des options disponibles pour vous aujourd\'hui.',
     es: 'Lo he anotado. Para que lo sepa — los medicamentos controlados (como opioides, benzodiacepinas o inyecciones GLP-1 como Ozempic) no pueden recetarse mediante telemedicina. Su médico discutirá qué opciones están disponibles para usted hoy.',
     ar: 'لقد لاحظت ذلك. فقط لمعلوماتك — لا يمكن وصف الأدوية الخاضعة للرقابة (مثل المواد الأفيونية، البنزوديازيبينات، أو حقن GLP-1 مثل أوزيمبيك) عبر الرعاية عن بُعد. سيناقش طبيبك الخيارات المتاحة لك اليوم.',
@@ -778,45 +828,45 @@ const T = {
   },
 
   // ── Symptom follow-ups (added for Te Reo bring-up 2026-07-04) ─────────────
-  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?', sm: 'O le a le umi ua e maua ai lenei fa\'afitauli?' },
-  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?', sm: 'O anafea na amata ai lenei mea?' },
-  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)', sm: 'O le a le tuga o lou tiga? (1-10)' },
-  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?', sm: 'E te tiga i le fatafata?' },
-  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?', sm: 'E te faigata ona manava?' },
-  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?', sm: 'E te lagona le niniva?' },
-  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?', sm: 'Ua e pua\'i?' },
-  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?', sm: 'E te fiva?' },
+  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?', sm: 'O le a le umi ua e maua ai lenei fa\'afitauli?', nl: 'Hoe lang heeft u dit probleem al?' },
+  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?', sm: 'O anafea na amata ai lenei mea?', nl: 'Wanneer is dit begonnen?' },
+  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)', sm: 'O le a le tuga o lou tiga? (1-10)', nl: 'Hoe erg is uw pijn? (1-10)' },
+  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?', sm: 'E te tiga i le fatafata?', nl: 'Heeft u pijn op de borst?' },
+  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?', sm: 'E te faigata ona manava?', nl: 'Heeft u moeite met ademhalen?' },
+  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?', sm: 'E te lagona le niniva?', nl: 'Voelt u zich duizelig?' },
+  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?', sm: 'Ua e pua\'i?', nl: 'Heeft u overgegeven?' },
+  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?', sm: 'E te fiva?', nl: 'Heeft u koorts?' },
 
   // ── Provider status ──────────────────────────────────────────────────────
-  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata', sm: 'O le a o\'o atu lou foma\'i i se taimi puupuu' },
+  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata', sm: 'O le a o\'o atu lou foma\'i i se taimi puupuu', nl: 'Uw zorgverlener is zo bij u' },
 
   // ── Buttons ──────────────────────────────────────────────────────────────
-  btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau' },
-  btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i' },
+  btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau', nl: 'Doorgaan' },
+  btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i', nl: 'Terug' },
   btn_skip:     {
     en: 'Skip', mi: 'Tukua', sm: 'Preterisi', // TODO cert (mi/sm)
     zh: '跳过', ja: 'スキップ', ko: '건너뛰기',
-    de: 'Überspringen', fr: 'Passer', es: 'Omitir',
+    de: 'Überspringen', nl: 'Overslaan', fr: 'Passer', es: 'Omitir',
     ar: 'تخطي', hi: 'छोड़ें',
   },
   btn_send:     {
     en: 'Send', mi: 'Tuku', sm: 'Auina atu', // TODO cert (mi/sm)
     zh: '发送', ja: '送信', ko: '보내기',
-    de: 'Senden', fr: 'Envoyer', es: 'Enviar',
+    de: 'Senden', nl: 'Versturen', fr: 'Envoyer', es: 'Enviar',
     ar: 'إرسال', hi: 'भेजें',
   },
-  btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu' },
+  btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu', nl: 'Indienen' },
 
   // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─
   // Rendered by t_bilingual() helper so critical warnings never appear in Te Reo only.
-  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei' },
+  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei', nl: 'Bel onmiddellijk 111' },
 
   // ── /consent page (ConsentPage.jsx) ──────────────────────────────────────
   // Every string on the /consent screen. mi + sm marked TODO cert.
-  consent_header:      { en: 'Before we begin', mi: 'I mua i tā tāua tīmatanga', sm: 'A\'o le\'i amata', zh: '开始之前', ja: '始める前に', ko: '시작하기 전에', de: 'Bevor wir beginnen', fr: 'Avant de commencer', es: 'Antes de comenzar', ar: 'قبل أن نبدأ', hi: 'शुरू करने से पहले' }, // TODO cert (mi/sm)
-  consent_subheader:   { en: 'Please read and agree to the following', mi: 'Tēnā, pānuihia me whakaae ki ēnei', sm: 'Fa\'amolemole faitau ma malie i mea nei', zh: '请阅读并同意以下内容', ja: '以下をお読みになり、同意してください', ko: '아래를 읽고 동의해 주세요', de: 'Bitte lesen und stimmen Sie Folgendem zu', fr: 'Veuillez lire et accepter ce qui suit', es: 'Por favor lea y acepte lo siguiente', ar: 'يرجى قراءة ما يلي والموافقة عليه', hi: 'कृपया निम्नलिखित पढ़ें और सहमत हों' }, // TODO cert (mi/sm)
+  consent_header:      { en: 'Before we begin', mi: 'I mua i tā tāua tīmatanga', sm: 'A\'o le\'i amata', zh: '开始之前', ja: '始める前に', ko: '시작하기 전에', de: 'Bevor wir beginnen', nl: 'Voordat we beginnen', fr: 'Avant de commencer', es: 'Antes de comenzar', ar: 'قبل أن نبدأ', hi: 'शुरू करने से पहले' }, // TODO cert (mi/sm)
+  consent_subheader:   { en: 'Please read and agree to the following', mi: 'Tēnā, pānuihia me whakaae ki ēnei', sm: 'Fa\'amolemole faitau ma malie i mea nei', zh: '请阅读并同意以下内容', ja: '以下をお読みになり、同意してください', ko: '아래를 읽고 동의해 주세요', de: 'Bitte lesen und stimmen Sie Folgendem zu', nl: 'Lees en ga akkoord met het volgende', fr: 'Veuillez lire et accepter ce qui suit', es: 'Por favor lea y acepte lo siguiente', ar: 'يرجى قراءة ما يلي والموافقة عليه', hi: 'कृपया निम्नलिखित पढ़ें और सहमत हों' }, // TODO cert (mi/sm)
 
-  consent_rights_title: { en: 'Your rights as a patient', mi: 'Ōu mōtika hei tūroro', sm: 'O ou aia tatau o se ma\'i', zh: '您作为患者的权利', ja: '患者としてのあなたの権利', ko: '환자로서 당신의 권리', de: 'Ihre Rechte als Patient', fr: 'Vos droits en tant que patient', es: 'Sus derechos como paciente', ar: 'حقوقك كمريض', hi: 'रोगी के रूप में आपके अधिकार' }, // TODO cert (mi/sm)
+  consent_rights_title: { en: 'Your rights as a patient', mi: 'Ōu mōtika hei tūroro', sm: 'O ou aia tatau o se ma\'i', zh: '您作为患者的权利', ja: '患者としてのあなたの権利', ko: '환자로서 당신의 권리', de: 'Ihre Rechte als Patient', nl: 'Uw rechten als patiënt', fr: 'Vos droits en tant que patient', es: 'Sus derechos como paciente', ar: 'حقوقك كمريض', hi: 'रोगी के रूप में आपके अधिकार' }, // TODO cert (mi/sm)
   consent_rights_intro: {
     en: 'As a patient using Tere Health you have the following rights under the NZ Health and Disability Commissioner Code of Rights:',
     mi: 'Hei tūroro e whakamahi ana i a Tere Health, ka whai koe i ēnei mōtika i raro i te Waehere Mōtika a te Kaikōmihana Hauora, Hauātanga o Aotearoa:', // TODO cert
@@ -825,17 +875,18 @@ const T = {
     ja: 'Tere Healthを利用する患者として、ニュージーランドの健康・障害委員会権利規範に基づき、以下の権利があります：',
     ko: 'Tere Health를 이용하는 환자로서, 뉴질랜드 건강 및 장애 커미셔너 권리 강령에 따라 다음과 같은 권리가 있습니다:',
     de: 'Als Patient, der Tere Health nutzt, haben Sie folgende Rechte gemäß dem NZ Health and Disability Commissioner Code of Rights:',
+    nl: 'Als patiënt die Tere Health gebruikt heeft u de volgende rechten op grond van de NZ Health and Disability Commissioner Code of Rights:',
     fr: 'En tant que patient utilisant Tere Health, vous avez les droits suivants en vertu du Code des droits du Commissaire à la santé et au handicap de NZ :',
     es: 'Como paciente que usa Tere Health, tiene los siguientes derechos bajo el Código de Derechos del Comisionado de Salud y Discapacidad de NZ:',
     ar: 'بصفتك مريضاً يستخدم Tere Health، لديك الحقوق التالية بموجب مدونة حقوق مفوض الصحة والإعاقة النيوزيلندية:',
     hi: 'Tere Health का उपयोग करने वाले रोगी के रूप में, आपके पास NZ स्वास्थ्य और विकलांगता आयुक्त अधिकार संहिता के तहत निम्नलिखित अधिकार हैं:',
   },
-  consent_right_respect:     { en: 'Right to be treated with respect', mi: 'Te mōtika kia manaakitia', sm: 'Aia tatau ia faia ma le fa\'aaloalo', zh: '受尊重的权利', ja: '敬意をもって扱われる権利', ko: '존중받을 권리', de: 'Recht auf respektvolle Behandlung', fr: 'Droit d\'être traité avec respect', es: 'Derecho a ser tratado con respeto', ar: 'الحق في المعاملة باحترام', hi: 'सम्मान के साथ व्यवहार पाने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_info:        { en: 'Right to receive information', mi: 'Te mōtika kia whakamōhio', sm: 'Aia tatau ia maua fa\'amatalaga', zh: '获得信息的权利', ja: '情報を受け取る権利', ko: '정보를 받을 권리', de: 'Recht auf Information', fr: 'Droit à l\'information', es: 'Derecho a recibir información', ar: 'الحق في الحصول على المعلومات', hi: 'जानकारी प्राप्त करने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_informed:    { en: 'Right to make an informed choice', mi: 'Te mōtika ki te whiriwhiri whai mōhiotanga', sm: 'Aia tatau ia faia se filifiliga malamalama', zh: '做出知情选择的权利', ja: 'インフォームド・チョイスの権利', ko: '충분한 정보에 근거한 선택의 권리', de: 'Recht auf informierte Entscheidung', fr: 'Droit à un choix éclairé', es: 'Derecho a tomar una decisión informada', ar: 'الحق في اتخاذ خيار مستنير', hi: 'सूचित विकल्प चुनने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_consent:     { en: 'Right to give informed consent', mi: 'Te mōtika ki te whakaae whai mōhiotanga', sm: 'Aia tatau ia tuu le malie malamalama', zh: '给予知情同意的权利', ja: 'インフォームド・コンセントの権利', ko: '충분한 정보에 근거한 동의의 권리', de: 'Recht auf informierte Einwilligung', fr: 'Droit de donner un consentement éclairé', es: 'Derecho a dar consentimiento informado', ar: 'الحق في تقديم موافقة مستنيرة', hi: 'सूचित सहमति देने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_complain:    { en: 'Right to complain', mi: 'Te mōtika ki te amuamu', sm: 'Aia tatau ia fai se faitioga', zh: '投诉的权利', ja: '苦情を申し立てる権利', ko: '불만을 제기할 권리', de: 'Recht auf Beschwerde', fr: 'Droit de porter plainte', es: 'Derecho a quejarse', ar: 'الحق في الشكوى', hi: 'शिकायत करने का अधिकार' }, // TODO cert (mi/sm)
-  consent_rights_link:       { en: 'Read the full HDC Code of Rights →', mi: 'Pānuihia te Waehere Mōtika HDC katoa →', sm: 'Faitau le Tulafono atoa a le HDC →', zh: '阅读完整的 HDC 权利守则 →', ja: 'HDC権利規範の全文を読む →', ko: '전체 HDC 권리 강령 읽기 →', de: 'Vollständigen HDC-Rechtekodex lesen →', fr: 'Lire le Code des droits HDC complet →', es: 'Leer el Código de Derechos completo del HDC →', ar: 'اقرأ مدونة حقوق HDC كاملة →', hi: 'पूरा HDC अधिकार संहिता पढ़ें →' }, // TODO cert (mi/sm)
+  consent_right_respect:     { en: 'Right to be treated with respect', mi: 'Te mōtika kia manaakitia', sm: 'Aia tatau ia faia ma le fa\'aaloalo', zh: '受尊重的权利', ja: '敬意をもって扱われる権利', ko: '존중받을 권리', de: 'Recht auf respektvolle Behandlung', nl: 'Recht op respectvolle behandeling', fr: 'Droit d\'être traité avec respect', es: 'Derecho a ser tratado con respeto', ar: 'الحق في المعاملة باحترام', hi: 'सम्मान के साथ व्यवहार पाने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_info:        { en: 'Right to receive information', mi: 'Te mōtika kia whakamōhio', sm: 'Aia tatau ia maua fa\'amatalaga', zh: '获得信息的权利', ja: '情報を受け取る権利', ko: '정보를 받을 권리', de: 'Recht auf Information', nl: 'Recht op informatie', fr: 'Droit à l\'information', es: 'Derecho a recibir información', ar: 'الحق في الحصول على المعلومات', hi: 'जानकारी प्राप्त करने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_informed:    { en: 'Right to make an informed choice', mi: 'Te mōtika ki te whiriwhiri whai mōhiotanga', sm: 'Aia tatau ia faia se filifiliga malamalama', zh: '做出知情选择的权利', ja: 'インフォームド・チョイスの権利', ko: '충분한 정보에 근거한 선택의 권리', de: 'Recht auf informierte Entscheidung', nl: 'Recht op een geïnformeerde keuze', fr: 'Droit à un choix éclairé', es: 'Derecho a tomar una decisión informada', ar: 'الحق في اتخاذ خيار مستنير', hi: 'सूचित विकल्प चुनने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_consent:     { en: 'Right to give informed consent', mi: 'Te mōtika ki te whakaae whai mōhiotanga', sm: 'Aia tatau ia tuu le malie malamalama', zh: '给予知情同意的权利', ja: 'インフォームド・コンセントの権利', ko: '충분한 정보에 근거한 동의의 권리', de: 'Recht auf informierte Einwilligung', nl: 'Recht om geïnformeerde toestemming te geven', fr: 'Droit de donner un consentement éclairé', es: 'Derecho a dar consentimiento informado', ar: 'الحق في تقديم موافقة مستنيرة', hi: 'सूचित सहमति देने का अधिकार' }, // TODO cert (mi/sm)
+  consent_right_complain:    { en: 'Right to complain', mi: 'Te mōtika ki te amuamu', sm: 'Aia tatau ia fai se faitioga', zh: '投诉的权利', ja: '苦情を申し立てる権利', ko: '불만을 제기할 권리', de: 'Recht auf Beschwerde', nl: 'Recht om een klacht in te dienen', fr: 'Droit de porter plainte', es: 'Derecho a quejarse', ar: 'الحق في الشكوى', hi: 'शिकायत करने का अधिकार' }, // TODO cert (mi/sm)
+  consent_rights_link:       { en: 'Read the full HDC Code of Rights →', mi: 'Pānuihia te Waehere Mōtika HDC katoa →', sm: 'Faitau le Tulafono atoa a le HDC →', zh: '阅读完整的 HDC 权利守则 →', ja: 'HDC権利規範の全文を読む →', ko: '전체 HDC 권리 강령 읽기 →', de: 'Vollständigen HDC-Rechtekodex lesen →', nl: 'Lees de volledige HDC Code of Rights →', fr: 'Lire le Code des droits HDC complet →', es: 'Leer el Código de Derechos completo del HDC →', ar: 'اقرأ مدونة حقوق HDC كاملة →', hi: 'पूरा HDC अधिकार संहिता पढ़ें →' }, // TODO cert (mi/sm)
   consent_ai_note: {
     en: 'Your clinical information (including consultation transcript, chief complaint and notes) is processed by Anthropic Claude, delivered via AWS Bedrock under an executed Business Associate Agreement (BAA) with AWS that provides HIPAA-level safeguards. AI-generated notes are reviewed and finalised by a New Zealand-registered clinician. Your information is never used to train AI models.',
     mi: 'Ka tukatukahia ō kōrero hauora (tae atu ki te tuhinga tirohanga, te take matua me ngā tuhinga) e Anthropic Claude, ka tukua mā AWS Bedrock i raro i tētahi Kirimana Whakahoahoa Pakihi (BAA) me AWS e whakarato ana i ngā ārai HIPAA. Ka arotakengia, ka whakaotia ngā tuhinga i hangaia e te AI e tētahi mātanga hauora kua rēhita ki Aotearoa. E kore ō kōrero e whakamahia ki te whakangungu tauira AI.', // TODO cert
@@ -844,14 +895,15 @@ const T = {
     ja: 'あなたの臨床情報（診察記録、主訴、メモを含む）は、AWSと締結したビジネスアソシエート契約（BAA）に基づきHIPAAレベルの保護措置が提供されるAWS Bedrock経由で、Anthropic Claudeによって処理されます。AI生成のメモは、ニュージーランド登録の臨床医によりレビューおよび最終化されます。あなたの情報はAIモデルの訓練に使用されることはありません。',
     ko: '귀하의 임상 정보(상담 기록, 주요 증상 및 노트 포함)는 Anthropic Claude에 의해 처리되며, AWS와 체결된 비즈니스 어소시에이트 계약(BAA)에 따라 HIPAA 수준의 보호가 제공되는 AWS Bedrock을 통해 전달됩니다. AI 생성 노트는 뉴질랜드 등록 임상의에 의해 검토 및 최종화됩니다. 귀하의 정보는 AI 모델 학습에 절대 사용되지 않습니다.',
     de: 'Ihre klinischen Informationen (einschließlich Konsultationstranskript, Hauptbeschwerde und Notizen) werden von Anthropic Claude verarbeitet, bereitgestellt über AWS Bedrock unter einer geschlossenen Business Associate Agreement (BAA) mit AWS, die HIPAA-Niveau-Schutzmaßnahmen bietet. Von KI generierte Notizen werden von einem in Neuseeland registrierten Kliniker überprüft und finalisiert. Ihre Informationen werden nie zur Schulung von KI-Modellen verwendet.',
+    nl: 'Uw klinische gegevens (waaronder consultverslag, hoofdklacht en aantekeningen) worden verwerkt door Anthropic Claude, geleverd via AWS Bedrock onder een afgesloten Business Associate Agreement (BAA) met AWS die waarborgen biedt op HIPAA-niveau. Door AI gegenereerde aantekeningen worden beoordeeld en definitief gemaakt door een in Nieuw-Zeeland geregistreerde clinicus. Uw gegevens worden nooit gebruikt om AI-modellen te trainen.',
     fr: 'Vos informations cliniques (y compris la transcription de consultation, la plainte principale et les notes) sont traitées par Anthropic Claude, fournies via AWS Bedrock dans le cadre d\'un Accord de Partenaire Commercial (BAA) exécuté avec AWS qui fournit des protections de niveau HIPAA. Les notes générées par IA sont examinées et finalisées par un clinicien enregistré en Nouvelle-Zélande. Vos informations ne sont jamais utilisées pour entraîner des modèles d\'IA.',
     es: 'Su información clínica (incluida la transcripción de la consulta, la queja principal y las notas) es procesada por Anthropic Claude, entregada a través de AWS Bedrock bajo un Acuerdo de Asociado Comercial (BAA) ejecutado con AWS que proporciona protecciones a nivel HIPAA. Las notas generadas por IA son revisadas y finalizadas por un clínico registrado en Nueva Zelanda. Su información nunca se utiliza para entrenar modelos de IA.',
     ar: 'تتم معالجة معلوماتك السريرية (بما في ذلك نص الاستشارة والشكوى الرئيسية والملاحظات) بواسطة Anthropic Claude، ويتم تسليمها عبر AWS Bedrock بموجب اتفاقية شريك أعمال (BAA) مبرمة مع AWS توفر ضمانات على مستوى HIPAA. تتم مراجعة الملاحظات التي أنشأها الذكاء الاصطناعي وإكمالها من قبل طبيب مسجل في نيوزيلندا. لا يتم استخدام معلوماتك أبداً لتدريب نماذج الذكاء الاصطناعي.',
     hi: 'आपकी नैदानिक जानकारी (परामर्श प्रतिलेख, मुख्य शिकायत और नोट्स सहित) Anthropic Claude द्वारा संसाधित की जाती है, जो AWS के साथ निष्पादित बिजनेस एसोसिएट एग्रीमेंट (BAA) के तहत AWS Bedrock के माध्यम से वितरित की जाती है जो HIPAA-स्तर की सुरक्षा प्रदान करता है। AI द्वारा उत्पन्न नोट्स की समीक्षा और अंतिम रूप न्यूजीलैंड-पंजीकृत चिकित्सक द्वारा किया जाता है। आपकी जानकारी का उपयोग AI मॉडल को प्रशिक्षित करने के लिए कभी नहीं किया जाता है।',
   },
-  consent_rights_check: { en: 'I understand my rights as a patient and consent to AI-assisted processing', mi: 'Kei te mārama ahau ki ōku mōtika hei tūroro, ā, kei te whakaae ki te tukatuka āwhinatia e te AI', sm: 'Ou te malamalama i o\'u aia tatau o se ma\'i ma malie i le fa\'agasologa fesoasoani a le AI', zh: '我了解我作为患者的权利，并同意 AI 辅助处理', ja: '患者としての権利を理解し、AI支援処理に同意します', ko: '환자로서의 권리를 이해하며 AI 지원 처리에 동의합니다', de: 'Ich verstehe meine Rechte als Patient und stimme der KI-gestützten Verarbeitung zu', fr: 'Je comprends mes droits en tant que patient et consens au traitement assisté par IA', es: 'Entiendo mis derechos como paciente y consiento el procesamiento asistido por IA', ar: 'أفهم حقوقي كمريض وأوافق على المعالجة بمساعدة الذكاء الاصطناعي', hi: 'मैं रोगी के रूप में अपने अधिकारों को समझता/समझती हूं और AI-सहायता प्राप्त प्रसंस्करण के लिए सहमति देता/देती हूं' }, // TODO cert (mi/sm)
+  consent_rights_check: { en: 'I understand my rights as a patient and consent to AI-assisted processing', mi: 'Kei te mārama ahau ki ōku mōtika hei tūroro, ā, kei te whakaae ki te tukatuka āwhinatia e te AI', sm: 'Ou te malamalama i o\'u aia tatau o se ma\'i ma malie i le fa\'agasologa fesoasoani a le AI', zh: '我了解我作为患者的权利，并同意 AI 辅助处理', ja: '患者としての権利を理解し、AI支援処理に同意します', ko: '환자로서의 권리를 이해하며 AI 지원 처리에 동의합니다', de: 'Ich verstehe meine Rechte als Patient und stimme der KI-gestützten Verarbeitung zu', nl: 'Ik begrijp mijn rechten als patiënt en geef toestemming voor door AI ondersteunde verwerking', fr: 'Je comprends mes droits en tant que patient et consens au traitement assisté par IA', es: 'Entiendo mis derechos como paciente y consiento el procesamiento asistido por IA', ar: 'أفهم حقوقي كمريض وأوافق على المعالجة بمساعدة الذكاء الاصطناعي', hi: 'मैं रोगी के रूप में अपने अधिकारों को समझता/समझती हूं और AI-सहायता प्राप्त प्रसंस्करण के लिए सहमति देता/देती हूं' }, // TODO cert (mi/sm)
 
-  consent_rx_title: { en: 'Prescribing limitations', mi: 'Ngā herenga tuku rongoā', sm: 'Fa\'atapula\'aga o le tuu atu o fualaau', zh: '处方限制', ja: '処方の制限', ko: '처방 제한 사항', de: 'Verschreibungsbeschränkungen', fr: 'Limitations de prescription', es: 'Limitaciones de prescripción', ar: 'قيود الوصفات الطبية', hi: 'दवा लिखने की सीमाएं' }, // TODO cert (mi/sm)
+  consent_rx_title: { en: 'Prescribing limitations', mi: 'Ngā herenga tuku rongoā', sm: 'Fa\'atapula\'aga o le tuu atu o fualaau', zh: '处方限制', ja: '処方の制限', ko: '처방 제한 사항', de: 'Verschreibungsbeschränkungen', nl: 'Beperkingen bij het voorschrijven', fr: 'Limitations de prescription', es: 'Limitaciones de prescripción', ar: 'قيود الوصفات الطبية', hi: 'दवा लिखने की सीमाएं' }, // TODO cert (mi/sm)
   consent_rx_intro: {
     en: 'Tere Health providers can prescribe many medications for acute conditions. However we are unable to prescribe via telehealth:',
     mi: 'Ka taea e ngā kaiwhakarato o Tere Health te tuku i te maha o ngā rongoā mō ngā mate ohorere. Heoi anō, kāore mātou e taea te tuku i ngā rongoā e whai ake nei mā te telehealth:', // TODO cert
@@ -860,6 +912,7 @@ const T = {
     ja: 'Tere Healthの医師は急性症状に対する多くの薬を処方できます。ただし、テレヘルスでは以下の薬は処方できません：',
     ko: 'Tere Health 의사들은 급성 질환에 대한 많은 약을 처방할 수 있습니다. 그러나 원격 진료를 통해서는 다음을 처방할 수 없습니다:',
     de: 'Tere-Health-Ärzte können viele Medikamente für akute Erkrankungen verschreiben. Wir können jedoch nicht per Telemedizin verschreiben:',
+    nl: 'Artsen van Tere Health kunnen veel medicijnen voorschrijven voor acute aandoeningen. Wij kunnen echter niet via telezorg voorschrijven:',
     fr: 'Les médecins de Tere Health peuvent prescrire de nombreux médicaments pour des conditions aiguës. Cependant, nous ne pouvons pas prescrire via la télémédecine :',
     es: 'Los médicos de Tere Health pueden recetar muchos medicamentos para condiciones agudas. Sin embargo, no podemos recetar mediante telemedicina:',
     ar: 'يمكن لأطباء Tere Health وصف كثير من الأدوية للحالات الحادة. ومع ذلك، لا يمكننا الوصف عبر الرعاية الصحية عن بُعد:',
@@ -873,15 +926,16 @@ const T = {
     ja: 'これらの薬については、通常のかかりつけ医に連絡するか、対面クリニックを受診してください。',
     ko: '이러한 약이 필요하시면 정기적인 GP에게 연락하거나 대면 클리닉을 방문해 주세요.',
     de: 'Für diese Medikamente wenden Sie sich bitte an Ihren regulären Hausarzt oder besuchen Sie eine Klinik persönlich.',
+    nl: 'Voor deze medicijnen kunt u contact opnemen met uw vaste huisarts of een fysieke praktijk bezoeken.',
     fr: 'Pour ces médicaments, veuillez contacter votre médecin traitant ou consulter une clinique en personne.',
     es: 'Para estos medicamentos, por favor contacte a su médico de cabecera habitual o visite una clínica en persona.',
     ar: 'لهذه الأدوية يرجى الاتصال بطبيبك العام العادي أو زيارة عيادة شخصياً.',
     hi: 'इन दवाओं के लिए कृपया अपने नियमित GP से संपर्क करें या व्यक्तिगत रूप से क्लिनिक जाएं।',
   },
-  consent_rx_check: { en: 'I understand these prescribing limitations', mi: 'Kei te mārama ahau ki ēnei herenga tuku rongoā', sm: 'Ou te malamalama i nei fa\'atapula\'aga', zh: '我理解这些处方限制', ja: 'これらの処方制限を理解しました', ko: '이 처방 제한 사항을 이해합니다', de: 'Ich verstehe diese Verschreibungsbeschränkungen', fr: 'Je comprends ces limitations de prescription', es: 'Entiendo estas limitaciones de prescripción', ar: 'أفهم هذه القيود على الوصفات الطبية', hi: 'मैं इन दवा लिखने की सीमाओं को समझता/समझती हूं' }, // TODO cert (mi/sm)
+  consent_rx_check: { en: 'I understand these prescribing limitations', mi: 'Kei te mārama ahau ki ēnei herenga tuku rongoā', sm: 'Ou te malamalama i nei fa\'atapula\'aga', zh: '我理解这些处方限制', ja: 'これらの処方制限を理解しました', ko: '이 처방 제한 사항을 이해합니다', de: 'Ich verstehe diese Verschreibungsbeschränkungen', nl: 'Ik begrijp deze beperkingen bij het voorschrijven', fr: 'Je comprends ces limitations de prescription', es: 'Entiendo estas limitaciones de prescripción', ar: 'أفهم هذه القيود على الوصفات الطبية', hi: 'मैं इन दवा लिखने की सीमाओं को समझता/समझती हूं' }, // TODO cert (mi/sm)
 
-  consent_research_title:    { en: 'Help improve rural healthcare', mi: 'Āwhinaia te whakapai ake i te hauora tuawhenua', sm: 'Fesoasoani e fa\'aleleia le tausiga o le soifua maloloina i nu\'u maotua', zh: '帮助改善农村医疗保健', ja: '地方医療の改善に貢献', ko: '농촌 의료 개선을 돕기', de: 'Ländliche Gesundheitsversorgung verbessern helfen', fr: 'Aider à améliorer les soins de santé ruraux', es: 'Ayudar a mejorar la atención sanitaria rural', ar: 'ساعد في تحسين الرعاية الصحية الريفية', hi: 'ग्रामीण स्वास्थ्य देखभाल में सुधार करने में मदद करें' }, // TODO cert (mi/sm)
-  consent_research_optional: { en: '(optional)', mi: '(kōwhiringa)', sm: '(filifili)', zh: '（可选）', ja: '（任意）', ko: '(선택 사항)', de: '(optional)', fr: '(facultatif)', es: '(opcional)', ar: '(اختياري)', hi: '(वैकल्पिक)' }, // TODO cert (mi/sm)
+  consent_research_title:    { en: 'Help improve rural healthcare', mi: 'Āwhinaia te whakapai ake i te hauora tuawhenua', sm: 'Fesoasoani e fa\'aleleia le tausiga o le soifua maloloina i nu\'u maotua', zh: '帮助改善农村医疗保健', ja: '地方医療の改善に貢献', ko: '농촌 의료 개선을 돕기', de: 'Ländliche Gesundheitsversorgung verbessern helfen', nl: 'Help de zorg op het platteland te verbeteren', fr: 'Aider à améliorer les soins de santé ruraux', es: 'Ayudar a mejorar la atención sanitaria rural', ar: 'ساعد في تحسين الرعاية الصحية الريفية', hi: 'ग्रामीण स्वास्थ्य देखभाल में सुधार करने में मदद करें' }, // TODO cert (mi/sm)
+  consent_research_optional: { en: '(optional)', mi: '(kōwhiringa)', sm: '(filifili)', zh: '（可选）', ja: '（任意）', ko: '(선택 사항)', de: '(optional)', nl: '(optioneel)', fr: '(facultatif)', es: '(opcional)', ar: '(اختياري)', hi: '(वैकल्पिक)' }, // TODO cert (mi/sm)
   consent_research_intro: {
     en: 'Would you be willing for your de-identified data (no name, no contact details, no NHI) to contribute to NZ rural health research? This helps improve healthcare for rural communities across Aotearoa.',
     mi: 'E hiahia ana koe ki te whakaae kia whakauruhia ō raraunga kāore i te whakatinana (kāore he ingoa, kāore he whakapā, kāore he NHI) hei tautoko i te rangahau hauora tuawhenua o Aotearoa? Ka āwhina tēnei ki te whakapai ake i te hauora mō ngā hapori tuawhenua puta noa i Aotearoa.', // TODO cert
@@ -890,13 +944,14 @@ const T = {
     ja: '匿名化されたデータ（名前、連絡先、NHIなし）をニュージーランドの地方医療研究に貢献させることに同意されますか？これは、アオテアロア（NZ）全土の地方コミュニティの医療改善に役立ちます。',
     ko: '귀하의 비식별화된 데이터(이름, 연락처, NHI 없음)를 뉴질랜드 농촌 건강 연구에 기여하도록 하시겠습니까? 이는 아오테아로아 전역의 농촌 지역사회 의료 개선에 도움이 됩니다.',
     de: 'Wären Sie bereit, dass Ihre anonymisierten Daten (kein Name, keine Kontaktdaten, keine NHI) zur ländlichen Gesundheitsforschung in Neuseeland beitragen? Dies hilft, die Gesundheitsversorgung für ländliche Gemeinden in ganz Aotearoa zu verbessern.',
+    nl: 'Zou u bereid zijn uw geanonimiseerde gegevens (geen naam, geen contactgegevens, geen NHI) beschikbaar te stellen voor onderzoek naar plattelandsgezondheidszorg in Nieuw-Zeeland? Dit helpt de zorg voor plattelandsgemeenschappen in heel Aotearoa te verbeteren.',
     fr: 'Seriez-vous prêt à ce que vos données anonymisées (sans nom, sans coordonnées, sans NHI) contribuent à la recherche sur la santé rurale en NZ ? Cela contribue à améliorer les soins de santé pour les communautés rurales dans toute l\'Aotearoa.',
     es: '¿Estaría dispuesto a que sus datos desidentificados (sin nombre, sin datos de contacto, sin NHI) contribuyan a la investigación de salud rural de NZ? Esto ayuda a mejorar la atención sanitaria para las comunidades rurales en todo Aotearoa.',
     ar: 'هل ستكون على استعداد لأن تساهم بياناتك مجهولة الهوية (بدون اسم أو بيانات اتصال أو NHI) في أبحاث الصحة الريفية النيوزيلندية؟ يساعد ذلك في تحسين الرعاية الصحية لمجتمعات المناطق الريفية في جميع أنحاء أوتياروا.',
     hi: 'क्या आप अपने डी-आइडेंटिफाइड डेटा (कोई नाम नहीं, कोई संपर्क विवरण नहीं, कोई NHI नहीं) को NZ ग्रामीण स्वास्थ्य अनुसंधान में योगदान करने के लिए तैयार होंगे? यह पूरे Aotearoa में ग्रामीण समुदायों के लिए स्वास्थ्य देखभाल में सुधार करने में मदद करता है।',
   },
-  consent_research_yes:  { en: '✓ Yes, I\'m happy to contribute', mi: '✓ Āe, kei te pai ki ahau ki te tautoko', sm: '✓ Ioe, ou te fiafia e sao mai', zh: '✓ 是的，我愿意贡献', ja: '✓ はい、貢献します', ko: '✓ 네, 기여하겠습니다', de: '✓ Ja, ich möchte beitragen', fr: '✓ Oui, je souhaite contribuer', es: '✓ Sí, me gustaría contribuir', ar: '✓ نعم، أنا سعيد بالمساهمة', hi: '✓ हाँ, मैं योगदान करने के लिए तैयार हूं' }, // TODO cert (mi/sm)
-  consent_research_skip: { en: 'Skip →', mi: 'Tukua →', sm: 'Preterisi →', zh: '跳过 →', ja: 'スキップ →', ko: '건너뛰기 →', de: 'Überspringen →', fr: 'Passer →', es: 'Omitir →', ar: 'تخطي ←', hi: 'छोड़ें →' }, // TODO cert (mi/sm)
+  consent_research_yes:  { en: '✓ Yes, I\'m happy to contribute', mi: '✓ Āe, kei te pai ki ahau ki te tautoko', sm: '✓ Ioe, ou te fiafia e sao mai', zh: '✓ 是的，我愿意贡献', ja: '✓ はい、貢献します', ko: '✓ 네, 기여하겠습니다', de: '✓ Ja, ich möchte beitragen', nl: '✓ Ja, ik draag graag bij', fr: '✓ Oui, je souhaite contribuer', es: '✓ Sí, me gustaría contribuir', ar: '✓ نعم، أنا سعيد بالمساهمة', hi: '✓ हाँ, मैं योगदान करने के लिए तैयार हूं' }, // TODO cert (mi/sm)
+  consent_research_skip: { en: 'Skip →', mi: 'Tukua →', sm: 'Preterisi →', zh: '跳过 →', ja: 'スキップ →', ko: '건너뛰기 →', de: 'Überspringen →', nl: 'Overslaan →', fr: 'Passer →', es: 'Omitir →', ar: 'تخطي ←', hi: 'छोड़ें →' }, // TODO cert (mi/sm)
   consent_research_footnote: {
     en: 'Your decision won\'t affect your care. You can withdraw consent at any time by contacting',
     mi: 'Kāore tō whiringa e pā ki tō tiaki hauora. Ka taea e koe te unu i tō whakaae i te wā e hiahia ana koe mā te whakapā atu ki', // TODO cert
@@ -905,13 +960,14 @@ const T = {
     ja: 'あなたの決定はケアに影響しません。次にご連絡いただくことで、いつでも同意を撤回できます：',
     ko: '귀하의 결정은 진료에 영향을 미치지 않습니다. 다음 연락처로 언제든지 동의를 철회할 수 있습니다:',
     de: 'Ihre Entscheidung beeinflusst nicht Ihre Versorgung. Sie können Ihre Einwilligung jederzeit widerrufen, indem Sie kontaktieren',
+    nl: 'Uw beslissing heeft geen invloed op uw zorg. U kunt uw toestemming op elk moment intrekken door contact op te nemen met',
     fr: 'Votre décision n\'affectera pas vos soins. Vous pouvez retirer votre consentement à tout moment en contactant',
     es: 'Su decisión no afectará su atención. Puede retirar el consentimiento en cualquier momento contactando a',
     ar: 'قرارك لن يؤثر على رعايتك. يمكنك سحب الموافقة في أي وقت بالتواصل مع',
     hi: 'आपका निर्णय आपकी देखभाल को प्रभावित नहीं करेगा। आप किसी भी समय संपर्क करके सहमति वापस ले सकते हैं',
   },
 
-  consent_camera_title: { en: 'Camera used for vitals', mi: 'Ka whakamahia te kāmera mō ngā tohu ora', sm: 'E fa\'aogaina le meapu\'e ata mo tulaga o le tino', zh: '使用相机进行生命体征测量', ja: 'バイタル測定のためにカメラを使用します', ko: '활력징후 측정에 카메라 사용', de: 'Kamera für Vitalzeichen verwendet', fr: 'Caméra utilisée pour les signes vitaux', es: 'Cámara utilizada para signos vitales', ar: 'الكاميرا مستخدمة للعلامات الحيوية', hi: 'वाइटल्स के लिए कैमरे का उपयोग' }, // TODO cert (mi/sm)
+  consent_camera_title: { en: 'Camera used for vitals', mi: 'Ka whakamahia te kāmera mō ngā tohu ora', sm: 'E fa\'aogaina le meapu\'e ata mo tulaga o le tino', zh: '使用相机进行生命体征测量', ja: 'バイタル測定のためにカメラを使用します', ko: '활력징후 측정에 카메라 사용', de: 'Kamera für Vitalzeichen verwendet', nl: 'Camera gebruikt voor vitale functies', fr: 'Caméra utilisée pour les signes vitaux', es: 'Cámara utilizada para signos vitales', ar: 'الكاميرا مستخدمة للعلامات الحيوية', hi: 'वाइटल्स के लिए कैमरे का उपयोग' }, // TODO cert (mi/sm)
   consent_camera_desc: {
     en: 'For accurate vitals, Tere may use your camera during the consultation. No video is recorded — only anonymised colour measurements are used to estimate heart rate and blood oxygen.',
     mi: 'Mō ngā tohu ora tika, ka whakamahia pea e Tere tō kāmera i te wā o te tirohanga. Kāore he ataata e hopukina ana — ka whakamahia noa ngā ine tae kua whakaingoakorehia hei whakatau i te tere manawa me te hāora toto.', // TODO cert
@@ -920,17 +976,18 @@ const T = {
     ja: '正確なバイタル測定のため、Tereは診察中にカメラを使用することがあります。動画は記録されず、匿名化された色測定のみを使用して心拍数と血中酸素を推定します。',
     ko: '정확한 활력징후를 위해, Tere는 상담 중 카메라를 사용할 수 있습니다. 비디오는 녹화되지 않으며 — 익명화된 색상 측정값만 사용하여 심박수와 혈중 산소를 추정합니다.',
     de: 'Für genaue Vitalwerte kann Tere während der Konsultation Ihre Kamera verwenden. Es wird kein Video aufgezeichnet — nur anonymisierte Farbmessungen werden verwendet, um Herzfrequenz und Blutsauerstoff zu schätzen.',
+    nl: 'Voor nauwkeurige vitale functies kan Tere tijdens het consult uw camera gebruiken. Er wordt geen video opgenomen — er worden alleen geanonimiseerde kleurmetingen gebruikt om uw hartslag en het zuurstofgehalte in uw bloed te schatten.',
     fr: 'Pour des signes vitaux précis, Tere peut utiliser votre caméra pendant la consultation. Aucune vidéo n\'est enregistrée — seules des mesures de couleur anonymisées sont utilisées pour estimer le rythme cardiaque et l\'oxygène du sang.',
     es: 'Para obtener signos vitales precisos, Tere puede usar su cámara durante la consulta. No se graba ningún video — solo se utilizan mediciones de color anonimizadas para estimar la frecuencia cardíaca y el oxígeno en la sangre.',
     ar: 'للحصول على علامات حيوية دقيقة، قد يستخدم Tere الكاميرا الخاصة بك أثناء الاستشارة. لا يتم تسجيل أي فيديو — يتم استخدام قياسات الألوان مجهولة الهوية فقط لتقدير معدل ضربات القلب والأكسجين في الدم.',
     hi: 'सटीक वाइटल्स के लिए, Tere परामर्श के दौरान आपके कैमरे का उपयोग कर सकता है। कोई वीडियो रिकॉर्ड नहीं किया जाता — केवल गुमनाम रंग मापों का उपयोग हृदय गति और रक्त ऑक्सीजन का अनुमान लगाने के लिए किया जाता है।',
   },
 
-  consent_emergency_111:  { en: 'Emergency? Call 111',                    mi: 'He whawhati tata? Waea atu ki te 111',                  sm: 'Fa\'afuase\'i? Vala\'au le 111',                     zh: '紧急情况？请拨打 111',              ja: '緊急ですか？111に電話してください',       ko: '응급 상황? 111에 전화하세요',            de: 'Notfall? 111 anrufen',                       fr: 'Urgence ? Appelez le 111',                    es: '¿Emergencia? Llame al 111',                        ar: 'حالة طارئة؟ اتصل بـ 111',                    hi: 'आपातकाल? 111 पर कॉल करें' }, // TODO cert (mi/sm)
-  consent_emergency_1737: { en: 'Mental health crisis? Call or text 1737', mi: 'He raru hinengaro? Waea, tuku pānui rānei ki te 1737', sm: 'Fa\'afitauli o le mafaufau? Vala\'au po\'o tusi 1737', zh: '心理健康危机？请拨打或发短信 1737', ja: 'メンタルヘルス危機？1737に電話またはテキストしてください', ko: '정신 건강 위기? 1737에 전화 또는 문자하세요', de: 'Mental-Health-Krise? Rufen Sie 1737 an oder senden Sie eine SMS', fr: 'Crise de santé mentale ? Appelez ou envoyez un SMS au 1737', es: '¿Crisis de salud mental? Llame o envíe un mensaje al 1737', ar: 'أزمة صحية نفسية؟ اتصل أو راسل نصياً 1737', hi: 'मानसिक स्वास्थ्य संकट? 1737 पर कॉल करें या टेक्स्ट करें' }, // TODO cert (mi/sm)
+  consent_emergency_111:  { en: 'Emergency? Call 111',                    mi: 'He whawhati tata? Waea atu ki te 111',                  sm: 'Fa\'afuase\'i? Vala\'au le 111',                     zh: '紧急情况？请拨打 111',              ja: '緊急ですか？111に電話してください',       ko: '응급 상황? 111에 전화하세요',            de: 'Notfall? 111 anrufen',                       nl: 'Noodgeval? Bel 111',                          fr: 'Urgence ? Appelez le 111',                    es: '¿Emergencia? Llame al 111',                        ar: 'حالة طارئة؟ اتصل بـ 111',                    hi: 'आपातकाल? 111 पर कॉल करें' }, // TODO cert (mi/sm)
+  consent_emergency_1737: { en: 'Mental health crisis? Call or text 1737', mi: 'He raru hinengaro? Waea, tuku pānui rānei ki te 1737', sm: 'Fa\'afitauli o le mafaufau? Vala\'au po\'o tusi 1737', zh: '心理健康危机？请拨打或发短信 1737', ja: 'メンタルヘルス危機？1737に電話またはテキストしてください', ko: '정신 건강 위기? 1737에 전화 또는 문자하세요', de: 'Mental-Health-Krise? Rufen Sie 1737 an oder senden Sie eine SMS', nl: 'Psychische crisis? Bel of sms 1737', fr: 'Crise de santé mentale ? Appelez ou envoyez un SMS au 1737', es: '¿Crisis de salud mental? Llame o envíe un mensaje al 1737', ar: 'أزمة صحية نفسية؟ اتصل أو راسل نصياً 1737', hi: 'मानसिक स्वास्थ्य संकट? 1737 पर कॉल करें या टेक्स्ट करें' }, // TODO cert (mi/sm)
 
-  consent_continue:     { en: 'Continue →', mi: 'Haere tonu →', sm: 'Fa\'aauau →', zh: '继续 →', ja: '続ける →', ko: '계속 →', de: 'Weiter →', fr: 'Continuer →', es: 'Continuar →', ar: 'متابعة ←', hi: 'जारी रखें →' }, // TODO cert (mi/sm)
-  consent_subtitle_title: { en: 'Live subtitles (optional)', mi: 'Ngā hauraro ora (kōwhiringa)', sm: 'Fa\'aliliuga ola (filifili)', zh: '实时字幕（可选）', ja: 'ライブ字幕（任意）', ko: '실시간 자막 (선택 사항)', de: 'Live-Untertitel (optional)', fr: 'Sous-titres en direct (optionnel)', es: 'Subtítulos en vivo (opcional)', ar: 'الترجمة الحية (اختياري)', hi: 'लाइव सबटाइटल (वैकल्पिक)' }, // TODO cert (mi/sm)
+  consent_continue:     { en: 'Continue →', mi: 'Haere tonu →', sm: 'Fa\'aauau →', zh: '继续 →', ja: '続ける →', ko: '계속 →', de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →', ar: 'متابعة ←', hi: 'जारी रखें →' }, // TODO cert (mi/sm)
+  consent_subtitle_title: { en: 'Live subtitles (optional)', mi: 'Ngā hauraro ora (kōwhiringa)', sm: 'Fa\'aliliuga ola (filifili)', zh: '实时字幕（可选）', ja: 'ライブ字幕（任意）', ko: '실시간 자막 (선택 사항)', de: 'Live-Untertitel (optional)', nl: 'Live-ondertiteling (optioneel)', fr: 'Sous-titres en direct (optionnel)', es: 'Subtítulos en vivo (opcional)', ar: 'الترجمة الحية (اختياري)', hi: 'लाइव सबटाइटल (वैकल्पिक)' }, // TODO cert (mi/sm)
   consent_subtitle_desc: {
     en: 'If you selected a language other than English, we can show AI-translated subtitles during your video consultation. Please understand:',
     mi: 'Ki te kōwhiria e koe he reo tērā atu i te reo Ingarihi, ka taea e mātou te whakaatu i ngā hauraro whakamāoritia e te AI i tō tirohanga ataata. Kia mōhio mai koe:', // TODO cert
@@ -939,13 +996,14 @@ const T = {
     ja: '英語以外の言語を選択された場合、ビデオ診察中に AI 翻訳の字幕を表示できます。以下をご理解ください：',
     ko: '영어 이외의 언어를 선택하신 경우, 화상 상담 중 AI 번역 자막을 표시할 수 있습니다. 다음을 이해해 주세요:',
     de: 'Wenn Sie eine andere Sprache als Englisch gewählt haben, können wir während Ihrer Videokonsultation KI-übersetzte Untertitel anzeigen. Bitte beachten Sie:',
+    nl: 'Als u een andere taal dan Engels heeft gekozen, kunnen wij tijdens uw videoconsult door AI vertaalde ondertitels tonen. Let alstublieft op het volgende:',
     fr: 'Si vous avez sélectionné une langue autre que l\'anglais, nous pouvons afficher des sous-titres traduits par IA pendant votre consultation vidéo. Veuillez comprendre :',
     es: 'Si seleccionó un idioma que no sea inglés, podemos mostrar subtítulos traducidos por IA durante su consulta por video. Por favor comprenda:',
     ar: 'إذا اخترت لغة غير الإنجليزية، يمكننا عرض ترجمة بالذكاء الاصطناعي أثناء استشارتك عبر الفيديو. يرجى فهم:',
     hi: 'यदि आपने अंग्रेजी के अलावा कोई भाषा चुनी है, तो हम आपके वीडियो परामर्श के दौरान AI-अनुवादित उपशीर्षक दिखा सकते हैं। कृपया समझें:',
   }, // TODO cert (mi/sm)
-  consent_subtitle_bullets: { en: '• Automated translation may occasionally be imperfect\n• Your provider will read important instructions in English to confirm\n• You can request a human interpreter at any time', mi: '• Ka hē pea te whakamāoritanga aunoa\n• Ka pānui tō rata i ngā tohutohu nunui i te reo Ingarihi hei whakaū\n• Ka taea e koe te tono kaiwhakamāori tangata i ngā wā katoa', sm: '• Atonu e le sa\'o i taimi ni fa\'aliliuga fa\'alelemafaufau\n• O le a faitau e lau foma\'i fa\'atonuga taua i le Igilisi e fa\'amaonia ai\n• E mafai ona e talosaga se fa\'aliliu upu i so\'o se taimi', zh: '• 自动翻译偶尔可能不完美\n• 您的医生会用英语重复重要指示以进行确认\n• 您可以随时请求人工翻译', ja: '• 自動翻訳が時々不完全な場合があります\n• 医師は重要な指示を英語でも読み上げて確認します\n• いつでも人間の通訳を依頼できます', ko: '• 자동 번역이 때때로 완벽하지 않을 수 있습니다\n• 의사는 중요한 지침을 영어로 확인합니다\n• 언제든지 사람 통역사를 요청할 수 있습니다', de: '• Automatische Übersetzung kann gelegentlich unvollkommen sein\n• Ihr Arzt liest wichtige Anweisungen auf Englisch zur Bestätigung vor\n• Sie können jederzeit einen menschlichen Dolmetscher anfordern', fr: '• La traduction automatique peut parfois être imparfaite\n• Votre médecin lira les instructions importantes en anglais pour confirmer\n• Vous pouvez demander un interprète humain à tout moment', es: '• La traducción automática puede ser ocasionalmente imperfecta\n• Su médico leerá las instrucciones importantes en inglés para confirmar\n• Puede solicitar un intérprete humano en cualquier momento', ar: '• قد تكون الترجمة الآلية غير مثالية أحياناً\n• سيقرأ طبيبك التعليمات المهمة بالإنجليزية للتأكيد\n• يمكنك طلب مترجم بشري في أي وقت', hi: '• स्वचालित अनुवाद कभी-कभी अपूर्ण हो सकता है\n• आपका डॉक्टर पुष्टि के लिए महत्वपूर्ण निर्देश अंग्रेजी में पढ़ेगा\n• आप किसी भी समय मानव दुभाषिया का अनुरोध कर सकते हैं' }, // TODO cert (mi/sm)
-  consent_subtitle_check: { en: 'I understand AI subtitles may be imperfect and I can request a human interpreter at any time.', mi: 'Kei te mārama ahau ki te kore e tino tika ngā hauraro AI, ā, ka taea e ahau te tono kaiwhakamāori tangata i ngā wā katoa.', sm: 'Ou te malamalama e atonu e le sa\'o le fa\'aliliuga AI ma e mafai ona ou talosaga se fa\'aliliu upu i so\'o se taimi.', zh: '我了解 AI 字幕可能不完美，我可以随时请求人工翻译。', ja: 'AI字幕が不完全である可能性があり、いつでも人間の通訳を依頼できることを理解しています。', ko: 'AI 자막이 완벽하지 않을 수 있으며 언제든지 사람 통역사를 요청할 수 있음을 이해합니다.', de: 'Ich verstehe, dass KI-Untertitel unvollkommen sein können und ich jederzeit einen menschlichen Dolmetscher anfordern kann.', fr: 'Je comprends que les sous-titres IA peuvent être imparfaits et que je peux demander un interprète humain à tout moment.', es: 'Entiendo que los subtítulos de IA pueden ser imperfectos y que puedo solicitar un intérprete humano en cualquier momento.', ar: 'أفهم أن ترجمة الذكاء الاصطناعي قد تكون غير كاملة ويمكنني طلب مترجم بشري في أي وقت.', hi: 'मैं समझता/समझती हूं कि AI उपशीर्षक अपूर्ण हो सकते हैं और मैं किसी भी समय मानव दुभाषिया का अनुरोध कर सकता/सकती हूं।' }, // TODO cert (mi/sm)
+  consent_subtitle_bullets: { en: '• Automated translation may occasionally be imperfect\n• Your provider will read important instructions in English to confirm\n• You can request a human interpreter at any time', mi: '• Ka hē pea te whakamāoritanga aunoa\n• Ka pānui tō rata i ngā tohutohu nunui i te reo Ingarihi hei whakaū\n• Ka taea e koe te tono kaiwhakamāori tangata i ngā wā katoa', sm: '• Atonu e le sa\'o i taimi ni fa\'aliliuga fa\'alelemafaufau\n• O le a faitau e lau foma\'i fa\'atonuga taua i le Igilisi e fa\'amaonia ai\n• E mafai ona e talosaga se fa\'aliliu upu i so\'o se taimi', zh: '• 自动翻译偶尔可能不完美\n• 您的医生会用英语重复重要指示以进行确认\n• 您可以随时请求人工翻译', ja: '• 自動翻訳が時々不完全な場合があります\n• 医師は重要な指示を英語でも読み上げて確認します\n• いつでも人間の通訳を依頼できます', ko: '• 자동 번역이 때때로 완벽하지 않을 수 있습니다\n• 의사는 중요한 지침을 영어로 확인합니다\n• 언제든지 사람 통역사를 요청할 수 있습니다', de: '• Automatische Übersetzung kann gelegentlich unvollkommen sein\n• Ihr Arzt liest wichtige Anweisungen auf Englisch zur Bestätigung vor\n• Sie können jederzeit einen menschlichen Dolmetscher anfordern', nl: '• Automatische vertaling kan soms onvolmaakt zijn\n• Uw zorgverlener leest belangrijke instructies in het Engels voor ter bevestiging\n• U kunt op elk moment een menselijke tolk aanvragen', fr: '• La traduction automatique peut parfois être imparfaite\n• Votre médecin lira les instructions importantes en anglais pour confirmer\n• Vous pouvez demander un interprète humain à tout moment', es: '• La traducción automática puede ser ocasionalmente imperfecta\n• Su médico leerá las instrucciones importantes en inglés para confirmar\n• Puede solicitar un intérprete humano en cualquier momento', ar: '• قد تكون الترجمة الآلية غير مثالية أحياناً\n• سيقرأ طبيبك التعليمات المهمة بالإنجليزية للتأكيد\n• يمكنك طلب مترجم بشري في أي وقت', hi: '• स्वचालित अनुवाद कभी-कभी अपूर्ण हो सकता है\n• आपका डॉक्टर पुष्टि के लिए महत्वपूर्ण निर्देश अंग्रेजी में पढ़ेगा\n• आप किसी भी समय मानव दुभाषिया का अनुरोध कर सकते हैं' }, // TODO cert (mi/sm)
+  consent_subtitle_check: { en: 'I understand AI subtitles may be imperfect and I can request a human interpreter at any time.', mi: 'Kei te mārama ahau ki te kore e tino tika ngā hauraro AI, ā, ka taea e ahau te tono kaiwhakamāori tangata i ngā wā katoa.', sm: 'Ou te malamalama e atonu e le sa\'o le fa\'aliliuga AI ma e mafai ona ou talosaga se fa\'aliliu upu i so\'o se taimi.', zh: '我了解 AI 字幕可能不完美，我可以随时请求人工翻译。', ja: 'AI字幕が不完全である可能性があり、いつでも人間の通訳を依頼できることを理解しています。', ko: 'AI 자막이 완벽하지 않을 수 있으며 언제든지 사람 통역사를 요청할 수 있음을 이해합니다.', de: 'Ich verstehe, dass KI-Untertitel unvollkommen sein können und ich jederzeit einen menschlichen Dolmetscher anfordern kann.', nl: 'Ik begrijp dat AI-ondertitels onvolmaakt kunnen zijn en dat ik op elk moment een menselijke tolk kan aanvragen.', fr: 'Je comprends que les sous-titres IA peuvent être imparfaits et que je peux demander un interprète humain à tout moment.', es: 'Entiendo que los subtítulos de IA pueden ser imperfectos y que puedo solicitar un intérprete humano en cualquier momento.', ar: 'أفهم أن ترجمة الذكاء الاصطناعي قد تكون غير كاملة ويمكنني طلب مترجم بشري في أي وقت.', hi: 'मैं समझता/समझती हूं कि AI उपशीर्षक अपूर्ण हो सकते हैं और मैं किसी भी समय मानव दुभाषिया का अनुरोध कर सकता/सकती हूं।' }, // TODO cert (mi/sm)
 
   consent_continue_hint:{ en: 'Tick both required boxes above to continue',
     mi: 'Tirohia ngā pouaka rua e hiahiatia ana ki runga hei haere tonu', // TODO cert
@@ -954,6 +1012,7 @@ const T = {
     ja: '続けるには、上記の必須ボックスを両方チェックしてください',
     ko: '계속하려면 위의 두 필수 상자에 모두 체크하세요',
     de: 'Kreuzen Sie die beiden erforderlichen Kästchen oben an, um fortzufahren',
+    nl: 'Vink beide verplichte vakjes hierboven aan om door te gaan',
     fr: 'Cochez les deux cases requises ci-dessus pour continuer',
     es: 'Marque las dos casillas requeridas arriba para continuar',
     ar: 'ضع علامة على المربعين المطلوبين أعلاه للمتابعة',

@@ -36,6 +36,7 @@ const DG_CONFIG = {
   ja:  { model: 'nova-3',         lang: 'ja' },
   ko:  { model: 'nova-2',         lang: 'ko' },     // Nova-3 Korean limited
   de:  { model: 'nova-3',         lang: 'de' },
+  nl:  { model: 'nova-3',         lang: 'nl' },
   fr:  { model: 'nova-3',         lang: 'fr' },
   es:  { model: 'nova-3',         lang: 'es' },
   ar:  { model: 'nova-2',         lang: 'multi' },  // Arabic via multi
