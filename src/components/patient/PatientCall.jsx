@@ -4,7 +4,7 @@ import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
-import { getConsultation } from '../../lib/supabase'
+import { getPatientConsult } from '../../lib/supabase'
 import { getLangMeta } from '../../lib/i18n'
 import CallSubtitles from '../clinical/CallSubtitles'
 
@@ -42,7 +42,7 @@ export default function PatientCall() {
   // When sessionStorage was cleared (browser reopened), fetch type from DB
   useEffect(() => {
     if (!consultationId || ssType) return
-    getConsultation(consultationId).then(c => {
+    getPatientConsult(consultationId).then(c => {
       if (c?.consultation_type) {
         setConsultationType(c.consultation_type)
         sessionStorage.setItem('consultationType', c.consultation_type)
@@ -58,7 +58,7 @@ export default function PatientCall() {
     let cancelled = false
     async function checkStatus() {
       try {
-        const c = await getConsultation(consultationId)
+        const c = await getPatientConsult(consultationId)
         if (cancelled || !c) return
         if (c.status === 'no_show') {
           setGate('no_show')

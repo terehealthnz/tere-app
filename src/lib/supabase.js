@@ -239,6 +239,20 @@ export async function getConsultation(id) {
   return consultation
 }
 
+// Patient-side reader — hits /api/patient-consult which returns a safe
+// projection (status, provider_display_name, consultation_type, ratings) with
+// no provider auth required. Use this from WaitingRoom / PatientCall so the
+// status poll doesn't 401 for anonymous patient sessions.
+export async function getPatientConsult(id) {
+  const res = await apiFetch(`/api/patient-consult?id=${encodeURIComponent(id)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPatientConsult HTTP ${res.status}`)
+  }
+  const { consultation } = await res.json()
+  return consultation
+}
+
 export async function getActiveConsultations() {
   const res = await apiFetch('/api/consultations?filter=active')
   if (!res.ok) {

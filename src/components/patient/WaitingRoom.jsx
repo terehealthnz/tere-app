@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getConsultation, patientUpdateConsultation } from '../../lib/supabase'
+import { getPatientConsult, patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
 const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
@@ -106,7 +106,7 @@ export default function WaitingRoom() {
   // Fetch created_at for the countdown
   useEffect(() => {
     if (!consultationId || consultationId.startsWith('demo')) return
-    getConsultation(consultationId).then(c => {
+    getPatientConsult(consultationId).then(c => {
       if (c?.created_at) setCreatedAt(c.created_at)
     }).catch(() => {})
   }, [consultationId])
@@ -131,7 +131,7 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!consultationId || consultationId.startsWith('demo') || pushFiredRef.current) return
     pushFiredRef.current = true
-    getConsultation(consultationId).then(c => {
+    getPatientConsult(consultationId).then(c => {
       apiFetch('/api/push-notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,7 +157,7 @@ export default function WaitingRoom() {
 
     const poll = async () => {
       try {
-        const consult = await getConsultation(consultationId)
+        const consult = await getPatientConsult(consultationId)
         if (!consult) return
         handleStatusChange(consult.status, consult.provider_display_name)
       } catch {}
