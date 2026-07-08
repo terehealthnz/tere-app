@@ -186,16 +186,20 @@ async function routeTicket(supabase, ticket) {
     return { routing_status: 'admin_inbox' }
   }
 
-  const { data: consult } = await supabase
+  const { data: consult, error: cLookupErr } = await supabase
     .from('consultations')
-    .select('id, provider_id, completed_at, signed_off_at, updated_at, patient_first_name, patient_last_name, patient_email, patient_phone, patient_dob, patient_id')
+    .select('id, provider_id, completed_at, notes_finalised_at, updated_at, patient_first_name, patient_last_name, patient_email, patient_phone, patient_dob, patient_id')
     .eq('id', ticket.consultation_id)
     .maybeSingle()
 
+  if (cLookupErr) {
+    console.error('[patient-support] consult lookup failed:', cLookupErr.message)
+    return { routing_status: 'admin_inbox' }
+  }
   if (!consult) return { routing_status: 'admin_inbox' }
   const provider_id = consult.provider_id || null
 
-  const refIso = consult.signed_off_at || consult.completed_at || consult.updated_at
+  const refIso = consult.notes_finalised_at || consult.completed_at || consult.updated_at
   const ageDays = refIso ? (Date.now() - new Date(refIso).getTime()) / 86400000 : Infinity
   const withinWindow = provider_id && ageDays <= FOLLOW_UP_WINDOW_DAYS
 
