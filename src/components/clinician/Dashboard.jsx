@@ -808,6 +808,12 @@ export default function Dashboard() {
             ['notes','Notes'],
             ['schedule','📅 Schedule'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
+            // Countersign tab only appears for providers who have RMOs
+            // assigned to them (SupervisionCountersignTab fetches this
+            // itself and returns null if nothing pending; the tab always
+            // shows for supervisors so they can log the meeting even with
+            // an empty queue).
+            ...(isSupervisor ? [['countersign', 'RMO countersign']] : []),
           ].map(([t,label]) => (
             <button key={t} onClick={() => setDashTab(t)}
               style={{padding:'7px 20px',borderRadius:'6px',border:'none',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.875rem',transition:'all .15s',background:dashTab===t?'var(--navy)':'transparent',color:dashTab===t?'white':t==='approvals'&&approvalBadge>0?'#DC2626':'var(--muted)'}}>
@@ -981,7 +987,135 @@ export default function Dashboard() {
         {dashTab === 'notes' && <NotesTab navigate={navigate} />}
         {dashTab === 'schedule' && <ProviderSchedule embedded />}
         {dashTab === 'approvals' && isSupervisor && <ApprovalsTab onBadgeChange={setApprovalBadge} />}
+        {dashTab === 'countersign' && isSupervisor && <SupervisionCountersignTab navigate={navigate} />}
 
+      </div>
+    </div>
+  )
+}
+
+// SupervisionCountersignTab — supervisor's queue of RMO-signed consults
+// awaiting countersign, plus a meeting-log form to satisfy the MCNZ
+// requirement for documented supervision reviews. Fetches from
+// /api/supervision.
+function SupervisionCountersignTab({ navigate }) {
+  const [pending, setPending]   = useState([])
+  const [rmos, setRmos]         = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [savingSign, setSavingSign] = useState(null)
+  const [showLog, setShowLog]   = useState(false)
+  const [logRmo, setLogRmo]     = useState('')
+  const [logDuration, setLogDuration] = useState('')
+  const [logConcerns, setLogConcerns] = useState('')
+  const [logActions, setLogActions]   = useState('')
+  const [logResult, setLogResult]     = useState(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/supervision?action=queue')
+      if (res.ok) {
+        const { pending: p, rmos: r } = await res.json()
+        setPending(p || []); setRmos(r || [])
+      }
+    } finally { setLoading(false) }
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  async function countersign(c, notes) {
+    setSavingSign(c.id)
+    try {
+      const res = await apiFetch('/api/supervision', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'countersign', consultationId: c.id, notes: notes || null }),
+      })
+      if (!res.ok) { const j = await res.json().catch(() => ({})); alert('Countersign failed: ' + (j.error || res.status)); return }
+      await load()
+    } finally { setSavingSign(null) }
+  }
+
+  async function submitLog(e) {
+    e.preventDefault()
+    if (!logRmo) return
+    setLogResult(null)
+    const res = await apiFetch('/api/supervision', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'log_review', rmoId: logRmo,
+        meeting_duration_min: logDuration ? Number(logDuration) : null,
+        concerns_raised: logConcerns.trim() || null,
+        actions_agreed: logActions.trim() || null,
+        cases_reviewed: [],
+      }),
+    })
+    if (res.ok) { setLogResult('logged'); setLogConcerns(''); setLogActions(''); setLogDuration('') }
+    else { const j = await res.json().catch(() => ({})); setLogResult('error: ' + (j.error || res.status)) }
+  }
+
+  if (loading) return <div style={{padding:'1.25rem',color:'var(--muted)'}}>Loading…</div>
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:'1.25rem'}}>
+      <div style={{background:'#F0F9FA',border:'1px solid #BAE6E9',borderRadius:12,padding:'.875rem 1.125rem',fontSize:'.8125rem',color:'#0B4F5A',lineHeight:1.6}}>
+        <strong>MCNZ supervision.</strong> RMO consultations are held here after they sign off their notes. Review the record, then countersign — this stamps your ID and the timestamp so the audit trail is complete when MCNZ requests it.
+      </div>
+
+      <div className="card" style={{padding:'1rem 1.25rem'}}>
+        <div style={{fontSize:'.75rem',fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.75rem'}}>Pending countersign ({pending.length})</div>
+        {pending.length === 0 ? (
+          <div style={{color:'var(--muted)',fontSize:'.875rem',padding:'.5rem 0'}}>Nothing awaiting countersign — you're up to date.</div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
+            {pending.map(c => (
+              <div key={c.id} style={{border:'1px solid #E2E8F0',borderRadius:10,padding:'.75rem 1rem',display:'grid',gridTemplateColumns:'2fr 3fr 1fr 1fr auto',gap:'.75rem',alignItems:'center'}}>
+                <div>
+                  <div style={{fontWeight:700,color:'var(--text)',fontSize:'.9375rem'}}>{c.patient_first_name} {c.patient_last_name}</div>
+                  <div style={{fontSize:'.75rem',color:'var(--muted)'}}>RMO: {c.provider_display_name || '—'}</div>
+                </div>
+                <div style={{fontSize:'.8125rem',color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.chief_complaint || '—'}</div>
+                <div style={{fontSize:'.75rem',color:'var(--muted)'}}>{c.notes_finalised_at ? new Date(c.notes_finalised_at).toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—'}</div>
+                <button onClick={() => navigate(`/provider/notes/${c.id}`)}
+                  style={{background:'white',border:'1.5px solid #E2E8F0',padding:'6px 12px',borderRadius:8,fontSize:'.75rem',fontWeight:700,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',color:'var(--navy)'}}>
+                  View notes
+                </button>
+                <button onClick={() => { const n = prompt('Countersign note (optional)') ; if (n !== null) countersign(c, n) }} disabled={savingSign === c.id}
+                  style={{background:'#0B6E76',color:'white',border:'none',padding:'6px 14px',borderRadius:8,fontSize:'.75rem',fontWeight:700,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+                  {savingSign === c.id ? 'Signing…' : '✓ Countersign'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card" style={{padding:'1rem 1.25rem'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'.75rem'}}>
+          <div style={{fontSize:'.75rem',fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em'}}>Log supervision meeting</div>
+          <button onClick={() => setShowLog(v => !v)}
+            style={{background:'none',border:'none',color:'#0B6E76',fontSize:'.8125rem',fontWeight:700,cursor:'pointer'}}>
+            {showLog ? '× Close' : '+ New review log'}
+          </button>
+        </div>
+        {showLog && (
+          <form onSubmit={submitLog} style={{display:'flex',flexDirection:'column',gap:'.625rem'}}>
+            <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:'.5rem'}}>
+              <select value={logRmo} onChange={e => setLogRmo(e.target.value)} required
+                style={{padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.875rem'}}>
+                <option value=''>— Select RMO —</option>
+                {rmos.map(r => <option key={r.id} value={r.id}>{r.display_name || r.id.slice(0,8)}</option>)}
+              </select>
+              <input type='number' min='5' max='240' value={logDuration} onChange={e => setLogDuration(e.target.value)} placeholder='Minutes'
+                style={{padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.875rem'}} />
+            </div>
+            <textarea value={logConcerns} onChange={e => setLogConcerns(e.target.value)} rows={2} placeholder='Concerns raised (near-miss, prescribing patterns, escalation delays…)'
+              style={{padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.875rem',resize:'vertical'}} />
+            <textarea value={logActions} onChange={e => setLogActions(e.target.value)} rows={2} placeholder='Actions agreed (learning plan, follow-up review, scope changes…)'
+              style={{padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.875rem',resize:'vertical'}} />
+            <div style={{display:'flex',gap:'.5rem',alignItems:'center'}}>
+              <button type='submit' style={{background:'#0B6E76',color:'white',border:'none',padding:'8px 18px',borderRadius:8,fontSize:'.8125rem',fontWeight:700,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>Save review</button>
+              {logResult === 'logged' && <span style={{color:'#065F46',fontSize:'.75rem',fontWeight:600}}>✓ Logged</span>}
+              {logResult && logResult.startsWith('error') && <span style={{color:'#B91C1C',fontSize:'.75rem'}}>{logResult}</span>}
+            </div>
+          </form>
+        )}
       </div>
     </div>
   )

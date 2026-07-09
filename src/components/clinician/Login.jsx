@@ -106,6 +106,12 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerColor', p.color || '#0B6E76')
       if (p.prescriber_number) sessionStorage.setItem('prescriberNumber', p.prescriber_number)
       if (p.cpn) sessionStorage.setItem('providerCpn', p.cpn)
+      // MCNZ supervision — supervised RMOs get a locked-down UI (notes get
+      // countersign flag on finalise; prescribing modal warns; availability
+      // toggle refuses if supervisor is offline). Default 'senior' so older
+      // provider rows without provider_type act as unchanged.
+      sessionStorage.setItem('providerType', p.provider_type || 'senior')
+      if (p.supervisor_id) sessionStorage.setItem('providerSupervisorId', p.supervisor_id)
 
       localStorage.setItem('tere_portal', p.is_admin ? 'admin' : 'provider')
       if (p.must_change_password) {

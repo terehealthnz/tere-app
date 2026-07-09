@@ -63,6 +63,12 @@ const DOCS_MAP = {
     title: 'Cost Structure & Unit Economics',
     badges: ['Confidential', 'Internal review', '2026-07-08'],
   },
+  'supervision-plan': {
+    src: 'supervision-plan.md',
+    out: 'Tere_Health_RMO_Supervision_Plan.pdf',
+    title: 'RMO Supervision Plan',
+    badges: ['MCNZ filing', 'Named supervisor', 'Countersign SLA'],
+  },
 }
 
 const CSS = `

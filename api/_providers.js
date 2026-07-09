@@ -33,6 +33,8 @@ const UPDATE_ALLOWLIST = new Set([
   'signature_url',
   'base_rate', 'hourly_rate', 'holiday_pay_pct',
   'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
+  // MCNZ RMO supervision (see supabase-mcnz-supervision-migration.sql)
+  'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
 ])
 
 export default async function handler(req, res) {
@@ -113,7 +115,8 @@ export default async function handler(req, res) {
       'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
       'can_prescribe', 'can_refer', 'can_acc',
       'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
-      'provider_type', 'availability_message',
+      'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
+      'availability_message',
       'signature_url',
       'base_rate', 'hourly_rate', 'holiday_pay_pct',
       'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
@@ -159,6 +162,20 @@ export default async function handler(req, res) {
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
+
+    // MCNZ supervision guard — an RMO must have a named supervisor on file
+    // before they can go available. This is the paper-trail requirement, not
+    // an online-status requirement: MCNZ's standard is that the supervisor is
+    // contactable, not that they are seeing patients at the same time. Their
+    // real-time availability is a phone/Slack contract, tracked out-of-band.
+    if (patch.is_available === true) {
+      const { data: target } = await supabase
+        .from('providers').select('provider_type, supervisor_id').eq('id', id).maybeSingle()
+      if (target && target.provider_type === 'rmo' && !target.supervisor_id) {
+        return res.status(400).json({ error: 'RMO must have an assigned supervisor before going available' })
+      }
+    }
+
     patch.updated_at = new Date().toISOString()
 
     const { data, error } = await supabase
@@ -168,6 +185,7 @@ export default async function handler(req, res) {
       .select()
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
+
     return res.status(200).json({ provider: data })
   }
 

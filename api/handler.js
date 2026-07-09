@@ -34,6 +34,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'clinic-schedule',
+  'supervision',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -141,6 +142,7 @@ const ROUTES = {
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
   'live-translate':            () => import('./_live-translate.js'),
   'transcribe-token':          () => import('./_transcribe-token.js'),
+  'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
