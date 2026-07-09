@@ -288,3 +288,202 @@ export function buildPayslipPdf(data) {
     doc.end()
   })
 }
+
+// MCNZ supervision plan — auto-generated at RMO onboarding time. Renders
+// the MCNZ-facing plan (see docs/supervision-plan.md) filled in with the
+// RMO's identifiers, supervisor's identifiers + signature, and the Tere
+// Health Ltd director's attestation signature. RMO signs the paper copy.
+//
+// Expected data:
+//   rmo: { first_name, last_name, mcnz_registration_number, scope_of_practice,
+//          pgy_level, supervision_start_date }
+//   supervisor: { first_name, last_name, prescriber_number, cpn, mobile,
+//                 email, signature_url, specialty }
+//   director:   { first_name, last_name, signature_url }
+export async function buildSupervisionPlanPdf(data) {
+  const supSig = await fetchSignatureBuffer(data.supervisor?.signature_url)
+  const dirSig = await fetchSignatureBuffer(data.director?.signature_url)
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 50
+    let y = M
+
+    // Header band
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('TERE HEALTH', M, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', M, 46)
+    y = 90
+
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('Supervision Plan', M, y)
+    y += 24
+    doc.fillColor('#666').font('Helvetica-Oblique').fontSize(9.5)
+      .text('As required by the Medical Council of New Zealand for a doctor practising within a supervised scope of registration.', M, y, { width: W - M * 2 })
+    y += 26
+
+    // Meta box
+    doc.rect(M, y, W - M * 2, 46).fill('#F0F9FA')
+    doc.fillColor('#0D2B45').font('Helvetica').fontSize(9)
+    doc.text(`Practice: Tere Health Limited · terehealth.co.nz · Marlborough Sounds, New Zealand`, M + 10, y + 8)
+    doc.text(`Plan version: v3 · ${new Date().toISOString().slice(0, 10)}`, M + 10, y + 22)
+    doc.text(`Generated for: ${data.rmo?.first_name || ''} ${data.rmo?.last_name || ''}`, M + 10, y + 34)
+    y += 60
+
+    // Two-column table helper
+    function row(label, value, opts = {}) {
+      const rowH = opts.height || 22
+      const labelW = 180
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0D2B45')
+        .text(label, M, y + 6, { width: labelW - 6 })
+      doc.font('Helvetica').fontSize(9.5).fillColor('#1A2A33')
+        .text(value || '_______________________________', M + labelW, y + 6, { width: W - M * 2 - labelW })
+      doc.moveTo(M, y + rowH).lineTo(W - M, y + rowH).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
+      y += rowH
+    }
+    function heading(txt) {
+      y += 8
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text(txt, M, y)
+      y += 16
+      doc.moveTo(M, y).lineTo(W - M, y).strokeColor('#0B6E76').lineWidth(1).stroke()
+      y += 6
+    }
+    function paragraph(txt, opts = {}) {
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
+        .text(txt, M, y, { width: W - M * 2, align: opts.align || 'left', lineGap: 2 })
+      y = doc.y + 6
+    }
+    function bulletList(items) {
+      doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      for (const it of items) {
+        doc.text('• ' + it, M + 8, y, { width: W - M * 2 - 8, lineGap: 2 })
+        y = doc.y + 2
+      }
+      y += 4
+    }
+
+    // §1 Supervisee
+    heading('1. Supervisee (RMO)')
+    row('Name', `${data.rmo?.first_name || ''} ${data.rmo?.last_name || ''}`.trim())
+    row('MCNZ registration number', data.rmo?.mcnz_registration_number)
+    row('Scope of practice held', data.rmo?.scope_of_practice)
+    row('PGY level at start', data.rmo?.pgy_level != null ? `PGY ${data.rmo.pgy_level}` : null)
+    row('Supervision start date', data.rmo?.supervision_start_date
+      ? new Date(data.rmo.supervision_start_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      : null)
+
+    // §2 Supervisor
+    heading('2. Supervisor')
+    row('Name', `Dr ${data.supervisor?.first_name || ''} ${data.supervisor?.last_name || ''}`.trim())
+    row('MCNZ prescriber number', data.supervisor?.prescriber_number)
+    row('HPI-CPN', data.supervisor?.cpn)
+    row('Vocational scope', data.supervisor?.specialty)
+    row('Mobile', data.supervisor?.mobile)
+    row('Email', data.supervisor?.email)
+
+    // §3 Arrangement
+    heading('3. Supervision arrangement')
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Method. ', M, y, { continued: true })
+    doc.font('Helvetica').fillColor('#1A2A33')
+      .text('Named supervisor, contactable by mobile phone (text or voice call) for the duration of every RMO shift. Response target for clinical questions ≤5 minutes. The supervisor need not be practising on the same platform at the same time — the standard is on-call availability, as it is for a senior doctor supervising a resident in a hospital.', { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 6
+
+    // Page break check
+    if (y > 720) { doc.addPage(); y = M }
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Meetings. ', M, y, { continued: true })
+    doc.font('Helvetica').fillColor('#1A2A33')
+      .text('Weekly for the first three months, then fortnightly. Duration approximately 45 minutes. Held by video or in person.', { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 6
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Content of meetings. ', M, y, { continued: true })
+    doc.font('Helvetica').fillColor('#1A2A33')
+      .text('Review of cases the RMO has managed, prescribing decisions, complaints or concerns from patients or colleagues, and learning goals.', { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 6
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Documentation. ', M, y, { continued: true })
+    doc.font('Helvetica').fillColor('#1A2A33')
+      .text('Every meeting is logged with date, duration, cases reviewed, and actions agreed. The log is retained by Tere Health Limited and available to the Medical Council on request.', { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 8
+
+    // §4 Scope
+    if (y > 620) { doc.addPage(); y = M }
+    heading('4. Scope of practice within Tere Health')
+    paragraph('The RMO practises within the scope agreed at appointment. The following categories are held for supervisor consultation before a decision is finalised:')
+    bulletList([
+      'Prescriptions for controlled drugs, opioids, benzodiazepines, GLP-1 receptor agonists, stimulants, or hypnotics',
+      'Presentations of chest pain, stroke symptoms, suspected sepsis or meningitis, acute psychosis, or suicidal ideation with plan or intent',
+      'Paediatric patients under two years of age',
+      'Any consultation the RMO judges to exceed their competence',
+    ])
+    paragraph('Scope may be broadened or narrowed at review meetings.')
+
+    // §5 Reporting
+    if (y > 640) { doc.addPage(); y = M }
+    heading('5. Reporting to the Medical Council')
+    paragraph('The supervisor will provide a supervision report to the Medical Council of New Zealand at the intervals required by the RMO\'s scope of registration.')
+
+    // §6 Termination
+    if (y > 640) { doc.addPage(); y = M }
+    heading('6. Termination')
+    paragraph('Supervision continues until the Medical Council removes the supervised-scope condition from the RMO\'s registration. The supervisor will file a final report with the Council within thirty days of termination.')
+
+    // Signatures
+    if (y > 540) { doc.addPage(); y = M }
+    heading('Declarations')
+
+    function signatureBlock(label, name, sigBuf) {
+      doc.font('Helvetica').fontSize(9.5).fillColor('#1A2A33')
+        .text(label, M, y, { width: W - M * 2, lineGap: 2 })
+      y = doc.y + 22
+      // Signature line + optional signature image
+      const sigLineY = y
+      if (sigBuf) {
+        try { doc.image(sigBuf, M + 90, sigLineY - 32, { fit: [180, 30] }) } catch {}
+      }
+      doc.moveTo(M + 88, sigLineY).lineTo(M + 300, sigLineY).strokeColor('#666').lineWidth(0.5).stroke()
+      doc.font('Helvetica').fontSize(8).fillColor('#666').text('Signature', M, sigLineY + 4)
+      // Auto-name if we have one
+      if (name) {
+        doc.font('Helvetica').fontSize(8).fillColor('#666').text(name, M + 88, sigLineY + 4)
+      }
+      doc.moveTo(M + 360, sigLineY).lineTo(W - M, sigLineY).strokeColor('#666').lineWidth(0.5).stroke()
+      doc.text('Date', M + 320, sigLineY + 4)
+      // Auto-date for signed-by-Tere blocks (supervisor + director)
+      if (name && sigBuf) {
+        doc.font('Helvetica').fontSize(9).fillColor('#1A2A33')
+          .text(new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }), M + 362, sigLineY - 12)
+      }
+      y = sigLineY + 26
+    }
+
+    signatureBlock(
+      'I, the RMO named above, have read this plan and agree to work within its terms.',
+      null, // RMO signs on paper
+      null,
+    )
+    signatureBlock(
+      `I, Dr ${data.supervisor?.first_name || ''} ${data.supervisor?.last_name || ''}, accept responsibility for the supervision arrangement described above.`,
+      `Dr ${data.supervisor?.first_name || ''} ${data.supervisor?.last_name || ''}`.trim(),
+      supSig,
+    )
+    signatureBlock(
+      'For Tere Health Limited (director):',
+      `${data.director?.first_name || ''} ${data.director?.last_name || ''}`.trim(),
+      dirSig,
+    )
+
+    // Footer note
+    y += 12
+    if (y > 780) { doc.addPage(); y = M }
+    doc.fillColor('#666').font('Helvetica-Oblique').fontSize(8.5)
+      .text('This document is filed with the Medical Council of New Zealand as part of the RMO\'s supervised-scope registration. A signed copy is retained by both parties and by Tere Health Limited.',
+        M, y, { width: W - M * 2, align: 'center' })
+
+    doc.end()
+  })
+}

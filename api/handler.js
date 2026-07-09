@@ -29,6 +29,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Provider clinical work
   'convert-to-acc', 'acc-claims',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
+  'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
   'create-room',
   'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
@@ -139,6 +140,7 @@ const ROUTES = {
   'generate-notes':            () => import('./_generate-notes.js'),
   'generate-prescription-pdf': () => import('./_generate-prescription-pdf.js'),
   'generate-referral-pdf':     () => import('./_generate-referral-pdf.js'),
+  'generate-supervision-plan': () => import('./_generate-supervision-plan.js'),
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
   'live-translate':            () => import('./_live-translate.js'),
   'transcribe-token':          () => import('./_transcribe-token.js'),

@@ -427,6 +427,9 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     is_rmo: false,
     supervisor_id: '',
     supervision_start_date: new Date().toISOString().slice(0, 10),
+    mcnz_registration_number: '',
+    scope_of_practice: '',
+    pgy_level: '',
     // Payroll
     contract_type: 'contractor',
     base_rate: '',
@@ -487,6 +490,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
+      const wasRmo = !!payload.is_rmo
       // Translate MCNZ supervision toggle into DB fields.
       if (payload.is_rmo) {
         payload.provider_type = 'rmo'
@@ -500,11 +504,19 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
             'controlled_drugs_or_opioids_or_benzos_or_glp1_or_stimulants_or_hypnotics',
           ],
         }
+        if (payload.pgy_level !== '' && payload.pgy_level != null) {
+          payload.pgy_level = Number(payload.pgy_level)
+        } else {
+          delete payload.pgy_level
+        }
       } else {
         // Don't send supervisor_id / supervision_start_date if this isn't
         // an RMO — those are RMO-only fields.
         delete payload.supervisor_id
         delete payload.supervision_start_date
+        delete payload.mcnz_registration_number
+        delete payload.scope_of_practice
+        delete payload.pgy_level
       }
       delete payload.is_rmo
       const res = await apiFetch('/api/providers', {
@@ -514,7 +526,23 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create provider')
-      onCreated(data)
+
+      // For RMOs, auto-generate the filled-in MCNZ supervision plan PDF so
+      // the admin has a signed-by-supervisor copy ready to hand to the new
+      // hire on day one. Non-fatal — if generation fails, the provider is
+      // still created; the admin can retry manually.
+      let supervisionPlan = null
+      if (wasRmo && data.provider?.id) {
+        try {
+          const planRes = await apiFetch('/api/generate-supervision-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rmoId: data.provider.id }),
+          })
+          if (planRes.ok) supervisionPlan = await planRes.json()
+        } catch { /* non-fatal */ }
+      }
+      onCreated({ ...data, supervisionPlan })
     } catch (e) {
       setError(e.message)
       setSubmitting(false)
@@ -658,8 +686,25 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                     <div style={labelStyle}>Supervision start date *</div>
                     <input type="date" value={form.supervision_start_date} onChange={e => set('supervision_start_date', e.target.value)} style={inputStyle} required />
                   </div>
+                  <div>
+                    <div style={labelStyle}>MCNZ registration number</div>
+                    <input value={form.mcnz_registration_number} onChange={e => set('mcnz_registration_number', e.target.value)} placeholder="e.g. 88123" style={inputStyle} />
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Scope of practice held</div>
+                    <select value={form.scope_of_practice} onChange={e => set('scope_of_practice', e.target.value)} style={inputStyle}>
+                      <option value="">— Select scope —</option>
+                      <option value="Provisional General">Provisional General</option>
+                      <option value="General (supervised)">General (supervised)</option>
+                      <option value="Provisional Vocational">Provisional Vocational</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>PGY level at start</div>
+                    <input type="number" min="1" max="15" value={form.pgy_level} onChange={e => set('pgy_level', e.target.value)} placeholder="e.g. 3" style={inputStyle} />
+                  </div>
                   <div style={{ gridColumn:'1 / -1', fontSize:'.7rem', color:'#6B7280', lineHeight:1.5 }}>
-                    The supervisor is contactable by mobile phone for the duration of every RMO shift (ER on-call model). Weekly review meetings are logged via the supervisor's <strong>Supervision</strong> tab. See <code>docs/supervision-plan.md</code> for the MCNZ-facing filing template. The escalate-immediately safety list is populated automatically.
+                    The supervisor is contactable by mobile phone for the duration of every RMO shift (ER on-call model). Weekly review meetings are logged via the supervisor's <strong>Supervision</strong> tab. Once this RMO is created, a filled-in <strong>MCNZ supervision plan PDF</strong> is auto-generated with the supervisor's signature — you'll get a download link in the confirmation banner. The RMO signs the paper copy and files with MCNZ.
                   </div>
                 </div>
               )}
@@ -1182,6 +1227,18 @@ function ProvidersPanel() {
             Initial PIN: <code style={{ background:'white', padding:'2px 8px', borderRadius:4, fontSize:'1rem', fontWeight:700, letterSpacing:'.15em' }}>{createdNotice.initialPin}</code>
             &nbsp;— share with them securely. They'll be prompted to change it on first login.
           </div>
+          {createdNotice.supervisionPlan?.signedUrl && (
+            <div style={{ marginTop:10, padding:'.625rem .75rem', background:'white', borderRadius:6, border:'1px solid #A7F3D0' }}>
+              <div style={{ color:'#065F46', fontWeight:700, marginBottom:4 }}>📄 MCNZ supervision plan generated</div>
+              <div style={{ color:'#065F46', fontSize:'.8125rem', marginBottom:6 }}>
+                Signed by supervisor + director. RMO signs the paper copy and files with MCNZ.
+              </div>
+              <a href={createdNotice.supervisionPlan.signedUrl} target="_blank" rel="noreferrer"
+                style={{ display:'inline-block', background:'#0B6E76', color:'white', padding:'6px 14px', borderRadius:6, fontSize:'.8125rem', fontWeight:700, textDecoration:'none' }}>
+                Download PDF
+              </a>
+            </div>
+          )}
           <button onClick={() => setCreatedNotice(null)} style={{ marginTop:8, background:'none', border:'none', color:'#0B6E76', cursor:'pointer', fontSize:'.8125rem', fontWeight:600, padding:0 }}>Dismiss</button>
         </div>
       )}
