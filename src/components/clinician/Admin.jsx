@@ -1312,6 +1312,27 @@ function ProvidersPanel() {
                         Save message
                       </button>
                     )}
+                    {p.provider_type === 'rmo' && (
+                      <button onClick={async () => {
+                        setSaving(p.id)
+                        try {
+                          const { apiFetch } = await import('../../lib/api')
+                          const r = await apiFetch('/api/generate-supervision-plan', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ rmoId: p.id }),
+                          })
+                          const data = await r.json()
+                          if (!r.ok) { alert(data.error || 'Generate failed'); return }
+                          window.open(data.signedUrl, '_blank', 'noopener')
+                        } catch (e) { alert(e.message) }
+                        finally { setSaving(null) }
+                      }} disabled={saving === p.id}
+                        title="Re-generate and download the MCNZ supervision plan for this RMO"
+                        style={{ background:'#EDE9FE', color:'#5B21B6', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
+                        {saving === p.id ? '…' : '📄 Supervision plan'}
+                      </button>
+                    )}
                     <button onClick={() => setEditing(p)} disabled={saving === p.id}
                       style={{ background:'#F0F9FA', color:'#0B6E76', border:'none', padding:'4px 12px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
                       Edit

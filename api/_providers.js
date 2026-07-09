@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     // Default: modest projection, only active + is_provider rows.
     const { data, error } = await supabase
       .from('providers')
-      .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_available, availability_message')
+      .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_available, availability_message, provider_type, supervisor_id, supervision_plan_url')
       .order('first_name')
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ providers: data || [] })
