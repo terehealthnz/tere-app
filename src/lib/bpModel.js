@@ -8,10 +8,42 @@
 import * as tf from '@tensorflow/tfjs'
 import { supabase } from './supabase'
 
-const MODEL_KEY  = 'localstorage://tere-vitals-unified'
+// Model weights live in IndexedDB (GB-scale quota), not localStorage.
+// localStorage tops out around ~5MB per origin; once the trained weights
+// were sitting in that bucket, every retrain hit QuotaExceededError inside
+// TF.js's model.save() and silently threw before the meta line could write
+// the fresh trainedAt timestamp. The dashboard then fell back to the last
+// DB-uploaded model and looked "unchanged" no matter how many times the
+// clinician clicked Retrain. Moved to IndexedDB in commit ~2026-07-09.
+const MODEL_KEY_OLD = 'localstorage://tere-vitals-unified'
+const MODEL_KEY  = 'indexeddb://tere-vitals-unified'
 const NORM_KEY   = 'tere-vitals-norm'
 const META_KEY   = 'tere-vitals-meta'
 const CALIB_KEY  = 'tere-bp-calibration'
+
+// One-shot migration: if weights still live at the old localStorage key
+// AND nothing lives at the new IndexedDB key yet, copy them over so we
+// don't force the clinician to retrain from scratch. Fire-and-forget on
+// module load — worst case the model has to be retrained once.
+;(async () => {
+  try {
+    const [ls, idb] = await Promise.all([
+      tf.io.listModels().then(r => Object.keys(r)),
+      tf.io.listModels().then(r => Object.keys(r)), // same call, but safe
+    ])
+    const hasOld = ls.some(k => k === MODEL_KEY_OLD)
+    const hasNew = idb.some(k => k === MODEL_KEY)
+    if (hasOld && !hasNew) {
+      const model = await tf.loadLayersModel(MODEL_KEY_OLD)
+      await model.save(MODEL_KEY)
+      await tf.io.removeModel(MODEL_KEY_OLD)
+      model.dispose()
+      console.log('[vitalsModel] migrated model weights from localStorage → IndexedDB')
+    }
+  } catch (e) {
+    console.warn('[vitalsModel] model migration skipped:', e.message)
+  }
+})()
 
 const FEATURE_SIZE = 30  // 5 HR + 3 RR + 4 BP + 5 SpO2 + 5 demographic + 8 device
 const OUTPUT_SIZE  = 4   // [systolic, diastolic, hr, spo2]
@@ -442,6 +474,10 @@ export function getLocalMeta() {
 
 export async function resetLocalModel() {
   try { await tf.io.removeModel(MODEL_KEY) } catch {}
+  // Also clear any legacy localStorage-backed weights during the migration
+  // window so a Reset really does start from a blank slate. Safe once
+  // MODEL_KEY_OLD is retired.
+  try { await tf.io.removeModel(MODEL_KEY_OLD) } catch {}
   localStorage.removeItem(NORM_KEY)
   localStorage.removeItem(META_KEY)
   localStorage.removeItem(CALIB_KEY)
