@@ -654,6 +654,7 @@ export default function Dashboard() {
   const [approvalBadge, setApprovalBadge] = useState(0)
   const [nowTick, setNowTick]             = useState(Date.now())
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
+  const isRMO = sessionStorage.getItem('providerType') === 'rmo'
 
   // Cooldown countdown ticker. Only runs while at least one consult is in
   // cooldown; otherwise idle. The patient only ever gets two SMSes: the
@@ -812,6 +813,8 @@ export default function Dashboard() {
             // review meetings with each RMO. MCNZ requires evidence of these
             // meetings at an agreed cadence — this is the audit trail.
             ...(isSupervisor ? [['supervision', 'Supervision']] : []),
+            // For RMOs — their own view of their supervisor + review log.
+            ...(isRMO ? [['my-supervision', 'My supervision']] : []),
           ].map(([t,label]) => (
             <button key={t} onClick={() => setDashTab(t)}
               style={{padding:'7px 20px',borderRadius:'6px',border:'none',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.875rem',transition:'all .15s',background:dashTab===t?'var(--navy)':'transparent',color:dashTab===t?'white':t==='approvals'&&approvalBadge>0?'#DC2626':'var(--muted)'}}>
@@ -986,6 +989,7 @@ export default function Dashboard() {
         {dashTab === 'schedule' && <ProviderSchedule embedded />}
         {dashTab === 'approvals' && isSupervisor && <ApprovalsTab onBadgeChange={setApprovalBadge} />}
         {dashTab === 'supervision' && isSupervisor && <SupervisionReviewsTab navigate={navigate} />}
+        {dashTab === 'my-supervision' && isRMO && <RMOSupervisionSelfTab />}
 
       </div>
     </div>
@@ -1119,6 +1123,87 @@ function SupervisionReviewsTab({ navigate }) {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// RMOSupervisionSelfTab — the RMO's own view of their supervision setup.
+// Shows the supervisor's name + contact + the review meeting log so far.
+// Read-only from the RMO's side. Fetches via /api/supervision and
+// /api/providers.
+function RMOSupervisionSelfTab() {
+  const [supervisor, setSupervisor] = useState(null)
+  const [reviews, setReviews]       = useState([])
+  const [loading, setLoading]       = useState(true)
+  const selfId       = sessionStorage.getItem('providerId')
+  const supervisorId = sessionStorage.getItem('providerSupervisorId')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [supRes, revRes] = await Promise.all([
+          supervisorId ? apiFetch(`/api/providers?id=${supervisorId}&columns=id,first_name,last_name,credential,specialty,email`) : Promise.resolve(null),
+          apiFetch(`/api/supervision?action=reviews&rmoId=${selfId}`),
+        ])
+        if (cancelled) return
+        if (supRes?.ok) { const { provider } = await supRes.json(); setSupervisor(provider) }
+        if (revRes.ok) { const { reviews: rv } = await revRes.json(); setReviews(rv || []) }
+      } finally { if (!cancelled) setLoading(false) }
+    })()
+    return () => { cancelled = true }
+  }, [selfId, supervisorId])
+
+  if (loading) return <div style={{padding:'1.25rem',color:'var(--muted)'}}>Loading…</div>
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:'1.25rem'}}>
+      <div style={{background:'#F0F9FA',border:'1px solid #BAE6E9',borderRadius:12,padding:'.875rem 1.125rem',fontSize:'.8125rem',color:'#0B4F5A',lineHeight:1.6}}>
+        <strong>MCNZ supervision.</strong> You are practising under a supervised scope. Contact your supervisor by phone (text or voice call) for any clinical question that falls outside your agreed scope. See the plan document filed with MCNZ for the details.
+      </div>
+
+      <div className="card" style={{padding:'1rem 1.25rem'}}>
+        <div style={{fontSize:'.75rem',fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.75rem'}}>Your supervisor</div>
+        {supervisor ? (
+          <div style={{display:'flex',flexDirection:'column',gap:'.375rem'}}>
+            <div style={{fontSize:'1rem',fontWeight:700,color:'var(--text)'}}>
+              {supervisor.credential ? `${supervisor.credential} ` : ''}{supervisor.first_name} {supervisor.last_name}
+            </div>
+            {supervisor.specialty && <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>{supervisor.specialty}</div>}
+            {supervisor.email && (
+              <div style={{fontSize:'.8125rem'}}>
+                <span style={{color:'var(--muted)'}}>Email: </span>
+                <a href={`mailto:${supervisor.email}`} style={{color:'#0B6E76',textDecoration:'none',fontWeight:600}}>{supervisor.email}</a>
+              </div>
+            )}
+            <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:6,paddingTop:6,borderTop:'1px solid #F1F5F9'}}>
+              Your supervisor's mobile is on the signed supervision plan you filed with MCNZ — save it in your phone.
+            </div>
+          </div>
+        ) : (
+          <div style={{color:'var(--muted)',fontSize:'.875rem'}}>No supervisor on file. Contact admin.</div>
+        )}
+      </div>
+
+      <div className="card" style={{padding:'1rem 1.25rem'}}>
+        <div style={{fontSize:'.75rem',fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.75rem'}}>Review meeting log ({reviews.length})</div>
+        {reviews.length === 0 ? (
+          <div style={{color:'var(--muted)',fontSize:'.875rem',padding:'.5rem 0'}}>No review meetings logged yet. Your supervisor records these on their end.</div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
+            {reviews.map(rv => (
+              <div key={rv.id} style={{border:'1px solid #E2E8F0',borderRadius:10,padding:'.625rem .875rem',fontSize:'.8125rem'}}>
+                <div style={{display:'flex',gap:'.75rem',alignItems:'center',marginBottom:'.25rem'}}>
+                  <strong>{new Date(rv.meeting_date).toLocaleDateString('en-NZ',{day:'numeric',month:'short',year:'numeric'})}</strong>
+                  {rv.meeting_duration_min && <span style={{color:'var(--muted)'}}>{rv.meeting_duration_min} min</span>}
+                </div>
+                {rv.concerns_raised && <div style={{marginTop:2}}><span style={{color:'var(--muted)'}}>Concerns:</span> {rv.concerns_raised}</div>}
+                {rv.actions_agreed && <div style={{marginTop:2}}><span style={{color:'var(--muted)'}}>Actions agreed:</span> {rv.actions_agreed}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
