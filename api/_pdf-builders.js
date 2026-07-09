@@ -397,8 +397,11 @@ export async function buildSupervisionPlanPdf(data) {
 
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Meetings. ', M, y, { continued: true })
     doc.font('Helvetica').fillColor('#1A2A33')
-      .text('Weekly for the first three months, then fortnightly. Duration approximately 45 minutes. Held by video or in person.', { width: W - M * 2, lineGap: 2 })
-    y = doc.y + 6
+      .text('Frequency and duration are agreed between the supervisor and the RMO at appointment, appropriate to the RMO\'s scope of registration and level of experience, and written in below. Cadence is reviewed as the RMO progresses.', { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 4
+    doc.font('Helvetica-Oblique').fontSize(9.5).fillColor('#0D2B45')
+      .text('Agreed cadence: ______________________________________________________________', M, y, { width: W - M * 2 })
+    y = doc.y + 8
 
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Content of meetings. ', M, y, { continued: true })
     doc.font('Helvetica').fillColor('#1A2A33')

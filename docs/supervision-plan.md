@@ -33,7 +33,9 @@
 
 **Method.** Named supervisor, contactable by mobile phone (text or voice call) for the duration of every RMO shift. Response target for clinical questions ≤5 minutes. The supervisor need not be practising on the same platform at the same time — the standard is on-call availability, as it is for a senior doctor supervising a resident in a hospital.
 
-**Meetings.** Weekly for the first three months, then fortnightly. Duration approximately 45 minutes. Held by video or in person.
+**Meetings.** Frequency and duration are agreed between the supervisor and the RMO at appointment, appropriate to the RMO's scope of registration and level of experience, and written in below. Cadence is reviewed as the RMO progresses.
+
+_Agreed cadence: _______________________________________________________________
 
 **Content of meetings.** Review of cases the RMO has managed, prescribing decisions, complaints or concerns from patients or colleagues, and learning goals.
 
