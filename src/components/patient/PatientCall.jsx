@@ -248,12 +248,19 @@ export default function PatientCall() {
           <span style={{ color: 'rgba(255,255,255,.6)', fontSize: '.8125rem' }}>— camera is disabled for this consultation type</span>
         </div>
       )}
+      {/* Scoped style — hides LiveKit's Share screen button on the patient
+          side only. Provider still gets it via ProviderConsult's identical
+          <VideoConference/>. LiveKit doesn't expose a prop to disable
+          individual controls on the bundled VideoConference component,
+          so we target the button by its data-lk-source attribute. */}
+      <style>{`.tere-patient-lk [data-lk-source="screen_share"] { display: none !important; }`}</style>
       <LiveKitRoom
         token={token}
         serverUrl={serverUrl}
         video={!isPhone}
         audio={true}
         data-lk-theme="default"
+        className="tere-patient-lk"
         style={{ height: '100dvh' }}
         onDisconnected={() => navigate('/done')}
       >
