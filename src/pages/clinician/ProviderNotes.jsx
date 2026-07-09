@@ -709,14 +709,6 @@ export default function ProviderNotes() {
 
       const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current }
 
-      // MCNZ RMO supervision — if the signer is an RMO, flip
-      // requires_countersign so the consult lands on the supervisor's
-      // countersign queue. Senior providers finalise as normal. The
-      // consult still transitions to status=complete for billing purposes;
-      // countersign is a separate audit trail that can happen after the
-      // fact within the supervision plan's stated SLA.
-      const isRMO = sessionStorage.getItem('providerType') === 'rmo'
-
       try {
         await updateConsultation(id, {
           notes_final:   JSON.stringify(finalNote), notes_draft:null, notes_finalised:true,
@@ -727,7 +719,6 @@ export default function ProviderNotes() {
           outcome, status:'complete', completed_at:consult.completed_at || now,
           consultation_duration_seconds:durationSec, consultation_type:actualMethod,
           payment_amount:chargeCents / 100, is_acc:isAcc,
-          ...(isRMO ? { requires_countersign: true } : {}),
         })
       } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })

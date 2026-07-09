@@ -69,8 +69,6 @@ const UPDATE_ALLOWLIST = new Set([
   // Two-attempt no-show flow (see supabase-no-show-migration.sql)
   'ring_started_at', 'patient_joined_at', 'cooldown_until',
   'join_attempts', 'join_attempt_history', 'no_show_at',
-  // MCNZ RMO supervision (see supabase-mcnz-supervision-migration.sql)
-  'requires_countersign', 'countersigned_by', 'countersigned_at', 'countersign_notes',
 ])
 
 export default async function handler(req, res) {
