@@ -35,11 +35,20 @@ import { aiCall, isConfigured } from './_ai.js'
 // Marshallese (mh) and Rohingya (rhg) are NOT in this list; low-resource
 // languages produce confident-looking wrong translations that we can't
 // detect from confidence signals alone.
-const SUBTITLE_WHITELIST = new Set(['en','zh','ja','ko','de','fr','es','ar','hi','mi','sm'])
+// Keep in sync with:
+//   • src/lib/i18n.js LANGUAGES list
+//   • src/lib/useLiveTranscription.js AWS_LANG_MAP (STT-supported subset)
+// Adding a new language here without adding it to those two lists (or vice
+// versa) means the /call page opens the mic to AWS Transcribe and then
+// bounces every translate request with a 400 — which is exactly the Dutch
+// bug we hit in prod on 2026-07-09.
+const SUBTITLE_WHITELIST = new Set(['en','zh','ja','ko','de','nl','fr','es','pt','it','ar','hi','mi','sm'])
 
 const LANG_NAMES = {
   en: 'English', zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean',
-  de: 'German', fr: 'French', es: 'Spanish', ar: 'Arabic', hi: 'Hindi',
+  de: 'German', nl: 'Dutch', fr: 'French', es: 'Spanish',
+  pt: 'Portuguese (Brazilian)', it: 'Italian',
+  ar: 'Arabic', hi: 'Hindi',
   mi: 'Te Reo Māori', sm: 'Samoan (Gagana Sāmoa)',
 }
 
