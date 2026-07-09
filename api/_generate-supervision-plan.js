@@ -16,11 +16,6 @@ import { guardProvider } from './_auth.js'
 import { buildSupervisionPlanPdf } from './_pdf-builders.js'
 
 const STORAGE_BUCKET = 'supervision-plans'
-// Tere Health Ltd director. Their signature goes on the "director attest"
-// line of the plan. Currently hardcoded to Patrick — swap here if directorship
-// changes. Left as a config constant rather than a DB flag because MCNZ files
-// under a single named director per plan.
-const DIRECTOR_PROVIDER_ID = 'd924ae3b-93e9-4b36-a5ba-e681b85359b5'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -54,15 +49,11 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Only the assigned supervisor or a Tere admin may generate this plan' })
   }
 
-  // Load supervisor + director in parallel.
-  const [{ data: supervisor }, { data: director }] = await Promise.all([
-    supabase.from('providers')
-      .select('id, first_name, last_name, prescriber_number, cpn, specialty, signature_url, email')
-      .eq('id', rmo.supervisor_id).maybeSingle(),
-    supabase.from('providers')
-      .select('id, first_name, last_name, signature_url')
-      .eq('id', DIRECTOR_PROVIDER_ID).maybeSingle(),
-  ])
+  // Load the supervisor. The plan is signed by the RMO and the assigned
+  // supervisor only — no separate director attest slot.
+  const { data: supervisor } = await supabase.from('providers')
+    .select('id, first_name, last_name, prescriber_number, cpn, specialty, signature_url, email')
+    .eq('id', rmo.supervisor_id).maybeSingle()
   if (!supervisor) return res.status(500).json({ error: 'Supervisor row missing' })
 
   // Build the PDF.
@@ -86,11 +77,6 @@ export default async function handler(req, res) {
         signature_url: supervisor.signature_url,
         email: supervisor.email,
       },
-      director: director ? {
-        first_name: director.first_name,
-        last_name: director.last_name,
-        signature_url: director.signature_url,
-      } : null,
     })
   } catch (e) {
     return res.status(500).json({ error: 'PDF build failed: ' + e.message })

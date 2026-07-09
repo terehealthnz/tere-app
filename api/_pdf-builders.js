@@ -291,18 +291,16 @@ export function buildPayslipPdf(data) {
 
 // MCNZ supervision plan — auto-generated at RMO onboarding time. Renders
 // the MCNZ-facing plan (see docs/supervision-plan.md) filled in with the
-// RMO's identifiers, supervisor's identifiers + signature, and the Tere
-// Health Ltd director's attestation signature. RMO signs the paper copy.
+// RMO's identifiers and the supervisor's identifiers + signature. RMO
+// signs the paper copy.
 //
 // Expected data:
 //   rmo: { first_name, last_name, mcnz_registration_number, scope_of_practice,
 //          pgy_level, supervision_start_date }
 //   supervisor: { first_name, last_name, prescriber_number, cpn, mobile,
 //                 email, signature_url, specialty }
-//   director:   { first_name, last_name, signature_url }
 export async function buildSupervisionPlanPdf(data) {
   const supSig = await fetchSignatureBuffer(data.supervisor?.signature_url)
-  const dirSig = await fetchSignatureBuffer(data.director?.signature_url)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
@@ -473,11 +471,6 @@ export async function buildSupervisionPlanPdf(data) {
       `I, Dr ${data.supervisor?.first_name || ''} ${data.supervisor?.last_name || ''}, accept responsibility for the supervision arrangement described above.`,
       `Dr ${data.supervisor?.first_name || ''} ${data.supervisor?.last_name || ''}`.trim(),
       supSig,
-    )
-    signatureBlock(
-      'For Tere Health Limited (director):',
-      `${data.director?.first_name || ''} ${data.director?.last_name || ''}`.trim(),
-      dirSig,
     )
 
     // Footer note

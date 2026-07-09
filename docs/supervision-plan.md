@@ -68,10 +68,6 @@ Supervision continues until the Medical Council removes the supervised-scope con
 
 Signature: _______________________________  Date: _____ / _____ / 20_____
 
-**I, Dr Rachel Thomas, accept responsibility for the supervision arrangement described above.**
-
-Signature: _______________________________  Date: _____ / _____ / 20_____
-
-**For Tere Health Limited (director):**
+**I, the named supervisor above, accept responsibility for the supervision arrangement described above.**
 
 Signature: _______________________________  Date: _____ / _____ / 20_____
