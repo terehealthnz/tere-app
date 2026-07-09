@@ -4,13 +4,17 @@
 -- with the Medical Council of NZ requirements for RMOs (resident medical
 -- officers / house officers / registrars) working under supervision:
 --
---   • Named senior supervisor
---   • Documented scope of practice
---   • Real-time availability coupling (RMO can't practise unless supervisor
---     is contactable during the shift)
+--   • Named senior supervisor recorded on the RMO's provider row
+--   • Documented scope of practice (jsonb) — what the RMO may take solo,
+--     what requires countersign, what must be escalated before decision
 --   • Notes countersign trail — every RMO consultation is reviewed by the
 --     supervisor within an SLA and the review is stamped in the DB
 --   • Regular case-review meetings, logged with what was discussed
+--
+-- Contactability is NOT enforced by the DB — MCNZ's standard is that the
+-- supervisor is reachable by phone (like an ER attending on-call), not
+-- that they are logged in at the same time. That contract sits in the
+-- supervision plan document, not in a schema constraint.
 --
 -- See docs/supervision-plan.md for the MCNZ-facing narrative. This migration
 -- is the DB backbone that lets the app enforce the plan.
