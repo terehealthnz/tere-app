@@ -1,6 +1,6 @@
 # Tere Health — RMO Supervision Plan
 
-**Supervisor:** Dr Rachel Herling · MCNZ Prescriber #_______ · CPN _______
+**Supervisor:** Dr Rachel Thomas · MCNZ Prescriber #_______ · CPN _______
 **Supervisor scope:** Vocationally registered (specialty: _______)
 **Practice:** Tere Health Limited · terehealth.co.nz · Marlborough Sounds, New Zealand
 **Plan version:** v2 · 2026-07-08
@@ -18,7 +18,7 @@
 | **PGY level at supervision start** | PGY __ |
 | **Supervision start date** | _____ / _____ / 20_____ |
 | **Supervision end date (planned)** | _____ / _____ / 20_____ (or until MCNZ removes the supervised-scope condition) |
-| **Named supervisor** | Dr Rachel Herling |
+| **Named supervisor** | Dr Rachel Thomas |
 | **Frequency of scheduled review meetings** | Weekly for first 3 months, then fortnightly. Duration ~45 minutes. |
 | **Reachability during shifts** | Supervisor is **contactable by mobile phone (text or voice call)** for the duration of every RMO shift. The supervisor does not need to be actively logged in to Tere or seeing patients themselves — the standard is the same as an ER attending being on-call for the resident on the floor. Target response time to a clinical question: **≤5 minutes**. RMO holds any escalation-tier consult decision (§2) until the supervisor responds. |
 | **If supervisor is unexpectedly unreachable** | If the supervisor cannot be reached within 15 minutes for a non-emergency question, the RMO defers the escalation-tier decision and reschedules or refers the patient. Planned periods where the supervisor will not be reachable (e.g. supervisor annual leave) are scheduled in advance and the RMO does not roster shifts across those windows. |

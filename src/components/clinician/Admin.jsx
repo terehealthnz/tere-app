@@ -422,6 +422,11 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     cpn: '',
     hpi_number: '',
     acc_provider_number: '',
+    // MCNZ RMO supervision — for house officers / registrars practising
+    // under a supervised scope. Rachel Thomas is the default supervisor.
+    is_rmo: false,
+    supervisor_id: '',
+    supervision_start_date: new Date().toISOString().slice(0, 10),
     // Payroll
     contract_type: 'contractor',
     base_rate: '',
@@ -437,6 +442,23 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
+  const [supervisors, setSupervisors] = React.useState([])
+
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { apiFetch } = await import('../../lib/api')
+        const res = await apiFetch('/api/providers')
+        if (!res.ok) return
+        const { providers } = await res.json()
+        if (cancelled) return
+        const sups = (providers || []).filter(p => p.is_supervisor && p.is_active)
+        setSupervisors(sups)
+      } catch { /* non-fatal — form still works, admin can leave supervisor blank */ }
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -451,6 +473,10 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
       setError('PIN must be 4–8 digits, or leave blank to auto-generate')
       return
     }
+    if (form.is_rmo && !form.supervisor_id) {
+      setError('RMOs must have a named supervisor before their account is created (MCNZ requirement)')
+      return
+    }
     setSubmitting(true)
     try {
       const { apiFetch } = await import('../../lib/api')
@@ -461,6 +487,26 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
+      // Translate MCNZ supervision toggle into DB fields.
+      if (payload.is_rmo) {
+        payload.provider_type = 'rmo'
+        payload.supervision_scope = {
+          escalate_immediately: [
+            'chest_pain_or_cardiac',
+            'stroke_symptoms',
+            'suicidal_ideation_with_plan',
+            'suspected_sepsis_or_meningitis',
+            'paediatric_under_2_acute',
+            'controlled_drugs_or_opioids_or_benzos_or_glp1_or_stimulants_or_hypnotics',
+          ],
+        }
+      } else {
+        // Don't send supervisor_id / supervision_start_date if this isn't
+        // an RMO — those are RMO-only fields.
+        delete payload.supervisor_id
+        delete payload.supervision_start_date
+      }
+      delete payload.is_rmo
       const res = await apiFetch('/api/providers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -580,6 +626,43 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                   <input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} placeholder="ACC vendor" />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* MCNZ RMO supervision — resident medical officers / house officers /
+              registrars on a supervised scope. Adds a named supervisor + start
+              date + safety-list scope so their account is MCNZ-compliant on
+              day one. Non-RMO senior providers just skip this section. */}
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>MCNZ supervision (RMO only)</div>
+              <label style={{ ...checkboxStyle, marginBottom: '.5rem' }}>
+                <input type="checkbox" checked={form.is_rmo} onChange={e => set('is_rmo', e.target.checked)} />
+                <span style={{ fontSize:'.875rem' }}>This provider is an RMO under MCNZ supervision</span>
+              </label>
+              {form.is_rmo && (
+                <div style={groupStyle}>
+                  <div>
+                    <div style={labelStyle}>Named supervisor *</div>
+                    <select value={form.supervisor_id} onChange={e => set('supervisor_id', e.target.value)} style={inputStyle} required>
+                      <option value="">— Select supervisor —</option>
+                      {supervisors.map(s => (
+                        <option key={s.id} value={s.id}>{s.first_name} {s.last_name}{s.credential ? ` (${s.credential})` : ''}</option>
+                      ))}
+                    </select>
+                    {supervisors.length === 0 && (
+                      <div style={{ fontSize:'.7rem', color:'#DC2626', marginTop:4 }}>No providers with the Supervisor role exist yet — tick "Supervisor" when creating a senior first.</div>
+                    )}
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Supervision start date *</div>
+                    <input type="date" value={form.supervision_start_date} onChange={e => set('supervision_start_date', e.target.value)} style={inputStyle} required />
+                  </div>
+                  <div style={{ gridColumn:'1 / -1', fontSize:'.7rem', color:'#6B7280', lineHeight:1.5 }}>
+                    The supervisor is contactable by mobile phone for the duration of every RMO shift (ER on-call model). Weekly review meetings are logged via the supervisor's <strong>Supervision</strong> tab. See <code>docs/supervision-plan.md</code> for the MCNZ-facing filing template. The escalate-immediately safety list is populated automatically.
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
