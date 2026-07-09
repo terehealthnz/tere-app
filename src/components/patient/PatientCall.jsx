@@ -5,7 +5,7 @@ import '@livekit/components-styles'
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsult } from '../../lib/supabase'
-import { getLangMeta } from '../../lib/i18n'
+import { getLangMeta, t } from '../../lib/i18n'
 import CallSubtitles from '../clinical/CallSubtitles'
 
 export default function PatientCall() {
@@ -28,6 +28,11 @@ export default function PatientCall() {
   const [gate, setGate] = useState('loading')
   const [cooldownUntil, setCooldownUntil] = useState(null)
   const [nowTick, setNowTick] = useState(Date.now())
+  // Opt-in subtitles. Off by default even for non-English patients — many
+  // understand enough English that firing STT + Bedrock every consult is
+  // wasted spend. Patient clicks "Show subtitles" if they can't follow the
+  // provider. Once ON they can Hide during the same call.
+  const [subtitlesOn, setSubtitlesOn] = useState(false)
   // Prefer ?consultation=<id> from the email deep-link (empty sessionStorage on
   // a fresh browser). Fall back to sessionStorage for in-app navigation.
   const urlConsultId = params.get('consultation')
@@ -269,10 +274,32 @@ export default function PatientCall() {
           const patientLang = sessionStorage.getItem('patient_language') || 'en'
           const meta = getLangMeta(patientLang)
           const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-          // AI-processing consent is covered by the rights checkbox on /consent
-          // (see consent_rights_check). Non-English patients on a whitelisted
-          // language auto-get subtitles.
           if (patientLang === 'en' || !supported) return null
+          // Subtitles component only renders when enabled; when the patient
+          // Hides them (subtitlesOn=false) the offer pill comes back so they
+          // can turn them on again mid-call.
+          if (!subtitlesOn) {
+            // Compact offer pill in the top-right — unobtrusive when the
+            // patient doesn't need translation, one tap away when they do.
+            return (
+              <button
+                onClick={() => setSubtitlesOn(true)}
+                title={t('subtitle_offer_hint', patientLang)}
+                style={{
+                  position: 'fixed', top: 'calc(12px + env(safe-area-inset-top, 0px))', right: 12, zIndex: 40,
+                  background: 'rgba(11,110,118,.92)', color: 'white',
+                  border: '1px solid rgba(255,255,255,.25)',
+                  padding: '8px 14px', borderRadius: 99,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.8125rem',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,.4)',
+                  backdropFilter: 'blur(6px)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                <span style={{ fontSize: '.75rem', opacity: .8, fontWeight: 600 }}>{t('subtitle_offer_hint', patientLang)}</span>
+                <span>💬 {t('subtitle_offer_btn', patientLang)}</span>
+              </button>
+            )
+          }
           return (
             <CallSubtitles
               viewerRole="patient"
@@ -281,6 +308,7 @@ export default function PatientCall() {
               enabled={true}
               modalOpen={false}
               consultationId={consultationId}
+              onHide={() => setSubtitlesOn(false)}
             />
           )
         })()}

@@ -850,6 +850,36 @@ const T = {
   // ── Buttons ──────────────────────────────────────────────────────────────
   btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau', nl: 'Doorgaan' },
   btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i', nl: 'Terug' },
+  // Opt-in subtitle button on the video call. Kept short so it fits as a
+  // pill overlay without wrapping. Patient-facing wording — describes the
+  // action from the patient's perspective ("show subtitles for me").
+  subtitle_offer_btn: {
+    en: 'Show subtitles',
+    mi: 'Whakaatu i ngā hauraro', // TODO cert
+    sm: 'Fa\'aali fa\'aliliuga', // TODO cert
+    zh: '显示字幕', ja: '字幕を表示', ko: '자막 표시',
+    de: 'Untertitel anzeigen', nl: 'Ondertitels tonen',
+    fr: 'Afficher les sous-titres', es: 'Mostrar subtítulos',
+    ar: 'إظهار الترجمة', hi: 'सबटाइटल दिखाएँ',
+  },
+  subtitle_offer_hint: {
+    en: "Can't understand?",
+    mi: 'Kāore koe e mārama?', // TODO cert
+    sm: 'E te le malamalama?', // TODO cert
+    zh: '听不懂？', ja: 'わからない？', ko: '이해가 안 되세요?',
+    de: 'Nicht verstehen?', nl: 'Niet verstaan?',
+    fr: 'Vous ne comprenez pas ?', es: '¿No entiende?',
+    ar: 'لا تفهم؟', hi: 'समझ नहीं आ रहा?',
+  },
+  subtitle_hide_btn: {
+    en: 'Hide',
+    mi: 'Huna', sm: 'Nātia',
+    zh: '隐藏', ja: '非表示', ko: '숨기기',
+    de: 'Ausblenden', nl: 'Verbergen',
+    fr: 'Masquer', es: 'Ocultar',
+    ar: 'إخفاء', hi: 'छिपाएँ',
+  },
+
   btn_skip:     {
     en: 'Skip', mi: 'Tukua', sm: 'Preterisi', // TODO cert (mi/sm)
     zh: '跳过', ja: 'スキップ', ko: '건너뛰기',

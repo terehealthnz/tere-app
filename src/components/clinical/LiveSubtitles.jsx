@@ -32,7 +32,7 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api'
-import { getLangMeta } from '../../lib/i18n'
+import { getLangMeta, t } from '../../lib/i18n'
 
 const NAVY = '#0D2B45'
 
@@ -186,7 +186,7 @@ export default function LiveSubtitles({
                 <button
                   onClick={onHide}
                   style={{ background: 'rgba(255,255,255,.1)', color: 'white', border: '1px solid rgba(255,255,255,.2)', padding: '3px 10px', borderRadius: 99, fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Hide
+                  {t('subtitle_hide_btn', targetLang || 'en')}
                 </button>
               )}
             </div>
