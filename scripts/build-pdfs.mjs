@@ -69,6 +69,12 @@ const DOCS_MAP = {
     title: 'RMO Supervision Plan',
     badges: ['MCNZ filing', 'Named supervisor', 'Countersign SLA'],
   },
+  'nzeps-sender-proposal': {
+    src: 'nzeps-sender-proposal.md',
+    out: 'Tere_Health_NZePS_Sender_Proposal.pdf',
+    title: 'NZePS Sending Party Application',
+    badges: ['Ministry of Health filing', 'Broker path', 'Sandbox → pilot → prod'],
+  },
 }
 
 const CSS = `
