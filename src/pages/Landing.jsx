@@ -234,11 +234,16 @@ function ForEmployers() {
             </div>
           ))}
         </div>
-        <Link to="/employers" style={{
-          display: 'inline-block', background: BRAND.teal, color: 'white', textDecoration: 'none',
-          padding: '.875rem 2rem', borderRadius: 99, fontWeight: 700, fontSize: '1rem',
-          fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 4px 20px rgba(11,110,118,.4)',
-        }}>Learn about employer plans</Link>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Link to="/employers" style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: BRAND.teal, color: 'white', textDecoration: 'none',
+            padding: '.875rem 2rem', borderRadius: 99, fontWeight: 700, fontSize: '1rem',
+            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 4px 20px rgba(11,110,118,.4)',
+            minHeight: 48, minWidth: 200, cursor: 'pointer',
+            WebkitTapHighlightColor: 'rgba(0,0,0,.1)',
+          }}>Learn about employer plans</Link>
+        </div>
       </div>
     </section>
   )
