@@ -148,6 +148,10 @@ export default async function handler(req, res) {
     diagnosis_code:                null,
     diagnosis_description:         null,
     diagnosis_confidence:          null,
+    // ACC eligibility assessment — see acc_assessment_schema below.
+    // Populated by Sonnet from the full clinical picture. Provider still
+    // confirms at finalise; AI never triggers lodgement autonomously.
+    acc_assessment:                null,
   }
   const hasTranscript = transcript && transcript.trim().length > 50
 
@@ -230,7 +234,16 @@ For each clinical field include a confidence rating based on the clarity and com
   "occupation": "Occupation details only if mentioned beyond triage employer field. null if not mentioned.",
   "diagnosis_code": "The single most likely working diagnosis for this consultation, expressed as an ICD-10-AM code (Australian/NZ hospital coding standard). Base it on the WHOLE clinical picture (chief complaint + your extracted findings + provider's spoken reasoning), not just keywords. If the provider explicitly named a diagnosis in the transcript, use theirs. If the presentation is too vague to code confidently, return null and Z00.0 will be used as the placeholder. Examples: 'A09' for gastroenteritis, 'J06.9' for URTI, 'M54.5' for low back pain, 'H66.9' for otitis media unspecified, 'N39.0' for UTI, 'R10.4' for undifferentiated abdominal pain, 'S93.4' for ankle sprain. Do NOT return anything outside ICD-10-AM.",
   "diagnosis_description": "Plain-English description of the diagnosis_code above, exactly as it appears in ICD-10-AM. e.g. 'Gastroenteritis and colitis of unspecified origin' for A09.",
-  "diagnosis_confidence": "high|medium|low|null — high means the presentation clearly matches this code, medium means it's the most likely but not the only fit, low means the transcript was too thin and the provider should review."
+  "diagnosis_confidence": "high|medium|low|null — high means the presentation clearly matches this code, medium means it's the most likely but not the only fit, low means the transcript was too thin and the provider should review.",
+  "acc_assessment": {
+    "_comment": "ACC eligibility. Determines billing: ACC pays MST1 $96.38 initial / MST3 $48.20 follow-up direct; otherwise patient pays $60 private. Accuracy > maximisation — false positives trigger ACC audits + MCNZ complaints. When in doubt, err on 'not-ACC' and let the provider override.",
+    "is_acc": "true|false — TRUE only if the presentation is a Personal Injury By Accident under the Accident Compensation Act 2001: a sudden unintended external event causing bodily harm (trauma, fall, workplace incident, road traffic, sports injury, sudden lifting injury with a specific event, work-related gradual process in limited categories). FALSE for: gradual-onset musculoskeletal pain without an incident, degenerative conditions, chronic pain flares, disease/illness (URTI, UTI, gastro, otitis, headache without head injury, dermatitis, mental health without workplace trauma). If patient claimed ACC at triage but the transcript reveals no incident, return false.",
+    "read_code": "ACC Read v2 code from this whitelist ONLY: S30 Ankle sprain, S83 Knee ligament injury, S40 Shoulder injury, S20 Wrist sprain, S60 Finger injury, S90 Toe injury, S50 Elbow injury, S70 Hip injury, S13 Neck sprain/whiplash, A84 Back pain (acute injury), S22 Rib injury, M13 Laceration, M10 Contusion/bruise, M16 Abrasion, T14 Burn/scald, A80 Concussion/head injury, F29 Eye injury/foreign body, S39 Other/unspecified injury. Return null when is_acc=false. If injury type isn't in the whitelist, return 'S39' and set confidence 'low'.",
+    "mechanism": "One-line description of HOW the injury happened, as stated in the transcript. e.g. 'Fell off ladder onto right ankle', 'Slipped on wet deck'. null if is_acc=false OR if the transcript describes no specific incident.",
+    "body_part": "Specific body part injured, e.g. 'Right ankle', 'Lumbar spine'. null if is_acc=false.",
+    "confidence": "high|medium|low — HIGH only when: (a) a clear discrete accident/incident is described in the transcript with mechanism, AND (b) the injury type is unambiguously ACC-covered. MEDIUM if mechanism is somewhat vague, or if the injury is on the ACC boundary. LOW if the transcript is thin, mechanism unclear, or the presentation may or may not be covered.",
+    "reasoning": "One or two sentences explaining WHY you classified is_acc as you did, referencing specific transcript evidence. This is shown to the provider at finalise and preserved for any ACC auditor. Be specific with quoted mechanism when present."
+  }
 }`
 
     try {
@@ -360,6 +373,11 @@ For each clinical field include a confidence rating based on the clarity and com
     } : null,
     suggestedReadCode: accCode.code,
     readCodeLabel:     accCode.label,
+    // AI-driven ACC eligibility assessment. Provider is still the source of
+    // truth at finalise — this pre-populates the ACC toggle + read code and
+    // shows the reasoning. Validated: is_acc coerced to boolean, read_code
+    // whitelisted, unknown codes normalised to 'S39' with confidence 'low'.
+    accAiAssessment: validateAccAssessment(extracted.acc_assessment),
     icd10Code:         icd10.code,
     icd10Label:        icd10.description,
     _sources,
@@ -496,4 +514,35 @@ function suggestIcd10(chiefComplaint, injuryDescription, transcript) {
   // presentation. Only fall through to the fuller text if the ground truth
   // doesn't match any rule.
   return matchIcd10Against(primary) || matchIcd10Against(full) || { code:'Z00.0', description:'General medical examination' }
+}
+
+// ── ACC AI assessment validation ─────────────────────────────────────────────
+// Whitelist of ACC Read v2 codes we accept from the model. If the model
+// returns anything else we normalise to S39 (Other/unspecified injury) with
+// low confidence so the provider is forced to look before lodgement.
+const ACC_READ_CODE_WHITELIST = new Set([
+  'S30','S83','S40','S20','S60','S90','S50','S70','S13','A84',
+  'S22','M13','M10','M16','T14','A80','F29','S39',
+])
+
+function validateAccAssessment(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const isAcc = raw.is_acc === true || raw.is_acc === 'true'
+  const rawCode = typeof raw.read_code === 'string' ? raw.read_code.trim().toUpperCase() : null
+  const readCode = isAcc
+    ? (ACC_READ_CODE_WHITELIST.has(rawCode) ? rawCode : 'S39')
+    : null
+  const confidence = ['high', 'medium', 'low'].includes(raw.confidence) ? raw.confidence : 'low'
+  // If model returned a code we had to fall back on, force confidence low so
+  // the provider notices and can pick a better code (or manually enter one).
+  const finalConfidence = (isAcc && rawCode && rawCode !== readCode) ? 'low' : confidence
+  return {
+    isAcc,
+    readCode,
+    readCodeWasNormalised: isAcc && rawCode !== readCode,
+    mechanism:  typeof raw.mechanism  === 'string' && raw.mechanism.trim()  ? raw.mechanism.trim()  : null,
+    bodyPart:   typeof raw.body_part  === 'string' && raw.body_part.trim()  ? raw.body_part.trim()  : null,
+    confidence: finalConfidence,
+    reasoning:  typeof raw.reasoning  === 'string' && raw.reasoning.trim()  ? raw.reasoning.trim()  : null,
+  }
 }
