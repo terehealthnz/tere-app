@@ -465,7 +465,7 @@ export default function NotesCompletion() {
           status:                  'complete',
           completed_at:            consult?.completed_at || now,
           consultation_duration_seconds: durationSec,
-          payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6500),
+          payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6000),
           is_acc:                  consult?.acc_eligible === 'yes',
         })
       } catch (updateErr) { throw updateErr }

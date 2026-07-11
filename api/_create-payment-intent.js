@@ -6,14 +6,20 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { consultationId, accEligible, consultationType, couponDiscount } = req.body
-  const type = consultationType || 'video'
+  const type = consultationType || 'consult'
   const isAcc = accEligible === 'yes'
+  // Flat pricing — 'consult' replaces the video/phone split. Legacy
+  // 'video'/'phone' rows resolve to the same $60. Message stays $25 as an
+  // async product. ACC handling (patient pays $0, ACC billed at MST1/MST3
+  // specialist rate direct to Tere) is a follow-up commit; ACC co-pay
+  // behaviour retained here to avoid partial-fix risk.
   const PRICES = {
-    video:   { private: 6500, acc: 2500 },
-    phone:   { private: 4500, acc: 2500 },
+    consult: { private: 6000, acc: 2500 },
+    video:   { private: 6000, acc: 2500 },
+    phone:   { private: 6000, acc: 2500 },
     message: { private: 2500, acc: 2500 },
   }
-  const baseAmount = (PRICES[type] || PRICES.video)[isAcc && type !== 'message' ? 'acc' : 'private']
+  const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
   const amount = baseAmount - discountCents
   const label = `$${amount / 100}.00`

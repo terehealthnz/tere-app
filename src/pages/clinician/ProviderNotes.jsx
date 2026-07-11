@@ -680,8 +680,11 @@ export default function ProviderNotes() {
     if (!canFinalise) return
     setFinalising(true)
 
-    const METHOD_PRICES = { video:6500, phone:4500, message:2500 }
-    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
+    // Flat pricing — 'consult' unified type is $60; legacy video/phone rows
+    // resolve to the same $60. Message stays $25 as an async product. ACC
+    // retains the $25 co-pay pending the ACC-billing overhaul.
+    const METHOD_PRICES = { consult: 6000, video: 6000, phone: 6000, message: 2500 }
+    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6000)
 
     const steps = [
       { label: 'Saving clinical notes',    status: 'pending' },
