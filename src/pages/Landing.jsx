@@ -72,9 +72,9 @@ function Hero() {
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
-            background: BRAND.teal, color: 'white', textDecoration: 'none',
+            background: '#F97316', color: 'white', textDecoration: 'none',
             padding: '1.1rem 2.75rem', borderRadius: 99, fontSize: '1.25rem', fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 6px 32px rgba(11,110,118,.5)',
+            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 6px 32px rgba(249,115,22,.55)',
             letterSpacing: '.01em',
           }}>Start consultation</a>
           <a href="#how-it-works" style={{
