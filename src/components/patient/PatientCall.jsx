@@ -42,7 +42,10 @@ export default function PatientCall() {
   const consultationId = urlConsultId || sessionStorage.getItem('consultationId')
   const ssType = sessionStorage.getItem('consultationType')
   const [consultationType, setConsultationType] = useState(ssType || 'video')
-  const isPhone = consultationType === 'phone'
+  // Both 'phone' (legacy) and 'consult' (unified type) default to audio-only —
+  // camera is a toggle on top, not a mode. Only historical 'video' defaults
+  // camera on.
+  const isPhone = consultationType === 'phone' || consultationType === 'consult'
 
   // When sessionStorage was cleared (browser reopened), fetch type from DB
   useEffect(() => {

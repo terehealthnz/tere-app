@@ -358,7 +358,9 @@ export default function ProviderConsult() {
   )
 
   const isAcc       = consult.acc_eligible === 'yes'
-  const isPhone     = consult.consultation_type === 'phone'
+  // 'consult' (unified type) and 'phone' (legacy) both default the call to
+  // audio-only — provider can toggle camera on inside the call.
+  const isPhone     = consult.consultation_type === 'phone' || consult.consultation_type === 'consult'
   const patientName = `${consult.patient_first_name} ${consult.patient_last_name}`
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────
@@ -607,7 +609,7 @@ export default function ProviderConsult() {
                 <span style={{ background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', borderRadius:99, padding:'3px 10px', fontSize:'.6875rem', fontWeight:700 }}>ACC</span>
               )}
               <span style={{ background:'#F3F4F6', color:'#6B7280', borderRadius:99, padding:'3px 10px', fontSize:'.6875rem', fontWeight:600 }}>
-                {consult.consultation_type === 'phone' ? '📞 Phone' : '📹 Video'}
+                {isPhone ? '📞 Consult' : '📹 Video'}
               </span>
             </div>
           </div>

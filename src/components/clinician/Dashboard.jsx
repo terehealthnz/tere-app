@@ -917,7 +917,7 @@ export default function Dashboard() {
                           onClick={() => navigate('/provider/consult/' + c.id)}
                           disabled={joiningId === c.id}
                           style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor: joiningId === c.id ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700, fontFamily:'Plus Jakarta Sans,sans-serif', whiteSpace:'nowrap' }}>
-                          {c.consultation_type === 'phone' ? '📞 Start call' : '📹 Start call'}
+                          {c.consultation_type === 'video' ? '📹 Start call' : '📞 Start call'}
                         </button>
                       )}
                       {!isLocked && (
