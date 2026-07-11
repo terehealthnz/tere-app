@@ -22,7 +22,11 @@ const CARD_STYLE = {
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
-const BASE_PRICES = { video: { private: 65, acc: 25 }, phone: { private: 45, acc: 25 }, message: { private: 25, acc: 25 } }
+// Flat $60 consult across every live-consult type. ACC eligibility retains
+// the $25 co-pay behaviour until the ACC billing overhaul finishes (see
+// _acc-claims.js MST1 rates + follow-up commit that zeros the patient
+// side). Message stays $25.
+const BASE_PRICES = { consult: { private: 60, acc: 25 }, video: { private: 60, acc: 25 }, phone: { private: 60, acc: 25 }, message: { private: 25, acc: 25 } }
 const COUPON_DISCOUNT = 10
 
 function PaymentForm({ consultationId, accEligible, consultationType }) {

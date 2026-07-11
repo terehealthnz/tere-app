@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 
 const FF = 'Plus Jakarta Sans, sans-serif'
-const PRICES = { video: 65, phone: 45 }
+const PRICES = { consult: 60, video: 60, phone: 60 }
 
 export default function BookingJoin() {
   const { id } = useParams()
@@ -57,7 +57,7 @@ export default function BookingJoin() {
     }
   }
 
-  const fee = booking ? PRICES[booking.consultation_type] || 65 : 65
+  const fee = booking ? PRICES[booking.consultation_type] || 60 : 60
   const displayDate = booking ? new Date(booking.appointment_date + 'T12:00:00Z')
     .toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' }) : ''
 

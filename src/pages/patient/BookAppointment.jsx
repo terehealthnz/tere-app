@@ -29,7 +29,7 @@ const labelStyle = {
   textTransform: 'uppercase', letterSpacing: '.05em', color: '#6B7280', marginBottom: 4,
 }
 
-const CONSULTATION_FEE = { video: 65, phone: 45 }
+const CONSULTATION_FEE = { consult: 60, video: 60, phone: 60 }
 
 function generateICS(date, time, providerName) {
   const start = new Date(`${date}T${time}:00+13:00`)
@@ -315,8 +315,7 @@ export default function BookAppointment() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem', marginBottom: '1.25rem' }}>
                 {[
-                  { type: 'video', icon: '📹', label: 'Video consultation', desc: 'Face-to-face with your doctor', fee: 65 },
-                  { type: 'phone', icon: '📞', label: 'Phone consultation', desc: 'Audio call — no camera needed', fee: 45 },
+                  { type: 'consult', icon: '📞', label: 'Consultation', desc: 'A doctor calls you — video optional inside the call', fee: 60 },
                 ].map(opt => (
                   <button key={opt.type} onClick={() => setConsultationType(opt.type)}
                     style={{ padding: '1rem 1.25rem', border: `2px solid ${consultationType === opt.type ? '#0B6E76' : '#E2E8F0'}`, borderRadius: 12, background: consultationType === opt.type ? '#EFF9F9' : 'white', cursor: 'pointer', textAlign: 'left', fontFamily: FF }}>
