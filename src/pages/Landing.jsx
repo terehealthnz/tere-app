@@ -186,6 +186,22 @@ function Pricing() {
             </div>
           ))}
         </div>
+        {/* Support pointer — patients with a prescription error, referral
+            question, ACC follow-up, or billing query shouldn't feel forced
+            into a $60 consultation booking for a $0 admin issue. */}
+        <div style={{
+          background: 'white', borderRadius: 12, padding: '1rem 1.25rem',
+          marginTop: '1.25rem', border: '1px solid #E2E8F0',
+          fontSize: '.875rem', color: '#374151',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          textAlign: 'left', display: 'flex', alignItems: 'flex-start', gap: '.75rem',
+        }}>
+          <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>💬</span>
+          <div>
+            <strong style={{ color: BRAND.navy, display: 'block', marginBottom: 2 }}>Prescription, referral, or admin question?</strong>
+            <span>No consultation needed. <a href="/contact" style={{ color: BRAND.teal, fontWeight: 700 }}>Message our support team</a> — no charge, we reply within 24 hours.</span>
+          </div>
+        </div>
       </div>
     </section>
   )
