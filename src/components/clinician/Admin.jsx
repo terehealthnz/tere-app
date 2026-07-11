@@ -137,6 +137,30 @@ function SupportPanel() {
     setBusy(false)
   }
 
+  async function draftWithAi() {
+    if (!open) return
+    setBusy(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch(`/api/patient-support?action=suggest_reply&id=${open.id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+      })
+      const data = await r.json()
+      if (r.ok && data.draft) {
+        setReplyText(data.draft)
+        setFlash('AI draft loaded — review before sending')
+        setTimeout(() => setFlash(null), 2500)
+      } else {
+        setFlash('AI draft failed: ' + (data.error || r.status))
+        setTimeout(() => setFlash(null), 3500)
+      }
+    } catch (e) {
+      setFlash('AI draft failed: ' + e.message)
+      setTimeout(() => setFlash(null), 3500)
+    }
+    setBusy(false)
+  }
+
   async function sendReply() {
     if (!open || !replyText.trim()) return
     setBusy(true)
@@ -256,10 +280,17 @@ function SupportPanel() {
                 <textarea value={replyText} onChange={e => setReplyText(e.target.value)} rows={5}
                   placeholder="Type your reply. It will be emailed to the patient and recorded here."
                   style={{ width:'100%', padding:'.75rem', border:'1px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif', resize:'vertical' }} />
-                <button onClick={sendReply} disabled={busy || !replyText.trim()}
-                  style={{ marginTop:'.5rem', background:'#0B6E76', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: busy ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
-                  {busy ? 'Sending…' : 'Send reply'}
-                </button>
+                <div style={{ marginTop:'.5rem', display:'flex', gap:'.5rem', alignItems:'center', flexWrap:'wrap' }}>
+                  <button onClick={sendReply} disabled={busy || !replyText.trim()}
+                    style={{ background:'#0B6E76', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: busy ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
+                    {busy ? 'Sending…' : 'Send reply'}
+                  </button>
+                  <button onClick={draftWithAi} disabled={busy}
+                    title="AI drafts a reply based on the ticket + consult context. Review and edit before sending."
+                    style={{ background:'#EDE9FE', border:'none', color:'#5B21B6', padding:'8px 14px', borderRadius:6, cursor: busy ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
+                    ✨ {busy ? '…' : 'Draft with AI'}
+                  </button>
+                </div>
               </div>
             </div>
             <div style={{ padding:'.875rem 1.5rem', borderTop:'1px solid #E2E8F0', display:'flex', gap:'.5rem', flexWrap:'wrap', background:'#F8FAFC' }}>

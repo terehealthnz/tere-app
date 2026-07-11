@@ -8,6 +8,10 @@
 //                                   admin_notes). Column allowlist.
 // POST ?action=reply&id=<uuid>    → provider-auth send an email reply to the
 //                                   patient and record the reply as an admin note
+// POST ?action=suggest_reply&id=<uuid>
+//                                → provider-auth returns an AI-drafted reply
+//                                   for the admin to review + edit before
+//                                   sending. Nothing is sent by this endpoint.
 //
 // Handler mirrors the careers job-applications endpoint pattern.
 
@@ -440,6 +444,69 @@ export default async function handler(req, res) {
   }
 
   // Admin reply — record and email
+  if (req.method === 'POST' && action === 'suggest_reply') {
+    if (!id) return res.status(400).json({ error: 'id required' })
+    const { data: row, error: fetchErr } = await supabase
+      .from('patient_support_requests').select('*').eq('id', id).maybeSingle()
+    if (fetchErr || !row) return res.status(404).json({ error: 'Ticket not found' })
+
+    // Pull consult context if there is one — the AI drafts better when it
+    // knows what the patient consulted about. Read a subset that's safe to
+    // ground the reply on; do NOT feed full clinical notes into the prompt.
+    let consultContext = null
+    if (row.consultation_id) {
+      const { data: c } = await supabase
+        .from('consultations')
+        .select('id, chief_complaint, consultation_type, is_acc, acc_eligible, payment_amount, acc_claim_number, notes_finalised_at, created_at')
+        .eq('id', row.consultation_id).maybeSingle()
+      if (c) consultContext = c
+    }
+
+    try {
+      const { aiCall } = await import('./_ai.js')
+      const systemPrompt = `You are a support assistant for Tere Health, a NZ tele-emergency service. Your job is to draft a warm, professional reply to a patient support ticket that a Tere admin will REVIEW AND EDIT before sending.
+
+Rules — apply them strictly:
+- Address the patient by their first name.
+- Sign off as "The Tere Health team" — the admin's name will be swapped in on send.
+- Do NOT diagnose, give clinical advice, or recommend treatments. If the ticket contains any clinical question, suggest they book a consultation at terehealth.co.nz.
+- Do NOT commit to specific timelines like "within 2 hours" — say "we'll reply within one business day" for admin queries; do not promise clinical follow-up times.
+- Do NOT reveal internal system names, provider names other than what's already in the ticket, or ACC claim details unless the ticket already references them.
+- Always include a short "if this is urgent, call 111" line for anything that could be time-sensitive.
+- Match tone: warm, plain English, no jargon, no exclamation marks, no emoji.
+- Length: 3–5 short paragraphs maximum. Do not pad.
+- End with "If you need anything else, just reply to this email."
+
+Output ONLY the reply body text. No JSON, no markdown, no explanation.`
+
+      const userPrompt = `Ticket from ${row.patient_name || 'Patient'} (${row.patient_email || 'no email'}):
+Category: ${row.category || 'other'}
+Submitted: ${row.created_at}
+${row.consultation_id ? `Linked consultation: ${row.consultation_id}` : 'Not linked to a consultation'}
+${consultContext ? `Consult context — complaint: "${consultContext.chief_complaint || '—'}", type: ${consultContext.consultation_type || '—'}, is_acc: ${consultContext.is_acc}, acc_eligible_at_triage: ${consultContext.acc_eligible}, paid: $${(consultContext.payment_amount || 0) / 100}, ACC claim: ${consultContext.acc_claim_number || 'none'}` : ''}
+
+Patient's message:
+"""
+${(row.message || '').slice(0, 2000)}
+"""
+
+Draft the reply body.`
+
+      const draft = await aiCall({
+        tier: 'sonnet',
+        system: systemPrompt,
+        user: userPrompt,
+        maxTokens: 800,
+      })
+      const text = typeof draft === 'string' ? draft.trim() : ''
+      if (!text) return res.status(502).json({ error: 'AI returned empty draft' })
+      return res.status(200).json({ draft: text })
+    } catch (e) {
+      console.error('suggest_reply error:', e)
+      return res.status(500).json({ error: 'Draft generation failed: ' + e.message })
+    }
+  }
+
   if (req.method === 'POST' && action === 'reply') {
     if (!id) return res.status(400).json({ error: 'id required' })
     const { body: replyBody } = req.body || {}
