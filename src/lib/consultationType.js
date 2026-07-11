@@ -1,46 +1,28 @@
-const MESSAGE_KEYWORDS = [
-  'prescription repeat','repeat script','repeat prescription','repeat medication',
-  'follow up','follow-up','followup',
-  'results','test results','lab results',
-  'referral letter','referral',
-  'medication question','medication advice',
-  'rash photo','skin photo','minor rash',
-  'same as before','same issue','same problem','same condition',
-  'returning patient','back again',
-]
-
-const VIDEO_FORCE_KEYWORDS = [
-  'injury','injured','hurt','accident','fell','fall','trip',
-  'acc','work injury','sport','sports',
-  'chest','breathing','breathe','breath','short of breath',
-  'child','children','baby','infant','toddler',
-  'mental health','anxiety','depression','panic','suicid',
-  'new symptom','never had','getting worse','worsening',
-  'fever','temperature','hot','chills',
-  'infection','infected','spreading',
-  'swelling','swollen','inflammation',
-  'severe pain','sharp pain','stabbing pain',
-  'urgent','emergency','serious',
-  'bleeding','blood loss','blood in urine','blood in stool','coughing blood','wound','cut',
-  'vomit','nausea',
-  'dizziness','dizzy','faint','fainting',
-  'seizure','fit','convuls',
-]
-
 export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
-  return { allowVideo: true, allowPhone: true, allowMessage: true }
+  // ACC / non-ACC treated equivalently — the patient books a consult, the
+  // provider picks video-vs-audio at call time. See docs on the unified-call
+  // model. Async messaging remains available for non-ACC low-acuity work.
+  return { allowConsult: true, allowMessage: !isAcc }
 }
 
 export const RESERVATION_FEE = 15
 
+// Unified pricing — 'consult' replaces the video/phone split (provider picks
+// video vs audio inside the call, patient sees "consult"). Historical rows
+// with consultation_type='video'/'phone' still resolve to the consult price.
+// 'message' is the async product and priced separately.
 export const CONSULT_PRICES = {
-  video:   { private: 65, acc: 25 },
-  phone:   { private: 45, acc: 25 },
+  consult: { private: 60, acc: 0 },
   message: { private: 25 },
+  // Retained so legacy references (historical consults, admin views) still
+  // resolve rather than throwing. New bookings should not use these.
+  video:   { private: 60, acc: 0 },
+  phone:   { private: 60, acc: 0 },
 }
 
 export const CONSULT_TYPE_LABELS = {
-  video:   { icon: '📹', label: 'Video' },
-  phone:   { icon: '📞', label: 'Phone' },
+  consult: { icon: '📞', label: 'Consult' },
   message: { icon: '💬', label: 'Message' },
+  video:   { icon: '📞', label: 'Consult' },
+  phone:   { icon: '📞', label: 'Consult' },
 }

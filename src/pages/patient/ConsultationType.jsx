@@ -4,18 +4,12 @@ import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
 import { patientUpdateConsultation } from '../../lib/supabase'
 
 const TYPE_CONFIG = {
-  video: {
-    icon: '📹',
-    title: 'Video call',
-    subtitle: 'Dr Herling will video call you within 2 hours',
-    features: ['Face-to-face with your doctor', 'Physical assessment', 'Prescriptions & referrals', 'ACC claims accepted'],
-    recommended: true,
-  },
-  phone: {
+  consult: {
     icon: '📞',
-    title: 'Phone call',
-    subtitle: 'Dr Herling will phone you within 2 hours',
-    features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims accepted', 'No camera needed'],
+    title: 'Consultation',
+    subtitle: 'A doctor will call you within 2 hours',
+    features: ['Talk with your doctor', 'Video optional — turn it on any time', 'Share photos of what you need seen', 'Prescriptions, referrals & ACC claims'],
+    recommended: true,
   },
   message: {
     icon: '💬',
@@ -36,12 +30,11 @@ export default function ConsultationType() {
   const employerPaid = sessionStorage.getItem('employer_paid') === 'true'
   const employerName = sessionStorage.getItem('employer_name') || ''
 
-  const { allowVideo, allowPhone, allowMessage } = scoreComplaint(complaint, isReturning, isAcc)
+  const { allowConsult, allowMessage } = scoreComplaint(complaint, isReturning, isAcc)
 
   const availableTypes = [
-    allowVideo && 'video',
-    allowPhone && 'phone',
-    !isAcc && allowMessage && 'message',
+    allowConsult && 'consult',
+    allowMessage && 'message',
   ].filter(Boolean)
 
   const typeConfig = TYPE_CONFIG
@@ -49,6 +42,7 @@ export default function ConsultationType() {
   function getPrice(type) {
     const prices = CONSULT_PRICES[type]
     if (type === 'message') return prices.private
+    // ACC consults bill ACC direct at the specialist rate; patient sees $0.
     return isAcc ? prices.acc : prices.private
   }
 
@@ -85,11 +79,11 @@ export default function ConsultationType() {
 
       <div className="container" style={{ paddingTop: '2rem', paddingBottom: '3rem', maxWidth: 520 }}>
         <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ marginBottom: '.375rem' }}>Contact preference</h1>
+          <h1 style={{ marginBottom: '.375rem' }}>How would you like to be seen?</h1>
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
-              ? 'ACC claims require a live consultation — video or phone only.'
-              : "Choose your preferred method. Your doctor will use this if possible — you're only charged for the method actually used."}
+              ? 'ACC claims require a live consultation with a doctor. Your doctor will call you and use video only if clinically needed.'
+              : "Book a consultation with a doctor, or send an async message for lower-urgency queries."}
           </p>
           {employerPaid && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '.75rem 1rem', marginTop: '.75rem', display: 'flex', alignItems: 'center', gap: '.5rem', fontSize: '.9rem', color: '#065F46', fontWeight: 600 }}>
