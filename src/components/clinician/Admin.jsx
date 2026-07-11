@@ -1205,6 +1205,161 @@ function OverviewDashboard({ setAdminTab }) {
   )
 }
 
+// GpLettersPanel — admin queue of finalised consults where a GP letter has
+// not yet been sent. Admin reviews patient data + confirms consent before
+// clicking Send, which fires /api/send-to-gp and stamps gp_letter_sent_at.
+// Nothing sends automatically — every letter is manually approved.
+function GpLettersPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [open, setOpen] = React.useState(null)
+  const [sending, setSending] = React.useState(null)
+  const [flash, setFlash] = React.useState(null)
+  const [confirmed, setConfirmed] = React.useState(false)
+  React.useEffect(() => { setConfirmed(false) }, [open])
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch('/api/consultations?filter=pending_gp_letter')
+      const data = await r.json()
+      setRows(data.consultations || [])
+    } catch { setRows([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+
+  async function send(row) {
+    if (!row.gp_email) { alert('Cannot send — no GP email on file.'); return }
+    if (!confirmed)    { alert('Please tick the confirmation box before sending.'); return }
+    setSending(row.id)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      let noteContent = {}
+      try { noteContent = JSON.parse(row.notes_final || '{}') } catch { noteContent = {} }
+      const r = await apiFetch('/api/send-to-gp', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: row.id,
+          gpName: row.gp_name,
+          gpEmail: row.gp_email,
+          patientName: `${row.patient_first_name || ''} ${row.patient_last_name || ''}`.trim(),
+          patientNhi: row.patient_nhi || '',
+          patientDob: row.patient_dob || '',
+          consultationDate: row.created_at,
+          providerName: row.provider_display_name || '',
+          providerCredentials: '',
+          chiefComplaint: row.chief_complaint || '',
+          noteContent,
+        }),
+      })
+      if (r.ok) {
+        setFlash(`Sent to ${row.gp_email}`)
+        setTimeout(() => setFlash(null), 3000)
+        setOpen(null)
+        load()
+      } else {
+        const data = await r.json().catch(() => ({}))
+        setFlash('Send failed: ' + (data.error || r.status))
+        setTimeout(() => setFlash(null), 4000)
+      }
+    } catch (e) {
+      setFlash('Send failed: ' + e.message)
+      setTimeout(() => setFlash(null), 4000)
+    }
+    setSending(null)
+  }
+
+  const card = { background:'white', border:'1px solid #E2E8F0', borderRadius:12, padding:'1.25rem 1.5rem', marginBottom:'1rem' }
+  return (
+    <>
+      <div style={card}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+          <div>
+            <h2 style={{ margin:0, fontSize:'1.125rem' }}>Pending GP letters ({rows.length})</h2>
+            <p style={{ fontSize:'.8125rem', color:'#6B7280', margin:'2px 0 0' }}>Finalised consults with a GP email on file. Admin approval required before every send.</p>
+          </div>
+          <button onClick={load} disabled={loading} style={{ background:'#F0F9FA', border:'none', color:'#0B6E76', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>↻ Refresh</button>
+        </div>
+        {flash && <div style={{ background:'#DCFCE7', border:'1px solid #86EFAC', color:'#065F46', padding:'.5rem .875rem', borderRadius:8, fontSize:'.8125rem', marginBottom:'.75rem' }}>{flash}</div>}
+        {loading ? (
+          <div style={{ color:'#9CA3AF', padding:'1.5rem 0', textAlign:'center' }}>Loading…</div>
+        ) : rows.length === 0 ? (
+          <div style={{ color:'#9CA3AF', padding:'1.5rem 0', textAlign:'center' }}>Nothing pending — all finalised consults with GP emails are up to date.</div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+            {rows.map(row => (
+              <div key={row.id} style={{ border:'1px solid #E2E8F0', borderRadius:10, padding:'.75rem 1rem', display:'grid', gridTemplateColumns:'2fr 2fr 1fr auto', gap:'.75rem', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:'.9375rem', color:'#0D2B45' }}>{row.patient_first_name} {row.patient_last_name}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{row.chief_complaint || '—'}</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:'.875rem', color:'#0D2B45' }}>{row.gp_name || '—'}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{row.gp_email || '—'}{row.gp_clinic ? ` · ${row.gp_clinic}` : ''}</div>
+                </div>
+                <div style={{ fontSize:'.75rem', color: !!row.gp_email ? '#065F46' : '#B91C1C', fontWeight:700 }}>
+                  {!!row.gp_email ? '✓ Consent' : '⚠ NO CONSENT'}
+                </div>
+                <button onClick={() => setOpen(row)} style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:700 }}>Review</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.6)', zIndex:1000, display:'flex', alignItems:'flex-start', justifyContent:'center', padding:'40px 20px', overflowY:'auto' }} onClick={() => setOpen(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:14, width:'100%', maxWidth:640, boxShadow:'0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ padding:'1rem 1.5rem', borderBottom:'1px solid #E2E8F0' }}>
+              <div style={{ fontSize:'1rem', fontWeight:800, color:'#0D2B45' }}>Confirm GP letter send</div>
+              <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>Verify patient data + consent before sending.</div>
+            </div>
+            <div style={{ padding:'1.25rem 1.5rem', fontSize:'.875rem', color:'#374151' }}>
+              <div style={{ marginBottom:'.875rem' }}>
+                <div style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:2 }}>Patient</div>
+                <div>{open.patient_first_name} {open.patient_last_name} · NHI {open.patient_nhi || '—'} · DOB {open.patient_dob || '—'}</div>
+              </div>
+              <div style={{ marginBottom:'.875rem' }}>
+                <div style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:2 }}>Sending to</div>
+                <div>{open.gp_name || 'Unknown GP'}{open.gp_clinic ? ` — ${open.gp_clinic}` : ''}</div>
+                <div style={{ fontFamily:'monospace', fontSize:'.8125rem', color:'#0B6E76' }}>{open.gp_email}</div>
+              </div>
+              <div style={{ marginBottom:'.875rem' }}>
+                <div style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:2 }}>Consultation</div>
+                <div>{open.chief_complaint || '—'}</div>
+                <div style={{ fontSize:'.75rem', color:'#6B7280' }}>Provider: {open.provider_display_name || '—'} · Finalised: {open.notes_finalised_at ? new Date(open.notes_finalised_at).toLocaleString('en-NZ') : '—'}</div>
+              </div>
+              <div style={{ padding:'.75rem 1rem', borderRadius:8, background:'#F0FDF4', border:'1px solid #BBF7D0', marginBottom:'1rem' }}>
+                <div style={{ fontWeight:700, color:'#065F46', fontSize:'.875rem' }}>
+                  ✓ Patient consented at triage
+                </div>
+                <div style={{ fontSize:'.75rem', color:'#065F46', marginTop:4 }}>
+                  Patient confirmed their GP details and agreed a copy of the notes would be sent automatically.
+                </div>
+              </div>
+              <label style={{ display:'flex', gap:'.625rem', alignItems:'flex-start', padding:'.75rem 1rem', border:'2px solid #E2E8F0', borderRadius:8, cursor:'pointer', background: confirmed ? '#F0F9FA' : 'white' }}>
+                <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
+                  style={{ marginTop:3, cursor:'pointer', width:16, height:16 }} />
+                <div style={{ fontSize:'.8125rem', color:'#374151', lineHeight:1.5 }}>
+                  <strong style={{ color:'#0D2B45' }}>I confirm:</strong> I have verified the patient identity, the GP name and email above, and the consent captured at triage. I authorise sending this consultation summary to the GP.
+                </div>
+              </label>
+            </div>
+            <div style={{ padding:'.875rem 1.5rem', borderTop:'1px solid #E2E8F0', display:'flex', gap:'.5rem', justifyContent:'flex-end', background:'#F8FAFC' }}>
+              <button onClick={() => setOpen(null)} style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'8px 16px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>Cancel</button>
+              <button onClick={() => send(open)} disabled={sending === open.id || !confirmed} style={{ background: confirmed ? '#0B6E76' : '#D1D5DB', border:'none', color:'white', padding:'8px 18px', borderRadius:6, cursor: sending === open.id || !confirmed ? 'not-allowed' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
+                {sending === open.id ? 'Sending…' : '📧 Confirm and send to GP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -3519,6 +3674,7 @@ function AdminBody() {
             { id:'employers',    label:'🏢 Employers' },
             { id:'careers',      label:'💼 Careers' },
             { id:'support',      label:'🎫 Support' },
+            { id:'gp_letters',   label:'✉️ GP letters' },
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
           ]
@@ -3587,6 +3743,7 @@ function AdminBody() {
             case 'employers':  return <EmployersPanel />
             case 'careers':    return <CareersPanel />
             case 'support':    return <SupportPanel />
+            case 'gp_letters': return <GpLettersPanel />
             case 'research':   return <AdminResearch embedded />
             case 'patients':   return <AdminPatients embedded />
             default:           return <OverviewDashboard setAdminTab={setAdminTab} />

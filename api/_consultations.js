@@ -108,6 +108,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: data || [] })
     }
 
+    // Admin queue: consultations where the note has been finalised, a GP
+    // email is on file, and no GP letter has yet been sent. Admin reviews +
+    // approves each send (patient data + consent) before firing the email.
+    if (filter === 'pending_gp_letter') {
+      const { data, error } = await supabase
+        .from('consultations')
+        .select('id, created_at, notes_finalised_at, chief_complaint, patient_first_name, patient_last_name, patient_email, patient_nhi, patient_dob, gp_name, gp_clinic, gp_email, provider_display_name, provider_id, notes_final, status')
+        .not('notes_finalised_at', 'is', null)
+        .not('gp_email', 'is', null)
+        .is('gp_letter_sent_at', null)
+        .order('notes_finalised_at', { ascending: true })
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ consultations: data || [] })
+    }
+
     if (filter === 'waitlist') {
       const { data, error } = await supabase
         .from('consultations')
