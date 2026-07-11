@@ -4,15 +4,17 @@
 
 ## Executive summary
 
-Tere Health is a bootstrapped rural NZ telehealth service. All live consults are billed at a flat **$60 NZD** (whether the provider chooses to use video or stay audio-only inside the call). Async written responses are billed at **$25 NZD**. Both providers (Patrick Herling · Rachel Thomas) are MCNZ-registered specialists in emergency medicine, which qualifies them for the ACC specialist telehealth rates: **MST1 $96.38 (initial)** and **MST3 $48.20 (follow-up)**, paid direct by ACC with no patient co-pay for ACC-eligible consultations.
+Tere Health is a NZ **tele-emergency** service — same-day access to an emergency medicine specialist for acute clinical presentations. Both providers (Patrick Herling · Rachel Thomas) are MCNZ-registered specialists in emergency medicine, which is the entire product proposition and pricing model. There is one live product: a **$60 NZD consultation** (video or audio at the provider's discretion inside the call). Async messaging has been retired from the public flow — it did not fit the tele-emergency positioning and was margin-diluting; existing message-consult rows continue to display but the product is no longer offered at booking time.
 
-Unit economics are strong: a private consult retains ~62% margin after all vendor costs and provider fees ($37.39 net to Tere). An ACC-initial consult under MST1 nets **$75.65 — roughly double the private margin**. Break-even is under two consults per day. At 10 consults/day, 7 days per week, with a 30% ACC-initial / 20% ACC-follow-up / 50% private mix, after-tax retained profit is approximately **NZ$145k/yr**.
+Because Patrick and Rachel are specialists, ACC-eligible consultations bill at the ACC **specialist telehealth** rates: **MST1 $96.38 (initial)** and **MST3 $48.20 (follow-up)**, paid direct by ACC with no patient co-pay.
+
+Unit economics are strong: a private consult retains ~62% margin after all vendor costs and provider fees ($37.42 net to Tere). An ACC-initial consult under MST1 nets **$75.24 — roughly double the private margin**. Break-even is under two consults per day. At 10 consults/day, 7 days per week, with a 30% ACC-initial / 20% ACC-follow-up / 50% private mix, after-tax retained profit is approximately **NZ$142k/yr**.
 
 ## Assumptions
 
 - **Currency conversion**: 1 USD = 1.67 NZD (RBNZ mid-market 2026-07-08)
 - **Payment processor**: Windcave (target) at 1.9% + $0.30 NZD per transaction. Currently on Stripe (2.9% + $0.30 USD ≈ NZD $0.50) pending migration.
-- **Provider fees**: $20 NZD per consultation (video or audio — flat); $10 NZD per async message consult
+- **Provider fees**: $20 NZD per consultation (video or audio — flat)
 - **Working pattern**: 7 days/week, 8am–8pm, 350 days/year (2 weeks off) as the primary model; alternatives modelled below
 - **NZ company tax rate**: 28% (IRD 2026)
 - **Vendor rates** verified against current supplier pricing as at July 2026
@@ -21,10 +23,13 @@ Unit economics are strong: a private consult retains ~62% margin after all vendo
 
 | Product | Price to patient | ACC-eligible | ACC rate to Tere (direct) |
 |---|---:|---|---|
-| Consultation (video or audio — provider picks inside the call) | $60 | ✓ | MST1 $96.38 initial / MST3 $48.20 follow-up |
-| Written response (async message) | $25 | ✗ | Not ACC-billable |
+| Emergency consultation (video or audio — provider picks inside the call) | $60 | ✓ | MST1 $96.38 initial / MST3 $48.20 follow-up |
 
-**Key change from prior model:** the previous video ($65) / phone ($45) split has been replaced with a flat $60. The provider makes the modality decision inside the call using an in-call camera toggle. Rationale: providers default to audio when given the choice (rural bandwidth, Doctegrity comparison confirms this behaviour), so flat pricing captures the full value on what would otherwise be $45 phone consults, without losing meaningful revenue on the rare pure-video consult.
+Patient support (prescription errors, referral status, ACC follow-up, admin queries) runs through the existing free support-ticket system — not a billable product. See `docs/security-compliance.md` §11 for the support workflow.
+
+**Key changes from prior model:**
+- The previous video ($65) / phone ($45) split has been replaced with a flat $60. The provider makes the modality decision inside the call via an in-call camera toggle. Rationale: providers default to audio when given the choice (rural bandwidth, Doctegrity comparison confirms this), so flat pricing captures full value on what would otherwise be $45 phone consults, without losing meaningful revenue on the rare pure-video consult.
+- Async written-response consult ($25) has been retired from the public flow. It didn't fit the tele-emergency positioning and diluted margins ($13.45 net vs $37.42 for a live consult), while also being ineligible for the ACC MST1 lever. Existing message-consult rows keep displaying in admin views for historical continuity; no new bookings.
 
 ## Vendor stack — variable costs per consult
 
@@ -94,18 +99,6 @@ At 300 consults/month this allocates to ~$0.61/consult — negligible.
 | Fixed overhead allocation | −$0.61 |
 | **Tere net (per consult)** | **$27.06 (56.1%)** |
 
-### Written response — $25 (not ACC-billable)
-
-| Line item | NZD |
-|---|---:|
-| Patient charge | +$25.00 |
-| Windcave payment fee | −$0.78 |
-| Provider fee | −$10.00 |
-| AWS Bedrock (response generation) | −$0.08 |
-| Telnyx/2talk SMS | −$0.08 |
-| Fixed overhead allocation | −$0.61 |
-| **Tere net (per consult)** | **$13.45 (53.8%)** |
-
 ### Margin summary
 
 | Product | Rate to Tere | Net | Margin |
@@ -113,7 +106,6 @@ At 300 consults/month this allocates to ~$0.61/consult — negligible.
 | Consultation — private | $60.00 | $37.42 | 62.4% |
 | Consultation — ACC MST1 | $96.38 | $75.24 | 78.1% |
 | Consultation — ACC MST3 | $48.20 | $27.06 | 56.1% |
-| Written response — private | $25.00 | $13.45 | 53.8% |
 
 **Key insight:** an ACC-initial consultation nets Tere approximately **twice as much as a private consult of the same duration**. Rural Marlborough has a naturally high ACC-claim mix (farming, maritime, RSE seasonal workers). Even a modest 30% MST1 mix materially lifts the annual bottom line.
 
@@ -129,15 +121,15 @@ Primary model: 7 days/week, 8am–8pm, 350 days/year, 10 consults/day.
 | 6 days/wk, 4 wks off | 288 | 2,880 | $172,800 | ~$79,800 |
 | 7 days/wk, 2 wks off (primary) | 350 | 3,500 | **$210,000** | **~$96,940** |
 
-### Consult mix comparison — 7 days/wk × 350 days
+### ACC-mix sensitivity — 7 days/wk × 350 days × 10 consults/day
 
-Mix B = 30% ACC-initial (MST1) + 20% ACC-follow-up (MST3) + 50% private, applied to Consultation revenue only. Message consults stay private.
+Mix applied to Consultation revenue: MST1 initial and MST3 follow-up substitute for private where the patient is ACC-eligible.
 
-| Mix (10/day) | Gross revenue (all private) | Gross revenue (ACC mix) | After-tax profit (ACC mix) |
-|---|---:|---:|---:|
-| 10 consult | $210,000 | $334,355 | ~$186,780 |
-| 8 consult + 2 message | $185,500 | $284,984 | ~$152,090 |
-| 6 consult + 4 message | $161,000 | $235,613 | ~$117,410 |
+| ACC mix | Gross revenue | After-tax profit |
+|---|---:|---:|
+| All private (0/0/100) | $210,000 | ~$96,940 |
+| 30% MST1 + 20% MST3 + 50% private | $319,355 | ~$180,500 |
+| 50% MST1 + 20% MST3 + 30% private | $385,755 | ~$228,470 |
 
 **Capacity note:** 8am–8pm × 7 days × 20–30 min per consult = 24–36 consults/day capacity. 10/day represents ~28–42% utilisation — significant headroom before adding providers.
 
@@ -145,10 +137,9 @@ Mix B = 30% ACC-initial (MST1) + 20% ACC-follow-up (MST3) + 50% private, applied
 
 | Consult type | Stripe fee (NZD) | Windcave fee (NZD) | Saving per consult |
 |---|---:|---:|---:|
-| Consultation $60 | $2.24 | $1.44 | **$0.80** |
-| Written response $25 | $1.03 | $0.78 | **$0.25** |
+| Consultation $60 (private) | $2.24 | $1.44 | **$0.80** |
 
-At 8 consult + 2 message/day × 350 days: ~$2,410/yr saved. Plus removal of USD FX exposure and clean NZD invoicing for Xero.
+At 10 consults/day × 350 days × 50% private (rest via ACC monthly invoice, no per-transaction fee): ~$1,400/yr saved. Plus removal of USD FX exposure and clean NZD invoicing for Xero.
 
 ## Company overhead (not in per-consult modelling)
 
@@ -164,16 +155,16 @@ At 8 consult + 2 message/day × 350 days: ~$2,410/yr saved. Plus removal of USD 
 
 ## Realistic bottom line
 
-Three scenarios · 10 consults/day · 7 days/week · 350 days · 8 consult + 2 message mix:
+Three scenarios · 10 consults/day · 7 days/week · 350 days · single-product (all consults):
 
-| Line | All private | 30% MST1 + 20% MST3 | 50% MST1 + 20% MST3 |
+| Line | All private | 30% MST1 + 20% MST3 + 50% private | 50% MST1 + 20% MST3 + 30% private |
 |---|---:|---:|---:|
-| Gross annual revenue | $185,500 | $284,984 | $351,384 |
-| Vendor costs + provider fees | −$76,132 | −$76,132 | −$76,132 |
+| Gross annual revenue | $210,000 | $319,355 | $385,755 |
+| Vendor costs + provider fees | −$79,170 | −$79,170 | −$79,170 |
 | Company overhead (mid-range) | −$12,000 | −$12,000 | −$12,000 |
-| Profit before tax | ~$97,368 | ~$196,852 | ~$263,252 |
-| Company tax (28%) | −$27,263 | −$55,119 | −$73,711 |
-| **Retained after-tax profit** | **~$70,100** | **~$141,730** | **~$189,540** |
+| Profit before tax | ~$118,830 | ~$228,185 | ~$294,585 |
+| Company tax (28%) | −$33,272 | −$63,892 | −$82,484 |
+| **Retained after-tax profit** | **~$85,560** | **~$164,290** | **~$212,100** |
 
 The ACC specialist rate is the single biggest financial lever in the model. Rural Marlborough's injury-heavy demographic makes the ACC-mix scenarios realistic, not aspirational.
 
