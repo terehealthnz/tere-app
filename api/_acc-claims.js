@@ -8,25 +8,30 @@ function supabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
-function getServiceCode(consultationType) {
-  // Confirm exact codes with ACC (0800 222 994) before going live.
-  // Placeholder codes for Emergency Medicine telehealth.
-  const codes = {
-    video:   process.env.ACC_SERVICE_CODE_VIDEO   || 'ETELE001',
-    phone:   process.env.ACC_SERVICE_CODE_PHONE   || 'ETELE001',
-    message: process.env.ACC_SERVICE_CODE_MESSAGE || 'ETELE002',
+// ACC specialist telehealth service codes (effective 1 June 2024):
+//   MST1 — initial specialist telehealth consultation — $96.38 incl. GST
+//   MST3 — follow-up specialist telehealth consultation — $48.20 incl. GST
+// Both Patrick Herling and Rachel Thomas are MCNZ-registered specialists
+// (Emergency Medicine) and qualify for these rates. Confirm registration
+// with ACC's Provider Registration team before first real claim.
+//
+// Async message consults are not currently ACC-billable — no service code.
+function getServiceCode(consultationType, isFollowup) {
+  if (consultationType === 'message') {
+    return process.env.ACC_SERVICE_CODE_MESSAGE || null
   }
-  return codes[consultationType] || codes.video
+  return isFollowup
+    ? (process.env.ACC_SERVICE_CODE_FOLLOWUP || 'MST3')
+    : (process.env.ACC_SERVICE_CODE_INITIAL  || 'MST1')
 }
 
-function getACCRateCents(consultationType) {
-  // Standard ACC co-payment rates — confirm with ACC before going live.
-  const rates = {
-    video:   parseInt(process.env.ACC_RATE_VIDEO_CENTS   || '3750'),
-    phone:   parseInt(process.env.ACC_RATE_PHONE_CENTS   || '3750'),
-    message: parseInt(process.env.ACC_RATE_MESSAGE_CENTS || '2500'),
+function getACCRateCents(consultationType, isFollowup) {
+  if (consultationType === 'message') {
+    return parseInt(process.env.ACC_RATE_MESSAGE_CENTS || '0')
   }
-  return rates[consultationType] || rates.video
+  return isFollowup
+    ? parseInt(process.env.ACC_RATE_FOLLOWUP_CENTS || '4820')  // MST3
+    : parseInt(process.env.ACC_RATE_INITIAL_CENTS  || '9638')  // MST1
 }
 
 async function submitToACC(claimPayload) {
@@ -84,8 +89,32 @@ export default async function handler(req, res) {
       .single()
     if (cErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
-    const serviceCode  = getServiceCode(consult.consultation_type)
-    const amountCents  = getACCRateCents(consult.consultation_type)
+    // MST1 (initial) vs MST3 (follow-up) — key on patient NHI + injury.
+    // If ANY prior acc_claim exists for this patient and this injury date,
+    // treat as follow-up. Best-effort — if the query fails (table missing
+    // etc.) we default to MST1 rather than block the claim.
+    let isFollowup = false
+    if (consult.patient_nhi) {
+      try {
+        const q = supabase.from('acc_claims')
+          .select('id')
+          .eq('patient_nhi', consult.patient_nhi)
+          .neq('consultation_id', consultationId)
+          .limit(1)
+        // If injury date is available, scope to same injury; otherwise any
+        // prior claim for this NHI is enough of a signal.
+        if (consult.acc_injury_date) {
+          // acc_claims may or may not carry injury_date — try to filter but
+          // fall through gracefully if the column is absent.
+          try { await q.eq('injury_date', consult.acc_injury_date) } catch { /* ignore */ }
+        }
+        const { data: prior } = await q
+        if (Array.isArray(prior) && prior.length > 0) isFollowup = true
+      } catch { /* keep MST1 default */ }
+    }
+
+    const serviceCode  = getServiceCode(consult.consultation_type, isFollowup)
+    const amountCents  = getACCRateCents(consult.consultation_type, isFollowup)
     const hpiNumber    = providerHpi || process.env.PATRICK_HPI_NUMBER || ''
     const pName        = providerName || 'Tere Health Provider'
     const isSandbox    = process.env.ACC_SANDBOX !== 'false'

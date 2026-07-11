@@ -129,21 +129,15 @@ function HowItWorks() {
 function Pricing() {
   const plans = [
     {
-      icon: '📹', title: 'Video', subtitle: 'Face-to-face with your doctor',
-      price: 65, accPrice: 25,
-      features: ['Full tele-assessment', 'Prescriptions & referrals', 'ACC claims filed', 'Consultation summary emailed'],
+      icon: '📞', title: 'Consultation', subtitle: 'Talk with a doctor within 2 hours',
+      price: 60, accPrice: 0,
+      features: ['Talk with your doctor', 'Video optional — turn it on any time', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
-    },
-    {
-      icon: '📞', title: 'Phone', subtitle: 'Audio call — no camera needed',
-      price: 45, accPrice: 25,
-      features: ['Talk with your doctor', 'Prescriptions & referrals', 'ACC claims filed', 'Good for low-bandwidth'],
-      highlight: false,
     },
     {
       icon: '💬', title: 'Written response', subtitle: 'Within 2 hours',
       price: 25, accPrice: null,
-      features: ['Doctor reviews your notes', 'Written advice to your email', 'Prescriptions if appropriate', 'No video or phone needed'],
+      features: ['Doctor reviews your notes', 'Written advice to your email', 'Prescriptions if appropriate', 'No call needed'],
       highlight: false,
     },
   ]
@@ -154,7 +148,7 @@ function Pricing() {
           Clear, upfront pricing
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Your cost is reduced to the co-payment. No surprises.
+          ACC-eligible injury? Fully covered by ACC — no cost to you.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
           {plans.map(p => (
@@ -174,9 +168,11 @@ function Pricing() {
               <div style={{ fontSize: '.875rem', color: '#6B7280', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.subtitle}</div>
               <div style={{ marginBottom: '1.25rem' }}>
                 <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>${p.price}</span>
-                {p.accPrice && (
+                {p.accPrice === 0 ? (
+                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC</span>
+                ) : p.accPrice ? (
                   <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>or ${p.accPrice} ACC</span>
-                )}
+                ) : null}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', textAlign: 'left' }}>
                 {p.features.map(f => (
