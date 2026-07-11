@@ -67,7 +67,7 @@ function Hero() {
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
-          <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.875rem' }}>· After hours? Send a message — we'll respond first thing in the morning.</span>
+          <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.875rem' }}>· 7 days a week · 8am–8pm</span>
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
@@ -99,7 +99,7 @@ function HowItWorks() {
   const steps = [
     { n: '1', icon: '💬', title: 'Triage chat', desc: 'Our AI health assistant gathers your symptoms and history in minutes.' },
     { n: '2', icon: '📏', title: 'Vitals check', desc: 'Share a quick photo of any visible issue. Optional guided vitals if needed.' },
-    { n: '3', icon: '👨‍⚕️', title: 'See the doctor', desc: 'Video, phone, or written consult — whichever suits your situation.' },
+    { n: '3', icon: '👨‍⚕️', title: 'See the doctor', desc: 'A doctor calls you within 2 hours. Video optional — you or the doctor can turn on the camera whenever it helps.' },
     { n: '4', icon: '✅', title: 'All sorted', desc: 'Prescriptions sent to your pharmacy. Referrals organised. ACC filed.' },
   ]
   return (
@@ -129,28 +129,22 @@ function HowItWorks() {
 function Pricing() {
   const plans = [
     {
-      icon: '📞', title: 'Consultation', subtitle: 'Talk with a doctor within 2 hours',
+      icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
       price: 60, accPrice: 0,
-      features: ['Talk with your doctor', 'Video optional — turn it on any time', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
+      features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor — video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
-    },
-    {
-      icon: '💬', title: 'Written response', subtitle: 'Within 2 hours',
-      price: 25, accPrice: null,
-      features: ['Doctor reviews your notes', 'Written advice to your email', 'Prescriptions if appropriate', 'No call needed'],
-      highlight: false,
     },
   ]
   return (
     <section id="pricing" style={{ background: BRAND.bg, padding: '5rem 1.5rem' }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-          Clear, upfront pricing
+          One clear price
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           ACC-eligible injury? Fully covered by ACC — no cost to you.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
           {plans.map(p => (
             <div key={p.title} style={{
               background: 'white', borderRadius: 16, padding: '2rem 1.5rem',

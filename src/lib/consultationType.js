@@ -1,8 +1,9 @@
 export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
-  // ACC / non-ACC treated equivalently — the patient books a consult, the
-  // provider picks video-vs-audio at call time. See docs on the unified-call
-  // model. Async messaging remains available for non-ACC low-acuity work.
-  return { allowConsult: true, allowMessage: !isAcc }
+  // Tele-emergency positioning — the only public product is the live
+  // consultation. Async messaging is no longer offered at booking time
+  // (existing message consult rows keep working; the endpoint stays for
+  // backward compatibility).
+  return { allowConsult: true, allowMessage: false }
 }
 
 export const RESERVATION_FEE = 15

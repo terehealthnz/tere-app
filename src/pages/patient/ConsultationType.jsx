@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { scoreComplaint, CONSULT_PRICES } from '../../lib/consultationType'
 import { patientUpdateConsultation } from '../../lib/supabase'
@@ -36,6 +36,27 @@ export default function ConsultationType() {
     allowConsult && 'consult',
     allowMessage && 'message',
   ].filter(Boolean)
+
+  // Tele-emergency positioning — only Consultation is offered. Skip the
+  // picker entirely and route straight to payment. Left as a fallback UI
+  // in case scoreComplaint ever surfaces >1 option again (e.g. an internal
+  // build with messaging re-enabled).
+  useEffect(() => {
+    if (availableTypes.length !== 1) return
+    const only = availableTypes[0]
+    const price = only === 'message'
+      ? CONSULT_PRICES.message.private
+      : (isAcc ? CONSULT_PRICES.consult.acc : CONSULT_PRICES.consult.private)
+    sessionStorage.setItem('consultationType', only)
+    sessionStorage.setItem('paymentAmount', String(price))
+    const updates = { consultation_type: only }
+    if (employerPaid) updates.employer_id = sessionStorage.getItem('employer_id') || null
+    patientUpdateConsultation(consultationId, updates)
+      .catch(err => console.error('consult type auto-set failed:', err))
+      .finally(() => navigate(employerPaid ? '/waiting' : '/payment', { replace: true }))
+  // Run once on mount — this page's job is now just to route through.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const typeConfig = TYPE_CONFIG
 
