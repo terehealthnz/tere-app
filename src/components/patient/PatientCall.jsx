@@ -252,8 +252,8 @@ export default function PatientCall() {
           fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.875rem', color: 'white',
         }}>
           <span>📞</span>
-          <span style={{ fontWeight: 600 }}>Audio only consultation</span>
-          <span style={{ color: 'rgba(255,255,255,.6)', fontSize: '.8125rem' }}>— camera is disabled for this consultation type</span>
+          <span style={{ fontWeight: 600 }}>Audio call in progress</span>
+          <span style={{ color: 'rgba(255,255,255,.75)', fontSize: '.8125rem' }}>— tap the 📷 camera button to turn on video any time</span>
         </div>
       )}
       {/* Scoped style — hides LiveKit's Share screen button on the patient
@@ -265,6 +265,9 @@ export default function PatientCall() {
       <LiveKitRoom
         token={token}
         serverUrl={serverUrl}
+        // Camera off by default for audio-first consults; VideoConference's
+        // ControlBar still exposes the toggle so the patient can turn it on
+        // to show something clinical (rash, wound, etc.) mid-call.
         video={!isPhone}
         audio={true}
         data-lk-theme="default"

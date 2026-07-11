@@ -392,10 +392,12 @@ export default function ProviderConsult() {
         </div>
       </div>
 
-      {/* Audio-only banner for phone */}
+      {/* Audio-first banner — camera toggle is in the LiveKit ControlBar
+          for both provider and patient, so either side can turn video on
+          when clinically needed (rash, wound, etc.). */}
       {isPhone && (
         <div style={{ background:'rgba(11,110,118,.85)', padding:'8px 16px', fontSize:'.875rem', color:'white', display:'flex', alignItems:'center', gap:'.5rem', flexShrink:0 }}>
-          📞 <strong>Audio only</strong> — 🔊 Put phone on speaker for Scribe to capture both sides
+          📞 <strong>Audio call</strong> — tap the 📷 camera icon to turn on video for you, or ask the patient to turn on theirs to show something
         </div>
       )}
 
