@@ -97,7 +97,6 @@ const Terms               = lazy(() => import('./pages/Terms'))
 const Careers             = lazy(() => import('./pages/Careers'))
 const CareersApply         = lazy(() => import('./pages/CareersApply'))
 const Rate                = lazy(() => import('./pages/Rate'))
-const StatusPage          = lazy(() => import('./pages/StatusPage'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
@@ -155,7 +154,6 @@ export default function App() {
         <Route path="/booking/change/:id"     element={<BookingChange />} />
         <Route path="/booking/cancel/:id"     element={<BookingCancel />} />
         <Route path="/booking/join/:id"       element={<BookingJoin />} />
-        <Route path="/status"                 element={<StatusPage />} />
         <Route path="/my-consultation/:token" element={<ConsultationSummary />} />
         <Route path="/repeat-rx"              element={<RepeatPrescription />} />
         <Route path="/complaints"             element={<Complaints />} />

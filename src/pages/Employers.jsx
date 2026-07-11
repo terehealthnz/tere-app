@@ -172,44 +172,30 @@ function WhatsIncluded() {
 }
 
 function Pricing() {
-  const tiers = [
-    { range: '10–29 staff',  monthly: 15, highlight: false, desc: 'Small crews and family businesses' },
-    { range: '30–99 staff',  monthly: 12, highlight: true,  desc: 'Farms and maritime operators' },
-    { range: '100–299 staff', monthly: 9, highlight: false, desc: 'Multi-site and larger operations' },
-    { range: '300+ staff',   monthly: 7,  highlight: false, desc: 'Large employers — best value rate' },
-  ]
   return (
     <section id="pricing" style={{ background: BRAND.bg, padding: '5rem 1.5rem' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-          Simple, volume-based pricing
+          Pricing tailored to your workforce
         </h2>
-        <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '.5rem', fontFamily: FF }}>
-          The more staff you enrol, the lower your rate.
+        <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '2rem', fontFamily: FF }}>
+          Rates depend on team size, industry, and expected utilisation. We'll build a quote for your specific setup — no generic tiers.
         </p>
-        <p style={{ fontSize: '.875rem', color: '#9CA3AF', marginBottom: '3rem', fontFamily: FF }}>
-          12-month contract · ACC billed separately at time of consultation
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '2.5rem' }}>
-          {tiers.map(t => (
-            <div key={t.range} style={{
-              background: t.highlight ? BRAND.teal : 'white',
-              color: t.highlight ? 'white' : BRAND.navy,
-              borderRadius: 16, padding: '2rem 1.25rem', textAlign: 'center',
-              boxShadow: t.highlight ? '0 8px 32px rgba(11,110,118,.35)' : '0 2px 12px rgba(0,0,0,.06)',
-              position: 'relative',
-            }}>
-              {t.highlight && (
-                <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#D97706', color: 'white', borderRadius: 99, padding: '3px 14px', fontSize: '.75rem', fontWeight: 700, fontFamily: FF, whiteSpace: 'nowrap' }}>
-                  Most popular
-                </div>
-              )}
-              <div style={{ fontSize: '.9375rem', fontWeight: 700, marginBottom: '.5rem', fontFamily: FF, color: t.highlight ? 'rgba(255,255,255,.8)' : '#6B7280' }}>{t.range}</div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, fontFamily: SERIF, lineHeight: 1, marginBottom: '.25rem' }}>${t.monthly}</div>
-              <div style={{ fontSize: '.8125rem', color: t.highlight ? 'rgba(255,255,255,.7)' : '#9CA3AF', marginBottom: '1rem', fontFamily: FF }}>/employee/month</div>
-              <div style={{ fontSize: '.8125rem', lineHeight: 1.5, color: t.highlight ? 'rgba(255,255,255,.75)' : '#6B7280', fontFamily: FF }}>{t.desc}</div>
-            </div>
-          ))}
+        <div style={{ background: 'white', borderRadius: 16, padding: '2rem 1.75rem', boxShadow: '0 2px 12px rgba(0,0,0,.06)', textAlign: 'left', marginBottom: '2.5rem' }}>
+          <div style={{ fontSize: '.9375rem', fontWeight: 700, color: BRAND.navy, fontFamily: FF, marginBottom: '.75rem' }}>What we quote for</div>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: '.9375rem', color: '#374151', lineHeight: 1.8, fontFamily: FF }}>
+            <li>• Unlimited employee consultations (or a capped-per-employee plan — your choice)</li>
+            <li>• Extended hours, 7 days per week</li>
+            <li>• ACC lodgement automatic during the consultation</li>
+            <li>• Medical certificates issued on the spot</li>
+            <li>• Monthly invoice, no per-transaction fees</li>
+          </ul>
+          <a href="/contact" style={{
+            display: 'inline-block', marginTop: '1.5rem',
+            background: BRAND.teal, color: 'white', textDecoration: 'none',
+            padding: '.75rem 1.5rem', borderRadius: 99, fontWeight: 700, fontSize: '.9375rem',
+            fontFamily: FF,
+          }}>Request a quote →</a>
         </div>
 
         {/* Comparison table */}
@@ -228,7 +214,6 @@ function Pricing() {
               </thead>
               <tbody>
                 {[
-                  ['Cost', '$25–45/employee/month', '$7–15/employee/month'],
                   ['Location', 'Clinic-based only', 'Anywhere with a phone'],
                   ['Hours', 'Business hours only', 'Extended hours, 7 days'],
                   ['ACC lodgement', 'Manual, post-visit', 'Automatic during consultation'],
@@ -314,7 +299,7 @@ function AccAdvantage() {
 
 function GettingStarted() {
   const steps = [
-    { n: '1', title: 'Sign a 12-month contract', desc: 'Simple agreement — we send it, you sign it digitally.' },
+    { n: '1', title: 'Sign the agreement', desc: 'We tailor the terms to your workforce — send it, sign it digitally.' },
     { n: '2', title: 'Upload your employee list', desc: 'A simple CSV with names and email addresses. Takes 2 minutes.' },
     { n: '3', title: 'Workers access tere.co.nz', desc: 'Recognised automatically — payment step skipped for enrolled employees.' },
     { n: '4', title: 'No setup, no training, no IT', desc: "It works in any browser on any phone. Your workers won't need any help." },

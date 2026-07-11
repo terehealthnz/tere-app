@@ -330,7 +330,7 @@ function Footer() {
         Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: '#D4EEF0', textDecoration: 'underline' }}>terehealthnz@gmail.com</a>
       </div>
       <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility'], ['Careers', '/careers'], ['Employers', '/employers'], ['Status', '/status']].map(([label, href]) => (
+        {[['Privacy', '/privacy'], ['Terms', '/terms'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility'], ['Careers', '/careers'], ['Employers', '/employers']].map(([label, href]) => (
           <Link key={label} to={href} style={{ color: 'rgba(255,255,255,.75)', textDecoration: 'none', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</Link>
         ))}
       </div>

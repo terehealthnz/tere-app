@@ -174,7 +174,6 @@ const ROUTES = {
   'patient-flags':             () => import('./_patient-flags.js'),
   'consultation-token':        () => import('./_consultation-token.js'),
   'analytics-events':          () => import('./_analytics-events.js'),
-  'status':                    () => import('./_status.js'),
   'bedrock-test':              () => import('./_bedrock-test.js'),
   'set-availability':          () => import('./_set-availability.js'),
   'set-provider-avail':        () => import('./_set-provider-avail.js'),
