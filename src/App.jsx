@@ -64,6 +64,7 @@ const WaitingRoom         = lazy(() => import('./components/patient/WaitingRoom'
 const PatientCall         = lazy(() => import('./components/patient/PatientCall'))
 const PostConsult         = lazy(() => import('./components/patient/PostConsult'))
 const Payment             = lazy(() => import('./components/patient/Payment'))
+const PaymentReturn       = lazy(() => import('./pages/patient/PaymentReturn'))
 const ConsultationType    = lazy(() => import('./pages/patient/ConsultationType'))
 const MessageSent         = lazy(() => import('./pages/patient/MessageSent'))
 const Waitlisted          = lazy(() => import('./pages/patient/Waitlisted'))
@@ -141,6 +142,7 @@ export default function App() {
         <Route path="/vitals/:id"             element={<VitalsCapture />} />
         <Route path="/consultation-type"      element={<ConsultationType />} />
         <Route path="/payment"                element={<Payment />} />
+        <Route path="/payment-return"         element={<PaymentReturn />} />
         <Route path="/message-sent"           element={<MessageSent />} />
         <Route path="/waiting"                element={<WaitingRoom />} />
         <Route path="/waiting/:id"            element={<WaitingRoom />} />

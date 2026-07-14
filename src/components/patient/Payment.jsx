@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
 import { patientUpdateConsultation } from '../../lib/supabase'
+import { useFeatureFlag } from '../../lib/featureFlags'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -22,11 +23,11 @@ const CARD_STYLE = {
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
-// Flat $60 consult across every live-consult type. ACC eligibility retains
-// the $25 co-pay behaviour until the ACC billing overhaul finishes (see
-// _acc-claims.js MST1 rates + follow-up commit that zeros the patient
-// side). Message stays $25.
-const BASE_PRICES = { consult: { private: 60, acc: 25 }, video: { private: 60, acc: 25 }, phone: { private: 60, acc: 25 }, message: { private: 25, acc: 25 } }
+// Flat $60 consult across every live-consult type. ACC-eligible consults
+// charge only the $20 administrative fee — the consultation itself is
+// billed direct to ACC (see docs/security-compliance.md and Terms §5).
+// Message stays $25 (not ACC-billable).
+const BASE_PRICES = { consult: { private: 60, acc: 20 }, video: { private: 60, acc: 20 }, phone: { private: 60, acc: 20 }, message: { private: 25, acc: 25 } }
 const COUPON_DISCOUNT = 10
 
 function PaymentForm({ consultationId, accEligible, consultationType }) {
@@ -261,11 +262,67 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   )
 }
 
+// Windcave Hosted Payment Page path — feature-flagged behind `use_windcave`.
+// Instead of collecting card details inline (Stripe pattern), the patient
+// clicks "Continue to secure payment" and is redirected to Windcave's
+// HPP. Windcave sends them back to /payment-return after completion,
+// and their FPRN webhook (server-side) updates the consultation row
+// authoritatively.
+function WindcavePayment({ consultationId, accEligible, consultationType }) {
+  const navigate = useNavigate()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.consult
+  const amount = accEligible === 'yes' ? priceSet.acc : priceSet.private
+
+  async function startPayment() {
+    setLoading(true); setError(null)
+    try {
+      const r = await apiFetch('/api/windcave-create-session', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId, accEligible, consultationType }),
+      })
+      const data = await r.json()
+      if (!r.ok || !data.hppUrl) {
+        setError(data.error || 'Could not start payment. Please try again.')
+        setLoading(false)
+        return
+      }
+      // Hard nav to the Windcave HPP — they'll redirect back to
+      // /payment-return when done.
+      window.location.href = data.hppUrl
+    } catch (e) {
+      setError('Could not reach payment service. Please try again.')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <h2 style={{ marginBottom: '.5rem' }}>Payment</h2>
+      <p style={{ color: '#374151', marginBottom: '1.5rem' }}>
+        ${amount}.00 NZD {accEligible === 'yes' ? '— $20 administrative fee (ACC covers your consultation)' : ''}
+      </p>
+      <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.5rem', fontSize: '.8125rem', color: '#0B4F5A', lineHeight: 1.6 }}>
+        You'll be securely redirected to <strong>Windcave</strong> (Tere's NZ payment provider) to enter your card details. Windcave will bring you back here once you're done.
+      </div>
+      {error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '.75rem 1rem', borderRadius: 8, marginBottom: '1rem', fontSize: '.875rem' }}>{error}</div>
+      )}
+      <button onClick={startPayment} disabled={loading}
+        style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '.875rem', borderRadius: 8, width: '100%', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        {loading ? 'Redirecting…' : `Continue to secure payment — $${amount}.00`}
+      </button>
+    </div>
+  )
+}
+
 export default function Payment() {
   const navigate = useNavigate()
   const consultationId   = sessionStorage.getItem('consultationId')
   const accEligible      = sessionStorage.getItem('accEligible') || 'no'
-  const consultationType = sessionStorage.getItem('consultationType') || 'video'
+  const consultationType = sessionStorage.getItem('consultationType') || 'consult'
+  const useWindcave      = useFeatureFlag('use_windcave')
   useEffect(() => {
     if (!consultationId) navigate('/triage')
   }, [consultationId, navigate])
@@ -279,9 +336,13 @@ export default function Payment() {
         </div>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>
-        <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
-          <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
-        </Elements>
+        {useWindcave ? (
+          <WindcavePayment consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
+        ) : (
+          <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
+            <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
+          </Elements>
+        )}
         <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem',textAlign:'center'}}>
           Emergency? Call <strong>111</strong> immediately.
         </p>
