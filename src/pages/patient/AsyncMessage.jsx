@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getConsultation, supabase } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { useFeatureFlag } from '../../lib/featureFlags'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -155,6 +156,7 @@ function PaymentStep({ consultationId, onSuccess, onBack }) {
 function AsyncMessageInner() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const useWindcave = useFeatureFlag('use_windcave')
   const [phase, setPhase] = useState('loading')
   const [consult, setConsult] = useState(null)
   const [confirmedDeadline, setConfirmedDeadline] = useState(null)
@@ -495,13 +497,32 @@ function AsyncMessageInner() {
   }
 
   // ── Payment ────────────────────────────────────────────────────────────────
-  if (phase === 'payment') return (
-    <PaymentStep
-      consultationId={id}
-      onSuccess={handlePaymentSuccess}
-      onBack={() => setPhase('form')}
-    />
-  )
+  if (phase === 'payment') {
+    // If Windcave is on, this paused flow blocks — no Windcave equivalent
+    // of /api/async-consult create_intent exists yet. Fresh async
+    // consultations must wait until the async-message Windcave path is
+    // built (existing message threads still work — only the payment
+    // step is gated).
+    if (useWindcave) return (
+      <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: FF }}>
+        <div style={{ maxWidth: 420, textAlign: 'center', color: 'rgba(212,238,240,.8)' }}>
+          <div style={{ fontSize: '2.25rem', marginBottom: '.75rem' }}>💬</div>
+          <h2 style={{ color: 'white', fontWeight: 700, marginBottom: '.75rem' }}>Message consultations paused</h2>
+          <p style={{ color: 'rgba(212,238,240,.65)', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+            We're upgrading our payment system. Please <a href="/triage" style={{ color: TEAL_L, fontWeight: 700 }}>start a live consultation</a> instead — flat $60, seen within minutes.
+          </p>
+          <a href="/" style={{ display: 'inline-block', background: TEAL, color: 'white', padding: '10px 22px', borderRadius: 99, fontWeight: 700, textDecoration: 'none' }}>Back to home</a>
+        </div>
+      </div>
+    )
+    return (
+      <PaymentStep
+        consultationId={id}
+        onSuccess={handlePaymentSuccess}
+        onBack={() => setPhase('form')}
+      />
+    )
+  }
 
   // ── Submit error ───────────────────────────────────────────────────────────
   if (phase === 'submit_error') return (

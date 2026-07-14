@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
+import { useFeatureFlag } from '../../lib/featureFlags'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 const FF = 'Plus Jakarta Sans, sans-serif'
@@ -174,6 +175,7 @@ function ReservationPaymentForm({ name, consultationType, selectedDate, selected
 }
 
 export default function BookAppointment() {
+  const useWindcave = useFeatureFlag('use_windcave')
   const [step, setStep] = useState(1) // 1:calendar+slot  2:type  3:details  4:pay  5:done
   const [calendar, setCalendar] = useState({})
   const [calendarLoading, setCalendarLoading] = useState(true)
@@ -391,15 +393,34 @@ export default function BookAppointment() {
 
           {/* Step 4: Pay $15 */}
           {step === 4 && (
-            <Elements stripe={stripePromise}>
-              <ReservationPaymentForm
-                name={name} consultationType={consultationType}
-                selectedDate={selectedDate} selectedSlot={selectedSlot}
-                reason={reason} notes={notes} phone={phone} email={email} dob={dob}
-                onSuccess={(data) => { setConfirmation(data); setStep(5) }}
-                onBack={() => setStep(3)}
-              />
-            </Elements>
+            useWindcave ? (
+              // No Windcave equivalent of /api/bookings create_reservation_intent
+              // yet — the reservation-fee flow needs its own Windcave session
+              // path before this step can run under the new provider.
+              <div style={{ textAlign: 'center', padding: '.5rem 0' }}>
+                <div style={{ fontSize: '2.25rem', marginBottom: '.5rem' }}>📅</div>
+                <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.5rem' }}>Bookings temporarily unavailable</h2>
+                <p style={{ fontSize: '.9375rem', color: '#6B7280', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+                  We're upgrading our payment system. Please start a live consultation instead — flat $60, seen within minutes.
+                </p>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                  <button onClick={() => setStep(3)} style={{ padding: '10px 18px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: 'white', fontFamily: FF, fontWeight: 600, cursor: 'pointer', color: '#6B7280' }}>← Back</button>
+                  <Link to="/triage" style={{ padding: '10px 18px', border: 'none', borderRadius: 8, fontFamily: FF, fontWeight: 700, background: '#0B6E76', color: 'white', textDecoration: 'none' }}>
+                    Start consultation →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <Elements stripe={stripePromise}>
+                <ReservationPaymentForm
+                  name={name} consultationType={consultationType}
+                  selectedDate={selectedDate} selectedSlot={selectedSlot}
+                  reason={reason} notes={notes} phone={phone} email={email} dob={dob}
+                  onSuccess={(data) => { setConfirmation(data); setStep(5) }}
+                  onBack={() => setStep(3)}
+                />
+              </Elements>
+            )
           )}
 
           {/* Step 5: Confirmation */}
