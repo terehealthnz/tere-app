@@ -83,30 +83,31 @@ export default function Terms() {
         </Section>
 
         <Section title="3. Payment and fees">
-          <p>Walk-in (unscheduled) consultation fees:</p>
+          <p>Consultation fees (all prices in NZ dollars, inclusive of GST):</p>
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
-            <li style={{ marginBottom: '.375rem' }}>Video consultation: $65 (or $25 ACC co-payment)</li>
-            <li style={{ marginBottom: '.375rem' }}>Phone consultation: $45 (or $25 ACC co-payment)</li>
-            <li style={{ marginBottom: '.375rem' }}>Written response: $25 (ACC not applicable)</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Consultation:</strong> $60 flat. Video or audio at the doctor's discretion inside the call.</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>ACC-eligible consultation:</strong> $20 Tere administrative fee (see Section 5). The consultation itself is billed directly to ACC by Tere and is not charged to you.</li>
           </ul>
-          <p style={{ marginTop: '.75rem' }}>Scheduled appointments require a <strong>$15 non-refundable reservation fee</strong> in addition to the standard consultation fee. The reservation fee guarantees your time slot and is charged at the time of booking. The full consultation fee is charged separately on the day of your appointment.</p>
-          <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
-            <li style={{ marginBottom: '.375rem' }}>Scheduled video: $65 consultation + $15 reservation = $80 total</li>
-            <li style={{ marginBottom: '.375rem' }}>Scheduled phone: $45 consultation + $15 reservation = $70 total</li>
-            <li style={{ marginBottom: '.375rem' }}>Scheduled ACC video/phone: $25 co-payment + $15 reservation = $40 total</li>
-          </ul>
-          <p style={{ marginTop: '.75rem' }}>Prices are in New Zealand dollars and include GST. Payment is processed securely via Stripe. We do not store your card details.</p>
+          <p style={{ marginTop: '.75rem' }}>Payment is processed securely by our payment provider. We do not store your card details.</p>
         </Section>
 
         <Section title="4. Refund policy">
           <p>You may cancel and receive a full refund at any time before your consultation begins. Once a clinician has opened your consultation and started reviewing your notes, no refund is available — the clinician's time has been committed.</p>
           <p style={{ marginTop: '.75rem' }}>If a clinician determines they cannot assist with your query and closes the consultation without providing care, you will receive a full refund. We exercise this discretion fairly.</p>
-          <p style={{ marginTop: '.75rem' }}>The $15 appointment reservation fee is non-refundable if cancelled within 24 hours of the scheduled appointment time. Cancellations made more than 24 hours in advance will receive a full refund of the reservation fee.</p>
         </Section>
 
-        <Section title="5. ACC claims">
-          <p>For injuries eligible under the Accident Compensation Act 2001, we will file an ACC claim on your behalf at no additional charge. The ACC co-payment (if applicable) is your contribution toward the consultation cost.</p>
-          <p style={{ marginTop: '.75rem' }}>Eligibility for ACC cover is determined by ACC, not by Tere Health. If ACC declines your claim, the full private consultation fee applies and you will be invoiced for the difference.</p>
+        <Section title="5. ACC claims and the $20 administrative fee">
+          <p>For injuries eligible under the Accident Compensation Act 2001, Tere Health will file an ACC claim on your behalf at no additional charge. Tere Health is registered with ACC as a specialist telehealth provider and bills the applicable ACC schedule fee (MST1 for an initial consultation, MST3 for a follow-up) directly to ACC. You are not charged for the consultation itself.</p>
+          <p style={{ marginTop: '.75rem' }}>A <strong>$20 administrative fee</strong> applies to every ACC-eligible consultation. This fee is separate from and additional to the ACC-covered consultation, and covers services that are not included in the ACC schedule fee:</p>
+          <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
+            <li style={{ marginBottom: '.375rem' }}>Access to the Tere Health digital platform, including secure video/audio infrastructure, subtitles in twelve languages, and the patient app.</li>
+            <li style={{ marginBottom: '.375rem' }}>Administrative processing of prescriptions, referrals, medical certificates, and pharmacy coordination on your behalf.</li>
+            <li style={{ marginBottom: '.375rem' }}>Extended availability &mdash; consultations are offered outside standard business hours, seven days a week.</li>
+            <li style={{ marginBottom: '.375rem' }}>SMS and email notifications, including consultation join links, joining reminders, and post-consultation summaries.</li>
+            <li style={{ marginBottom: '.375rem' }}>Long-term digital retention of your consultation records for the period required by New Zealand health information law.</li>
+          </ul>
+          <p style={{ marginTop: '.75rem' }}>The $20 fee is disclosed to you at three points before payment: on this Terms page, on our pricing page, and again on the payment screen at time of booking. You may decline any ACC-eligible consultation before booking if you do not wish to pay the administrative fee.</p>
+          <p style={{ marginTop: '.75rem' }}>Eligibility for ACC cover is determined by ACC, not by Tere Health. If, after clinical assessment, your presentation is not eligible for ACC cover, the full private consultation fee ($60) applies instead of the $20 administrative fee. Your card will be charged accordingly and this will be shown on your post-consultation billing summary.</p>
         </Section>
 
         <Section title="6. Your responsibilities">
