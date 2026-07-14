@@ -1,7 +1,11 @@
 /* Tere Health Service Worker — push notifications + offline shell */
 
-const CACHE = 'tere-v4'
-const SHELL = ['/', '/provider', '/tere-logo.png', '/manifest.json']
+// Bumped v4 → v5 to invalidate the old cache that was serving stale
+// index.html with dead chunk hashes after deploys, causing every button
+// click to hit ChunkErrorBoundary → "Something went wrong".
+const CACHE = 'tere-v5'
+// Static assets that don't rev between deploys — safe to cache.
+const SHELL = ['/tere-logo.png', '/manifest.json']
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
@@ -20,13 +24,36 @@ self.addEventListener('activate', event => {
   )
 })
 
-// ── Fetch — network-first, fall back to cache ─────────────────────────────────
+// ── Fetch — network-first for HTML/JS (never cache), pass-through for API ─────
+//
+// The problem this handler solves: after any deploy, the app's index.html
+// gets new content-hashed chunk filenames. If the SW hands out a cached
+// old index.html, the browser tries to lazy-load JS chunks that were
+// deleted on the new deploy → ChunkLoadError → ErrorBoundary → user sees
+// "Something went wrong" on every button click.
+//
+// Rule: HTML documents and JS/CSS chunks are NEVER cached. Static images
+// and manifest can be cached (they change rarely and don't break anything).
+
+function shouldSkipCache(request) {
+  const url = new URL(request.url)
+  if (url.pathname.startsWith('/api/')) return true
+  if (url.pathname.endsWith('.js')) return true
+  if (url.pathname.endsWith('.css')) return true
+  if (url.pathname === '/' || url.pathname.endsWith('.html')) return true
+  // 'navigate' mode = top-level document navigation; always fresh
+  if (request.mode === 'navigate') return true
+  const accept = request.headers.get('Accept') || ''
+  if (accept.includes('text/html')) return true
+  return false
+}
 
 self.addEventListener('fetch', event => {
   const { request } = event
   if (request.method !== 'GET') return
-  if (request.url.includes('/api/')) return  // never cache API
   if (!request.url.startsWith(self.location.origin)) return  // skip external
+
+  if (shouldSkipCache(request)) return  // let the browser handle — no SW caching
 
   event.respondWith(
     fetch(request)
@@ -39,10 +66,7 @@ self.addEventListener('fetch', event => {
         }
         return response
       })
-      .catch(() =>
-        caches.match(request)
-          .then(cached => cached || caches.match('/'))
-      )
+      .catch(() => caches.match(request).then(cached => cached || Response.error()))
   )
 })
 
