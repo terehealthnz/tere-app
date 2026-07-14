@@ -262,21 +262,34 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   )
 }
 
-// Windcave Hosted Payment Page path — feature-flagged behind `use_windcave`.
-// Instead of collecting card details inline (Stripe pattern), the patient
-// clicks "Continue to secure payment" and is redirected to Windcave's
-// HPP. Windcave sends them back to /payment-return after completion,
-// and their FPRN webhook (server-side) updates the consultation row
-// authoritatively.
+// Windcave Hosted Payment Page — embedded iframe integration.
+//
+// Flow:
+//   1. Component mounts → create Windcave session server-side
+//   2. Render <iframe src={hppUrl}> on our page (Tere branding preserved)
+//   3. Patient enters card details in Windcave's iframe (SAQ A — card
+//      data never touches our origin)
+//   4. Windcave redirects the iframe to callbackUrls.approved/declined/
+//      cancelled — which points at /payment-return
+//   5. PaymentReturn.jsx, running INSIDE the iframe, detects it's framed
+//      and posts { type:'tere-windcave', status, consultationId } to the
+//      parent (this component)
+//   6. We re-query /api/windcave-query for authoritative approval, then
+//      navigate to /waiting
+//
+// FPRN webhook remains the source of truth for the consultation's
+// payment_status column — the postMessage/query dance is purely for
+// smooth UX inside the browser.
 function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const navigate = useNavigate()
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [phase, setPhase] = useState('loading')  // loading | ready | verifying | approved | declined
+  const [session, setSession] = useState(null)
+  const [error, setError]     = useState(null)
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.consult
   const amount = accEligible === 'yes' ? priceSet.acc : priceSet.private
 
-  async function startPayment() {
-    setLoading(true); setError(null)
+  async function startSession() {
+    setPhase('loading'); setError(null)
     try {
       const r = await apiFetch('/api/windcave-create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -285,34 +298,106 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
       const data = await r.json()
       if (!r.ok || !data.hppUrl) {
         setError(data.error || 'Could not start payment. Please try again.')
-        setLoading(false)
+        setPhase('declined')
         return
       }
-      // Hard nav to the Windcave HPP — they'll redirect back to
-      // /payment-return when done.
-      window.location.href = data.hppUrl
+      setSession(data)
+      setPhase('ready')
     } catch (e) {
       setError('Could not reach payment service. Please try again.')
-      setLoading(false)
+      setPhase('declined')
     }
   }
 
+  useEffect(() => { startSession() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for postMessage from the iframe's callback page.
+  useEffect(() => {
+    if (phase !== 'ready' || !session) return
+    async function onMessage(e) {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'tere-windcave') return
+      const { status } = e.data
+      if (status === 'approved') {
+        setPhase('verifying')
+        try {
+          const r = await apiFetch(`/api/windcave-query?sessionId=${encodeURIComponent(session.sessionId)}`)
+          const q = await r.json()
+          if (q.approved) {
+            setPhase('approved')
+            setTimeout(() => navigate('/waiting', { replace: true }), 900)
+          } else {
+            setError('Payment could not be verified. Please try again.')
+            setPhase('declined')
+          }
+        } catch {
+          setError('Could not verify payment. If you were charged, please contact support.')
+          setPhase('declined')
+        }
+      } else {
+        setError(status === 'cancelled' ? 'Payment cancelled.' : 'Payment was not approved. Please try again with a different card.')
+        setPhase('declined')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [phase, session, navigate])
+
+  if (phase === 'loading') return (
+    <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+      <div className="spinner" style={{ margin: '0 auto 1rem' }} />
+      <div style={{ color: '#6B7280' }}>Preparing secure payment…</div>
+    </div>
+  )
+
+  if (phase === 'approved') return (
+    <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+      <div style={{ fontSize: '2.5rem', marginBottom: '.75rem' }}>✅</div>
+      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.5rem' }}>Payment confirmed</h2>
+      <p style={{ color: '#374151' }}>Taking you to the waiting room…</p>
+    </div>
+  )
+
+  if (phase === 'declined') return (
+    <div>
+      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.5rem' }}>Payment not completed</h2>
+      <p style={{ color: '#374151', marginBottom: '1.25rem' }}>{error || 'Please try again.'}</p>
+      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+        <button onClick={startSession}
+          style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '.75rem 1.25rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontSize: '.9375rem' }}>
+          Try again
+        </button>
+        <button onClick={() => navigate('/contact?source=payment_failed')}
+          style={{ background: 'white', color: '#0B6E76', border: '2px solid #0B6E76', padding: '.6875rem 1.125rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontSize: '.9375rem' }}>
+          Contact support
+        </button>
+      </div>
+    </div>
+  )
+
+  // phase === 'ready' or 'verifying'
   return (
     <div>
-      <h2 style={{ marginBottom: '.5rem' }}>Payment</h2>
-      <p style={{ color: '#374151', marginBottom: '1.5rem' }}>
-        ${amount}.00 NZD {accEligible === 'yes' ? '— $20 administrative fee (ACC covers your consultation)' : ''}
+      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.25rem' }}>Payment</h2>
+      <p style={{ color: '#374151', marginBottom: '1rem', fontSize: '.9375rem' }}>
+        <strong>${amount}.00 NZD</strong>{accEligible === 'yes' && consultationType !== 'message' ? ' — $20 administrative fee (ACC covers the consultation itself)' : ''}
       </p>
-      <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.5rem', fontSize: '.8125rem', color: '#0B4F5A', lineHeight: 1.6 }}>
-        You'll be securely redirected to <strong>Windcave</strong> (Tere's NZ payment provider) to enter your card details. Windcave will bring you back here once you're done.
-      </div>
-      {error && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '.75rem 1rem', borderRadius: 8, marginBottom: '1rem', fontSize: '.875rem' }}>{error}</div>
+      {phase === 'verifying' && (
+        <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.8125rem', color: '#0B4F5A', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+          <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, margin: 0, flexShrink: 0 }} />
+          Confirming payment with Windcave…
+        </div>
       )}
-      <button onClick={startPayment} disabled={loading}
-        style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '.875rem', borderRadius: 8, width: '100%', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-        {loading ? 'Redirecting…' : `Continue to secure payment — $${amount}.00`}
-      </button>
+      <iframe
+        src={session?.hppUrl}
+        title="Windcave secure payment"
+        style={{ width: '100%', height: 720, border: '1px solid #E5E7EB', borderRadius: 12, background: 'white', display: 'block' }}
+        scrolling="auto"
+        allow="payment"
+      />
+      <p style={{ fontSize: '.75rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.5rem' }}>
+        🔒 Card entry is hosted securely by <strong>Windcave</strong> — Tere never sees your card details.
+      </p>
     </div>
   )
 }

@@ -19,6 +19,7 @@
 // patient closes the browser mid-flow.
 
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -45,8 +46,12 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+  // Session type: 'auth' (hold, then explicit complete/capture later — default)
+  // or 'purchase' (immediate capture). Windcave cert requires we exercise both.
+  const wcType = (sessionType === 'purchase') ? 'purchase' : 'auth'
 
   const type = consultationType || 'consult'
   const isAcc = accEligible === 'yes'
@@ -66,7 +71,7 @@ export default async function handler(req, res) {
   const origin = siteOrigin(req)
 
   const payload = {
-    type: 'auth',                    // hold, not immediate capture
+    type: wcType,
     amount: amountDollars,
     currency: 'NZD',
     merchantReference: consultationId,
@@ -80,6 +85,12 @@ export default async function handler(req, res) {
     methods: ['card'],
   }
 
+  // X-ID: idempotency key per authorisation attempt. Retries with the
+  // same X-ID return the original response (Windcave sets X-Duplicate: 1).
+  // A fresh session-create counts as a fresh attempt, so we generate one
+  // here. Complete/refund calls get their own X-IDs.
+  const xId = randomUUID()
+
   let sessionRes, sessionData
   try {
     sessionRes = await fetch(`${baseUrl()}/sessions`, {
@@ -88,6 +99,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Authorization': windcaveBasicAuth(),
+        'X-ID': xId,
       },
       body: JSON.stringify(payload),
     })

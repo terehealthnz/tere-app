@@ -60,11 +60,13 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
   // Data integrations (provider-triggered)
   'pms-data',
+  // Windcave money-movement — only providers/admin may capture or refund
+  'windcave-complete', 'windcave-refund',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
-const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query'])
+const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query', 'windcave-complete', 'windcave-refund'])
 
 function checkRateLimit(key, maxReqs, windowMs) {
   const now = Date.now()
@@ -137,6 +139,8 @@ const ROUTES = {
   'windcave-create-session':   () => import('./_windcave-create-session.js'),
   'windcave-fprn':             () => import('./_windcave-fprn.js'),
   'windcave-query':            () => import('./_windcave-query.js'),
+  'windcave-complete':         () => import('./_windcave-complete.js'),
+  'windcave-refund':           () => import('./_windcave-refund.js'),
   'create-room':               () => import('./_create-room.js'),
   'employer-check':            () => import('./_employer-check.js'),
   'generate-med-cert':         () => import('./_generate-med-cert.js'),
