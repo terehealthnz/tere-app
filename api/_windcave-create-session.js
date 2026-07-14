@@ -98,8 +98,13 @@ export default async function handler(req, res) {
   }
 
   if (!sessionRes.ok) {
-    console.error('[windcave] session create failed:', sessionRes.status, sessionData)
-    return res.status(sessionRes.status).json({ error: sessionData?.error || `Windcave error ${sessionRes.status}` })
+    console.error('[windcave] session create failed:', sessionRes.status, JSON.stringify(sessionData))
+    return res.status(sessionRes.status).json({
+      error: sessionData?.error || sessionData?.message || `Windcave error ${sessionRes.status}`,
+      windcave_status: sessionRes.status,
+      windcave_body: sessionData,
+      base_url: baseUrl(),
+    })
   }
 
   const hppLink = (sessionData.links || []).find(l => l.rel === 'hpp')
