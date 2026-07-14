@@ -103,7 +103,7 @@ export default function ConsultationType() {
           <h1 style={{ marginBottom: '.375rem' }}>How would you like to be seen?</h1>
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
-              ? 'ACC claims require a live consultation with a doctor. Your doctor will call you and use video only if clinically needed.'
+              ? 'ACC covers the cost of your consultation. A $20 administrative fee applies for platform access, prescription processing, and after-hours availability.'
               : "Book a consultation with a doctor, or send an async message for lower-urgency queries."}
           </p>
           {employerPaid && (

@@ -52,6 +52,8 @@ export default function PostConsult() {
                   <>
                     <span style={{ color:'#065F46' }}>Billed to ACC</span>
                     <span style={{ fontWeight:600, color:'#065F46' }}>−${billing.feeDollars.toFixed(2)}</span>
+                    <span>Administrative fee</span>
+                    <span style={{ fontWeight:600 }}>+${billing.adminFeeDollars.toFixed(2)}</span>
                   </>
                 )}
                 <span style={{ borderTop:'1px solid #E2E8F0', paddingTop:'.5rem', fontWeight:700 }}>Amount you paid</span>
@@ -108,24 +110,27 @@ export default function PostConsult() {
 // consult, this page will reflect the new state on next load.
 function deriveBilling(consult) {
   if (!consult) {
-    return { feeDollars: 0, paidDollars: 0, isAcc: false, reasoning: null, claimNumber: null }
+    return { feeDollars: 0, paidDollars: 0, adminFeeDollars: 0, isAcc: false, reasoning: null, claimNumber: null }
   }
   const feeCents = 6000
   const isAcc = consult.is_acc === true
   const feeDollars = feeCents / 100
-  const paidDollars = isAcc ? 0 : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
+  const adminFeeDollars = isAcc ? 20 : 0
+  const paidDollars = isAcc
+    ? adminFeeDollars
+    : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
   let reasoning = null
   if (isAcc) {
-    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers the full cost of your consultation — you have not been charged.'
+    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers the cost of your consultation directly. You have been charged a $20 administrative fee for platform access, prescription processing, and after-hours availability.'
   } else if (consult.acc_eligible === 'yes') {
-    // Patient claimed ACC at triage but provider decided it's not covered.
-    reasoning = 'Your provider assessed the presentation as not covered by ACC. The consultation fee applies. If you think this should be an ACC claim, message support.'
+    reasoning = 'Your provider assessed the presentation as not covered by ACC. The full consultation fee applies. If you think this should be an ACC claim, message support.'
   } else {
     reasoning = 'Standard consultation fee — thank you for booking with Tere Health.'
   }
   return {
     feeDollars,
     paidDollars,
+    adminFeeDollars,
     isAcc,
     reasoning,
     claimNumber: isAcc ? (consult.acc_claim_number || null) : null,

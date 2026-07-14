@@ -10,13 +10,24 @@ export default async function handler(req, res) {
   const isAcc = accEligible === 'yes'
   // Flat pricing — 'consult' replaces the video/phone split. Legacy
   // 'video'/'phone' rows resolve to the same $60. Message stays $25 as an
-  // async product. ACC handling (patient pays $0, ACC billed at MST1/MST3
-  // specialist rate direct to Tere) is a follow-up commit; ACC co-pay
-  // behaviour retained here to avoid partial-fix risk.
+  // async product.
+  //
+  // ACC-eligible consults: patient pays a $20 administrative co-payment
+  // covering platform access, prescription/referral processing, and
+  // after-hours availability — items outside the scope of the ACC MST1/
+  // MST3 schedule fee. ACC is separately billed the full specialist rate
+  // (MST1 $96.38 initial / MST3 $48.20 follow-up) via _acc-claims.js.
+  //
+  // Why a co-pay at all: ACC settles invoices on a 30-60 day cycle. The
+  // $20 patient card charge settles in 1-2 business days, meaning every
+  // consult generates immediate provider payment regardless of the ACC
+  // clearing lag. Cash flow for the provider is the primary rationale;
+  // the admin work being paid for is real and disclosed to the patient
+  // at booking.
   const PRICES = {
-    consult: { private: 6000, acc: 2500 },
-    video:   { private: 6000, acc: 2500 },
-    phone:   { private: 6000, acc: 2500 },
+    consult: { private: 6000, acc: 2000 },
+    video:   { private: 6000, acc: 2000 },
+    phone:   { private: 6000, acc: 2000 },
     message: { private: 2500, acc: 2500 },
   }
   const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']

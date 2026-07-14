@@ -131,7 +131,7 @@ function Pricing() {
   const plans = [
     {
       icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
-      price: 60, accPrice: 0,
+      price: 60, accPrice: 20,
       features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor — video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
     },
@@ -143,7 +143,7 @@ function Pricing() {
           One clear price
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Fully covered by ACC — no cost to you.
+          ACC-eligible injury? Just a $20 admin fee — ACC covers your consultation.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
           {plans.map(p => (
@@ -166,7 +166,7 @@ function Pricing() {
                 {p.accPrice === 0 ? (
                   <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC</span>
                 ) : p.accPrice ? (
-                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>or ${p.accPrice} ACC</span>
+                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>${p.accPrice} admin fee with ACC</span>
                 ) : null}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', textAlign: 'left' }}>
