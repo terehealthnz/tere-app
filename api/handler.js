@@ -267,7 +267,7 @@ export default async function handler(req, res) {
   // ── Rate limiting ───────────────────────────────────────────────────────────
   const isPayment = PAYMENT_ROUTES.has(route)
   const limited = isPayment
-    ? checkRateLimit(`pay:${ip}`, 10, 60 * 60 * 1000)          // 10/hr per IP
+    ? checkRateLimit(`pay:${ip}`, 50, 60 * 60 * 1000)          // 50/hr per IP — allows a NAT'd household + a few retries; still stops card-testing bots
     : checkRateLimit(`gen:${ip}`, 100, 15 * 60 * 1000)          // 100/15min per IP
   if (limited) {
     logRequest(ip, route, 429, 'rate_limited')
