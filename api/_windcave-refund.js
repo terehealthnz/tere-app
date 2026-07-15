@@ -97,6 +97,7 @@ export default async function handler(req, res) {
     console.warn('[windcave-refund] audit-log write failed:', e.message)
   }
 
+  const isCertMode = req.headers['x-cert-test-key'] && req.headers['x-cert-test-key'] === process.env.WINDCAVE_CERT_TEST_KEY
   return res.status(200).json({
     approved,
     transactionId:  data.id || data.transactionId || null,
@@ -105,5 +106,23 @@ export default async function handler(req, res) {
     amount:         data.amount || amountStr,
     xId,
     raw:            data,
+    // Cert-mode: echo raw Windcave req/res for cert log capture (see
+    // handler.js WINDCAVE_CERT_TEST_KEY bypass).
+    ...(isCertMode ? {
+      cert_log: {
+        request: {
+          method: 'POST',
+          url:    `${baseUrl()}/sessions/${sessionId}/transactions`,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept':       'application/json',
+            'Authorization':'Basic [REDACTED]',
+            'X-ID':         xId,
+          },
+          body:   payload,
+        },
+        response: { status: r.status, body: data },
+      }
+    } : {}),
   })
 }

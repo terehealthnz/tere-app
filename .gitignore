@@ -55,3 +55,6 @@ android/build/
 ios/App/build/
 ios/App/Pods/
 ios/DerivedData/
+
+# Windcave certification test outputs — local only, contains transaction IDs
+windcave-cert-logs/
