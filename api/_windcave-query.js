@@ -81,6 +81,7 @@ export default async function handler(req, res) {
       merchantReference:  data.merchantReference || null,
       amount:             data.amount || null,
       transactions:       data.transactions || [],
+      links:              data.links || [],
     })
   } catch (e) {
     console.error('[windcave-query] error:', e.message)
