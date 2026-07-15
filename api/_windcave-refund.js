@@ -30,8 +30,8 @@ function baseUrl() {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { sessionId, amount, reason } = req.body || {}
-  if (!sessionId) return res.status(400).json({ error: 'sessionId required' })
+  const { sessionId, transactionId, amount, reason } = req.body || {}
+  if (!sessionId && !transactionId) return res.status(400).json({ error: 'sessionId or transactionId required' })
   if (amount === undefined || amount === null) return res.status(400).json({ error: 'amount required' })
   const amt = Number(amount)
   if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ error: 'amount must be positive number' })
@@ -40,14 +40,17 @@ export default async function handler(req, res) {
   const xId = randomUUID()
   const providerId = req.headers['x-provider-id'] || null
 
+  // Windcave REST Refund: POST /transactions with sessionId (or the
+  // specific transactionId to refund).
   const payload = {
     type: 'refund',
     amount: amountStr,
+    ...(transactionId ? { transactionId } : { sessionId }),
   }
 
   let r, data
   try {
-    r = await fetch(`${baseUrl()}/sessions/${encodeURIComponent(sessionId)}/transactions`, {
+    r = await fetch(`${baseUrl()}/transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -112,7 +115,7 @@ export default async function handler(req, res) {
       cert_log: {
         request: {
           method: 'POST',
-          url:    `${baseUrl()}/sessions/${sessionId}/transactions`,
+          url:    `${baseUrl()}/transactions`,
           headers: {
             'Content-Type': 'application/json',
             'Accept':       'application/json',
