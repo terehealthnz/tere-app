@@ -46,8 +46,13 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount, sessionType } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, amountOverride } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+  // Cert-test only: `amountOverride` (dollars, string or number) bypasses
+  // the PRICES table so we can exercise Windcave test scenarios like the
+  // Amex $0.08 response-field test. Guarded by the same cert header.
+  const isCertMode = req.headers['x-cert-test-key'] && req.headers['x-cert-test-key'] === process.env.WINDCAVE_CERT_TEST_KEY
 
   // Session type: 'auth' (hold, then explicit complete/capture later — default)
   // or 'purchase' (immediate capture). Windcave cert requires we exercise both.
@@ -65,7 +70,11 @@ export default async function handler(req, res) {
   }
   const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
-  const amountCents = baseAmount - discountCents
+  let amountCents = baseAmount - discountCents
+  if (isCertMode && amountOverride !== undefined && amountOverride !== null) {
+    amountCents = Math.round(Number(amountOverride) * 100)
+    if (!Number.isFinite(amountCents) || amountCents < 1) return res.status(400).json({ error: 'amountOverride must be positive' })
+  }
   const amountDollars = (amountCents / 100).toFixed(2)
 
   const origin = siteOrigin(req)
