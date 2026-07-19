@@ -1,19 +1,24 @@
-// SMS with pluggable provider — Telnyx (default) or Twilio.
+// SMS with pluggable provider — AWS SNS (default), Telnyx, or Twilio.
 //
-// Provider selection: SMS_PROVIDER env var (telnyx | twilio). Falls back
-// automatically to whichever set of credentials is populated. Telnyx is the
-// preferred default because we already use them for fax (same account, same
-// dashboard, one bill).
+// Provider selection: SMS_PROVIDER env var (sns | telnyx | twilio). Falls
+// back to the next configured provider if the primary is unconfigured.
+// SNS is the preferred default because Tere already carries an AWS BAA
+// for Bedrock — SMS content occasionally includes PHI (patient first name
+// + provider + condition), so keeping the delivery under the same signed
+// BAA is the tidiest compliance story.
 //
 // Env vars:
+//   SNS:    AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (already
+//           set for Bedrock — the same IAM key needs `sns:Publish`)
+//           SNS_SENDER_ID (optional; alphanumeric NZ sender ID)
 //   Telnyx: TELNYX_SMS_API_KEY (or TELNYX_API_KEY), TELNYX_SMS_FROM_NUMBER
 //           (or TELNYX_MESSAGING_PROFILE_ID for high-volume routing)
 //   Twilio: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER
 //
-// If neither is configured, the endpoint returns { ok:true, skipped:true }
+// If nothing is configured, the endpoint returns { ok:true, skipped:true }
 // so callers (initiate-call, async workflow) don't have to guard around it.
 
-const DEFAULT_PROVIDER = 'telnyx'
+const DEFAULT_PROVIDER = 'sns'
 
 function normaliseNZNumber(to) {
   const digits = String(to || '').replace(/\D/g, '')
@@ -21,6 +26,32 @@ function normaliseNZNumber(to) {
   if (digits.startsWith('64')) return '+' + digits
   if (digits.startsWith('0')) return '+64' + digits.slice(1)
   return '+' + digits
+}
+
+async function sendSNS({ to, body }) {
+  const region = process.env.AWS_REGION || 'ap-southeast-2'
+  if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY) {
+    return { ok: false, skipped: true, reason: 'AWS credentials not configured' }
+  }
+  try {
+    const { SNSClient, PublishCommand } = await import('@aws-sdk/client-sns')
+    const client = new SNSClient({ region })
+    const attributes = {
+      // Transactional gets us higher-priority routing and no marketing throttling.
+      'AWS.SNS.SMS.SMSType': { DataType: 'String', StringValue: 'Transactional' },
+    }
+    if (process.env.SNS_SENDER_ID) {
+      attributes['AWS.SNS.SMS.SenderID'] = { DataType: 'String', StringValue: process.env.SNS_SENDER_ID }
+    }
+    const out = await client.send(new PublishCommand({
+      PhoneNumber: to,
+      Message: body,
+      MessageAttributes: attributes,
+    }))
+    return { ok: true, id: out.MessageId, provider: 'sns' }
+  } catch (e) {
+    return { ok: false, error: e.message || 'SNS publish failed', provider: 'sns' }
+  }
 }
 
 async function sendTelnyx({ to, body }) {
@@ -72,17 +103,20 @@ export default async function handler(req, res) {
 
   const body = `[Tere Health] ${message}`
 
-  // Provider selection — env override, then availability check.
+  // Provider selection — env override, then availability check. Order the
+  // fallback chain so we always try the next configured provider if the
+  // requested one is missing credentials.
+  const SENDERS = { sns: sendSNS, telnyx: sendTelnyx, twilio: sendTwilio }
   const requested = (process.env.SMS_PROVIDER || DEFAULT_PROVIDER).toLowerCase()
-  const primary = requested === 'twilio' ? sendTwilio : sendTelnyx
-  const fallback = requested === 'twilio' ? sendTelnyx : sendTwilio
+  const order = [requested, ...Object.keys(SENDERS).filter(k => k !== requested)]
 
   try {
-    let result = await primary({ to: normalised, body })
-    // If the primary was unconfigured, try the other.
-    if (result.skipped) {
-      const alt = await fallback({ to: normalised, body })
-      if (alt.ok || !alt.skipped) result = alt
+    let result = { skipped: true }
+    for (const name of order) {
+      const fn = SENDERS[name]
+      if (!fn) continue
+      const attempt = await fn({ to: normalised, body })
+      if (!attempt.skipped) { result = attempt; break }
     }
     if (result.skipped) {
       console.log(JSON.stringify({ ts: new Date().toISOString(), type: 'sms_skipped', to: normalised.slice(-4), sms_type: type }))
