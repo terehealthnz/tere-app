@@ -148,6 +148,7 @@ const ROUTES = {
   'generate-prescription-pdf': () => import('./_generate-prescription-pdf.js'),
   'generate-referral-pdf':     () => import('./_generate-referral-pdf.js'),
   'generate-supervision-plan': () => import('./_generate-supervision-plan.js'),
+  'generate-insurance-receipt':() => import('./_generate-insurance-receipt.js'),
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
   'live-translate':            () => import('./_live-translate.js'),
   'transcribe-token':          () => import('./_transcribe-token.js'),

@@ -67,6 +67,12 @@ export default async function handler(req, res) {
     video:   { private: 6000, acc: 2000 },
     phone:   { private: 6000, acc: 2000 },
     message: { private: 2500, acc: 2500 },
+    // Post-consult insurance-receipt upsell — see _create-payment-intent.js.
+    // TODO: wire the receipt purchase through Windcave when use_windcave
+    // flag flips on. Right now the frontend only calls this path for the
+    // consult itself, so a $10 receipt PRICES entry keeps the tables in
+    // parity but isn't exercised yet.
+    receipt: { private: 1000, acc: 1000 },
   }
   const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))

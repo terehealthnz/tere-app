@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import InsuranceReceiptUpsell from '../../components/patient/InsuranceReceiptUpsell'
 
 export default function ConsultationSummary() {
   const { token } = useParams()
@@ -8,18 +9,17 @@ export default function ConsultationSummary() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await apiFetch(`/api/consultation-token?token=${token}`)
-        const json = await res.json()
-        if (!res.ok || json.error) { setError(json.error || 'Failed to load'); return }
-        setData(json)
-      } catch { setError('Could not load your consultation summary.') }
-      setLoading(false)
-    }
-    load()
-  }, [token])
+  async function loadData() {
+    try {
+      const res = await apiFetch(`/api/consultation-token?token=${token}`)
+      const json = await res.json()
+      if (!res.ok || json.error) { setError(json.error || 'Failed to load'); return }
+      setData(json)
+    } catch { setError('Could not load your consultation summary.') }
+    setLoading(false)
+  }
+
+  useEffect(() => { loadData() }, [token])
 
   const inp = { fontFamily: 'Plus Jakarta Sans, sans-serif' }
 
@@ -109,7 +109,17 @@ export default function ConsultationSummary() {
           ))}
         </div>
 
-        <div style={{ textAlign: 'center', fontSize: '.75rem', color: '#9CA3AF', lineHeight: 1.6 }}>
+        {/* Insurance receipt upsell — same $10 PDF product as PostConsult.
+            Works without sessionStorage: the URL token authenticates access
+            to this consult, and the receipt endpoint verifies via the
+            paymentIntentId returned by Stripe. */}
+        <InsuranceReceiptUpsell
+          consult={consult}
+          consultationId={consult.id}
+          onPurchased={loadData}
+        />
+
+        <div style={{ textAlign: 'center', fontSize: '.75rem', color: '#9CA3AF', lineHeight: 1.6, marginTop: '1.25rem' }}>
           This summary is for your personal records only.<br />
           For clinical concerns, contact your provider or call 111 in an emergency.<br />
           This link expires 30 days after your consultation.

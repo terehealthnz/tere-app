@@ -1,10 +1,113 @@
 // api/send-email.js — patient post-consultation summary email + waitlist open notification
 import { aiCall, isConfigured } from './_ai.js'
 
+// Fires the FREE plain HTML payment receipt email for a completed consult.
+// Idempotent via consultations.basic_receipt_sent_at — safe to call from
+// every finalise site (ProviderNotes, NotesCompletion, async-consult).
+// Exported so server-side callers (like _async-consult.js) can reuse it
+// without a self-HTTP round-trip.
+export async function sendBasicReceipt(consultationId) {
+  if (!consultationId) return { sent: false, skipped: 'no_id' }
+  const { createClient } = await import('@supabase/supabase-js')
+  const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const { data: row } = await supabase.from('consultations')
+    .select('id, created_at, provider_display_name, payment_amount, patient_first_name, patient_email, basic_receipt_sent_at, payment_intent_id')
+    .eq('id', consultationId).single()
+  if (!row) return { sent: false, skipped: 'not_found' }
+  if (row.basic_receipt_sent_at) return { sent: false, skipped: 'already_sent' }
+  if (!row.patient_email) return { sent: false, skipped: 'no_email' }
+
+  // Best-effort last-4 lookup — non-fatal if it fails. Stripe is our current
+  // live gateway; Windcave last-4 lookup is TODO once the flag flips.
+  let cardLast4 = null
+  let cardBrand = null
+  if (row.payment_intent_id && process.env.STRIPE_SECRET_KEY && row.payment_intent_id.startsWith('pi_')) {
+    try {
+      const Stripe = (await import('stripe')).default
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
+      const pi = await stripe.paymentIntents.retrieve(row.payment_intent_id, { expand: ['latest_charge.payment_method_details'] })
+      const pm = pi?.latest_charge?.payment_method_details?.card
+      if (pm) { cardLast4 = pm.last4 || null; cardBrand = pm.brand || null }
+    } catch { /* non-fatal */ }
+  }
+
+  const firstName = row.patient_first_name || 'there'
+  const consultDate = new Date(row.created_at).toLocaleDateString('en-NZ', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Pacific/Auckland',
+  })
+  const amountDollars = ((Number(row.payment_amount) || 0) / 100).toFixed(2)
+  const cardLine = cardLast4
+    ? `${(cardBrand || 'Card').charAt(0).toUpperCase() + (cardBrand || 'card').slice(1)} ending ${cardLast4}`
+    : 'Card'
+  const providerName = row.provider_display_name || 'Tere clinician'
+
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const { Resend } = await import('resend')
+      const resend = new Resend(process.env.RESEND_API_KEY)
+      await resend.emails.send({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [row.patient_email],
+        subject: `Payment receipt — Tere Health consultation ${consultDate}`,
+        html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+  <div style="background:#0D2B45;padding:20px 28px">
+    <div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div>
+  </div>
+  <div style="padding:24px 28px">
+    <p style="font-size:15px;margin:0 0 12px">Kia ora ${firstName},</p>
+    <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 20px">
+      Here's your receipt for the telehealth consultation on <strong>${consultDate}</strong>.
+    </p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 24px">
+      <tr><td style="padding:8px 0;color:#6B7280">Consultation date</td><td style="padding:8px 0;text-align:right;color:#0D2B45">${consultDate}</td></tr>
+      <tr><td style="padding:8px 0;color:#6B7280">Provider</td><td style="padding:8px 0;text-align:right;color:#0D2B45">${providerName}</td></tr>
+      <tr><td style="padding:8px 0;color:#6B7280">Payment method</td><td style="padding:8px 0;text-align:right;color:#0D2B45">${cardLine}</td></tr>
+      <tr><td style="padding:12px 0 8px;color:#0D2B45;font-weight:700;border-top:1px solid #E5E7EB">Amount paid</td><td style="padding:12px 0 8px;text-align:right;color:#0D2B45;font-weight:700;border-top:1px solid #E5E7EB">$${amountDollars} NZD</td></tr>
+    </table>
+    <div style="background:#F0F9FA;border:1px solid #D4EEF0;border-radius:8px;padding:14px 18px;font-size:13px;color:#0B4F5A;line-height:1.6">
+      Need a receipt formatted for your health insurer? Tere can email you an itemised insurance-ready PDF (with GST/IRD details, diagnosis code, and clinician MCNZ registration) for $10 — visit your consultation summary link to purchase.
+    </div>
+  </div>
+  <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
+    Tere Health · Marlborough Sounds, New Zealand · <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
+  </div>
+</body></html>`,
+        text: `Kia ora ${firstName},\n\nReceipt for your Tere Health consultation on ${consultDate}.\n\nProvider: ${providerName}\nPayment method: ${cardLine}\nAmount paid: $${amountDollars} NZD\n\nNeed an insurance-formatted PDF receipt? Available for $10 from your consultation summary.\n\nTere Health\nterehealth.co.nz`,
+      })
+    } catch (e) {
+      console.error('[send-email:basic_receipt] Resend error:', e.message)
+      throw e
+    }
+  }
+
+  // Mark as sent — critical for idempotency. Do this LAST so a Resend
+  // failure re-runs on the next call rather than silently dropping.
+  await supabase.from('consultations')
+    .update({ basic_receipt_sent_at: new Date().toISOString() })
+    .eq('id', consultationId)
+  return { sent: true }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId } = req.body
+  const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId, isBasicReceipt } = req.body
   const resendKey = process.env.RESEND_API_KEY
+
+  // Basic receipt — the FREE plain HTML receipt auto-sent when the provider
+  // signs off the consult. Idempotent via consultations.basic_receipt_sent_at.
+  // The paid $10 insurance-formatted PDF receipt is a separate flow — see
+  // /api/generate-insurance-receipt.
+  if (isBasicReceipt) {
+    if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+    try {
+      const result = await sendBasicReceipt(consultationId)
+      return res.status(200).json(result)
+    } catch (e) {
+      return res.status(500).json({ error: e.message })
+    }
+  }
 
   // Waitlist-open notification — short email with resume link
   if (isOpenNotification) {

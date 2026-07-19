@@ -792,6 +792,13 @@ export default function ProviderNotes() {
             accClaimNumber: result.accClaimNumber || undefined,
           }),
         }).catch(() => {})
+        // Free basic payment receipt — fire-and-forget, idempotent server-side
+        // via consultations.basic_receipt_sent_at. Separate email from the
+        // clinical summary above so patients can file it with expenses.
+        apiFetch('/api/send-email', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ isBasicReceipt: true, consultationId: id }),
+        }).catch(() => {})
       }
       setStep(emailStepIdx, { status: 'done', detail: consult.patient_email || 'No email on file' })
 

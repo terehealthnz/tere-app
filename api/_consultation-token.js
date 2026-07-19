@@ -34,7 +34,8 @@ export default async function handler(req, res) {
         id, created_at, patient_first_name, patient_last_name, patient_dob,
         patient_nhi, chief_complaint, outcome, status, provider_display_name,
         notes_finalised_at, medical_certificate_issued, acc_eligible,
-        acc_read_code, gp_name, pharmacy, recall_date, recall_note
+        acc_read_code, gp_name, pharmacy, recall_date, recall_note,
+        payment_amount, is_acc, insurance_receipt_purchased_at
       `)
       .eq('id', tokenRow.consultation_id).single()
 

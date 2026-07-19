@@ -484,6 +484,11 @@ export default function NotesCompletion() {
             consultationId: id,
           }),
         }).catch(() => {})
+        // Free basic payment receipt — idempotent server-side.
+        apiFetch('/api/send-email', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ isBasicReceipt: true, consultationId: id }),
+        }).catch(() => {})
       }
 
       localStorage.removeItem(draftKey)

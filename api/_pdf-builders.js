@@ -289,6 +289,170 @@ export function buildPayslipPdf(data) {
   })
 }
 
+// Insurance-formatted receipt PDF — the $10 upsell delivered from
+// /api/generate-insurance-receipt. Contains everything a private health
+// insurer needs to reimburse the patient: Tere legal entity + IRD/GST
+// (placeholders for now), provider name + MCNZ registration + type,
+// consult date/time in NZ tz, chief complaint, diagnosis code, amount
+// paid, payment method + card last-4, and the mandated telehealth
+// disclosure statement.
+//
+// Expected data:
+//   consult:  { created_at, chief_complaint, acc_read_code, notes_final,
+//               payment_amount, patient_first_name, patient_last_name }
+//   provider: { first_name, last_name, credential, provider_type,
+//               mcnz_registration_number, prescriber_number }
+//   payment:  { method, card_brand, card_last4, amount_cents, receipt_id,
+//               charged_at }
+export function buildInsuranceReceiptPdf({ consult, provider, payment }) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 50
+
+    // Header band — same teal + wordmark as the prescription/referral PDFs
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', M, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', M, 46)
+    doc.fillColor('rgba(255,255,255,0.75)').fontSize(9)
+      .text('Insurance Receipt', W - M - 140, 26, { width: 140, align: 'right' })
+
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('TAX INVOICE / RECEIPT', M, 90)
+    doc.moveTo(M, 110).lineTo(W - M, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
+
+    // Provider (issuer) — Tere legal entity
+    // TODO: Patrick to fill in IRD + GST numbers once registered.
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Issued by', M, 120)
+    doc.font('Helvetica').fontSize(10)
+      .text('Tere Health Limited', M, 134)
+      .text('NZBN: [TBD - Patrick to fill]', M, 148)
+      .text('IRD: [TBD - Patrick to fill]', M, 162)
+      .text('GST No: [TBD - Patrick to fill]', M, 176)
+      .text('Marlborough Sounds, New Zealand', M, 190)
+
+    // Receipt meta
+    const receiptId = payment.receipt_id || '—'
+    const chargedAt = payment.charged_at ? new Date(payment.charged_at) : new Date()
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Receipt', 320, 120)
+    doc.font('Helvetica').fontSize(10)
+      .text(`No: ${receiptId}`, 320, 134)
+      .text(`Issued: ${chargedAt.toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 320, 148)
+
+    // Patient
+    const patientName = `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || '—'
+    doc.moveTo(M, 210).lineTo(W - M, 210).strokeColor('#DDD').lineWidth(0.5).stroke()
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Patient', M, 220)
+    doc.font('Helvetica').fontSize(10).text(patientName, M, 234)
+
+    // Service provider (the doctor)
+    const provName = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ') || 'Tere clinician'
+    const provType = provider.provider_type === 'rmo' ? 'Resident Medical Officer'
+                   : provider.provider_type === 'senior' ? 'Vocationally registered doctor'
+                   : (provider.provider_type || 'Medical practitioner')
+    const mcnzNo = provider.mcnz_registration_number || provider.prescriber_number || '—'
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Attending clinician', 320, 220)
+    doc.font('Helvetica').fontSize(10)
+      .text(provName, 320, 234)
+      .text(`MCNZ registration: ${mcnzNo}`, 320, 248)
+      .text(provType, 320, 262)
+
+    // Consultation details
+    doc.moveTo(M, 285).lineTo(W - M, 285).strokeColor('#DDD').lineWidth(0.5).stroke()
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text('Consultation', M, 295)
+    const consultDate = consult.created_at ? new Date(consult.created_at) : new Date()
+    // Force NZ timezone display — insurers in NZ expect Pacific/Auckland.
+    const nzDateStr = consultDate.toLocaleString('en-NZ', {
+      timeZone: 'Pacific/Auckland',
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    })
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Date & time (NZ)', M, 315)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(nzDateStr, M, 329)
+
+    // Chief complaint
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Presenting complaint', M, 349)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text(consult.chief_complaint || '—', M, 363, { width: W - M * 2 })
+    let y = doc.y + 8
+
+    // Diagnosis / Read code — prefer explicit acc_read_code, otherwise pull
+    // from the structured notes_final if present, otherwise fall back to
+    // the standard "see attached provider notes" line.
+    let diagnosis = consult.acc_read_code || null
+    if (!diagnosis && consult.notes_final) {
+      try {
+        const notes = typeof consult.notes_final === 'string' ? JSON.parse(consult.notes_final) : consult.notes_final
+        diagnosis = notes?.accReadCode || notes?.diagnosis || notes?.icd10 || null
+      } catch { /* ignore parse errors */ }
+    }
+    if (!diagnosis) diagnosis = 'See attached provider notes'
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Diagnosis / Read code', M, y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(diagnosis, M, y + 14, { width: W - M * 2 })
+    y = doc.y + 12
+
+    // Charge line-item table
+    doc.moveTo(M, y).lineTo(W - M, y).strokeColor('#DDD').lineWidth(0.5).stroke()
+    y += 10
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text('Charge', M, y)
+    y += 20
+
+    const amountCents = Number(payment.amount_cents || consult.payment_amount || 0)
+    const amountDollars = (amountCents / 100).toFixed(2)
+    doc.rect(M, y, W - M * 2, 20).fill('#0D2B45')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(9)
+      .text('Item', M + 8, y + 6)
+      .text('Amount (NZD)', W - M - 100, y + 6, { width: 90, align: 'right' })
+    y += 20
+    doc.rect(M, y, W - M * 2, 22).fill('#F8FAFC')
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
+      .text('Telehealth consultation', M + 8, y + 6)
+      .text(`$${amountDollars}`, W - M - 100, y + 6, { width: 90, align: 'right' })
+    y += 22
+    doc.rect(M, y, W - M * 2, 22).fill('#E8F4F5')
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
+      .text('Total paid', M + 8, y + 6)
+      .text(`$${amountDollars}`, W - M - 100, y + 6, { width: 90, align: 'right' })
+    y += 32
+
+    // GST note — placeholder pending IRD/GST registration decision.
+    doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(8.5)
+      .text('GST treatment: health services are exempt from GST under s21 of the Goods and Services Tax Act 1985.',
+        M, y, { width: W - M * 2 })
+    y = doc.y + 12
+
+    // Payment method
+    const method = payment.method || 'card'
+    const cardBrand = payment.card_brand ? payment.card_brand.charAt(0).toUpperCase() + payment.card_brand.slice(1) : 'Card'
+    const cardLast4 = payment.card_last4 ? ` ending ${payment.card_last4}` : ''
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Payment method', M, y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text(method === 'card' ? `${cardBrand}${cardLast4}` : method, M, y + 14)
+    y += 40
+
+    // Compliance disclosure
+    doc.moveTo(M, y).lineTo(W - M, y).strokeColor('#DDD').lineWidth(0.5).stroke()
+    y += 10
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(9).text('Statement of service', M, y)
+    y += 14
+    doc.font('Helvetica').fontSize(9.5).fillColor('#374151')
+      .text('This is a receipt for a healthcare consultation delivered via Tere Health telehealth service in New Zealand. Retain this receipt for insurance reimbursement purposes.',
+        M, y, { width: W - M * 2, lineGap: 2 })
+    y = doc.y + 20
+
+    // Footer
+    doc.fillColor('#AAA').font('Helvetica').fontSize(8)
+      .text('Tere Health Limited  ·  terehealth.co.nz  ·  Electronically issued — no signature required.',
+        M, doc.page.height - 50, { align: 'center', width: W - M * 2 })
+
+    doc.end()
+  })
+}
+
 // MCNZ supervision plan — auto-generated at RMO onboarding time. Renders
 // the MCNZ-facing plan (see docs/supervision-plan.md) filled in with the
 // RMO's identifiers and the supervisor's identifiers + signature. RMO

@@ -92,6 +92,10 @@ const PATIENT_VIEW_COLUMNS = [
   'rating', 'rating_comment', 'rated_at',
   'hdc_consent_at', 'prescribing_consent_at', 'research_consent',
   'chief_complaint',
+  // Post-consult billing surface — patient reads these to render the
+  // insurance-receipt upsell and its "already purchased" state.
+  'is_acc', 'acc_eligible', 'acc_claim_number', 'payment_amount',
+  'insurance_receipt_purchased_at',
 ].join(',')
 
 export default async function handler(req, res) {

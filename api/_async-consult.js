@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { aiCall, isConfigured } from './_ai.js'
+import { sendBasicReceipt } from './_send-email.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
@@ -279,6 +280,10 @@ export default async function handler(req, res) {
         event_type: 'async_response', amount_cents: isAcc ? 800 : 500, created_at: now,
       }).then(() => {}).catch(() => {})
     }
+
+    // Free basic payment receipt — idempotent via basic_receipt_sent_at.
+    sendBasicReceipt(consultationId).catch(e =>
+      console.error('[async-consult:respond] basic receipt failed:', e.message))
 
     return res.status(200).json({ ok: true })
   }

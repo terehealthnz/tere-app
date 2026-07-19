@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getPatientConsult } from '../../lib/supabase'
+import InsuranceReceiptUpsell from './InsuranceReceiptUpsell'
 
 export default function PostConsult() {
   const [consult, setConsult] = useState(null)
@@ -14,6 +15,11 @@ export default function PostConsult() {
       .catch(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [consultationId])
+
+  function refreshConsult() {
+    if (!consultationId) return
+    getPatientConsult(consultationId).then(c => setConsult(c || null)).catch(() => {})
+  }
 
   // Billing derivation. Handles both the current state (payment_amount set on
   // the row after finalise) and the transitional case where finalise hasn't
@@ -86,6 +92,16 @@ export default function PostConsult() {
             Start a new consultation
           </a>
         </div>
+
+        {/* Insurance receipt upsell — $10 for an itemised PDF. Component
+            hides itself once purchased (insurance_receipt_purchased_at). */}
+        {!loading && consult && consultationId && (
+          <InsuranceReceiptUpsell
+            consult={consult}
+            consultationId={consultationId}
+            onPurchased={refreshConsult}
+          />
+        )}
         <div style={{marginTop:'1.25rem',background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:12,padding:'1rem 1.25rem',textAlign:'left'}}>
           <div style={{fontSize:'.9375rem',fontWeight:700,color:'#0D2B45',marginBottom:'.25rem'}}>Not sure about your charge? Need something else?</div>
           <p style={{fontSize:'.8125rem',color:'#374151',lineHeight:1.6,margin:'0 0 .75rem'}}>
