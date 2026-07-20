@@ -72,13 +72,11 @@ export default async function handler(req, res) {
       ${providerLabel} is ready for your consultation.
     </p>
     <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">
-      ${consultType === 'phone'
-        ? 'Click the button below to join your audio consultation. If you have trouble connecting, we may also try calling your phone.'
-        : 'Click the button below to join your video consultation now.'}
+      Click the button below to join your consultation. If you have trouble connecting, we may also try calling your phone.
     </p>
     <div style="text-align:center;margin:28px 0">
       <a href="${callJoinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">
-        ${consultType === 'phone' ? 'Join audio call →' : 'Join video call →'}
+        Join consultation →
       </a>
     </div>
     <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;padding:12px 16px;font-size:13px;color:#065F46;margin-top:24px">
