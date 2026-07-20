@@ -5,7 +5,7 @@ export const config = { api: { bodyParser: false } }
 // Routes that require an authenticated provider (Supabase JWT OR sessionStorage
 // x-provider-id). Everything not in this set is either patient-facing (with its
 // own guards inside the endpoint — token verification, column allowlist,
-// rate-limit), a public info endpoint, a webhook (Stripe/Twilio/ACC signature
+// rate-limit), a public info endpoint, a webhook (Stripe/Telnyx/ACC signature
 // verified by the endpoint itself), or a cron (CRON_SECRET verified in the
 // endpoint). If you add a new provider-only route to the ROUTES map below,
 // add its key here too — otherwise anyone can hit it without signing in.
@@ -195,9 +195,10 @@ const ROUTES = {
   'ring-timeout':              () => import('./_ring-timeout.js'),
   'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),
-  'twilio-connect':            () => import('./_twilio-connect.js'),
-  'twilio-fallback':           () => import('./_twilio-fallback.js'),
-  'twilio-status':             () => import('./_twilio-status.js'),
+  // Telnyx Programmable Voice webhook (unified events endpoint). No provider
+  // auth — Telnyx posts events here directly. See TODO in _telnyx-voice.js
+  // about Ed25519 signature verification before opening more widely.
+  'telnyx-voice':              () => import('./_telnyx-voice.js'),
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'pms-data':                  () => import('./_pms-data.js'),
@@ -254,13 +255,13 @@ export default async function handler(req, res) {
   // ── Auth ────────────────────────────────────────────────────────────────────
   // Provider-only routes get guardProvider (Supabase JWT OR x-provider-id from
   // sessionStorage) applied at the router. Public patient-facing routes,
-  // Stripe/Twilio/ACC webhooks, cron jobs, and login endpoints are omitted.
+  // Stripe/Telnyx/ACC webhooks, cron jobs, and login endpoints are omitted.
   //
   // The old x-tere-api-key check is gone — it was a shared secret baked into
   // the client bundle, so it never provided real protection. Real security is
   // now per-endpoint: guardProvider (for provider work), token verification
   // (for /api/consultation-token patient view), CRON_SECRET (for cron routes),
-  // Twilio/Stripe signature verification (for webhooks), and rate-limits + a
+  // Telnyx/Stripe signature verification (for webhooks), and rate-limits + a
   // narrow column allowlist for the anonymous patient flow endpoints.
   if (AUTH_REQUIRED_ROUTES.has(route)) {
     // Windcave cert testing bypass — only for windcave-complete + windcave-refund.
