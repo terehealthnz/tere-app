@@ -483,15 +483,30 @@ export default function ProviderConsult() {
           </div>
         )}
 
-        {/* Twilio fallback — all consultation types */}
-        {(
-          <div style={{ position:'absolute', top:12, right:12, background:'rgba(0,0,0,.75)', backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:200, zIndex:10 }}>
-            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'rgba(255,255,255,.5)', marginBottom:6 }}>
-              Connection issues? Call their phone
+        {/* Call-phone fallback panel. After 30s of ringing with no patient
+            join, we visually nudge the provider toward the phone fallback
+            without hiding or auto-firing anything. Keeps provider agency
+            for cases where they already know phone is the wrong choice. */}
+        {(() => {
+          const nudge = inCall && !patientHere && elapsed >= 30 && phoneCallState === 'idle'
+          return (
+          <div style={{
+            position:'absolute', top:12, right:12,
+            background: nudge ? 'rgba(217,119,6,.92)' : 'rgba(0,0,0,.75)',
+            backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:200, zIndex:10,
+            boxShadow: nudge ? '0 0 0 2px rgba(251,191,36,.55), 0 4px 20px rgba(217,119,6,.35)' : undefined,
+            transition: 'background .3s, box-shadow .3s',
+          }}>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'rgba(255,255,255,.75)', marginBottom:6 }}>
+              {nudge ? `Patient hasn't joined — try phone?` : 'Connection issues? Call their phone'}
             </div>
             {phoneCallState === 'idle' && (
               <button onClick={initiatePhoneCall}
-                style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,.12)', border:'1px solid rgba(255,255,255,.25)', borderRadius:8, color:'white', fontFamily:FF, fontWeight:600, fontSize:'.8125rem', cursor:'pointer' }}>
+                style={{ width:'100%', padding:'7px 10px',
+                  background: nudge ? 'white' : 'rgba(255,255,255,.12)',
+                  color: nudge ? '#B45309' : 'white',
+                  border:'1px solid rgba(255,255,255,.25)', borderRadius:8,
+                  fontFamily:FF, fontWeight:700, fontSize:'.8125rem', cursor:'pointer' }}>
                 📞 Call their phone
               </button>
             )}
@@ -514,7 +529,8 @@ export default function ProviderConsult() {
               </div>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {/* Notes slide-up panel */}
         {showNotes && (
