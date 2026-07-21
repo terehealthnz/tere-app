@@ -60,7 +60,6 @@ const apis = [
   'status',
   'transcribe',
   'translate',
-  'telnyx-voice',
   'make-call',
   'verify-acc',
   'acc-claims',

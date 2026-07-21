@@ -1,16 +1,22 @@
-// Provider clicks "call patient" → we dial the patient's phone via Telnyx
-// Programmable Voice (Call Control API). Telnyx event webhooks land in
-// _telnyx-voice.js, which is where the actual answer/join-conference/hangup
-// steering happens. Here we just kick off the outbound leg and stash the
-// call_control_id on the consultation so status updates can be correlated.
+// Provider clicks "call patient" → we dial the patient's phone via LiveKit's
+// SIP client, which bridges Telnyx's SIP trunk into the provider's existing
+// LiveKit room as an ordinary participant. Full two-way audio: no separate
+// conference, no webhook steering.
 //
-// Migrated from Twilio 2026-07-20 — kept the twilio_call_sid + twilio_call_status
-// columns writing so the existing ConsultView.jsx / ProviderConsult.jsx frontend
-// polling code keeps working without a coordinated release. New column
-// voice_call_id (see supabase/2026-07-20_voice_call_id.sql) stores the actual
-// Telnyx call_control_id used for webhook correlation.
+// Migrated from Telnyx Voice API (Call Control) 2026-07-20. The previous
+// implementation created a Telnyx-side conference that only the patient joined,
+// so the provider (already in a LiveKit room) never heard audio. LiveKit SIP
+// participants join the same room the provider is in, so both hear each other
+// natively.
+//
+// Column re-use: voice_call_id now stores the SIP call id returned by LiveKit
+// (useful for future correlation with LiveKit room events). twilio_call_status
+// remains the frontend polling contract (see ConsultView.jsx +
+// ProviderConsult.jsx); we set it to 'answered' on dispatch so the polling loop
+// exits (see TODO below re: real SIP status events).
 
 import { createClient } from '@supabase/supabase-js'
+import { SipClient } from 'livekit-server-sdk'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -23,10 +29,6 @@ function toE164NZ(phone) {
   if (digits.startsWith('64')) return `+${digits}`
   if (digits.startsWith('0')) return `+64${digits.slice(1)}`
   return `+64${digits}`
-}
-
-function encodeClientState(obj) {
-  return Buffer.from(JSON.stringify(obj), 'utf-8').toString('base64')
 }
 
 export default async function handler(req, res) {
@@ -44,72 +46,74 @@ export default async function handler(req, res) {
   if (fetchError || !consult) return res.status(404).json({ error: 'Consultation not found' })
   if (!consult.patient_phone) return res.status(400).json({ error: 'No phone number on record for this patient' })
 
-  const apiKey = process.env.TELNYX_API_KEY
-  const connectionId = process.env.TELNYX_VOICE_CONNECTION_ID
+  const lkUrl = process.env.LIVEKIT_URL
+  const lkApiKey = process.env.LIVEKIT_API_KEY
+  const lkApiSecret = process.env.LIVEKIT_API_SECRET
+  const sipTrunkId = process.env.LIVEKIT_SIP_TRUNK_ID
   const fromNumber = process.env.TELNYX_VOICE_FROM_NUMBER
-  if (!apiKey || !connectionId || !fromNumber) {
-    return res.status(500).json({ error: 'Telnyx voice not configured (TELNYX_API_KEY / TELNYX_VOICE_CONNECTION_ID / TELNYX_VOICE_FROM_NUMBER)' })
+  if (!lkUrl || !lkApiKey || !lkApiSecret || !sipTrunkId) {
+    return res.status(500).json({ error: 'LiveKit SIP not configured (LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET / LIVEKIT_SIP_TRUNK_ID)' })
   }
 
+  // Room name must match _create-room.js + _join-room.js + _initiate-call.js —
+  // the provider is already in this room when they click "Call phone".
+  const roomName = `tere-${consultationId.slice(0, 8)}`
   const to = toE164NZ(consult.patient_phone)
-  const base = 'https://terehealth.co.nz'
 
   try {
-    const r = await fetch('https://api.telnyx.com/v2/calls', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        connection_id: connectionId,
-        to,
-        from: fromNumber,
-        webhook_url: `${base}/api/telnyx-voice`,
-        webhook_url_method: 'POST',
-        // AMD so we can bail to voicemail message instead of dropping a machine
-        // into the conference. Result arrives via call.machine.detection.ended.
-        answering_machine_detection: 'detect',
-        // Consultation correlation — echoed back on every event for this leg.
-        client_state: encodeClientState({ consultationId }),
-        // Match old Twilio behaviour: ~30s dial timeout before we give up.
-        timeout_secs: 30,
-      }),
-    })
+    // SipClient uses the LiveKit HTTP(S) API endpoint; convert wss:// if set.
+    const httpUrl = lkUrl.replace(/^wss?:\/\//, 'https://')
+    const sip = new SipClient(httpUrl, lkApiKey, lkApiSecret)
 
-    const data = await r.json().catch(() => ({}))
-    if (!r.ok) {
-      const detail = data?.errors?.[0]?.detail || data?.errors?.[0]?.title || `Telnyx ${r.status}`
-      console.error('[make-call] Telnyx create-call failed:', detail, data)
-      return res.status(502).json({ error: detail })
-    }
-
-    const callControlId = data?.data?.call_control_id
-    const callLegId = data?.data?.call_leg_id
-    if (!callControlId) {
-      console.error('[make-call] Telnyx returned no call_control_id:', data)
-      return res.status(502).json({ error: 'Telnyx accepted the call but returned no call_control_id' })
-    }
+    const participant = await sip.createSipParticipant(
+      sipTrunkId,
+      to,
+      roomName,
+      {
+        // fromNumber sets the SIP From: header (caller ID) — Telnyx uses this
+        // as the number the patient sees. Falls back to the trunk's default
+        // if the trunk enforces its own number.
+        fromNumber,
+        participantIdentity: `patient-${consultationId.slice(0, 8)}`,
+        participantName: consult.patient_first_name || 'Patient',
+        // Krisp noise-cancels the patient's mic — mobile/landline audio is
+        // usually noisy compared to the provider's browser mic.
+        krispEnabled: true,
+        // Don't block the HTTP response until the phone is answered — return
+        // immediately so the UI can update. Ringing/answer state comes through
+        // LiveKit participant events client-side once real subscription lands.
+        waitUntilAnswered: false,
+      }
+    )
 
     const attempts = (consult.call_attempts || 0) + 1
     await supabase
       .from('consultations')
       .update({
-        voice_call_id: callControlId,
-        // Preserve twilio_call_sid write for backward compat — we store the
-        // Telnyx call_leg_id (or call_control_id if leg_id missing) here so any
-        // audit UI still sees a non-null identifier. Drop this column once the
-        // frontend is repointed to voice_call_id.
-        twilio_call_sid: callLegId || callControlId,
-        twilio_call_status: 'dialling',
+        // sipCallId is the SIP-level call identifier; more useful than the
+        // LiveKit participantId for correlating with Telnyx call logs.
+        voice_call_id: participant.sipCallId || participant.participantId,
+        // TODO(option B): subscribe to LiveKit room events (server-side or via
+        // a webhook) and update this column when the SIP participant actually
+        // transitions ringing → answered → disconnected. For now we optimistic-
+        // set 'answered' so the frontend polling loop (ConsultView.jsx +
+        // ProviderConsult.jsx) stops spinning; the provider hears real ringing
+        // audio via LiveKit so they know actual call state.
+        twilio_call_status: 'answered',
         call_started_at: new Date().toISOString(),
         call_attempts: attempts,
       })
       .eq('id', consultationId)
 
-    res.json({ success: true, callControlId })
+    return res.json({
+      ok: true,
+      participantId: participant.participantId,
+      participantIdentity: participant.participantIdentity,
+      sipCallId: participant.sipCallId,
+      roomName,
+    })
   } catch (err) {
-    console.error('Telnyx make-call error:', err)
-    res.status(500).json({ error: err.message })
+    console.error('[make-call] LiveKit SIP createSipParticipant failed:', err)
+    return res.status(502).json({ error: err.message || 'LiveKit SIP dial failed' })
   }
 }

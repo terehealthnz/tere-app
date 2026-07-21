@@ -195,10 +195,6 @@ const ROUTES = {
   'ring-timeout':              () => import('./_ring-timeout.js'),
   'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),
-  // Telnyx Programmable Voice webhook (unified events endpoint). No provider
-  // auth — Telnyx posts events here directly. See TODO in _telnyx-voice.js
-  // about Ed25519 signature verification before opening more widely.
-  'telnyx-voice':              () => import('./_telnyx-voice.js'),
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'pms-data':                  () => import('./_pms-data.js'),
