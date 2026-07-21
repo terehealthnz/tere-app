@@ -85,6 +85,20 @@ export default async function handler(req, res) {
 
   const origin = siteOrigin(req)
 
+  // Look up patient contact for 3DS — Windcave requires email OR phoneNumber
+  // on the create session request. Without one, 3DS challenge issuers reject
+  // the transaction. We prefer email (universal, always present after
+  // triage); fall back to phone. Failure to find either is not fatal — we
+  // still submit the session and Windcave will return the appropriate error.
+  const supabaseForContact = admin()
+  const { data: contactRow } = await supabaseForContact
+    .from('consultations')
+    .select('patient_email, patient_phone')
+    .eq('id', consultationId)
+    .maybeSingle()
+  const patientEmail = contactRow?.patient_email || null
+  const patientPhone = contactRow?.patient_phone || null
+
   const payload = {
     type: wcType,
     amount: amountDollars,
@@ -98,6 +112,12 @@ export default async function handler(req, res) {
     },
     notificationUrl: `${origin}/api/windcave-fprn`,
     methods: ['card'],
+    ...(patientEmail || patientPhone ? {
+      customer: {
+        ...(patientEmail ? { email: patientEmail } : {}),
+        ...(patientPhone ? { phoneNumber: patientPhone } : {}),
+      },
+    } : {}),
   }
 
   // X-ID: idempotency key per authorisation attempt. Retries with the

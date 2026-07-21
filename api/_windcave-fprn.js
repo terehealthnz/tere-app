@@ -32,22 +32,64 @@ function baseUrl() {
   return process.env.WINDCAVE_BASE_URL || 'https://uat.windcave.com/api/v1'
 }
 
+// Parse Windcave FPRN body — they send form-encoded, JSON, or bare query
+// string depending on config. handler.js only parses JSON automatically;
+// for other content-types req.body arrives as a raw string. Handle all
+// three so we never miss an FPRN.
+function extractSessionId(req) {
+  const q = req.query || {}
+  if (q.sessionId) return q.sessionId
+  if (q.id)        return q.id
+
+  const body = req.body
+  if (!body) return null
+
+  // Already-parsed object (JSON path in handler.js)
+  if (typeof body === 'object') {
+    return body.id || body.sessionId || body.SessionId || body.session_id || null
+  }
+
+  // Raw string — try to parse as JSON first, then form-encoded
+  if (typeof body === 'string') {
+    try {
+      const j = JSON.parse(body)
+      return j.id || j.sessionId || j.SessionId || j.session_id || null
+    } catch { /* not JSON */ }
+    try {
+      const params = new URLSearchParams(body)
+      return params.get('id') || params.get('sessionId') || params.get('SessionId') || params.get('session_id')
+    } catch { /* not form */ }
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  // Windcave FPRN body — session id lives in various places depending on
-  // format. Try the common ones.
-  const body = req.body || {}
-  const sessionId = body.id || body.sessionId || body.SessionId
-    || (req.query?.sessionId) || (req.query?.id)
+  // Log raw body + headers unconditionally — helps diagnose Windcave FPRN
+  // shape variations. Never store PHI here; sessionId is not PHI.
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(), type: 'fprn_received',
+    contentType: req.headers['content-type'] || null,
+    bodyType: typeof req.body,
+    bodyPreview: typeof req.body === 'string' ? req.body.slice(0, 500) : req.body,
+    query: req.query || null,
+  }))
+
+  const sessionId = extractSessionId(req)
 
   if (!sessionId) {
-    console.error('[windcave-fprn] no sessionId in payload', { body, query: req.query })
-    return res.status(400).json({ error: 'sessionId required' })
+    // Return 200 anyway — Windcave will otherwise retry endlessly. Log
+    // for post-mortem so we can extend extractSessionId() if their
+    // payload shape changes.
+    console.error('[windcave-fprn] no sessionId in payload — returning 200 to stop retries')
+    return res.status(200).json({ ok: true, warning: 'no sessionId found' })
   }
 
   // Query Windcave for the authoritative session state. Never trust the
-  // FPRN body's status field directly — this endpoint is anon.
+  // FPRN body's status field directly — this endpoint is anon. Always
+  // return 200 to Windcave regardless of our internal outcome so they
+  // stop retrying; we log for post-mortem.
   let sessionData
   try {
     const r = await fetch(`${baseUrl()}/sessions/${encodeURIComponent(sessionId)}`, {
@@ -57,11 +99,11 @@ export default async function handler(req, res) {
     sessionData = await r.json()
     if (!r.ok) {
       console.error('[windcave-fprn] query session failed:', r.status, sessionData)
-      return res.status(502).json({ error: 'Session query failed' })
+      return res.status(200).json({ ok: true, warning: 'session query failed', windcave_status: r.status })
     }
   } catch (e) {
     console.error('[windcave-fprn] query error:', e.message)
-    return res.status(502).json({ error: 'Session query error' })
+    return res.status(200).json({ ok: true, warning: 'session query error', error: e.message })
   }
 
   const consultationId = sessionData.merchantReference
