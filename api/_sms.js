@@ -92,6 +92,19 @@ async function sendTwilio({ to, body }) {
   return { ok: true, id: data?.sid, provider: 'twilio' }
 }
 
+// Essentiality allowlist — SMS to NZ costs ~$0.11/msg, so we only send
+// where the message is genuinely time-critical for care delivery. Every
+// callsite in the codebase still passes through this endpoint; anything
+// whose `type` isn't in the list below is silently skipped (still returns
+// 200 so callers don't need to guard). Add types back here when a new
+// SMS use-case is worth the cost.
+const ESSENTIAL_TYPES = new Set([
+  'call_ready',   // provider is ready — patient needs to join the consult
+  'call_retry',   // second ring — still needs to join
+  'in_person',    // provider recommended in-person visit — clinical follow-up
+  'test',         // internal smoke tests
+])
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -100,6 +113,11 @@ export default async function handler(req, res) {
 
   const normalised = normaliseNZNumber(to)
   if (!normalised) return res.status(400).json({ error: 'Invalid phone number' })
+
+  if (type && !ESSENTIAL_TYPES.has(type)) {
+    console.log(JSON.stringify({ ts: new Date().toISOString(), type: 'sms_skipped_non_essential', sms_type: type, to: normalised.slice(-4) }))
+    return res.status(200).json({ ok: true, skipped: true, reason: 'non-essential SMS type' })
+  }
 
   const body = `[Tere Health] ${message}`
 
