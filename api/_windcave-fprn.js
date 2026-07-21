@@ -44,20 +44,23 @@ function extractSessionId(req) {
   const body = req.body
   if (!body) return null
 
-  // Already-parsed object (JSON path in handler.js)
+  // Already-parsed object (JSON path in handler.js). Prefer `sessionId`
+  // over `id` — Windcave's FPRN body uses `id` for the *transaction* id
+  // and `sessionId` for the session id; we want the session id for our
+  // Query Session follow-up call.
   if (typeof body === 'object') {
-    return body.id || body.sessionId || body.SessionId || body.session_id || null
+    return body.sessionId || body.SessionId || body.session_id || body.id || null
   }
 
   // Raw string — try to parse as JSON first, then form-encoded
   if (typeof body === 'string') {
     try {
       const j = JSON.parse(body)
-      return j.id || j.sessionId || j.SessionId || j.session_id || null
+      return j.sessionId || j.SessionId || j.session_id || j.id || null
     } catch { /* not JSON */ }
     try {
       const params = new URLSearchParams(body)
-      return params.get('id') || params.get('sessionId') || params.get('SessionId') || params.get('session_id')
+      return params.get('sessionId') || params.get('SessionId') || params.get('session_id') || params.get('id')
     } catch { /* not form */ }
   }
   return null
