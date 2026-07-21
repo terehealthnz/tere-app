@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } from '../../components/clinician/ConsultModals'
 import ProviderSchedule from './ProviderSchedule'
 import ProviderEarnings from './ProviderEarnings'
+import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -287,6 +288,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
     <>
       <HandoverBanner />
       <TodayAppointments />
+      <div style={{ padding:'0 .75rem' }}><ImagingReviewsPending /></div>
       <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
         <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>✓</div>
         <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>Queue is clear</div>
@@ -302,6 +304,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
     <div>
       <HandoverBanner />
       <TodayAppointments />
+      <div style={{ padding:'0 .75rem' }}><ImagingReviewsPending /></div>
       <div style={{ padding:'.75rem', fontFamily:FF, display:'flex', flexDirection:'column', gap:'.625rem' }}>
         {queue.map(c => {
           const isLocked   = c.provider_id && c.provider_id !== currentProviderId
@@ -411,6 +414,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
     <div>
       <HandoverBanner />
       <TodayAppointments />
+      <div style={{ padding:'0 1rem' }}><ImagingReviewsPending /></div>
       <div style={{ padding:'1rem', overflowX:'auto' }}>
         <div style={{ minWidth:680, borderRadius:14, overflow:'hidden', border:'1px solid #E2E8F0', background:'white', fontFamily:FF }}>
 

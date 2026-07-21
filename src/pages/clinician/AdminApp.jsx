@@ -4,6 +4,7 @@ import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesC
 import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
+import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -211,6 +212,9 @@ function DashboardTab() {
               </div>
             ))}
           </div>
+
+          {/* Imaging reviews pending — cross-provider peer review queue */}
+          <ImagingReviewsPending />
 
           {/* ACC conversions pending ProviderHub lodgement */}
           {accConversions.length > 0 && (

@@ -36,6 +36,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'clinic-schedule',
   'supervision',
+  // Imaging result peer-review (retrospective QI)
+  'imaging-reviews', 'imaging-review',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -212,6 +214,8 @@ const ROUTES = {
   'employer-employees':        () => import('./_employer-employees.js'),
   'audit-log':                 () => import('./_audit-log.js'),
   'radiology-referrals':       () => import('./_radiology-referrals.js'),
+  'imaging-reviews':           () => import('./_imaging-reviews.js'),
+  'imaging-review':            () => import('./_imaging-review.js'),
   'job-listings':              () => import('./_job-listings.js'),
   'clinic-schedule':           () => import('./_clinic-schedule.js'),
   'messages':                  () => import('./_messages.js'),
