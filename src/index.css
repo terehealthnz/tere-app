@@ -28,8 +28,14 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
-body { font-family: var(--font); background: #0D2B45; color: var(--text); line-height: 1.6; overscroll-behavior: none; overflow-x: hidden; max-width: 100vw; }
+/* font-size: 100% respects the user's browser preference (default 16px, but
+   users with accessibility settings get their scaled size). text-size-adjust
+   stops mobile browsers auto-shrinking on high-DPI Android screens. */
+html { font-size: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; -webkit-font-smoothing: antialiased; overscroll-behavior: none; }
+/* Body bg matches the app's expected page bg so users don't see a scary
+   navy blank screen if JS is slow to load. Navy is still painted over the
+   iOS notch area via body::before below. */
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.6; overscroll-behavior: none; overflow-x: hidden; max-width: 100vw; }
 /* Dynamic Island / notch fill — solid navy block sits over the safe-area gap in standalone PWA mode */
 body::before {
   content: '';
