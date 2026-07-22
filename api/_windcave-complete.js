@@ -76,7 +76,6 @@ export default async function handler(req, res) {
   }
 
   const approved = data.responseCode === '00' || data.authorised === true
-  const isCertMode = req.headers['x-cert-test-key'] && req.headers['x-cert-test-key'] === process.env.WINDCAVE_CERT_TEST_KEY
   return res.status(200).json({
     approved,
     allowRetry:     data.allowRetry === true,
@@ -86,23 +85,5 @@ export default async function handler(req, res) {
     amount:         data.amount || amountStr,
     xId,
     raw:            data,
-    // Cert-mode: echo the raw Windcave request/response so the runner can
-    // save them as "end-to-end API logs" for the certification form.
-    ...(isCertMode ? {
-      cert_log: {
-        request: {
-          method: 'POST',
-          url:    `${baseUrl()}/transactions`,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept':       'application/json',
-            'Authorization':'Basic [REDACTED]',
-            'X-ID':         xId,
-          },
-          body:   payload,
-        },
-        response: { status: r.status, body: data },
-      }
-    } : {}),
   })
 }

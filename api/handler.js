@@ -264,24 +264,10 @@ export default async function handler(req, res) {
   // Telnyx/Stripe signature verification (for webhooks), and rate-limits + a
   // narrow column allowlist for the anonymous patient flow endpoints.
   if (AUTH_REQUIRED_ROUTES.has(route)) {
-    // Windcave cert testing bypass — only for windcave-complete + windcave-refund.
-    // Windcave certification requires running Complete/Refund tests against our
-    // integration and uploading logs. Rather than share provider credentials,
-    // we accept an X-Cert-Test-Key header matching WINDCAVE_CERT_TEST_KEY env
-    // var (a random UUID). This bypass ships alongside the cert submission
-    // and MUST be removed post-cert (see task queue).
-    const CERT_ROUTES = new Set(['windcave-complete', 'windcave-refund'])
-    const certKey = process.env.WINDCAVE_CERT_TEST_KEY
-    const providedCertKey = req.headers['x-cert-test-key']
-    const isCertBypass = CERT_ROUTES.has(route) && certKey && providedCertKey === certKey
-    if (isCertBypass) {
-      req.auth = { source: 'windcave-cert-test' }
-    } else {
-      const { guardProvider } = await import('./_auth.js')
-      const auth = await guardProvider(req, res)
-      if (!auth) return  // guardProvider already sent the 401/403
-      req.auth = auth
-    }
+    const { guardProvider } = await import('./_auth.js')
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+    req.auth = auth
   }
 
   // ── Rate limiting ───────────────────────────────────────────────────────────
