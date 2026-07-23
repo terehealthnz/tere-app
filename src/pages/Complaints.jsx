@@ -50,7 +50,7 @@ export default function Complaints() {
               <a href="mailto:terehealthnz@gmail.com" style={{ color: BRAND.teal, fontWeight: 600 }}>terehealthnz@gmail.com</a>
             </li>
             <li style={{ marginBottom: '.375rem' }}>
-              <strong>Post:</strong> Tere Health Limited, Marlborough Sounds, New Zealand
+              <strong>Post:</strong> Tere Health Limited, 41 Adams Lane, Springlands, Blenheim 7201
             </li>
           </ul>
           <p style={{ marginTop: '.75rem' }}>Please include your name, the date of your consultation, and a description of your concern. You may remain anonymous, but we may be unable to fully investigate without some identifying information.</p>
