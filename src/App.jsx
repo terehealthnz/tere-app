@@ -101,6 +101,7 @@ const Careers             = lazy(() => import('./pages/Careers'))
 const CareersApply         = lazy(() => import('./pages/CareersApply'))
 const Rate                = lazy(() => import('./pages/Rate'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
+const Watch               = lazy(() => import('./pages/Watch'))
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
@@ -161,6 +162,7 @@ export default function App() {
         <Route path="/my-consultation/:token" element={<ConsultationSummary />} />
         <Route path="/repeat-rx"              element={<RepeatPrescription />} />
         <Route path="/complaints"             element={<Complaints />} />
+        <Route path="/watch"                  element={<Watch />} />
         <Route path="/contact"                element={<Contact />} />
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/provider"               element={<ProviderApp />} />
