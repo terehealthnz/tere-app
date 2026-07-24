@@ -47,6 +47,8 @@ const apis = [
   'patient-flags',
   'payroll',
   'provider-auth',
+  'provider-reset-request',
+  'provider-reset-complete',
   'provider-notifications',
   'push-notify',
   'push-subscribe',

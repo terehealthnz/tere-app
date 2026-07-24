@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { providerDisplayName } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
@@ -264,7 +264,12 @@ export default function ClinicianLogin() {
                 {loading ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
-            <p style={{fontSize:'.8125rem',color:'var(--muted)',textAlign:'center',marginTop:'1rem'}}>
+            <p style={{textAlign:'center',marginTop:'1rem',marginBottom:'.5rem'}}>
+              <Link to="/clinician/forgot-password" style={{color:'var(--muted)',fontSize:'.8125rem',textDecoration:'underline'}}>
+                Forgot your password?
+              </Link>
+            </p>
+            <p style={{fontSize:'.8125rem',color:'var(--muted)',textAlign:'center',marginTop:'.5rem'}}>
               MCNZ-registered clinicians only.
             </p>
           </div>
