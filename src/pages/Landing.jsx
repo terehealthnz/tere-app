@@ -122,6 +122,13 @@ function HowItWorks() {
             </div>
           ))}
         </div>
+        <div style={{ marginTop: '2.5rem' }}>
+          <Link to="/watch" style={{ display: 'inline-flex', alignItems: 'center', gap: '.5rem', background: 'white', color: BRAND.teal, border: `2px solid ${BRAND.teal}`, textDecoration: 'none', padding: '12px 26px', borderRadius: 99, fontSize: '.9375rem', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'background .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = BRAND.teal; e.currentTarget.style.color = 'white' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'white'; e.currentTarget.style.color = BRAND.teal }}>
+            ▶ Watch the 2-minute walkthrough
+          </Link>
+        </div>
       </div>
     </section>
   )
