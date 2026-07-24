@@ -160,7 +160,20 @@ export default async function handler(req, res) {
 
   const { data, error } = await supabase.from('consultations').insert(payload).select().single()
 
+  // Postgres unique_violation on the one-open-consult-per-patient partial
+  // index (supabase/2026-07-24_one_open_consult_per_patient.sql). Surface as
+  // 409 so the client can route the patient back to their existing consult
+  // instead of showing a 500.
+  const isDuplicateOpen = (e) =>
+    e?.code === '23505' && (e.message || '').includes('consultations_one_open_per_patient_idx')
+
   if (error) {
+    if (isDuplicateOpen(error)) {
+      return res.status(409).json({
+        error: 'You already have a consultation in progress. Please resume it instead of starting a new one.',
+        code: 'DUPLICATE_OPEN_CONSULT',
+      })
+    }
     // Retry without the newer research columns if the schema hasn't caught up
     // — same behaviour as the previous client-side createConsultation.
     if (error.code === '42703' || (error.message && error.message.includes('column'))) {
@@ -168,7 +181,15 @@ export default async function handler(req, res) {
               device_type, language_selected, patient_employment_sector,
               patient_region, ...core } = payload
       const retry = await supabase.from('consultations').insert(core).select().single()
-      if (retry.error) return res.status(500).json({ error: retry.error.message })
+      if (retry.error) {
+        if (isDuplicateOpen(retry.error)) {
+          return res.status(409).json({
+            error: 'You already have a consultation in progress. Please resume it instead of starting a new one.',
+            code: 'DUPLICATE_OPEN_CONSULT',
+          })
+        }
+        return res.status(500).json({ error: retry.error.message })
+      }
       return res.status(200).json({ consultation: retry.data })
     }
     return res.status(500).json({ error: error.message })
