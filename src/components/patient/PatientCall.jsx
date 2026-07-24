@@ -120,7 +120,7 @@ export default function PatientCall() {
   }, [])
 
   useEffect(() => {
-    if (!consultationId) { navigate('/triage'); return }
+    if (!consultationId) { navigate('/start'); return }
     // Only fetch a LiveKit token once the status gate says it's OK to join.
     // While cooldown/waiting/no_show we render a dedicated screen instead.
     if (gate !== 'ready') return
@@ -159,7 +159,7 @@ export default function PatientCall() {
       <p style={{ color:'rgba(255,255,255,.7)', maxWidth:400, lineHeight:1.6 }}>
         We tried to reach you twice and weren't able to connect. <strong style={{ color:'white' }}>No charge has been applied.</strong> Please start a new consultation whenever you're ready.
       </p>
-      <button onClick={() => { sessionStorage.clear(); navigate('/triage') }}
+      <button onClick={() => { sessionStorage.clear(); navigate('/start') }}
         style={{ background:'var(--teal, #0B6E76)', border:'none', color:'white', padding:'12px 28px', borderRadius:99, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'1rem', marginTop:'.5rem' }}>
         Start a new consultation →
       </button>

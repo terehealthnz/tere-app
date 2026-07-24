@@ -96,7 +96,7 @@ export default function WaitingRoom() {
       }
     } catch {}
     sessionStorage.clear()
-    navigate('/triage')
+    navigate('/start')
   }
 
   useEffect(() => {

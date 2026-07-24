@@ -19,7 +19,7 @@ export default function Terms() {
         <Link to="/" style={{ textDecoration: 'none' }}>
           <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.4rem' }}>Tere Health</span>
         </Link>
-        <Link to="/triage" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
+        <Link to="/start" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
           Book consultation
         </Link>
       </nav>

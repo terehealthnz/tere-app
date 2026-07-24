@@ -19,7 +19,7 @@ export default function TriageReview() {
   const [visible, setVisible]   = useState(false)
 
   useEffect(() => {
-    if (!consultationId) { navigate('/triage', { replace: true }); return }
+    if (!consultationId) { navigate('/start', { replace: true }); return }
     setTimeout(() => setVisible(true), 60)
     getConsultation(consultationId)
       .then(c => {

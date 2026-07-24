@@ -12,7 +12,7 @@ function Nav() {
       <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
         <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: TEAL_LIGHT, fontSize: '1.5rem', fontWeight: 600 }}>Tere Health</span>
       </Link>
-      <Link to="/triage" style={{ background: TEAL, color: 'white', textDecoration: 'none', padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700, fontFamily: FF }}>Book consultation</Link>
+      <Link to="/start" style={{ background: TEAL, color: 'white', textDecoration: 'none', padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700, fontFamily: FF }}>Book consultation</Link>
     </nav>
   )
 }

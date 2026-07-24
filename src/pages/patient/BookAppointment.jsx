@@ -254,7 +254,7 @@ export default function BookAppointment() {
               ) : !dateKeys.some(d => calendar[d] > 0) ? (
                 <div style={{ textAlign: 'center', padding: '1.5rem', background: '#F8FAFC', borderRadius: 8, lineHeight: 1.6, fontSize: '.9rem', color: '#6B7280' }}>
                   No appointments currently available in the next 14 days.{' '}
-                  <Link to="/triage" style={{ color: '#0B6E76', fontWeight: 700 }}>Start now</Link> to join the walk-in queue instead.
+                  <Link to="/start" style={{ color: '#0B6E76', fontWeight: 700 }}>Start now</Link> to join the walk-in queue instead.
                 </div>
               ) : (
                 <>
@@ -405,7 +405,7 @@ export default function BookAppointment() {
                 </p>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                   <button onClick={() => setStep(3)} style={{ padding: '10px 18px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: 'white', fontFamily: FF, fontWeight: 600, cursor: 'pointer', color: '#6B7280' }}>← Back</button>
-                  <Link to="/triage" style={{ padding: '10px 18px', border: 'none', borderRadius: 8, fontFamily: FF, fontWeight: 700, background: '#0B6E76', color: 'white', textDecoration: 'none' }}>
+                  <Link to="/start" style={{ padding: '10px 18px', border: 'none', borderRadius: 8, fontFamily: FF, fontWeight: 700, background: '#0B6E76', color: 'white', textDecoration: 'none' }}>
                     Start consultation →
                   </Link>
                 </div>

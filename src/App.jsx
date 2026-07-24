@@ -125,7 +125,7 @@ function PwaRoot() {
     const portal = localStorage.getItem('tere_portal')
     if (portal === 'provider') return <Navigate to="/provider" replace />
     if (portal === 'admin') return <Navigate to="/admin" replace />
-    return <Navigate to="/triage" replace />
+    return <Navigate to="/start" replace />
   }
   const h = window.location.hostname
   if (h === 'terehealth.co.nz' || h === 'www.terehealth.co.nz' || h === 'tere.co.nz' || h === 'www.tere.co.nz') return <Landing />

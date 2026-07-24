@@ -409,7 +409,7 @@ export default function Payment() {
   const consultationType = sessionStorage.getItem('consultationType') || 'consult'
   const useWindcave      = useFeatureFlag('use_windcave')
   useEffect(() => {
-    if (!consultationId) navigate('/triage')
+    if (!consultationId) navigate('/start')
   }, [consultationId, navigate])
 
   return (
