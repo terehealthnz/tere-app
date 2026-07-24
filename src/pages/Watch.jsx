@@ -10,7 +10,7 @@ export default function Watch() {
         <Link to="/" style={{ textDecoration: 'none' }}>
           <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: BRAND.tealLight, fontSize: '1.4rem' }}>Tere Health</span>
         </Link>
-        <Link to="/triage" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
+        <Link to="/start" style={{ background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '7px 16px', borderRadius: 99, fontSize: '.875rem', fontWeight: 700 }}>
           Book consultation
         </Link>
       </nav>
@@ -55,7 +55,7 @@ export default function Watch() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '3rem' }}>
-          <Link to="/triage" style={{ display: 'inline-block', background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '14px 32px', borderRadius: 99, fontSize: '1rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(11,110,118,.3)' }}>
+          <Link to="/start" style={{ display: 'inline-block', background: BRAND.teal, color: 'white', textDecoration: 'none', padding: '14px 32px', borderRadius: 99, fontSize: '1rem', fontWeight: 700, boxShadow: '0 8px 24px rgba(11,110,118,.3)' }}>
             Start a consultation →
           </Link>
           <p style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: '1rem' }}>
