@@ -165,6 +165,7 @@ const ROUTES = {
   'provider-reset-request':    () => import('./_provider-reset-request.js'),
   'provider-reset-complete':   () => import('./_provider-reset-complete.js'),
   'send-email':                () => import('./_send-email.js'),
+  'waitlist-signup':           () => import('./_waitlist-signup.js'),
   'send-to-gp':                () => import('./_send-to-gp.js'),
   'transcribe':                () => import('./_transcribe.js'),
   'translate':                 () => import('./_translate.js'),

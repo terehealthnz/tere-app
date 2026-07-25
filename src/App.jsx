@@ -102,6 +102,8 @@ const CareersApply         = lazy(() => import('./pages/CareersApply'))
 const Rate                = lazy(() => import('./pages/Rate'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
 const Watch               = lazy(() => import('./pages/Watch'))
+const Waitlist            = lazy(() => import('./pages/Waitlist'))
+import BetaBanner from './components/BetaBanner'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
@@ -135,6 +137,7 @@ function PwaRoot() {
 export default function App() {
   return (
     <ChunkErrorBoundary>
+    <BetaBanner />
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
@@ -163,6 +166,7 @@ export default function App() {
         <Route path="/repeat-rx"              element={<RepeatPrescription />} />
         <Route path="/complaints"             element={<Complaints />} />
         <Route path="/watch"                  element={<Watch />} />
+        <Route path="/waitlist"               element={<Waitlist />} />
         <Route path="/contact"                element={<Contact />} />
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/provider"               element={<ProviderApp />} />

@@ -1,15 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { LANGUAGES, t } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
 import { createConsultation } from '../../lib/supabase'
+import { useFeatureFlag } from '../../lib/featureFlags'
 
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
+  const waitlistMode = useFeatureFlag('waitlist_mode')
+  const bypass = typeof window !== 'undefined' && sessionStorage.getItem('tere_beta_bypass') === '1'
   const [v, setV] = useState(false)
   const [starting, setStarting] = useState(false)
   const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
   useEffect(() => { setTimeout(() => setV(true), 100) }, [])
+
+  // While in waitlist mode, redirect visitors to the waitlist form so we
+  // don't take bookings we can't yet deliver. Bypass via ?dev=beta on any
+  // page (the BetaBanner writes tere_beta_bypass=1 to sessionStorage).
+  if (waitlistMode && !bypass) return <Navigate to="/waitlist" replace />
 
   async function handleStart() {
     if (starting) return

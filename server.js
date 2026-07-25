@@ -56,6 +56,7 @@ const apis = [
   'send-email',
   'send-to-gp',
   'send-waitlist-email',
+  'waitlist-signup',
   'set-availability',
   'set-provider-avail',
   'sms',
