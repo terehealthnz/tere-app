@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 
 const NAVY = '#0D2B45'
@@ -110,16 +110,34 @@ function Detail({ id, onChanged }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: '1rem', marginBottom: '.75rem' }}>
           <div>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '1rem' }}>
-              {r.sender_name || r.sender_number || 'Unknown sender'}
+              {r.study_type || 'Radiology report'}{r.body_part ? ` — ${r.body_part}` : ''}
             </div>
             <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 2 }}>
               Received {new Date(r.received_at).toLocaleString('en-NZ')}
               {r.page_count ? ` · ${r.page_count} pages` : ''}
-              {r.sender_number ? ` · from ${r.sender_number}` : ''}
+              {r.sender_name ? ` · from ${r.sender_name}` : (r.sender_number ? ` · from ${r.sender_number}` : '')}
             </div>
           </div>
-          <StatusPill status={r.status} />
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {(r.urgency === 'critical' || r.urgency === 'urgent') && (
+              <span style={{ background: r.urgency === 'critical' ? '#DC2626' : '#F59E0B', color: 'white', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, letterSpacing: '.04em', textTransform: 'uppercase' }}>
+                {r.urgency}
+              </span>
+            )}
+            <StatusPill status={r.status} />
+          </div>
         </div>
+
+        {(r.patient_name_extracted || r.patient_nhi || r.clinical_impression) && (
+          <div style={{ background: r.patient_id ? '#F0FDF4' : '#FEF3C7', border: `1px solid ${r.patient_id ? '#BBF7D0' : '#FDE68A'}`, borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.8125rem', lineHeight: 1.55, color: '#374151' }}>
+            <div style={{ fontWeight: 700, color: r.patient_id ? '#065F46' : '#78350F', marginBottom: 4, fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              {r.patient_id ? '✓ Auto-matched by NHI' : 'AI-extracted (no NHI match)'}
+            </div>
+            {r.patient_name_extracted && <div><strong>Patient:</strong> {r.patient_name_extracted}{r.patient_dob_extracted ? ` · DOB ${new Date(r.patient_dob_extracted).toLocaleDateString('en-NZ')}` : ''}{r.patient_nhi ? ` · NHI ${r.patient_nhi}` : ''}</div>}
+            {r.study_date && <div><strong>Study date:</strong> {new Date(r.study_date).toLocaleDateString('en-NZ')}</div>}
+            {r.clinical_impression && <div style={{ marginTop: 6 }}><strong>Impression:</strong> {r.clinical_impression}</div>}
+          </div>
+        )}
 
         {state.pdfUrl ? (
           <iframe
@@ -169,9 +187,13 @@ function Detail({ id, onChanged }) {
 
 export default function RadiologyReports() {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState('unmatched')
+  const [params] = useSearchParams()
+  const preselectId = params.get('id')
+  // If deep-linked with ?id=X, land on 'all' so the specific report is
+  // visible regardless of its current status.
+  const [filter, setFilter] = useState(preselectId ? 'all' : 'unmatched')
   const [reports, setReports] = useState(null)
-  const [activeId, setActiveId] = useState(null)
+  const [activeId, setActiveId] = useState(preselectId || null)
 
   useEffect(() => {
     if (!sessionStorage.getItem('clinicianAuth')) navigate('/clinician')

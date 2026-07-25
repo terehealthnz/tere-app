@@ -27,6 +27,7 @@ export default function ClinicianPatient() {
   const [history, setHistory]     = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
+  const [imaging, setImaging]     = useState([])
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -80,12 +81,15 @@ export default function ClinicianPatient() {
           } catch {}
         }
         if (data?.patient_id) {
-          const [pt, pastConsults] = await Promise.all([
+          const [pt, pastConsults, imagingRes] = await Promise.all([
             getPatient(data.patient_id).catch(() => null),
             getPatientConsultations(data.patient_id),
+            apiFetch(`/api/radiology-reports?patient_id=${encodeURIComponent(data.patient_id)}`)
+              .then(r => r.json()).catch(() => ({ reports: [] })),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))
+          setImaging(Array.isArray(imagingRes?.reports) ? imagingRes.reports : [])
         }
       } catch {} finally { setLoading(false) }
     }
@@ -300,6 +304,64 @@ export default function ClinicianPatient() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Imaging on file — auto-attached radiology reports (NHI-matched via Bedrock in _telnyx-inbound-fax.js) */}
+        {imaging.length > 0 && (
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>
+                Imaging on file ({imaging.length})
+              </div>
+              <button onClick={() => navigate('/clinician/reports')}
+                style={{ background: 'transparent', color: TEAL, border: 'none', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                All reports →
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {imaging.map(r => {
+                const urgent = r.urgency === 'critical' || r.urgency === 'urgent'
+                const needsSignoff = r.status === 'matched'
+                return (
+                  <button key={r.id} onClick={() => navigate(`/clinician/reports?id=${r.id}`)}
+                    style={{ background: urgent ? '#FEF2F2' : '#F8FAFC', borderRadius: 10, border: `1px solid ${urgent ? '#FECACA' : '#E2E8F0'}`, padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.8125rem', fontWeight: 700, color: NAVY, marginBottom: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{r.study_type || 'Radiology report'}{r.body_part ? ` — ${r.body_part}` : ''}</span>
+                        {urgent && (
+                          <span style={{ background: r.urgency === 'critical' ? '#DC2626' : '#F59E0B', color: 'white', fontSize: '.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, textTransform: 'uppercase', letterSpacing: '.03em' }}>
+                            {r.urgency}
+                          </span>
+                        )}
+                      </div>
+                      {r.clinical_impression && (
+                        <div style={{ fontSize: '.75rem', color: '#374151', marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          {r.clinical_impression}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>
+                        {new Date(r.received_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {r.sender_name ? ` · ${r.sender_name}` : ''}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0, display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {needsSignoff && (
+                        <span style={{ background: '#FEF3C7', color: '#78350F', fontSize: '.625rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                          NEEDS SIGN-OFF
+                        </span>
+                      )}
+                      {r.status === 'reviewed' && (
+                        <span style={{ background: '#DCFCE7', color: '#065F46', fontSize: '.625rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                          REVIEWED
+                        </span>
+                      )}
+                      <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

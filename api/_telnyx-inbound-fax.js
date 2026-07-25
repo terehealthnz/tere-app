@@ -175,6 +175,30 @@ export default async function handler(req, res) {
     }
   }
 
+  // Extract clinical fields + attempt NHI patient match via Bedrock (Claude
+  // Sonnet, vision). Failure here must not block the report from landing —
+  // the report is safer in the queue-with-no-extraction than lost. Clinician
+  // still confirms + signs off before the report is officially on the chart.
+  const extraction = await extractReportFields(pdfBuf).catch(e => {
+    console.error('[telnyx-inbound-fax] Bedrock extraction failed:', e.message)
+    return { extraction_confidence: 'failed' }
+  })
+
+  let matchedPatientId = null
+  const cleanNhi = (extraction.nhi || '').trim().toUpperCase().replace(/\s/g, '')
+  if (cleanNhi && /^[A-Z]{3}\d{3}[A-Z\d]$|^[A-Z]{3}\d{4}$/.test(cleanNhi)) {
+    try {
+      const { data: match } = await supabase
+        .from('patients')
+        .select('id')
+        .ilike('nhi', cleanNhi)
+        .limit(2)
+      if (match && match.length === 1) matchedPatientId = match[0].id
+    } catch (e) {
+      console.warn('[telnyx-inbound-fax] NHI lookup failed:', e.message)
+    }
+  }
+
   const { data: row, error: insertErr } = await supabase
     .from('radiology_reports')
     .insert({
@@ -185,7 +209,24 @@ export default async function handler(req, res) {
       page_count:     pageCount,
       storage_path:   storagePath,
       byte_size:      byteSize,
-      status:         'unmatched',
+      // Extracted fields — always populated when extraction succeeds, even
+      // when the NHI didn't match a known patient.
+      patient_nhi:            cleanNhi || null,
+      patient_name_extracted: extraction.patient_name || null,
+      patient_dob_extracted:  extraction.patient_dob || null,
+      study_type:             extraction.study_type || null,
+      study_date:             extraction.study_date || null,
+      body_part:              extraction.body_part || null,
+      clinical_impression:    extraction.clinical_impression || null,
+      urgency:                extraction.urgency || null,
+      extraction_confidence:  extraction.extraction_confidence || null,
+      extracted_at:           new Date().toISOString(),
+      // Auto-attach the report to the matched patient. Status stays
+      // 'matched' (not 'reviewed') — clinician still signs off in the UI.
+      patient_id: matchedPatientId,
+      status:     matchedPatientId ? 'matched' : 'unmatched',
+      matched_by: null,  // AI match, not a provider — provider sign-off flips this.
+      matched_at: matchedPatientId ? new Date().toISOString() : null,
     })
     .select()
     .single()
@@ -197,15 +238,74 @@ export default async function handler(req, res) {
 
   // Notify providers so the queue doesn't sit unseen. Best-effort.
   try {
+    const urgencyPrefix = extraction.urgency === 'critical' ? '🚨 CRITICAL: '
+                        : extraction.urgency === 'urgent'   ? '⚠ URGENT: '
+                        : ''
+    const impressionLine = extraction.clinical_impression
+      ? `\n\nImpression: ${extraction.clinical_impression}` : ''
+    const matchLine = matchedPatientId
+      ? '\n\nAuto-matched to a patient by NHI — please confirm in the Reports inbox before signing off.'
+      : '\n\nCould not auto-match to a patient (no NHI or NHI not on file). Manual match required.'
     await supabase.from('provider_notifications').insert({
       from_name: 'Fax Inbox',
-      subject:   `New radiology report received${senderName ? ` from ${senderName}` : ''}`,
-      body:      `A new fax report (${pageCount || '?'} page${pageCount === 1 ? '' : 's'}) has arrived. Open the Reports inbox to review and match to a patient.`,
-      is_pinned: false,
+      subject:   `${urgencyPrefix}${extraction.study_type || 'Radiology'} report received${senderName ? ` from ${senderName}` : ''}`,
+      body:      `Patient: ${extraction.patient_name || 'unknown'}${cleanNhi ? ` (NHI ${cleanNhi})` : ''}${impressionLine}${matchLine}`,
+      is_pinned: extraction.urgency === 'critical' || extraction.urgency === 'urgent',
     })
   } catch (e) {
     console.warn('[telnyx-inbound-fax] notify failed:', e.message)
   }
 
-  return res.status(200).json({ ok: true, id: row?.id })
+  return res.status(200).json({ ok: true, id: row?.id, matched: !!matchedPatientId })
+}
+
+// ── Bedrock vision extraction ────────────────────────────────────────────────
+// Calls Claude Sonnet via Bedrock APAC (BAA-covered — never api.anthropic.com)
+// and returns the structured fields we want to auto-populate on the report.
+async function extractReportFields(pdfBuf) {
+  const AnthropicBedrock = (await import('@anthropic-ai/bedrock-sdk')).default
+  const client = new AnthropicBedrock({
+    awsRegion:    process.env.AWS_REGION       || 'ap-southeast-2',
+    awsAccessKey: process.env.AWS_ACCESS_KEY_ID,
+    awsSecretKey: process.env.AWS_SECRET_ACCESS_KEY,
+  })
+
+  const model = process.env.BEDROCK_MODEL_SONNET
+    || 'apac.anthropic.claude-sonnet-4-20250514-v1:0'
+
+  const pdfBase64 = pdfBuf.toString('base64')
+
+  const prompt = `You are extracting structured data from a New Zealand radiology report faxed to a telehealth clinic. Return ONLY a JSON object with these keys, no markdown fences:
+
+{
+  "nhi": "<7-character NZ National Health Index (3 letters + 4 chars, e.g. ABC1234), or null if not present>",
+  "patient_name": "<full patient name as written, or null>",
+  "patient_dob": "<YYYY-MM-DD, or null>",
+  "study_type": "<X-ray, Ultrasound, CT, MRI, Mammogram, etc., or null>",
+  "study_date": "<YYYY-MM-DD, or null>",
+  "body_part": "<short description e.g. 'left wrist', 'chest', 'abdomen', or null>",
+  "clinical_impression": "<one-sentence radiologist impression, or null>",
+  "urgency": "<one of: normal, routine, urgent, critical — infer from the impression. Use 'critical' only for time-critical findings like acute intracranial haemorrhage, tension pneumothorax, aortic dissection. Use 'urgent' for fractures needing prompt referral, suspected malignancy, etc.>",
+  "extraction_confidence": "<one of: high, medium, low — 'high' when all fields extracted with certainty; 'low' if the fax is poor quality or fields are ambiguous>"
+}`
+
+  const response = await client.messages.create({
+    model,
+    max_tokens: 800,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+        },
+        { type: 'text', text: prompt },
+      ],
+    }],
+  })
+
+  const text = response?.content?.[0]?.text || ''
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+  const parsed = JSON.parse(stripped)
+  return parsed || {}
 }

@@ -61,8 +61,10 @@ export default async function handler(req, res) {
     }
 
     const status = req.query?.status
+    const patientId = req.query?.patient_id
     let q = supabase.from('radiology_reports').select('*').order('received_at', { ascending: false }).limit(200)
     if (status) q = q.eq('status', status)
+    if (patientId) q = q.eq('patient_id', patientId)
     const { data, error } = await q
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ reports: data || [] })
