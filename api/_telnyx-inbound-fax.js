@@ -59,6 +59,12 @@ function normalisePublicKey(raw) {
 }
 
 export default async function handler(req, res) {
+  // Telnyx does a live URL check when you save a Fax Application webhook.
+  // Respond 200 to GET/OPTIONS/HEAD probes so the save succeeds. This is
+  // safe — nothing is written and no PHI is exposed.
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return res.status(200).json({ ok: true, endpoint: 'telnyx-inbound-fax', accepts: 'POST' })
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   // handler.js gives us req.body as a parsed JSON object AND we need the raw
@@ -67,6 +73,15 @@ export default async function handler(req, res) {
   // signed messages when handler.js has already JSON.parsed.
   const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
   const parsed = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body) } catch { return {} } })() : (req.body || {})
+
+  // Unsigned POSTs are treated as URL-verification probes — return 200
+  // without acting. Real Telnyx webhooks always carry the signature
+  // headers below, so this is a probe-only allowance, not a security
+  // relaxation for actual event processing.
+  const hasSignature = !!req.headers['telnyx-signature-ed25519']
+  if (!hasSignature) {
+    return res.status(200).json({ ok: true, probe: true })
+  }
 
   const publicKey = normalisePublicKey(process.env.TELNYX_PUBLIC_KEY)
   const signatureOk = verifyTelnyxSignature({
