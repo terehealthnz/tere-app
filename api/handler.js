@@ -34,7 +34,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'create-room',
   'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
   // Provider admin surfaces (task C migrations)
-  'audit-log', 'radiology-referrals', 'clinic-schedule',
+  'audit-log', 'radiology-referrals', 'radiology-reports', 'clinic-schedule',
   'supervision',
   // Imaging result peer-review (retrospective QI)
   'imaging-reviews', 'imaging-review',
@@ -217,6 +217,8 @@ const ROUTES = {
   'employer-employees':        () => import('./_employer-employees.js'),
   'audit-log':                 () => import('./_audit-log.js'),
   'radiology-referrals':       () => import('./_radiology-referrals.js'),
+  'radiology-reports':         () => import('./_radiology-reports.js'),
+  'telnyx-inbound-fax':        () => import('./_telnyx-inbound-fax.js'),
   'imaging-reviews':           () => import('./_imaging-reviews.js'),
   'imaging-review':            () => import('./_imaging-review.js'),
   'job-listings':              () => import('./_job-listings.js'),

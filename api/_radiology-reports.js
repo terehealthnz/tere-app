@@ -1,0 +1,120 @@
+// _radiology-reports.js — provider inbox for received radiology reports.
+//
+// Provider-auth REQUIRED (registered in handler.js AUTH_REQUIRED_ROUTES).
+//
+// GET /api/radiology-reports                → list reports, newest first
+//   ?status=unmatched|matched|reviewed|archived (default: all)
+//
+// GET /api/radiology-reports?id=<uuid>      → single report + signed PDF URL
+//
+// PATCH /api/radiology-reports              → update matching / workflow
+//   Body: { id, patient_id?, referral_id?, consultation_id?,
+//           provider_notes?, action?: 'mark_reviewed'|'archive' }
+
+import { createClient } from '@supabase/supabase-js'
+
+function admin() {
+  return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+}
+
+const SIGNED_URL_TTL_SECONDS = 60 * 15  // 15-min viewer link
+
+export default async function handler(req, res) {
+  const supabase = admin()
+  const providerId = req.headers['x-provider-id'] || req.auth?.providerId || null
+
+  if (req.method === 'GET') {
+    const id = req.query?.id
+    if (id) {
+      const { data, error } = await supabase
+        .from('radiology_reports')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle()
+      if (error) return res.status(500).json({ error: error.message })
+      if (!data) return res.status(404).json({ error: 'Not found' })
+
+      // Sign a short-lived viewer URL for the PDF.
+      let signedUrl = null
+      try {
+        const { data: sig } = await supabase.storage
+          .from('radiology-reports')
+          .createSignedUrl(data.storage_path, SIGNED_URL_TTL_SECONDS)
+        signedUrl = sig?.signedUrl || null
+      } catch (e) {
+        console.warn('[radiology-reports] signed URL failed:', e.message)
+      }
+
+      // Audit-log this PHI view.
+      try {
+        await supabase.from('audit_log').insert({
+          actor_id: providerId,
+          actor_role: 'provider',
+          action: 'radiology_report_view',
+          target_type: 'radiology_report',
+          target_id: data.id,
+          metadata: { patient_id: data.patient_id, referral_id: data.referral_id },
+        })
+      } catch {}
+
+      return res.status(200).json({ report: data, pdf_url: signedUrl })
+    }
+
+    const status = req.query?.status
+    let q = supabase.from('radiology_reports').select('*').order('received_at', { ascending: false }).limit(200)
+    if (status) q = q.eq('status', status)
+    const { data, error } = await q
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ reports: data || [] })
+  }
+
+  if (req.method === 'PATCH') {
+    const { id, patient_id, referral_id, consultation_id, provider_notes, action } = req.body || {}
+    if (!id) return res.status(400).json({ error: 'id required' })
+    if (!providerId) return res.status(401).json({ error: 'Provider auth required' })
+
+    const patch = { updated_at: new Date().toISOString() }
+    if (patient_id !== undefined) patch.patient_id = patient_id
+    if (referral_id !== undefined) patch.referral_id = referral_id
+    if (consultation_id !== undefined) patch.consultation_id = consultation_id
+    if (provider_notes !== undefined) patch.provider_notes = provider_notes
+
+    if (patient_id) {
+      patch.status = 'matched'
+      patch.matched_by = providerId
+      patch.matched_at = new Date().toISOString()
+    }
+    if (action === 'mark_reviewed') {
+      patch.status = 'reviewed'
+      patch.reviewed_by = providerId
+      patch.reviewed_at = new Date().toISOString()
+    }
+    if (action === 'archive') {
+      patch.status = 'archived'
+    }
+
+    const { data, error } = await supabase
+      .from('radiology_reports')
+      .update(patch)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return res.status(500).json({ error: error.message })
+
+    try {
+      await supabase.from('audit_log').insert({
+        actor_id: providerId,
+        actor_role: 'provider',
+        action: `radiology_report_${action || 'update'}`,
+        target_type: 'radiology_report',
+        target_id: id,
+        metadata: { patient_id: patch.patient_id, referral_id: patch.referral_id, status: patch.status },
+      })
+    } catch {}
+
+    return res.status(200).json({ report: data })
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' })
+}

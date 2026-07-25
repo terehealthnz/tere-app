@@ -57,6 +57,8 @@ const apis = [
   'send-to-gp',
   'send-waitlist-email',
   'waitlist-signup',
+  'telnyx-inbound-fax',
+  'radiology-reports',
   'set-availability',
   'set-provider-avail',
   'sms',
@@ -75,6 +77,7 @@ const DUAL_METHOD = new Set([
   'analytics-events', 'appointments', 'audit', 'breach', 'consents',
   'complaints', 'bookings', 'handover', 'consultation-token', 'patient-flags',
   'incidents', 'provider-notifications', 'schedule', 'payroll',
+  'radiology-reports',
 ])
 
 for (const name of apis) {
