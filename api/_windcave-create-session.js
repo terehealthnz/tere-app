@@ -46,7 +46,7 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount, sessionType } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   // Session type: 'auth' (hold, then explicit complete/capture later — default)
@@ -55,21 +55,21 @@ export default async function handler(req, res) {
 
   const type = consultationType || 'consult'
   const isAcc = accEligible === 'yes'
+  const isIntl = isInternational === true
   // Mirrors _create-payment-intent.js — flat $60 consult, $20 ACC admin
-  // fee, $25 message. Any change here must land there too.
+  // fee, $25 message, $100 international (visitor) video/phone. Any change
+  // here must land there too.
   const PRICES = {
-    consult: { private: 6000, acc: 2000 },
-    video:   { private: 6000, acc: 2000 },
-    phone:   { private: 6000, acc: 2000 },
-    message: { private: 2500, acc: 2500 },
+    consult: { private: 6000, acc: 2000, international: 10000 },
+    video:   { private: 6000, acc: 2000, international: 10000 },
+    phone:   { private: 6000, acc: 2000, international: 10000 },
+    message: { private: 2500, acc: 2500, international: 4000 },
     // Post-consult insurance-receipt upsell — see _create-payment-intent.js.
-    // TODO: wire the receipt purchase through Windcave when use_windcave
-    // flag flips on. Right now the frontend only calls this path for the
-    // consult itself, so a $10 receipt PRICES entry keeps the tables in
-    // parity but isn't exercised yet.
-    receipt: { private: 1000, acc: 1000 },
+    // No international bump — receipt cost is admin, not clinical.
+    receipt: { private: 1000, acc: 1000, international: 1000 },
   }
-  const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']
+  const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
+  const baseAmount = (PRICES[type] || PRICES.consult)[tier]
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
   const amountCents = baseAmount - discountCents
   const amountDollars = (amountCents / 100).toFixed(2)

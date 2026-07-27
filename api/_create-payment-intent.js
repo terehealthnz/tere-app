@@ -34,7 +34,9 @@ export default async function handler(req, res) {
     // settles. Not ACC-billable (a receipt isn't a health service).
     receipt: { private: 1000, acc: 1000 },
   }
-  const baseAmount = (PRICES[type] || PRICES.consult)[isAcc && type !== 'message' ? 'acc' : 'private']
+  const isIntl = req.body?.isInternational === true
+  const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
+  const baseAmount = (PRICES[type] || PRICES.consult)[tier]
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
   const amount = baseAmount - discountCents
   const label = `$${amount / 100}.00`

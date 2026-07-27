@@ -27,7 +27,12 @@ const STRIPE_OPTIONS = { locale: 'en-NZ' }
 // charge only the $20 administrative fee — the consultation itself is
 // billed direct to ACC (see docs/security-compliance.md and Terms §5).
 // Message stays $25 (not ACC-billable).
-const BASE_PRICES = { consult: { private: 60, acc: 20 }, video: { private: 60, acc: 20 }, phone: { private: 60, acc: 20 }, message: { private: 25, acc: 25 } }
+const BASE_PRICES = {
+  consult: { private: 60, acc: 20, international: 100 },
+  video:   { private: 60, acc: 20, international: 100 },
+  phone:   { private: 60, acc: 20, international: 100 },
+  message: { private: 25, acc: 25, international: 40 },
+}
 const COUPON_DISCOUNT = 10
 
 function PaymentForm({ consultationId, accEligible, consultationType }) {
@@ -42,8 +47,12 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   const [couponError, setCouponError]   = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
 
+  const [isInternational, setIsInternational] = useState(() => sessionStorage.getItem('is_international') === '1')
+  useEffect(() => { sessionStorage.setItem('is_international', isInternational ? '1' : '0') }, [isInternational])
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
-  const baseAmount = accEligible === 'yes' ? priceSet.acc : priceSet.private
+  const baseAmount = isInternational
+    ? priceSet.international
+    : (accEligible === 'yes' ? priceSet.acc : priceSet.private)
   const discount = couponApplied ? COUPON_DISCOUNT : 0
   const amount = Math.max(baseAmount - discount, 0)
 
@@ -56,7 +65,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         const res = await apiFetch('/api/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ consultationId, accEligible, consultationType, couponDiscount: discount })
+          body: JSON.stringify({ consultationId, accEligible, consultationType, couponDiscount: discount, isInternational })
         })
         const data = await res.json()
         if (data.clientSecret) setClientSecret(data.clientSecret)
@@ -64,7 +73,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
       } catch { setError('Could not initialise payment. Please try again.') }
     }
     createIntent()
-  }, [consultationId, accEligible, consultationType, discount])
+  }, [consultationId, accEligible, consultationType, discount, isInternational])
 
   async function applyCoupon() {
     const code = couponInput.trim().toUpperCase()
@@ -167,10 +176,26 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <strong style={{display:'block',marginBottom:'.5rem',color:'#0D2B45'}}>About this fee</strong>
             <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>
-              This is a private telehealth consultation with an Emergency Medicine physician. You're charged only for the method your doctor actually uses — video $65, phone $45, or message $25. Prescriptions and referrals are included.
+              This is a private telehealth consultation with an Emergency Medicine physician. Prescriptions and referrals are included.
             </div>
             <div style={{fontSize:'.8125rem',color:'#6B7280'}}>If your condition turns out to be ACC-eligible during the consultation, your clinician will lodge a claim and the difference will be refunded to your card.</div>
           </div>
+        )}
+
+        {/* International visitor rate — tourists / cruise passengers / business travellers in NZ */}
+        {accEligible !== 'yes' && (
+          <label style={{ display:'flex', alignItems:'flex-start', gap:'.625rem', background: isInternational ? '#FFF7ED' : '#F8FAFC', border: `1px solid ${isInternational ? '#FED7AA' : '#E2E8F0'}`, borderRadius:'var(--radius-sm)', padding:'.875rem 1rem', marginBottom:'1.25rem', cursor:'pointer', fontSize:'.875rem', lineHeight:1.5 }}>
+            <input type="checkbox" checked={isInternational} onChange={e => setIsInternational(e.target.checked)}
+              style={{ marginTop:2, cursor:'pointer', flexShrink:0 }} />
+            <div>
+              <div style={{ fontWeight:700, color:'#0D2B45' }}>
+                I'm visiting New Zealand from overseas
+              </div>
+              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:'.25rem' }}>
+                Non-resident rate: <strong>${priceSet.international}</strong> (I confirm I'm currently physically located in New Zealand). Includes an itemised receipt suitable for travel insurance claims.
+              </div>
+            </div>
+          </label>
         )}
 
         {/* Coupon code */}
