@@ -23,10 +23,13 @@ const CARD_STYLE = {
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
-// Flat $60 consult across every live-consult type. ACC-eligible consults
-// charge only the $20 administrative fee — the consultation itself is
-// billed direct to ACC (see docs/security-compliance.md and Terms §5).
-// Message stays $25 (not ACC-billable).
+// Flat $60 consult across every live-consult type (video and phone are the
+// same price — patient picks whichever suits them, provider decides on the
+// call). ACC-eligible consults charge only the $20 administrative fee — the
+// consultation itself is billed direct to ACC (see docs/security-compliance.md
+// and Terms §5). International visitor rate is $100 (illness only; ACC still
+// covers accidental-injury consults at the standard rate). `message` kept
+// for backend repeat-Rx compat but not surfaced as a user-facing product.
 const BASE_PRICES = {
   consult: { private: 60, acc: 20, international: 100 },
   video:   { private: 60, acc: 20, international: 100 },
@@ -148,8 +151,8 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           <div>
             <h2 style={{marginBottom:'.25rem'}}>Consultation fee</h2>
             <p style={{fontSize:'.9375rem'}}>
-              {consultationType === 'phone' ? 'Phone consultation' : consultationType === 'message' ? 'Written response within 2 hours' : 'Video consultation'}
-              {accEligible === 'yes' && consultationType !== 'message' ? ' — ACC co-payment' : ''}
+              Consultation with an Emergency Medicine physician
+              {accEligible === 'yes' ? ' — ACC co-payment' : ''}
             </p>
           </div>
           <div style={{textAlign:'right'}}>
@@ -191,8 +194,11 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
               <div style={{ fontWeight:700, color:'#0D2B45' }}>
                 I'm visiting New Zealand from overseas
               </div>
-              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:'.25rem' }}>
-                Non-resident rate: <strong>${priceSet.international}</strong> (I confirm I'm currently physically located in New Zealand). Includes an itemised receipt suitable for travel insurance claims.
+              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:'.375rem' }}>
+                Non-resident rate: <strong>${priceSet.international}</strong>. I confirm I'm currently physically located in New Zealand. Includes an itemised receipt suitable for travel insurance claims.
+              </div>
+              <div style={{ fontSize:'.75rem', color:'#B45309', marginTop:'.5rem', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.4rem .55rem', lineHeight:1.55 }}>
+                <strong>Important:</strong> If this is an accidental injury that happened in New Zealand, ACC covers visitors too — at the standard $20 rate. Please go back and update your ACC answer during triage if that applies.
               </div>
             </div>
           </label>
