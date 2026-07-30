@@ -103,8 +103,54 @@ export default function ProviderConsult() {
   const [patientHere, setPatientHere]   = useState(false)
   const markPatientHere = useCallback(() => setPatientHere(true), [])
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
+  // Inline pharmacy-change picker on the in-call chart card. Reuses the
+  // same /pharmacies.json Medsafe register as ClinicalActionModals + the
+  // triage picker so downstream (Rx PDF, patient email) stays consistent.
+  const [showPharmacyPicker, setShowPharmacyPicker] = useState(false)
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+  const [medsafeList, setMedsafeList] = useState(null)
   const recorderRef = useRef(null)
   const pollRef = useRef(null)
+
+  // Lazy-load pharmacy register the first time the picker opens.
+  useEffect(() => {
+    if (!showPharmacyPicker || medsafeList !== null) return
+    fetch('/pharmacies.json')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => setMedsafeList(Array.isArray(list) ? list : []))
+      .catch(() => setMedsafeList([]))
+  }, [showPharmacyPicker, medsafeList])
+
+  const filteredPharmacies = (() => {
+    if (!medsafeList) return []
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of medsafeList) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function pickPharmacyForConsult(p) {
+    setShowPharmacyPicker(false)
+    setPharmacyQuery('')
+    try {
+      await updateConsultation(id, {
+        pharmacy: p.premises_name || null,
+        pharmacy_id: p.id || null,
+      })
+      setConsult(c => c ? { ...c, pharmacy: p.premises_name || null } : c)
+    } catch (e) {
+      console.error('[pharmacy] update failed:', e.message)
+    }
+  }
 
   // Auth check — support remembered device
   useEffect(() => {
@@ -521,7 +567,6 @@ export default function ProviderConsult() {
             {[
               ['Location',    consult.patient_location],
               ['Employer',    consult.acc_employer],
-              ['Pharmacy',    consult.pharmacy],
               ['Medications', consult.medications],
               ['GP',          consult.gp_name ? `${consult.gp_name}${consult.gp_clinic ? ` · ${consult.gp_clinic}` : ''}` : null],
             ].filter(([,v]) => v).map(([k,v]) => (
@@ -530,6 +575,21 @@ export default function ProviderConsult() {
                 <span style={{ color:'#374151', fontWeight:500, textAlign:'right', maxWidth:'60%' }}>{v}</span>
               </div>
             ))}
+
+            {/* Pharmacy — always rendered with inline Change so the provider
+                can update mid-consult without opening the prescribe modal. */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 0', borderTop:'1px solid #F3F4F6', fontSize:'.8125rem', gap:8 }}>
+              <span style={{ color:'#9CA3AF', flexShrink:0 }}>Pharmacy</span>
+              <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                <span style={{ color: consult.pharmacy ? '#374151' : '#9CA3AF', fontWeight:500, textAlign:'right', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {consult.pharmacy || '— not set'}
+                </span>
+                <button onClick={() => setShowPharmacyPicker(true)}
+                  style={{ background:'none', border:'none', color:TEAL, fontFamily:FF, fontSize:'.75rem', fontWeight:700, cursor:'pointer', textDecoration:'underline', padding:'2px 4px', flexShrink:0 }}>
+                  Change
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Quick action row — open the patient's full chart or the notes panel */}
@@ -669,6 +729,53 @@ export default function ProviderConsult() {
           </div>
         )}
       </div>
+
+      {/* Inline pharmacy-change picker — fixed overlay so it layers above
+          the FloatingCallWidget and the chart. Reuses /pharmacies.json (same
+          Medsafe register as ClinicalActionModals + the patient triage picker). */}
+      {showPharmacyPicker && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.55)', zIndex:120, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowPharmacyPicker(false); setPharmacyQuery('') } }}>
+          <div style={{ background:'white', borderRadius:'16px 16px 0 0', width:'100%', maxWidth:520, maxHeight:'75vh', display:'flex', flexDirection:'column' }}>
+            <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid #E2E8F0', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div>
+                <div style={{ fontWeight:800, color:NAVY, fontSize:'1rem' }}>Change pharmacy</div>
+                <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>Search NZ community pharmacies · Medsafe register</div>
+              </div>
+              <button onClick={() => { setShowPharmacyPicker(false); setPharmacyQuery('') }}
+                style={{ background:'none', border:'none', fontSize:'1.25rem', cursor:'pointer', color:'#6B7280' }}>✕</button>
+            </div>
+            <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid #F3F4F6' }}>
+              <input
+                value={pharmacyQuery}
+                onChange={e => setPharmacyQuery(e.target.value)}
+                placeholder="Search by name, town, or region — min 2 chars"
+                autoFocus
+                style={{ width:'100%', border:'1.5px solid #E2E8F0', borderRadius:10, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', outline:'none', boxSizing:'border-box' }}
+              />
+              {medsafeList === null && (
+                <div style={{ marginTop:8, fontSize:'.75rem', color:'#9CA3AF' }}>Loading pharmacy register…</div>
+              )}
+            </div>
+            <div style={{ flex:1, overflowY:'auto', padding:'.5rem 0' }}>
+              {pharmacyQuery.trim().length >= 2 && filteredPharmacies.length === 0 && medsafeList !== null && (
+                <div style={{ padding:'1rem 1.25rem', color:'#6B7280', fontSize:'.875rem', textAlign:'center' }}>
+                  No matches. Try a shorter query or a nearby town.
+                </div>
+              )}
+              {filteredPharmacies.map(p => (
+                <button key={p.id} onClick={() => pickPharmacyForConsult(p)}
+                  style={{ display:'block', width:'100%', textAlign:'left', background:'none', border:'none', borderBottom:'1px solid #F3F4F6', padding:'.75rem 1.25rem', cursor:'pointer', fontFamily:FF }}>
+                  <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{p.premises_name}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                    {p.address}{p.town ? ` · ${p.town}` : ''}{p.region ? ` · ${p.region}` : ''}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom control bar removed — Notes / Subtitles now live in the
           chart-side action row; End call lives inside FloatingCallWidget. */}
