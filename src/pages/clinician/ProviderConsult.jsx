@@ -415,7 +415,7 @@ export default function ProviderConsult() {
   // after 30s of ringing (see Two-attempt no-show flow in
   // supabase-no-show-migration.sql).
   //
-  // Attempt 1: fires /api/ring-timeout → 2-min cooldown, payment hold stays.
+  // Attempt 1: fires /api/ring-timeout → 5-min cooldown, payment hold stays.
   // Attempt 2: fires /api/mark-no-show → cancels payment hold, emails patient,
   //            no charge applied. Row disappears from queue.
   async function returnToQueue() {
@@ -717,7 +717,7 @@ export default function ProviderConsult() {
                 canReturnToQueue
                   ? ((consult?.join_attempts || 0) >= 3
                       ? 'Mark no-show — cancels payment hold, emails patient'
-                      : 'Send patient to 2-minute cooldown queue')
+                      : 'Send patient to 5-minute cooldown queue')
                   : `Available in ${secondsUntilReturnable}s`
               }>
               {canReturnToQueue

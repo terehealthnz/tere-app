@@ -1,6 +1,14 @@
 // _ring-timeout.js — called when the ring window elapses without the
-// patient joining. Marks the consult into a 2-minute cooldown and releases
+// patient joining. Marks the consult into a 5-minute cooldown and releases
 // the provider slot back to the queue.
+//
+// Why 5 min and not 2 min (which we briefly tried) or 15 min (Doctegrity's
+// model): our patients are rural — fencer in the shed, farmer in the
+// paddock, elderly with limited mobility — and often need time to actually
+// reach their phone. 2 min is unrealistic. 15 min is fine for scheduled
+// consults but too slow for urgent care where a patient is genuinely
+// waiting. 5 min balances "phone is somewhere in the house" against
+// "person is unwell and waiting for the doctor."
 //
 // POST /api/ring-timeout
 //   { consultationId }
@@ -28,7 +36,7 @@ export default async function handler(req, res) {
   if (fetchErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
   const now = new Date()
-  const cooldownMs = 2 * 60 * 1000
+  const cooldownMs = 5 * 60 * 1000
   const cooldownUntil = new Date(now.getTime() + cooldownMs).toISOString()
   const history = Array.isArray(consult.join_attempt_history) ? consult.join_attempt_history : []
   history.push({ at: now.toISOString(), attempt: consult.join_attempts, kind: 'ring_timeout' })
