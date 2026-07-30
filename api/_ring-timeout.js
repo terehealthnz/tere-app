@@ -1,5 +1,5 @@
-// _ring-timeout.js — called when the 90s ring window elapses without the
-// patient joining. Marks the consult into a 5-minute cooldown and releases
+// _ring-timeout.js — called when the ring window elapses without the
+// patient joining. Marks the consult into a 2-minute cooldown and releases
 // the provider slot back to the queue.
 //
 // POST /api/ring-timeout
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   if (fetchErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
   const now = new Date()
-  const cooldownMs = 5 * 60 * 1000
+  const cooldownMs = 2 * 60 * 1000
   const cooldownUntil = new Date(now.getTime() + cooldownMs).toISOString()
   const history = Array.isArray(consult.join_attempt_history) ? consult.join_attempt_history : []
   history.push({ at: now.toISOString(), attempt: consult.join_attempts, kind: 'ring_timeout' })
