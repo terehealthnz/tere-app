@@ -89,7 +89,7 @@ export default async function handler(req, res) {
 
   const deliveryErrors = []
   let faxResult = null
-  const channel = (deliveryChannel || (pharmacyFax ? 'fax' : pharmacyEmail ? 'email' : 'none')).toLowerCase()
+  const channel = (deliveryChannel || (pharmacyEmail ? 'email' : pharmacyFax ? 'fax' : 'none')).toLowerCase()
   const wantsFax   = channel === 'fax'   || channel === 'both'
   const wantsEmail = channel === 'email' || channel === 'both'
 

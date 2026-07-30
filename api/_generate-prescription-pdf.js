@@ -40,7 +40,8 @@ export default async function handler(req, res) {
     drug, dose, directions, quantity, repeats,
     pharmacyId, pharmacyName, pharmacyHpiId,
     pharmacyEmail, pharmacyFax, pharmacyPhone, pharmacyAddress,
-    // deliveryChannel: 'fax' | 'email' | 'both' (default: prefer fax if we have one)
+    // deliveryChannel: 'fax' | 'email' | 'both' (default: prefer email if we
+    // have one — matches direction NZ pharmacies are moving)
     deliveryChannel,
     needsApproval, draftedByName,
   } = req.body || {}
@@ -124,9 +125,11 @@ export default async function handler(req, res) {
   let faxResult = null
 
   // Delivery channel resolution. If the caller was explicit, honour that.
-  // Otherwise: prefer fax when we have a fax number (higher pharmacy acceptance),
-  // fall back to email, degrade to none silently (patient still gets their copy).
-  const channel = (deliveryChannel || (pharmacyFax ? 'fax' : pharmacyEmail ? 'email' : 'none')).toLowerCase()
+  // Otherwise: prefer email when we have one (faster, cleaner audit trail,
+  // matches where NZ pharmacies are heading — hospital pharmacies + chains
+  // now email-first). Fall back to fax for rural/older pharmacies that
+  // are still fax-only. Degrade to none silently (patient still gets copy).
+  const channel = (deliveryChannel || (pharmacyEmail ? 'email' : pharmacyFax ? 'fax' : 'none')).toLowerCase()
   const wantsFax   = channel === 'fax'   || channel === 'both'
   const wantsEmail = channel === 'email' || channel === 'both'
 
