@@ -407,7 +407,7 @@ export default function ProviderConsult() {
   }
 
   // Return to queue — the "patient never joined" escape hatch. Only enabled
-  // after 90s of ringing (see Two-attempt no-show flow in
+  // after 30s of ringing (see Two-attempt no-show flow in
   // supabase-no-show-migration.sql).
   //
   // Attempt 1: fires /api/ring-timeout → 5-min cooldown, payment hold stays.
@@ -428,8 +428,8 @@ export default function ProviderConsult() {
   }
 
   const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
-  const canReturnToQueue = inCall && !patientHere && elapsed >= 90
-  const secondsUntilReturnable = Math.max(0, 90 - elapsed)
+  const canReturnToQueue = inCall && !patientHere && elapsed >= 30
+  const secondsUntilReturnable = Math.max(0, 30 - elapsed)
 
   if (loading) return (
     <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
@@ -508,7 +508,7 @@ export default function ProviderConsult() {
               // Prevents providers from being forced through notes for a
               // phantom consult when the patient never answered.
               if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
-              if (elapsed < 90)  return { label: `Return in ${Math.max(0, 90 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
+              if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
               const attempts = consult?.join_attempts || 0
               if (attempts >= 2) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
               return { label: '← Return to queue', color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
