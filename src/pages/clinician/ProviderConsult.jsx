@@ -416,8 +416,16 @@ export default function ProviderConsult() {
   async function returnToQueue() {
     if (endingCall) return
     setEndingCall(true)
-    const isSecondAttempt = (consult?.join_attempts || 0) >= 2
-    const endpoint = isSecondAttempt ? '/api/mark-no-show' : '/api/ring-timeout'
+    // Patient gets 3 attempts total before mark-no-show. join_attempts is
+    // incremented by /api/initiate-call at call start, but consult state
+    // here is loaded once and doesn't refresh — so we +1 to represent THIS
+    // attempt. Server value at this point:
+    //   attempt 1 → join_attempts=1 → currentAttempt=1
+    //   attempt 2 → join_attempts=2 → currentAttempt=2
+    //   attempt 3 → join_attempts=3 → currentAttempt=3 → mark-no-show
+    const currentAttempt = (consult?.join_attempts || 0)
+    const isFinalAttempt = currentAttempt >= 3
+    const endpoint = isFinalAttempt ? '/api/mark-no-show' : '/api/ring-timeout'
     try {
       await apiFetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -509,9 +517,12 @@ export default function ProviderConsult() {
               // phantom consult when the patient never answered.
               if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
               if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
-              const attempts = consult?.join_attempts || 0
-              if (attempts >= 2) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
-              return { label: '← Return to queue', color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
+              // join_attempts already reflects the CURRENT attempt (incremented
+              // by /api/initiate-call at Start Call). >=3 → this is the 3rd
+              // and final attempt, next return-to-queue click marks no-show.
+              const currentAttempt = consult?.join_attempts || 0
+              if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
+              return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
             })()}
             isAudioOnly={isPhone}
             patientName={patientName}
@@ -699,13 +710,13 @@ export default function ProviderConsult() {
               }}
               title={
                 canReturnToQueue
-                  ? ((consult?.join_attempts || 0) >= 2
+                  ? ((consult?.join_attempts || 0) >= 3
                       ? 'Mark no-show — cancels payment hold, emails patient'
                       : 'Send patient to 5-minute cooldown queue')
                   : `Available in ${secondsUntilReturnable}s`
               }>
               {canReturnToQueue
-                ? ((consult?.join_attempts || 0) >= 2 ? '✕ Mark no-show (no charge)' : '← Return to queue')
+                ? ((consult?.join_attempts || 0) >= 3 ? '✕ Mark no-show (no charge)' : '← Return to queue')
                 : `Return to queue in ${secondsUntilReturnable}s`}
             </button>
           </div>
@@ -974,22 +985,46 @@ export default function ProviderConsult() {
         <div style={{ height:148 }} />
       </div>
 
-      {/* Fixed bottom action area */}
+      {/* Fixed bottom action area. After 2 failed attempts, force phone-only
+          for the 3rd and final attempt — assumption is the patient's app or
+          network is the problem, so a direct phone dial is materially more
+          likely to reach them than another video/audio LiveKit attempt. */}
+      {(() => {
+        const priorAttempts = consult?.join_attempts || 0
+        const isFinalAttempt = priorAttempts >= 2
+        return (
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'white', borderTop:'1px solid #E2E8F0', padding:'12px 16px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))' }}>
-        <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:8 }}>
-          ⏳ Connecting — patient is being notified
-        </div>
+        {isFinalAttempt ? (
+          <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#991B1B', marginBottom:8 }}>
+            ⚠ Final attempt — phone call only. Patient has missed {priorAttempts} connections.
+          </div>
+        ) : (
+          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:8 }}>
+            {priorAttempts > 0
+              ? `⏳ Attempt ${priorAttempts + 1} of 3 — patient is being notified`
+              : '⏳ Connecting — patient is being notified'}
+          </div>
+        )}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
           <button onClick={() => navigate('/provider')}
             style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer' }}>
             ← Queue
           </button>
-          <button onClick={initiateCall} disabled={calling}
-            style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-            {calling ? 'Connecting…' : isPhone ? '📞 Start phone call' : '📹 Start video call'}
-          </button>
+          {isFinalAttempt ? (
+            <button onClick={initiatePhoneCall} disabled={calling}
+              style={{ minHeight:48, borderRadius:10, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(220,38,38,.3)' }}>
+              {calling ? 'Dialling…' : '📞 Call patient (final attempt)'}
+            </button>
+          ) : (
+            <button onClick={initiateCall} disabled={calling}
+              style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+              {calling ? 'Connecting…' : isPhone ? '📞 Start phone call' : '📹 Start video call'}
+            </button>
+          )}
         </div>
       </div>
+        )
+      })()}
 
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
