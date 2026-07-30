@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
-import { LiveKitRoom, VideoConference, useParticipants } from '@livekit/components-react'
+import { LiveKitRoom, useParticipants } from '@livekit/components-react'
+import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
 import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
 import { getLangMeta } from '../../lib/i18n'
@@ -364,16 +365,20 @@ export default function ProviderConsult() {
   const patientName = `${consult.patient_first_name} ${consult.patient_last_name}`
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────
+  // Doctegrity-style: chart view is the main workspace; LiveKit video/audio
+  // renders as a floating widget in the corner so the provider can browse
+  // history, prescribe, change pharmacy, etc. while the patient is on the
+  // call. FloatingCallWidget owns the LiveKit tracks + call controls.
   if (inCall) return (
-    <div style={{ height:'100dvh', background:'#0D1117', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
+    <div style={{ minHeight:'100dvh', background:'#F0F2F5', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
 
-      {/* Top bar */}
-      <div style={{ background:'rgba(0,0,0,.6)', padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:20 }}>
-        <div>
-          <div style={{ color:'white', fontWeight:700, fontSize:'.9375rem' }}>{patientName}</div>
-          <div style={{ color:'rgba(255,255,255,.5)', fontSize:'.75rem' }}>{consult.chief_complaint}</div>
+      {/* Top bar (light-theme, matches pre-call chart) */}
+      <div style={{ background:NAVY, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:20 }}>
+        <div style={{ minWidth:0 }}>
+          <div style={{ color:'white', fontWeight:700, fontSize:'.9375rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{patientName}</div>
+          <div style={{ color:'rgba(255,255,255,.5)', fontSize:'.75rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{consult.chief_complaint}</div>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
           {/* Timer */}
           <div style={{ background:'rgba(255,255,255,.1)', padding:'4px 10px', borderRadius:99, color:'rgba(255,255,255,.8)', fontSize:'.875rem', fontWeight:700, fontFamily:'monospace' }}>
             {fmtTime(elapsed)}
@@ -392,70 +397,178 @@ export default function ProviderConsult() {
         </div>
       </div>
 
-      {/* Audio-first banner — camera toggle is in the LiveKit ControlBar
-          for both provider and patient, so either side can turn video on
-          when clinically needed (rash, wound, etc.). */}
-      {isPhone && (
-        <div style={{ background:'rgba(11,110,118,.85)', padding:'8px 16px', fontSize:'.875rem', color:'white', display:'flex', alignItems:'center', gap:'.5rem', flexShrink:0 }}>
-          📞 <strong>Audio call</strong> — tap the 📷 camera icon to turn on video for you, or ask the patient to turn on theirs to show something
+      {/* LiveKit room wrapper — provides context for the FloatingCallWidget below.
+          The widget renders as a fixed-position overlay outside the normal
+          flow, so it stays visible while the chart scrolls beneath it. */}
+      {lkToken && lkUrl ? (
+        <LiveKitRoom
+          token={lkToken}
+          serverUrl={lkUrl}
+          video={!isPhone}
+          audio
+          data-lk-theme="default"
+          onDisconnected={() => { if (!endingCall) endCall() }}
+        >
+          <FloatingCallWidget
+            onEndCall={endCall}
+            endingCall={endingCall}
+            isAudioOnly={isPhone}
+            patientName={patientName}
+          />
+          <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+          {(() => {
+            const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+            const meta = getLangMeta(patientLang)
+            const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
+            if (!supported || patientLang === 'en') return null
+            return (
+              <CallSubtitles
+                viewerRole="provider"
+                viewerLang="en"
+                speakerLang={patientLang}
+                enabled={subtitlesOn}
+                modalOpen={showNotes}
+                consultationId={id}
+              />
+            )
+          })()}
+        </LiveKitRoom>
+      ) : (
+        <div style={{ padding:'2rem', textAlign:'center', color:'#6B7280' }}>
+          <div style={{ width:32, height:32, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite', margin:'0 auto 1rem' }} />
+          <div>Connecting…</div>
         </div>
       )}
 
-      {/* Video / Audio */}
-      <div style={{ flex:1, position:'relative', overflow:'hidden' }}>
-        {lkToken && lkUrl ? (
-          <LiveKitRoom
-            token={lkToken}
-            serverUrl={lkUrl}
-            video={!isPhone}
-            audio
-            data-lk-theme="default"
-            style={{ width:'100%', height:'100%' }}
-            // LiveKit's built-in "Leave" button in the control strip only
-            // disconnects the room — without this handler the provider would
-            // be stranded on the video screen with no way into notes. Route
-            // the disconnect through endCall so either the LK Leave button
-            // OR our red "🔴 End call" reaches the same finalization flow.
-            onDisconnected={() => { if (!endingCall) endCall() }}
-          >
-            <VideoConference />
-            <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+      {/* Main chart pane — scrollable, provider works here while widget floats */}
+      <div style={{ flex:1, overflowY:'auto', padding:'1rem', paddingBottom:'120px' }}>
+        <div style={{ maxWidth:720, margin:'0 auto' }}>
+
+          {/* Patient chart card (same content as pre-call view) */}
+          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0', borderTop:`4px solid ${TEAL}` }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', marginBottom:12 }}>
+              <div>
+                <h1 style={{ fontSize:'1.375rem', fontWeight:800, color:NAVY, margin:0, lineHeight:1.2 }}>{patientName}</h1>
+                <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:4 }}>
+                  NHI: {consult.patient_nhi || '—'}
+                  {consult.patient_dob && ` · ${new Date(consult.patient_dob).toLocaleDateString('en-NZ')}`}
+                </div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end' }}>
+                {isAcc && (
+                  <span style={{ background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', borderRadius:99, padding:'3px 10px', fontSize:'.6875rem', fontWeight:700 }}>ACC</span>
+                )}
+                <span style={{ background:'#F3F4F6', color:'#6B7280', borderRadius:99, padding:'3px 10px', fontSize:'.6875rem', fontWeight:600 }}>
+                  {isPhone ? '📞 Consult' : '📹 Video'}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ background:'#F8FAFC', borderRadius:10, padding:'12px 14px', fontSize:'.9375rem', color:'#374151', lineHeight:1.6, marginBottom:12 }}>
+              {consult.chief_complaint}
+            </div>
+
+            {consult.patient_allergies && consult.patient_allergies.toLowerCase() !== 'none' && (
+              <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'8px 12px', fontSize:'.8125rem', color:'#DC2626', fontWeight:600, marginBottom:12 }}>
+                ⚠ Allergy: {consult.patient_allergies}
+              </div>
+            )}
+
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:6 }}>Vitals</div>
+              <VitalsRow vitals={consult.vitals} />
+            </div>
+
+            {consult.medical_history && (
+              <div style={{ marginBottom:8 }}>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:4 }}>Medical history</div>
+                <div style={{ fontSize:'.9375rem', color:'#374151', lineHeight:1.6 }}>{consult.medical_history}</div>
+              </div>
+            )}
+
+            {(consult.tobacco_use || consult.alcohol_use) && (
+              <div style={{ marginBottom:8 }}>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:4 }}>Social history</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {consult.tobacco_use === 'yes' && (
+                    <span style={{ background:'#FEF2F2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>
+                      🚬 Smoker{consult.tobacco_amount ? ` · ${consult.tobacco_amount}` : ''}
+                    </span>
+                  )}
+                  {consult.tobacco_use === 'no' && (
+                    <span style={{ background:'#F0FDF4', color:'#059669', border:'1px solid #BBF7D0', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>Non-smoker</span>
+                  )}
+                  {consult.alcohol_use === 'yes' && (
+                    <span style={{ background:'#FFFBEB', color:'#92400E', border:'1px solid #FDE68A', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>
+                      🍺 Drinks{consult.alcohol_amount ? ` · ${consult.alcohol_amount}` : ''}
+                    </span>
+                  )}
+                  {consult.alcohol_use === 'no' && (
+                    <span style={{ background:'#F0FDF4', color:'#059669', border:'1px solid #BBF7D0', borderRadius:99, padding:'3px 10px', fontSize:'.75rem', fontWeight:600 }}>Non-drinker</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isAcc && consult.acc_injury_details && (
+              <div style={{ background:'#EFF6FF', borderRadius:8, padding:'10px 12px', marginBottom:8 }}>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#1D4ED8', marginBottom:4 }}>ACC injury</div>
+                <div style={{ fontSize:'.9375rem', color:'#1e3a5f', lineHeight:1.6 }}>{consult.acc_injury_details}</div>
+                {consult.acc_injury_date && <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:4 }}>Date of injury: {new Date(consult.acc_injury_date).toLocaleDateString('en-NZ')}</div>}
+              </div>
+            )}
+
+            {[
+              ['Location',    consult.patient_location],
+              ['Employer',    consult.acc_employer],
+              ['Pharmacy',    consult.pharmacy],
+              ['Medications', consult.medications],
+              ['GP',          consult.gp_name ? `${consult.gp_name}${consult.gp_clinic ? ` · ${consult.gp_clinic}` : ''}` : null],
+            ].filter(([,v]) => v).map(([k,v]) => (
+              <div key={k} style={{ display:'flex', justifyContent:'space-between', padding:'5px 0', borderTop:'1px solid #F3F4F6', fontSize:'.8125rem' }}>
+                <span style={{ color:'#9CA3AF' }}>{k}</span>
+                <span style={{ color:'#374151', fontWeight:500, textAlign:'right', maxWidth:'60%' }}>{v}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Quick action row — open the patient's full chart or the notes panel */}
+          <div style={{ display:'flex', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+            {consult.patient_id && (
+              <button onClick={() => window.open(`/clinician/patient/${consult.patient_id}`, '_blank')}
+                style={{ flex:1, minWidth:140, minHeight:44, background:'white', border:'1px solid #E2E8F0', borderRadius:10, padding:'10px 14px', fontFamily:FF, fontSize:'.875rem', fontWeight:700, color:NAVY, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                📋 Full patient chart
+              </button>
+            )}
+            <button onClick={() => setShowNotes(v => !v)}
+              style={{ flex:1, minWidth:140, minHeight:44, background: showNotes ? TEAL : 'white', border:`1px solid ${showNotes ? TEAL : '#E2E8F0'}`, borderRadius:10, padding:'10px 14px', fontFamily:FF, fontSize:'.875rem', fontWeight:700, color: showNotes ? 'white' : NAVY, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+              📝 Notes {transcript && '✓'}
+            </button>
             {(() => {
               const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
               const meta = getLangMeta(patientLang)
-              const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-              if (!supported || patientLang === 'en') return null
+              const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good') && patientLang !== 'en'
+              if (!supported) return null
               return (
-                <CallSubtitles
-                  viewerRole="provider"
-                  viewerLang="en"
-                  speakerLang={patientLang}
-                  enabled={subtitlesOn}
-                  modalOpen={showNotes}
-                  consultationId={id}
-                />
+                <button onClick={() => setSubtitlesOn(v => !v)}
+                  style={{ flex:1, minWidth:140, minHeight:44, background: subtitlesOn ? TEAL : 'white', border:`1px solid ${subtitlesOn ? TEAL : '#E2E8F0'}`, borderRadius:10, padding:'10px 14px', fontFamily:FF, fontSize:'.875rem', fontWeight:700, color: subtitlesOn ? 'white' : NAVY, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                  💬 Subtitles {subtitlesOn && '✓'}
+                </button>
               )
             })()}
-          </LiveKitRoom>
-        ) : (
-          <div style={{ height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <div style={{ textAlign:'center', color:'rgba(255,255,255,.5)' }}>
-              <div style={{ width:32, height:32, border:'3px solid rgba(255,255,255,.2)', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite', margin:'0 auto 1rem' }} />
-              <div>Connecting…</div>
-            </div>
           </div>
-        )}
+        </div>
 
         {/* Waiting-for-patient banner. The provider is in the room but the
             patient hasn't joined yet. After 90s ring window the button flips
             to a clickable "Return to queue" (see returnToQueue above). */}
         {inCall && !patientHere && (
           <div style={{
-            position:'absolute', top:12, left:'50%', transform:'translateX(-50%)',
-            background:'rgba(0,0,0,.75)', color:'white', padding:'10px 16px', borderRadius:12,
-            fontFamily:FF, fontSize:'.875rem', fontWeight:600, zIndex:15,
+            position:'fixed', top:80, left:'50%', transform:'translateX(-50%)',
+            background:'rgba(13,43,69,.92)', color:'white', padding:'10px 16px', borderRadius:12,
+            fontFamily:FF, fontSize:'.875rem', fontWeight:600, zIndex:90,
             display:'flex', alignItems:'center', gap:12, backdropFilter:'blur(6px)',
-            boxShadow:'0 4px 20px rgba(0,0,0,.4)',
+            boxShadow:'0 4px 20px rgba(0,0,0,.35)',
           }}>
             <span style={{ width:8, height:8, background:'#F59E0B', borderRadius:'50%', animation:'blink 1.2s infinite' }} />
             <span>Waiting for {consult?.patient_first_name || 'patient'}… {fmtTime(elapsed)}</span>
@@ -489,12 +602,13 @@ export default function ProviderConsult() {
             for cases where they already know phone is the wrong choice. */}
         {(() => {
           const nudge = inCall && !patientHere && elapsed >= 30 && phoneCallState === 'idle'
+          if (!inCall || patientHere) return null
           return (
           <div style={{
-            position:'absolute', top:12, right:12,
-            background: nudge ? 'rgba(217,119,6,.92)' : 'rgba(0,0,0,.75)',
-            backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:200, zIndex:10,
-            boxShadow: nudge ? '0 0 0 2px rgba(251,191,36,.55), 0 4px 20px rgba(217,119,6,.35)' : undefined,
+            position:'fixed', bottom:16, left:16,
+            background: nudge ? 'rgba(217,119,6,.94)' : 'rgba(13,43,69,.9)',
+            backdropFilter:'blur(4px)', borderRadius:12, padding:'10px 14px', minWidth:220, zIndex:90,
+            boxShadow: nudge ? '0 0 0 2px rgba(251,191,36,.55), 0 4px 20px rgba(217,119,6,.35)' : '0 4px 20px rgba(0,0,0,.25)',
             transition: 'background .3s, box-shadow .3s',
           }}>
             <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'rgba(255,255,255,.75)', marginBottom:6 }}>
@@ -534,7 +648,7 @@ export default function ProviderConsult() {
 
         {/* Notes slide-up panel */}
         {showNotes && (
-          <div style={{ position:'absolute', inset:0, background:'rgba(0,0,0,.7)', display:'flex', flexDirection:'column', zIndex:30 }}>
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', flexDirection:'column', zIndex:110 }}>
             <div style={{ flex:1 }} onClick={() => setShowNotes(false)} />
             <div style={{ background:'white', borderRadius:'16px 16px 0 0', padding:'1.25rem', maxHeight:'60vh', display:'flex', flexDirection:'column' }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
@@ -556,36 +670,8 @@ export default function ProviderConsult() {
         )}
       </div>
 
-      {/* Bottom controls */}
-      <div style={{ background:'rgba(0,0,0,.8)', padding:'16px', paddingBottom:'calc(16px + env(safe-area-inset-bottom))', display:'flex', gap:12, flexShrink:0, zIndex:20 }}>
-        {/* Notes toggle */}
-        <button
-          onClick={() => setShowNotes(v => !v)}
-          style={{ minHeight:56, flex:1, borderRadius:12, border:`1.5px solid ${showNotes?TEAL:'rgba(255,255,255,.2)'}`, background: showNotes ? 'rgba(11,110,118,.3)' : 'rgba(255,255,255,.08)', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-          📋 Notes {transcript && '✓'}
-        </button>
-        {/* Subtitle toggle — only if patient's language is on the whitelist */}
-        {(() => {
-          const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
-          const meta = getLangMeta(patientLang)
-          const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good') && patientLang !== 'en'
-          if (!supported) return null
-          return (
-            <button
-              onClick={() => setSubtitlesOn(v => !v)}
-              style={{ minHeight:56, flex:1, borderRadius:12, border:`1.5px solid ${subtitlesOn?TEAL:'rgba(255,255,255,.2)'}`, background: subtitlesOn ? 'rgba(11,110,118,.3)' : 'rgba(255,255,255,.08)', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-              💬 Subtitles {subtitlesOn && '✓'}
-            </button>
-          )
-        })()}
-        {/* End call */}
-        <button
-          onClick={endCall}
-          disabled={endingCall}
-          style={{ minHeight:56, flex:2, borderRadius:12, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:endingCall?'not-allowed':'pointer', opacity:endingCall?0.6:1, display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
-          {endingCall ? 'Ending…' : '🔴 End call'}
-        </button>
-      </div>
+      {/* Bottom control bar removed — Notes / Subtitles now live in the
+          chart-side action row; End call lives inside FloatingCallWidget. */}
 
       <style>{`
         @keyframes spin{to{transform:rotate(360deg)}}
