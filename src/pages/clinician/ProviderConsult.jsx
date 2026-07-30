@@ -121,10 +121,48 @@ export default function ProviderConsult() {
       .catch(() => setMedsafeList([]))
   }, [showPharmacyPicker, medsafeList])
 
+  // Extract a NZ 4-digit postcode from any address / location string. NZ
+  // postcodes are 4 digits (e.g., 7201 = Blenheim). Patients often include
+  // it in their address; pharmacies always do (embedded in the address
+  // string on the Medsafe register).
+  function extractPostcode(s) {
+    const m = String(s || '').match(/\b(\d{4})\b/)
+    return m ? m[1] : null
+  }
+
+  // Postcode "distance" — higher = closer. Shared first digit = 1,
+  // first two = 10, first three = 100. Same postcode = 1000.
+  function postcodeAffinity(a, b) {
+    if (!a || !b) return 0
+    if (a === b) return 1000
+    if (a.slice(0, 3) === b.slice(0, 3)) return 100
+    if (a.slice(0, 2) === b.slice(0, 2)) return 10
+    if (a.slice(0, 1) === b.slice(0, 1)) return 1
+    return 0
+  }
+
+  const patientPostcode = extractPostcode(consult?.patient_location)
+
   const filteredPharmacies = (() => {
     if (!medsafeList) return []
     const q = pharmacyQuery.trim().toLowerCase()
-    if (q.length < 2) return []
+
+    // No query + patient has a postcode → show top 8 "nearby" pharmacies
+    // by postcode affinity so the provider sees relevant options
+    // immediately without typing.
+    if (q.length < 2) {
+      if (!patientPostcode) return []
+      const scored = medsafeList
+        .map(p => ({ p, score: postcodeAffinity(extractPostcode(p.address), patientPostcode) }))
+        .filter(x => x.score > 0)
+        .sort((a, b) => b.score - a.score)
+      return scored.slice(0, 8).map(x => x.p)
+    }
+
+    // With query: match on name / address / town / region, then within each
+    // group prioritise pharmacies that are geographically nearer the patient
+    // (postcode affinity) so the top 8 aren't a Wellington pharmacy for a
+    // Marlborough patient.
     const nameHits = [], otherHits = []
     for (const p of medsafeList) {
       const name    = (p.premises_name || '').toLowerCase()
@@ -133,7 +171,12 @@ export default function ProviderConsult() {
       const region  = (p.region        || '').toLowerCase()
       if (name.includes(q)) nameHits.push(p)
       else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
-      if (nameHits.length + otherHits.length >= 40) break
+      if (nameHits.length + otherHits.length >= 80) break
+    }
+    const rank = (p) => postcodeAffinity(extractPostcode(p.address), patientPostcode)
+    if (patientPostcode) {
+      nameHits.sort((a, b) => rank(b) - rank(a))
+      otherHits.sort((a, b) => rank(b) - rank(a))
     }
     return [...nameHits, ...otherHits].slice(0, 8)
   })()
@@ -749,18 +792,33 @@ export default function ProviderConsult() {
               <input
                 value={pharmacyQuery}
                 onChange={e => setPharmacyQuery(e.target.value)}
-                placeholder="Search by name, town, or region — min 2 chars"
+                placeholder={patientPostcode ? 'Search — or leave empty for nearby' : 'Search by name, town, or region — min 2 chars'}
                 autoFocus
                 style={{ width:'100%', border:'1.5px solid #E2E8F0', borderRadius:10, padding:'10px 12px', fontFamily:FF, fontSize:'.9375rem', outline:'none', boxSizing:'border-box' }}
               />
               {medsafeList === null && (
                 <div style={{ marginTop:8, fontSize:'.75rem', color:'#9CA3AF' }}>Loading pharmacy register…</div>
               )}
+              {patientPostcode && medsafeList !== null && (
+                <div style={{ marginTop:8, fontSize:'.75rem', color:'#059669' }}>
+                  📍 Sorted by proximity to patient postcode <strong>{patientPostcode}</strong>
+                </div>
+              )}
             </div>
             <div style={{ flex:1, overflowY:'auto', padding:'.5rem 0' }}>
               {pharmacyQuery.trim().length >= 2 && filteredPharmacies.length === 0 && medsafeList !== null && (
                 <div style={{ padding:'1rem 1.25rem', color:'#6B7280', fontSize:'.875rem', textAlign:'center' }}>
                   No matches. Try a shorter query or a nearby town.
+                </div>
+              )}
+              {pharmacyQuery.trim().length < 2 && !patientPostcode && medsafeList !== null && (
+                <div style={{ padding:'1rem 1.25rem', color:'#6B7280', fontSize:'.875rem', textAlign:'center' }}>
+                  Start typing to search. Patient hasn't shared a postcode, so no nearby list is available yet.
+                </div>
+              )}
+              {pharmacyQuery.trim().length < 2 && patientPostcode && filteredPharmacies.length > 0 && (
+                <div style={{ padding:'.5rem 1.25rem .25rem', fontSize:'.6875rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.04em' }}>
+                  Nearby to patient
                 </div>
               )}
               {filteredPharmacies.map(p => (
