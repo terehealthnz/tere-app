@@ -499,8 +499,20 @@ export default function ProviderConsult() {
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <FloatingCallWidget
-            onEndCall={endCall}
-            endingCall={endingCall}
+            primaryAction={(() => {
+              // Route the widget's primary button correctly based on presence:
+              //   patient joined → End call → notes (real consult)
+              //   patient never joined + <90s → block, show countdown
+              //   patient never joined + ≥90s + attempts <2 → Return to queue
+              //   patient never joined + ≥90s + attempts ≥2 → Mark no-show (no charge)
+              // Prevents providers from being forced through notes for a
+              // phantom consult when the patient never answered.
+              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
+              if (elapsed < 90)  return { label: `Return in ${Math.max(0, 90 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
+              const attempts = consult?.join_attempts || 0
+              if (attempts >= 2) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
+              return { label: '← Return to queue', color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
+            })()}
             isAudioOnly={isPhone}
             patientName={patientName}
           />

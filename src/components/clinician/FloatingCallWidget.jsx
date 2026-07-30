@@ -49,7 +49,10 @@ function clampToViewport(pos, w, h) {
   }
 }
 
-export default function FloatingCallWidget({ onEndCall, endingCall, isAudioOnly, patientName }) {
+export default function FloatingCallWidget({ primaryAction, isAudioOnly, patientName }) {
+  // Backwards-compatible default so a caller that forgets to pass
+  // primaryAction still gets an End Call button that no-ops safely.
+  const action = primaryAction || { label: '🔴 End call', color: '#DC2626', onClick: () => {}, disabled: true }
   const [pos, setPos] = useState(() => loadPos() || defaultPos())
   const [minimized, setMinimized] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -254,19 +257,24 @@ export default function FloatingCallWidget({ onEndCall, endingCall, isAudioOnly,
             }}
           >{isCameraEnabled ? '📹' : '📷'}</button>
 
-          {/* End call */}
+          {/* Primary action — label + colour + handler come from the parent
+              and depend on whether the patient has joined + how long we've
+              been waiting + how many attempts already made. See
+              ProviderConsult.jsx for the state machine. */}
           <button
-            onClick={onEndCall}
-            disabled={endingCall}
+            onClick={action.onClick || undefined}
+            disabled={action.disabled || !action.onClick}
+            title={action.disabled && !action.onClick ? 'Give the patient a chance to join' : undefined}
             style={{
               flex: 1, height: 40, borderRadius: 20,
-              background: '#DC2626', color: 'white', border: 'none',
-              cursor: endingCall ? 'not-allowed' : 'pointer',
+              background: action.color || '#DC2626',
+              color: 'white', border: 'none',
+              cursor: (action.disabled || !action.onClick) ? 'not-allowed' : 'pointer',
               fontFamily: 'Plus Jakarta Sans, sans-serif',
               fontWeight: 700, fontSize: '.8125rem',
-              opacity: endingCall ? 0.6 : 1,
+              opacity: (action.disabled || !action.onClick) ? 0.6 : 1,
             }}
-          >{endingCall ? 'Ending…' : '🔴 End call'}</button>
+          >{action.label}</button>
         </div>
       </div>
     </>
