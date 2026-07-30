@@ -103,6 +103,11 @@ export default function ProviderConsult() {
   const [patientHere, setPatientHere]   = useState(false)
   const markPatientHere = useCallback(() => setPatientHere(true), [])
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
+  // Final-attempt phone-only flow — provider dials patient directly from
+  // their own phone (tel: link), no LiveKit involved. State tracks whether
+  // they've clicked the dial link yet so we can show the answered/no-answer
+  // decision buttons afterwards.
+  const [finalAttemptClicked, setFinalAttemptClicked] = useState(false)
   // Inline pharmacy-change picker on the in-call chart card. Reuses the
   // same /pharmacies.json Medsafe register as ClinicalActionModals + the
   // triage picker so downstream (Rx PDF, patient email) stays consistent.
@@ -985,43 +990,109 @@ export default function ProviderConsult() {
         <div style={{ height:148 }} />
       </div>
 
-      {/* Fixed bottom action area. After 2 failed attempts, force phone-only
-          for the 3rd and final attempt — assumption is the patient's app or
-          network is the problem, so a direct phone dial is materially more
-          likely to reach them than another video/audio LiveKit attempt. */}
+      {/* Fixed bottom action area. After 2 failed connect attempts, the 3rd
+          and final attempt is a direct phone-to-phone call — provider dials
+          the patient from their own phone via a tel: link, no LiveKit room
+          is created. If the patient answers, provider completes the consult
+          verbally and clicks "Patient answered → notes". If not, "No answer
+          → mark no-show" fires the same endpoint the in-call widget uses. */}
       {(() => {
         const priorAttempts = consult?.join_attempts || 0
         const isFinalAttempt = priorAttempts >= 2
+        const phoneRaw = consult?.patient_phone || ''
+        const phonePretty = phoneRaw || 'no phone on record'
+        const telHref = phoneRaw ? `tel:${phoneRaw.replace(/\s+/g, '')}` : null
+
+        async function markPhoneDialled() {
+          setFinalAttemptClicked(true)
+          try {
+            await updateConsultation(id, {
+              join_attempts: priorAttempts + 1,
+              join_attempt_history: [
+                ...(Array.isArray(consult?.join_attempt_history) ? consult.join_attempt_history : []),
+                { at: new Date().toISOString(), attempt: priorAttempts + 1, kind: 'phone_direct_dialled' },
+              ],
+            })
+          } catch (e) { console.error('[final-attempt] log failed:', e.message) }
+        }
+
+        async function markPatientAnswered() {
+          try {
+            await updateConsultation(id, { status: 'in_progress', patient_joined_at: new Date().toISOString() })
+          } catch {}
+          navigate(`/provider/notes/${id}`)
+        }
+
+        async function markNoShowFromPhone() {
+          if (endingCall) return
+          setEndingCall(true)
+          try {
+            await apiFetch('/api/mark-no-show', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ consultationId: id }),
+            })
+          } catch (e) { console.error('[final-attempt] no-show failed:', e.message) }
+          navigate('/provider')
+        }
+
         return (
       <div style={{ position:'fixed', bottom:0, left:0, right:0, background:'white', borderTop:'1px solid #E2E8F0', padding:'12px 16px', paddingBottom:'calc(12px + env(safe-area-inset-bottom))' }}>
         {isFinalAttempt ? (
-          <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#991B1B', marginBottom:8 }}>
-            ⚠ Final attempt — phone call only. Patient has missed {priorAttempts} connections.
-          </div>
+          <>
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#991B1B', marginBottom:8 }}>
+              ⚠ Final attempt — dial patient from your phone. Patient has missed {priorAttempts} connections.
+              <div style={{ fontSize:'1rem', fontWeight:800, color:'#7F1D1D', marginTop:4, fontFamily:'monospace' }}>{phonePretty}</div>
+            </div>
+            {!finalAttemptClicked ? (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
+                <button onClick={() => navigate('/provider')}
+                  style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer' }}>
+                  ← Queue
+                </button>
+                {telHref ? (
+                  <a href={telHref} onClick={markPhoneDialled}
+                    style={{ minHeight:48, borderRadius:10, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', textDecoration:'none', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 16px rgba(220,38,38,.3)' }}>
+                    📞 Dial {phonePretty}
+                  </a>
+                ) : (
+                  <button disabled
+                    style={{ minHeight:48, borderRadius:10, border:'none', background:'#9CA3AF', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem' }}>
+                    No phone on record
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <button onClick={markNoShowFromPhone} disabled={endingCall}
+                  style={{ minHeight:48, borderRadius:10, border:'1.5px solid #DC2626', background:'white', color:'#DC2626', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:endingCall?'not-allowed':'pointer', opacity:endingCall?0.6:1 }}>
+                  ✕ No answer — mark no-show
+                </button>
+                <button onClick={markPatientAnswered}
+                  style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:'pointer', boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+                  ✓ Patient answered — notes
+                </button>
+              </div>
+            )}
+          </>
         ) : (
-          <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:8 }}>
-            {priorAttempts > 0
-              ? `⏳ Attempt ${priorAttempts + 1} of 3 — patient is being notified`
-              : '⏳ Connecting — patient is being notified'}
-          </div>
+          <>
+            <div style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:10, padding:'10px 14px', textAlign:'center', fontSize:'.875rem', color:'#92400E', marginBottom:8 }}>
+              {priorAttempts > 0
+                ? `⏳ Attempt ${priorAttempts + 1} of 3 — patient is being notified`
+                : '⏳ Connecting — patient is being notified'}
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
+              <button onClick={() => navigate('/provider')}
+                style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer' }}>
+                ← Queue
+              </button>
+              <button onClick={initiateCall} disabled={calling}
+                style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
+                {calling ? 'Connecting…' : isPhone ? '📞 Start phone call' : '📹 Start video call'}
+              </button>
+            </div>
+          </>
         )}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:8 }}>
-          <button onClick={() => navigate('/provider')}
-            style={{ minHeight:48, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:'#374151', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer' }}>
-            ← Queue
-          </button>
-          {isFinalAttempt ? (
-            <button onClick={initiatePhoneCall} disabled={calling}
-              style={{ minHeight:48, borderRadius:10, border:'none', background:'#DC2626', color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(220,38,38,.3)' }}>
-              {calling ? 'Dialling…' : '📞 Call patient (final attempt)'}
-            </button>
-          ) : (
-            <button onClick={initiateCall} disabled={calling}
-              style={{ minHeight:48, borderRadius:10, border:'none', background:GREEN, color:'white', fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:calling?'not-allowed':'pointer', opacity:calling?0.6:1, boxShadow:'0 4px 16px rgba(5,150,105,.3)' }}>
-              {calling ? 'Connecting…' : isPhone ? '📞 Start phone call' : '📹 Start video call'}
-            </button>
-          )}
-        </div>
       </div>
         )
       })()}
