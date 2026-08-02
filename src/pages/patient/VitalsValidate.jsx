@@ -157,7 +157,11 @@ export default function VitalsValidate() {
   // isn't exposed. Writes still go through the /api/validation-* endpoints
   // which have their own column allowlists.
 
-  const [phase, setPhase] = useState('select')
+  // Public /vitals-validate is used for one-off community validation submissions
+  // (FB campaign etc). Skip the "select existing profile" step so each visitor
+  // creates a fresh profile — one reading per person, no privacy leak of other
+  // participants' names, no ability to re-scan yourself.
+  const [phase, setPhase] = useState('create')
 
   // Subjects
   const [subjects, setSubjects]           = useState([])
@@ -601,27 +605,20 @@ export default function VitalsValidate() {
     }
   }
 
-  const resetForScanAgain = () => {
-    setManual({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
-    setVitals(null); setDeviceInfo(null); setScanPhase('idle')
-    setProgress(0); setReviewNotes(''); setSaveError(null)
-    setTrainingPhase('idle'); setTrainingResult(null)
-    setBpEstimate(null); setSpo2Estimate(null); setManualSpO2('')
-    setAfConfirmed(null); setAfConfirmedBy('')
-    setPhase('step1')
-  }
-
   const goToSelect = () => {
+    // Public flow: after saving, sending them back to the (now hidden) subject
+    // dropdown would show a picker with a single option they just created. Reset
+    // subject state and drop them into the create-profile screen for a fresh
+    // new person instead — enforces the one-reading-per-person policy at UX
+    // level even if they came back to add a family member.
     setManual({ systolic: '', diastolic: '', hr: '', temperature: '', notes: '' })
     setVitals(null); setDeviceInfo(null); setScanPhase('idle')
     setProgress(0); setReviewNotes(''); setSaveError(null)
     setTrainingPhase('idle'); setTrainingResult(null)
     setSelectedSubjectId(''); setSelectedSubject(null)
-    // Refresh subjects list to update last_scan_at
-    getValidationSubjectsWithLastScan()
-      .then(list => setSubjects(list))
-      .catch(() => {})
-    setPhase('select')
+    setNewSub({ firstName: '', age: '', sex: '', heightCm: '', heightFt: '', heightIn: '', heightUnit: 'cm', weightKg: '', weightLb: '', weightUnit: 'kg', fitzpatrickScale: null, hasHypertension: 'unknown', conditions: [] })
+    setSubjectError(null)
+    setPhase('create')
   }
 
   // ── Select profile ────────────────────────────────────────────────────────────
@@ -797,7 +794,7 @@ export default function VitalsValidate() {
 
             {subjectError && <div style={{ color: '#EF4444', fontSize: '.85rem' }}>{subjectError}</div>}
             <div style={{ display: 'flex', gap: '.75rem', marginTop: '.25rem' }}>
-              <Btn secondary onClick={() => setPhase('select')}>Cancel</Btn>
+              {/* No "Cancel" — create is now the entry point for public flow. */}
               <Btn onClick={handleCreateSubject} disabled={savingSubject}>{savingSubject ? 'Saving…' : 'Create profile'}</Btn>
             </div>
           </div>
@@ -1144,9 +1141,12 @@ export default function VitalsValidate() {
             </div>
           )}
 
+          <div style={{ background: '#F8FAFC', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem .9rem', marginBottom: '1rem', fontSize: '.85rem', color: '#374151', textAlign: 'left' }}>
+            Thanks for helping validate Tere Vitals. One reading per person keeps our dataset clean — if you'd like to submit another person's reading, tap below to add a new profile.
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-            <Btn onClick={resetForScanAgain} style={{ width: '100%' }}>Scan again</Btn>
-            <Btn secondary onClick={goToSelect} style={{ width: '100%' }}>Switch profile</Btn>
+            <Btn onClick={goToSelect} style={{ width: '100%' }}>Add another person</Btn>
           </div>
         </Card>
       </PageWrap>

@@ -15,7 +15,7 @@
 //                                                        tere_rr, hr_quality per body
 
 import { createClient } from '@supabase/supabase-js'
-import { guardProvider } from './_auth.js'
+import { guardProvider, requireProvider } from './_auth.js'
 
 function admin() {
   return createClient(
@@ -83,6 +83,32 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     const d = req.body || {}
+
+    // Dedup: reject if this subject already has a reading. Public flow
+    // (/vitals-validate for FB campaign etc.) is anon and enforces
+    // one-reading-per-person. Clinicians using the validation dashboard for
+    // repeat calibration scans bypass this by presenting a valid provider
+    // credential (JWT bearer OR x-provider-id header).
+    if (d.subjectId) {
+      let isProvider = false
+      try { await requireProvider(req); isProvider = true } catch {}
+      if (!isProvider) {
+        const { data: existing, error: dupErr } = await supabase
+          .from('validation_readings')
+          .select('id')
+          .eq('subject_id', d.subjectId)
+          .limit(1)
+          .maybeSingle()
+        if (dupErr) return res.status(500).json({ error: dupErr.message })
+        if (existing) {
+          return res.status(409).json({
+            error: 'This person has already submitted a reading. One reading per person — thanks for helping!',
+            code: 'DUPLICATE_SUBJECT',
+          })
+        }
+      }
+    }
+
     const hrDiff = (d.manualHr && d.tereHr) ? Math.abs(d.manualHr - d.tereHr) : null
     const payload = {
       subject_id:         d.subjectId || null,
