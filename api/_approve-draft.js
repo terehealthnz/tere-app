@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildPrescriptionPdf, buildReferralPdf } from './_pdf-builders.js'
+import { isSignatureExempt } from './_drug-classifications.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -77,10 +78,27 @@ export default async function handler(req, res) {
       ...(action === 'modify' ? { changes: modifications } : {}),
     }
 
+    // Fetch drafter signature + email for the rebuilt PDF. Email goes on the
+    // PDF as the prescriber contact (DG Aug 2024 requirement); signature URL
+    // is only rendered on the wet-ink path for controlled drugs.
+    let drafterSignatureUrl = null
+    let drafterEmail = null
+    const drafterId = data.drafted_by_id || data.provider_id
+    if (drafterId) {
+      try {
+        const { data: drafter } = await supabase.from('providers')
+          .select('signature_url, email').eq('id', drafterId).maybeSingle()
+        if (drafter?.signature_url) drafterSignatureUrl = drafter.signature_url
+        if (drafter?.email) drafterEmail = drafter.email
+      } catch {}
+    }
+    const signatureExempt = isSignatureExempt(data.drug)
+
     let pdfBuffer
     try {
       pdfBuffer = await buildPrescriptionPdf({
         providerName: data.drafted_by_name || data.provider_name,
+        providerEmail: drafterEmail,
         prescriberNumber: data.prescriber_number,
         approvedByName: supervisorName,
         patientName: data.patient_name,
@@ -93,6 +111,8 @@ export default async function handler(req, res) {
         repeats: data.repeats,
         pharmacyName: data.pharmacy_name,
         pharmacyAddress: data.pharmacy_address,
+        signatureUrl: drafterSignatureUrl,
+        signatureExempt,
       })
     } catch (e) {
       return res.status(500).json({ error: 'PDF generation failed: ' + e.message })

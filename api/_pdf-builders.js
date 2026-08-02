@@ -12,8 +12,17 @@ async function fetchSignatureBuffer(url) {
   } catch { return null }
 }
 
+// DG statement — required verbatim on any prescription sent without a
+// prescriber signature under the August 2024 Director-General authorisation.
+const DG_SIGNATURE_EXEMPT_STATEMENT =
+  "This Prescription meets the requirement of the Director-General of " +
+  "Health's authorisation of August 2024 for prescriptions not signed " +
+  "personally by a prescriber with their usual signature"
+
 export async function buildPrescriptionPdf(data) {
-  const sigBuf = await fetchSignatureBuffer(data.signatureUrl)
+  // Only fetch the signature image when we're going down the wet-ink path —
+  // for signature-exempt scripts the signature line renders "Signature Exempt".
+  const sigBuf = data.signatureExempt ? null : await fetchSignatureBuffer(data.signatureUrl)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
@@ -33,10 +42,15 @@ export async function buildPrescriptionPdf(data) {
       .text(data.providerName || 'Tere Clinician', 50, 134)
       .text(`Prescriber No: ${data.prescriberNumber || '—'}`, 50, 148)
       .text('Tere Health Limited · terehealth.co.nz', 50, 162)
+    // Prescriber contact — required by DG authorisation so the pharmacy can
+    // verify identity or request amendments. Falls back to Tere reception
+    // when the provider row has no email on file.
+    const prescriberEmail = data.providerEmail || 'terehealthnz@gmail.com'
+    doc.fillColor('#555').fontSize(9).text(`Contact: ${prescriberEmail}`, 50, 176)
 
     if (data.approvedByName) {
       doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)
-        .text(`Countersigned by: ${data.approvedByName}`, 50, 176)
+        .text(`Countersigned by: ${data.approvedByName}`, 50, 189)
     }
 
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Patient', 300, 120)
@@ -46,26 +60,41 @@ export async function buildPrescriptionPdf(data) {
       .text(`DOB: ${data.patientDob || '—'}`, 300, 162)
     doc.text(`Date: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 300, 176)
 
-    doc.moveTo(50, 200).lineTo(doc.page.width - 50, 200).strokeColor('#DDD').lineWidth(0.5).stroke()
+    doc.moveTo(50, 210).lineTo(doc.page.width - 50, 210).strokeColor('#DDD').lineWidth(0.5).stroke()
 
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(14).text('℞', 50, 215)
-    doc.fillColor('#1A2A33').fontSize(13).text(data.drug, 75, 215)
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(14).text('℞', 50, 225)
+    doc.fillColor('#1A2A33').fontSize(13).text(data.drug, 75, 225)
     doc.fillColor('#555').font('Helvetica').fontSize(10)
-      .text(`Dose: ${data.dose || '—'}`, 75, 232)
-      .text(`Directions: ${data.directions || '—'}`, 75, 246)
-      .text(`Quantity: ${data.quantity || '—'}`, 75, 260)
-      .text(`Repeats: ${data.repeats || 0}`, 75, 274)
+      .text(`Dose: ${data.dose || '—'}`, 75, 242)
+      .text(`Directions: ${data.directions || '—'}`, 75, 256)
+      .text(`Quantity: ${data.quantity || '—'}`, 75, 270)
+      .text(`Repeats: ${data.repeats || 0}`, 75, 284)
 
-    doc.moveTo(50, 295).lineTo(doc.page.width - 50, 295).strokeColor('#DDD').lineWidth(0.5).stroke()
+    doc.moveTo(50, 305).lineTo(doc.page.width - 50, 305).strokeColor('#DDD').lineWidth(0.5).stroke()
 
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Dispensing Pharmacy', 50, 305)
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Dispensing Pharmacy', 50, 315)
     doc.font('Helvetica').fontSize(10).fillColor('#555')
-      .text(data.pharmacyName || "Patient's preferred pharmacy", 50, 319)
-    if (data.pharmacyAddress) doc.text(data.pharmacyAddress, 50, 333)
+      .text(data.pharmacyName || "Patient's preferred pharmacy", 50, 329)
+    if (data.pharmacyAddress) doc.text(data.pharmacyAddress, 50, 343)
 
-    const sigY = 420
-    // Prescriber signature — render uploaded image if we have one, else draw the empty signature line.
-    if (sigBuf) {
+    // DG authorisation statement — verbatim quote required when using the
+    // signature-exempt path. Rendered as a bordered callout above the
+    // signature line so pharmacists can spot it at a glance.
+    if (data.signatureExempt) {
+      const stmtY = 375
+      doc.rect(50, stmtY, doc.page.width - 100, 34).lineWidth(0.8).strokeColor('#0B6E76').stroke()
+      doc.fillColor('#0B6E76').font('Helvetica-Oblique').fontSize(8.5)
+        .text(DG_SIGNATURE_EXEMPT_STATEMENT, 58, stmtY + 6, { width: doc.page.width - 116, lineGap: 1 })
+    }
+
+    const sigY = 440
+    // Prescriber signature — three paths:
+    //   1. signature-exempt (DG authorisation): render "Signature Exempt" label, no image
+    //   2. signed with uploaded image
+    //   3. signed with blank line (image fetch failed or none on file)
+    if (data.signatureExempt) {
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(11).text('Signature Exempt', 50, sigY - 16)
+    } else if (sigBuf) {
       try {
         doc.image(sigBuf, 50, sigY - 40, { fit: [170, 40], align: 'center' })
       } catch { /* fall through to line */ }

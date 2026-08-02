@@ -11,6 +11,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
+import { isSignatureExempt } from './_drug-classifications.js'
 import { guardProvider } from './_auth.js'
 
 function admin() {
@@ -55,18 +56,28 @@ export default async function handler(req, res) {
     snapshot_at: new Date().toISOString(),
   }
 
-  // Look up provider signature for the rebuilt PDF.
+  // Look up provider signature + email for the rebuilt PDF. Email is required
+  // on the PDF by the DG Aug 2024 signature-exempt authorisation (contact
+  // detail for pharmacy verification); signature URL is only rendered on the
+  // wet-ink path for controlled drugs.
   let signatureUrl = null
+  let providerEmail = null
   if (rx.provider_id) {
     try {
       const { data: prov } = await supabase
-        .from('providers').select('signature_url').eq('id', rx.provider_id).maybeSingle()
+        .from('providers').select('signature_url, email').eq('id', rx.provider_id).maybeSingle()
       if (prov?.signature_url) signatureUrl = prov.signature_url
+      if (prov?.email) providerEmail = prov.email
     } catch {}
   }
 
+  // Same classification as the original send — a redirect never changes the
+  // drug, so signature-exempt eligibility carries through.
+  const signatureExempt = isSignatureExempt(rx.drug)
+
   const pdfData = {
     providerName: rx.provider_name || '',
+    providerEmail,
     prescriberNumber: rx.prescriber_number || '',
     patientName: rx.patient_name || '',
     patientNhi: rx.patient_nhi || '',
@@ -79,6 +90,7 @@ export default async function handler(req, res) {
     pharmacyName,
     pharmacyAddress: pharmacyAddress || '',
     signatureUrl,
+    signatureExempt,
   }
   let pdfBuffer
   try {
@@ -111,12 +123,16 @@ export default async function handler(req, res) {
     try {
       const pdfBase64 = pdfBuffer.toString('base64')
       const resend = new Resend(process.env.RESEND_API_KEY)
+      // Same DG Aug 2024 identification requirement as the initial send —
+      // From-name carries the prescriber, reply-to routes to their mailbox.
+      const fromName = `Dr ${rx.provider_name || 'Prescriber'} via Tere Health`.replace(/"/g, "'")
+      const replyTo = providerEmail || 'terehealthnz@gmail.com'
       await resend.emails.send({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
+        from: `${fromName} <hello@terehealth.co.nz>`,
+        replyTo,
         to: pharmacyEmail,
         subject: `Redirected prescription for ${rx.patient_name} — Tere Health`,
-        html: `<p>Please find attached a prescription for <strong>${rx.patient_name}</strong> — this script was previously sent to <em>${originalSnapshot.pharmacy_name || 'another pharmacy'}</em> and has been redirected to you at the patient's request.</p><p>Prescriber: ${rx.provider_name}<br>Prescriber No: ${rx.prescriber_number || '—'}</p><p>Medication: <strong>${rx.drug}</strong><br>Directions: ${rx.directions}<br>Quantity: ${rx.quantity}, Repeats: ${rx.repeats || 0}</p>`,
+        html: `<p>Please find attached a prescription for <strong>${rx.patient_name}</strong> — this script was previously sent to <em>${originalSnapshot.pharmacy_name || 'another pharmacy'}</em> and has been redirected to you at the patient's request.</p><p>Prescriber: ${rx.provider_name}<br>Prescriber No: ${rx.prescriber_number || '—'}<br>Contact: ${replyTo}</p><p>Medication: <strong>${rx.drug}</strong><br>Directions: ${rx.directions}<br>Quantity: ${rx.quantity}, Repeats: ${rx.repeats || 0}</p>${signatureExempt ? '<p style="font-size:12px;color:#0B6E76;border-left:3px solid #0B6E76;padding-left:10px;margin-top:16px"><em>This prescription meets the requirement of the Director-General of Health\'s authorisation of August 2024 for prescriptions not signed personally by a prescriber with their usual signature.</em></p>' : ''}`,
         attachments: [{ filename: `prescription-${(rx.patient_name || 'patient').replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
     } catch (e) { deliveryErrors.push(`Email to new pharmacy failed: ${e.message}`) }

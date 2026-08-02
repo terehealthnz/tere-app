@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
+import { isSignatureExempt, classifyDrug } from './_drug-classifications.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -101,18 +102,29 @@ export default async function handler(req, res) {
   }
 
   // ── Direct send path ─────────────────────────────────────────────────
-  // Look up the provider's signature image (if uploaded via Admin) so the
-  // prescription PDF renders their actual signature above the signature line.
-  // Falls back gracefully to the empty line if no signature is on file.
+  // Look up the provider's signature image (if uploaded via Admin) plus their
+  // email — email is required on the PDF by the DG Aug 2024 signature-exempt
+  // authorisation so pharmacies can contact the prescriber to verify identity.
+  // Signature URL is only needed for the wet-ink path (controlled drugs).
   let signatureUrl = null
+  let providerEmail = null
   if (providerId) {
     try {
       const { data: prov } = await supabase
-        .from('providers').select('signature_url').eq('id', providerId).maybeSingle()
+        .from('providers').select('signature_url, email').eq('id', providerId).maybeSingle()
       if (prov?.signature_url) signatureUrl = prov.signature_url
+      if (prov?.email) providerEmail = prov.email
     } catch {}
   }
-  const pdfData = { providerName, prescriberNumber, patientName, patientNhi, patientDob, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress, signatureUrl }
+
+  // Classify the drug — controlled Class A/B/C still requires a wet-ink
+  // signature and the original prescription to be sent to the pharmacy per
+  // Misuse of Drugs Regulations 1977. Everything else may go signature-exempt
+  // under the DG August 2024 authorisation (expires 31 October 2027).
+  const drugClass = classifyDrug(drug)
+  const signatureExempt = isSignatureExempt(drug)
+
+  const pdfData = { providerName, providerEmail, prescriberNumber, patientName, patientNhi, patientDob, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress, signatureUrl, signatureExempt }
   let pdfBuffer
   try {
     pdfBuffer = await buildPrescriptionPdf(pdfData)
@@ -150,12 +162,19 @@ export default async function handler(req, res) {
   if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
+      // From-name identifies the individual prescriber alongside the facility
+      // per DG Aug 2024 requirement ("secure email that identifies the
+      // prescriber and the healthcare facility"). Reply-to routes pharmacy
+      // queries directly to the prescriber's mailbox, with Tere reception as
+      // backup when the provider row has no email on file.
+      const fromName = `Dr ${providerName} via Tere Health`.replace(/"/g, "'")
+      const replyTo = providerEmail || 'terehealthnz@gmail.com'
       await resend.emails.send({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
+        from: `${fromName} <hello@terehealth.co.nz>`,
+        replyTo,
         to: pharmacyEmail,
         subject: `Prescription for ${patientName} — Tere Health`,
-        html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>`,
+        html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}<br>Contact: ${replyTo}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>${signatureExempt ? '<p style="font-size:12px;color:#0B6E76;border-left:3px solid #0B6E76;padding-left:10px;margin-top:16px"><em>This prescription meets the requirement of the Director-General of Health\'s authorisation of August 2024 for prescriptions not signed personally by a prescriber with their usual signature.</em></p>' : ''}`,
         attachments: [{ filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
     } catch (e) { deliveryErrors.push(`Pharmacy email failed: ${e.message}`) }
