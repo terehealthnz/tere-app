@@ -855,14 +855,30 @@ export default function AITriage() {
   const [pharmacyLoading, setPharmacyLoading] = useState(false)
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
 
-  // Lazy-load the register once — cached in module state after first load.
+  // Lazy-load the register once, then filter to pharmacies that have a
+  // dispensary_email on file — we only offer emailable pharmacies since fax
+  // was decommissioned 2026-08-01. Falls back to the full list if the
+  // emailable-ids lookup fails (better than blocking triage entirely).
   useEffect(() => {
     if (pharmacyIndex !== null) return
     let cancelled = false
-    fetch('/pharmacies.json')
-      .then(r => r.ok ? r.json() : [])
-      .then(list => { if (!cancelled) setPharmacyIndex(Array.isArray(list) ? list : []) })
-      .catch(() => { if (!cancelled) setPharmacyIndex([]) })
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const list = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(list)) { if (!cancelled) setPharmacyIndex([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        const filtered = emailable && emailable.size > 0
+          ? list.filter(p => emailable.has(p.id))
+          : list
+        if (!cancelled) setPharmacyIndex(filtered)
+      } catch {
+        if (!cancelled) setPharmacyIndex([])
+      }
+    })()
     return () => { cancelled = true }
   }, [pharmacyIndex])
 

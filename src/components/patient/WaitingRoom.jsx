@@ -79,6 +79,17 @@ export default function WaitingRoom() {
   const [createdAt, setCreatedAt] = useState(null)
   const [secsLeft, setSecsLeft] = useState(null)
 
+  // Pharmacy card + picker. Patient chose one in triage; they can swap it
+  // here if they realise it's closed / far away. Updates land on the
+  // consultations row via /api/patient-consult so the provider sees the
+  // new pharmacy when they pick up the consult.
+  const [pharmacyName, setPharmacyName] = useState(null)
+  const [pharmacyId, setPharmacyId] = useState(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pharmacyIndex, setPharmacyIndex] = useState(null)
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+  const [savingPharmacy, setSavingPharmacy] = useState(false)
+
   const patientName = (sessionStorage.getItem('patientName') || '').split(' ')[0] || null
   const consultType = sessionStorage.getItem('consultationType') || 'video'
   const afterHours  = sessionStorage.getItem('after_hours') === 'true'
@@ -103,13 +114,80 @@ export default function WaitingRoom() {
     ensureWaiting(consultationId)
   }, [consultationId])
 
-  // Fetch created_at for the countdown
+  // Fetch created_at for the countdown + hydrate the pharmacy card from the
+  // consult row (patient picked it in triage; may swap here).
   useEffect(() => {
     if (!consultationId || consultationId.startsWith('demo')) return
     getPatientConsult(consultationId).then(c => {
       if (c?.created_at) setCreatedAt(c.created_at)
+      if (c?.pharmacy) setPharmacyName(c.pharmacy)
+      if (c?.pharmacy_id) setPharmacyId(c.pharmacy_id)
     }).catch(() => {})
   }, [consultationId])
+
+  // Lazy-load Medsafe pharmacy register the first time the picker opens,
+  // then filter to pharmacies that have a dispensary_email on file (fax was
+  // decommissioned 2026-08-01).
+  useEffect(() => {
+    if (!pickerOpen || pharmacyIndex !== null) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const list = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(list)) { if (!cancelled) setPharmacyIndex([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        const filtered = emailable && emailable.size > 0
+          ? list.filter(p => emailable.has(p.id))
+          : list
+        if (!cancelled) setPharmacyIndex(filtered)
+      } catch {
+        if (!cancelled) setPharmacyIndex([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pickerOpen, pharmacyIndex])
+
+  const pharmacyResults = (() => {
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2 || !pharmacyIndex) return []
+    const nameHits = []
+    const otherHits = []
+    for (const p of pharmacyIndex) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function selectPharmacy(pharmacy) {
+    if (!pharmacy?.premises_name) return
+    setSavingPharmacy(true)
+    const label = pharmacy.town
+      ? `${pharmacy.premises_name}, ${pharmacy.town}`
+      : pharmacy.premises_name
+    try {
+      await patientUpdateConsultation(consultationId, {
+        pharmacy: label,
+        pharmacy_id: pharmacy.id || null,
+      })
+      setPharmacyName(label)
+      setPharmacyId(pharmacy.id || null)
+      setPickerOpen(false)
+      setPharmacyQuery('')
+    } catch (e) {
+      console.error('[waiting-room] pharmacy update failed:', e.message)
+    }
+    setSavingPharmacy(false)
+  }
 
   // Countdown ticks every second
   useEffect(() => {
@@ -325,6 +403,39 @@ export default function WaitingRoom() {
         </div>
 
 
+        {/* Pharmacy card — patient can swap before doctor prescribes */}
+        {pharmacyName && (
+          <div style={{
+            background: 'rgba(255,255,255,.06)',
+            border: '1px solid rgba(255,255,255,.1)',
+            borderRadius: 14,
+            padding: '1rem 1.25rem',
+            width: '100%',
+            maxWidth: 360,
+            marginBottom: '2rem',
+            textAlign: 'left',
+            animation: 'fadeUp .5s .65s both',
+            display: 'flex', alignItems: 'flex-start', gap: '1rem',
+          }}>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>💊</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
+                Prescription pharmacy
+              </div>
+              <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.375rem', wordBreak: 'break-word' }}>
+                {pharmacyName}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', lineHeight: 1.6, marginBottom: '.5rem' }}>
+                If your doctor issues a prescription, it will be sent here. Please check the pharmacy is open when you need it.
+              </div>
+              <button onClick={() => setPickerOpen(true)}
+                style={{ background: 'transparent', border: 'none', color: '#4FD1D9', fontSize: '.8125rem', fontWeight: 600, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                Change pharmacy
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Step indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '2rem', animation: 'fadeUp .5s .7s both' }}>
           {[
@@ -378,6 +489,50 @@ export default function WaitingRoom() {
           Mental health: call or text <a href="tel:1737" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>1737</a>
         </div>
       </div>
+
+      {/* Pharmacy picker modal */}
+      {pickerOpen && (
+        <div onClick={e => { if (e.target === e.currentTarget) { setPickerOpen(false); setPharmacyQuery('') } }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(6,21,37,.72)', backdropFilter: 'blur(4px)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: '#0F2E4C', border: '1px solid rgba(255,255,255,.12)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem' }}>Choose your pharmacy</div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>Search by pharmacy name or suburb</div>
+              </div>
+              <button onClick={() => { setPickerOpen(false); setPharmacyQuery('') }}
+                style={{ background: 'rgba(255,255,255,.08)', border: 'none', color: 'white', width: 32, height: 32, borderRadius: 8, fontSize: '1.125rem', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ padding: '.875rem 1.25rem' }}>
+              <input
+                autoFocus
+                value={pharmacyQuery}
+                onChange={e => setPharmacyQuery(e.target.value)}
+                placeholder="e.g. Unichem Whanganui"
+                style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 10, padding: '.75rem 1rem', color: 'white', fontSize: '.9375rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 .5rem 1rem' }}>
+              {!pharmacyIndex && (
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '1rem 1.25rem' }}>Loading pharmacy list…</div>
+              )}
+              {pharmacyIndex && pharmacyQuery.trim().length < 2 && (
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>Type at least 2 characters to search.</div>
+              )}
+              {pharmacyIndex && pharmacyQuery.trim().length >= 2 && pharmacyResults.length === 0 && (
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>No pharmacies matched. Try a different name or suburb.</div>
+              )}
+              {pharmacyResults.map(p => (
+                <button key={p.id} disabled={savingPharmacy} onClick={() => selectPharmacy(p)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'white', padding: '.75rem 1rem', margin: '.375rem .75rem', borderRadius: 10, cursor: savingPharmacy ? 'default' : 'pointer', fontFamily: 'inherit', opacity: savingPharmacy ? 0.6 : 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '.9375rem', color: 'rgba(212,238,240,.95)' }}>{p.premises_name}</div>
+                  <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.45)', marginTop: 2 }}>{p.address || p.town || p.region || ''}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

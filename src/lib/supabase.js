@@ -912,6 +912,25 @@ export async function getPendingPrescriptionsCount() {
   return count || 0
 }
 
+// Returns a Set of pharmacy_ids that currently have a dispensary_email on
+// file. All 3 pharmacy pickers filter pharmacies.json against this so we only
+// offer pharmacies we can actually email a prescription to.
+let _emailableIdsCache = null
+let _emailableIdsAt = 0
+export async function fetchEmailablePharmacyIds() {
+  if (_emailableIdsCache && Date.now() - _emailableIdsAt < 5 * 60 * 1000) return _emailableIdsCache
+  try {
+    const res = await apiFetch('/api/pharmacy-contacts')
+    if (!res.ok) return _emailableIdsCache || new Set()
+    const { ids } = await res.json()
+    _emailableIdsCache = new Set(ids || [])
+    _emailableIdsAt = Date.now()
+    return _emailableIdsCache
+  } catch {
+    return _emailableIdsCache || new Set()
+  }
+}
+
 export async function addToWaitlist(name, email) {
   const { error } = await supabase
     .from('waitlist')

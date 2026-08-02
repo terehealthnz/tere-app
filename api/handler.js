@@ -156,6 +156,7 @@ const ROUTES = {
   'transcribe-token':          () => import('./_transcribe-token.js'),
   'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
+  'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

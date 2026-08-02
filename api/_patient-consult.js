@@ -52,6 +52,10 @@ const PATIENT_ALLOWLIST = new Set([
   'chief_complaint',
   // AITriage links this consult to a patients row if we found or created one
   'patient_id',
+  // Patient may change preferred pharmacy from the waiting-room card if they
+  // realise the one they picked is closed / far away. `pharmacy_id` is the
+  // Medsafe slug from pharmacies.json; `pharmacy` is the display name.
+  'pharmacy', 'pharmacy_id',
   // Post-consult rating
   'rating', 'rating_comment', 'rated_at',
 ])
@@ -92,6 +96,8 @@ const PATIENT_VIEW_COLUMNS = [
   'rating', 'rating_comment', 'rated_at',
   'hdc_consent_at', 'prescribing_consent_at', 'research_consent',
   'chief_complaint',
+  // Pharmacy — waiting-room card shows this and lets the patient change it.
+  'pharmacy', 'pharmacy_id',
   // Post-consult billing surface — patient reads these to render the
   // insurance-receipt upsell and its "already purchased" state.
   'is_acc', 'acc_eligible', 'acc_claim_number', 'payment_amount',
@@ -206,5 +212,20 @@ export default async function handler(req, res) {
     .maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
   if (!data)  return res.status(404).json({ error: 'Consultation not found' })
+
+  // If the patient changed pharmacy on this consult, propagate to their
+  // patient profile so it becomes the default next visit. Best-effort — a
+  // failure here doesn't roll back the consultation update.
+  if ((patch.pharmacy || patch.pharmacy_id) && data.patient_id) {
+    try {
+      const pharmUpdate = { updated_at: new Date().toISOString() }
+      if (patch.pharmacy) pharmUpdate.pharmacy_name = patch.pharmacy
+      if ('pharmacy_id' in patch) pharmUpdate.pharmacy_id = patch.pharmacy_id
+      await supabase.from('patients').update(pharmUpdate).eq('id', data.patient_id)
+    } catch (e) {
+      console.error('[patient-consult] pharmacy → patient profile sync failed:', e.message)
+    }
+  }
+
   return res.status(200).json({ consultation: data })
 }

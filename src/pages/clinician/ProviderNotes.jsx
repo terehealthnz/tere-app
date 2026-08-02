@@ -162,15 +162,37 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
   const [medsafeList, setMedsafeList] = useState(null)
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState(null)
-  const [fax, setFax] = useState('')
   const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/pharmacies.json').then(r => r.ok ? r.json() : []).then(list => setMedsafeList(Array.isArray(list) ? list : [])).catch(() => setMedsafeList([]))
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const list = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(list)) { setMedsafeList([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        setMedsafeList(emailable && emailable.size > 0 ? list.filter(p => emailable.has(p.id)) : list)
+      } catch { setMedsafeList([]) }
+    })()
   }, [])
+
+  // When a pharmacy is picked, auto-load its dispensary email from pharmacy_contacts.
+  useEffect(() => {
+    if (!picked?.id) { setEmail(''); return }
+    ;(async () => {
+      try {
+        const { supabase } = await import('../../lib/supabase')
+        const { data } = await supabase.from('pharmacy_contacts')
+          .select('dispensary_email').eq('pharmacy_id', picked.id).maybeSingle()
+        if (data?.dispensary_email) setEmail(data.dispensary_email)
+      } catch {}
+    })()
+  }, [picked])
 
   const filtered = (() => {
     if (!medsafeList) return []
@@ -190,7 +212,7 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
 
   async function submit() {
     if (!picked) { setError('Pick a pharmacy first'); return }
-    if (!fax.trim() && !email.trim()) { setError('Provide a fax number OR email so we can send the prescription'); return }
+    if (!email.trim()) { setError('Dispensary email required'); return }
     setSubmitting(true); setError(null)
     try {
       const res = await apiFetch('/api/redirect-prescription', {
@@ -201,10 +223,8 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
           pharmacyId: picked.id,
           pharmacyName: picked.premises_name,
           pharmacyAddress: picked.address || '',
-          pharmacyFax: fax.trim(),
           pharmacyEmail: email.trim(),
-          pharmacyPhone: phone.trim(),
-          deliveryChannel: fax.trim() && email.trim() ? 'both' : fax.trim() ? 'fax' : 'email',
+          deliveryChannel: 'email',
         }),
       })
       const data = await res.json()
@@ -252,25 +272,15 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
               <div style={{ fontSize:'.75rem', color:'#374151' }}>{picked.address} · {picked.town}</div>
               <button onClick={() => setPicked(null)} style={{ marginTop:6, background:'none', border:'none', color:'#0B6E76', fontSize:'.75rem', fontWeight:700, cursor:'pointer', padding:0 }}>Change</button>
             </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Fax number (E.164 or +64…)</label>
-              <input value={fax} onChange={e => setFax(e.target.value)} placeholder="+64 3 555 1234"
-                style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Email (optional if fax provided)</label>
-              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="pharmacy@example.co.nz"
-                style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
-            </div>
             <div style={{ marginBottom:12 }}>
-              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Phone (optional)</label>
-              <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+64 3 555 4567"
+              <label style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, display:'block', marginBottom:4 }}>Dispensary email</label>
+              <input value={email} onChange={e => setEmail(e.target.value)} placeholder="dispensary@pharmacy.co.nz" type="email"
                 style={{ width:'100%', boxSizing:'border-box', padding:'.6rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.875rem' }} />
             </div>
             {error && <div style={{ background:'#FEE2E2', color:'#991B1B', padding:'8px 12px', borderRadius:6, fontSize:'.8125rem', marginBottom:10 }}>{error}</div>}
             <button onClick={submit} disabled={submitting}
               style={{ width:'100%', background:'#0B6E76', color:'white', border:'none', padding:'.75rem', borderRadius:8, fontFamily:'Plus Jakarta Sans,sans-serif', fontWeight:800, fontSize:'.9375rem', cursor: submitting ? 'wait' : 'pointer' }}>
-              {submitting ? 'Sending…' : 'Redirect & re-send prescription'}
+              {submitting ? 'Sending…' : 'Submit'}
             </button>
           </>
         )}
