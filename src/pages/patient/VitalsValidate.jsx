@@ -435,8 +435,12 @@ export default function VitalsValidate() {
   }, [stopCamera, selectedSubject])
 
   const handleCreateSubject = async () => {
-    if (!newSub.firstName.trim()) { setSubjectError('First name is required'); return }
     setSavingSubject(true); setSubjectError(null)
+    // Public /vitals-validate is anonymous — no name/email collected. The
+    // validation_subjects.first_name column is legacy (dashboard displays it)
+    // so we auto-generate a random opaque label ("anon-a3f7b") to satisfy the
+    // NOT NULL constraint without capturing PII.
+    const anonLabel = 'anon-' + Math.random().toString(36).slice(2, 7)
     try {
       const conds = newSub.conditions || []
       // Convert entered units to metric for storage. Always persist as cm / kg.
@@ -456,7 +460,7 @@ export default function VitalsValidate() {
         weightKgVal = newSub.weightLb ? +(parseFloat(newSub.weightLb) * 0.453592).toFixed(2) : null
       }
       const sub = await saveValidationSubject({
-        subjectCode: genCode(), firstName: newSub.firstName.trim(),
+        subjectCode: genCode(), firstName: anonLabel,
         age: newSub.age ? parseInt(newSub.age) : null,
         sex: newSub.sex || null,
         heightCm: heightCmVal,
@@ -688,9 +692,9 @@ export default function VitalsValidate() {
     return (
       <PageWrap>
         <Card>
-          <div style={{ fontWeight: 700, fontSize: '1.1rem', color: NAVY, marginBottom: '1.25rem' }}>Create profile</div>
+          <div style={{ fontWeight: 700, fontSize: '1.1rem', color: NAVY, marginBottom: '.4rem' }}>Anonymous profile</div>
+          <div style={{ color: '#6B7280', fontSize: '.85rem', marginBottom: '1.25rem' }}>No name, email, or identifying details collected — just the demographics needed to test how well the algorithm works across different bodies.</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.85rem' }}>
-            <Field label="First name *" value={newSub.firstName} onChange={v => setNewSub(p => ({ ...p, firstName: v }))} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
               <Field label="Age" value={newSub.age} onChange={v => setNewSub(p => ({ ...p, age: v }))} type="number" min="1" max="120" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
@@ -1123,7 +1127,7 @@ export default function VitalsValidate() {
           <div style={{ fontSize: '3rem', lineHeight: 1, marginBottom: '.5rem', color: '#10B981' }}>✓</div>
           <div style={{ fontWeight: 700, fontSize: '1.15rem', color: NAVY, marginBottom: '.35rem' }}>Reading saved</div>
           <div style={{ color: '#6B7280', fontSize: '.9rem', marginBottom: '1.25rem' }}>
-            {selectedSubject?.first_name} · {new Date().toLocaleTimeString()}
+            {new Date().toLocaleTimeString()}
           </div>
 
           {trainingPhase === 'running' && (
