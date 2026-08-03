@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { requestUserLocation, nearestPharmacies, formatDistance } from '../../lib/nearestPharmacy'
 
 const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -89,6 +90,10 @@ export default function WaitingRoom() {
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [savingPharmacy, setSavingPharmacy] = useState(false)
+  // Geolocation-derived nearest 3 emailable pharmacies. null = not yet requested
+  // or user denied / no coords in the register — either way we just hide the block
+  // and fall back to text search.
+  const [nearestByLocation, setNearestByLocation] = useState(null)
 
   const patientName = (sessionStorage.getItem('patientName') || '').split(' ')[0] || null
   const consultType = sessionStorage.getItem('consultationType') || 'video'
@@ -161,6 +166,26 @@ export default function WaitingRoom() {
     })()
     return () => { cancelled = true }
   }, [pickerOpen, pharmacyIndex])
+
+  // Once the picker is open and the register has loaded (with lat/lng from the
+  // scripts/geocode_pharmacies.py run), ask the browser for the user's coords
+  // and compute the 3 closest emailable pharmacies. Runs only when the picker
+  // opens — no prompt until the patient actually needs to choose.
+  useEffect(() => {
+    if (!pickerOpen || !Array.isArray(pharmacyIndex) || pharmacyIndex.length === 0) return
+    if (nearestByLocation !== null) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const coords = await requestUserLocation()
+        if (cancelled) return
+        setNearestByLocation(nearestPharmacies(coords, pharmacyIndex, 3))
+      } catch {
+        if (!cancelled) setNearestByLocation([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pickerOpen, pharmacyIndex, nearestByLocation])
 
   const pharmacyResults = (() => {
     const q = pharmacyQuery.trim().toLowerCase()
@@ -515,6 +540,19 @@ export default function WaitingRoom() {
                 style={{ background: 'rgba(255,255,255,.08)', border: 'none', color: 'white', width: 32, height: 32, borderRadius: 8, fontSize: '1.125rem', cursor: 'pointer' }}>×</button>
             </div>
             <div style={{ padding: '.875rem 1.25rem' }}>
+              {Array.isArray(nearestByLocation) && nearestByLocation.length > 0 && (
+                <div style={{ marginBottom: 12, background: 'rgba(65,196,207,.08)', border: '1px solid rgba(65,196,207,.25)', borderRadius: 10, padding: '.625rem .75rem' }}>
+                  <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.75)', fontWeight: 600, marginBottom: 6 }}>📍 Closest to you</div>
+                  {nearestByLocation.map(p => (
+                    <button key={p.id} disabled={savingPharmacy} onClick={() => selectPharmacy(p)}
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'white', padding: '.5rem .75rem', margin: '3px 0', borderRadius: 8, cursor: savingPharmacy ? 'default' : 'pointer', fontFamily: 'inherit', opacity: savingPharmacy ? 0.6 : 1 }}>
+                      <span style={{ fontSize: '.8125rem', fontWeight: 600, color: 'rgba(212,238,240,.95)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.premises_name}</span>
+                      <span style={{ fontSize: '.6875rem', color: 'rgba(65,196,207,.9)', flexShrink: 0 }}>{formatDistance(p.distanceKm)}</span>
+                    </button>
+                  ))}
+                  <div style={{ fontSize: '.6875rem', color: 'rgba(255,255,255,.4)', marginTop: 4 }}>Your location is only used to sort — nothing is sent to Tere.</div>
+                </div>
+              )}
               <input
                 autoFocus
                 value={pharmacyQuery}

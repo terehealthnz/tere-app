@@ -854,6 +854,9 @@ export default function AITriage() {
   const [pharmacyResults, setPharmacyResults] = useState([])
   const [pharmacyLoading, setPharmacyLoading] = useState(false)
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
+  // Geolocation-based nearest-3 shortcut. Client-side only — user's coords
+  // are never sent to a Tere server.
+  const [nearestByLocation, setNearestByLocation] = useState(null)  // null=untried, []=denied, [items]=located
 
   // Lazy-load the register once, then filter to pharmacies that have a
   // dispensary_email on file — we only offer emailable pharmacies since fax
@@ -881,6 +884,29 @@ export default function AITriage() {
     })()
     return () => { cancelled = true }
   }, [pharmacyIndex])
+
+  // Once the pharmacy register is loaded, silently ask the browser for the
+  // user's location. If granted, we compute the 3 nearest pharmacies and
+  // surface them as one-tap buttons above the search box. Coordinates never
+  // leave the browser. If denied, times out, or errors, nearestByLocation
+  // stays [] and the fallback path (search) works as before.
+  useEffect(() => {
+    if (!pharmacyIndex || nearestByLocation !== null) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [{ requestUserLocation, nearestPharmacies }] = await Promise.all([
+          import('../../lib/nearestPharmacy'),
+        ])
+        const coords = await requestUserLocation()
+        if (cancelled) return
+        setNearestByLocation(nearestPharmacies(coords, pharmacyIndex, 3))
+      } catch {
+        if (!cancelled) setNearestByLocation([])
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pharmacyIndex, nearestByLocation])
 
   useEffect(() => {
     const q = pharmacyQuery.trim().toLowerCase()
@@ -1091,6 +1117,29 @@ export default function AITriage() {
 
       {step?.type==='pharmacy' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          {/* Nearest 3 pharmacies — one-tap shortcut when the user grants
+              geolocation. Coordinates stay in the browser (Haversine sort
+              is local). Silent no-op if permission denied or unavailable. */}
+          {Array.isArray(nearestByLocation) && nearestByLocation.length > 0 && (
+            <div style={{marginBottom:10,padding:'8px 10px',background:'#F0F9FA',border:'1px solid #C7EAEC',borderRadius:8}}>
+              <div style={{fontSize:'.7rem',fontWeight:700,color:'var(--teal)',textTransform:'uppercase',letterSpacing:'.04em',marginBottom:6}}>📍 Closest to you</div>
+              <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                {nearestByLocation.map(p => (
+                  <button key={p.id} onClick={() => selectPharmacy(p)}
+                    style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,padding:'8px 10px',background:'white',border:'1px solid #E2E8F0',borderRadius:6,cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',textAlign:'left'}}>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontSize:'.85rem',fontWeight:600,color:'#111827',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.premises_name}</div>
+                      {p.address && <div style={{fontSize:'.7rem',color:'#6B7280',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.address}</div>}
+                    </div>
+                    <div style={{flexShrink:0,fontSize:'.75rem',fontWeight:700,color:'var(--teal)'}}>
+                      {p.distanceKm < 1 ? `${Math.round(p.distanceKm * 1000)} m` : p.distanceKm < 10 ? `${p.distanceKm.toFixed(1)} km` : `${Math.round(p.distanceKm)} km`}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div style={{fontSize:'.65rem',color:'#6B7280',marginTop:6}}>Your location is only used to sort — nothing is sent to Tere.</div>
+            </div>
+          )}
           <div style={{position:'relative',marginBottom:6}}>
             <div style={{display:'flex',gap:6}}>
               <input
