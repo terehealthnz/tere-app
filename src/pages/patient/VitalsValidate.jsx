@@ -475,7 +475,9 @@ export default function VitalsValidate() {
       setSubjects(updated)
       setSelectedSubjectId(sub.id)
       setSelectedSubject(sub)
-      setPhase('step1')
+      // Skip step1 — the manual cuff readings are now collected on the
+      // create page above, so we can go directly to the face scan.
+      setPhase('step2')
     } catch (e) {
       setSubjectError('Could not save: ' + e.message)
     } finally {
@@ -802,10 +804,49 @@ export default function VitalsValidate() {
               </div>
             </div>
 
+            {/* Reference cuff readings — merged in from step1 so the whole
+                anonymous flow lives on one page. Systolic + diastolic + HR
+                are required to save a reading; SpO2 + temp + notes optional. */}
+            <div style={{ marginTop: '.25rem', paddingTop: '1rem', borderTop: '1px solid #E5E7EB' }}>
+              <div style={{ fontWeight: 700, fontSize: '.95rem', color: NAVY, marginBottom: '.25rem' }}>Your cuff readings</div>
+              <div style={{ color: '#6B7280', fontSize: '.8rem', marginBottom: '.85rem' }}>Take your reference measurements now — these are what the camera reading gets compared against.</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '.85rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+                  <Field label="Systolic (mmHg)" value={manual.systolic} onChange={v => setManual(p => ({ ...p, systolic: v }))} type="number" min="60" max="250" placeholder="120" />
+                  <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate * <span style={{ fontWeight: 400, color: '#EF4444' }}>(required)</span></label>
+                  <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="number" min="30" max="220" value={manual.hr} onChange={e => setManual(p => ({ ...p, hr: e.target.value }))} placeholder="e.g. 72" required
+                      style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: manual.hr ? '1.5px solid #D1D5DB' : '2px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                    <span style={{ fontSize: '.875rem', color: '#6B7280' }}>bpm</span>
+                  </div>
+                </div>
+                <Field label="Temperature (°C, optional)" value={manual.temperature} onChange={v => setManual(p => ({ ...p, temperature: v }))} type="number" min="34" max="42" placeholder="37.2" />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem', background: '#FFF7ED', border: '1.5px solid #F59E0B', borderRadius: 10, padding: '1rem' }}>
+                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: '#92400E' }}>SpO2 reference <span style={{ background: '#F59E0B', color: 'white', fontSize: '.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, marginLeft: 4 }}>HIGH PRIORITY</span></label>
+                  <p style={{ fontSize: '.75rem', color: '#92400E', margin: '2px 0 6px' }}>Do you have a pulse oximeter? Even 5 paired readings will significantly improve accuracy.</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="number" min="70" max="100" value={manualSpO2} onChange={e => setManualSpO2(e.target.value)} placeholder="e.g. 98"
+                      style={{ width: 100, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                    <span style={{ fontSize: '.875rem', color: '#92400E' }}>%</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
+                  <label style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY }}>Session conditions (optional)</label>
+                  <textarea value={manual.notes} onChange={e => setManual(p => ({ ...p, notes: e.target.value }))} placeholder="e.g. Morning, seated 5 min, post-exercise…" rows={2}
+                    style={{ border: '1.5px solid #E5E7EB', borderRadius: 10, padding: '.65rem .9rem', fontSize: '.95rem', fontFamily: 'Plus Jakarta Sans, sans-serif', color: NAVY, resize: 'vertical', outline: 'none' }} />
+                </div>
+              </div>
+            </div>
+
             {subjectError && <div style={{ color: '#EF4444', fontSize: '.85rem' }}>{subjectError}</div>}
-            <div style={{ display: 'flex', gap: '.75rem', marginTop: '.25rem' }}>
-              {/* No "Cancel" — create is now the entry point for public flow. */}
-              <Btn onClick={handleCreateSubject} disabled={savingSubject}>{savingSubject ? 'Saving…' : 'Create profile'}</Btn>
+            <div style={{ display: 'flex', gap: '.75rem', marginTop: '.5rem' }}>
+              <Btn onClick={handleCreateSubject} disabled={savingSubject || !manual.systolic || !manual.diastolic || !manual.hr} style={{ width: '100%' }}>
+                {savingSubject ? 'Saving…' : 'Save & start scan →'}
+              </Btn>
             </div>
           </div>
         </Card>
