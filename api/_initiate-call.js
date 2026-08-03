@@ -1,11 +1,19 @@
-import { AccessToken } from 'livekit-server-sdk'
+import { AccessToken, SipClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+
+function toE164NZ(phone) {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('640')) return `+64${digits.slice(3)}`
+  if (digits.startsWith('64'))  return `+${digits}`
+  if (digits.startsWith('0'))   return `+64${digits.slice(1)}`
+  return `+64${digits}`
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { consultationId, providerId, providerName } = req.body
+  const { consultationId, providerId, providerName, forcePhone } = req.body
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   const supabase = createClient(
@@ -155,5 +163,50 @@ export default async function handler(req, res) {
     token = await at.toJwt()
   }
 
-  return res.status(200).json({ ok: true, token, serverUrl: lkUrl })
+  // forcePhone path — patient wasn't online per the heartbeat check, so dial
+  // their phone via LiveKit's SIP client (Telnyx trunk) and add them to the
+  // same LiveKit room the provider is about to join. Falls back gracefully:
+  // if any of the SIP env vars aren't set, we still return the LiveKit token
+  // so the provider surface renders, but with a warning the caller can show.
+  let phoneBridge = null
+  if (forcePhone) {
+    const sipTrunkId = process.env.LIVEKIT_SIP_TRUNK_ID
+    const fromNumber = process.env.TELNYX_VOICE_FROM_NUMBER
+    if (!consult.patient_phone) {
+      phoneBridge = { ok: false, error: 'No phone number on record for this patient' }
+    } else if (!lkApiKey || !lkApiSecret || !sipTrunkId) {
+      phoneBridge = { ok: false, error: 'LiveKit SIP not configured (LIVEKIT_SIP_TRUNK_ID missing)' }
+    } else {
+      try {
+        const httpUrl = lkUrl.replace(/^wss?:\/\//, 'https://')
+        const sip = new SipClient(httpUrl, lkApiKey, lkApiSecret)
+        const participant = await sip.createSipParticipant(
+          sipTrunkId,
+          toE164NZ(consult.patient_phone),
+          `tere-${consultationId.slice(0, 8)}`,
+          {
+            fromNumber,
+            participantIdentity: `patient-${consultationId.slice(0, 8)}`,
+            participantName: consult.patient_first_name || 'Patient',
+            krispEnabled: true,
+            waitUntilAnswered: false,
+          }
+        )
+        await supabase
+          .from('consultations')
+          .update({
+            voice_call_id:      participant.sipCallId || participant.participantId,
+            twilio_call_status: 'answered',
+            call_started_at:    new Date().toISOString(),
+          })
+          .eq('id', consultationId)
+        phoneBridge = { ok: true, sipCallId: participant.sipCallId, participantId: participant.participantId }
+      } catch (e) {
+        console.error('[initiate-call] SIP dial failed:', e.message)
+        phoneBridge = { ok: false, error: e.message || 'SIP dial failed' }
+      }
+    }
+  }
+
+  return res.status(200).json({ ok: true, token, serverUrl: lkUrl, phoneBridge })
 }
