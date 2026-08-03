@@ -4,6 +4,7 @@ import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
 import { LiveKitRoom, useParticipants } from '@livekit/components-react'
 import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
+import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
 import { getLangMeta } from '../../lib/i18n'
@@ -96,6 +97,11 @@ export default function ProviderConsult() {
   const [callNotes, setCallNotes]       = useState('')
   const [actions, setActions]           = useState([])
   const [endingCall, setEndingCall]     = useState(false)
+  // "Call has stopped, encounter not yet marked complete." Provider stays on
+  // this page and uses the EncounterActionBar to decide next step (another
+  // call attempt, mark no-answer, or complete encounter → notes). Prevents
+  // the previous auto-push-to-notes behaviour on any LiveKit disconnect.
+  const [callComplete, setCallComplete] = useState(false)
   const [callStart, setCallStart]       = useState(null)
   const [elapsed, setElapsed]           = useState(0)
   // Patient presence — true once someone with identity `patient-<id>` joins
@@ -408,7 +414,12 @@ export default function ProviderConsult() {
         note_generated_at: null,
       })
     } catch {}
-    navigate(`/provider/notes/${id}`, { state: { actions, transcript: finalTranscript || '', callNotes } })
+    // Removed auto-navigate to /provider/notes/${id}. The provider now uses
+    // the EncounterActionBar to explicitly decide the next step (retry call,
+    // mark no-answer, or complete encounter). This prevents notes being
+    // generated for a phantom encounter where the LiveKit call ended but no
+    // meaningful clinical contact happened.
+    setCallComplete(true)
   }
 
   // Return to queue — the "patient never joined" escape hatch. Only enabled
@@ -473,6 +484,24 @@ export default function ProviderConsult() {
   // call. FloatingCallWidget owns the LiveKit tracks + call controls.
   if (inCall) return (
     <div style={{ minHeight:'100dvh', background:'#F0F2F5', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
+
+      {/* Post-call encounter action overlay. Blocks the UI once the call ends
+          so the provider must explicitly choose Complete Encounter (→ notes),
+          No Answer (→ retry cadence), or Call again — no auto-push to notes. */}
+      {callComplete && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.7)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}>
+          <div style={{ background:'white', borderRadius:14, padding:'1.5rem', maxWidth:480, width:'100%' }}>
+            <div style={{ fontWeight:800, fontSize:'1.0625rem', color:NAVY, marginBottom:6 }}>Call ended</div>
+            <div style={{ color:'#6B7280', fontSize:'.875rem', marginBottom:16 }}>What happened? Choose the outcome to record on this consult.</div>
+            <EncounterActionBar
+              consultationId={id}
+              onCall={() => { setCallComplete(false); /* stay in-call view, initiate again */ }}
+              onNoAnswer={() => { setCallComplete(false); navigate('/provider') }}
+              onComplete={() => navigate(`/provider/notes/${id}`, { state: { actions, transcript: transcript || '', callNotes } })}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Top bar (light-theme, matches pre-call chart) */}
       <div style={{ background:NAVY, padding:'10px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0, zIndex:20 }}>

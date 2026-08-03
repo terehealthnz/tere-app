@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getPatientConsult, patientUpdateConsultation } from '../../lib/supabase'
+import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
 const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
@@ -112,6 +112,17 @@ export default function WaitingRoom() {
 
   useEffect(() => {
     ensureWaiting(consultationId)
+  }, [consultationId])
+
+  // Presence heartbeat — pings /api/patient-heartbeat every 15s so the provider's
+  // Call button can decide LiveKit-vs-phone routing based on how recently the
+  // patient was seen (server treats <30s as "online"). Fire once on mount for
+  // instant presence, then on interval.
+  useEffect(() => {
+    if (!consultationId || consultationId.startsWith('demo')) return
+    sendPatientHeartbeat(consultationId)
+    const id = setInterval(() => sendPatientHeartbeat(consultationId), 15000)
+    return () => clearInterval(id)
   }, [consultationId])
 
   // Fetch created_at for the countdown + hydrate the pharmacy card from the

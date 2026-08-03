@@ -912,6 +912,31 @@ export async function getPendingPrescriptionsCount() {
   return count || 0
 }
 
+// Fire-and-forget patient presence heartbeat. Called from the waiting-room
+// and call screens every ~15s so the provider's Call button can decide
+// whether to try LiveKit (patient online) or fall straight through to phone.
+export async function sendPatientHeartbeat(consultationId) {
+  if (!consultationId) return
+  try {
+    await apiFetch(`/api/patient-heartbeat?id=${encodeURIComponent(consultationId)}`, { method: 'POST' })
+  } catch {}
+}
+
+// Provider-side action dispatch for the EncounterActionBar. Returns
+// { ok, action, deliveryChannel?, reason?, consultation }.
+export async function encounterAction(consultationId, action) {
+  const res = await apiFetch(`/api/encounter-action?id=${encodeURIComponent(consultationId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `encounterAction HTTP ${res.status}`)
+  }
+  return await res.json()
+}
+
 // Returns a Set of pharmacy_ids that currently have a dispensary_email on
 // file. All 3 pharmacy pickers filter pharmacies.json against this so we only
 // offer pharmacies we can actually email a prescription to.

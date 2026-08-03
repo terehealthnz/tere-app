@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsultations, updatePatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
+import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -447,18 +448,29 @@ export default function ClinicianPatient() {
         })()}
       </div>
 
-      {/* Bottom action bar */}
+      {/* Bottom action bar — three-button encounter workflow.
+          Call → server checks patient heartbeat → LiveKit if online, phone bridge if not.
+          No Answer → increment counter (feeds no-show flow).
+          Complete Encounter → transition to notes; only path that closes the encounter. */}
       {isCallable && !isMessage && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', gap: '.75rem', maxWidth: 640, margin: '0 auto' }}>
-          <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 12, padding: '14px 20px', fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer', fontFamily: FF }}>
-            ← Back
-          </button>
-          <button
-            onClick={startCall}
-            disabled={starting}
-            style={{ flex: 1, background: starting ? '#9CA3AF' : TEAL, color: 'white', border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, fontSize: '1rem', cursor: starting ? 'not-allowed' : 'pointer', fontFamily: FF, minHeight: 56 }}
-          >
-            {starting ? 'Connecting…' : consult.consultation_type === 'phone' ? '📞 Start phone call' : '📹 Start video call'}
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: '.5rem', maxWidth: 640, margin: '0 auto' }}>
+          <EncounterActionBar
+            consultationId={id}
+            onCall={async (channel) => {
+              await unlock()
+              if (channel === 'livekit') {
+                // Existing initiate-call endpoint sets up the LiveKit room + patient notification.
+                try { await apiFetch('/api/initiate-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultationId: id, providerId, providerName: displayName }) }) } catch {}
+                navigate(`/provider/consult/${id}`)
+              } else {
+                // Phone bridge — patient wasn't online, dial their number and join via LiveKit audio.
+                try { await apiFetch('/api/initiate-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultationId: id, providerId, providerName: displayName, forcePhone: true }) }) } catch {}
+                navigate(`/provider/consult/${id}`)
+              }
+            }}
+          />
+          <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 10, padding: '.6rem', fontWeight: 600, fontSize: '.85rem', cursor: 'pointer', fontFamily: FF }}>
+            ← Back to queue
           </button>
         </div>
       )}
