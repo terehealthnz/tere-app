@@ -692,6 +692,12 @@ export default function VitalsValidate() {
     return (
       <PageWrap>
         <Card>
+          <div style={{ background: '#F0F9FA', border: `1px solid ${TEAL}33`, borderRadius: 10, padding: '.75rem .85rem', marginBottom: '1rem', fontSize: '.8rem', lineHeight: 1.45, color: NAVY }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Ethics status</div>
+            <div style={{ color: '#374151' }}>
+              This study has been reviewed by the New Zealand Health and Disability Ethics Committee (HDEC) and was determined to be <strong>out of scope</strong> on 3 August 2026 — meaning it is anonymous, low-risk observational research that does not require formal HDEC review. It remains bound by the National Ethical Standards for Health and Disability Research (NEAC 2019).
+            </div>
+          </div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem', color: NAVY, marginBottom: '.4rem' }}>Anonymous profile</div>
           <div style={{ color: '#6B7280', fontSize: '.85rem', marginBottom: '1.25rem' }}>No name, email, or identifying details collected — just the demographics needed to test how well the algorithm works across different bodies.</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '.85rem' }}>
