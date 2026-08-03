@@ -108,6 +108,12 @@ export default function ProviderConsult() {
   // the LiveKit room. Drives the 90s "Return to queue" button.
   const [patientHere, setPatientHere]   = useState(false)
   const markPatientHere = useCallback(() => setPatientHere(true), [])
+  // Auto-fallback: if the patient hasn't joined the LiveKit room within 15s
+  // of the call starting, we silently trigger a SIP dial to their phone. Both
+  // pathways join the same LiveKit room, so whichever connects first wins.
+  // `sipFallbackFired` prevents us dialling more than once.
+  const [sipFallbackFired, setSipFallbackFired] = useState(false)
+  const AUTO_FALLBACK_S = 15
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
   // Final-attempt phone-only flow — provider dials patient directly from
   // their own phone (tel: link), no LiveKit involved. State tracks whether
@@ -345,6 +351,35 @@ export default function ProviderConsult() {
   useEffect(() => {
     if (inCall && scribeState === 'idle') startScribe()
   }, [inCall])
+
+  // Auto-fallback to phone if patient hasn't joined LiveKit by AUTO_FALLBACK_S
+  // seconds. Fires POST /api/initiate-call with forcePhone:true — SIP dials the
+  // patient via Telnyx and adds them to the same LiveKit room the provider is
+  // in. If the patient later joins LiveKit (e.g. they were slow to click the
+  // notification), whichever route connects first wins; the other simply
+  // shows an extra participant which the provider can mute/dismiss.
+  useEffect(() => {
+    if (!inCall || patientHere || sipFallbackFired) return
+    if (elapsed < AUTO_FALLBACK_S) return
+    setSipFallbackFired(true)
+    ;(async () => {
+      try {
+        await apiFetch('/api/initiate-call', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultationId: id,
+            providerId,
+            providerName: displayName,
+            forcePhone: true,
+          }),
+        })
+        console.log('[auto-fallback] SIP dial triggered after', AUTO_FALLBACK_S, 's without patient join')
+      } catch (e) {
+        console.error('[auto-fallback] SIP dial failed:', e.message)
+      }
+    })()
+  }, [inCall, patientHere, elapsed, sipFallbackFired, id, providerId, displayName])
 
   async function initiateCall() {
     setCalling(true)
