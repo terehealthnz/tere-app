@@ -24,10 +24,13 @@ function admin() {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const supabase = admin()
+  // Supabase default row cap is 1000; we've already seeded ~1050 emailable
+  // pharmacies so raise the limit or the picker silently hides ~5% of stores.
   const { data, error } = await supabase
     .from('pharmacy_contacts')
     .select('pharmacy_id')
     .not('dispensary_email', 'is', null)
+    .limit(5000)
   if (error) return res.status(500).json({ error: error.message })
   const ids = (data || []).map(r => r.pharmacy_id).filter(Boolean)
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
