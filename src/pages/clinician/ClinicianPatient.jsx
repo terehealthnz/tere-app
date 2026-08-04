@@ -682,23 +682,38 @@ export default function ClinicianPatient() {
               Past Tere consultations ({history.length})
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
-              {history.map(c => (
-                <button key={c.id} onClick={() => setNoteModal(c)}
-                  style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '.8125rem', fontWeight: 600, color: NAVY, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.chief_complaint}</div>
-                    <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
-                      {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
+              {history.map(c => {
+                const cv = c.vitals
+                const vitalsParts = cv && !cv.skipped ? [
+                  cv.hr && `HR ${cv.hr}`,
+                  cv.rr && `RR ${cv.rr}`,
+                  cv.spo2 && `SpO₂ ${cv.spo2}%`,
+                  cv.bp && `BP ${cv.bp}`,
+                  cv.temperature && `T ${cv.temperature}°`,
+                ].filter(Boolean) : []
+                return (
+                  <button key={c.id} onClick={() => setNoteModal(c)}
+                    style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.8125rem', fontWeight: 600, color: NAVY, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.chief_complaint}</div>
+                      <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                        {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
+                      </div>
+                      {vitalsParts.length > 0 && (
+                        <div style={{ fontSize: '.6875rem', color: '#059669', marginTop: 3, fontFamily: 'ui-monospace, Menlo, monospace', letterSpacing: '.02em' }}>
+                          {vitalsParts.join(' · ')}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
-                    {c.prescription_issued && <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Rx</span>}
-                    {c.referral_issued && <span style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Xr</span>}
-                    {c.notes_final && <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>}
-                  </div>
-                </button>
-              ))}
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0, alignItems: 'center' }}>
+                      {c.prescription_issued && <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Rx</span>}
+                      {c.referral_issued && <span style={{ background: '#F5F3FF', color: '#7C3AED', fontSize: '.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 99 }}>Xr</span>}
+                      {c.notes_final && <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}

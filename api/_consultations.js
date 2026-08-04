@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     if (patientId) {
       const { data, error } = await supabase
         .from('consultations')
-        .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued')
+        .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued, vitals')
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false })
         .limit(20)
