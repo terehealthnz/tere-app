@@ -44,6 +44,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'patient-allergens', 'patient-medications', 'patient-conditions',
   // Provider MFA — enroll / verify / disable own TOTP (2026-08-04)
   'provider-mfa',
+  // Internal Tere Chat (provider/admin team channel, 2026-08-05)
+  'team-messages',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -164,6 +166,7 @@ const ROUTES = {
   'patient-medications':       () => import('./_patient-medications.js'),
   'patient-conditions':        () => import('./_patient-conditions.js'),
   'provider-mfa':              () => import('./_provider-mfa.js'),
+  'team-messages':             () => import('./_team-messages.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

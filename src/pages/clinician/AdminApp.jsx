@@ -6,6 +6,7 @@ import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
+import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -1020,10 +1021,11 @@ function ResearchTab() {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, dashBadge, msgBadge }) {
+function BottomNav({ tab, setTab, dashBadge, msgBadge, teamBadge }) {
   const items = [
     { id:'dashboard', icon:'🏠', label:'Dashboard', badge:dashBadge },
     { id:'messages',  icon:'✉️', label:'Messages',  badge:msgBadge },
+    { id:'tere-chat', icon:'💬', label:'Tere Chat', badge:teamBadge },
     { id:'analytics', icon:'📊', label:'Analytics',  badge:0 },
     { id:'bookings',  icon:'📆', label:'Bookings',   badge:0 },
     { id:'schedule',  icon:'📅', label:'Schedule',   badge:0 },
@@ -1160,6 +1162,7 @@ export default function AdminApp() {
   const [isOnline, setIsOnline]     = useState(navigator.onLine)
   const [dashBadge, setDashBadge]   = useState(0)
   const [msgBadge, setMsgBadge]     = useState(0)
+  const teamBadge = useTereChatUnread()
 
   // Register push
   useEffect(() => {
@@ -1241,6 +1244,7 @@ export default function AdminApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'dashboard' && <DashboardTab />}
         {tab === 'messages'  && <AdminMessagesTab setMsgBadge={setMsgBadge} />}
+        {tab === 'tere-chat' && <TereChatTab />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'bookings'  && <BookingsTab />}
         {tab === 'schedule'  && <AdminSchedule embedded />}
@@ -1250,7 +1254,7 @@ export default function AdminApp() {
       </div>
 
       {/* Bottom nav — in-flow, no position:fixed */}
-      <BottomNav tab={tab} setTab={setTab} dashBadge={dashBadge} msgBadge={msgBadge} />
+      <BottomNav tab={tab} setTab={setTab} dashBadge={dashBadge} msgBadge={msgBadge} teamBadge={teamBadge} />
     </div>
   )
 }

@@ -7,6 +7,7 @@ import ProviderSchedule from './ProviderSchedule'
 import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
+import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1121,10 +1122,11 @@ function MenuTab({ navigate, displayName, isAdmin }) {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge }) {
+function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge }) {
   const items = [
     { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
     { id:'messages', icon:'✉️', label:'Messages', badge:msgBadge },
+    { id:'tere-chat',icon:'💬', label:'Tere Chat', badge:teamBadge },
     { id:'pms',      icon:'📊', label:'PMS',      badge:notesBadge },
     { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
@@ -1171,6 +1173,7 @@ export default function ProviderApp() {
 
   const [tab, setTab]             = useState('queue')
   const [msgBadge, setMsgBadge]   = useState(0)
+  const teamBadge = useTereChatUnread()
   const [consultations, setConsultations] = useState([])
   const [loading, setLoading]     = useState(true)
   const [starting, setStarting]   = useState(null)
@@ -1358,6 +1361,7 @@ export default function ProviderApp() {
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
         {tab === 'messages' && <MessagesTab msgBadge={msgBadge} setMsgBadge={setMsgBadge} />}
+        {tab === 'tere-chat' && <TereChatTab />}
         {tab === 'pms'      && <PMSTab navigate={navigate} />}
         {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
@@ -1378,7 +1382,7 @@ export default function ProviderApp() {
       )}
 
       {/* Bottom nav */}
-      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} />
+      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} />
     </div>
   )
 }
