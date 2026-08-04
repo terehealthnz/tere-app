@@ -145,6 +145,11 @@ function PageWrap({ children }) {
           </div>
         </div>
         {children}
+        {/* NEAC 2019 complaints route — appears on every VitalsValidate view */}
+        <div style={{ marginTop: '2rem', padding: '1rem 1.1rem', background: 'rgba(11,110,118,.04)', border: '1px solid rgba(11,110,118,.15)', borderRadius: 10, fontSize: '.75rem', color: '#4B5563', lineHeight: 1.55 }}>
+          <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.25rem' }}>Questions or concerns about the study?</div>
+          <div>Contact Dr Patrick Herling (PI) at <a href="mailto:patrickherling@gmail.com" style={{ color: TEAL }}>patrickherling@gmail.com</a>. Independent channels: <a href="tel:0800112233" style={{ color: TEAL }}>HDC 0800 11 22 33</a>, <a href="mailto:hdecs@health.govt.nz" style={{ color: TEAL }}>HDEC hdecs@health.govt.nz</a>, <a href="tel:0800803909" style={{ color: TEAL }}>Privacy Commissioner 0800 803 909</a>.</div>
+        </div>
       </div>
     </div>
   )
@@ -699,6 +704,9 @@ export default function VitalsValidate() {
             <div style={{ color: '#374151' }}>
               This study has been reviewed by the New Zealand Health and Disability Ethics Committee (HDEC) and was determined to be <strong>out of scope</strong> on 3 August 2026 — meaning it is anonymous, low-risk observational research that does not require formal HDEC review. It remains bound by the National Ethical Standards for Health and Disability Research (NEAC 2019).
             </div>
+            <div style={{ marginTop: 6 }}>
+              <a href="/vitals-validate/participant-info" target="_blank" rel="noopener" style={{ color: TEAL, fontWeight: 700, textDecoration: 'underline' }}>Read the full Participant Information Sheet →</a>
+            </div>
           </div>
           <div style={{ fontWeight: 700, fontSize: '1.1rem', color: NAVY, marginBottom: '.4rem' }}>Anonymous profile</div>
           <div style={{ color: '#6B7280', fontSize: '.85rem', marginBottom: '1.25rem' }}>No name, email, or identifying details collected — just the demographics needed to test how well the algorithm works across different bodies.</div>
@@ -843,6 +851,9 @@ export default function VitalsValidate() {
             </div>
 
             {subjectError && <div style={{ color: '#EF4444', fontSize: '.85rem' }}>{subjectError}</div>}
+            <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '.6rem .8rem', fontSize: '.75rem', color: '#78350F', lineHeight: 1.5, marginTop: '.5rem' }}>
+              <strong>Before you submit:</strong> because the study is anonymous, once you press Save we cannot identify which record is yours and cannot withdraw an individual submission later. Pressing "Save & start scan" means you are 18+ and consent to your anonymous data being used as described in the <a href="/vitals-validate/participant-info" target="_blank" rel="noopener" style={{ color: TEAL, fontWeight: 700 }}>Participant Information Sheet</a>.
+            </div>
             <div style={{ display: 'flex', gap: '.75rem', marginTop: '.5rem' }}>
               <Btn onClick={handleCreateSubject} disabled={savingSubject || !manual.systolic || !manual.diastolic || !manual.hr} style={{ width: '100%' }}>
                 {savingSubject ? 'Saving…' : 'Save & start scan →'}

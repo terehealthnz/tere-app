@@ -113,6 +113,7 @@ const DemoAdmin           = lazy(() => import('./pages/demo/DemoAdmin'))
 const AsyncMessage        = lazy(() => import('./pages/patient/AsyncMessage'))
 const VitalsValidate      = lazy(() => import('./pages/patient/VitalsValidate'))
 const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDashboard'))
+const VitalsValidatePIS   = lazy(() => import('./pages/patient/VitalsValidateParticipantInfo'))
 const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 
 const Spinner = () => (
@@ -200,8 +201,9 @@ export default function App() {
         <Route path="/demo/provider"              element={<DemoProvider />} />
         <Route path="/demo/admin"                 element={<DemoAdmin />} />
         <Route path="/async-message/:id"          element={<AsyncMessage />} />
-        <Route path="/vitals-validate"            element={<VitalsValidate />} />
-        <Route path="/vitals-validate/dashboard"  element={<VitalsValidateDash />} />
+        <Route path="/vitals-validate"                     element={<VitalsValidate />} />
+        <Route path="/vitals-validate/dashboard"           element={<VitalsValidateDash />} />
+        <Route path="/vitals-validate/participant-info"    element={<VitalsValidatePIS />} />
         <Route path="*"                           element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
