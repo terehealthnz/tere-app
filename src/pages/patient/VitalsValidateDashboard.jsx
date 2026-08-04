@@ -876,9 +876,16 @@ export default function VitalsValidateDashboard() {
       if (result) {
         const sysStr = result.valMaeSys != null ? ` sys ±${result.valMaeSys.toFixed(1)}` : ''
         const diaStr = result.valMaeDia != null ? ` dia ±${result.valMaeDia.toFixed(1)}` : ''
-        setTrainingStatus(`Done: ${result.version} · ${result.samples} samples ·${sysStr}${diaStr} mmHg`)
+        setTrainingStatus(`✓ Trained: ${result.version} · ${result.samples} samples ·${sysStr}${diaStr} mmHg · just now`)
         const mv = await getModelVersions()
         setModelVersions(mv)
+      } else {
+        // trainModel returns null when it can't proceed — most commonly when
+        // fewer than 5 readings survive filterQualityReadings() + feature
+        // extraction (missing raw_rppg_signal, implausible BP, or feature
+        // extraction errors). Previously this failure was silent; the button
+        // spinner stopped but nothing on-screen said the train didn't happen.
+        setTrainingStatus('Training did not run — fewer than 5 readings have usable raw signal + valid cuff BP. Check the readings table for missing raw_rppg_signal or implausible values.')
       }
       // Also refit SpO2 calibration from all paired readings
       const allReadings = await getValidationReadings()
