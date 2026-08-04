@@ -287,10 +287,21 @@ export default async function handler(req, res) {
   }
 
   // ── Rate limiting ───────────────────────────────────────────────────────────
+  // Three buckets keyed per-IP so a NAT'd household or corporate edge doesn't
+  // trip everyone at once, and provider-authed traffic isn't clamped by anon-
+  // burst limits.
+  //   pay:  50/hr        — card-testing prevention on payment routes
+  //   auth: 1200/15min   — provider-authed routes (we know who they are; SPA
+  //                        hydration + realtime polling burns fast)
+  //   gen:  400/15min    — anon routes (triage, consent, pharmacies etc.);
+  //                        was 100 which failed real patients on NAT'd IPs
   const isPayment = PAYMENT_ROUTES.has(route)
+  const isAuthed  = AUTH_REQUIRED_ROUTES.has(route)
   const limited = isPayment
-    ? checkRateLimit(`pay:${ip}`, 50, 60 * 60 * 1000)          // 50/hr per IP — allows a NAT'd household + a few retries; still stops card-testing bots
-    : checkRateLimit(`gen:${ip}`, 100, 15 * 60 * 1000)          // 100/15min per IP
+    ? checkRateLimit(`pay:${ip}`, 50, 60 * 60 * 1000)
+    : isAuthed
+      ? checkRateLimit(`auth:${ip}`, 1200, 15 * 60 * 1000)
+      : checkRateLimit(`gen:${ip}`, 400, 15 * 60 * 1000)
   if (limited) {
     logRequest(ip, route, 429, 'rate_limited')
     res.setHeader('Retry-After', isPayment ? '3600' : '900')
