@@ -325,6 +325,58 @@ export default function ClinicianPatient() {
           </div>
         )}
 
+        {/* Vitals trend — combines current consult + past encounters, sorted
+            newest first. Only rows that captured at least one vital appear.
+            Simple table for spotting BP / HR / SpO₂ drift over time. */}
+        {(() => {
+          const rows = [
+            ...(v && !v.skipped && (v.hr || v.rr || v.spo2 || v.bp || v.temperature) ? [{ date: consult.created_at, v, current: true }] : []),
+            ...history
+              .filter(c => c.vitals && !c.vitals.skipped && (c.vitals.hr || c.vitals.rr || c.vitals.spo2 || c.vitals.bp || c.vitals.temperature))
+              .map(c => ({ date: c.created_at, v: c.vitals, current: false })),
+          ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 12)
+          if (rows.length < 2) return null
+          return (
+            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
+                Vitals trend <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.75rem' }}>· last {rows.length} encounter{rows.length === 1 ? '' : 's'}</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8125rem', fontFamily: 'ui-monospace, Menlo, monospace', minWidth: 380 }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC' }}>
+                      <th style={{ textAlign: 'left', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Date</th>
+                      <th style={{ textAlign: 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>HR</th>
+                      <th style={{ textAlign: 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>RR</th>
+                      <th style={{ textAlign: 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</th>
+                      <th style={{ textAlign: 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>BP</th>
+                      <th style={{ textAlign: 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Temp</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid #F1F5F9', background: r.current ? '#F0F9FA' : 'transparent' }}>
+                        <td style={{ padding: '.5rem .625rem', color: NAVY, fontFamily: FF, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
+                          {new Date(r.date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: '2-digit' })}
+                          {r.current && <span style={{ marginLeft: 4, background: TEAL, color: 'white', fontSize: '.5625rem', fontWeight: 700, padding: '1px 5px', borderRadius: 99, verticalAlign: 'middle' }}>NOW</span>}
+                        </td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.hr ? '#059669' : '#D1D5DB' }}>{r.v.hr || '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.rr ? TEAL : '#D1D5DB' }}>{r.v.rr || '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.spo2 ? '#7C3AED' : '#D1D5DB' }}>{r.v.spo2 ? `${r.v.spo2}%` : '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.bp ? NAVY : '#D1D5DB' }}>{r.v.bp || '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.temperature ? '#DC2626' : '#D1D5DB' }}>{r.v.temperature ? `${r.v.temperature}°` : '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: '.5rem' }}>
+                Newest first. Highlighted row = current encounter. SpO₂ shown for readings above the confidence threshold; camera-based BP is experimental and not clinically validated.
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Editable patient record (medications / allergies / history from patients table).
             Always rendered — empty boxes are a deliberate clinical prompt for the provider
             to ask, not skip. If the consult has no linked patients row yet, the first save
