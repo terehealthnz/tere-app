@@ -91,6 +91,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
   // every "call is over" path (hangup, return-to-queue, no-show, complete,
   // consult-not-found) through onEnd if provided, else falls back to the
   // legacy /provider navigation.
+  // Hoisted to component scope so the auto-fallback useEffect (line ~376)
+  // can reference them in its dependency array without hitting a
+  // ReferenceError. Previously providerId/displayName only existed inside
+  // initiateCall's local scope — worked most of the time in the standalone
+  // route because the effect never fired before initiateCall ran, but the
+  // popupMode path calls initiate-call externally and mounts ProviderConsult
+  // with the effect ready to evaluate immediately.
+  const providerId = typeof window !== 'undefined' ? sessionStorage.getItem('providerId') : null
+  const displayName = typeof window !== 'undefined' ? (sessionStorage.getItem('providerDisplayName') || 'Provider') : 'Provider'
+
   const finishSession = useCallback((destination = '/provider') => {
     if (popupMode) {
       if (typeof onEnd === 'function') onEnd()
@@ -399,11 +409,9 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
   async function initiateCall() {
     setCalling(true)
     try {
-      const providerId   = sessionStorage.getItem('providerId')
-      const providerName = sessionStorage.getItem('providerDisplayName')
       const res = await apiFetch('/api/initiate-call', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId: id, providerId, providerName }),
+        body: JSON.stringify({ consultationId: id, providerId, providerName: displayName }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
