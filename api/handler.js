@@ -38,6 +38,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'supervision',
   // Imaging result peer-review (retrospective QI)
   'imaging-reviews', 'imaging-review',
+  // Patient documents (provider-uploaded lab results / referral letters / etc.)
+  'patient-documents',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -159,6 +161,7 @@ const ROUTES = {
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
   'encounter-action':          () => import('./_encounter-action.js'),
+  'patient-documents':         () => import('./_patient-documents.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

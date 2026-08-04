@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -37,6 +37,10 @@ export default function ClinicianPatient() {
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [imaging, setImaging]     = useState([])
   const [pastRx, setPastRx]       = useState([])
+  const [documents, setDocuments] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadFile, setUploadFile]   = useState(null)
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -99,17 +103,19 @@ export default function ClinicianPatient() {
           } catch {}
         }
         if (data?.patient_id) {
-          const [pt, pastConsults, imagingRes, rx] = await Promise.all([
+          const [pt, pastConsults, imagingRes, rx, docs] = await Promise.all([
             getPatient(data.patient_id).catch(() => null),
             getPatientConsultations(data.patient_id),
             apiFetch(`/api/radiology-reports?patient_id=${encodeURIComponent(data.patient_id)}`)
               .then(r => r.json()).catch(() => ({ reports: [] })),
             getPatientPrescriptions(data.patient_id).catch(() => []),
+            getPatientDocuments(data.patient_id).catch(() => []),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))
           setImaging(Array.isArray(imagingRes?.reports) ? imagingRes.reports : [])
           setPastRx(Array.isArray(rx) ? rx : [])
+          setDocuments(Array.isArray(docs) ? docs : [])
         }
       } catch {} finally { setLoading(false) }
     }
@@ -396,6 +402,80 @@ export default function ClinicianPatient() {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Patient Documents — provider-uploaded lab results / referral letters /
+            imaging PDFs / prior specialist correspondence. Always renders. Upload
+            widget appears whenever a patient row exists (or lazily created on
+            first save like the PMH cards). */}
+        <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
+            📎 Patient documents{documents.length > 0 ? ` (${documents.length})` : ''}
+          </div>
+          {documents.length === 0 ? (
+            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic', marginBottom: '.75rem' }}>No documents on file</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '.75rem' }}>
+              {documents.map(d => (
+                <div key={d.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.75rem .875rem', fontSize: '.8125rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</div>
+                    {d.description && <div style={{ color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>}
+                    <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 2 }}>
+                      {d.file_name || 'file'} · {d.uploaded_by_name || 'Unknown'} · {d.created_at ? new Date(d.created_at).toLocaleDateString('en-NZ') : ''}
+                    </div>
+                  </div>
+                  <a href={d.file_url} target="_blank" rel="noopener noreferrer"
+                    style={{ background: 'white', border: `1.5px solid ${TEAL}`, color: TEAL, padding: '.375rem .75rem', borderRadius: 8, textDecoration: 'none', fontWeight: 700, fontSize: '.75rem', flexShrink: 0, fontFamily: FF }}>
+                    View
+                  </a>
+                  <button onClick={async () => {
+                    if (!window.confirm(`Delete "${d.title}"? This can't be undone.`)) return
+                    try { await deletePatientDocument(d.id); setDocuments(docs => docs.filter(x => x.id !== d.id)) }
+                    catch (e) { alert(`Delete failed: ${e.message}`) }
+                  }} title="Delete" style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', padding: '.25rem .5rem', fontSize: '.875rem', flexShrink: 0 }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Upload widget */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', paddingTop: '.75rem', borderTop: '1px dashed #E2E8F0' }}>
+            <input type="text" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} placeholder="Document title (e.g. FBC 4 Aug 2026)"
+              style={{ padding: '.5rem .75rem', border: '1.5px solid #E5E7EB', borderRadius: 8, fontFamily: FF, fontSize: '.875rem' }} />
+            <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+              <input type="file" onChange={e => setUploadFile(e.target.files?.[0] || null)}
+                accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.txt"
+                style={{ flex: 1, fontFamily: FF, fontSize: '.8125rem' }} />
+              <button
+                disabled={uploading || !uploadFile || !uploadTitle.trim()}
+                onClick={async () => {
+                  setUploading(true)
+                  try {
+                    let pid = patient?.id
+                    if (!pid) {
+                      // Lazy-create patient row just like the PMH cards do.
+                      const pat = await createPatient({
+                        firstName: consult.patient_first_name, lastName: consult.patient_last_name,
+                        dob: consult.patient_dob, phone: consult.patient_phone,
+                        email: consult.patient_email, nhi: consult.patient_nhi,
+                      })
+                      pid = pat?.id
+                      if (pid) { await updateConsultation(id, { patient_id: pid }); setPatient(pat); setConsult(c => c ? { ...c, patient_id: pid } : c) }
+                    }
+                    if (!pid) throw new Error('Could not create/link patient record')
+                    const doc = await uploadPatientDocument({ patientId: pid, title: uploadTitle.trim(), file: uploadFile })
+                    setDocuments(docs => [doc, ...docs])
+                    setUploadTitle(''); setUploadFile(null)
+                  } catch (e) {
+                    alert(`Upload failed: ${e.message}`)
+                  } finally { setUploading(false) }
+                }}
+                style={{ background: TEAL, color: 'white', border: 'none', padding: '.5rem 1rem', borderRadius: 8, fontWeight: 700, fontSize: '.8125rem', cursor: (uploading || !uploadFile || !uploadTitle.trim()) ? 'not-allowed' : 'pointer', opacity: (uploading || !uploadFile || !uploadTitle.trim()) ? .5 : 1, fontFamily: FF }}>
+                {uploading ? 'Uploading…' : 'Upload'}
+              </button>
+            </div>
+            <div style={{ fontSize: '.6875rem', color: '#9CA3AF' }}>PDF, image, or Word — max 20MB</div>
+          </div>
         </div>
 
         {/* Past Tere consultations */}

@@ -703,6 +703,52 @@ export async function getRecentPrescriptions(sinceIso, columns = null) {
   return prescriptions || []
 }
 
+export async function getPatientDocuments(patientId) {
+  if (!patientId) return []
+  const res = await apiFetch(`/api/patient-documents?patientId=${encodeURIComponent(patientId)}`)
+  if (!res.ok) return []
+  const { documents } = await res.json()
+  return documents || []
+}
+
+export async function uploadPatientDocument({ patientId, title, description, file }) {
+  if (!file) throw new Error('file required')
+  const fileBase64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const s = String(reader.result || '')
+      const i = s.indexOf(',')
+      resolve(i >= 0 ? s.slice(i + 1) : s)
+    }
+    reader.onerror = () => reject(reader.error || new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+  const res = await apiFetch('/api/patient-documents', {
+    method: 'POST',
+    body: JSON.stringify({
+      patientId, title, description,
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `uploadPatientDocument HTTP ${res.status}`)
+  }
+  const { document } = await res.json()
+  return document
+}
+
+export async function deletePatientDocument(id) {
+  const res = await apiFetch(`/api/patient-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `deletePatientDocument HTTP ${res.status}`)
+  }
+  return true
+}
+
 export async function getPatientPrescriptions(patientId) {
   if (!patientId) return []
   const res = await apiFetch(`/api/prescriptions?patientId=${encodeURIComponent(patientId)}`)

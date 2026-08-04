@@ -13,9 +13,11 @@
 ALTER TABLE model_versions
   ALTER COLUMN trained_at SET DEFAULT now();
 
--- Backfill any historical NULL trained_at rows using their created_at
--- (or now() if created_at is also null). Prevents old rows from
--- continuing to poison loadModelFromSupabase() reads.
+-- Backfill any historical NULL trained_at rows with now(). This isn't
+-- semantically correct — those rows were trained at some earlier point —
+-- but it stops loadModelFromSupabase() from clobbering the local fresh
+-- trainedAt with null. Since the table doesn't have a created_at column,
+-- we can't do better without additional metadata.
 UPDATE model_versions
-   SET trained_at = COALESCE(created_at, now())
+   SET trained_at = now()
  WHERE trained_at IS NULL;
