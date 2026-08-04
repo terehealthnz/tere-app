@@ -1089,6 +1089,10 @@ function AdminMessagesTab({ setMsgBadge }) {
   const nothing = (!tickets || tickets.length === 0) && notifs.length === 0
   return (
     <div style={{ padding:'1rem', fontFamily:FF }}>
+      {/* Shared cross-provider radiology-review queue — any active provider
+          can sign off. Renders nothing when empty. */}
+      <ImagingReviewsPending />
+
       {nothing ? (
         <div style={{ textAlign:'center', padding:'3rem 1.5rem' }}>
           <div style={{ fontSize:'3rem', marginBottom:'.75rem' }}>✉️</div>
