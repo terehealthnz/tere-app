@@ -55,8 +55,17 @@ export default function FloatingCallWidget({ primaryAction, isAudioOnly, patient
   const action = primaryAction || { label: '🔴 End call', color: '#DC2626', onClick: () => {}, disabled: true }
   const [pos, setPos] = useState(() => loadPos() || defaultPos())
   const [minimized, setMinimized] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const [dragging, setDragging] = useState(false)
   const dragOffset = useRef({ x: 0, y: 0 })
+
+  // Escape shrinks fullscreen back to widget without ending the call.
+  useEffect(() => {
+    if (!fullscreen) return
+    const onKey = (e) => { if (e.key === 'Escape') setFullscreen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [fullscreen])
 
   const remoteParticipants = useRemoteParticipants()
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
@@ -118,6 +127,116 @@ export default function FloatingCallWidget({ primaryAction, isAudioOnly, patient
   }, [patientName])
 
   const hasRemote = remoteParticipants.length > 0
+
+  // ── Fullscreen: viewport-covering video + controls ────────────────────────
+  // Task #217. Provider clicks the ⛶ button in the widget header to expand.
+  // Escape or the collapse button (⤡) shrinks back to the floating widget
+  // without ending the call. LiveKit tracks stay subscribed the whole time
+  // — the underlying <LiveKitRoom> in the parent is untouched, so scribe +
+  // subtitles + patient presence keep running.
+  if (fullscreen) {
+    return (
+      <>
+        <RoomAudioRenderer />
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: '#000', display: 'flex', flexDirection: 'column',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+        }}>
+          {/* Header bar */}
+          <div style={{
+            padding: '14px 20px', background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(8px)',
+            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0, borderBottom: '1px solid rgba(255,255,255,.1)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: hasRemote ? '#10B981' : '#F59E0B',
+                display: 'inline-block',
+              }}/>
+              <span style={{ fontWeight: 700, fontSize: '.9375rem' }}>
+                {patientName || 'Call'} — {hasRemote ? 'connected' : 'waiting for patient'}
+              </span>
+            </div>
+            <button
+              onClick={() => setFullscreen(false)}
+              title="Shrink to widget (Esc)"
+              style={{
+                background: 'rgba(255,255,255,.1)', border: 'none', color: 'white',
+                padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                fontFamily: 'inherit', fontSize: '.875rem', fontWeight: 600,
+              }}
+            >⤡ Shrink</button>
+          </div>
+
+          {/* Video body */}
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {remoteCameraTrack ? (
+              <VideoTrack
+                trackRef={remoteCameraTrack}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+              />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, color: 'rgba(255,255,255,.7)' }}>
+                <div style={{
+                  width: 128, height: 128, borderRadius: '50%',
+                  background: 'rgba(255,255,255,.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '2.5rem', fontWeight: 700, color: 'white',
+                }}>{patientInitials.toUpperCase()}</div>
+                <div style={{ fontSize: '1rem' }}>{isAudioOnly ? '📞 Audio call' : hasRemote ? 'Camera off' : 'Waiting for patient…'}</div>
+              </div>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div style={{
+            padding: '18px 20px calc(18px + env(safe-area-inset-bottom))',
+            background: 'rgba(0,0,0,.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16,
+            flexShrink: 0, borderTop: '1px solid rgba(255,255,255,.08)',
+          }}>
+            <button
+              onClick={() => localParticipant?.setMicrophoneEnabled(!isMicrophoneEnabled)}
+              title={isMicrophoneEnabled ? 'Mute mic' : 'Unmute mic'}
+              style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: isMicrophoneEnabled ? 'rgba(255,255,255,.15)' : '#DC2626',
+                border: 'none', color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem',
+              }}
+            >{isMicrophoneEnabled ? '🎙' : '🔇'}</button>
+
+            <button
+              onClick={() => localParticipant?.setCameraEnabled(!isCameraEnabled)}
+              title={isCameraEnabled ? 'Turn camera off' : 'Turn camera on'}
+              style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: isCameraEnabled ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.05)',
+                border: 'none', color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem',
+              }}
+            >{isCameraEnabled ? '📹' : '📷'}</button>
+
+            <button
+              onClick={action.onClick || undefined}
+              disabled={action.disabled || !action.onClick}
+              title={action.disabled && !action.onClick ? 'Give the patient a chance to join' : undefined}
+              style={{
+                minWidth: 180, height: 56, borderRadius: 28,
+                background: action.color || '#DC2626',
+                color: 'white', border: 'none', padding: '0 24px',
+                cursor: (action.disabled || !action.onClick) ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit', fontWeight: 700, fontSize: '.9375rem',
+                opacity: (action.disabled || !action.onClick) ? 0.6 : 1,
+              }}
+            >{action.label}</button>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   // ── Minimized: circular avatar only ────────────────────────────────────────
   if (minimized) {
@@ -189,16 +308,28 @@ export default function FloatingCallWidget({ primaryAction, isAudioOnly, patient
             }}/>
             {hasRemote ? 'Patient connected' : 'Waiting for patient…'}
           </div>
-          <button
-            onClick={() => setMinimized(true)}
-            onMouseDown={e => e.stopPropagation()}
-            onTouchStart={e => e.stopPropagation()}
-            style={{
-              background: 'none', border: 'none', color: 'rgba(255,255,255,.7)',
-              cursor: 'pointer', padding: '2px 8px', fontSize: '1rem', lineHeight: 1,
-            }}
-            title="Minimize"
-          >–</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <button
+              onClick={() => setFullscreen(true)}
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              style={{
+                background: 'none', border: 'none', color: 'rgba(255,255,255,.7)',
+                cursor: 'pointer', padding: '2px 8px', fontSize: '.875rem', lineHeight: 1,
+              }}
+              title="Expand to fullscreen"
+            >⛶</button>
+            <button
+              onClick={() => setMinimized(true)}
+              onMouseDown={e => e.stopPropagation()}
+              onTouchStart={e => e.stopPropagation()}
+              style={{
+                background: 'none', border: 'none', color: 'rgba(255,255,255,.7)',
+                cursor: 'pointer', padding: '2px 8px', fontSize: '1rem', lineHeight: 1,
+              }}
+              title="Minimize"
+            >–</button>
+          </div>
         </div>
 
         {/* Video body */}
