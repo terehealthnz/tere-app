@@ -49,7 +49,15 @@ function clampToViewport(pos, w, h) {
   }
 }
 
-export default function FloatingCallWidget({ primaryAction, isAudioOnly, patientName }) {
+export default function FloatingCallWidget({
+  primaryAction, isAudioOnly, patientName,
+  // Subtitle props — parent (ProviderConsult) decides whether subtitles
+  // are supported for this patient's language and owns the on/off state.
+  // Widget just renders the toggle button and calls back on click.
+  subtitlesAvailable = false,
+  subtitlesOn = false,
+  onToggleSubtitles,
+}) {
   // Backwards-compatible default so a caller that forgets to pass
   // primaryAction still gets an End Call button that no-ops safely.
   const action = primaryAction || { label: '🔴 End call', color: '#DC2626', onClick: () => {}, disabled: true }
@@ -219,6 +227,19 @@ export default function FloatingCallWidget({ primaryAction, isAudioOnly, patient
               }}
             >{isCameraEnabled ? '📹' : '📷'}</button>
 
+            {subtitlesAvailable && (
+              <button
+                onClick={() => { if (typeof onToggleSubtitles === 'function') onToggleSubtitles() }}
+                title={subtitlesOn ? 'Turn subtitles off' : 'Turn subtitles on'}
+                style={{
+                  width: 56, height: 56, borderRadius: '50%',
+                  background: subtitlesOn ? '#0B6E76' : 'rgba(255,255,255,.15)',
+                  border: 'none', color: 'white', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem',
+                }}
+              >💬</button>
+            )}
+
             <button
               onClick={action.onClick || undefined}
               disabled={action.disabled || !action.onClick}
@@ -387,6 +408,22 @@ export default function FloatingCallWidget({ primaryAction, isAudioOnly, patient
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
             }}
           >{isCameraEnabled ? '📹' : '📷'}</button>
+
+          {/* Subtitles toggle — only rendered when parent has told us the
+              patient's language supports live translation (excellent/very_good
+              subtitle tier + non-English). */}
+          {subtitlesAvailable && (
+            <button
+              onClick={() => { if (typeof onToggleSubtitles === 'function') onToggleSubtitles() }}
+              title={subtitlesOn ? 'Turn subtitles off' : 'Turn subtitles on'}
+              style={{
+                width: 40, height: 40, borderRadius: '50%',
+                background: subtitlesOn ? '#0B6E76' : 'rgba(255,255,255,.15)',
+                border: 'none', color: 'white', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem',
+              }}
+            >💬</button>
+          )}
 
           {/* Primary action — label + colour + handler come from the parent
               and depend on whether the patient has joined + how long we've

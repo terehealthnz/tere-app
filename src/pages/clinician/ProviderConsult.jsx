@@ -580,32 +580,39 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
           data-lk-theme="default"
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
-          <FloatingCallWidget
-            primaryAction={(() => {
-              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
-              if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
-              const currentAttempt = consult?.join_attempts || 0
-              if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
-              return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
-            })()}
-            isAudioOnly={isPhone}
-            patientName={patientName}
-          />
-          <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
           {(() => {
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             const meta = getLangMeta(patientLang)
-            const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-            if (!supported || patientLang === 'en') return null
+            const subtitlesAvailable = !!meta && patientLang !== 'en' &&
+              (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
             return (
-              <CallSubtitles
-                viewerRole="provider"
-                viewerLang="en"
-                speakerLang={patientLang}
-                enabled={subtitlesOn}
-                modalOpen={showNotes}
-                consultationId={id}
-              />
+              <>
+                <FloatingCallWidget
+                  primaryAction={(() => {
+                    if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
+                    if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
+                    const currentAttempt = consult?.join_attempts || 0
+                    if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
+                    return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
+                  })()}
+                  isAudioOnly={isPhone}
+                  patientName={patientName}
+                  subtitlesAvailable={subtitlesAvailable}
+                  subtitlesOn={subtitlesOn}
+                  onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                />
+                <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+                {subtitlesAvailable && (
+                  <CallSubtitles
+                    viewerRole="provider"
+                    viewerLang="en"
+                    speakerLang={patientLang}
+                    enabled={subtitlesOn}
+                    modalOpen={showNotes}
+                    consultationId={id}
+                  />
+                )}
+              </>
             )
           })()}
         </LiveKitRoom>
