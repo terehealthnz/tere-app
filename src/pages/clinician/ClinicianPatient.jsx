@@ -1,8 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsultations, updatePatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
+// Lazy-load ProviderConsult only when a call actually starts — keeps
+// LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
+// in popupMode so it renders as the floating widget on top of the chart.
+const ProviderConsult = lazy(() => import('./ProviderConsult'))
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -33,6 +37,10 @@ export default function ClinicianPatient() {
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [callError, setCallError] = useState(null)
+  // When set, mounts <ProviderConsult popupMode /> which shows the floating
+  // call widget on top of the chart. Setting to null unmounts it and ends
+  // the call session (task #216).
+  const [activeCall, setActiveCall] = useState(null)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -138,9 +146,37 @@ export default function ClinicianPatient() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F7F5F0', fontFamily: FF }}>
+      {/* Active call popup — mounted only when Call has been initiated.
+          ProviderConsult(popupMode) renders as an invisible container that
+          hosts LiveKit + FloatingCallWidget; the widget itself is
+          position:fixed so it floats over the chart with the chart
+          remaining fully interactive. onEnd fires on hangup, disconnect,
+          Return to queue, or Complete Encounter — always unmounts the
+          popup and keeps the provider on this patient page. */}
+      {activeCall && (
+        <Suspense fallback={null}>
+          <ProviderConsult
+            popupMode
+            consultationId={id}
+            onEnd={(result) => {
+              setActiveCall(null)
+              // If Complete Encounter was clicked in the post-call overlay,
+              // task #218 will hand these values to the notes popup. For
+              // now (before #218 lands) just navigate to the legacy notes
+              // route so the workflow still works end-to-end.
+              if (result?.complete) {
+                navigate(`/provider/notes/${id}`, { state: { actions: result.actions, transcript: result.transcript || '', callNotes: result.callNotes } })
+              }
+            }}
+          />
+        </Suspense>
+      )}
       {/* Header */}
       <div style={{ background: NAVY, paddingTop: 'calc(.875rem + env(safe-area-inset-top))', paddingBottom: '.875rem', paddingLeft: '1.25rem', paddingRight: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.375rem', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center' }}>←</button>
+        <button onClick={async () => {
+          if (activeCall && !window.confirm('You have a call in progress. Leaving this page will end the call. Continue?')) return
+          await unlock(); navigate('/provider')
+        }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.375rem', padding: 0, minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center' }}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'Cormorant Garamond,Georgia,serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.1rem' }}>Tere</div>
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.75rem' }}>Patient details</div>
@@ -486,7 +522,10 @@ export default function ClinicianPatient() {
                 setCallError(`Call could not start: ${e.message}`)
                 return
               }
-              navigate(`/provider/consult/${id}`)
+              // Mount ProviderConsult in popupMode instead of navigating.
+              // Locked to this page: leaving unmounts the popup and ends
+              // the session (endCall runs on LiveKit disconnect).
+              setActiveCall({ channel, startedAt: Date.now() })
             }}
             onNoAnswer={async (res) => {
               // Server dismisses the patient after the 3rd no-answer. On dismiss:

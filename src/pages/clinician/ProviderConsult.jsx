@@ -80,9 +80,24 @@ function VitalsRow({ vitals }) {
   )
 }
 
-export default function ProviderConsult() {
-  const { id } = useParams()
+export default function ProviderConsult({ popupMode = false, onEnd, consultationId: propConsultationId } = {}) {
+  const params = useParams()
   const navigate = useNavigate()
+  const id = propConsultationId || params.id
+
+  // In popupMode the component is mounted inside ClinicianPatient as the
+  // call-in-progress surface (task #216). It should never navigate — the
+  // parent decides what happens when the call ends. finishSession funnels
+  // every "call is over" path (hangup, return-to-queue, no-show, complete,
+  // consult-not-found) through onEnd if provided, else falls back to the
+  // legacy /provider navigation.
+  const finishSession = useCallback((destination = '/provider') => {
+    if (popupMode) {
+      if (typeof onEnd === 'function') onEnd()
+      return
+    }
+    navigate(destination)
+  }, [popupMode, onEnd, navigate])
 
   const [consult, setConsult]           = useState(null)
   const [loading, setLoading]           = useState(true)
@@ -483,28 +498,37 @@ export default function ProviderConsult() {
         body: JSON.stringify({ consultationId: id }),
       })
     } catch (e) { console.error('[return-to-queue] failed:', e) }
-    navigate('/provider')
+    finishSession('/provider')
   }
 
   const fmtTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
   const canReturnToQueue = inCall && !patientHere && elapsed >= 30
   const secondsUntilReturnable = Math.max(0, 30 - elapsed)
 
-  if (loading) return (
-    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
-      <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
-  )
-
-  if (!consult) return (
-    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
-      <div style={{ textAlign:'center' }}>
-        <div style={{ fontSize:'1.25rem', fontWeight:700, color:NAVY }}>Consultation not found</div>
-        <button onClick={() => navigate('/provider')} style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 20px', borderRadius:8, fontFamily:FF, cursor:'pointer', minHeight:44 }}>← Back</button>
+  // In popupMode we render nothing while the consult is loading or
+  // pre-call — the parent ClinicianPatient page already shows its own chart
+  // and the "please wait" affordance sits on the Call button itself.
+  if (loading) {
+    if (popupMode) return null
+    return (
+      <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
+        <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       </div>
-    </div>
-  )
+    )
+  }
+
+  if (!consult) {
+    if (popupMode) { finishSession(); return null }
+    return (
+      <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:FF }}>
+        <div style={{ textAlign:'center' }}>
+          <div style={{ fontSize:'1.25rem', fontWeight:700, color:NAVY }}>Consultation not found</div>
+          <button onClick={() => navigate('/provider')} style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 20px', borderRadius:8, fontFamily:FF, cursor:'pointer', minHeight:44 }}>← Back</button>
+        </div>
+      </div>
+    )
+  }
 
   const isAcc       = consult.acc_eligible === 'yes'
   // 'consult' (unified type) and 'phone' (legacy) both default the call to
@@ -517,6 +541,70 @@ export default function ProviderConsult() {
   // renders as a floating widget in the corner so the provider can browse
   // history, prescribe, change pharmacy, etc. while the patient is on the
   // call. FloatingCallWidget owns the LiveKit tracks + call controls.
+  //
+  // In popupMode we render ONLY the LiveKitRoom + FloatingCallWidget +
+  // subtitles + call-ended overlay — no top nav, no chart pane, no chrome.
+  // The FloatingCallWidget is position:fixed so it renders as a floating
+  // pill regardless of the (zero-size) parent container, letting the
+  // ClinicianPatient chart underneath stay fully interactive.
+  if (inCall && popupMode) return (
+    <>
+      {callComplete && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.7)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16, fontFamily:FF }}>
+          <div style={{ background:'white', borderRadius:14, padding:'1.5rem', maxWidth:480, width:'100%' }}>
+            <div style={{ fontWeight:800, fontSize:'1.0625rem', color:NAVY, marginBottom:6 }}>Call ended</div>
+            <div style={{ color:'#6B7280', fontSize:'.875rem', marginBottom:16 }}>What happened? Choose the outcome to record on this consult.</div>
+            <EncounterActionBar
+              consultationId={id}
+              onCall={() => { setCallComplete(false) }}
+              onNoAnswer={() => { setCallComplete(false); if (typeof onEnd === 'function') onEnd() }}
+              onComplete={() => { if (typeof onEnd === 'function') onEnd({ complete: true, actions, transcript: transcript || '', callNotes }) }}
+            />
+          </div>
+        </div>
+      )}
+      {lkToken && lkUrl && (
+        <LiveKitRoom
+          token={lkToken}
+          serverUrl={lkUrl}
+          video={!isPhone}
+          audio
+          data-lk-theme="default"
+          onDisconnected={() => { if (!endingCall) endCall() }}
+        >
+          <FloatingCallWidget
+            primaryAction={(() => {
+              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
+              if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
+              const currentAttempt = consult?.join_attempts || 0
+              if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
+              return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
+            })()}
+            isAudioOnly={isPhone}
+            patientName={patientName}
+          />
+          <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+          {(() => {
+            const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+            const meta = getLangMeta(patientLang)
+            const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
+            if (!supported || patientLang === 'en') return null
+            return (
+              <CallSubtitles
+                viewerRole="provider"
+                viewerLang="en"
+                speakerLang={patientLang}
+                enabled={subtitlesOn}
+                modalOpen={showNotes}
+                consultationId={id}
+              />
+            )
+          })()}
+        </LiveKitRoom>
+      )}
+    </>
+  )
+
   if (inCall) return (
     <div style={{ minHeight:'100dvh', background:'#F0F2F5', display:'flex', flexDirection:'column', fontFamily:FF, position:'relative' }}>
 
@@ -531,8 +619,13 @@ export default function ProviderConsult() {
             <EncounterActionBar
               consultationId={id}
               onCall={() => { setCallComplete(false); /* stay in-call view, initiate again */ }}
-              onNoAnswer={() => { setCallComplete(false); navigate('/provider') }}
-              onComplete={() => navigate(`/provider/notes/${id}`, { state: { actions, transcript: transcript || '', callNotes } })}
+              onNoAnswer={() => { setCallComplete(false); finishSession('/provider') }}
+              onComplete={() => {
+                // In popupMode the parent (ClinicianPatient) owns the notes
+                // popup — just close the call surface, parent opens notes next.
+                if (popupMode) { if (typeof onEnd === 'function') onEnd({ complete: true, actions, transcript: transcript || '', callNotes }); return }
+                navigate(`/provider/notes/${id}`, { state: { actions, transcript: transcript || '', callNotes } })
+              }}
             />
           </div>
         </div>
@@ -939,6 +1032,12 @@ export default function ProviderConsult() {
   )
 
   // ── PRE-CALL VIEW ─────────────────────────────────────────────────────────────
+  // In popupMode we never render the pre-call chart — the parent's chart is
+  // already visible and the popup is only supposed to appear once the call
+  // is actually in progress. Return null while inCall flips true (usually
+  // <1s after mount because initiate-call sets status=in_progress).
+  if (popupMode) return null
+
   return (
     <div style={{ height:'100dvh', background:'#F0F2F5', fontFamily:FF, display:'flex', flexDirection:'column', overflow:'hidden' }}>
 
