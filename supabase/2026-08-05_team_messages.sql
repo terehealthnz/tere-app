@@ -33,8 +33,10 @@ CREATE TABLE IF NOT EXISTS team_reads (
 
 ALTER TABLE team_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE team_reads    ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "Service role full access team_messages" ON team_messages FOR ALL USING (true);
-CREATE POLICY IF NOT EXISTS "Service role full access team_reads"    ON team_reads    FOR ALL USING (true);
+DROP POLICY IF EXISTS "Service role full access team_messages" ON team_messages;
+CREATE POLICY        "Service role full access team_messages" ON team_messages FOR ALL USING (true);
+DROP POLICY IF EXISTS "Service role full access team_reads"    ON team_reads;
+CREATE POLICY        "Service role full access team_reads"    ON team_reads    FOR ALL USING (true);
 
 COMMENT ON TABLE team_messages IS
   'Internal provider/admin chat. Single shared channel in v1. Not part of patient health record; not surfaced to patients.';
