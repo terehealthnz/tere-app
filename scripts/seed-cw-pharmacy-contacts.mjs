@@ -42,7 +42,7 @@ const cwRegister = register
     key: norm(p.premises_name),
   }))
 
-const rows = []
+const byId = new Map()  // pharmacy_id → row, dedupes CSV entries that map to the same register id
 const unmatched = []
 
 for (const line of csv) {
@@ -54,8 +54,11 @@ for (const line of csv) {
   if (!hit) hit = cwRegister.find(r => r.key.startsWith(key + ' ') || key.startsWith(r.key + ' '))
   if (!hit) hit = cwRegister.find(r => r.key.includes(key) || key.includes(r.key))
   if (!hit) { unmatched.push({ rawStore, email }); continue }
-  rows.push({ id: hit.id, name: hit.premises_name, email })
+  // Last-write-wins on duplicate ids. Liam's CSV occasionally lists the
+  // same store twice with a trailing-space variation; both resolve here.
+  byId.set(hit.id, { id: hit.id, name: hit.premises_name, email })
 }
+const rows = Array.from(byId.values())
 
 function esc(v) {
   if (v === null || v === undefined) return 'NULL'
