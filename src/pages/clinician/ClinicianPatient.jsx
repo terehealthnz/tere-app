@@ -32,6 +32,7 @@ export default function ClinicianPatient() {
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
+  const [callError, setCallError] = useState(null)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -451,21 +452,53 @@ export default function ClinicianPatient() {
       {/* Bottom action bar — three-button encounter workflow.
           Call → server checks patient heartbeat → LiveKit if online, phone bridge if not.
           No Answer → increment counter (feeds no-show flow).
-          Complete Encounter → transition to notes; only path that closes the encounter. */}
-      {isCallable && !isMessage && (
+          Complete Encounter → transition to notes; only path that closes the encounter.
+          Rendered whenever the consult isn't a message consult (message has its own UI
+          below), including after the encounter is completed — the bar must be static so
+          providers don't lose access to actions on reload or status transitions. */}
+      {!isMessage && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: '.5rem', maxWidth: 640, margin: '0 auto' }}>
+          {callError && (
+            <div style={{ background:'#FEE2E2', border:'1px solid #FCA5A5', color:'#991B1B', borderRadius:8, padding:'.6rem .75rem', fontSize:'.85rem', fontFamily:FF }}>
+              {callError} <button onClick={() => setCallError(null)} style={{ background:'none', border:'none', color:'#991B1B', fontWeight:700, cursor:'pointer', marginLeft:8 }}>Dismiss</button>
+            </div>
+          )}
           <EncounterActionBar
             consultationId={id}
             onCall={async (channel) => {
+              setCallError(null)
               await unlock()
-              if (channel === 'livekit') {
-                // Existing initiate-call endpoint sets up the LiveKit room + patient notification.
-                try { await apiFetch('/api/initiate-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultationId: id, providerId, providerName: displayName }) }) } catch {}
-                navigate(`/provider/consult/${id}`)
-              } else {
-                // Phone bridge — patient wasn't online, dial their number and join via LiveKit audio.
-                try { await apiFetch('/api/initiate-call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ consultationId: id, providerId, providerName: displayName, forcePhone: true }) }) } catch {}
-                navigate(`/provider/consult/${id}`)
+              const body = channel === 'livekit'
+                ? { consultationId: id, providerId, providerName: displayName }
+                : { consultationId: id, providerId, providerName: displayName, forcePhone: true }
+              try {
+                const r = await apiFetch('/api/initiate-call', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                })
+                if (!r.ok) {
+                  const err = await r.json().catch(() => ({}))
+                  setCallError(`Call could not start: ${err.error || `HTTP ${r.status}`}`)
+                  return
+                }
+              } catch (e) {
+                setCallError(`Call could not start: ${e.message}`)
+                return
+              }
+              navigate(`/provider/consult/${id}`)
+            }}
+            onNoAnswer={async (res) => {
+              // Server dismisses the patient after the 3rd no-answer. On dismiss:
+              // release the lock, alert the provider (so they know the SMS fired
+              // and the patient is out of their queue), and return to the queue.
+              if (res?.dismissed) {
+                await unlock()
+                const msg = res.smsSent
+                  ? "Patient dismissed after 3 no-answer attempts. They've been texted an invitation to start a new consult."
+                  : "Patient dismissed after 3 no-answer attempts. SMS was NOT sent (no phone number on file or delivery failed). Follow up manually if needed."
+                alert(msg)
+                navigate('/provider')
               }
             }}
           />

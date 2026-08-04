@@ -25,7 +25,7 @@ const RED  = '#DC2626'
 export default function EncounterActionBar({
   consultationId,
   onCall,      // optional: (deliveryChannel: 'livekit' | 'phone', reason: string) => void
-  onNoAnswer,  // optional: () => void
+  onNoAnswer,  // optional: (res: { dismissed?: boolean, smsSent?: boolean, consultation? }) => void
   onComplete,  // optional: () => void — defaults to navigate('/provider/notes/:id')
   disabled = false,
   compact = false,
@@ -72,7 +72,7 @@ export default function EncounterActionBar({
 
       <button
         type="button"
-        onClick={() => fire('no_answer', () => { if (typeof onNoAnswer === 'function') onNoAnswer() })}
+        onClick={() => fire('no_answer', (res) => { if (typeof onNoAnswer === 'function') onNoAnswer(res) })}
         disabled={busy !== null || disabled}
         style={{
           flex: 1, background: 'white', color: '#B45309', border: `1.5px solid #F59E0B`,

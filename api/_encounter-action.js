@@ -17,10 +17,10 @@
 // action='no_answer'
 //   - Increments no_answer_count + call_attempts
 //   - Updates last_attempt_at
-//   - Does NOT itself change consult status; the existing no-show flow
-//     handles retry cadence + patient SMS (see supabase-no-show-migration.sql).
-//     This endpoint is deliberately narrow — record the fact, let downstream
-//     policy decide what to do about it.
+//   - On the THIRD no-answer: dismisses the consult (status='no_show'),
+//     sets no_show_at, and sends a friendly "start fresh when you're ready"
+//     SMS to the patient. Response includes { dismissed: true, smsSent: bool }
+//     so the client can update the queue view + show a toast.
 //
 // action='complete_encounter'
 //   - Sets encounter_completed_at = now()
@@ -78,10 +78,43 @@ export default async function handler(req, res) {
         : 'No patient heartbeat recorded; using phone bridge'
 
   } else if (action === 'no_answer') {
+    const newCount = (consult.no_answer_count || 0) + 1
     patch = {
       call_attempts:   (consult.call_attempts || 0) + 1,
-      no_answer_count: (consult.no_answer_count || 0) + 1,
+      no_answer_count: newCount,
       last_attempt_at: now,
+    }
+    // Three strikes → dismiss the consult from the active queue and text
+    // the patient a friendly invitation to start over. The consult isn't
+    // deleted — audit + no-show reporting still needs the row — it's just
+    // moved out of the active-queue statuses.
+    if (newCount >= 3) {
+      patch.status = 'no_show'
+      patch.no_show_at = now
+      response.dismissed = true
+
+      // Best-effort SMS — a failure here shouldn't block the dismiss.
+      if (consult.patient_phone) {
+        const appUrl = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
+        const smsBody = "Kia ora from Tere Health. We tried to call you a few times but couldn't get through — no problem at all. Whenever you're ready, just start a fresh consultation here: " + appUrl
+        try {
+          const smsRes = await fetch(`${appUrl}/api/sms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-tere-api-key': process.env.TERE_API_KEY || '' },
+            body: JSON.stringify({ to: consult.patient_phone, message: smsBody, type: 'no_answer_dismiss' }),
+          })
+          response.smsSent = smsRes.ok
+          if (!smsRes.ok) {
+            const body = await smsRes.text().catch(() => '')
+            console.error('[encounter-action] SMS send returned non-OK:', smsRes.status, body)
+          }
+        } catch (e) {
+          response.smsSent = false
+          console.error('[encounter-action] SMS send failed:', e.message)
+        }
+      } else {
+        response.smsSent = false
+      }
     }
 
   } else if (action === 'complete_encounter') {
@@ -95,7 +128,7 @@ export default async function handler(req, res) {
     .from('consultations')
     .update(patch)
     .eq('id', id)
-    .select('id, call_attempts, no_answer_count, encounter_completed_at, last_attempt_at')
+    .select('id, status, call_attempts, no_answer_count, encounter_completed_at, last_attempt_at, no_show_at')
     .maybeSingle()
   if (updErr) return res.status(500).json({ error: updErr.message })
 
