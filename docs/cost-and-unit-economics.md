@@ -13,7 +13,7 @@ Unit economics are strong: a private consult retains ~62% margin after all vendo
 ## Assumptions
 
 - **Currency conversion**: 1 USD = 1.67 NZD (RBNZ mid-market 2026-07-08)
-- **Payment processor**: Windcave (target) at 1.9% + $0.30 NZD per transaction. Currently on Stripe (2.9% + $0.30 USD ≈ NZD $0.50) pending migration.
+- **Payment processor**: Stripe at 2.9% + $0.30 USD per NZD-denominated transaction (Windcave application was declined 2026-08-03; Stripe is the live path).
 - **Provider fees**: $20 NZD per consultation (video or audio — flat)
 - **Working pattern**: 7 days/week, 8am–8pm, 350 days/year (2 weeks off) as the primary model; alternatives modelled below
 - **NZ company tax rate**: 28% (IRD 2026)
@@ -65,20 +65,20 @@ At 300 consults/month this allocates to ~$0.61/consult — negligible.
 | Line item | NZD |
 |---|---:|
 | Patient charge | +$60.00 |
-| Windcave payment fee (target — currently Stripe higher) | −$1.44 |
+| Stripe payment fee (2.9% + $0.30 USD ≈ NZD $2.24) | −$2.24 |
 | Provider fee | −$20.00 |
 | AWS Transcribe (Scribe) | −$0.24 |
 | AWS Bedrock (notes + triage AI) | −$0.08 |
 | Telnyx/2talk SMS + fax | −$0.21 |
 | Fixed overhead allocation | −$0.61 |
-| **Tere net (per consult)** | **$37.42 (62.4%)** |
+| **Tere net (per consult)** | **$36.62 (61.0%)** |
 
 ### Consultation — ACC initial (MST1 $96.38)
 
 | Line item | NZD |
 |---|---:|
 | ACC pays Tere direct | +$96.38 |
-| Windcave payment fee | $0.00 (ACC paid by monthly invoice) |
+| Stripe payment fee | $0.00 (ACC paid by monthly invoice) |
 | Provider fee | −$20.00 |
 | AWS Transcribe | −$0.24 |
 | AWS Bedrock | −$0.08 |
@@ -91,7 +91,7 @@ At 300 consults/month this allocates to ~$0.61/consult — negligible.
 | Line item | NZD |
 |---|---:|
 | ACC pays Tere direct | +$48.20 |
-| Windcave payment fee | $0.00 (ACC monthly invoice) |
+| Stripe payment fee | $0.00 (ACC monthly invoice) |
 | Provider fee | −$20.00 |
 | AWS Transcribe | −$0.24 |
 | AWS Bedrock | −$0.08 |
@@ -133,14 +133,6 @@ Mix applied to Consultation revenue: MST1 initial and MST3 follow-up substitute 
 
 **Capacity note:** 8am–8pm × 7 days × 20–30 min per consult = 24–36 consults/day capacity. 10/day represents ~28–42% utilisation — significant headroom before adding providers.
 
-## Payment processor comparison — Stripe vs Windcave
-
-| Consult type | Stripe fee (NZD) | Windcave fee (NZD) | Saving per consult |
-|---|---:|---:|---:|
-| Consultation $60 (private) | $2.24 | $1.44 | **$0.80** |
-
-At 10 consults/day × 350 days × 50% private (rest via ACC monthly invoice, no per-transaction fee): ~$1,400/yr saved. Plus removal of USD FX exposure and clean NZD invoicing for Xero.
-
 ## Company overhead (not in per-consult modelling)
 
 | Item | NZD/yr estimate |
@@ -173,7 +165,7 @@ The ACC specialist rate is the single biggest financial lever in the model. Rura
 1. **Higher price point ($70–$80/consult)** — each $5 lift adds ~$17,500/yr at 3,500 private consults. Test market tolerance against Doctegrity, Practice Plus, Emerge, CareHQ, Tend ($55–75 range).
 2. **Higher utilisation** — 20 consults/day at the same mix doubles profit (revenue $571k → ~$310k after-tax).
 3. **Add part-time providers** — each new provider adds ~$22.42 platform take per private consult without Patrick working; scales linearly.
-4. **B2B / employer contracts** — flat monthly retainer per employee. Removes Windcave transaction fee (invoice payment). Discussion of PHO / employer pricing tiers is in a separate document.
+4. **B2B / employer contracts** — flat monthly retainer per employee. Removes Stripe transaction fee (invoice payment). Discussion of PHO / employer pricing tiers is in a separate document.
 5. **NZePS integration** — once live, direct-to-pharmacy electronic prescriptions replace fax delivery. Same margin per consult but removes fax fallback complexity + Telnyx fax number ($8/mo).
 
 ## Revenue sensitivity — 7-day model · 30% MST1 mix
@@ -187,7 +179,7 @@ The ACC specialist rate is the single biggest financial lever in the model. Rura
 
 ## Data sources
 
-- Payment fees: Windcave standard SME pricing (public); Stripe NZ (public)
+- Payment fees: Stripe NZ (public)
 - AI/vendor rates: AWS Transcribe (streaming) public pricing · AWS Bedrock Claude Sonnet 4.5 public pricing · Telnyx & 2talk NZ SMS/fax rates
 - ACC specialist telehealth rates: MST1 / MST3 codes effective 1 June 2024 (confirmed via ACC schedule 2026)
 - FX rate: RBNZ mid-market 2026-07-08 (1 USD = 1.67 NZD)

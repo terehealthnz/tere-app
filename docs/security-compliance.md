@@ -48,21 +48,22 @@ Cross-border transfer of patient health information is authorised under HIPC Rul
 ### 3.1 High-level data flow
 
 ```
-Patient browser  ──HTTPS──▶  Vercel (Node serverless functions, US region)
+Patient browser  ──HTTPS──▶  Vercel (Node serverless functions, Sydney region)
                               │
-                              ├──▶ Supabase (Postgres + Row-Level Security, US region)
+                              ├──▶ Supabase (Postgres + Row-Level Security, Sydney / ap-southeast-2)
                               │      Patient records, consultations, transcripts, prescriptions
                               │
-                              ├──▶ AWS Bedrock (BAA-covered, global inference profile)
+                              ├──▶ AWS Bedrock (BAA-covered, Sydney / ap-southeast-2)
                               │      Anthropic Claude — notes generation, ACC assessment, translations
                               │
-                              ├──▶ LiveKit Cloud (WebRTC video)
+                              ├──▶ LiveKit Cloud (WebRTC video, Sydney)
                               │      Transient audio/video, not recorded server-side
                               │
-                              ├──▶ Stripe (Payment)
-                              ├──▶ Twilio (SMS)
+                              ├──▶ AWS Transcribe (Sydney / ap-southeast-2) — live subtitles
+                              ├──▶ AWS SNS (Sydney / ap-southeast-2) — SMS
+                              ├──▶ Stripe (payment processing, US, PCI-DSS Level 1)
                               ├──▶ Resend (Email)
-                              └──▶ Documo / Telnyx (Fax for prescriptions)
+                              └──▶ Telnyx (Fax for prescriptions, inbound fax)
 ```
 
 ### 3.2 Application boundary
@@ -100,15 +101,16 @@ The following sub-processors handle Tere data. All are contractually bound and i
 
 | Sub-processor | Data handled | Region | Contract |
 |---|---|---|---|
-| **Vercel** | Application hosting, function execution | US | Standard Terms + DPA |
-| **Supabase** | Postgres database, file storage, auth | US | Standard Terms + DPA |
-| **AWS (Bedrock)** | AI inference (Anthropic Claude) | Global (via `global.` inference profile) | **Executed BAA — signed 2026-07-07** |
+| **Vercel** | Application hosting, function execution | Sydney (Vercel Edge / AU) | Standard Terms + DPA |
+| **Supabase** | Postgres database, file storage, auth | Sydney (`ap-southeast-2`) | Standard Terms + DPA |
+| **AWS (Bedrock)** | AI inference (Anthropic Claude) | Sydney (`ap-southeast-2`) via APAC cross-region inference profile | **Executed BAA — signed 2026-07-07** |
 | **Anthropic (via AWS)** | Claude foundation model | Covered under AWS BAA | Sub-processor to AWS |
-| **LiveKit** | Real-time video/audio (WebRTC) | Global edge | Standard Terms |
-| **Stripe** | Payment processing | US | Standard Terms + DPA |
-| **Twilio** | Outbound SMS | Global | Standard Terms |
+| **LiveKit** | Real-time video/audio (WebRTC) | Sydney (primary region) with global edge for media relay only | Standard Terms |
+| **AWS Transcribe** | Live subtitles (streaming ASR) | Sydney (`ap-southeast-2`) | Covered under AWS BAA |
+| **AWS SNS** | Outbound SMS | Sydney (`ap-southeast-2`) | Covered under AWS BAA |
+| **Stripe** | Payment processing | US (PCI-DSS Level 1) | Standard Terms + DPA |
 | **Resend** | Outbound email (consultation summaries, notifications) | US | Standard Terms |
-| **Documo / Telnyx** | Outbound fax (prescriptions to pharmacies) | US | Standard Terms |
+| **Telnyx** | Outbound and inbound fax (prescriptions to pharmacies, patient docs) | US | Standard Terms |
 | **Sentry** | Error tracking (PII scrubbed) | US | Standard Terms + DPA |
 
 ### 5.1 What each sub-processor sees

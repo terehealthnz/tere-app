@@ -17,8 +17,7 @@ export async function sendBasicReceipt(consultationId) {
   if (row.basic_receipt_sent_at) return { sent: false, skipped: 'already_sent' }
   if (!row.patient_email) return { sent: false, skipped: 'no_email' }
 
-  // Best-effort last-4 lookup — non-fatal if it fails. Stripe is our current
-  // live gateway; Windcave last-4 lookup is TODO once the flag flips.
+  // Best-effort last-4 lookup — non-fatal if it fails.
   let cardLast4 = null
   let cardBrand = null
   if (row.payment_intent_id && process.env.STRIPE_SECRET_KEY && row.payment_intent_id.startsWith('pi_')) {

@@ -116,7 +116,7 @@ Te Mana Raraunga (the Māori Data Sovereignty Network) has articulated principle
 - No server-side recording of video or audio consultations.
 
 **Current gaps:**
-- Health information is currently stored in the United States — a direct tension with kaitiakitanga ideals. Sydney migration is planned (see Section 3).
+- Patient health data is currently stored in Sydney (`ap-southeast-2`), not in Aotearoa. NZ-based hosting remains the long-term goal (see Section 3).
 - No dedicated kaitiaki role for Māori data governance oversight has been appointed. Appointment committed for Q4 2026.
 - No formal iwi data governance arrangement exists.
 
@@ -124,24 +124,25 @@ Te Mana Raraunga (the Māori Data Sovereignty Network) has articulated principle
 
 ## 3. Cross-Border Storage — An Honest Assessment
 
-The most significant tension between Tere's current infrastructure and Māori Data Sovereignty principles is data residency. Tere's application, database, and AI processing are currently hosted in the United States. From a Māori Data Sovereignty perspective, this is a limitation, not a strength.
+Tere's application, database, and AI processing are hosted in Sydney (`ap-southeast-2`). From a Māori Data Sovereignty perspective, Sydney is closer than the United States but is still not Aotearoa. This section describes what is in place today and what is planned.
 
-> **Current limitation:** Tere's primary data infrastructure is hosted in the United States. Patient health information — including consultation records, clinical notes, prescriptions, and vitals data — currently resides outside Aotearoa New Zealand.
+> **Current state:** Tere's primary data infrastructure is hosted in Sydney, Australia (`ap-southeast-2`). Patient health information — consultation records, clinical notes, prescriptions, and vitals data — resides in Sydney, under AWS/Supabase BAAs and DPAs, with HIPC-authorised cross-border transfer.
 
 ### Protections currently in place
 
-- Executed AWS Business Associate Agreement (BAA), signed 2026-07-07 — HIPAA-equivalent data handling standards.
-- Data Processing Addendum with Supabase.
-- HIPC Rule 12 cross-border transfer authorised through explicit patient consent captured at the start of every consultation.
+- Executed AWS Business Associate Agreement (BAA), signed 2026-07-07 — HIPAA-equivalent data handling standards, extended to Bedrock (Sydney), Transcribe (Sydney), and SNS (Sydney).
+- Data Processing Addendum with Supabase; Supabase project region is Sydney (`ap-southeast-2`).
+- LiveKit primary region is Sydney; media relay is transient and no audio/video is recorded server-side.
+- HIPC Rule 12 cross-border transfer (NZ → AU) authorised through explicit patient consent captured at the start of every consultation.
 - All sub-processors contractually bound and identified to patients in the consent flow.
 
 ### The roadmap
 
-- **Supabase migration to Sydney (`ap-southeast-2`)** — planned within 6 months of this document's publication.
-- **AWS Bedrock migration to APAC inference profile** — available as an environment-variable change as soon as APAC profiles are enabled for the Claude model versions Tere uses.
-- **NZ-based hosting** — a longer-term goal beyond the Sydney migration. Investigation of NZ-based hosting options (including Catalyst Cloud and other NZ-owned providers) is committed for Q1 2027.
+- **Supabase Sydney (`ap-southeast-2`)** — completed.
+- **AWS Bedrock APAC (Sydney)** — completed, cutover 2026-07-08.
+- **NZ-based hosting** — investigation of NZ-owned providers (including Catalyst Cloud) is committed for Q1 2027. This is the long-term goal beyond Sydney.
 
-Sydney is not Aotearoa. Moving to `ap-southeast-2` reduces the cultural and jurisdictional distance between Māori health data and the communities it belongs to — but it is not the end state. Tere is transparent that NZ-based hosting is the goal, and that it is not yet achieved.
+Sydney is not Aotearoa. Being in `ap-southeast-2` reduces the cultural and jurisdictional distance between Māori health data and the communities it belongs to compared with US hosting — but it is not the end state. Tere is transparent that NZ-based hosting is the goal, and that it is not yet achieved.
 
 ---
 
@@ -195,8 +196,8 @@ The following commitments are specific and trackable. They will be updated in fu
 | Audit of AI model performance on Te Reo Māori clinical inputs — accuracy, translation, cultural safety | Q4 2026 | Not started |
 | Māori representation in clinical governance — at least one Māori health professional in any clinical advisory structure | Before first PHO contract | Not started |
 | Clinical review of Te Reo Māori terminology in triage flow and consent screens by a Māori health clinical advisor | Q4 2026 | Not started |
-| Supabase database migration to Sydney (`ap-southeast-2`) | Within 6 months | Planned |
-| AWS Bedrock migration to APAC inference profile | On availability of APAC profiles for the Claude model versions in use | Ready to deploy |
+| Supabase database migration to Sydney (`ap-southeast-2`) | — | Completed |
+| AWS Bedrock migration to Sydney (APAC inference profile) | — | Completed (2026-07-08) |
 | Mechanism for Māori patients to provide cultural safety feedback | Q4 2026 | Not started |
 | Investigation of NZ-based hosting options | Q1 2027 | Not started |
 | Publication of a whakapapa statement on the Tere website acknowledging Te Tiriti obligations | Q4 2026 | In progress |

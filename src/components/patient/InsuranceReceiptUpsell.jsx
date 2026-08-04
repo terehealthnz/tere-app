@@ -10,10 +10,6 @@
 // $10 charges immediately on confirmation (no manual capture step). On
 // success we POST /api/generate-insurance-receipt with the paymentIntentId
 // and show "sent to your email".
-//
-// Windcave path: TODO — see PRICES table comment in _windcave-create-session.js.
-// For now the upsell always uses the inline Stripe card element regardless
-// of the use_windcave flag, since the receipt is a separate one-off charge.
 
 import React, { useState, useMemo } from 'react'
 import { loadStripe } from '@stripe/stripe-js'

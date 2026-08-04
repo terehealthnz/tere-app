@@ -42,6 +42,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'patient-documents',
   // Structured patient history — allergens, medications, conditions (task #223)
   'patient-allergens', 'patient-medications', 'patient-conditions',
+  // Provider MFA — enroll / verify / disable own TOTP (2026-08-04)
+  'provider-mfa',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -66,13 +68,11 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
   // Data integrations (provider-triggered)
   'pms-data',
-  // Windcave money-movement — only providers/admin may capture or refund
-  'windcave-complete', 'windcave-refund',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
-const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query', 'windcave-complete', 'windcave-refund'])
+const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment'])
 
 function checkRateLimit(key, maxReqs, windowMs) {
   const now = Date.now()
@@ -142,11 +142,6 @@ const ROUTES = {
   'cancel-payment':            () => import('./_cancel-payment.js'),
   'capture-payment':           () => import('./_capture-payment.js'),
   'create-payment-intent':     () => import('./_create-payment-intent.js'),
-  'windcave-create-session':   () => import('./_windcave-create-session.js'),
-  'windcave-fprn':             () => import('./_windcave-fprn.js'),
-  'windcave-query':            () => import('./_windcave-query.js'),
-  'windcave-complete':         () => import('./_windcave-complete.js'),
-  'windcave-refund':           () => import('./_windcave-refund.js'),
   'create-room':               () => import('./_create-room.js'),
   'employer-check':            () => import('./_employer-check.js'),
   'generate-med-cert':         () => import('./_generate-med-cert.js'),
@@ -168,6 +163,7 @@ const ROUTES = {
   'patient-allergens':         () => import('./_patient-allergens.js'),
   'patient-medications':       () => import('./_patient-medications.js'),
   'patient-conditions':        () => import('./_patient-conditions.js'),
+  'provider-mfa':              () => import('./_provider-mfa.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

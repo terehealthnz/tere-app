@@ -1,8 +1,7 @@
 // POST /api/generate-insurance-receipt
 //
 // The $10 upsell fulfilment endpoint. The patient has already paid for the
-// receipt via Stripe (paymentIntentId) or Windcave (sessionId — TODO once
-// the receipt purchase is wired through the HPP). We:
+// receipt via Stripe (paymentIntentId). We:
 //   1) verify the payment actually settled AND was for type=receipt AND for
 //      the consultation supplied — no free receipts by replaying a random PI
 //   2) load the consult + provider from Supabase
@@ -12,8 +11,8 @@
 //      switches the CTA to a "sent to your email" confirmation
 //
 // Auth: NOT in AUTH_REQUIRED_ROUTES — the patient owns their own consult
-// and the Stripe/Windcave payment id is the proof-of-purchase. All the
-// per-endpoint guards live below.
+// and the Stripe payment id is the proof-of-purchase. All the per-endpoint
+// guards live below.
 
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
@@ -28,9 +27,9 @@ function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, paymentIntentId /*, sessionId */ } = req.body || {}
+  const { consultationId, paymentIntentId } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
-  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId required (Windcave receipt path TODO)' })
+  if (!paymentIntentId) return res.status(400).json({ error: 'paymentIntentId required' })
 
   const supabase = admin()
 

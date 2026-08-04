@@ -4,7 +4,6 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
 import { patientUpdateConsultation } from '../../lib/supabase'
-import { useFeatureFlag } from '../../lib/featureFlags'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -293,152 +292,11 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   )
 }
 
-// Windcave Hosted Payment Page — embedded iframe integration.
-//
-// Flow:
-//   1. Component mounts → create Windcave session server-side
-//   2. Render <iframe src={hppUrl}> on our page (Tere branding preserved)
-//   3. Patient enters card details in Windcave's iframe (SAQ A — card
-//      data never touches our origin)
-//   4. Windcave redirects the iframe to callbackUrls.approved/declined/
-//      cancelled — which points at /payment-return
-//   5. PaymentReturn.jsx, running INSIDE the iframe, detects it's framed
-//      and posts { type:'tere-windcave', status, consultationId } to the
-//      parent (this component)
-//   6. We re-query /api/windcave-query for authoritative approval, then
-//      navigate to /waiting
-//
-// FPRN webhook remains the source of truth for the consultation's
-// payment_status column — the postMessage/query dance is purely for
-// smooth UX inside the browser.
-function WindcavePayment({ consultationId, accEligible, consultationType }) {
-  const navigate = useNavigate()
-  const [phase, setPhase] = useState('loading')  // loading | ready | verifying | approved | declined
-  const [session, setSession] = useState(null)
-  const [error, setError]     = useState(null)
-  const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.consult
-  const amount = accEligible === 'yes' ? priceSet.acc : priceSet.private
-
-  async function startSession() {
-    setPhase('loading'); setError(null)
-    try {
-      const r = await apiFetch('/api/windcave-create-session', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId, accEligible, consultationType }),
-      })
-      const data = await r.json()
-      if (!r.ok || !data.hppUrl) {
-        setError(data.error || 'Could not start payment. Please try again.')
-        setPhase('declined')
-        return
-      }
-      setSession(data)
-      setPhase('ready')
-    } catch (e) {
-      setError('Could not reach payment service. Please try again.')
-      setPhase('declined')
-    }
-  }
-
-  useEffect(() => { startSession() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Listen for postMessage from the iframe's callback page.
-  useEffect(() => {
-    if (phase !== 'ready' || !session) return
-    async function onMessage(e) {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type !== 'tere-windcave') return
-      const { status } = e.data
-      if (status === 'approved') {
-        setPhase('verifying')
-        try {
-          const r = await apiFetch(`/api/windcave-query?sessionId=${encodeURIComponent(session.sessionId)}`)
-          const q = await r.json()
-          if (q.approved) {
-            setPhase('approved')
-            setTimeout(() => navigate('/waiting', { replace: true }), 900)
-          } else {
-            setError('Payment could not be verified. Please try again.')
-            setPhase('declined')
-          }
-        } catch {
-          setError('Could not verify payment. If you were charged, please contact support.')
-          setPhase('declined')
-        }
-      } else {
-        setError(status === 'cancelled' ? 'Payment cancelled.' : 'Payment was not approved. Please try again with a different card.')
-        setPhase('declined')
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [phase, session, navigate])
-
-  if (phase === 'loading') return (
-    <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-      <div className="spinner" style={{ margin: '0 auto 1rem' }} />
-      <div style={{ color: '#6B7280' }}>Preparing secure payment…</div>
-    </div>
-  )
-
-  if (phase === 'approved') return (
-    <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-      <div style={{ fontSize: '2.5rem', marginBottom: '.75rem' }}>✅</div>
-      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.5rem' }}>Payment confirmed</h2>
-      <p style={{ color: '#374151' }}>Taking you to the waiting room…</p>
-    </div>
-  )
-
-  if (phase === 'declined') return (
-    <div>
-      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.5rem' }}>Payment not completed</h2>
-      <p style={{ color: '#374151', marginBottom: '1.25rem' }}>{error || 'Please try again.'}</p>
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <button onClick={startSession}
-          style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '.75rem 1.25rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontSize: '.9375rem' }}>
-          Try again
-        </button>
-        <button onClick={() => navigate('/contact?source=payment_failed')}
-          style={{ background: 'white', color: '#0B6E76', border: '2px solid #0B6E76', padding: '.6875rem 1.125rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontSize: '.9375rem' }}>
-          Contact support
-        </button>
-      </div>
-    </div>
-  )
-
-  // phase === 'ready' or 'verifying'
-  return (
-    <div>
-      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.25rem' }}>Payment</h2>
-      <p style={{ color: '#374151', marginBottom: '1rem', fontSize: '.9375rem' }}>
-        <strong>${amount}.00 NZD</strong>{accEligible === 'yes' && consultationType !== 'message' ? ' — $20 administrative fee (ACC covers the consultation itself)' : ''}
-      </p>
-      {phase === 'verifying' && (
-        <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.8125rem', color: '#0B4F5A', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-          <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, margin: 0, flexShrink: 0 }} />
-          Confirming payment with Windcave…
-        </div>
-      )}
-      <iframe
-        src={session?.hppUrl}
-        title="Windcave secure payment"
-        style={{ width: '100%', height: 720, border: '1px solid #E5E7EB', borderRadius: 12, background: 'white', display: 'block' }}
-        scrolling="auto"
-        allow="payment"
-      />
-      <p style={{ fontSize: '.75rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.5rem' }}>
-        🔒 Card entry is hosted securely by <strong>Windcave</strong> — Tere never sees your card details.
-      </p>
-    </div>
-  )
-}
-
 export default function Payment() {
   const navigate = useNavigate()
   const consultationId   = sessionStorage.getItem('consultationId')
   const accEligible      = sessionStorage.getItem('accEligible') || 'no'
   const consultationType = sessionStorage.getItem('consultationType') || 'consult'
-  const useWindcave      = useFeatureFlag('use_windcave')
   useEffect(() => {
     if (!consultationId) navigate('/start')
   }, [consultationId, navigate])
@@ -452,13 +310,9 @@ export default function Payment() {
         </div>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>
-        {useWindcave ? (
-          <WindcavePayment consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
-        ) : (
-          <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
-            <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
-          </Elements>
-        )}
+        <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>
+          <PaymentForm consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
+        </Elements>
         <p style={{fontSize:'.8125rem',color:'var(--muted)',marginTop:'1.25rem',textAlign:'center'}}>
           Emergency? Call <strong>111</strong> immediately.
         </p>

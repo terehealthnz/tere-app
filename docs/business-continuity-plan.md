@@ -57,7 +57,7 @@ It does not cover:
 | T2 | All available providers unable to work same day | Low | Critical | Waitlist mode; automated "we're temporarily unavailable, call 111 for emergencies" message; ACC referral pathways activated. See §5.1 |
 | T3 | Patrick (Chief Medical Officer) unavailable >72h | Medium | High | Rachel Herling holds full clinical authority as Medical Director. Justin handles business decisions. Bank / vendor authentication credentials in encrypted 1Password shared vault (both have access). See §5.2 |
 | T4 | Justin (Chief Business Officer) unavailable >72h | Medium | Medium | Patrick has read/write access to Xero, banking, insurance, all vendor accounts. Payroll paused if needed (no employees mid-2026). See §5.2 |
-| T5 | Payment processor (Windcave) terminates account | Low | Critical | 30-day fallback: revert to Stripe (existing account, code path dormant but functional). See §5.3 |
+| T5 | Payment processor (Stripe) terminates account | Low | Critical | 30-day fallback: manual Xero invoicing to affected patients; evaluate alternative NZ acquirer (Worldline/PXPay). See §5.3 |
 | T6 | Supabase terminates / migrates account | Low | Critical | Nightly pg_dump exports to S3 (see DR §5). Migration path to self-hosted Postgres on AWS RDS documented separately. Estimated recovery time 3-5 business days. |
 | T7 | AWS terminates BAA / suspends Bedrock access | Very Low | Medium | Non-critical: AI note generation is nice-to-have, not blocking. Fallback: provider writes notes manually. Feature flag `ai_notes_enabled` allows immediate disable. |
 | T8 | Sole prescribing supervisor (Rachel) becomes unavailable | Low | Critical for provisional clinicians | Provisional-registration clinicians cannot prescribe without supervision (MCNZ requirement). Fallback: Patrick as backup supervisor for eligible clinicians only. Non-provisional clinicians (Rachel herself, or any vocationally registered locum) unaffected. See §5.4 |
@@ -94,16 +94,16 @@ It does not cover:
 
 ### 5.2 Key personnel (T3, T4)
 
-- **Credential redundancy**: Bank, Xero, AWS, Supabase, Vercel, Windcave, Google Workspace, GitHub, Twilio, LiveKit, Cloudflare — all credentials stored in a shared encrypted 1Password vault. Both Patrick and Justin hold owner-level access to every account.
+- **Credential redundancy**: Bank, Xero, AWS, Supabase, Vercel, Stripe, Google Workspace, GitHub, LiveKit, Cloudflare — all credentials stored in a shared encrypted 1Password vault. Both Patrick and Justin hold owner-level access to every account.
 - **Financial signatory**: Both Patrick and Justin are authorised signatories on the Tere Health bank account. Any single payment >$5,000 requires two-factor verification with the recipient plus authoriser (also documented in cyber policy).
 - **Delegation of authority**: If Patrick is unavailable ≥72 hours, Rachel holds delegated clinical authority. If Justin is unavailable ≥72 hours, Patrick holds sole business authority.
 - **Estate / incapacity planning**: Both principals hold enduring powers of attorney. Written continuity instructions filed with the company solicitor and updated annually.
 
 ### 5.3 Payment processing (T5)
 
-- Windcave is the primary payment processor (post-cert as of 2026-08).
-- Stripe account remains active (dormant) with all integration code preserved in the repo behind a feature flag. Reactivation window: same-day.
-- If both fail: manual invoicing via Xero for a maximum 30-day window; patients receive an emailed invoice with bank transfer instructions.
+- Stripe is the primary payment processor. (A Windcave application was declined 2026-08-03; Tere reverted to Stripe.)
+- If Stripe access is lost: manual invoicing via Xero for a maximum 30-day window; patients receive an emailed invoice with bank transfer instructions.
+- Longer-term Stripe failure: evaluate alternative NZ acquirers (Worldline, PXPay) — allow 4–6 weeks lead time for reintegration.
 
 ### 5.4 Supervision continuity (T8)
 
@@ -202,7 +202,7 @@ In the event that continued operation is not viable, Tere is obligated to:
 External support (numbers verified 2026-08-02):
 - **MPS clinical support** (Rachel, Patrick — as members): 0800 225 5677
 - **Delta Insurance claims**: 09 300 3888
-- **Windcave devsupport**: devsupport@windcave.com
+- **Stripe support**: via dashboard (paid support tier)
 - **Supabase support**: via dashboard (paid support tier)
 - **Vercel support**: via dashboard
 - **AWS support**: business tier (24/7 phone)
