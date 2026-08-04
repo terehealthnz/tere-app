@@ -40,6 +40,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'imaging-reviews', 'imaging-review',
   // Patient documents (provider-uploaded lab results / referral letters / etc.)
   'patient-documents',
+  // Structured patient history — allergens, medications, conditions (task #223)
+  'patient-allergens', 'patient-medications', 'patient-conditions',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -163,6 +165,9 @@ const ROUTES = {
   'encounter-action':          () => import('./_encounter-action.js'),
   'patient-documents':         () => import('./_patient-documents.js'),
   'patient-upload':            () => import('./_patient-upload.js'),
+  'patient-allergens':         () => import('./_patient-allergens.js'),
+  'patient-medications':       () => import('./_patient-medications.js'),
+  'patient-conditions':        () => import('./_patient-conditions.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

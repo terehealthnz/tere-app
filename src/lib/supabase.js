@@ -782,6 +782,50 @@ export async function deletePatientDocument(id) {
   return true
 }
 
+// ── Structured patient history (task #223) — allergens, medications, conditions
+// as first-class rows instead of free-text on the patients table. Each
+// endpoint follows the same shape: list by patientId, create, update, delete.
+
+function makeCrud(base, singularKey, pluralKey) {
+  return {
+    async list(patientId) {
+      if (!patientId) return []
+      const res = await apiFetch(`/api/${base}?patientId=${encodeURIComponent(patientId)}`)
+      if (!res.ok) return []
+      const body = await res.json()
+      return body[pluralKey] || []
+    },
+    async create(row) {
+      const res = await apiFetch(`/api/${base}`, { method: 'POST', body: JSON.stringify(row) })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `create ${singularKey} HTTP ${res.status}`)
+      }
+      return (await res.json())[singularKey]
+    },
+    async update(id, patch) {
+      const res = await apiFetch(`/api/${base}?id=${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `update ${singularKey} HTTP ${res.status}`)
+      }
+      return (await res.json())[singularKey]
+    },
+    async remove(id) {
+      const res = await apiFetch(`/api/${base}?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `delete ${singularKey} HTTP ${res.status}`)
+      }
+      return true
+    },
+  }
+}
+
+export const patientAllergensApi   = makeCrud('patient-allergens',   'allergen',   'allergens')
+export const patientMedicationsApi = makeCrud('patient-medications', 'medication', 'medications')
+export const patientConditionsApi  = makeCrud('patient-conditions',  'condition',  'conditions')
+
 export async function getPatientPrescriptions(patientId) {
   if (!patientId) return []
   const res = await apiFetch(`/api/prescriptions?patientId=${encodeURIComponent(patientId)}`)

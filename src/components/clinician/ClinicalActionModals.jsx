@@ -42,6 +42,25 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
   const [medsafeList, setMedsafeList] = useState(null)
   const [showPharmacyPicker, setShowPharmacyPicker] = useState(false)
   const [pharmacyQuery, setPharmacyQuery] = useState('')
+  // Allergen cross-check (task #223 phase E). Loaded once per modal open,
+  // matched against rx.drug on every keystroke to surface a red banner if
+  // the prescribed drug hits an active allergen on the patient record.
+  const [allergens, setAllergens] = useState([])
+  const [allergenAck, setAllergenAck] = useState(false)
+
+  // Load structured allergens for cross-check once when the modal opens.
+  // Best-effort — falls back to no rows if the endpoint fails.
+  useEffect(() => {
+    if (!open || !consult?.patient_id) { setAllergens([]); return }
+    ;(async () => {
+      try {
+        const { patientAllergensApi } = await import('../../lib/supabase')
+        const rows = await patientAllergensApi.list(consult.patient_id)
+        setAllergens((rows || []).filter(r => r.is_active !== false))
+      } catch { setAllergens([]) }
+    })()
+    setAllergenAck(false)
+  }, [open, consult?.patient_id])
 
   // Pre-fill from the patient's triage selection when the modal opens, plus any
   // crowdsourced contact details already recorded against this pharmacy_id.
@@ -215,6 +234,19 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Block submit if allergen alert is showing and unacknowledged.
+    const drug = (rx.drug || '').toLowerCase().trim()
+    if (drug && allergens.length > 0) {
+      const hits = allergens.filter(a => {
+        const name = (a.allergen || '').toLowerCase()
+        if (!name) return false
+        return name.includes(drug) || drug.includes(name)
+      })
+      if (hits.length > 0 && !allergenAck) {
+        setResult({ ok: false, error: 'Allergen alert not acknowledged — tick the confirmation checkbox in the red banner above before submitting.' })
+        return
+      }
+    }
     setSending(true)
     setResult(null)
     try {
@@ -284,6 +316,39 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
           </div>
         )}
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
+        {/* Allergen cross-check (task #223 phase E) — matches rx.drug against
+            the patient's active structured allergens. Substring, case-
+            insensitive, both directions ("Amoxicillin" hits "Penicillin" via
+            provider-entered notes; "Penicillin" hits "Amoxicillin" via drug
+            name). Provider must tick to override before submit. */}
+        {(() => {
+          const drug = (rx.drug || '').toLowerCase().trim()
+          if (!drug || allergens.length === 0) return null
+          const hits = allergens.filter(a => {
+            const name = (a.allergen || '').toLowerCase()
+            if (!name) return false
+            return name.includes(drug) || drug.includes(name)
+          })
+          if (hits.length === 0) return null
+          return (
+            <div style={{ marginBottom: '.75rem', borderRadius: 10, border: '2px solid #DC2626', background: '#FEF2F2', padding: '.75rem 1rem' }}>
+              <div style={{ fontWeight: 800, color: '#991B1B', fontSize: '.9375rem', marginBottom: 6 }}>
+                🚨 Allergen alert — patient is allergic to this drug (or a related one)
+              </div>
+              {hits.map(h => (
+                <div key={h.id} style={{ fontSize: '.8125rem', color: '#7F1D1D', marginBottom: 3 }}>
+                  <strong>{h.allergen}</strong>
+                  {h.reaction && ` — ${h.reaction}`}
+                  {h.reaction_severity && ` (${h.reaction_severity})`}
+                </div>
+              ))}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontSize: '.8125rem', color: '#991B1B', fontWeight: 700 }}>
+                <input type="checkbox" checked={allergenAck} onChange={e => setAllergenAck(e.target.checked)} />
+                I have reviewed the alert and confirm this prescription is clinically appropriate
+              </label>
+            </div>
+          )
+        })()}
         <div className="form-group">
           <label>Medication</label>
           <input value={rx.drug} onChange={e=>setRx(r=>({...r,drug:e.target.value}))} onBlur={e=>checkDrugInteractions(e.target.value)} required placeholder="e.g. Ibuprofen 400mg tablets" />

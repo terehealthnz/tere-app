@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
+import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -38,6 +39,9 @@ export default function ClinicianPatient() {
   const [imaging, setImaging]     = useState([])
   const [pastRx, setPastRx]       = useState([])
   const [documents, setDocuments] = useState([])
+  const [allergens, setAllergens]     = useState([])
+  const [medications, setMedications] = useState([])
+  const [conditions, setConditions]   = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFile, setUploadFile]   = useState(null)
@@ -103,19 +107,25 @@ export default function ClinicianPatient() {
           } catch {}
         }
         if (data?.patient_id) {
-          const [pt, pastConsults, imagingRes, rx, docs] = await Promise.all([
+          const [pt, pastConsults, imagingRes, rx, docs, allg, meds, conds] = await Promise.all([
             getPatient(data.patient_id).catch(() => null),
             getPatientConsultations(data.patient_id),
             apiFetch(`/api/radiology-reports?patient_id=${encodeURIComponent(data.patient_id)}`)
               .then(r => r.json()).catch(() => ({ reports: [] })),
             getPatientPrescriptions(data.patient_id).catch(() => []),
             getPatientDocuments(data.patient_id).catch(() => []),
+            patientAllergensApi.list(data.patient_id).catch(() => []),
+            patientMedicationsApi.list(data.patient_id).catch(() => []),
+            patientConditionsApi.list(data.patient_id).catch(() => []),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))
           setImaging(Array.isArray(imagingRes?.reports) ? imagingRes.reports : [])
           setPastRx(Array.isArray(rx) ? rx : [])
           setDocuments(Array.isArray(docs) ? docs : [])
+          setAllergens(Array.isArray(allg) ? allg : [])
+          setMedications(Array.isArray(meds) ? meds : [])
+          setConditions(Array.isArray(conds) ? conds : [])
         }
       } catch {} finally { setLoading(false) }
     }
@@ -397,6 +407,130 @@ export default function ClinicianPatient() {
               <EditableCard fieldKey="admin_notes" label="🗒️ Admin notes (scheduling/billing)" bg="#F8FAFC" borderColor="#CBD5E1" value={patient?.admin_notes} />
             </>
           )
+        })()}
+
+        {/* Structured patient history (task #223). Renders alongside the
+            free-text EditableCards above during the transition. Once every
+            patient has been reviewed and either structured-out or the
+            free-text explicitly kept, a follow-up will remove the legacy
+            EditableCards. All three sections lazy-create the patients row
+            on first add if none exists (same pattern as EditableCard). */}
+        {(() => {
+          async function ensurePid() {
+            if (patient?.id) return patient.id
+            const pat = await createPatient({
+              firstName: consult.patient_first_name, lastName: consult.patient_last_name,
+              dob: consult.patient_dob, phone: consult.patient_phone,
+              email: consult.patient_email, nhi: consult.patient_nhi,
+            })
+            if (!pat?.id) throw new Error('Could not create/link patient record')
+            await updateConsultation(id, { patient_id: pat.id })
+            setPatient(pat)
+            setConsult(c => c ? { ...c, patient_id: pat.id } : c)
+            return pat.id
+          }
+          return <>
+            <StructuredHistoryCard
+              title="🩹 Structured allergens"
+              rows={allergens}
+              primaryKey="allergen"
+              summarise={r => [r.allergen_type, r.reaction, r.reaction_severity && `severity: ${r.reaction_severity}`].filter(Boolean).join(' · ')}
+              statusBadge={r => r.is_active === false ? { label: 'Inactive', color: '#6B7280', bg: '#F3F4F6' } : null}
+              fields={[
+                { key: 'allergen', label: 'Allergen', placeholder: 'e.g. Amoxicillin, Peanuts', required: true },
+                { key: 'allergen_type', label: 'Type', kind: 'select', options: [
+                    { value: 'drug', label: 'Drug' }, { value: 'food', label: 'Food' },
+                    { value: 'environmental', label: 'Environmental' }, { value: 'other', label: 'Other' },
+                  ] },
+                { key: 'reaction', label: 'Reaction', placeholder: 'e.g. Rash, Anaphylaxis' },
+                { key: 'reaction_severity', label: 'Severity', kind: 'select', options: [
+                    { value: 'mild', label: 'Mild' }, { value: 'moderate', label: 'Moderate' },
+                    { value: 'severe', label: 'Severe' }, { value: 'life_threatening', label: 'Life-threatening' },
+                  ] },
+                { key: 'onset_date', label: 'Onset date', kind: 'date' },
+                { key: 'notes', label: 'Notes' },
+              ]}
+              color="#991B1B" bg="#FEF2F2" borderColor="#FECACA"
+              emptyText="No structured allergens"
+              emptyPrompt="Add an allergen"
+              onAdd={async (draft) => {
+                const pid = await ensurePid()
+                const row = await patientAllergensApi.create({ patientId: pid, ...draft })
+                setAllergens(rows => [row, ...rows])
+              }}
+              onDelete={async (rowId) => {
+                await patientAllergensApi.remove(rowId)
+                setAllergens(rows => rows.filter(r => r.id !== rowId))
+              }}
+            />
+
+            <StructuredHistoryCard
+              title="💊 Structured current medications"
+              rows={medications}
+              primaryKey="drug"
+              summarise={r => [r.dose, r.frequency, r.route, r.indication && `for ${r.indication}`].filter(Boolean).join(' · ')}
+              statusBadge={r => r.is_active === false ? { label: 'Discontinued', color: '#6B7280', bg: '#F3F4F6' } : null}
+              fields={[
+                { key: 'drug', label: 'Drug', placeholder: 'e.g. Losartan', required: true },
+                { key: 'dose', label: 'Dose', placeholder: 'e.g. 50mg' },
+                { key: 'frequency', label: 'Frequency', placeholder: 'e.g. mane, nocte, BD, TDS PRN' },
+                { key: 'route', label: 'Route', placeholder: 'e.g. oral, topical, inhaled' },
+                { key: 'indication', label: 'Indication', placeholder: 'e.g. Hypertension' },
+                { key: 'prescribed_by', label: 'Prescribed by', placeholder: 'e.g. Dr Bloggs, Nelson GP' },
+                { key: 'started_date', label: 'Started', kind: 'date' },
+                { key: 'notes', label: 'Notes' },
+              ]}
+              emptyText="No structured medications"
+              emptyPrompt="Add a medication"
+              onAdd={async (draft) => {
+                const pid = await ensurePid()
+                const row = await patientMedicationsApi.create({ patientId: pid, ...draft })
+                setMedications(rows => [row, ...rows])
+              }}
+              onDelete={async (rowId) => {
+                await patientMedicationsApi.remove(rowId)
+                setMedications(rows => rows.filter(r => r.id !== rowId))
+              }}
+            />
+
+            <StructuredHistoryCard
+              title="🩺 Structured medical history"
+              rows={conditions}
+              primaryKey="condition"
+              summarise={r => [r.icd10_code, r.onset_date && `dx ${r.onset_date}`, r.resolved_date && `resolved ${r.resolved_date}`].filter(Boolean).join(' · ')}
+              statusBadge={r => {
+                const map = {
+                  active:       { label: 'Active',       color: '#065F46', bg: '#D1FAE5' },
+                  resolved:     { label: 'Resolved',     color: '#6B7280', bg: '#F3F4F6' },
+                  in_remission: { label: 'In remission', color: '#0369A1', bg: '#DBEAFE' },
+                  suspected:    { label: 'Suspected',    color: '#92400E', bg: '#FEF3C7' },
+                }
+                return map[r.status] || null
+              }}
+              fields={[
+                { key: 'condition', label: 'Condition', placeholder: 'e.g. Type 2 Diabetes', required: true },
+                { key: 'icd10_code', label: 'ICD-10 code', placeholder: 'e.g. E11.9' },
+                { key: 'status', label: 'Status', kind: 'select', options: [
+                    { value: 'active', label: 'Active' }, { value: 'resolved', label: 'Resolved' },
+                    { value: 'in_remission', label: 'In remission' }, { value: 'suspected', label: 'Suspected' },
+                  ] },
+                { key: 'onset_date', label: 'Onset date', kind: 'date' },
+                { key: 'resolved_date', label: 'Resolved date', kind: 'date' },
+                { key: 'notes', label: 'Notes' },
+              ]}
+              emptyText="No structured conditions"
+              emptyPrompt="Add a condition"
+              onAdd={async (draft) => {
+                const pid = await ensurePid()
+                const row = await patientConditionsApi.create({ patientId: pid, ...draft })
+                setConditions(rows => [row, ...rows])
+              }}
+              onDelete={async (rowId) => {
+                await patientConditionsApi.remove(rowId)
+                setConditions(rows => rows.filter(r => r.id !== rowId))
+              }}
+            />
+          </>
         })()}
 
         {/* Past prescriptions across all this patient's consults. Renders
