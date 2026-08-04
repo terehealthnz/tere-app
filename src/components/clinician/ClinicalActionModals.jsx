@@ -555,8 +555,11 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           <div className="form-group">
             <label>Investigation</label>
             <select value={xr.investigation} onChange={e=>setXr(x=>({...x,investigation:e.target.value}))}>
-              <option>X-ray</option><option>CT</option><option>Ultrasound</option><option>MRI</option>
+              <option>X-ray</option><option>Ultrasound</option>
             </select>
+            {/* MRI and CT intentionally excluded — telehealth scope. If the
+                patient needs cross-sectional imaging, refer to specialist or
+                ED for onward ordering. */}
           </div>
           <div className="form-group">
             <label>Body part / region</label>
@@ -745,21 +748,54 @@ export function MedCertModal({ open, onClose, consult, onDone }) {
     setDays(3)
     setRestrictions('')
     setError('')
-    try {
-      const cached = localStorage.getItem(sigKey)
-      if (cached) {
-        setSignatureUrl(cached)
-        setTimeout(() => {
-          const c = canvasRef.current
-          if (!c) return
-          const ctx = c.getContext('2d')
-          const img = new Image()
-          img.onload = () => { ctx.drawImage(img, 0, 0, c.width, c.height) }
-          img.src = cached
-        }, 50)
-      }
-    } catch {}
-  }, [open, consult, sigKey])
+
+    // Signature loading priority (best → worst):
+    //   1. Provider profile signature_url (server-side, cross-device)
+    //   2. localStorage cache (same-device fallback)
+    //   3. Blank canvas (provider signs fresh)
+    // Fetching the profile signature auto-populates the canvas so the
+    // provider doesn't have to redraw on every cert. If the profile has
+    // no signature yet, we fall back to the cached one; if there's
+    // neither, the canvas stays blank and the provider signs.
+    async function loadSignature() {
+      try {
+        // Try profile first
+        const res = await apiFetch(`/api/providers?id=${encodeURIComponent(providerId)}&columns=signature_url`)
+        if (res.ok) {
+          const { provider } = await res.json()
+          if (provider?.signature_url) {
+            setSignatureUrl(provider.signature_url)
+            setTimeout(() => {
+              const c = canvasRef.current
+              if (!c) return
+              const ctx = c.getContext('2d')
+              const img = new Image()
+              img.crossOrigin = 'anonymous'
+              img.onload = () => { ctx.drawImage(img, 0, 0, c.width, c.height) }
+              img.src = provider.signature_url
+            }, 50)
+            return
+          }
+        }
+      } catch {}
+      // Fallback to localStorage
+      try {
+        const cached = localStorage.getItem(sigKey)
+        if (cached) {
+          setSignatureUrl(cached)
+          setTimeout(() => {
+            const c = canvasRef.current
+            if (!c) return
+            const ctx = c.getContext('2d')
+            const img = new Image()
+            img.onload = () => { ctx.drawImage(img, 0, 0, c.width, c.height) }
+            img.src = cached
+          }, 50)
+        }
+      } catch {}
+    }
+    loadSignature()
+  }, [open, consult, sigKey, providerId])
 
   function pointerXY(e) {
     const c = canvasRef.current

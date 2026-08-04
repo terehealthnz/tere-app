@@ -1351,7 +1351,10 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           </div>
         </div>
 
-        {/* Work capacity */}
+        {/* Work capacity — ACC only. Fit/Modified/Unfit are ACC concepts
+            (workability after injury). Non-ACC private consults don't need
+            this field, so hide the whole block. */}
+        {isAcc && (
         <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
           <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:12 }}>Work capacity</div>
           <div style={{ display:'flex', gap:8 }}>
@@ -1393,6 +1396,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             </div>
           )}
         </div>
+        )}
 
         {/* ACC section — only for video/phone; message consultations cannot lodge ACC claims */}
         {isAcc && !isAsyncMessage && (
@@ -1432,21 +1436,24 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           </select>
         </div>
 
-        {/* Method selector — video / phone only */}
+        {/* Patient-fee tier — single unified pricing. NZ residents pay the
+            standard fee; overseas patients pay the international rate.
+            Provider records which was charged for reporting + audit. Method
+            (video vs phone) is no longer priced separately — provider picks
+            the media type inside the call itself. */}
         {!isAsyncMessage && !isFinalised && (
           <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
             <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>
-              Method used <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— patient charged this amount</span>
+              Patient fee tier <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— patient charged this amount</span>
             </div>
             <div style={{ display:'flex', gap:8 }}>
               {[
-                { val:'video', label:'Video', price: isAcc ? 25 : 65 },
-                { val:'phone', label:'Phone', price: isAcc ? 25 : 45 },
-                { val:'message', label:'Message', price: 25 },
+                { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 60 },
+                { val:'international', label:'🌍 International', price: 100 },
               ].map(o => (
                 <button key={o.val} onClick={() => setActualMethod(o.val)}
                   style={{ flex:1, minHeight:52, borderRadius:10, border:`1.5px solid ${actualMethod===o.val?TEAL:'#E2E8F0'}`, background:actualMethod===o.val?'#EFF9F9':'white', color:actualMethod===o.val?TEAL:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }}>
-                  <div>{o.val==='video'?'📹':o.val==='phone'?'📞':'💬'} {o.label}</div>
+                  <div>{o.label}</div>
                   <div style={{ fontSize:'.6875rem', fontWeight:400, marginTop:2 }}>${o.price}</div>
                 </button>
               ))}
