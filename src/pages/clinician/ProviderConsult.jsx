@@ -7,7 +7,7 @@ import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
-import { getLangMeta } from '../../lib/i18n'
+import { getLangMeta, LANGUAGES } from '../../lib/i18n'
 import CallSubtitles from '../../components/clinical/CallSubtitles'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
@@ -119,6 +119,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
   const [transcript, setTranscript]     = useState('')
   const [showNotes, setShowNotes]       = useState(false)
   const [subtitlesOn, setSubtitlesOn]   = useState(false)
+  // Manual override for the source language of live subtitles. null =
+  // derive from consult.patient_language. Provider can pick a different
+  // language mid-call from the fullscreen widget picker.
+  const [subtitleLangOverride, setSubtitleLangOverride] = useState(null)
   const [callNotes, setCallNotes]       = useState('')
   const [actions, setActions]           = useState([])
   const [endingCall, setEndingCall]     = useState(false)
@@ -564,7 +568,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
             <div style={{ color:'#6B7280', fontSize:'.875rem', marginBottom:16 }}>What happened? Choose the outcome to record on this consult.</div>
             <EncounterActionBar
               consultationId={id}
-              onCall={() => { setCallComplete(false) }}
+              hideCall
               onNoAnswer={() => { setCallComplete(false); if (typeof onEnd === 'function') onEnd() }}
               onComplete={() => { if (typeof onEnd === 'function') onEnd({ complete: true, actions, transcript: transcript || '', callNotes }) }}
             />
@@ -582,9 +586,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
         >
           {(() => {
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
-            const meta = getLangMeta(patientLang)
-            const subtitlesAvailable = !!meta && patientLang !== 'en' &&
-              (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
+            // Languages we can offer as override sources = all with real
+            // AWS Transcribe streaming coverage (excellent/very_good) except
+            // English (provider always sees English). Sorted for stable UI.
+            const supportedLangs = LANGUAGES
+              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
+            const activeLang = subtitleLangOverride || patientLang
+            const activeMeta = getLangMeta(activeLang)
+            const subtitlesAvailable = supportedLangs.length > 0 && activeLang !== 'en' &&
+              activeMeta && (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
             return (
               <>
                 <FloatingCallWidget
@@ -600,13 +611,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
                   subtitlesAvailable={subtitlesAvailable}
                   subtitlesOn={subtitlesOn}
                   onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                  subtitleLanguages={supportedLangs}
+                  currentSubtitleLang={activeLang}
+                  onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
                     viewerLang="en"
-                    speakerLang={patientLang}
+                    speakerLang={activeLang}
                     enabled={subtitlesOn}
                     modalOpen={showNotes}
                     consultationId={id}
@@ -633,7 +647,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
             <div style={{ color:'#6B7280', fontSize:'.875rem', marginBottom:16 }}>What happened? Choose the outcome to record on this consult.</div>
             <EncounterActionBar
               consultationId={id}
-              onCall={() => { setCallComplete(false); /* stay in-call view, initiate again */ }}
+              hideCall
               onNoAnswer={() => { setCallComplete(false); finishSession('/provider') }}
               onComplete={() => {
                 // In popupMode the parent (ClinicianPatient) owns the notes

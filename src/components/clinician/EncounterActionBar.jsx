@@ -29,6 +29,10 @@ export default function EncounterActionBar({
   onComplete,  // optional: () => void — defaults to navigate('/provider/notes/:id')
   disabled = false,
   compact = false,
+  // In post-call overlays the Call button is nonsensical (you can't call
+  // from an "ended" state) — hide it so providers only see No Answer +
+  // Complete Encounter.
+  hideCall = false,
 }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(null)  // 'call' | 'no_answer' | 'complete' | null
@@ -53,6 +57,7 @@ export default function EncounterActionBar({
 
   return (
     <div style={{ display: 'flex', gap, width: '100%' }}>
+      {!hideCall && (
       <button
         type="button"
         onClick={() => fire('call', (res) => {
@@ -69,6 +74,7 @@ export default function EncounterActionBar({
         }}>
         {busy === 'call' ? '…' : '📞 Call'}
       </button>
+      )}
 
       <button
         type="button"

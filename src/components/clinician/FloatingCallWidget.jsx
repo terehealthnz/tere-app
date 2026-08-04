@@ -57,6 +57,12 @@ export default function FloatingCallWidget({
   subtitlesAvailable = false,
   subtitlesOn = false,
   onToggleSubtitles,
+  // Manual language override picker (fullscreen only). If the patient's
+  // actual language differs from what triage recorded, the provider can
+  // pick the real source language mid-call.
+  subtitleLanguages = [],         // [{ code, name, flag }, …] — supported source langs
+  currentSubtitleLang = null,     // code currently used as source
+  onChangeSubtitleLang,           // (code: string) => void
 }) {
   // Backwards-compatible default so a caller that forgets to pass
   // primaryAction still gets an End Call button that no-ops safely.
@@ -167,15 +173,35 @@ export default function FloatingCallWidget({
                 {patientName || 'Call'} — {hasRemote ? 'connected' : 'waiting for patient'}
               </span>
             </div>
-            <button
-              onClick={() => setFullscreen(false)}
-              title="Shrink to widget (Esc)"
-              style={{
-                background: 'rgba(255,255,255,.1)', border: 'none', color: 'white',
-                padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
-                fontFamily: 'inherit', fontSize: '.875rem', fontWeight: 600,
-              }}
-            >⤡ Shrink</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {subtitlesAvailable && subtitleLanguages.length > 0 && (
+                <div title="Patient's spoken language for subtitles" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.6)' }}>Subtitles from</span>
+                  <select
+                    value={currentSubtitleLang || ''}
+                    onChange={(e) => { if (typeof onChangeSubtitleLang === 'function') onChangeSubtitleLang(e.target.value) }}
+                    style={{
+                      background: 'rgba(255,255,255,.1)', color: 'white', border: '1px solid rgba(255,255,255,.2)',
+                      padding: '6px 10px', borderRadius: 6, fontFamily: 'inherit', fontSize: '.8125rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {subtitleLanguages.map(l => (
+                      <option key={l.code} value={l.code} style={{ background: '#0D1117' }}>{l.flag} {l.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button
+                onClick={() => setFullscreen(false)}
+                title="Shrink to widget (Esc)"
+                style={{
+                  background: 'rgba(255,255,255,.1)', border: 'none', color: 'white',
+                  padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: '.875rem', fontWeight: 600,
+                }}
+              >⤡ Shrink</button>
+            </div>
           </div>
 
           {/* Video body */}
