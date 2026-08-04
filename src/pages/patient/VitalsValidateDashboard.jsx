@@ -845,6 +845,7 @@ export default function VitalsValidateDashboard() {
   const [subjects, setSubjects]   = useState([])
   const [modelVersions, setModelVersions] = useState([])
   const [loading, setLoading]     = useState(false)
+  const [loadError, setLoadError] = useState(null)  // { message, isRateLimit } — distinguish 429 from real empty
   const [tab, setTab]             = useState('readings')
   const [filterSubject, setFilterSubject] = useState('')
   const [training, setTraining]         = useState(false)
@@ -854,14 +855,24 @@ export default function VitalsValidateDashboard() {
   const [reprocessingHr, setReprocessingHr] = useState(false)
   const [reprocessHrStatus, setReprocessHrStatus] = useState('')
 
+  const loadData = useCallback(() => {
+    setLoading(true); setLoadError(null)
+    return Promise.all([getValidationReadings(), getValidationSubjects(), getModelVersions()])
+      .then(([r, s, mv]) => { setReadings(r); setSubjects(s); setModelVersions(mv) })
+      .catch(e => {
+        const msg = e?.message || String(e)
+        console.error('[Dashboard] load error:', msg)
+        // Detect 429 explicitly so the UI can show "rate limited, not empty".
+        const isRateLimit = /429|too many requests/i.test(msg)
+        setLoadError({ message: msg, isRateLimit })
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
   useEffect(() => {
     if (authed !== true) return
-    setLoading(true)
-    Promise.all([getValidationReadings(), getValidationSubjects(), getModelVersions()])
-      .then(([r, s, mv]) => { setReadings(r); setSubjects(s); setModelVersions(mv) })
-      .catch(e => console.error('[Dashboard] load error:', e.message))
-      .finally(() => setLoading(false))
-  }, [authed])
+    loadData()
+  }, [authed, loadData])
 
   const handleTrain = useCallback(async () => {
     setTraining(true); setTrainingStatus('Fetching training data…')
@@ -1016,6 +1027,38 @@ export default function VitalsValidateDashboard() {
 
   return wrap(
     <>
+      {/* Load error banner — distinguishes 429 / auth / network failure
+          from a genuinely empty dataset, which used to render identically. */}
+      {loadError && (
+        <div style={{
+          background: loadError.isRateLimit ? '#FEF3C7' : '#FEE2E2',
+          border: `1px solid ${loadError.isRateLimit ? '#FDE68A' : '#FCA5A5'}`,
+          color: loadError.isRateLimit ? '#78350F' : '#991B1B',
+          borderRadius: 12,
+          padding: '.75rem 1rem',
+          marginBottom: '1rem',
+          fontSize: '.875rem',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '.75rem',
+          justifyContent: 'space-between',
+        }}>
+          <div>
+            <strong>{loadError.isRateLimit ? '⏳ Rate limited' : '⚠️ Failed to load'}</strong>
+            <div style={{ fontSize: '.8125rem', opacity: .85, marginTop: 2 }}>
+              {loadError.isRateLimit
+                ? 'Too many requests from this IP in the last 15 minutes. Data below may be stale or empty — this is not the real state. Retry in a few minutes.'
+                : `The dashboard could not load its data (${loadError.message}). The values below may be incomplete.`}
+            </div>
+          </div>
+          <button onClick={loadData} disabled={loading}
+            style={{ background: 'white', border: '1px solid currentColor', borderRadius: 8, padding: '6px 12px', fontWeight: 700, fontSize: '.8125rem', cursor: loading ? 'wait' : 'pointer', color: 'inherit', fontFamily: 'Plus Jakarta Sans, sans-serif', flexShrink: 0 }}>
+            {loading ? '…' : 'Retry'}
+          </button>
+        </div>
+      )}
+
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem', marginBottom: '1.25rem' }}>
         {[
