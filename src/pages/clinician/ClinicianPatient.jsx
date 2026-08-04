@@ -233,7 +233,7 @@ export default function ClinicianPatient() {
         </div>
       </div>
 
-      <div style={{ padding: '1.25rem 1rem 6rem', maxWidth: 640, margin: '0 auto' }}>
+      <div style={{ padding: '1.25rem 1rem calc(11rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
 
         {/* Name + type */}
         <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
