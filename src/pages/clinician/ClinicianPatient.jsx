@@ -7,6 +7,9 @@ import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
 const ProviderConsult = lazy(() => import('./ProviderConsult'))
+// Notes popup (task #218) — same lazy pattern. Provider clicks Complete
+// Encounter and the notes modal appears on top of the chart.
+const ProviderNotes = lazy(() => import('./ProviderNotes'))
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -41,6 +44,10 @@ export default function ClinicianPatient() {
   // call widget on top of the chart. Setting to null unmounts it and ends
   // the call session (task #216).
   const [activeCall, setActiveCall] = useState(null)
+  // When set, opens the ProviderNotes modal on top of the chart. Fired by
+  // Complete Encounter (from the static bar OR from the post-call overlay
+  // inside the call popup). Setting to null unmounts and returns focus.
+  const [activeNotes, setActiveNotes] = useState(null)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -160,14 +167,23 @@ export default function ClinicianPatient() {
             consultationId={id}
             onEnd={(result) => {
               setActiveCall(null)
-              // If Complete Encounter was clicked in the post-call overlay,
-              // task #218 will hand these values to the notes popup. For
-              // now (before #218 lands) just navigate to the legacy notes
-              // route so the workflow still works end-to-end.
+              // Complete Encounter clicked in post-call overlay → open the
+              // notes modal on this page (task #218) with the transcript +
+              // actions the call surface accumulated. Everything stays on
+              // the patient page — no navigation.
               if (result?.complete) {
-                navigate(`/provider/notes/${id}`, { state: { actions: result.actions, transcript: result.transcript || '', callNotes: result.callNotes } })
+                setActiveNotes({ actions: result.actions || [], transcript: result.transcript || '', callNotes: result.callNotes || '' })
               }
             }}
+          />
+        </Suspense>
+      )}
+      {activeNotes && (
+        <Suspense fallback={null}>
+          <ProviderNotes
+            popupMode
+            consultationId={id}
+            onEnd={() => setActiveNotes(null)}
           />
         </Suspense>
       )}
@@ -526,6 +542,11 @@ export default function ClinicianPatient() {
               // Locked to this page: leaving unmounts the popup and ends
               // the session (endCall runs on LiveKit disconnect).
               setActiveCall({ channel, startedAt: Date.now() })
+            }}
+            onComplete={() => {
+              // Static-bar Complete Encounter: open the notes popup here on
+              // the patient page instead of navigating to /provider/notes/:id.
+              setActiveNotes({ actions: [], transcript: '', callNotes: '' })
             }}
             onNoAnswer={async (res) => {
               // Server dismisses the patient after the 3rd no-answer. On dismiss:

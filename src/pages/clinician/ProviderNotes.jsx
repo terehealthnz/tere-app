@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
@@ -289,8 +289,21 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
   )
 }
 
-export default function ProviderNotes() {
-  const { id }     = useParams()
+export default function ProviderNotes({ popupMode = false, onEnd, consultationId: propConsultationId } = {}) {
+  const params     = useParams()
+  const { id: paramId } = params
+  const id = propConsultationId || paramId
+  // Route every "notes are done, back to queue" path through onEnd when
+  // popupMode is on — the parent ClinicianPatient owns the transition and
+  // the notes render inside a modal on top of the chart, not a route.
+  const finishSession = useCallback((destination = '/provider') => {
+    if (popupMode) {
+      if (typeof onEnd === 'function') onEnd()
+      return
+    }
+    navigate(destination)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [popupMode, onEnd])
   const navigate   = useNavigate()
   const location   = useLocation()
 
@@ -639,7 +652,7 @@ export default function ProviderNotes() {
         } catch {}
       }
       localStorage.removeItem(draftKey)
-      navigate('/provider')
+      finishSession('/provider')
     } catch (e) { console.error(e) }
     setAsyncSending(false)
   }
@@ -662,7 +675,7 @@ export default function ProviderNotes() {
         })
       }
       localStorage.removeItem(draftKey)
-      navigate('/provider')
+      finishSession('/provider')
     } catch (e) { console.error(e) }
     setEscalateSending(false)
   }
@@ -822,15 +835,35 @@ export default function ProviderNotes() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
-  if (loading) return (
-    <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
+  // popupMode wrapper — renders notes as a large modal overlay on top of
+  // the ClinicianPatient chart instead of a full page. Provider closes it
+  // via the header ✕ button (calls onEnd) or by finishing the note flow
+  // (which routes through finishSession → onEnd).
+  const wrapPopup = (children) => {
+    if (!popupMode) return children
+    return (
+      <div style={{ position:'fixed', inset:0, background:'rgba(13,43,69,.55)', backdropFilter:'blur(4px)', zIndex:150, display:'flex', alignItems:'center', justifyContent:'center', padding:'2vh 2vw', fontFamily:FF }}>
+        <div style={{ background:'white', width:'100%', maxWidth:960, height:'96dvh', borderRadius:16, boxShadow:'0 24px 48px rgba(0,0,0,.35)', overflow:'hidden', display:'flex', flexDirection:'column', position:'relative' }}>
+          <button
+            onClick={() => finishSession('/provider')}
+            title="Close notes (discards nothing; drafts autosave)"
+            style={{ position:'absolute', top:12, right:12, zIndex:2, width:36, height:36, borderRadius:'50%', border:'none', background:'rgba(0,0,0,.06)', color:NAVY, fontSize:'1.125rem', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
+          >✕</button>
+          <div style={{ flex:1, overflowY:'auto' }}>{children}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) return wrapPopup(
+    <div style={{ height: popupMode ? '100%' : '100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
       <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   )
 
-  if (!consult) return (
-    <div style={{ height:'100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontFamily:FF, gap:'1rem', padding:'2rem', textAlign:'center' }}>
+  if (!consult) return wrapPopup(
+    <div style={{ height: popupMode ? '100%' : '100dvh', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', fontFamily:FF, gap:'1rem', padding:'2rem', textAlign:'center' }}>
       <div style={{ fontSize:'2rem' }}>⚠️</div>
       <div style={{ fontSize:'1.125rem', fontWeight:700, color:NAVY }}>Couldn't load this consultation</div>
       {loadError && <div style={{ fontSize:'.875rem', color:'#6B7280', maxWidth:480 }}>{loadError}</div>}
@@ -841,7 +874,7 @@ export default function ProviderNotes() {
         <button onClick={() => window.location.reload()} style={{ background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer', fontWeight:700 }}>
           Reload notes
         </button>
-        <button onClick={() => navigate('/provider')} style={{ background:'white', color:NAVY, border:'1.5px solid #E2E8F0', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer' }}>
+        <button onClick={() => finishSession('/provider')} style={{ background:'white', color:NAVY, border:'1.5px solid #E2E8F0', padding:'12px 24px', borderRadius:10, fontFamily:FF, cursor:'pointer' }}>
           ← Back to queue
         </button>
       </div>
@@ -857,8 +890,8 @@ export default function ProviderNotes() {
   const asyncDeadline   = consult.async_deadline
   const isOverdue       = asyncDeadline && !isAlreadyResponded && new Date(asyncDeadline) < Date.now()
 
-  return (
-    <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:FF }}>
+  return wrapPopup(
+    <div style={{ minHeight: popupMode ? '100%' : '100dvh', background:'#F0F2F5', fontFamily:FF }}>
 
       {/* Finalising progress overlay */}
       {finalising && finaliseSteps.length > 0 && !finaliseResult && (
@@ -923,7 +956,7 @@ export default function ProviderNotes() {
               </div>
             )}
           </div>
-          <button onClick={() => navigate('/provider')}
+          <button onClick={() => finishSession('/provider')}
             style={{ marginTop:'.5rem', background:TEAL, color:'white', border:'none', padding:'14px 32px', borderRadius:12, fontFamily:FF, fontWeight:800, fontSize:'1rem', cursor:'pointer', minHeight:52 }}>
             ← Next patient
           </button>
@@ -942,7 +975,7 @@ export default function ProviderNotes() {
 
       {/* Top bar */}
       <div style={{ background:NAVY, padding:'14px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10 }}>
-        <button onClick={() => navigate('/provider')}
+        <button onClick={() => finishSession('/provider')}
           style={{ background:'rgba(255,255,255,.1)', border:'none', color:'rgba(255,255,255,.7)', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontFamily:FF, fontSize:'.875rem', minHeight:44 }}>
           ← Queue
         </button>
@@ -1446,7 +1479,7 @@ export default function ProviderNotes() {
               <div style={{ fontSize:'2rem', marginBottom:8 }}>✓</div>
               <div style={{ fontWeight:800, color:GREEN, fontSize:'1.125rem', marginBottom:4 }}>Notes finalised</div>
               {consult.notes_finalised_at && <div style={{ fontSize:'.875rem', color:'#6B7280' }}>{new Date(consult.notes_finalised_at).toLocaleString('en-NZ')}</div>}
-              <button onClick={() => navigate('/provider')}
+              <button onClick={() => finishSession('/provider')}
                 style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', minHeight:48 }}>
                 ← Back to queue
               </button>
@@ -1460,7 +1493,7 @@ export default function ProviderNotes() {
             <div style={{ fontSize:'2rem', marginBottom:8 }}>✓</div>
             <div style={{ fontWeight:800, color:GREEN, fontSize:'1.125rem', marginBottom:4 }}>Response sent to patient</div>
             {consult.async_responded_at && <div style={{ fontSize:'.875rem', color:'#6B7280' }}>{new Date(consult.async_responded_at).toLocaleString('en-NZ')}</div>}
-            <button onClick={() => navigate('/provider')}
+            <button onClick={() => finishSession('/provider')}
               style={{ marginTop:'1rem', background:TEAL, color:'white', border:'none', padding:'12px 24px', borderRadius:10, fontFamily:FF, fontWeight:700, fontSize:'.9375rem', cursor:'pointer', minHeight:48 }}>
               ← Back to queue
             </button>
