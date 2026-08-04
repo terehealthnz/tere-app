@@ -377,90 +377,6 @@ export default function ClinicianPatient() {
           )
         })()}
 
-        {/* Editable patient record (medications / allergies / history from patients table).
-            Always rendered — empty boxes are a deliberate clinical prompt for the provider
-            to ask, not skip. If the consult has no linked patients row yet, the first save
-            silently creates one from the consult's demographics and links it. */}
-        {(() => {
-          async function saveEdit(field, value) {
-            setSavingEdit(true)
-            const map = {
-              medications: 'current_medications',
-              allergies: 'allergies',
-              history: 'medical_history',
-              admin_notes: 'admin_notes',
-              doctor_notes: 'doctor_notes',
-            }
-            try {
-              let pat = patient
-              if (!pat) {
-                // No patients row yet — create one lazily using what's on the consult,
-                // then link it so future saves patch the same row.
-                pat = await createPatient({
-                  firstName: consult.patient_first_name,
-                  lastName: consult.patient_last_name,
-                  dob: consult.patient_dob,
-                  phone: consult.patient_phone,
-                  email: consult.patient_email,
-                  nhi: consult.patient_nhi,
-                })
-                if (pat?.id) {
-                  await updateConsultation(id, { patient_id: pat.id })
-                  setConsult(c => c ? { ...c, patient_id: pat.id } : c)
-                }
-              }
-              if (!pat?.id) throw new Error('Could not create/link patient record')
-              await updatePatient(pat.id, { [map[field]]: value })
-              setPatient(p => ({ ...(p || pat), [map[field]]: value }))
-            } catch (e) {
-              console.error('[patient-edit] save failed:', e?.message)
-            }
-            setSavingEdit(false)
-            setEditField(null)
-          }
-
-          function EditableCard({ fieldKey, label, color, bg, borderColor, value }) {
-            const isEditing = editField === fieldKey
-            return (
-              <div style={{ background: bg || 'white', borderRadius: 16, border: `1px solid ${borderColor || '#E2E8F0'}`, padding: '1.25rem', marginBottom: '.875rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.75rem' }}>
-                  <div style={{ fontWeight: 700, color: color || NAVY, fontSize: '.9375rem' }}>{label}</div>
-                  <button onClick={() => { setEditField(isEditing ? null : fieldKey); setEditValue(value || '') }}
-                    style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.8125rem', fontWeight: 600, cursor: 'pointer', fontFamily: FF }}>
-                    {isEditing ? 'Cancel' : 'Edit'}
-                  </button>
-                </div>
-                {isEditing ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <textarea
-                      value={editValue}
-                      onChange={e => setEditValue(e.target.value)}
-                      rows={4}
-                      style={{ width: '100%', padding: '.625rem .75rem', border: '1.5px solid #D1D5DB', borderRadius: 8, fontFamily: FF, fontSize: '.9rem', resize: 'vertical', boxSizing: 'border-box' }}
-                    />
-                    <button onClick={() => saveEdit(fieldKey, editValue)} disabled={savingEdit}
-                      style={{ alignSelf: 'flex-end', background: TEAL, color: 'white', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: '.875rem', cursor: 'pointer', fontFamily: FF, opacity: savingEdit ? .6 : 1 }}>
-                      {savingEdit ? 'Saving…' : 'Save'}
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '.9375rem', color: color || NAVY, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{value || <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>None recorded</span>}</div>
-                )}
-              </div>
-            )
-          }
-
-          return (
-            <>
-              <EditableCard fieldKey="allergies" label="⚠ Allergies" color="#991B1B" bg="#FEF2F2" borderColor="#FECACA" value={patient?.allergies} />
-              <EditableCard fieldKey="medications" label="Current medications" value={patient?.current_medications} />
-              <EditableCard fieldKey="history" label="Medical history" value={patient?.medical_history} />
-              <EditableCard fieldKey="doctor_notes" label="🩺 Doctor notes (cross-consult)" bg="#EFF9F9" borderColor="#A7D4D8" value={patient?.doctor_notes} />
-              <EditableCard fieldKey="admin_notes" label="🗒️ Admin notes (scheduling/billing)" bg="#F8FAFC" borderColor="#CBD5E1" value={patient?.admin_notes} />
-            </>
-          )
-        })()}
-
         {/* Structured patient history (task #223). Renders alongside the
             free-text EditableCards above during the transition. Once every
             patient has been reviewed and either structured-out or the
@@ -905,6 +821,88 @@ export default function ClinicianPatient() {
                 </div>
               </div>
             </div>
+          )
+        })()}
+
+        {/* ── Internal notes ─────────────────────────────────────────────
+            Visually and semantically separated from the patient's clinical
+            record above. These are Tere's internal working notes (cross-consult
+            reminders, scheduling / billing context) and are NOT part of the
+            patient's health record. On a HIPC information request we release
+            the clinical record above; internal notes are subject to a
+            separate assessment. */}
+        {(() => {
+          async function saveNote(field, value) {
+            setSavingEdit(true)
+            try {
+              let pat = patient
+              if (!pat) {
+                pat = await createPatient({
+                  firstName: consult.patient_first_name,
+                  lastName: consult.patient_last_name,
+                  dob: consult.patient_dob,
+                  phone: consult.patient_phone,
+                  email: consult.patient_email,
+                  nhi: consult.patient_nhi,
+                })
+                if (pat?.id) {
+                  await updateConsultation(id, { patient_id: pat.id })
+                  setConsult(c => c ? { ...c, patient_id: pat.id } : c)
+                }
+              }
+              if (!pat?.id) throw new Error('Could not create/link patient record')
+              await updatePatient(pat.id, { [field]: value })
+              setPatient(p => ({ ...(p || pat), [field]: value }))
+            } catch (e) {
+              console.error('[internal-notes] save failed:', e?.message)
+            }
+            setSavingEdit(false)
+            setEditField(null)
+          }
+          function NoteCard({ fieldKey, label, bg, borderColor, value }) {
+            const isEditing = editField === fieldKey
+            return (
+              <div style={{ background: bg, borderRadius: 12, border: `1px solid ${borderColor}`, padding: '1rem 1.15rem', marginBottom: '.625rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.5rem' }}>
+                  <div style={{ fontWeight: 700, color: NAVY, fontSize: '.875rem' }}>{label}</div>
+                  <button onClick={() => { setEditField(isEditing ? null : fieldKey); setEditValue(value || '') }}
+                    style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: FF }}>
+                    {isEditing ? 'Cancel' : 'Edit'}
+                  </button>
+                </div>
+                {isEditing ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <textarea value={editValue} onChange={e => setEditValue(e.target.value)} rows={4}
+                      style={{ width: '100%', padding: '.5rem .625rem', border: '1.5px solid #D1D5DB', borderRadius: 8, fontFamily: FF, fontSize: '.875rem', resize: 'vertical', boxSizing: 'border-box' }} />
+                    <button onClick={() => saveNote(fieldKey, editValue)} disabled={savingEdit}
+                      style={{ alignSelf: 'flex-end', background: TEAL, color: 'white', border: 'none', borderRadius: 8, padding: '6px 14px', fontWeight: 700, fontSize: '.8125rem', cursor: 'pointer', fontFamily: FF, opacity: savingEdit ? .6 : 1 }}>
+                      {savingEdit ? 'Saving…' : 'Save'}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '.875rem', color: NAVY, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{value || <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>None recorded</span>}</div>
+                )}
+              </div>
+            )
+          }
+          return (
+            <>
+              {/* Divider band — deliberately different visual language
+                  from the clinical cards above so it reads as "different
+                  thing" rather than "another card". */}
+              <div style={{ margin: '2rem 0 1rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                <div style={{ flex: 1, height: 1, background: '#CBD5E1' }} />
+                <div style={{ fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: '#64748B' }}>Internal notes · not part of patient record</div>
+                <div style={{ flex: 1, height: 1, background: '#CBD5E1' }} />
+              </div>
+              <div style={{ background: '#F1F5F9', borderRadius: 14, border: '1px dashed #94A3B8', padding: '1rem 1.15rem 1.15rem', marginBottom: '.875rem' }}>
+                <div style={{ fontSize: '.75rem', color: '#475569', lineHeight: 1.5, marginBottom: '.75rem' }}>
+                  These notes are for Tere internal use (cross-consult reminders, scheduling / billing context, provider handover). They are not surfaced to the patient, and are subject to a separate release assessment on any HIPC information request.
+                </div>
+                <NoteCard fieldKey="doctor_notes" label="🩺 Doctor notes (cross-consult)" bg="white" borderColor="#A7D4D8" value={patient?.doctor_notes} />
+                <NoteCard fieldKey="admin_notes" label="🗒️ Admin notes (scheduling / billing)" bg="white" borderColor="#CBD5E1" value={patient?.admin_notes} />
+              </div>
+            </>
           )
         })()}
       </div>
