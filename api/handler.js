@@ -162,6 +162,7 @@ const ROUTES = {
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
   'encounter-action':          () => import('./_encounter-action.js'),
   'patient-documents':         () => import('./_patient-documents.js'),
+  'patient-upload':            () => import('./_patient-upload.js'),
   'join-room':                 () => import('./_join-room.js'),
   'notify-waitlist':           () => import('./_notify-waitlist.js'),
   'send-waitlist-email':       () => import('./_send-waitlist-email.js'),

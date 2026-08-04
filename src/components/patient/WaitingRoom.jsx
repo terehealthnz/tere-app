@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat } from '../../lib/supabase'
+import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat, patientUploadDocument } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { requestUserLocation, nearestPharmacies, formatDistance } from '../../lib/nearestPharmacy'
 
@@ -84,6 +84,14 @@ export default function WaitingRoom() {
   // here if they realise it's closed / far away. Updates land on the
   // consultations row via /api/patient-consult so the provider sees the
   // new pharmacy when they pick up the consult.
+  // Patient-side upload widget state (task #227). Files uploaded here appear
+  // in the provider chart under "📥 Patient uploads" — separate from provider
+  // files. Scoped to this consultationId only via /api/patient-upload.
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadFile, setUploadFile]   = useState(null)
+  const [uploading, setUploading]     = useState(false)
+  const [uploadMsg, setUploadMsg]     = useState(null)
+  const [uploadedCount, setUploadedCount] = useState(0)
   const [pharmacyName, setPharmacyName] = useState(null)
   const [pharmacyId, setPharmacyId] = useState(null)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -471,6 +479,71 @@ export default function WaitingRoom() {
             </div>
           </div>
         )}
+
+        {/* Patient upload widget — patient can attach documents (photos of a
+            rash, lab results emailed to them, referral letters, etc.) that
+            surface in the provider chart under "📥 Patient uploads". Scoped
+            to this consultationId via /api/patient-upload. */}
+        <div style={{
+          background: 'rgba(255,255,255,.06)',
+          border: '1px solid rgba(255,255,255,.1)',
+          borderRadius: 14,
+          padding: '1rem 1.25rem',
+          width: '100%',
+          maxWidth: 360,
+          marginBottom: '2rem',
+          textAlign: 'left',
+          animation: 'fadeUp .5s .68s both',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '.75rem' }}>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📎</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
+                Share a document{uploadedCount > 0 ? ` (${uploadedCount} sent)` : ''}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.75rem', lineHeight: 1.6 }}>
+                Send your doctor a photo, lab result, or letter (PDF or image, up to 10MB). Only your treating clinician sees it.
+              </div>
+            </div>
+          </div>
+          <input
+            type="text"
+            value={uploadTitle}
+            onChange={e => setUploadTitle(e.target.value)}
+            placeholder="Title (e.g. Rash photo, Blood test result)"
+            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.15)', color: 'white', padding: '.6rem .75rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.875rem', marginBottom: '.5rem' }}
+          />
+          <input
+            type="file"
+            onChange={e => setUploadFile(e.target.files?.[0] || null)}
+            accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.txt"
+            style={{ width: '100%', color: 'rgba(255,255,255,.7)', fontSize: '.75rem', marginBottom: '.5rem' }}
+          />
+          <button
+            disabled={uploading || !uploadFile || !uploadTitle.trim()}
+            onClick={async () => {
+              setUploading(true); setUploadMsg(null)
+              try {
+                await patientUploadDocument({ consultationId, title: uploadTitle.trim(), file: uploadFile })
+                setUploadTitle(''); setUploadFile(null)
+                setUploadedCount(n => n + 1)
+                setUploadMsg({ kind: 'ok', text: 'Sent to your doctor' })
+                // File input value doesn't clear via setState; reset with a null hack
+                const fi = document.querySelector('input[type="file"]')
+                if (fi) fi.value = ''
+              } catch (e) {
+                setUploadMsg({ kind: 'err', text: e.message })
+              } finally { setUploading(false) }
+            }}
+            style={{ width: '100%', background: (uploading || !uploadFile || !uploadTitle.trim()) ? 'rgba(255,255,255,.08)' : '#0B6E76', border: 'none', color: 'white', padding: '.6rem 1rem', borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: '.875rem', cursor: (uploading || !uploadFile || !uploadTitle.trim()) ? 'not-allowed' : 'pointer' }}>
+            {uploading ? 'Sending…' : 'Send to doctor'}
+          </button>
+          {uploadMsg && (
+            <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: uploadMsg.kind === 'ok' ? '#4FD1D9' : '#FCA5A5' }}>
+              {uploadMsg.text}
+            </div>
+          )}
+        </div>
 
         {/* Step indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '2rem', animation: 'fadeUp .5s .7s both' }}>

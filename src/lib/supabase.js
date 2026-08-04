@@ -741,6 +741,38 @@ export async function uploadPatientDocument({ patientId, title, description, fil
   return document
 }
 
+// Patient-side upload — anon-callable. Server derives patient_id from
+// consultationId, restricts to active consults, source='patient_upload'.
+export async function patientUploadDocument({ consultationId, title, description, file }) {
+  if (!consultationId) throw new Error('consultationId required')
+  if (!file) throw new Error('file required')
+  const fileBase64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const s = String(reader.result || '')
+      const i = s.indexOf(',')
+      resolve(i >= 0 ? s.slice(i + 1) : s)
+    }
+    reader.onerror = () => reject(reader.error || new Error('read failed'))
+    reader.readAsDataURL(file)
+  })
+  const res = await apiFetch('/api/patient-upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      consultationId, title, description,
+      fileName: file.name,
+      mimeType: file.type,
+      fileBase64,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `patientUploadDocument HTTP ${res.status}`)
+  }
+  const { document } = await res.json()
+  return document
+}
+
 export async function deletePatientDocument(id) {
   const res = await apiFetch(`/api/patient-documents?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   if (!res.ok) {
