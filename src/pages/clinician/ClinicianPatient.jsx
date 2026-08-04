@@ -288,7 +288,13 @@ export default function ClinicianPatient() {
         {(() => {
           async function saveEdit(field, value) {
             setSavingEdit(true)
-            const map = { medications: 'current_medications', allergies: 'allergies', history: 'medical_history' }
+            const map = {
+              medications: 'current_medications',
+              allergies: 'allergies',
+              history: 'medical_history',
+              admin_notes: 'admin_notes',
+              doctor_notes: 'doctor_notes',
+            }
             try {
               let pat = patient
               if (!pat) {
@@ -353,6 +359,8 @@ export default function ClinicianPatient() {
               <EditableCard fieldKey="allergies" label="⚠ Allergies" color="#991B1B" bg="#FEF2F2" borderColor="#FECACA" value={patient?.allergies} />
               <EditableCard fieldKey="medications" label="Current medications" value={patient?.current_medications} />
               <EditableCard fieldKey="history" label="Medical history" value={patient?.medical_history} />
+              <EditableCard fieldKey="doctor_notes" label="🩺 Doctor notes (cross-consult)" bg="#EFF9F9" borderColor="#A7D4D8" value={patient?.doctor_notes} />
+              <EditableCard fieldKey="admin_notes" label="🗒️ Admin notes (scheduling/billing)" bg="#F8FAFC" borderColor="#CBD5E1" value={patient?.admin_notes} />
             </>
           )
         })()}

@@ -38,10 +38,27 @@ const PATIENT_ANON_ALLOWLIST = new Set([
   'total_consultations',
 ])
 
+// Extra columns providers can patch that anon flows must NOT. admin_notes +
+// doctor_notes are cross-consult free-text notes visible only to the
+// clinical team; letting anon patch them would let a patient write their
+// own "doctor notes." Add here (not to the anon allowlist) for any future
+// provider-only patient column.
+const PATIENT_PROVIDER_ONLY_ALLOWLIST = new Set([
+  'admin_notes', 'doctor_notes',
+])
+
 function projectAnonPatch(raw) {
   const patch = {}
   for (const [k, v] of Object.entries(raw || {})) {
     if (PATIENT_ANON_ALLOWLIST.has(k)) patch[k] = v
+  }
+  return patch
+}
+
+function projectProviderPatch(raw) {
+  const patch = {}
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (PATIENT_ANON_ALLOWLIST.has(k) || PATIENT_PROVIDER_ONLY_ALLOWLIST.has(k)) patch[k] = v
   }
   return patch
 }
@@ -64,9 +81,10 @@ export default async function handler(req, res) {
   if (req.method === 'PATCH') {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
-    // Provider-authenticated path allows the same allowlist (no extra columns
-    // added). Anon path uses same allowlist too — no server-only fields exposed.
-    const patch = projectAnonPatch(req.body)
+    // Anon path (patient triage) uses the narrow allowlist. Provider path
+    // extends it with admin_notes + doctor_notes so the clinical team can
+    // maintain persistent per-patient notes without exposing them to anon.
+    const patch = isAnonFlow ? projectAnonPatch(req.body) : projectProviderPatch(req.body)
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
