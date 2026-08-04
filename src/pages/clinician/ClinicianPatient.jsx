@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -36,6 +36,7 @@ export default function ClinicianPatient() {
   const [expandedId, setExpandedId] = useState(null)
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [imaging, setImaging]     = useState([])
+  const [pastRx, setPastRx]       = useState([])
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
@@ -98,15 +99,17 @@ export default function ClinicianPatient() {
           } catch {}
         }
         if (data?.patient_id) {
-          const [pt, pastConsults, imagingRes] = await Promise.all([
+          const [pt, pastConsults, imagingRes, rx] = await Promise.all([
             getPatient(data.patient_id).catch(() => null),
             getPatientConsultations(data.patient_id),
             apiFetch(`/api/radiology-reports?patient_id=${encodeURIComponent(data.patient_id)}`)
               .then(r => r.json()).catch(() => ({ reports: [] })),
+            getPatientPrescriptions(data.patient_id).catch(() => []),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))
           setImaging(Array.isArray(imagingRes?.reports) ? imagingRes.reports : [])
+          setPastRx(Array.isArray(rx) ? rx : [])
         }
       } catch {} finally { setLoading(false) }
     }
@@ -364,6 +367,36 @@ export default function ClinicianPatient() {
             </>
           )
         })()}
+
+        {/* Past prescriptions across all this patient's consults. Renders
+            always (with "None on record" when empty) so the provider has an
+            unmissable prescribing-history reference before writing a new Rx. */}
+        <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>💊 Past prescriptions{pastRx.length > 0 ? ` (${pastRx.length})` : ''}</span>
+          </div>
+          {pastRx.length === 0 ? (
+            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic' }}>None on record</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {pastRx.map(r => (
+                <div key={r.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.75rem .875rem', fontSize: '.8125rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.75rem', marginBottom: 3 }}>
+                    <div style={{ fontWeight: 700, color: NAVY }}>{r.drug_name || r.drug || 'Unnamed drug'}{r.dose ? ` · ${r.dose}` : ''}</div>
+                    <div style={{ color: '#6B7280', flexShrink: 0 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('en-NZ') : ''}</div>
+                  </div>
+                  {r.directions && <div style={{ color: '#374151', marginBottom: 3 }}>{r.directions}</div>}
+                  <div style={{ display: 'flex', gap: '.75rem', fontSize: '.75rem', color: '#6B7280', flexWrap: 'wrap' }}>
+                    {r.quantity && <span>Qty: {r.quantity}</span>}
+                    {r.repeats != null && <span>Repeats: {r.repeats}</span>}
+                    {r.pharmacy_name && <span>→ {r.pharmacy_name}</span>}
+                    {r.delivery_status && <span>· {r.delivery_status}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Past Tere consultations */}
         {history.length > 0 && (

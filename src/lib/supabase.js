@@ -703,6 +703,14 @@ export async function getRecentPrescriptions(sinceIso, columns = null) {
   return prescriptions || []
 }
 
+export async function getPatientPrescriptions(patientId) {
+  if (!patientId) return []
+  const res = await apiFetch(`/api/prescriptions?patientId=${encodeURIComponent(patientId)}`)
+  if (!res.ok) return []
+  const { prescriptions } = await res.json()
+  return prescriptions || []
+}
+
 export async function getRecentPrescriptionsList(limit = 30, columns = null) {
   const params = new URLSearchParams({ filter: 'recent_list', limit: String(limit) })
   if (columns) params.set('columns', columns)

@@ -6,6 +6,8 @@
 // GET /api/prescriptions?filter=pending_approval → pending approval list
 // GET /api/prescriptions?filter=pending_count    → head count only
 // GET /api/prescriptions?consultationId=<uuid>   → all Rx for a consult
+// GET /api/prescriptions?patientId=<uuid>        → all Rx across all consults
+//                                                  for a patient (chart view)
 // GET /api/prescriptions?id=<uuid>               → single Rx by id
 
 import { createClient } from '@supabase/supabase-js'
@@ -26,7 +28,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
   const supabase = admin()
-  const { filter, consultationId, id, columns } = req.query || {}
+  const { filter, consultationId, patientId, id, columns } = req.query || {}
 
   // Columns referenced in client code but never migrated to the DB. Strip
   // them from any client-supplied projection so we return real data instead
@@ -105,5 +107,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ prescriptions: data || [] })
   }
 
-  return res.status(400).json({ error: 'Provide id, consultationId, or filter=pending_approval|pending_count' })
+  if (patientId) {
+    // All prescriptions across every consult for this patient. Two-step
+    // (list consult IDs, then IN filter) is more portable than relying on
+    // PostgREST's FK-join syntax and works even when the FK is nullable.
+    const { data: consults, error: cErr } = await supabase
+      .from('consultations')
+      .select('id')
+      .eq('patient_id', patientId)
+    if (cErr) return res.status(500).json({ error: cErr.message })
+    const ids = (consults || []).map(c => c.id)
+    if (ids.length === 0) return res.status(200).json({ prescriptions: [] })
+    const { data, error } = await supabase
+      .from('prescriptions')
+      .select('*')
+      .in('consultation_id', ids)
+      .order('created_at', { ascending: false })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ prescriptions: data || [] })
+  }
+
+  return res.status(400).json({ error: 'Provide id, consultationId, patientId, or filter=pending_approval|pending_count' })
 }
