@@ -63,6 +63,10 @@ export default function FloatingCallWidget({
   subtitleLanguages = [],         // [{ code, name, flag }, …] — supported source langs
   currentSubtitleLang = null,     // code currently used as source
   onChangeSubtitleLang,           // (code: string) => void
+  // Capture-from-video: parent renders a 📸 button in fullscreen when
+  // provided, widget grabs the current remote video frame as JPEG blob
+  // and invokes onCapture(blob) — parent handles the upload.
+  onCapture,
 }) {
   // Backwards-compatible default so a caller that forgets to pass
   // primaryAction still gets an End Call button that no-ops safely.
@@ -264,6 +268,39 @@ export default function FloatingCallWidget({
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem',
                 }}
               >💬</button>
+            )}
+
+            {onCapture && remoteCameraTrack && (
+              <button
+                onClick={() => {
+                  // Find the remote video element rendered by LiveKit's VideoTrack,
+                  // grab the current frame into a canvas, hand the JPEG blob to
+                  // the parent's onCapture callback for upload.
+                  try {
+                    const videos = Array.from(document.querySelectorAll('video')).filter(v => v.srcObject && !v.muted)
+                    const src = videos[videos.length - 1]  // last-mounted = fullscreen video tile
+                    if (!src) { alert('No live video to capture'); return }
+                    const cv = document.createElement('canvas')
+                    cv.width = src.videoWidth || 640
+                    cv.height = src.videoHeight || 480
+                    const ctx = cv.getContext('2d')
+                    ctx.drawImage(src, 0, 0, cv.width, cv.height)
+                    cv.toBlob((blob) => {
+                      if (!blob) { alert('Capture failed — video frame not ready'); return }
+                      onCapture(blob)
+                    }, 'image/jpeg', 0.9)
+                  } catch (e) {
+                    alert('Capture failed: ' + e.message)
+                  }
+                }}
+                title="Capture screenshot from video"
+                style={{
+                  width: 56, height: 56, borderRadius: '50%',
+                  background: 'rgba(255,255,255,.15)',
+                  border: 'none', color: 'white', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.375rem',
+                }}
+              >📸</button>
             )}
 
             <button

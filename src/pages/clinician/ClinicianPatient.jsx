@@ -184,6 +184,31 @@ export default function ClinicianPatient() {
                 setActiveNotes({ actions: result.actions || [], transcript: result.transcript || '', callNotes: result.callNotes || '' })
               }
             }}
+            onCapture={async (blob) => {
+              // Video screenshot from the widget's 📸 button. Prompt for title,
+              // ensure a patient row exists (lazy-create like the PMH cards),
+              // upload as source='video_capture', prepend to the docs list.
+              const title = window.prompt('Capture title (e.g. "Rash on left forearm"):', `Video capture ${new Date().toLocaleString('en-NZ')}`)
+              if (!title) return
+              try {
+                let pid = patient?.id
+                if (!pid) {
+                  const pat = await createPatient({
+                    firstName: consult.patient_first_name, lastName: consult.patient_last_name,
+                    dob: consult.patient_dob, phone: consult.patient_phone,
+                    email: consult.patient_email, nhi: consult.patient_nhi,
+                  })
+                  pid = pat?.id
+                  if (pid) { await updateConsultation(id, { patient_id: pid }); setPatient(pat); setConsult(c => c ? { ...c, patient_id: pid } : c) }
+                }
+                if (!pid) throw new Error('Could not create/link patient record')
+                const file = new File([blob], `capture-${Date.now()}.jpg`, { type: 'image/jpeg' })
+                const doc = await uploadPatientDocument({ patientId: pid, title, file, source: 'video_capture' })
+                setDocuments(docs => [doc, ...docs])
+              } catch (e) {
+                alert(`Capture upload failed: ${e.message}`)
+              }
+            }}
           />
         </Suspense>
       )}
@@ -404,19 +429,24 @@ export default function ClinicianPatient() {
           )}
         </div>
 
-        {/* Patient Documents — provider-uploaded lab results / referral letters /
-            imaging PDFs / prior specialist correspondence. Always renders. Upload
-            widget appears whenever a patient row exists (or lazily created on
-            first save like the PMH cards). */}
+        {/* Provider files & clinical photos — anything the provider uploaded
+            (manual upload) or captured mid-call (📸 button on the FloatingCallWidget).
+            Distinct from Patient uploads below, which are patient-portal-side
+            (not yet built). Both live in patient_documents, differentiated by
+            the source column. */}
+        {(() => {
+          const providerDocs = documents.filter(d => (d.source || 'provider_upload') !== 'patient_upload')
+          const patientDocs  = documents.filter(d => d.source === 'patient_upload')
+          return <>
         <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
           <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
-            📎 Patient documents{documents.length > 0 ? ` (${documents.length})` : ''}
+            📎 Provider files &amp; clinical photos{providerDocs.length > 0 ? ` (${providerDocs.length})` : ''}
           </div>
-          {documents.length === 0 ? (
-            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic', marginBottom: '.75rem' }}>No documents on file</div>
+          {providerDocs.length === 0 ? (
+            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic', marginBottom: '.75rem' }}>None on file</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '.75rem' }}>
-              {documents.map(d => (
+              {providerDocs.map(d => (
                 <div key={d.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.75rem .875rem', fontSize: '.8125rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</div>
@@ -477,6 +507,39 @@ export default function ClinicianPatient() {
             <div style={{ fontSize: '.6875rem', color: '#9CA3AF' }}>PDF, image, or Word — max 20MB</div>
           </div>
         </div>
+
+        {/* Patient uploads — reserved for the future patient-portal upload
+            channel. Renders empty state for now so providers know it exists
+            and can distinguish "patient hasn't sent anything" from "we don't
+            have this feature yet". Populated once patient-side upload lands. */}
+        <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
+            📥 Patient uploads{patientDocs.length > 0 ? ` (${patientDocs.length})` : ''}
+          </div>
+          {patientDocs.length === 0 ? (
+            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic' }}>No patient uploads yet</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {patientDocs.map(d => (
+                <div key={d.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.75rem .875rem', fontSize: '.8125rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, color: NAVY, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</div>
+                    {d.description && <div style={{ color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.description}</div>}
+                    <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 2 }}>
+                      {d.file_name || 'file'} · {d.created_at ? new Date(d.created_at).toLocaleDateString('en-NZ') : ''}
+                    </div>
+                  </div>
+                  <a href={d.file_url} target="_blank" rel="noopener noreferrer"
+                    style={{ background: 'white', border: `1.5px solid ${TEAL}`, color: TEAL, padding: '.375rem .75rem', borderRadius: 8, textDecoration: 'none', fontWeight: 700, fontSize: '.75rem', flexShrink: 0, fontFamily: FF }}>
+                    View
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        </>
+        })()}
 
         {/* Past Tere consultations */}
         {history.length > 0 && (

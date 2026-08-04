@@ -80,7 +80,7 @@ function VitalsRow({ vitals }) {
   )
 }
 
-export default function ProviderConsult({ popupMode = false, onEnd, consultationId: propConsultationId } = {}) {
+export default function ProviderConsult({ popupMode = false, onEnd, onCapture, consultationId: propConsultationId } = {}) {
   const params = useParams()
   const navigate = useNavigate()
   const id = propConsultationId || params.id
@@ -614,6 +614,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, consultation
                   subtitleLanguages={supportedLangs}
                   currentSubtitleLang={activeLang}
                   onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
+                  onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
                 {subtitlesAvailable && (

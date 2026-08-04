@@ -52,7 +52,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { patientId, title, description, fileName, mimeType, fileBase64 } = req.body || {}
+    const { patientId, title, description, fileName, mimeType, fileBase64, source } = req.body || {}
+    const validSource = source && ['provider_upload','patient_upload','video_capture'].includes(source)
+      ? source : 'provider_upload'
     if (!patientId || !title || !fileBase64 || !fileName) {
       return res.status(400).json({ error: 'patientId, title, fileName, fileBase64 required' })
     }
@@ -85,6 +87,7 @@ export default async function handler(req, res) {
       file_size:         buf.length,
       uploaded_by:       auth.provider?.id || null,
       uploaded_by_name:  auth.provider?.display_name || auth.email || null,
+      source:            validSource,
     }).select().single()
     if (error) {
       // Row insert failed after storage succeeded — clean up the orphan file.

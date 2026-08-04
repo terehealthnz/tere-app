@@ -711,7 +711,7 @@ export async function getPatientDocuments(patientId) {
   return documents || []
 }
 
-export async function uploadPatientDocument({ patientId, title, description, file }) {
+export async function uploadPatientDocument({ patientId, title, description, file, source }) {
   if (!file) throw new Error('file required')
   const fileBase64 = await new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -730,6 +730,7 @@ export async function uploadPatientDocument({ patientId, title, description, fil
       fileName: file.name,
       mimeType: file.type,
       fileBase64,
+      source: source || 'provider_upload',
     }),
   })
   if (!res.ok) {
