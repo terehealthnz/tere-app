@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -281,15 +281,38 @@ export default function ClinicianPatient() {
           </div>
         )}
 
-        {/* Editable patient record (medications / allergies / history from patients table) */}
-        {patient && (() => {
+        {/* Editable patient record (medications / allergies / history from patients table).
+            Always rendered — empty boxes are a deliberate clinical prompt for the provider
+            to ask, not skip. If the consult has no linked patients row yet, the first save
+            silently creates one from the consult's demographics and links it. */}
+        {(() => {
           async function saveEdit(field, value) {
             setSavingEdit(true)
             const map = { medications: 'current_medications', allergies: 'allergies', history: 'medical_history' }
             try {
-              await updatePatient(patient.id, { [map[field]]: value })
-              setPatient(p => ({ ...p, [map[field]]: value }))
-            } catch {}
+              let pat = patient
+              if (!pat) {
+                // No patients row yet — create one lazily using what's on the consult,
+                // then link it so future saves patch the same row.
+                pat = await createPatient({
+                  firstName: consult.patient_first_name,
+                  lastName: consult.patient_last_name,
+                  dob: consult.patient_dob,
+                  phone: consult.patient_phone,
+                  email: consult.patient_email,
+                  nhi: consult.patient_nhi,
+                })
+                if (pat?.id) {
+                  await updateConsultation(id, { patient_id: pat.id })
+                  setConsult(c => c ? { ...c, patient_id: pat.id } : c)
+                }
+              }
+              if (!pat?.id) throw new Error('Could not create/link patient record')
+              await updatePatient(pat.id, { [map[field]]: value })
+              setPatient(p => ({ ...(p || pat), [map[field]]: value }))
+            } catch (e) {
+              console.error('[patient-edit] save failed:', e?.message)
+            }
             setSavingEdit(false)
             setEditField(null)
           }
@@ -327,9 +350,9 @@ export default function ClinicianPatient() {
 
           return (
             <>
-              <EditableCard fieldKey="allergies" label="⚠ Allergies" color="#991B1B" bg="#FEF2F2" borderColor="#FECACA" value={patient.allergies} />
-              <EditableCard fieldKey="medications" label="Current medications" value={patient.current_medications} />
-              <EditableCard fieldKey="history" label="Medical history" value={patient.medical_history} />
+              <EditableCard fieldKey="allergies" label="⚠ Allergies" color="#991B1B" bg="#FEF2F2" borderColor="#FECACA" value={patient?.allergies} />
+              <EditableCard fieldKey="medications" label="Current medications" value={patient?.current_medications} />
+              <EditableCard fieldKey="history" label="Medical history" value={patient?.medical_history} />
             </>
           )
         })()}
