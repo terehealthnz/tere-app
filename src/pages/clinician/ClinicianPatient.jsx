@@ -37,6 +37,7 @@ export default function ClinicianPatient() {
   const [expandedId, setExpandedId] = useState(null)
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [imaging, setImaging]     = useState([])
+  const [radReferrals, setRadReferrals] = useState([])
   const [pastRx, setPastRx]       = useState([])
   const [documents, setDocuments] = useState([])
   const [allergens, setAllergens]     = useState([])
@@ -126,6 +127,18 @@ export default function ClinicianPatient() {
           setAllergens(Array.isArray(allg) ? allg : [])
           setMedications(Array.isArray(meds) ? meds : [])
           setConditions(Array.isArray(conds) ? conds : [])
+          // Radiology referrals ordered by any Tere provider for this patient.
+          // Filtered by NHI on the server since radiology_referrals doesn't
+          // have a patient_id FK yet (it uses NHI + name + DOB for matching).
+          const nhi = pt?.nhi || data?.patient_nhi
+          if (nhi) {
+            apiFetch(`/api/radiology-referrals?patient_nhi=${encodeURIComponent(nhi)}&columns=id,created_at,investigation,urgency,clinical_indication,referral_status,approval_status,provider_name,result_received_at`)
+              .then(r => r.json())
+              .then(d => setRadReferrals(Array.isArray(d?.referrals) ? d.referrals : []))
+              .catch(() => setRadReferrals([]))
+          } else {
+            setRadReferrals([])
+          }
         }
       } catch {} finally { setLoading(false) }
     }
@@ -686,18 +699,67 @@ export default function ClinicianPatient() {
           </div>
         )}
 
-        {/* Imaging on file — auto-attached radiology reports (NHI-matched via Bedrock in _telnyx-inbound-fax.js) */}
-        {imaging.length > 0 && (
-          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>
-                Imaging on file ({imaging.length})
+        {/* Radiology referrals ordered — pending / in-flight Tere-issued
+            referrals (not yet reported). Filtered on the server by patient
+            NHI; renders nothing if the patient has no NHI recorded. */}
+        {(() => {
+          const active = radReferrals.filter(r => r.referral_status !== 'result_received' && r.referral_status !== 'cancelled' && r.referral_status !== 'dna')
+          return (
+            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
+                📋 Radiology referrals ordered{active.length > 0 ? ` (${active.length} pending)` : ''}
               </div>
+              {active.length === 0 ? (
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No pending radiology referrals for this patient.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+                  {active.map(r => {
+                    const urgent = r.urgency === 'urgent' || r.urgency === 'critical'
+                    return (
+                      <div key={r.id} style={{ background: urgent ? '#FEF2F2' : '#F8FAFC', borderRadius: 10, border: `1px solid ${urgent ? '#FECACA' : '#E2E8F0'}`, padding: '.75rem .875rem', fontSize: '.8125rem' }}>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 3 }}>
+                          <span style={{ fontWeight: 700, color: NAVY }}>{r.investigation || 'Radiology referral'}</span>
+                          {urgent && <span style={{ background: '#DC2626', color: 'white', fontSize: '.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, textTransform: 'uppercase' }}>{r.urgency}</span>}
+                          <span style={{ background: '#EFF9F9', color: TEAL, fontSize: '.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 99, textTransform: 'uppercase' }}>{r.referral_status || 'pending'}</span>
+                        </div>
+                        {r.clinical_indication && (
+                          <div style={{ color: '#374151', fontSize: '.75rem', marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.clinical_indication}</div>
+                        )}
+                        <div style={{ color: '#6B7280', fontSize: '.6875rem' }}>
+                          Ordered {new Date(r.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {r.provider_name ? ` · ${r.provider_name}` : ''}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+              {radReferrals.length === 0 && !patient?.nhi && (
+                <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: '.5rem' }}>
+                  (Referral lookup uses NHI — add an NHI to the patient record to see any referrals on file.)
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* Imaging on file — auto-attached radiology reports (NHI-matched via Bedrock in _telnyx-inbound-fax.js).
+            Renders even when empty so providers see the section exists and know where reports will appear. */}
+        <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: imaging.length > 0 ? '1rem' : 0 }}>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>
+              🩻 Imaging on file{imaging.length > 0 ? ` (${imaging.length})` : ''}
+            </div>
+            {imaging.length > 0 && (
               <button onClick={() => navigate('/clinician/reports')}
                 style={{ background: 'transparent', color: TEAL, border: 'none', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
                 All reports →
               </button>
-            </div>
+            )}
+          </div>
+          {imaging.length === 0 ? (
+            <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic', marginTop: '.5rem' }}>No imaging reports on file for this patient.</div>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {imaging.map(r => {
                 const urgent = r.urgency === 'critical' || r.urgency === 'urgent'
@@ -741,8 +803,8 @@ export default function ClinicianPatient() {
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Note detail modal */}
         {noteModal && (() => {

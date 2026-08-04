@@ -48,7 +48,7 @@ function projectColumns(raw) {
 
 export default async function handler(req, res) {
   if (req.method === 'GET') {
-    const { filter, provider_id, columns, count } = req.query || {}
+    const { filter, provider_id, patient_nhi, columns, count } = req.query || {}
     const admin_client = admin()
     const wantCount = count === '1' || count === 'true'
 
@@ -65,6 +65,10 @@ export default async function handler(req, res) {
     }
 
     if (provider_id) q = q.eq('provider_id', provider_id)
+    // Patient-scoped lookup for the patient profile page. NHI is the
+    // clinical key on radiology referrals; falls back to no results if the
+    // patient has no NHI recorded yet.
+    if (patient_nhi) q = q.eq('patient_nhi', patient_nhi)
     if (!wantCount) q = q.order('created_at')
 
     const { data, count: countVal, error } = await q
