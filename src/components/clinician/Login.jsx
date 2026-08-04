@@ -36,6 +36,10 @@ export default function ClinicianLogin() {
   const [loading, setLoading] = useState(false)
   const [savedDevice, setSavedDevice] = useState(null)
   const [showSavePrompt, setShowSavePrompt] = useState(false)
+  // MFA step: server returns { needsMfa: true } after correct PIN when the
+  // provider has TOTP enabled. Keep PIN in state and prompt for the code.
+  const [needsMfa, setNeedsMfa] = useState(false)
+  const [mfaCode, setMfaCode] = useState('')
 
   // Check for remembered device on mount
   useEffect(() => {
@@ -80,14 +84,22 @@ export default function ClinicianLogin() {
     e.preventDefault()
     setLoading(true); setError('')
     try {
+      const body = { providerId: selected?.id, pin: password }
+      if (needsMfa) body.mfaCode = mfaCode
       const res = await apiFetch('/api/provider-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ providerId: selected?.id, pin: password })
+        body: JSON.stringify(body)
       })
       let data
       try { data = await res.json() } catch { data = {} }
       if (!res.ok || !data.provider) {
+        if (data.needsMfa) {
+          setNeedsMfa(true)
+          if (needsMfa) setError(data.error || 'Invalid MFA code.')
+          setLoading(false)
+          return
+        }
         setError(data.error || 'Incorrect password. Please try again.')
         setLoading(false)
         return
@@ -247,22 +259,51 @@ export default function ClinicianLogin() {
                     {selected.specialty || (selected.is_admin && !selected.is_provider ? 'Admin' : 'Clinician')}
                   </div>
                 </div>
-                <button onClick={() => { setSelected(null); setPassword(''); setError('') }}
+                <button onClick={() => { setSelected(null); setPassword(''); setError(''); setNeedsMfa(false); setMfaCode('') }}
                   style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:'.875rem',padding:'.5rem .75rem',margin:'-.5rem -.75rem'}}>
                   Change
                 </button>
               </div>
             )}
             <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Password</label>
-                <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-                  placeholder="Enter your password" required autoComplete="current-password" />
-              </div>
+              {!needsMfa ? (
+                <div className="form-group">
+                  <label>Password</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                    placeholder="Enter your password" required autoComplete="current-password" />
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label>Authenticator code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={e => setMfaCode(e.target.value.replace(/\D/g,'').slice(0,6))}
+                    placeholder="6-digit code"
+                    autoFocus
+                    style={{letterSpacing:'.3em',fontSize:'1.25rem',textAlign:'center'}}
+                    required
+                  />
+                  <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'.5rem',textAlign:'center'}}>
+                    Open your authenticator app (Google Authenticator, 1Password, etc.)
+                  </div>
+                </div>
+              )}
               {error && <div className="alert alert-danger">{error}</div>}
-              <button type="submit" className="btn btn-primary btn-full" disabled={loading || !password}>
-                {loading ? 'Signing in…' : 'Sign in'}
+              <button type="submit" className="btn btn-primary btn-full"
+                disabled={loading || (needsMfa ? mfaCode.length !== 6 : !password)}>
+                {loading ? 'Signing in…' : needsMfa ? 'Verify' : 'Sign in'}
               </button>
+              {needsMfa && (
+                <button type="button" onClick={() => { setNeedsMfa(false); setMfaCode(''); setError('') }}
+                  style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:'.8125rem',textDecoration:'underline',display:'block',margin:'.75rem auto 0'}}>
+                  Back
+                </button>
+              )}
             </form>
             <p style={{textAlign:'center',marginTop:'1rem',marginBottom:'.5rem'}}>
               <Link to="/clinician/forgot-password" style={{color:'var(--muted)',fontSize:'.8125rem',textDecoration:'underline'}}>

@@ -37,6 +37,9 @@ const UPDATE_ALLOWLIST = new Set([
   'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
   // Supervision plan identifiers (see supabase-supervision-plan-fields-migration.sql)
   'mcnz_registration_number', 'scope_of_practice', 'pgy_level', 'supervision_plan_url',
+  // MFA (TOTP) — admin can clear both fields to recover a provider who
+  // lost their authenticator. Provider self-service uses /api/provider-mfa.
+  'mfa_enabled', 'mfa_secret_encoded',
 ])
 
 export default async function handler(req, res) {

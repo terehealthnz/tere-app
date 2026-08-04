@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api'
 import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
+import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -551,6 +552,8 @@ function SettingsTab({ navigate, displayName }) {
   const [nextTimes, setNextTimes]     = useState('')
   const [savingMsg, setSavingMsg]     = useState(false)
   const [msgSaved, setMsgSaved]       = useState(false)
+  const [showMfa, setShowMfa]         = useState(false)
+  const providerId = sessionStorage.getItem('providerId')
 
   useEffect(() => {
     async function load() {
@@ -595,6 +598,7 @@ function SettingsTab({ navigate, displayName }) {
     { label:'Payroll',               icon:'💰',  sub:'Calculate & approve provider earnings', action:()=>navigate('/admin/payroll') },
     { label:'Provider dashboard',    icon:'📊',  sub:'Clinician consultation view',           action:()=>navigate('/clinician/dashboard') },
     { label:'Change password',       icon:'🔑',  sub:'Update your PIN',                       action:()=>navigate('/clinician/change-password') },
+    { label:'Two-factor authentication', icon:'🛡', sub:'Set up an authenticator app for MFA', action:()=>setShowMfa(true) },
   ]
 
   return (
@@ -662,6 +666,10 @@ function SettingsTab({ navigate, displayName }) {
       <button onClick={signOut} style={{ width:'100%', background:'#FEF2F2', color:'#DC2626', border:'1px solid #FECACA', borderRadius:12, padding:'16px', fontFamily:FF, fontWeight:700, fontSize:'1rem', cursor:'pointer', minHeight:56 }}>
         Sign out
       </button>
+
+      {showMfa && providerId && (
+        <MfaEnrollModal providerId={providerId} providerName={displayName} onClose={() => setShowMfa(false)} />
+      )}
     </div>
   )
 }

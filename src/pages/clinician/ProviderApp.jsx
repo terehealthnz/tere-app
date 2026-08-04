@@ -6,6 +6,7 @@ import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } fr
 import ProviderSchedule from './ProviderSchedule'
 import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
+import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1078,6 +1079,8 @@ function PMSTab({ navigate }) {
 // ── Menu tab ──────────────────────────────────────────────────────────────────
 
 function MenuTab({ navigate, displayName, isAdmin }) {
+  const [showMfa, setShowMfa] = useState(false)
+  const providerId = sessionStorage.getItem('providerId')
   function signOut() {
     localStorage.removeItem('tere_device')
     localStorage.removeItem('tere_portal')
@@ -1088,6 +1091,7 @@ function MenuTab({ navigate, displayName, isAdmin }) {
     ...(isAdmin ? [{ label:'Admin dashboard', icon:'⚙️', action:()=>navigate('/clinician/admin'), color:NAVY }] : []),
     { label:'Provider dashboard (desktop)', icon:'🖥', action:()=>navigate('/clinician/dashboard'), color:'#374151' },
     { label:'Change password', icon:'🔑', action:()=>navigate('/clinician/change-password'), color:'#374151' },
+    { label:'Two-factor authentication', icon:'🛡', action:()=>setShowMfa(true), color:'#374151' },
     { label:'Sign out', icon:'→', action:signOut, color:'#DC2626' },
   ]
   return (
@@ -1108,6 +1112,9 @@ function MenuTab({ navigate, displayName, isAdmin }) {
           </button>
         ))}
       </div>
+      {showMfa && providerId && (
+        <MfaEnrollModal providerId={providerId} providerName={displayName} onClose={() => setShowMfa(false)} />
+      )}
     </div>
   )
 }
