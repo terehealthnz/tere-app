@@ -75,6 +75,24 @@ const DOCS_MAP = {
     title: 'NZePS Sending Party Application',
     badges: ['Ministry of Health filing', 'Broker path', 'Sandbox → pilot → prod'],
   },
+  'hosting-and-data-residency-statement': {
+    src: 'hosting-and-data-residency-statement.md',
+    out: 'Tere_Health_Hosting_and_Data_Residency.pdf',
+    title: 'Hosting & Data Residency Statement',
+    badges: ['Sydney ap-southeast-2', 'AWS BAA Signed', 'No PHI in US'],
+  },
+  'rollback-runbook': {
+    src: 'rollback-runbook.md',
+    out: 'Tere_Health_Rollback_Runbook.pdf',
+    title: 'Rollback Runbook',
+    badges: ['Deploy ≤ 30s', 'Migration PITR ≤ 7 days', 'Kill switches ready'],
+  },
+  'audit-log-retention-policy': {
+    src: 'audit-log-retention-policy.md',
+    out: 'Tere_Health_Audit_Log_Retention_Policy.pdf',
+    title: 'Audit Log Retention Policy',
+    badges: ['10-year retention', 'Append-only', 'HIPC 2020 aligned'],
+  },
 }
 
 const CSS = `

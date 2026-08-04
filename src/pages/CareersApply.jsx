@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom'
 import { submitJobApplication, uploadCvFile } from '../lib/supabase'
+import { slugify } from './Careers'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -11,9 +12,12 @@ const MAX_CV_BYTES = 5 * 1024 * 1024
 export default function CareersApply() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const jobId = params.get('job') || null
+  const { slug: slugParam } = useParams()
+  const queryJobId = params.get('job') || null
 
   const [job, setJob] = useState(null)
+  // jobId is either the query-param UUID (?job=<id>) or resolved via slug lookup below.
+  const [jobId, setJobId] = useState(queryJobId)
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '', phone: '',
     cover_note: '', source: '',
@@ -25,16 +29,22 @@ export default function CareersApply() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Fetch the target job title if a job=<id> is present — public read via /api.
-    if (!jobId) return
+    // Resolve the target job. Two entry paths:
+    //   /careers/apply?job=<uuid>          → direct id lookup
+    //   /careers/apply/:slug               → match slugified title, then use its id
+    // No specific job → generic speculative application form.
+    if (!queryJobId && !slugParam) return
     fetch(`/api/job-listings`)
       .then(r => r.ok ? r.json() : { listings: [] })
       .then(({ listings }) => {
-        const found = (listings || []).find(l => l.id === jobId)
-        if (found) setJob(found)
+        const list = listings || []
+        const found = queryJobId
+          ? list.find(l => l.id === queryJobId)
+          : list.find(l => slugify(l.title) === slugParam)
+        if (found) { setJob(found); setJobId(found.id) }
       })
       .catch(() => {})
-  }, [jobId])
+  }, [queryJobId, slugParam])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 

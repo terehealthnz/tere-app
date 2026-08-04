@@ -1,6 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+// snake_case slug from a job title so external jobs boards (e.g. nurse.org.nz)
+// can link directly to a specific role via /careers/apply/nurse_practitioner
+// or #nurse_practitioner. Underscores match what we advertise externally.
+export function slugify(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const TEAL_LIGHT = '#D4EEF0'
@@ -96,7 +106,7 @@ function JobListings() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {listings.map(job => (
-              <div key={job.id} style={{ background: 'white', borderRadius: 16, padding: '2rem', border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,.04)' }}>
+              <div key={job.id} id={slugify(job.title)} style={{ background: 'white', borderRadius: 16, padding: '2rem', border: '1px solid #E2E8F0', boxShadow: '0 2px 12px rgba(0,0,0,.04)', scrollMarginTop: '80px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                   <div>
                     <h3 style={{ fontFamily: FF, fontWeight: 700, fontSize: '1.125rem', color: NAVY, margin: '0 0 .375rem' }}>{job.title}</h3>
