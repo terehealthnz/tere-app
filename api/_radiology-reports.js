@@ -47,15 +47,16 @@ export default async function handler(req, res) {
 
       // Audit-log this PHI view.
       try {
-        await supabase.from('audit_log').insert({
-          actor_id: providerId,
-          actor_role: 'provider',
-          action: 'radiology_report_view',
-          target_type: 'radiology_report',
-          target_id: data.id,
-          metadata: { patient_id: data.patient_id, referral_id: data.referral_id },
+        await supabase.from('audit_logs').insert({
+          event_type: 'radiology_report_view',
+          provider_id: providerId,
+          metadata: {
+            actor_role: 'provider',
+            target_type: 'radiology_report', target_id: data.id,
+            patient_id: data.patient_id, referral_id: data.referral_id,
+          },
         })
-      } catch {}
+      } catch (e) { console.warn('[radiology-reports] view audit-log write failed:', e.message) }
 
       return res.status(200).json({ report: data, pdf_url: signedUrl })
     }
@@ -105,15 +106,16 @@ export default async function handler(req, res) {
     if (error) return res.status(500).json({ error: error.message })
 
     try {
-      await supabase.from('audit_log').insert({
-        actor_id: providerId,
-        actor_role: 'provider',
-        action: `radiology_report_${action || 'update'}`,
-        target_type: 'radiology_report',
-        target_id: id,
-        metadata: { patient_id: patch.patient_id, referral_id: patch.referral_id, status: patch.status },
+      await supabase.from('audit_logs').insert({
+        event_type: `radiology_report_${action || 'update'}`,
+        provider_id: providerId,
+        metadata: {
+          actor_role: 'provider',
+          target_type: 'radiology_report', target_id: id,
+          patient_id: patch.patient_id, referral_id: patch.referral_id, status: patch.status,
+        },
       })
-    } catch {}
+    } catch (e) { console.warn('[radiology-reports] update audit-log write failed:', e.message) }
 
     return res.status(200).json({ report: data })
   }

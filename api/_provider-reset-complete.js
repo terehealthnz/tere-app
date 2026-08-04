@@ -87,13 +87,12 @@ export default async function handler(req, res) {
 
   const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
   try {
-    await supabase.from('audit_log').insert({
-      actor_id: provider.id,
-      actor_role: 'provider',
-      action: 'provider_password_reset_completed',
-      target_type: 'provider',
-      target_id: provider.id,
-      metadata: { email: provider.email, ip, reset_id: reset.id },
+    await supabase.from('audit_logs').insert({
+      event_type: 'provider_password_reset_completed',
+      provider_id: provider.id,
+      provider_name: provider.email,
+      ip,
+      metadata: { actor_role: 'provider', target_type: 'provider', target_id: provider.id, reset_id: reset.id },
     })
   } catch (e) {
     console.warn('[provider-reset-complete] audit-log write failed:', e.message)

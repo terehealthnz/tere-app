@@ -134,13 +134,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    await supabase.from('audit_log').insert({
-      actor_id: provider.id,
-      actor_role: 'system',
-      action: 'provider_password_reset_requested',
-      target_type: 'provider',
-      target_id: provider.id,
-      metadata: { email: provider.email, ip, user_agent: ua },
+    await supabase.from('audit_logs').insert({
+      event_type: 'provider_password_reset_requested',
+      provider_id: provider.id,
+      provider_name: provider.email,
+      ip,
+      metadata: { actor_role: 'system', target_type: 'provider', target_id: provider.id, user_agent: ua },
     })
   } catch (e) {
     console.warn('[provider-reset-request] audit-log write failed:', e.message)

@@ -135,14 +135,12 @@ export default async function handler(req, res) {
   // Audit log — one row per button press. Best-effort; a logging failure
   // does not roll back the state transition.
   try {
-    await supabase.from('audit_log').insert({
-      actor_id:    auth.provider?.id || null,
-      actor_email: auth.email || null,
-      action:      `encounter.${action}`,
-      target_type: 'consultation',
-      target_id:   id,
-      metadata:    patch,
-      created_at:  now,
+    await supabase.from('audit_logs').insert({
+      event_type:      `encounter.${action}`,
+      provider_id:     auth.provider?.id || null,
+      provider_name:   auth.email || null,
+      consultation_id: id,
+      metadata: { actor_email: auth.email || null, target_type: 'consultation', patch },
     })
   } catch (e) {
     console.error('[encounter-action] audit log write failed:', e.message)
