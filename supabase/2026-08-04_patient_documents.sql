@@ -33,6 +33,10 @@ ALTER TABLE patient_documents ENABLE ROW LEVEL SECURITY;
 -- Storage bucket for the files themselves. Public read (so /doctor UI can
 -- open View links without a signed URL round-trip) but INSERT locked to
 -- authenticated + provider-authed API side.
+-- Split INSERT + UPDATE to sidestep a Postgres type-inference gotcha on the
+-- multi-element ARRAY literal — with ON CONFLICT DO UPDATE ... EXCLUDED, the
+-- ARRAY's inferred element type has to be explicitly text[] or the EXCLUDED
+-- pseudo-record fails to match the target column type at parse time.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'patient-documents', 'patient-documents', true, 20971520,  -- 20 MB
@@ -42,12 +46,21 @@ VALUES (
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'text/plain'
-  ]
+  ]::text[]
 )
-ON CONFLICT (id) DO UPDATE
-  SET public = EXCLUDED.public,
-      file_size_limit = EXCLUDED.file_size_limit,
-      allowed_mime_types = EXCLUDED.allowed_mime_types;
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE storage.buckets
+   SET public             = true,
+       file_size_limit    = 20971520,
+       allowed_mime_types = ARRAY[
+         'application/pdf',
+         'image/jpeg', 'image/png', 'image/heic', 'image/webp',
+         'application/msword',
+         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+         'text/plain'
+       ]::text[]
+ WHERE id = 'patient-documents';
 
 DROP POLICY IF EXISTS "Providers can read patient documents" ON storage.objects;
 CREATE POLICY "Providers can read patient documents"
