@@ -1,5 +1,85 @@
 [
   {
+    "id": "bargain-chemist-rotorua-lakes",
+    "premises_name": "Bargain Chemist Rotorua",
+    "legal_entity": "BCH 21 Limited",
+    "address": "Rotorua Central Mall, Shop 4G, 1170 Amohau Street, Rotorua, 3010, Lakes",
+    "town": "Lakes",
+    "region": ""
+  },
+  {
+    "id": "chemist-warehouse-homebase-canterbury",
+    "premises_name": "Chemist Warehouse Homebase",
+    "legal_entity": "Pharmacy Investments 77 Limited",
+    "address": "215 Marshland Road Shirley Christchurch 8083, Canterbury",
+    "town": "Canterbury",
+    "region": ""
+  },
+  {
+    "id": "eden-park-pharmacy-auckland",
+    "premises_name": "Eden Park Pharmacy",
+    "legal_entity": "Ty Health Limited",
+    "address": "168 Sandringham Road, Sandringham, Auckland, 1025, Auckland",
+    "town": "Auckland",
+    "region": ""
+  },
+  {
+    "id": "guardian-direct-pharmacy-waitemat",
+    "premises_name": "Guardian Direct Pharmacy",
+    "legal_entity": "GP Pharmaceuticals NZ Limited",
+    "address": "34A Constellation Drive, Rosedale, Auckland, 0632, Waitematā",
+    "town": "Waitematā",
+    "region": ""
+  },
+  {
+    "id": "life-pharmacy-ashburton-canterbury",
+    "premises_name": "Life Pharmacy Ashburton",
+    "legal_entity": "Ashburton Pharmacy (2020) Limited",
+    "address": "71 Tancred Street, Ashburton, 7700, Canterbury",
+    "town": "Canterbury",
+    "region": ""
+  },
+  {
+    "id": "milldale-pharmacy-waitemat",
+    "premises_name": "Milldale Pharmacy",
+    "legal_entity": "Milldale Pharmacy Limited",
+    "address": "Unit 6, 1 Henry Tayler Rise, Wainui, 0932, Waitematā",
+    "town": "Waitematā",
+    "region": ""
+  },
+  {
+    "id": "pioneer-pharmacy-midcentral",
+    "premises_name": "Pioneer Pharmacy",
+    "legal_entity": "Palmycare Limited",
+    "address": "Shop 6, 746 Pioneer Highway, Takaro, Palmerston North, 4412, MidCentral",
+    "town": "MidCentral",
+    "region": ""
+  },
+  {
+    "id": "summerhill-pharmacy-midcentral",
+    "premises_name": "Summerhill Pharmacy",
+    "legal_entity": "Palmycare Limited",
+    "address": "198 Ruapehu Drive, Fitzherbert, Palmerston North, 4410, MidCentral",
+    "town": "MidCentral",
+    "region": ""
+  },
+  {
+    "id": "thames-centre-pharmacy-waikato",
+    "premises_name": "Thames Centre Pharmacy",
+    "legal_entity": "Thames Medical Centre Pharmacy Limited",
+    "address": "817 Rolleston Street, Thames, 3500, Waikato",
+    "town": "Waikato",
+    "region": ""
+  },
+  {
+    "id": "unichem-miramar-pharmacy-capital-coast-and-hutt-valley",
+    "premises_name": "Unichem Miramar Pharmacy",
+    "legal_entity": "Discovery Pharmacy (2016) Limited",
+    "address": "Unit 403, 11 Tauhinu Road, Miramar, Wellington, 6022, Capital, Coast and Hutt Valley",
+    "town": "Capital, Coast and Hutt Valley",
+    "region": ""
+  },
+  {
     "id": "after-hours-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "After Hours Pharmacy",
     "legal_entity": "Wellington Associated Pharmacists Limited",
@@ -29,19 +109,15 @@
     "legal_entity": "APS Pharmacy Limited",
     "address": "30 Maadi Road Onekawa Napier 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.50839,
-    "lng": 176.887033
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "aramoho-pharmacy-whanganui",
     "premises_name": "Aramoho Pharmacy",
     "legal_entity": "Aramoho Pharmacy Limited",
-    "address": "142 Somme Parade Aramoho Whanganui 4500, Whanganui",
+    "address": "142 Somme Parade, Aramoho, Whanganui, 4500, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.909422,
-    "lng": 175.053325
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "avalon-medical-centre-pharmacy-limited-capital-coast-and-hutt-valley",
@@ -55,7 +131,7 @@
     "id": "bargain-chemist-lyall-bay-capital-coast-and-hutt-valley",
     "premises_name": "Bargain Chemist Lyall Bay",
     "legal_entity": "BCH 30 Limited",
-    "address": "Retail 3, Airport Retail Park, cnr Titirangi Road and George Bolt Street Lyall Bay Wellington 6022, Capital, Coast and Hutt Valley",
+    "address": "Retail 3, Airport Retail Park, cnr Titirangi Road and George Bolt Street, Lyall Bay, Wellington, 6022, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -153,9 +229,7 @@
     "legal_entity": "Care Pharmacy 2020 Limited",
     "address": "307 St Aubyn Street West, Hastings, 4122, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.63716,
-    "lng": 176.844003
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "carterton-pharmacy-wairarapa",
@@ -171,15 +245,13 @@
     "legal_entity": "Simpson McNaught Pharmacy Holdings Limited",
     "address": "121 Victoria Avenue Whanganui 4500, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.93243,
-    "lng": 175.050861
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "central-drive-in-pharmacy-midcentral",
     "premises_name": "Central Drive-In Pharmacy",
     "legal_entity": "Central Pharmacy (2014) Limited",
-    "address": "176 Featherston Street Roslyn Palmerston North 4410, MidCentral",
+    "address": "176 Featherston Street, Roslyn, Palmerston North, 4410, MidCentral",
     "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
@@ -216,6 +288,14 @@
     "region": "Central | Te Ikaroa"
   },
   {
+    "id": "chemist-warehouse-napier-prebensen-drive-hawke-s-bay",
+    "premises_name": "Chemist Warehouse Napier - Prebensen Drive",
+    "legal_entity": "Pharmacy Investments 78 Limited",
+    "address": "200 Prebensen Drive, Onekawa, Napier, 4110, Hawke's Bay",
+    "town": "Hawke's Bay",
+    "region": "Central | Te Ikaroa"
+  },
+  {
     "id": "chemist-warehouse-palmerston-north-midcentral",
     "premises_name": "Chemist Warehouse Palmerston North",
     "legal_entity": "Pharmacy Investments 71 Limited",
@@ -237,9 +317,7 @@
     "legal_entity": "Pharmacy Investments 39 Limited",
     "address": "79 Victoria Avenue Whanganui 4500, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.933396,
-    "lng": 175.05247
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "city-health-pharmacy-midcentral",
@@ -263,9 +341,7 @@
     "legal_entity": "Anthe Limited",
     "address": "185 Main Road Clive 4102, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.583947,
-    "lng": 176.915764
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "clive-s-chemist-capital-coast-and-hutt-valley",
@@ -295,7 +371,7 @@
     "id": "crofton-downs-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Crofton Downs Pharmacy",
     "legal_entity": "Karen Rich Pharmacy Limited",
-    "address": "Churchill Drive Shopping Centre 124 Churchill Drive Crofton Downs Wellington 6035, Capital, Coast and Hutt Valley",
+    "address": "Churchill Drive Shopping Centre, 124 Churchill Drive, Crofton Downs, Wellington, 6035, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -353,9 +429,7 @@
     "legal_entity": "Marshall's Pharmacy Taradale Limited",
     "address": "279 Gloucester Street Taradale NAPIER 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.535972,
-    "lng": 176.848074
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "gilmours-havelock-north-pharmacy-hawke-s-bay",
@@ -379,9 +453,7 @@
     "legal_entity": "Glenns Pharmacy Limited",
     "address": "245 Gloucester Street Taradale NAPIER 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.535185,
-    "lng": 176.848323
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "gonville-health-pharmacy-limited-whanganui",
@@ -389,9 +461,7 @@
     "legal_entity": "Gonville Health Pharmacy Limited",
     "address": "44 Abbot Street Gonville Whanganui 4501, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.942377,
-    "lng": 175.022936
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "gonville-pharmacy-whanganui",
@@ -399,15 +469,13 @@
     "legal_entity": "Cziharz (NZ) Limited",
     "address": "121 Alma Road, Gonville, Whanganui 4501, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.940459,
-    "lng": 175.023371
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "grant-irvine-pharmacy-midcentral",
     "premises_name": "Grant Irvine Pharmacy",
     "legal_entity": "Wisemed Limited",
-    "address": "Unit 1, 552 - 554 Main Street Palmerston North 4410, MidCentral",
+    "address": "Unit 1, 552 - 554 Main Street, Palmerston North, 4410, MidCentral",
     "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
@@ -417,9 +485,7 @@
     "legal_entity": "APS Pharmacy Limited",
     "address": "34 Gloucester Street Greenmeadows Napier 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.52655,
-    "lng": 176.861089
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "greytown-pharmacy-wairarapa",
@@ -515,9 +581,7 @@
     "legal_entity": "Pharmacy Solutions Limited",
     "address": "33 Fitzherbert Street Featherston 5710, Wairarapa",
     "town": "Wairarapa",
-    "region": "Central | Te Ikaroa",
-    "lat": -41.116794,
-    "lng": 175.323861
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "len-hooper-pharmacy-capital-coast-and-hutt-valley",
@@ -573,9 +637,7 @@
     "legal_entity": "Unichem Napier City Limited",
     "address": "131 Emerson Street NAPIER 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.490589,
-    "lng": 176.916823
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "life-pharmacy-north-city-capital-coast-and-hutt-valley",
@@ -607,9 +669,7 @@
     "legal_entity": "Mahora Pharmacy Limited",
     "address": "907 Tomoana Road, Mahora, Hastings, 4120, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.628603,
-    "lng": 176.850078
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "mana-pharmacy-capital-coast-and-hutt-valley",
@@ -625,9 +685,7 @@
     "legal_entity": "Kokoru Pharmacy Group Limited",
     "address": "3 Longfellow Avenue Maraenui Napier 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.515329,
-    "lng": 176.905657
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "marewa-pharmacy-hawke-s-bay",
@@ -635,9 +693,7 @@
     "legal_entity": "APS Pharmacy Limited",
     "address": "104 Kennedy Road Marewa Napier 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.499586,
-    "lng": 176.903622
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "marton-pharmacy-whanganui",
@@ -645,9 +701,7 @@
     "legal_entity": "Choice Pharmacy Limited",
     "address": "292 Broadway Marton 4710, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -40.068282,
-    "lng": 175.378397
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "masterton-medical-pharmacy-limited-wairarapa",
@@ -677,7 +731,7 @@
     "id": "milson-pharmacy-midcentral",
     "premises_name": "Milson Pharmacy",
     "legal_entity": "Milson Pharmacy Limited",
-    "address": "Shop 7, 91 Milson Line, Milson, Palmerston North, 4414, MidCentral",
+    "address": "Unit 7, 91 Milson Line, Milson, Palmerston North, 4414, MidCentral",
     "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
@@ -703,9 +757,7 @@
     "legal_entity": "Taradale Pharmacy Limited",
     "address": "25 Munroe Street, Napier South, Napier, 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.494327,
-    "lng": 176.913129
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "napier-pharmacy-hawke-s-bay",
@@ -713,9 +765,7 @@
     "legal_entity": "Kokoru Pharmacy Group Limited",
     "address": "70 Wellesley Road Napier South Napier 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.49407,
-    "lng": 176.909703
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "newlands-pharmacy-capital-coast-and-hutt-valley",
@@ -779,9 +829,7 @@
     "legal_entity": "Paul Messerschmidt Limited",
     "address": "3/800 St Aubyn Street East HASTINGS 4122, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.646425,
-    "lng": 176.853638
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "peak-pharmacy-hawke-s-bay",
@@ -789,9 +837,7 @@
     "legal_entity": "Peak Pharmacy Limited",
     "address": "33 - 35 Napier Road HAVELOCK NORTH 4130, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.653923,
-    "lng": 176.887333
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "pharmacy-145-on-victoria-whanganui",
@@ -799,9 +845,7 @@
     "legal_entity": "Lumen LHM Limited",
     "address": "145 Victoria Avenue Whanganui 4500, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.931912,
-    "lng": 175.04998
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "pharmacy-over-east-whanganui",
@@ -809,9 +853,7 @@
     "legal_entity": "McKibben and Glentworth Limited",
     "address": "71 Moana Street Whanganui East Whanganui 4500, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.917201,
-    "lng": 175.059586
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "platt-s-pharmacy-whanganui",
@@ -819,9 +861,7 @@
     "legal_entity": "Platts Pharmacy 2016 Limited",
     "address": "69 High Street Bulls 4818, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -40.179491,
-    "lng": 175.374882
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "porirua-pharmacy-capital-coast-and-hutt-valley",
@@ -853,9 +893,7 @@
     "legal_entity": "APS Pharmacy Limited",
     "address": "901 Gordon Road Raureka Hastings 4120, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.63907,
-    "lng": 176.825594
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "ropata-pharmacy-capital-coast-and-hutt-valley",
@@ -909,11 +947,9 @@
     "id": "taihape-pharmacy-whanganui",
     "premises_name": "Taihape Pharmacy",
     "legal_entity": "Choice Mission Company Limited",
-    "address": "85 Hautapu Street TAIHAPE 4720, Whanganui",
+    "address": "85 Hautapu Street, Taihape, 4720, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.677545,
-    "lng": 175.798376
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "taita-pharmacy-2016-limited-capital-coast-and-hutt-valley",
@@ -929,9 +965,7 @@
     "legal_entity": "Amana Healthcare Limited",
     "address": "821 Orchard Road Camberley Hastings 4120, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.622349,
-    "lng": 176.815353
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "tamatea-pharmacy-hawke-s-bay",
@@ -947,9 +981,7 @@
     "legal_entity": "Taradale Pharmacy Limited",
     "address": "20 - 24 Puketapu Road Taradale Napier 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.533791,
-    "lng": 176.84044
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "the-pharmacy-the-hastings-health-centre-hawke-s-bay",
@@ -963,7 +995,7 @@
     "id": "titahi-bay-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Titahi Bay Pharmacy",
     "legal_entity": "Titahi Bay Pharmacy Limited",
-    "address": "24 Whitehouse Road Titahi Bay Porirua 5022, Capital, Coast and Hutt Valley",
+    "address": "24 Whitehouse Road, Titahi Bay, Porirua, 5022, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -995,7 +1027,7 @@
     "id": "unichem-cuba-mall-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Unichem Cuba Mall Pharmacy",
     "legal_entity": "Harbour City Pharmacy (2011) Limited",
-    "address": "120 Cuba Street, Te Aro, Wellington, 6011, Capital, Coast and Hutt Valley",
+    "address": "122 Cuba Street, Te Aro, Wellington, 6011, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1005,9 +1037,7 @@
     "legal_entity": "Unichem Havelock North Limited",
     "address": "10 Napier Road Havelock North Hastings 4130, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.669547,
-    "lng": 176.877983
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-island-bay-pharmacy-capital-coast-and-hutt-valley",
@@ -1077,7 +1107,7 @@
     "id": "unichem-maidstone-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Unichem Maidstone Pharmacy",
     "legal_entity": "Radius Pharmacy Upper Hutt Limited",
-    "address": "53 Main Street UPPER HUTT 5018, Capital, Coast and Hutt Valley",
+    "address": "53 Main Street, Upper Hutt, 5018, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1085,7 +1115,7 @@
     "id": "unichem-marsden-village-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Unichem Marsden Village Pharmacy",
     "legal_entity": "Karori Pharmacies (2020) Limited",
-    "address": "159 Karori Road Karori Wellington 6012, Capital, Coast and Hutt Valley",
+    "address": "Unit 1, 159 Karori Road, Karori, Wellington 6012, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1095,16 +1125,6 @@
     "legal_entity": "Martinborough Pharmacy 2021 Limited",
     "address": "5 Oxford Street Martinborough 5711, Wairarapa",
     "town": "Wairarapa",
-    "region": "Central | Te Ikaroa",
-    "lat": -41.219397,
-    "lng": 175.460637
-  },
-  {
-    "id": "unichem-miramar-pharmacy-capital-coast-and-hutt-valley",
-    "premises_name": "Unichem Miramar Pharmacy",
-    "legal_entity": "Discovery Pharmacy (2016) Limited",
-    "address": "58 Miramar Avenue Miramar Wellington 6022, Capital, Coast and Hutt Valley",
-    "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
   {
@@ -1121,9 +1141,7 @@
     "legal_entity": "Radius Pharmacy Napier Limited",
     "address": "32 Munroe Street Napier South NAPIER 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.494224,
-    "lng": 176.914995
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-newtown-mall-pharmacy-capital-coast-and-hutt-valley",
@@ -1147,9 +1165,7 @@
     "legal_entity": "Radius Pharmacy Greenmeadows Limited",
     "address": "522-524 Kennedy Road Greenmeadows NAPIER 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.523884,
-    "lng": 176.864888
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-pharmacy-waipukurau-hawke-s-bay",
@@ -1157,9 +1173,7 @@
     "legal_entity": "CHB Apothecary Limited",
     "address": "125 Ruataniwha Street Waipukurau 4200, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.995038,
-    "lng": 176.552621
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-roses-pharmacy-midcentral",
@@ -1215,15 +1229,13 @@
     "legal_entity": "Taradale Pharmacy Limited",
     "address": "288 - 292 Gloucester Street Taradale Napier 4112, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.533895,
-    "lng": 176.849988
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-terrace-end-pharmacy-midcentral",
     "premises_name": "Unichem Terrace End Pharmacy",
     "legal_entity": "Manawatu Pharmacies Limited",
-    "address": "325 Broadway Avenue Terrace End Palmerston North 4414, MidCentral",
+    "address": "325 Broadway Avenue, Terrace End, Palmerston North, 4414, MidCentral",
     "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
@@ -1247,7 +1259,7 @@
     "id": "unichem-upper-hutt-health-pharmacy-capital-coast-and-hutt-valley",
     "premises_name": "Unichem Upper Hutt Health Pharmacy",
     "legal_entity": "Upper Hutt Health Centre Pharmacy Limited",
-    "address": "6 Sinclair Street Ebdentown UPPER HUTT 5018, Capital, Coast and Hutt Valley",
+    "address": "6 Sinclair Street, Ebdentown, Upper Hutt, 5018, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1281,9 +1293,7 @@
     "legal_entity": "Radius Pharmacy Wanganui Limited",
     "address": "36 Fitzherbert Avenue Springvale Whanganui 4501, Whanganui",
     "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.931943,
-    "lng": 175.021837
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "unichem-willis-st-pharmacy-capital-coast-and-hutt-valley",
@@ -1291,22 +1301,6 @@
     "legal_entity": "Wellington Pharmacy (2016) Limited",
     "address": "58 Willis Street Wellington Central Wellington 6011, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "vautier-pharmacy-pioneer-village-midcentral",
-    "premises_name": "Vautier Pharmacy - Pioneer Village",
-    "legal_entity": "Vautier Pharmacy Limited",
-    "address": "Shop 6, 746 Pioneer Highway Takaro Palmerston North 4412, MidCentral",
-    "town": "MidCentral",
-    "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "vautier-pharmacy-summerhill-village-midcentral",
-    "premises_name": "Vautier Pharmacy - Summerhill Village",
-    "legal_entity": "Vautier Pharmacy Limited",
-    "address": "198 Ruapehu Drive Fitzherbert Palmerston North 4440, MidCentral",
-    "town": "MidCentral",
     "region": "Central | Te Ikaroa"
   },
   {
@@ -1355,9 +1349,7 @@
     "legal_entity": "Pillcart Partners Limited",
     "address": "24 High Street, Waipawa, 4210, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.944066,
-    "lng": 176.586917
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "wairoa-pharmacy-hawke-s-bay",
@@ -1365,9 +1357,7 @@
     "legal_entity": "Pillcart Limited",
     "address": "8 Paul Street Wairoa 4108, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.034282,
-    "lng": 177.417964
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "waitangirua-pharmacy-limited-capital-coast-and-hutt-valley",
@@ -1423,9 +1413,7 @@
     "legal_entity": "Westshore Pharmacy 2016 Limited",
     "address": "3 Alfred Street, Westshore, Napier, 4110, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.477525,
-    "lng": 176.881619
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "whitby-pharmacy-capital-coast-and-hutt-valley",
@@ -1457,9 +1445,7 @@
     "legal_entity": "GDL Rx No9 Limited",
     "address": "301 Queen Street West Hastings 4122, Hawke's Bay",
     "town": "Hawke's Bay",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.638779,
-    "lng": 176.842074
+    "region": "Central | Te Ikaroa"
   },
   {
     "id": "woolworths-pharmacy-newtown-capital-coast-and-hutt-valley",
@@ -1473,7 +1459,7 @@
     "id": "woolworths-pharmacy-petone-capital-coast-and-hutt-valley",
     "premises_name": "Woolworths Pharmacy Petone",
     "legal_entity": "GDL Rx No1 Limited",
-    "address": "45 Jackson Street Petone Lower Hutt 5012, Capital, Coast and Hutt Valley",
+    "address": "45 Jackson Street, Petone, Lower Hutt, 5012, Capital, Coast and Hutt Valley",
     "town": "Capital, Coast and Hutt Valley",
     "region": "Central | Te Ikaroa"
   },
@@ -1489,19 +1475,9 @@
     "id": "woolworths-pharmacy-rangitikei-st-midcentral",
     "premises_name": "Woolworths Pharmacy Rangitikei St",
     "legal_entity": "GDL Rx No1 Limited",
-    "address": "249 Rangitikei Street Palmerston North 4410, MidCentral",
+    "address": "249 Rangitikei Street, Palmerston North, 4410, MidCentral",
     "town": "MidCentral",
     "region": "Central | Te Ikaroa"
-  },
-  {
-    "id": "woolworths-pharmacy-victoria-ave-whanganui",
-    "premises_name": "Woolworths Pharmacy Victoria Ave",
-    "legal_entity": "GDL Rx No5 Limited",
-    "address": "433 Victoria Avenue Whanganui 4500, Whanganui",
-    "town": "Whanganui",
-    "region": "Central | Te Ikaroa",
-    "lat": -39.924298,
-    "lng": 175.037431
   },
   {
     "id": "woolworths-pharmacy-wainuiomata-capital-coast-and-hutt-valley",
@@ -1525,9 +1501,7 @@
     "legal_entity": "JBG Pharmacy Limited",
     "address": "6 Avalon Drive, Nawton, Hamilton, 3200, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.779886,
-    "lng": 175.249365
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "bargain-chemist-new-plymouth-central-taranaki",
@@ -1535,9 +1509,7 @@
     "legal_entity": "BCH 12 Limited",
     "address": "173 Courtenay Street New Plymouth 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.056917,
-    "lng": 174.080258
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "bargain-chemist-te-awamutu-waikato",
@@ -1553,9 +1525,7 @@
     "legal_entity": "J Barron Limited",
     "address": "66 Seddon Street Waihi 3610, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.39105,
-    "lng": 175.841008
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "bay-health-pharmacy-bay-of-plenty",
@@ -1563,19 +1533,7 @@
     "legal_entity": "Bay Health Pharmacy 2021 Limited",
     "address": "Tauranga Hospital, 829 Cameron Road, Tauranga South, Tauranga, 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.707275,
-    "lng": 176.148495
-  },
-  {
-    "id": "bethlehem-pharmacy-bay-of-plenty",
-    "premises_name": "Bethlehem Pharmacy",
-    "legal_entity": "Willow Street Pharmacy Limited",
-    "address": "16 Bethlehem Road Bethlehem Tauranga 3110, Bay of Plenty",
-    "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.693491,
-    "lng": 176.111248
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "bongards-pharmacy-bay-of-plenty",
@@ -1583,9 +1541,7 @@
     "legal_entity": "Bongard's Pharmacy Limited",
     "address": "1303 Cameron Road Gate Pa Tauranga 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.725621,
-    "lng": 176.132839
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "bureta-pharmacy-limited-bay-of-plenty",
@@ -1593,9 +1549,7 @@
     "legal_entity": "Bureta Pharmacy Limited",
     "address": "78 Bureta Road Otumoetai TAURANGA 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.67121,
-    "lng": 176.152579
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "campus-pharmacy-waikato-waikato",
@@ -1651,9 +1605,7 @@
     "legal_entity": "Pharmacy Investments 48 Limited",
     "address": "266 Cameron Road, Tauranga, 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.688597,
-    "lng": 176.165638
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "chemist-warehouse-centre-place-waikato",
@@ -1661,9 +1613,7 @@
     "legal_entity": "Pharmacy Investments 15 Limited",
     "address": "501 Victoria Street, Hamilton Central, Hamilton 3204, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.785943,
-    "lng": 175.279541
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "chemist-warehouse-chartwell-waikato",
@@ -1695,9 +1645,7 @@
     "legal_entity": "Pharmacy Investments 52 Limited",
     "address": "1257 Amohau Street, Rotorua, 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.139667,
-    "lng": 176.248553
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "chemist-warehouse-taupo-lakes",
@@ -1729,9 +1677,7 @@
     "legal_entity": "Clark's Pharmacy Limited",
     "address": "2 Rosemont Road, Waihi, 3610, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.391642,
-    "lng": 175.840343
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "comins-pharmacy-limited-waikato",
@@ -1739,9 +1685,7 @@
     "legal_entity": "Comins Pharmacy Limited",
     "address": "67 Victoria Street Cambridge 3434, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.894149,
-    "lng": 175.468835
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "devon-west-pharmacy-taranaki",
@@ -1749,9 +1693,7 @@
     "legal_entity": "Devon St West Pharmacy Limited",
     "address": "283 Devon St West NEW PLYMOUTH 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.061811,
-    "lng": 174.060775
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "downtown-pharmacy-mt-maunganui-bay-of-plenty",
@@ -1759,9 +1701,7 @@
     "legal_entity": "Downtown Pharmacy Mt Maunganui Limited",
     "address": "152 Maunganui Road Mt Maunganui TAURANGA 3116, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.641788,
-    "lng": 176.185375
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "edgecumbe-pharmacy-bay-of-plenty",
@@ -1777,9 +1717,7 @@
     "legal_entity": "Teni Limited",
     "address": "62 Weraroa Road, Waverley, 4510, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.763854,
-    "lng": 174.633533
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "fairfield-pharmacy-waikato",
@@ -1787,9 +1725,7 @@
     "legal_entity": "Hasan Pharmacy Limited",
     "address": "1007 Heaphy Terrace Fairfield Hamilton 3214, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.771589,
-    "lng": 175.282742
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "five-crossroads-pharmacy-waikato",
@@ -1797,9 +1733,7 @@
     "legal_entity": "5 X Roads Limited",
     "address": "280 Peachgrove Road, Fairfield, Hamilton, 3214, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.771457,
-    "lng": 175.292588
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "frankton-pharmacy-waikato",
@@ -1807,9 +1741,7 @@
     "legal_entity": "Alchemy Frankton Limited",
     "address": "161-163 Commerce Street, Frankton, Hamilton, 3204, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.785832,
-    "lng": 175.267365
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "frontier-pharmacy-waikato",
@@ -1841,9 +1773,7 @@
     "legal_entity": "A&N Pharmacy Limited",
     "address": "1 Mangapapa Road Mangapapa Gisborne 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.649905,
-    "lng": 178.02064
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "hamilton-east-pharmacy-waikato",
@@ -1851,9 +1781,7 @@
     "legal_entity": "Hamilton East Pharmacy Limited",
     "address": "14 Beale Street Hamilton East HAMILTON 3216, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.78968,
-    "lng": 175.292244
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "hillcrest-healthcare-pharmacy-waikato",
@@ -1861,9 +1789,7 @@
     "legal_entity": "FN Hasan Pharmacy Limited",
     "address": "153 Cambridge Road Hillcrest Hamilton 3216, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.798961,
-    "lng": 175.316488
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "hinemoa-pharmacy-lakes",
@@ -1871,9 +1797,7 @@
     "legal_entity": "WIL Pharmacy Limited",
     "address": "1276 Hinemoa Street, Rotorua, 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.137828,
-    "lng": 176.252659
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "horotiu-hauora-pharmacy-waikato",
@@ -1887,17 +1811,15 @@
     "id": "horouta-pharmacy-tair-whiti",
     "premises_name": "Horouta Pharmacy",
     "legal_entity": "Horouta Pharmacy Limited",
-    "address": "92 De Lautour Road Inner Kaiti Gisborne 4010, Tairāwhiti",
+    "address": "92 De Lautour Road, Inner Kaiti, Gisborne, 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.668628,
-    "lng": 178.047864
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "horsham-downs-pharmacy-waikato",
     "premises_name": "Horsham Downs Pharmacy",
     "legal_entity": "Horsham Downs Pharmacy (2023) Limited",
-    "address": "Unit 5/152 Horsham Downs Road Rototuna North Hamilton 3210, Waikato",
+    "address": "Unit 5/152 Horsham Downs Road, Rototuna North, Hamilton, 3210, Waikato",
     "town": "Waikato",
     "region": "Midland | Te Manawa Taki"
   },
@@ -1907,9 +1829,7 @@
     "legal_entity": "Huntly Pharmacy Limited",
     "address": "123 Main Street Huntly 3700, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.559128,
-    "lng": 175.159044
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "huntly-west-pharmacy-waikato",
@@ -1917,9 +1837,7 @@
     "legal_entity": "Pharmacy on Main 2019 Limited",
     "address": "4 Bridge Street Huntly Waikato 3700, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.561316,
-    "lng": 175.151653
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "james-village-pharmacy-bay-of-plenty",
@@ -1935,9 +1853,7 @@
     "legal_entity": "John's Photo Pharmacy Limited",
     "address": "292 Cameron Road, Tauranga, 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.689127,
-    "lng": 176.165354
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "kawerau-pharmacy-bay-of-plenty",
@@ -1953,9 +1869,7 @@
     "legal_entity": "Mavourneen Limited",
     "address": "26 Islington Street Kawerau 3127, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.086135,
-    "lng": 176.703161
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "lakes-care-pharmacy-lakes",
@@ -1963,9 +1877,7 @@
     "legal_entity": "Urgent Pharmacy Rotorua Limited",
     "address": "1155 Tutanekai Street ROTORUA 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.135234,
-    "lng": 176.251318
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "life-pharmacy-bayfair-bay-of-plenty",
@@ -1989,9 +1901,7 @@
     "legal_entity": "McSweeney Pharmacy Group Limited",
     "address": "54 Arawa Street MATAMATA 3400, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.808583,
-    "lng": 175.773883
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "life-pharmacy-taupo-lakes",
@@ -2007,9 +1917,7 @@
     "legal_entity": "Tauranga Pharmacy (2012) Limited",
     "address": "53 Devonport Road, Tauranga Central, Tauranga, 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.68578,
-    "lng": 176.16924
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "life-pharmacy-te-puke-bay-of-plenty",
@@ -2017,9 +1925,7 @@
     "legal_entity": "Te Puke Pharmacies Limited",
     "address": "61 Jellicoe Street Te Puke 3119, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.785286,
-    "lng": 176.328384
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "maunganui-road-pharmacy-limited-bay-of-plenty",
@@ -2027,9 +1933,7 @@
     "legal_entity": "Maunganui Road Pharmacy Limited",
     "address": "383 Maunganui Road Mount Maunganui 3116, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.644999,
-    "lng": 176.189935
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "maungatapu-pharmacy-bay-of-plenty",
@@ -2045,9 +1949,7 @@
     "legal_entity": "A and B Pharmacy Limited",
     "address": "28 Albert Street Whitianga Waikato 3510, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -36.833642,
-    "lng": 175.705005
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "merrilands-pharmacy-taranaki",
@@ -2063,9 +1965,7 @@
     "legal_entity": "SE10 Healthcare Limited",
     "address": "492 St Aubyn Street Moturoa NEW PLYMOUTH 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.062819,
-    "lng": 174.04559
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "mount-pharmacy-bay-of-plenty",
@@ -2073,9 +1973,7 @@
     "legal_entity": "Mount Pharmacy Limited",
     "address": "132 Maunganui Road MOUNT MAUNGANUI 3116, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.637479,
-    "lng": 176.182885
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "mountainview-pharmacy-taranaki",
@@ -2083,9 +1981,7 @@
     "legal_entity": "Araba Pharmacy Limited",
     "address": "65 Victoria Street, Hawera, 4610, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.587298,
-    "lng": 174.280425
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "my-pharmacy-papamoa-plaza-bay-of-plenty",
@@ -2109,9 +2005,7 @@
     "legal_entity": "Te Puke Pharmacies Limited",
     "address": "96 Jellicoe Street Te Puke 3119, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.78438,
-    "lng": 176.327598
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "mypharmacy-the-avenues-bay-of-plenty",
@@ -2127,9 +2021,7 @@
     "legal_entity": "Nawton Pharmacy 2022 Limited",
     "address": "107 Grandview Road Nawton Hamilton 3200, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.780446,
-    "lng": 175.237368
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "nga-hua-pharmacy-waikato",
@@ -2137,9 +2029,7 @@
     "legal_entity": "Te Kohao Health Nga Hua Pharmacy Limited",
     "address": "951 Wairere Drive, Hamilton East, Hamilton 3216, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.793123,
-    "lng": 175.306916
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "ngaruawahia-pharmacy-waikato",
@@ -2147,9 +2037,7 @@
     "legal_entity": "HEMSHA Limited",
     "address": "23 Jesmond Street Ngaruawahia 3720, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.666063,
-    "lng": 175.148899
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "ngatea-feelgood-pharmacy-waikato",
@@ -2165,9 +2053,7 @@
     "legal_entity": "Ngongotaha Pharmacy Limited",
     "address": "17 Taui Street, Ngongotaha, Rotorua, 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.080768,
-    "lng": 176.213654
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "northcare-pukete-pharmacy-waikato",
@@ -2183,9 +2069,7 @@
     "legal_entity": "Northcare Thomas Rd Pharmacy (2016) Limited",
     "address": "107 Thomas Road Huntington Hamilton 3210, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.730878,
-    "lng": 175.275272
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "oakura-pharmacy-taranaki",
@@ -2193,9 +2077,7 @@
     "legal_entity": "Coastal Pharma Limited",
     "address": "1132 South Road Oakura 4314, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.115556,
-    "lng": 173.956977
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "ohope-beach-pharmacy-bay-of-plenty",
@@ -2203,9 +2085,7 @@
     "legal_entity": "Ohope Beach Pharmacy 2023 Limited",
     "address": "262 Pohutukawa Avenue Ohope 3121, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.972235,
-    "lng": 177.058239
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "omokoroa-pharmacy-bay-of-plenty",
@@ -2213,9 +2093,7 @@
     "legal_entity": "Omokoroa Pharmacy 2025 Limited",
     "address": "170 Omokoroa Road Omokoroa 3114, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.642314,
-    "lng": 176.038197
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "opotiki-pharmacy-bay-of-plenty",
@@ -2223,9 +2101,7 @@
     "legal_entity": "Apothecary Limited",
     "address": "110 Church Street, Opotiki, 3122, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.005391,
-    "lng": 177.284738
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "opunake-pharmacy-taranaki",
@@ -2233,9 +2109,7 @@
     "legal_entity": "Araba Pharmacy Limited",
     "address": "26 Napier Street, Opunake, 4616, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.454184,
-    "lng": 173.860204
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "owhata-medical-centre-pharmacy-lakes",
@@ -2251,9 +2125,7 @@
     "legal_entity": "Araba Pharmacy Patea Limited",
     "address": "71 Egmont Street PATEA 4520, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.756223,
-    "lng": 174.473965
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "pharmacy-257-bay-of-plenty",
@@ -2269,9 +2141,7 @@
     "legal_entity": "Pharmacy 53 Limited",
     "address": "10 Ballance Street Whataupoko Gisborne 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.655242,
-    "lng": 178.02441
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "pharmacy-547-waikato",
@@ -2287,9 +2157,7 @@
     "legal_entity": "Jalen BB Limited",
     "address": "188 Parklands Avenue Bell Block NEW PLYMOUTH 4312, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.028418,
-    "lng": 174.149284
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "pharmacy-carefirst-taranaki",
@@ -2297,9 +2165,7 @@
     "legal_entity": "Araba Pharmacy Limited",
     "address": "99 Tukapa Street, Westown, New Plymouth, 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.073797,
-    "lng": 174.059297
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "pharmacy-on-cameron-bay-of-plenty",
@@ -2315,9 +2181,7 @@
     "legal_entity": "Kennedy Pharmacy Limited",
     "address": "75 Customhouse Street Gisborne 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.670005,
-    "lng": 178.025261
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "pharmacy-westend-lakes",
@@ -2325,9 +2189,7 @@
     "legal_entity": "Pharmacy Westend 2022 Limited",
     "address": "227 Old Taupo Road Hillcrest Rotorua 3015, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.145292,
-    "lng": 176.237751
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "phoenix-pharmacy-2001-limited-bay-of-plenty",
@@ -2359,19 +2221,15 @@
     "legal_entity": "RPJS Limited",
     "address": "8 Bow Street Raglan 3225, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.799655,
-    "lng": 174.868594
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "ranolf-pharmacy-lakes",
     "premises_name": "Ranolf Pharmacy",
     "legal_entity": "Samnem Limited",
-    "address": "59 Ranolf Street Victoria Rotorua 3010, Lakes",
+    "address": "59 Ranolf Street, Victoria, Rotorua, 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.141275,
-    "lng": 176.246469
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "rauru-pharmacy-tair-whiti",
@@ -2379,9 +2237,7 @@
     "legal_entity": "Rauru Pharmacy Limited",
     "address": "75 Huxley Road Outer Kaiti Gisborne 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.674076,
-    "lng": 178.051088
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "roberts-ngaruawahia-pharmacy-waikato",
@@ -2389,9 +2245,7 @@
     "legal_entity": "HEMSHA Limited",
     "address": "11 Galileo Street Ngaruawahia 3720, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.66735,
-    "lng": 175.150427
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "robertsons-high-street-pharmacy-taranaki",
@@ -2399,9 +2253,7 @@
     "legal_entity": "Robertsons Pharmacy Limited",
     "address": "94 High Street HAWERA 4610, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.589044,
-    "lng": 174.28329
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "robertsons-hunter-street-pharmacy-taranaki",
@@ -2409,9 +2261,7 @@
     "legal_entity": "Robertsons Pharmacy Limited",
     "address": "41 Hunter Street, Hawera, 4610, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.586569,
-    "lng": 174.267346
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "robertsons-strandon-pharmacy-taranaki",
@@ -2419,9 +2269,7 @@
     "legal_entity": "Robertsons Pharmacy Limited",
     "address": "488 Devon Street East, Strandon, New Plymouth, 4312, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.050891,
-    "lng": 174.097592
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "sanders-pharmacy-waikato",
@@ -2429,9 +2277,7 @@
     "legal_entity": "Pharmacy Futures Limited",
     "address": "3/670 Cambridge Road Te Awamutu 3800, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.008415,
-    "lng": 175.339694
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "sean-shivnan-pharmacy-limited-tair-whiti",
@@ -2439,9 +2285,7 @@
     "legal_entity": "Sean Shivnan Pharmacy Limited",
     "address": "578 Gladstone Road Te Hapara GISBORNE 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.655495,
-    "lng": 178.007757
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "south-city-health-pharmacy-2012-limited-waikato",
@@ -2449,9 +2293,7 @@
     "legal_entity": "South City Health Pharmacy 2012 Limited",
     "address": "91 Kahikatea Drive Melville Hamilton 3206, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.808675,
-    "lng": 175.271345
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "stratford-pharmacy-taranaki",
@@ -2459,9 +2301,7 @@
     "legal_entity": "Calm Future Limited",
     "address": "235 Broadway STRATFORD 4332, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.343469,
-    "lng": 174.286381
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "tairua-pauanui-pharmacy-limited-waikato",
@@ -2477,9 +2317,7 @@
     "legal_entity": "Tara Road Pharmacy Limited",
     "address": "1E Tara Road, Papamoa, Tauranga 3187, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.714683,
-    "lng": 176.306632
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "tarawera-pharmacy-limited-bay-of-plenty",
@@ -2487,9 +2325,7 @@
     "legal_entity": "Tarawera Pharmacy Limited",
     "address": "106 Onslow Street KAWERAU 3127, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.090524,
-    "lng": 176.700765
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "te-aroha-pharmacy-waikato",
@@ -2497,19 +2333,15 @@
     "legal_entity": "Kaimai Rise Limited",
     "address": "189 - 191 Whitaker Street, Te Aroha, 3320, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.543124,
-    "lng": 175.712195
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "te-awamutu-pharmacy-limited-waikato",
     "premises_name": "Te Awamutu Pharmacy Limited",
     "legal_entity": "Te Awamutu Pharmacy Limited",
-    "address": "168 Alexandra Street TE AWAMUTU 3800, Waikato",
+    "address": "168 Alexandra Street, Te Awamutu 3800, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.009943,
-    "lng": 175.32531
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "te-kauwhata-pharmacy-2017-limited-waikato",
@@ -2517,9 +2349,7 @@
     "legal_entity": "Te Kauwhata Pharmacy 2017 Limited",
     "address": "14 Main Road Te Kauwhata 3710, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.403787,
-    "lng": 175.143538
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "te-ngae-pharmacy-lakes",
@@ -2538,16 +2368,6 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "thames-centre-pharmacy-waikato",
-    "premises_name": "Thames Centre Pharmacy",
-    "legal_entity": "Moore's Med Centre Pharmacy Limited",
-    "address": "817 Rolleston Street THAMES 3500, Waikato",
-    "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.137797,
-    "lng": 175.545013
-  },
-  {
     "id": "the-crossing-pharmacy-bay-of-plenty",
     "premises_name": "The Crossing Pharmacy",
     "legal_entity": "Downtown Pharmacy Mt Maunganui Limited",
@@ -2561,9 +2381,7 @@
     "legal_entity": "Putaruru Pharmacy Limited",
     "address": "553 Te Ngae Road, Owhata, Rotorua 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.129659,
-    "lng": 176.302453
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "tui-ora-health-pharmacy-limited-taranaki",
@@ -2571,9 +2389,7 @@
     "legal_entity": "Tui Ora Health Pharmacy Limited",
     "address": "36 Maratahu Street, Westown, New Plymouth, 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.06864,
-    "lng": 174.067931
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "tui-pharmacy-borman-road-waikato",
@@ -2587,7 +2403,7 @@
     "id": "tui-pharmacy-central-waikato",
     "premises_name": "Tui Pharmacy Central",
     "legal_entity": "Tui Pharmacy Central Limited",
-    "address": "Shop 4, 960 Victoria Street Whitiora HAMILTON 3200, Waikato",
+    "address": "Shop 4, 960 Victoria Street, Whitiora, Hamilton, 3200, Waikato",
     "town": "Waikato",
     "region": "Midland | Te Manawa Taki"
   },
@@ -2597,9 +2413,7 @@
     "legal_entity": "Tui Pharmacy Limited",
     "address": "6 Gordonton Road, Chartwell, Hamilton 3210, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.749187,
-    "lng": 175.294077
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "tui-pharmacy-te-rapa-limited-waikato",
@@ -2615,9 +2429,7 @@
     "legal_entity": "Whakatane Pharmacies 2021 Limited",
     "address": "52 King Street Whakatane 3120, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.961001,
-    "lng": 176.98199
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-beerescourt-pharmacy-waikato",
@@ -2625,9 +2437,15 @@
     "legal_entity": "Everhealth Care Limited",
     "address": "1365 Victoria Street Beerescourt Hamilton 3200, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.769971,
-    "lng": 175.263477
+    "region": "Midland | Te Manawa Taki"
+  },
+  {
+    "id": "unichem-bethlehem-medical-pharmacy-bay-of-plenty",
+    "premises_name": "Unichem Bethlehem Medical Pharmacy",
+    "legal_entity": "Willow Street Pharmacy Limited",
+    "address": "16 Bethlehem Road, Bethlehem, Tauranga, 3110, Bay of Plenty",
+    "town": "Bay of Plenty",
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-bramwells-pharmacy-tair-whiti",
@@ -2635,9 +2453,7 @@
     "legal_entity": "JJ Noel Limited",
     "address": "232 Gladstone Road Gisborne 4010, Tairāwhiti",
     "town": "Tairāwhiti",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.664296,
-    "lng": 178.022746
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-brookfield-pharmacy-bay-of-plenty",
@@ -2653,9 +2469,7 @@
     "legal_entity": "Cambridge Pharmacies 2020 Limited",
     "address": "48 Alpha Street Cambridge 3434, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.893657,
-    "lng": 175.465787
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-cambridge-pharmacy-waikato",
@@ -2663,9 +2477,7 @@
     "legal_entity": "Cambridge Pharmacies 2020 Limited",
     "address": "52 Victoria Street Cambridge 3434, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.894281,
-    "lng": 175.469664
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-central-pharmacy-rotorua-lakes",
@@ -2673,9 +2485,7 @@
     "legal_entity": "Becept Group Limited",
     "address": "1181 Amohia Street Rotorua 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.135646,
-    "lng": 176.248625
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-chadwick-pharmacy-bay-of-plenty",
@@ -2683,9 +2493,7 @@
     "legal_entity": "Bay Pharmacies 2015 Limited",
     "address": "120 Chadwick Road, Greerton, Tauranga, 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.727966,
-    "lng": 176.135738
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-cherrywood-pharmacy-bay-of-plenty",
@@ -2693,9 +2501,7 @@
     "legal_entity": "Bay Pharmacies 2025 Limited",
     "address": "52-54 Cherrywood Drive Otumoetai Tauranga 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.668221,
-    "lng": 176.141517
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-coromandel-pharmacy-waikato",
@@ -2703,9 +2509,7 @@
     "legal_entity": "Coromandel Pharmacy 2014 Limited",
     "address": "89 Kapanga Road, Coromandel, 3506, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -36.759393,
-    "lng": 175.497709
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-davies-corner-pharmacy-waikato",
@@ -2737,9 +2541,7 @@
     "legal_entity": "Becept Group Limited",
     "address": "10/100 Fairy Springs Road, Fairy Springs, Rotorua, 3015, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.115368,
-    "lng": 176.225771
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-family-health-pharmacy-waikato",
@@ -2763,9 +2565,7 @@
     "legal_entity": "Alba Pharmacies Limited",
     "address": "40 Fifth Avenue Tauranga 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.693088,
-    "lng": 176.163707
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-flagstaff-pharmacy-waikato",
@@ -2773,29 +2573,23 @@
     "legal_entity": "Flagstaff Pharmacy Limited",
     "address": "1158 River Road Flagstaff HAMILTON 3210, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.738386,
-    "lng": 175.2527
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-glenview-medical-pharmacy-waikato",
     "premises_name": "Unichem Glenview Medical Pharmacy",
-    "legal_entity": "Glenview Pharmacy Limited",
-    "address": "1 Urlich Avenue, Melville, Hamilton 3206, Waikato",
+    "legal_entity": "CDS Limited",
+    "address": "1 Urlich Avenue, Melville, Hamilton, 3206, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.81688,
-    "lng": 175.283011
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-glenview-pharmacy-waikato",
     "premises_name": "Unichem Glenview Pharmacy",
-    "legal_entity": "Glenview Pharmacy Limited",
+    "legal_entity": "CDS Limited",
     "address": "143 Ohaupo Road, Melville, Hamilton, 3206, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.817241,
-    "lng": 175.282647
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-greerton-pharmacy-bay-of-plenty",
@@ -2803,9 +2597,7 @@
     "legal_entity": "Bay Pharmacies 2015 Limited",
     "address": "221 Chadwick Road Greerton Tauranga 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.726029,
-    "lng": 176.132488
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-grey-street-pharmacy-waikato",
@@ -2813,9 +2605,7 @@
     "legal_entity": "PCO Pharmacies Limited",
     "address": "354 Grey Street Hamilton East Hamilton 3216, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.802926,
-    "lng": 175.300126
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-hamilton-pharmacy-waikato",
@@ -2823,9 +2613,7 @@
     "legal_entity": "Hamilton Pharmacy 2011 Limited",
     "address": "1/173 Anglesea Street Hamilton Central Hamilton 3204, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.784721,
-    "lng": 175.277227
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-health-centre-pharmacy-waikato",
@@ -2836,22 +2624,12 @@
     "region": "Midland | Te Manawa Taki"
   },
   {
-    "id": "unichem-health-centre-pharmacy-taupo-lakes",
-    "premises_name": "Unichem Health Centre Pharmacy Taupo",
-    "legal_entity": "Main Street Pharmacy Limited",
-    "address": "113 Heuheu Street Taupo 3330, Lakes",
-    "town": "Lakes",
-    "region": "Midland | Te Manawa Taki"
-  },
-  {
     "id": "unichem-huntly-pharmacy-waikato",
     "premises_name": "Unichem Huntly Pharmacy",
     "legal_entity": "Pharmacy on Main 2019 Limited",
     "address": "82 - 86 Main Street, Huntly, 3700, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.561307,
-    "lng": 175.158365
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-inglewood-pharmacy-taranaki",
@@ -2859,9 +2637,7 @@
     "legal_entity": "Pharmacia 2020 Limited",
     "address": "4 Matai Street Inglewood 4347, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.15634,
-    "lng": 174.2071
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-katikati-health-pharmacy-bay-of-plenty",
@@ -2869,9 +2645,7 @@
     "legal_entity": "Katikati Pharmacies 2024 Limited",
     "address": "4 Clive Road Katikati 3129, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.552713,
-    "lng": 175.926808
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-katikati-pharmacy-bay-of-plenty",
@@ -2879,9 +2653,7 @@
     "legal_entity": "Katikati Pharmacies 2024 Limited",
     "address": "26 Main Road, Katikati, 3129, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.552877,
-    "lng": 175.917358
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-kope-pharmacy-bay-of-plenty",
@@ -2889,19 +2661,15 @@
     "legal_entity": "Whakatane Pharmacies 2021 Limited",
     "address": "78 King Street Whakatane 3120, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.961768,
-    "lng": 176.981991
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-leamington-pharmacy-waikato",
     "premises_name": "Unichem Leamington Pharmacy",
     "legal_entity": "Leamington Pharmacy (1981) Limited",
-    "address": "127 Shakespeare Street Leamington Cambridge 3432, Waikato",
+    "address": "127 Shakespeare Street, Leamington, Cambridge, 3432, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.906109,
-    "lng": 175.475159
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-mackays-pharmacy-taranaki",
@@ -2909,9 +2677,7 @@
     "legal_entity": "Araba Pharmacy Limited",
     "address": "289 Broadway Stratford 4332, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.341892,
-    "lng": 174.285747
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-mainstreet-pharmacy-lakes",
@@ -2927,9 +2693,7 @@
     "legal_entity": "T.A. Pharma Limited",
     "address": "220 Bank Street TE AWAMUTU 3800, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.011258,
-    "lng": 175.322402
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-marshalls-pharmacy-waikato",
@@ -2937,9 +2701,7 @@
     "legal_entity": "T.A. Pharma Limited",
     "address": "156 Teasdale Street Te Awamutu 3800, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.010391,
-    "lng": 175.321815
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-matamata-pharmacy-waikato",
@@ -2947,9 +2709,7 @@
     "legal_entity": "McSweeney Pharmacy Group Limited",
     "address": "56 Rawhiti Avenue Matamata 3400, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.809168,
-    "lng": 175.778474
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-metro-pharmacy-bethlehem-bay-of-plenty",
@@ -2965,9 +2725,7 @@
     "legal_entity": "Island View Limited",
     "address": "72 Studholme Street Morrinsville 3300, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.65755,
-    "lng": 175.527869
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-otorohanga-pharmacy-waikato",
@@ -2983,9 +2741,7 @@
     "legal_entity": "Bay Pharmacies 2025 Limited",
     "address": "506 Otumoetai Road Otumoetai Tauranga 3110, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.666389,
-    "lng": 176.139525
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-paeroa-pharmacy-waikato",
@@ -2993,9 +2749,7 @@
     "legal_entity": "MACS Pharmacies Limited",
     "address": "122 Normanby Road Paeroa 3600, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.381257,
-    "lng": 175.67224
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-papamoa-pharmacy-bay-of-plenty",
@@ -3035,9 +2789,7 @@
     "legal_entity": "Whiti Pharmacy Limited",
     "address": "64 Albert Street Whitianga 3510, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -36.834507,
-    "lng": 175.704744
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-tamahere-pharmacy-waikato",
@@ -3069,9 +2821,7 @@
     "legal_entity": "Thames Pharmacy Limited",
     "address": "546 Pollen Street Thames 3500, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.145442,
-    "lng": 175.545427
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-the-mall-pharmacy-rotorua-lakes",
@@ -3087,9 +2837,7 @@
     "legal_entity": "Tokoroa Pharmacy Services Limited",
     "address": "221 Leith Place TOKOROA 3420, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.218371,
-    "lng": 175.872704
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-total-health-pharmacy-bay-of-plenty",
@@ -3113,9 +2861,7 @@
     "legal_entity": "Jeffrey Lucas Chemist Limited",
     "address": "55 Tukapa Street Westown NEW PLYMOUTH 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.0716,
-    "lng": 174.062109
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "unichem-whangamata-pharmacy-waikato",
@@ -3131,9 +2877,7 @@
     "legal_entity": "J & J Pharmacy Limited",
     "address": "35 Vercoe Road, Beerescourt, Hamilton, 3200, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.765032,
-    "lng": 175.26001
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "vivian-pharmacy-limited-taranaki",
@@ -3141,9 +2885,7 @@
     "legal_entity": "Vivian Pharmacy Limited",
     "address": "95 Vivian Street NEW PLYMOUTH 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.061886,
-    "lng": 174.067955
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "vogeltown-pharmacy-taranaki",
@@ -3151,9 +2893,7 @@
     "legal_entity": "Vogeltown Pharmacy 2015 Limited",
     "address": "272 Carrington Street Vogeltown NEW PLYMOUTH 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.079071,
-    "lng": 174.080346
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "waihi-beach-chemist-bay-of-plenty",
@@ -3161,9 +2901,7 @@
     "legal_entity": "Waihi Beach Chemist 2007 Limited",
     "address": "15 Wilson Road Waihi Beach 3611, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.412126,
-    "lng": 175.944
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "waitara-pharmacy-taranaki",
@@ -3171,9 +2909,7 @@
     "legal_entity": "Waitara Pharmacy (2025) Limited",
     "address": "56 McLean Street, Waitara, 4320, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.001555,
-    "lng": 174.236447
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "welcome-bay-pharmacy-limited-bay-of-plenty",
@@ -3197,9 +2933,7 @@
     "legal_entity": "G & G Pharmacy Limited",
     "address": "38 Tuhikaramea Road Dinsdale HAMILTON 3204, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.796401,
-    "lng": 175.246883
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "western-heights-pharmacy-lakes",
@@ -3207,9 +2941,7 @@
     "legal_entity": "Western Heights Pharmacy Limited",
     "address": "10 Brookland Road Western Heights Rotorua 3015, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.12861,
-    "lng": 176.21919
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "whangamata-pharmacy-waikato",
@@ -3217,9 +2949,7 @@
     "legal_entity": "Whangamata Pharmacy (2013) Limited",
     "address": "429 Port Road Whangamata 3620, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.206818,
-    "lng": 175.871206
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-bayfair-bay-of-plenty",
@@ -3227,9 +2957,7 @@
     "legal_entity": "GDL Rx No6 Limited",
     "address": "19 Girven Road, Mount Maunganui, 3116, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.675652,
-    "lng": 176.224086
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-cambridge-waikato",
@@ -3237,9 +2965,7 @@
     "legal_entity": "GDL Rx No2 Limited",
     "address": "97 Queen Street, Cambridge, 3434, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.89196,
-    "lng": 175.460345
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-claudelands-waikato",
@@ -3247,9 +2973,7 @@
     "legal_entity": "GDL Rx No3 Limited",
     "address": "160 Peachgrove Road, Hamilton East, Hamilton, 3216, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.778349,
-    "lng": 175.298958
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-fraser-cove-bay-of-plenty",
@@ -3257,9 +2981,7 @@
     "legal_entity": "GDL Rx No4 Limited",
     "address": "243 Fraser Street, Tauranga South, Tauranga, 3112, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.710238,
-    "lng": 176.155422
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-rotorua-lakes",
@@ -3267,9 +2989,7 @@
     "legal_entity": "GDL Rx No7 Limited",
     "address": "246 Fenton Street, Victoria, Rotorua, 3010, Lakes",
     "town": "Lakes",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -38.143202,
-    "lng": 176.255245
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-rototuna-waikato",
@@ -3277,9 +2997,7 @@
     "legal_entity": "GDL Rx No7 Limited",
     "address": "3 Fergy Place Rototuna North Hamilton 3210, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.721885,
-    "lng": 175.258965
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-spotswood-taranaki",
@@ -3287,9 +3005,7 @@
     "legal_entity": "GDL Rx No5 Limited",
     "address": "6 Manadon Street Spotswood New Plymouth 4310, Taranaki",
     "town": "Taranaki",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -39.075826,
-    "lng": 174.033233
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "woolworths-pharmacy-te-rapa-waikato",
@@ -3297,9 +3013,7 @@
     "legal_entity": "GDL Rx No7 Limited",
     "address": "8 Eagle Way, Pukete, Hamilton, 3200, Waikato",
     "town": "Waikato",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.746285,
-    "lng": 175.234469
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "your-pharmacy-mount-maunganui-bay-of-plenty",
@@ -3307,9 +3021,7 @@
     "legal_entity": "Care Chemists (Mount Maunganui) Limited",
     "address": "6 Grenada Street Mount Maunganui 3116, Bay of Plenty",
     "town": "Bay of Plenty",
-    "region": "Midland | Te Manawa Taki",
-    "lat": -37.674691,
-    "lng": 176.228328
+    "region": "Midland | Te Manawa Taki"
   },
   {
     "id": "3-kings-plaza-pharmacy-auckland",
@@ -3317,9 +3029,7 @@
     "legal_entity": "FCP 3 Kings Plaza Limited",
     "address": "536 Mount Albert Road Three Kings Auckland 1042, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.909353,
-    "lng": 174.754907
+    "region": "Northern"
   },
   {
     "id": "airport-oaks-pharmacy-counties-manukau",
@@ -3335,9 +3045,7 @@
     "legal_entity": "Zahara NZ Limited",
     "address": "99 St Lukes Road, Sandringham, Auckland, 1025, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.88504,
-    "lng": 174.735695
+    "region": "Northern"
   },
   {
     "id": "all-seasons-pharmacy-waitemat",
@@ -3367,11 +3075,9 @@
     "id": "ascot-pharmacy-auckland",
     "premises_name": "Ascot Pharmacy",
     "legal_entity": "Ascot Pharmacy (2006) Limited",
-    "address": "90 Green Lane East Remuera Auckland 1051, Auckland",
+    "address": "90 Green Lane East, Remuera, Auckland, 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.887208,
-    "lng": 174.800469
+    "region": "Northern"
   },
   {
     "id": "auckland-central-pharmacy-auckland",
@@ -3387,9 +3093,7 @@
     "legal_entity": "A & E Chemist Limited",
     "address": "1784 Great North Road Avondale Auckland 1026, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.891734,
-    "lng": 174.696345
+    "region": "Northern"
   },
   {
     "id": "avondale-kiwi-chemist-auckland",
@@ -3397,9 +3101,7 @@
     "legal_entity": "Mishrikipharmacy Limited",
     "address": "256 Rosebank Road Avondale AUCKLAND 1026, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.885796,
-    "lng": 174.6836
+    "region": "Northern"
   },
   {
     "id": "avondale-pharmacy-auckland",
@@ -3407,9 +3109,7 @@
     "legal_entity": "Kavita Pharmaceuticals Limited",
     "address": "2144 - 2146 Great North Road Avondale Auckland 0600, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.902358,
-    "lng": 174.692716
+    "region": "Northern"
   },
   {
     "id": "bakerfield-chemist-2000-limited-counties-manukau",
@@ -3425,9 +3125,7 @@
     "legal_entity": "Parie Pharmaceuticals Limited",
     "address": "611 Dominion Road Mount Eden Auckland 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.889205,
-    "lng": 174.746566
+    "region": "Northern"
   },
   {
     "id": "bargain-chemist-manukau-counties-manukau",
@@ -3451,14 +3149,6 @@
     "legal_entity": "BCH 31 Limited",
     "address": "Mount Wellington Shopping Centre, Shops 7-9, 295 Penrose Road, Mount Wellington, Auckland, 1060, Auckland",
     "town": "Auckland",
-    "region": "Northern"
-  },
-  {
-    "id": "bargain-chemist-pakuranga-counties-manukau",
-    "premises_name": "Bargain Chemist Pakuranga",
-    "legal_entity": "BCH 13 Limited",
-    "address": "Pakuranga Plaza Shop WS002, 10 Aylesbury Street Pakuranga Auckland 2010, Counties Manukau",
-    "town": "Counties Manukau",
     "region": "Northern"
   },
   {
@@ -3553,11 +3243,9 @@
     "id": "blockhouse-bay-pharmacy-auckland",
     "premises_name": "Blockhouse Bay Pharmacy",
     "legal_entity": "Blockhouse Bay Pharmacy 2008 Limited",
-    "address": "526 - 530 Blockhouse Bay Road Blockhouse Bay Auckland 0600, Auckland",
+    "address": "526 - 530 Blockhouse Bay Road, Blockhouse Bay, Auckland, 0600, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.911471,
-    "lng": 174.701964
+    "region": "Northern"
   },
   {
     "id": "botany-road-pharmacy-limited-counties-manukau",
@@ -3581,9 +3269,7 @@
     "legal_entity": "Browns Pharmacy (Kaitaia) Limited",
     "address": "89-91 Commerce Street Kaitaia 0410, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.111287,
-    "lng": 173.261472
+    "region": "Northern"
   },
   {
     "id": "bruce-amies-pharmacy-auckland",
@@ -3591,9 +3277,7 @@
     "legal_entity": "Healthtrack Pharmacy Limited",
     "address": "4 Avondale Road Avondale Auckland 1026, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.888396,
-    "lng": 174.679883
+    "region": "Northern"
   },
   {
     "id": "cavendish-drive-pharmacy-counties-manukau",
@@ -3612,14 +3296,20 @@
     "region": "Northern"
   },
   {
+    "id": "chemist-419-auckland",
+    "premises_name": "Chemist 419",
+    "legal_entity": "Chemist 419 Limited",
+    "address": "419 Queen Street, Auckland Central, Auckland, 1010, Auckland",
+    "town": "Auckland",
+    "region": "Northern"
+  },
+  {
     "id": "chemist-plus-auckland",
     "premises_name": "Chemist Plus",
     "legal_entity": "Chemist Plus Limited",
     "address": "435 Khyber Pass Road Newmarket Auckland 1023, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.867294,
-    "lng": 174.775739
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-albany-waitemat",
@@ -3641,11 +3331,9 @@
     "id": "chemist-warehouse-auckland-victoria-street-auckland",
     "premises_name": "Chemist Warehouse Auckland - Victoria Street",
     "legal_entity": "Pharmacy Investments 58 Limited",
-    "address": "25 Victoria Street West Auckland Central Auckland 1010, Auckland",
+    "address": "25 Victoria Street West, Auckland Central, Auckland, 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.848543,
-    "lng": 174.764489
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-auckland-airport-shopping-centre-counties-manukau",
@@ -3688,14 +3376,20 @@
     "region": "Northern"
   },
   {
+    "id": "chemist-warehouse-constellation-drive-waitemat",
+    "premises_name": "Chemist Warehouse Constellation Drive",
+    "legal_entity": "Pharmacy Investments 84 Limited",
+    "address": "Unit 4, 60 Constellation Drive, Rosedale, Auckland, 0632, Waitematā",
+    "town": "Waitematā",
+    "region": "Northern"
+  },
+  {
     "id": "chemist-warehouse-eden-quarter-auckland",
     "premises_name": "Chemist Warehouse Eden Quarter",
     "legal_entity": "Pharmacy Investments 67 Limited",
     "address": "274 Dominion Road, Mount Eden, Auckland, 1024,, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.877114,
-    "lng": 174.751004
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-flat-bush-counties-manukau",
@@ -3775,9 +3469,7 @@
     "legal_entity": "Pharmacy Investments 73 Limited",
     "address": "219-225 Broadway, Newmarket, Auckland, 1023, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.875383,
-    "lng": 174.777182
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-okara-park-northland",
@@ -3785,9 +3477,7 @@
     "legal_entity": "Pharmacy Investments 25 Limited",
     "address": "21 Okara Drive, Morningside, Whangarei 0110, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.73175,
-    "lng": 174.327052
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-onehunga-auckland",
@@ -3795,9 +3485,7 @@
     "legal_entity": "Pharmacy Investments 30 Limited",
     "address": "100 Church Street Onehunga Auckland 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.922507,
-    "lng": 174.786164
+    "region": "Northern"
   },
   {
     "id": "chemist-warehouse-online-counties-manukau",
@@ -3875,7 +3563,7 @@
     "id": "chemist-warehouse-takanini-counties-manukau",
     "premises_name": "Chemist Warehouse Takanini",
     "legal_entity": "Pharmacy Investments 65 Limited",
-    "address": "Unit 4, 237 Great South Road Takanini Auckland 2112, Counties Manukau",
+    "address": "Unit 4, 237 Great South Road, Takanini, Auckland, 2112, Counties Manukau",
     "town": "Counties Manukau",
     "region": "Northern"
   },
@@ -3947,11 +3635,9 @@
     "id": "citymed-pharmacy-auckland",
     "premises_name": "CityMed Pharmacy",
     "legal_entity": "CityMed Pharmacy Limited",
-    "address": "8 Albert Street Auckland Central Auckland 1010, Auckland",
+    "address": "8 Albert Street, Auckland Central, Auckland, 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.844891,
-    "lng": 174.765521
+    "region": "Northern"
   },
   {
     "id": "clendon-discount-pharmacy-counties-manukau",
@@ -3975,9 +3661,7 @@
     "legal_entity": "Newmarket Pharmacy Limited",
     "address": "122 Remuera Road, Remuera, Auckland, 1050, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.874087,
-    "lng": 174.783612
+    "region": "Northern"
   },
   {
     "id": "coast-care-pharmacy-waitemat",
@@ -4025,9 +3709,7 @@
     "legal_entity": "Cranwells Pharmacy (2011) Limited",
     "address": "573 Remuera Road Remuera Auckland 1050, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.880392,
-    "lng": 174.812331
+    "region": "Northern"
   },
   {
     "id": "crawford-house-pharmacy-counties-manukau",
@@ -4043,9 +3725,7 @@
     "legal_entity": "Bush Road Pharmacy Limited",
     "address": "4/6 Three Mile Bush Road Te Kamo WHANGAREI 0112, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.682381,
-    "lng": 174.299984
+    "region": "Northern"
   },
   {
     "id": "dawson-road-pharmacy-counties-manukau",
@@ -4053,6 +3733,14 @@
     "legal_entity": "Dawson Road Pharmacy (2006) Limited",
     "address": "124A Dawson Road Clover Park Auckland 2023, Counties Manukau",
     "town": "Counties Manukau",
+    "region": "Northern"
+  },
+  {
+    "id": "devon-s-healthpoint-pharmacy-auckland",
+    "premises_name": "Devon's Healthpoint Pharmacy",
+    "legal_entity": "Bloomingdale Limited",
+    "address": "Ground Floor Shop 2, 63B Lake Road, Devonport, Auckland, 0624, Auckland",
+    "town": "Auckland",
     "region": "Northern"
   },
   {
@@ -4117,19 +3805,7 @@
     "legal_entity": "Eastmed Pharmacy 2015 Limited",
     "address": "188 St Heliers Bay Road St Heliers AUCKLAND 1071, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.862202,
-    "lng": 174.858865
-  },
-  {
-    "id": "eden-park-pharmacy-auckland",
-    "premises_name": "Eden Park Pharmacy",
-    "legal_entity": "Chens Consultancy Limited",
-    "address": "168 Sandringham Road Sandringham Auckland 1025, Auckland",
-    "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.890867,
-    "lng": 174.7366
+    "region": "Northern"
   },
   {
     "id": "epsom-kiwi-chemist-auckland",
@@ -4145,9 +3821,7 @@
     "legal_entity": "Epsom Pharmacy 2008 Limited",
     "address": "641 Manukau Road Royal Oak Auckland 1023, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.905762,
-    "lng": 174.774443
+    "region": "Northern"
   },
   {
     "id": "family-care-pharmacy-counties-manukau",
@@ -4171,9 +3845,7 @@
     "legal_entity": "Far North Pharmacy Limited",
     "address": "53 Commerce Street Kaitaia 0410, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.11498,
-    "lng": 173.264736
+    "region": "Northern"
   },
   {
     "id": "fencibles-pharmacy-counties-manukau",
@@ -4189,9 +3861,7 @@
     "legal_entity": "Whanau Pharmacy Limited",
     "address": "201 Murphys Road Flat Bush Auckland 2019, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.974794,
-    "lng": 174.92298
+    "region": "Northern"
   },
   {
     "id": "forrest-hill-family-pharmacy-waitemat",
@@ -4223,9 +3893,7 @@
     "legal_entity": "Gladstone Pharmacy Parnell Limited",
     "address": "72 Gladstone Road Parnell Auckland 1052, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.852557,
-    "lng": 174.786197
+    "region": "Northern"
   },
   {
     "id": "glen-eden-pharmacy-waitemat",
@@ -4241,9 +3909,7 @@
     "legal_entity": "Mmishriki Limited",
     "address": "268 Blockhouse Bay Road, Avondale, Auckland 0600, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.90638,
-    "lng": 174.701849
+    "region": "Northern"
   },
   {
     "id": "glenfield-7-day-pharmacy-waitemat",
@@ -4259,15 +3925,13 @@
     "legal_entity": "Gopal's Pharmacy Limited",
     "address": "553 Great North Road Grey Lynn Auckland 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.864688,
-    "lng": 174.737648
+    "region": "Northern"
   },
   {
     "id": "graeme-avenue-pharmacy-counties-manukau",
     "premises_name": "Graeme Avenue Pharmacy",
     "legal_entity": "Roseland Pharmacy Limited",
-    "address": "Shop 4, 2 Graeme Avenue Mangere East AUCKLAND 2024, Counties Manukau",
+    "address": "Shop 4, 2 Graeme Avenue, Mangere East, Auckland, 2024, Counties Manukau",
     "town": "Counties Manukau",
     "region": "Northern"
   },
@@ -4285,9 +3949,7 @@
     "legal_entity": "DBS Pharmacy Limited",
     "address": "117 Hector Sanderson Road Great Barrier Island (Aotea Island) Great Barrier Island 0991, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.243125,
-    "lng": 175.463361
+    "region": "Northern"
   },
   {
     "id": "green-bay-pharmacy-waitemat",
@@ -4303,9 +3965,7 @@
     "legal_entity": "Greenlane Care Pharmacy Limited",
     "address": "205 Great South Road Greenlane Auckland 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.8905,
-    "lng": 174.7937
+    "region": "Northern"
   },
   {
     "id": "guardian-pharmacy-long-bay-waitemat",
@@ -4337,9 +3997,7 @@
     "legal_entity": "Hamilton Central Pharmacy Limited",
     "address": "G02/ 54 Surrey Crescent, Grey Lynn, Auckland, 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.862197,
-    "lng": 174.734509
+    "region": "Northern"
   },
   {
     "id": "health-new-lynn-7-day-pharmacy-auckland",
@@ -4377,7 +4035,7 @@
     "id": "henderson-medical-centre-pharmacy-waitemat",
     "premises_name": "Henderson Medical Centre Pharmacy",
     "legal_entity": "Jade Imperial Limited",
-    "address": "Unit E, 2-4 Montel Avenue Henderson AUCKLAND 0612, Waitematā",
+    "address": "Unit E, 2-4 Montel Avenue, Henderson, Auckland, 0612, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -4395,9 +4053,7 @@
     "legal_entity": "Herne Bay Pharmacy Limited",
     "address": "210 Jervois Road Herne Bay Auckland 1011, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.845617,
-    "lng": 174.735283
+    "region": "Northern"
   },
   {
     "id": "highbrook-pharmacy-counties-manukau",
@@ -4523,7 +4179,7 @@
     "id": "kaeo-chemist-limited-northland",
     "premises_name": "Kaeo Chemist Limited",
     "legal_entity": "Kaeo Chemist Limited",
-    "address": "28A Leigh Street KAEO 0478, Northland",
+    "address": "28A Leigh Street, Kaeo, 0478, Northland",
     "town": "Northland",
     "region": "Northern"
   },
@@ -4533,9 +4189,7 @@
     "legal_entity": "Kawakawa Pharmacy 2019 Limited",
     "address": "21 - 23 Gillies Street Kawakawa 0210, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.38022,
-    "lng": 174.064873
+    "region": "Northern"
   },
   {
     "id": "kelston-medical-pharmacy-waitemat",
@@ -4559,9 +4213,7 @@
     "legal_entity": "Kingsland Limited",
     "address": "491 New North Road Kingsland AUCKLAND 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.87208,
-    "lng": 174.744177
+    "region": "Northern"
   },
   {
     "id": "lab-pharmacy-waitemat",
@@ -4585,9 +4237,7 @@
     "legal_entity": "Lambs Pharmacy & Natural Therapies Centre (1994) Limited",
     "address": "173 Karangahape Road Newton AUCKLAND 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.857918,
-    "lng": 174.762138
+    "region": "Northern"
   },
   {
     "id": "library-lane-pharmacy-waitemat",
@@ -4617,7 +4267,7 @@
     "id": "life-pharmacy-birkenhead-waitemat",
     "premises_name": "Life Pharmacy Birkenhead",
     "legal_entity": "Birkenhead Pharmacy (2011) Limited",
-    "address": "32 Mokoia Road Birkenhead Auckland 0626, Waitematā",
+    "address": "32 Mokoia Road, Birkenhead, Auckland, 0626, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -4705,11 +4355,9 @@
     "id": "life-pharmacy-st-heliers-auckland",
     "premises_name": "Life Pharmacy St Heliers",
     "legal_entity": "St Heliers Bay Pharmacy Limited",
-    "address": "23 St Heliers Bay Road, St Heliers, Auckland 1071, Auckland",
+    "address": "23 St Heliers Bay Road, St Heliers, Auckland, 1071, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.850986,
-    "lng": 174.857521
+    "region": "Northern"
   },
   {
     "id": "life-pharmacy-st-lukes-auckland",
@@ -4741,9 +4389,7 @@
     "legal_entity": "Lifeline Pharmacy Limited",
     "address": "230 Great South Road Otahuhu Auckland 1062, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.941998,
-    "lng": 174.841796
+    "region": "Northern"
   },
   {
     "id": "lincoln-mall-pharmacy-limited-waitemat",
@@ -4767,9 +4413,7 @@
     "legal_entity": "Lockingtons Pharmacy Limited",
     "address": "198-202 Stoddard Road Mount Roskill Auckland 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.908135,
-    "lng": 174.735552
+    "region": "Northern"
   },
   {
     "id": "mahia-road-pharmacy-counties-manukau",
@@ -4833,9 +4477,7 @@
     "legal_entity": "Marsden Cove Pharmacy Limited",
     "address": "1B Ngawaka Lane, One Tree Point, 0118, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.839459,
-    "lng": 174.466095
+    "region": "Northern"
   },
   {
     "id": "massey-unichem-pharmacy-waitemat",
@@ -4859,9 +4501,7 @@
     "legal_entity": "Maunu Pharmacy Limited",
     "address": "115A Maunu Road Woodhill WHANGAREI 0110, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.734285,
-    "lng": 174.305533
+    "region": "Northern"
   },
   {
     "id": "maxcare-pharmacy-auckland",
@@ -4869,9 +4509,7 @@
     "legal_entity": "Maxcare Pharmacy Limited",
     "address": "4/225 Great South Road Otahuhu Auckland 1062, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.943166,
-    "lng": 174.842719
+    "region": "Northern"
   },
   {
     "id": "mclaren-park-pharmacy-waitemat",
@@ -4880,16 +4518,6 @@
     "address": "7/80 Bruce McLaren Road Henderson AUCKLAND 0612, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
-  },
-  {
-    "id": "meadowbank-corner-chemist-auckland",
-    "premises_name": "Meadowbank Corner Chemist",
-    "legal_entity": "UA2 Investments Limited",
-    "address": "2 Blackett Crescent, Meadowbank, Auckland, 1072, Auckland",
-    "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.873269,
-    "lng": 174.828919
   },
   {
     "id": "medicines-to-midnight-auckland",
@@ -4937,9 +4565,7 @@
     "legal_entity": "MedicoPharm Limited",
     "address": "3 Patteson Avenue Mission Bay AUCKLAND 1071, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.849865,
-    "lng": 174.831639
+    "region": "Northern"
   },
   {
     "id": "mt-albert-village-pharmacy-auckland",
@@ -4947,9 +4573,7 @@
     "legal_entity": "Mt Albert Village Pharmacy Limited",
     "address": "901 New North Road, Mount Albert, Auckland 1025, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.883903,
-    "lng": 174.715555
+    "region": "Northern"
   },
   {
     "id": "mt-eden-pharmacy-auckland",
@@ -4957,9 +4581,7 @@
     "legal_entity": "JWFA Investments Limited",
     "address": "431 Mt Eden Road Mt Eden Auckland 1024, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.88183,
-    "lng": 174.761791
+    "region": "Northern"
   },
   {
     "id": "mydispensary-pharmacy-clinic-waitemat",
@@ -4973,11 +4595,9 @@
     "id": "netpharmacy-auckland",
     "premises_name": "Netpharmacy",
     "legal_entity": "Article 12 Healthcare Limited",
-    "address": "109 Parnell Road Parnell Auckland 1052, Auckland",
+    "address": "109 Parnell Road, Parnell, Auckland, 1052, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.853276,
-    "lng": 174.778933
+    "region": "Northern"
   },
   {
     "id": "new-lynn-west-pharmacy-waitemat",
@@ -4993,9 +4613,7 @@
     "legal_entity": "New North Pharmacy Limited",
     "address": "944 New North Road Mt Albert AUCKLAND 1025, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.884802,
-    "lng": 174.715034
+    "region": "Northern"
   },
   {
     "id": "new-windsor-pharmacy-auckland",
@@ -5019,9 +4637,7 @@
     "legal_entity": "Newton Pharmacy Holdings Limited",
     "address": "357 Karangahape Road Auckland Central Auckland 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.857843,
-    "lng": 174.756796
+    "region": "Northern"
   },
   {
     "id": "newton-pharmacy-auckland",
@@ -5048,14 +4664,12 @@
     "region": "Northern"
   },
   {
-    "id": "northcote-family-pharmacy-auckland",
+    "id": "northcote-family-pharmacy-waitemat",
     "premises_name": "Northcote Family Pharmacy",
     "legal_entity": "Northcote Pharmacy Limited",
-    "address": "26 Kawana Street Northcote Auckland 0627, Auckland",
-    "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.807121,
-    "lng": 174.741198
+    "address": "26 Kawana Street, Northcote, Auckland, 0627, Waitematā",
+    "town": "Waitematā",
+    "region": "Northern"
   },
   {
     "id": "northcross-pharmacy-auckland",
@@ -5063,9 +4677,7 @@
     "legal_entity": "Northcross Pharmacy (2025) Limited",
     "address": "855 East Coast Road Northcross Auckland 0630, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.709544,
-    "lng": 174.728288
+    "region": "Northern"
   },
   {
     "id": "northwest-pharmacy-waitemat",
@@ -5089,9 +4701,7 @@
     "legal_entity": "Optimus Healthcare 2025 Limited",
     "address": "4B Walls Road, Penrose, Auckland, 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.908909,
-    "lng": 174.812497
+    "region": "Northern"
   },
   {
     "id": "ormiston-kiwi-chemist-counties-manukau",
@@ -5131,9 +4741,7 @@
     "legal_entity": "Otahuhu Community Pharmacy Limited",
     "address": "115 Church Street Otahuhu Auckland 1062, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.944346,
-    "lng": 174.846653
+    "region": "Northern"
   },
   {
     "id": "otaika-pharmacy-northland",
@@ -5157,9 +4765,7 @@
     "legal_entity": "B and P Pharmacy Limited",
     "address": "4 Williams Road, Paihia, 0200, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.281752,
-    "lng": 174.091739
+    "region": "Northern"
   },
   {
     "id": "pakuranga-pharmacy-auckland",
@@ -5175,9 +4781,7 @@
     "legal_entity": "Medpharm Group Limited",
     "address": "200 Queens Road Panmure Auckland 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.900932,
-    "lng": 174.85735
+    "region": "Northern"
   },
   {
     "id": "papakura-marae-pharmacy-counties-manukau",
@@ -5191,11 +4795,9 @@
     "id": "papatoetoe-discount-pharmacy-auckland",
     "premises_name": "Papatoetoe Discount Pharmacy",
     "legal_entity": "Clendon Pharmacy Limited",
-    "address": "32 King Street Papatoetoe Auckland 2104, Auckland",
+    "address": "32 King Street, Papatoetoe, Auckland, 2104, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.98256,
-    "lng": 174.865994
+    "region": "Northern"
   },
   {
     "id": "parkside-pharmacy-auckland-limited-auckland",
@@ -5219,9 +4821,7 @@
     "legal_entity": "Pharmacy At Quay Park (2018) Limited",
     "address": "68 Beach Road Auckland Central Auckland 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.845635,
-    "lng": 174.771247
+    "region": "Northern"
   },
   {
     "id": "pharmacy-direct-waitemat",
@@ -5237,9 +4837,7 @@
     "legal_entity": "Pharmacy On Dominion Limited",
     "address": "504 Dominion Road, Mt Eden, Auckland, 1024, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.884566,
-    "lng": 174.748442
+    "region": "Northern"
   },
   {
     "id": "pharmacy-on-shakespeare-waitemat",
@@ -5279,9 +4877,7 @@
     "legal_entity": "Pilldrop Software Limited",
     "address": "3 Dryden Place, Mount Wellington, Auckland 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.892812,
-    "lng": 174.825863
+    "region": "Northern"
   },
   {
     "id": "pohutukawa-coast-pharmacy-counties-manukau",
@@ -5305,9 +4901,7 @@
     "legal_entity": "Prochem Pharmacy Limited",
     "address": "1862 Great North Road Avondale AUCKLAND 1026, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.894387,
-    "lng": 174.696717
+    "region": "Northern"
   },
   {
     "id": "prohealth-manukau-pharmacy-counties-manukau",
@@ -5323,9 +4917,7 @@
     "legal_entity": "ProHealth Panmure Pharmacy Limited",
     "address": "136 Queens Road Panmure Auckland 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.898869,
-    "lng": 174.85119
+    "region": "Northern"
   },
   {
     "id": "prohealth-pharmacy-papatoetoe-counties-manukau",
@@ -5357,9 +4949,7 @@
     "legal_entity": "Queen Street Pharmacy Services Limited",
     "address": "31 Queen Street, Otahuhu, Auckland, 1062, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.946239,
-    "lng": 174.844277
+    "region": "Northern"
   },
   {
     "id": "ranui-pharmacy-waitemat",
@@ -5373,7 +4963,7 @@
     "id": "ray-pharmacy-meadowbank-auckland",
     "premises_name": "Ray Pharmacy Meadowbank",
     "legal_entity": "Ray Fashion Limited",
-    "address": "10A / 35 St Johns Road St Johns Auckland 1072, Auckland",
+    "address": "10A / 35 St Johns Road, St Johns, Auckland, 1072, Auckland",
     "town": "Auckland",
     "region": "Northern"
   },
@@ -5391,9 +4981,7 @@
     "legal_entity": "Remuera Pharmacy Limited",
     "address": "377 Remuera Road Remuera AUCKLAND 1050, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.880864,
-    "lng": 174.798008
+    "region": "Northern"
   },
   {
     "id": "richmond-road-pharmacy-auckland",
@@ -5401,9 +4989,7 @@
     "legal_entity": "Richmond Road Pharmacy Limited",
     "address": "446 Richmond Road Grey Lynn AUCKLAND 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.858823,
-    "lng": 174.731388
+    "region": "Northern"
   },
   {
     "id": "roskill-healthcare-pharmacy-auckland",
@@ -5411,9 +4997,7 @@
     "legal_entity": "Roskill Healthcare Pharmacy Limited",
     "address": "1011 Dominion Road Mount Roskill AUCKLAND 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.904894,
-    "lng": 174.741453
+    "region": "Northern"
   },
   {
     "id": "royal-heights-pharmacy-waitemat",
@@ -5485,15 +5069,13 @@
     "legal_entity": "Smart Health Enterprises Limited",
     "address": "137 Queens Road, Panmure, Auckland, 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.900343,
-    "lng": 174.85555
+    "region": "Northern"
   },
   {
     "id": "snells-beach-pharmacy-waitemat",
     "premises_name": "Snells Beach Pharmacy",
     "legal_entity": "Spotted Fat Cat Limited",
-    "address": "Shop 1/347 Mahurangi East Road Snells Beach Auckland 0920, Waitematā",
+    "address": "Shop 1/347 Mahurangi East Road, Snells Beach, Auckland, 0920, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -5519,9 +5101,7 @@
     "legal_entity": "AVYRA Pharmaceuticals Limited",
     "address": "12 Polygon Road, St Heliers, Auckland, 1071, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.851429,
-    "lng": 174.857393
+    "region": "Northern"
   },
   {
     "id": "st-lukes-medical-pharmacy-auckland",
@@ -5529,9 +5109,7 @@
     "legal_entity": "Nouveau Limited",
     "address": "52 St Lukes Road, Mount Albert, Auckland, 1025, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.881884,
-    "lng": 174.731412
+    "region": "Northern"
   },
   {
     "id": "sunnynook-link-pharmacy-waitemat",
@@ -5569,11 +5147,9 @@
     "id": "te-hiku-pharmacy-northland",
     "premises_name": "Te Hiku Pharmacy",
     "legal_entity": "Te Hiku Pharmacy Limited",
-    "address": "49 Redan Road Kaitaia 0410, Northland",
+    "address": "49 Redan Road, Kaitaia 0410, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.122848,
-    "lng": 173.257157
+    "region": "Northern"
   },
   {
     "id": "te-puna-hauora-pharmacy-waitemat",
@@ -5605,9 +5181,7 @@
     "legal_entity": "Pharmacy Care Group Limited",
     "address": "382 Manukau Road Epsom Auckland 1023, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.896889,
-    "lng": 174.773904
+    "region": "Northern"
   },
   {
     "id": "the-pharmacy-manurewa-counties-manukau",
@@ -5623,9 +5197,7 @@
     "legal_entity": "Avondale Community Pharmacy Limited",
     "address": "1895 Great North Road Avondale Auckland 1026, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.891125,
-    "lng": 174.69625
+    "region": "Northern"
   },
   {
     "id": "titirangi-pharmacy-waitemat",
@@ -5649,9 +5221,7 @@
     "legal_entity": "Turuki Pharmacy Panmure Limited",
     "address": "62 Queens Road Panmure Auckland 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.899322,
-    "lng": 174.853746
+    "region": "Northern"
   },
   {
     "id": "unichem-115-queen-street-pharmacy-auckland",
@@ -5659,9 +5229,7 @@
     "legal_entity": "Chemist Express Limited",
     "address": "115 Queen Street, Auckland Central, Auckland, 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.846506,
-    "lng": 174.76586
+    "region": "Northern"
   },
   {
     "id": "unichem-218-ponsonby-pharmacy-auckland",
@@ -5669,9 +5237,7 @@
     "legal_entity": "218PP Limited",
     "address": "218 Ponsonby Road Ponsonby Auckland 1011, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.852885,
-    "lng": 174.745039
+    "region": "Northern"
   },
   {
     "id": "unichem-apollo-drive-pharmacy-waitemat",
@@ -5741,7 +5307,7 @@
     "id": "unichem-buchanan-s-pharmacy-northland",
     "premises_name": "Unichem Buchanan's Pharmacy",
     "legal_entity": "Buchanan's Pharmacy Limited",
-    "address": "Shops 1-5, Paramount Plaza 81 Paramount Parade Tikipunga WHANGAREI 0112, Northland",
+    "address": "Shops 1-5, Paramount Plaza, 81 Paramount Parade, Tikipunga, Whangarei 0112, Northland",
     "town": "Northland",
     "region": "Northern"
   },
@@ -5751,9 +5317,7 @@
     "legal_entity": "Buchanan's Pharmacy Limited",
     "address": "157 Kiripaka Road Tikipunga Whangarei 0110, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.687318,
-    "lng": 174.326643
+    "region": "Northern"
   },
   {
     "id": "unichem-buchanans-mansfield-pharmacy-northland",
@@ -5761,9 +5325,7 @@
     "legal_entity": "Buchanan's Pharmacy Limited",
     "address": "7 Mansfield Terrace Regent Whangarei 0112, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.720087,
-    "lng": 174.319908
+    "region": "Northern"
   },
   {
     "id": "unichem-campus-pharmacy-auckland",
@@ -5787,9 +5349,7 @@
     "legal_entity": "Cox's 7 Day Pharmacy Limited",
     "address": "2 Mayfair Place Glen Innes Auckland 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.879005,
-    "lng": 174.856205
+    "region": "Northern"
   },
   {
     "id": "unichem-dannemora-pharmacy-counties-manukau",
@@ -5821,9 +5381,7 @@
     "legal_entity": "EL Pharmacy Limited",
     "address": "125 Main Highway, Ellerslie, Auckland 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.898187,
-    "lng": 174.809672
+    "region": "Northern"
   },
   {
     "id": "unichem-family-healthcare-pharmacy-auckland",
@@ -5863,15 +5421,13 @@
     "legal_entity": "Glendowie Healthcare Pharmacy Limited",
     "address": "95 Ashby Avenue St Heliers Auckland 1071, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.8693,
-    "lng": 174.859493
+    "region": "Northern"
   },
   {
     "id": "unichem-golf-road-pharmacy-waitemat",
     "premises_name": "Unichem Golf Road Pharmacy",
     "legal_entity": "Golf Road Pharmacy 2003 Limited",
-    "address": "174 Golf Road Titirangi AUCKLAND 0604, Waitematā",
+    "address": "174 Golf Road, Titirangi, Auckland, 0604, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -5889,9 +5445,7 @@
     "legal_entity": "Greenlane Pharmacy (2004) Limited",
     "address": "225 Great South Road Greenlane Auckland 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.891461,
-    "lng": 174.795137
+    "region": "Northern"
   },
   {
     "id": "unichem-grey-lynn-pharmacy-auckland",
@@ -5899,9 +5453,7 @@
     "legal_entity": "Grey Lynn Amcal Pharmacy Limited",
     "address": "580 Great North Road Grey Lynn AUCKLAND 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.865382,
-    "lng": 174.737381
+    "region": "Northern"
   },
   {
     "id": "unichem-harbour-view-pharmacy-waitemat",
@@ -5965,9 +5517,7 @@
     "legal_entity": "Huapai Pharmacy 2025 Limited",
     "address": "321 - 323 Main Road, Huapai, Kumeu, 0810, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.773988,
-    "lng": 174.550862
+    "region": "Northern"
   },
   {
     "id": "unichem-john-savory-pharmacy-counties-manukau",
@@ -5983,9 +5533,7 @@
     "legal_entity": "BBL Pharmacies Limited",
     "address": "6C Three Mile Bush Road, Kamo, Whangarei, 0112, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.682833,
-    "lng": 174.299321
+    "region": "Northern"
   },
   {
     "id": "unichem-kamo-pharmacy-northland",
@@ -5993,9 +5541,7 @@
     "legal_entity": "BBL Pharmacies Limited",
     "address": "521A Kamo Road, Kamo, Whangarei, 0112, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.690838,
-    "lng": 174.306412
+    "region": "Northern"
   },
   {
     "id": "unichem-karaka-pharmacy-counties-manukau",
@@ -6011,9 +5557,7 @@
     "legal_entity": "Bay of Islands Pharmacies Limited",
     "address": "64 Kerikeri Road Kerikeri 0230, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.228396,
-    "lng": 173.947821
+    "region": "Northern"
   },
   {
     "id": "unichem-kerimed-pharmacy-northland",
@@ -6021,9 +5565,7 @@
     "legal_entity": "Bay of Islands Pharmacies Limited",
     "address": "2 Ranui Avenue Kerikeri 0230, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.232538,
-    "lng": 173.945133
+    "region": "Northern"
   },
   {
     "id": "unichem-kolmar-pharmacy-counties-manukau",
@@ -6117,7 +5659,7 @@
     "id": "unichem-manurewa-pharmacy-counties-manukau",
     "premises_name": "Unichem Manurewa Pharmacy",
     "legal_entity": "FCP Manurewa Limited",
-    "address": "198-200 Great South Road Manurewa Auckland 2102, Counties Manukau",
+    "address": "198-200 Great South Road, Manurewa, Auckland, 2102, Counties Manukau",
     "town": "Counties Manukau",
     "region": "Northern"
   },
@@ -6159,9 +5701,7 @@
     "legal_entity": "Mt Smart Pharmacy 2015 Limited",
     "address": "233 Mount Smart Road Onehunga Auckland 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.914977,
-    "lng": 174.801185
+    "region": "Northern"
   },
   {
     "id": "unichem-neill-s-pharmacy-auckland",
@@ -6201,9 +5741,7 @@
     "legal_entity": "Onehunga Medical Pharmacy 2025 Limited",
     "address": "73 Church Street Onehunga Auckland 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.923215,
-    "lng": 174.783531
+    "region": "Northern"
   },
   {
     "id": "unichem-onerahi-pharmacy-northland",
@@ -6211,9 +5749,7 @@
     "legal_entity": "Onerahi Pharmacy Limited",
     "address": "116 Onerahi Road, Onerahi, Whangarei 0110, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.75507,
-    "lng": 174.368037
+    "region": "Northern"
   },
   {
     "id": "unichem-orrs-pharmacy-dargaville-northland",
@@ -6221,9 +5757,7 @@
     "legal_entity": "Orrs Kaipara Pharmacies Limited",
     "address": "69 Victoria Street, Dargaville, 0310, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.942173,
-    "lng": 173.869528
+    "region": "Northern"
   },
   {
     "id": "unichem-orrs-pharmacy-kaikohe-northland",
@@ -6231,9 +5765,7 @@
     "legal_entity": "Orrs Kaikohe Pharmacies Limited",
     "address": "34 Broadway KAIKOHE 0405, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.405034,
-    "lng": 173.804636
+    "region": "Northern"
   },
   {
     "id": "unichem-orrs-pharmacy-maungaturoto-northland",
@@ -6241,9 +5773,7 @@
     "legal_entity": "Orrs Maungaturoto Pharmacy Limited",
     "address": "144-146 Hurndall Street East Maungaturoto 0520, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -36.104667,
-    "lng": 174.36764
+    "region": "Northern"
   },
   {
     "id": "unichem-orrs-pharmacy-tui-northland",
@@ -6251,15 +5781,13 @@
     "legal_entity": "Orrs Tui Pharmacy Limited",
     "address": "7 Tui Crescent Maunu Whangarei 0110, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.73977,
-    "lng": 174.282885
+    "region": "Northern"
   },
   {
     "id": "unichem-ostend-pharmacy-auckland",
     "premises_name": "Unichem Ostend Pharmacy",
     "legal_entity": "Ostend Village Pharmacy Limited",
-    "address": "Unit 1, 11 Belgium Street Ostend Waiheke Island 1081, Auckland",
+    "address": "Unit 1, 11 Belgium Street, Ostend, Waiheke Island, 1081, Auckland",
     "town": "Auckland",
     "region": "Northern"
   },
@@ -6293,9 +5821,7 @@
     "legal_entity": "Medpharm Group Limited",
     "address": "74-76 Queens Road Panmure Auckland 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.898869,
-    "lng": 174.85119
+    "region": "Northern"
   },
   {
     "id": "unichem-papakura-pharmacy-counties-manukau",
@@ -6325,7 +5851,7 @@
     "id": "unichem-peter-boles-pharmacy-counties-manukau",
     "premises_name": "Unichem Peter Boles Pharmacy",
     "legal_entity": "PB Pharmacy Limited",
-    "address": "6/33 Fellbrook Street Manurewa Auckland 2102, Counties Manukau",
+    "address": "6/33 Fellbrook Street, Manurewa, Auckland, 2102, Counties Manukau",
     "town": "Counties Manukau",
     "region": "Northern"
   },
@@ -6335,9 +5861,7 @@
     "legal_entity": "Point Chevalier Pharmacy Limited",
     "address": "1209-1213 Great North Road Point Chevalier AUCKLAND 1022, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.868043,
-    "lng": 174.721236
+    "region": "Northern"
   },
   {
     "id": "unichem-ponsonby-pharmacy-auckland",
@@ -6345,9 +5869,7 @@
     "legal_entity": "HealthEJK Limited",
     "address": "1/283 Ponsonby Road Ponsonby Auckland 1011, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.848419,
-    "lng": 174.743801
+    "region": "Northern"
   },
   {
     "id": "unichem-pukekohe-pharmacy-counties-manukau",
@@ -6363,9 +5885,7 @@
     "legal_entity": "280 Queen Street (2005) Limited",
     "address": "262 Queen Street Auckland Central Auckland 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.85022,
-    "lng": 174.765029
+    "region": "Northern"
   },
   {
     "id": "unichem-rangatira-pharmacy-waitemat",
@@ -6405,9 +5925,7 @@
     "legal_entity": "Richardson Rd Community Pharmacy Limited",
     "address": "443 Richardson Road Mt Roskill Auckland 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.912707,
-    "lng": 174.728043
+    "region": "Northern"
   },
   {
     "id": "unichem-rosedale-pharmacy-waitemat",
@@ -6423,9 +5941,7 @@
     "legal_entity": "Roskill Village Pharmacy Limited",
     "address": "1490 Dominion Road Extension Mount Roskill AUCKLAND 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.920973,
-    "lng": 174.736227
+    "region": "Northern"
   },
   {
     "id": "unichem-royal-oak-pharmacy-auckland",
@@ -6441,9 +5957,7 @@
     "legal_entity": "Sandringham Community Pharmacy Limited",
     "address": "2 Kitchener Road Sandringham AUCKLAND 1025, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.892216,
-    "lng": 174.736095
+    "region": "Northern"
   },
   {
     "id": "unichem-silverdale-pharmacy-waitemat",
@@ -6457,7 +5971,7 @@
     "id": "unichem-st-heliers-pharmacy-auckland",
     "premises_name": "Unichem St Heliers Pharmacy",
     "legal_entity": "St Heliers Bay Pharmacy Limited",
-    "address": "10C Turua Street St Heliers Auckland 1071, Auckland",
+    "address": "10C Turua Street, St Heliers, Auckland, 1071, Auckland",
     "town": "Auckland",
     "region": "Northern"
   },
@@ -6547,9 +6061,7 @@
     "legal_entity": "Walls & Roche Royal Oak Pharmacy Limited",
     "address": "792 Manukau Road, Royal Oak, Auckland, 1023, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.911602,
-    "lng": 174.776202
+    "region": "Northern"
   },
   {
     "id": "unichem-warkworth-pharmacy-waitemat",
@@ -6571,7 +6083,7 @@
     "id": "unichem-west-city-pharmacy-auckland",
     "premises_name": "Unichem West City Pharmacy",
     "legal_entity": "West City Pharmacy (2010) Limited",
-    "address": "Level 2, Shop 222, WestCity Waitakere Shopping Centre 7 Catherine Street Henderson Auckland 0612, Auckland",
+    "address": "Level 2, Shop 222, WestCity Waitakere Shopping Centre, 7 Catherine Street, Henderson, Auckland, 0612, Auckland",
     "town": "Auckland",
     "region": "Northern"
   },
@@ -6613,9 +6125,7 @@
     "legal_entity": "Vaiola Pharmacy Limited",
     "address": "1 Fleming Street Onehunga Auckland 1061, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.923987,
-    "lng": 174.781452
+    "region": "Northern"
   },
   {
     "id": "waiheke-unichem-pharmacy-auckland",
@@ -6647,19 +6157,15 @@
     "legal_entity": "Bay of Islands Pharmacies Limited",
     "address": "7 Klinac Lane Waipapa 0230, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.210755,
-    "lng": 173.918322
+    "region": "Northern"
   },
   {
     "id": "waipu-pharmacy-northland",
     "premises_name": "Waipu Pharmacy",
     "legal_entity": "Waipu Village Pharmacy Limited",
-    "address": "25 The Centre Waipu 0510, Northland",
+    "address": "25 The Centre, Waipu, 0510, Northland",
     "town": "Northland",
-    "region": "Northern",
-    "lat": -35.984676,
-    "lng": 174.446051
+    "region": "Northern"
   },
   {
     "id": "walls-roche-medicine-management-auckland",
@@ -6673,7 +6179,7 @@
     "id": "wellsford-pharmacy-auckland",
     "premises_name": "Wellsford Pharmacy",
     "legal_entity": "Wellspharm Pharmacy Limited",
-    "address": "Suite 1, 149 Rodney Street Wellsford 0900, Auckland",
+    "address": "Suite 1, 149 Rodney Street, Wellsford, 0900, Auckland",
     "town": "Auckland",
     "region": "Northern"
   },
@@ -6691,9 +6197,7 @@
     "legal_entity": "Westmere Pharmacy Limited",
     "address": "156 Garnet Road Westmere Auckland 1022, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.854504,
-    "lng": 174.718429
+    "region": "Northern"
   },
   {
     "id": "westview-pharmacy-waitemat",
@@ -6717,9 +6221,7 @@
     "legal_entity": "Your Health Care Pharmacy Limited",
     "address": "460 Richardson Road Mt Roskill Auckland 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.912407,
-    "lng": 174.727952
+    "region": "Northern"
   },
   {
     "id": "windsor-medical-pharmacy-waitemat",
@@ -6743,9 +6245,7 @@
     "legal_entity": "GDL Rx No7 Limited",
     "address": "76 Quay Street Auckland Central Auckland 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.845253,
-    "lng": 174.772292
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-botany-counties-manukau",
@@ -6759,7 +6259,7 @@
     "id": "woolworths-pharmacy-browns-bay-waitemat",
     "premises_name": "Woolworths Pharmacy Browns Bay",
     "legal_entity": "GDL Rx No1 Limited",
-    "address": "24 Anzac Road Browns Bay Auckland 0630, Waitematā",
+    "address": "24 Anzac Road, Browns Bay, Auckland, 0630, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -6769,9 +6269,7 @@
     "legal_entity": "GDL Rx No4 Limited",
     "address": "326 Great South Road Greenlane Auckland 1051, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.891102,
-    "lng": 174.794965
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-greville-road-waitemat",
@@ -6787,9 +6285,7 @@
     "legal_entity": "GDL Rx No8 Limited",
     "address": "271 Richmond Road Grey Lynn Auckland 1022, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.854214,
-    "lng": 174.731543
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-highland-park-counties-manukau",
@@ -6811,7 +6307,7 @@
     "id": "woolworths-pharmacy-lincoln-road-waitemat",
     "premises_name": "Woolworths Pharmacy Lincoln Road",
     "legal_entity": "GDL Rx No2 Limited",
-    "address": "185-187 Universal Drive Henderson Auckland 0610, Waitematā",
+    "address": "185-187 Universal Drive, Henderson, Auckland, 0610, Waitematā",
     "town": "Waitematā",
     "region": "Northern"
   },
@@ -6837,9 +6333,7 @@
     "legal_entity": "GDL Rx No3 Limited",
     "address": "118 - 120 Valley Road Mt Eden Auckland 1024, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.88058,
-    "lng": 174.761614
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-mt-roskill-auckland",
@@ -6847,9 +6341,7 @@
     "legal_entity": "GDL Rx No1 Limited",
     "address": "112 Stoddard Road, Mt Roskill, Auckland, 1041, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.907921,
-    "lng": 174.735145
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-ponsonby-auckland",
@@ -6857,9 +6349,7 @@
     "legal_entity": "GDL Rx No3 Limited",
     "address": "4 Williamson Avenue Grey Lynn Auckland 1021, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.858408,
-    "lng": 174.749044
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-pukekohe-south-counties-manukau",
@@ -6883,9 +6373,7 @@
     "legal_entity": "GDL Rx No8 Limited",
     "address": "134 Felton Mathew Avenue, St Johns, Auckland, 1072, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.87929,
-    "lng": 174.851738
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-takanini-auckland",
@@ -6893,9 +6381,7 @@
     "legal_entity": "GDL Rx No8 Limited",
     "address": "228 Great South Road Takanini Auckland 2112, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -37.034759,
-    "lng": 174.907976
+    "region": "Northern"
   },
   {
     "id": "woolworths-pharmacy-takapuna-waitemat",
@@ -6935,9 +6421,7 @@
     "legal_entity": "Zoom Care Limited",
     "address": "1/29 Union Street, Auckland Central, Auckland, 1010, Auckland",
     "town": "Auckland",
-    "region": "Northern",
-    "lat": -36.853915,
-    "lng": 174.758182
+    "region": "Northern"
   },
   {
     "id": "addington-pharmacy-canterbury",
@@ -6945,9 +6429,7 @@
     "legal_entity": "Addington Pharmacy Limited",
     "address": "348 Lincoln Road Addington Christchurch 8024, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.542408,
-    "lng": 172.613992
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "akaroa-pharmacy-canterbury",
@@ -6955,9 +6437,7 @@
     "legal_entity": "Peninsula Health 2020 Limited",
     "address": "55 Beach Road Akaroa 7520, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.808502,
-    "lng": 172.963468
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "alabasters-pharmacy-canterbury",
@@ -6965,9 +6445,7 @@
     "legal_entity": "Merivale Pharmacy Limited",
     "address": "200 Papanui Road, Merivale, Christchurch, 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.511975,
-    "lng": 172.62185
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "albany-street-pharmacy-limited-southern",
@@ -7151,9 +6629,7 @@
     "legal_entity": "BCH 26 Limited",
     "address": "3/1 Rohutu Way, Rolleston, 7614, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.59638,
-    "lng": 172.381428
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "bargain-chemist-shirley-canterbury",
@@ -7185,9 +6661,7 @@
     "legal_entity": "Shop 29 Limited",
     "address": "16 Athelstan Street, Spreydon, Christchurch 8024, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.557177,
-    "lng": 172.62031
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "bastins-community-pharmacy-canterbury",
@@ -7195,15 +6669,13 @@
     "legal_entity": "Flosun Alpha Limited",
     "address": "219 Innes Road St Albans Christchurch 8052, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.501924,
-    "lng": 172.633452
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "bates-pharmacy-southern",
     "premises_name": "Bates Pharmacy",
     "legal_entity": "Elwyn Bates Group Limited",
-    "address": "Shop 40A Clyde Street BALCLUTHA 9230, Southern",
+    "address": "Shop 40A Clyde Street, Balclutha, 9230, Southern",
     "town": "Southern",
     "region": "South Island | Te Waipounamu"
   },
@@ -7229,9 +6701,7 @@
     "legal_entity": "Eco Signa Limited",
     "address": "14 - 18 Beckford Road, Saint Martins, Christchurch, 8022, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.558348,
-    "lng": 172.655029
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "brockville-pharmacy-southern",
@@ -7247,9 +6717,7 @@
     "legal_entity": "Ell's Pharmacy (1991) Limited",
     "address": "168 Palmerston Street Westport 7825, West Coast",
     "town": "West Coast",
-    "region": "South Island | Te Waipounamu",
-    "lat": -41.75457,
-    "lng": 171.59834
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "burwood-pharmacy-canterbury",
@@ -7257,9 +6725,7 @@
     "legal_entity": "Burwood Pharmacy (1998) Limited",
     "address": "11 Parnwell Street Burwood Christchurch 8083, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.495383,
-    "lng": 172.688456
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "cashmere-pharmacy-canterbury",
@@ -7267,9 +6733,7 @@
     "legal_entity": "Hardings Chemists(2003) Limited",
     "address": "91 Centaurus Road Huntsbury Christchurch 8022, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.565599,
-    "lng": 172.647796
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "caversham-pharmacy-southern",
@@ -7421,9 +6885,7 @@
     "legal_entity": "Hardings Chemists(2003) Limited",
     "address": "167 Colombo Street Sydenham Christchurch 8023, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.556106,
-    "lng": 172.636644
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "civic-health-pharmacy-nelson-marlborough",
@@ -7463,9 +6925,7 @@
     "legal_entity": "Cranford Pharmacy Limited",
     "address": "115 Sherborne Street St Albans Christchurch 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.515326,
-    "lng": 172.637865
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "darfield-pharmacy-canterbury",
@@ -7473,9 +6933,7 @@
     "legal_entity": "Orangi Pharmacy and Health Limited",
     "address": "58 South Terrace DARFIELD 7510, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.489407,
-    "lng": 172.109943
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "dee-street-pharmacy-south-canterbury",
@@ -7507,9 +6965,7 @@
     "legal_entity": "EFLD Pharmacy Limited",
     "address": "135 Tancred Street Ashburton 7700, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.906217,
-    "lng": 171.748158
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "ewart-douglas-bryndwr-pharmacy-canterbury",
@@ -7517,9 +6973,7 @@
     "legal_entity": "WCK Investment Limited",
     "address": "403 Ilam Road Bryndwr Christchurch 8053, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.509007,
-    "lng": 172.588794
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "fendalton-mall-pharmacy-canterbury",
@@ -7613,7 +7067,7 @@
     "id": "hammersley-pharmacy-canterbury",
     "premises_name": "Hammersley Pharmacy",
     "legal_entity": "Matlo Limited",
-    "address": "Unit 2/202 Hills Road Edgeware CHRISTCHURCH 8013, Canterbury",
+    "address": "Unit 2/202 Hills Road, Edgeware, Christchurch, 8013, Canterbury",
     "town": "Canterbury",
     "region": "South Island | Te Waipounamu"
   },
@@ -7631,9 +7085,7 @@
     "legal_entity": "Hei Hei Pharmacy (2019) Limited",
     "address": "34 Wycola Avenue Hei Hei Christchurch 8042, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.535628,
-    "lng": 172.520816
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "highland-pharmacy-central-southern",
@@ -7649,9 +7101,7 @@
     "legal_entity": "Hillmorton Pharmacy 2009 Limited",
     "address": "9 Halswell Road Hillmorton CHRISTCHURCH 8025, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.554226,
-    "lng": 172.594017
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "hoon-hay-pharmacy-canterbury",
@@ -7659,9 +7109,7 @@
     "legal_entity": "GM Pharmacy Limited",
     "address": "120 Sparks Road, Hoon Hay, Christchurch, 8025, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.565935,
-    "lng": 172.604407
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "hurst-taylor-unichem-pharmacy-nelson-marlborough",
@@ -7709,9 +7157,7 @@
     "legal_entity": "Kaiapoi Pharmacy Limited",
     "address": "40 Charles Street Kaiapoi 7630, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.381424,
-    "lng": 172.658064
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "kaikoura-pharmacy-canterbury",
@@ -7719,19 +7165,15 @@
     "legal_entity": "Kaikoura Pharmacy (1998) Limited",
     "address": "37 West End KAIKOURA 7300, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -42.400562,
-    "lng": 173.681445
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "kendal-pharmacy-canterbury",
     "premises_name": "Kendal Pharmacy",
     "legal_entity": "Alderton & Davidovski Limited",
-    "address": "64 Kendal Avenue Burnside Christchurch 8053, Canterbury",
+    "address": "64 Kendal Avenue, Burnside, Christchurch, 8053, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.497815,
-    "lng": 172.572793
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "king-medicine-management-canterbury",
@@ -7747,9 +7189,7 @@
     "legal_entity": "Northwood Pharmacy Limited",
     "address": "2/118A Claridges Road Casebrook Christchurch 8051, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.473149,
-    "lng": 172.594388
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "kiwi-pharmacy-yaldhurst-canterbury",
@@ -7757,15 +7197,13 @@
     "legal_entity": "Yaldhurst Pharmacy Limited",
     "address": "3 Filly Place Yaldhurst Christchurch 8042, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.518961,
-    "lng": 172.52532
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "larson-s-pharmacy-southern",
     "premises_name": "Larson's Pharmacy",
     "legal_entity": "Larson's Green Island Limited",
-    "address": "216 Main South Road Green Island Dunedin 9018, Southern",
+    "address": "216 Main South Road, Green Island, Dunedin, 9018, Southern",
     "town": "Southern",
     "region": "South Island | Te Waipounamu"
   },
@@ -7775,19 +7213,7 @@
     "legal_entity": "Leeston Pharmacy 2008 Limited",
     "address": "76 High Street LEESTON 7632, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.762552,
-    "lng": 172.298218
-  },
-  {
-    "id": "life-pharmacy-ashburton-canterbury",
-    "premises_name": "Life Pharmacy Ashburton",
-    "legal_entity": "Ashburton Pharmacy (2020) Limited",
-    "address": "262 East Street Ashburton 7700, Canterbury",
-    "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.904831,
-    "lng": 171.747398
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "life-pharmacy-barrington-canterbury",
@@ -7843,9 +7269,7 @@
     "legal_entity": "Christchurch Pharmacy (2015) Limited",
     "address": "193 Papanui Road Merivale Christchurch 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.512279,
-    "lng": 172.621682
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "life-pharmacy-motueka-nelson-marlborough",
@@ -7875,7 +7299,7 @@
     "id": "life-pharmacy-prices-nelson-marlborough",
     "premises_name": "Life Pharmacy Prices",
     "legal_entity": "Trident Pharmacy (2017) Limited",
-    "address": "296 Hardy Street Nelson 7010, Nelson Marlborough",
+    "address": "296 Hardy Street, Nelson, 7010, Nelson Marlborough",
     "town": "Nelson Marlborough",
     "region": "South Island | Te Waipounamu"
   },
@@ -7885,9 +7309,7 @@
     "legal_entity": "Pharmakon Limited",
     "address": "172 - 176 High Street Rangiora 7400, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.303919,
-    "lng": 172.591296
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "life-pharmacy-riccarton-canterbury",
@@ -7895,9 +7317,7 @@
     "legal_entity": "Riccarton Mall Pharmacy 2000 Limited",
     "address": "Westfield Riccarton, 129 Riccarton Road, Riccarton, Christchurch, 8041, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.531005,
-    "lng": 172.598079
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "life-pharmacy-wilkinsons-southern",
@@ -7913,9 +7333,7 @@
     "legal_entity": "Lincoln Pharmacy (2012) Limited",
     "address": "8 Gerald Street LINCOLN 7608, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.640087,
-    "lng": 172.483982
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "linwood-village-pharmacy-canterbury",
@@ -7931,9 +7349,7 @@
     "legal_entity": "Longhurst Pharmacy Limited",
     "address": "53 Caulfield Avenue Halswell CHRISTCHURCH 8025, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.578145,
-    "lng": 172.546266
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "lyttelton-pharmacy-post-centre-canterbury",
@@ -7941,9 +7357,7 @@
     "legal_entity": "Bell's Pharmacy Lyttelton Limited",
     "address": "19 London Street LYTTELTON 8082, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.602803,
-    "lng": 172.721358
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "mackenzie-pharmacy-south-canterbury",
@@ -7965,7 +7379,7 @@
     "id": "mapua-pharmacy-nelson-marlborough",
     "premises_name": "Mapua Pharmacy",
     "legal_entity": "Mapua Pharmacy Limited",
-    "address": "Unit 3 and 4, 66-68 Aranui Road Mapua 7005, Nelson Marlborough",
+    "address": "Unit 3 and 4, 66-68 Aranui Road, Mapua 7005, Nelson Marlborough",
     "town": "Nelson Marlborough",
     "region": "South Island | Te Waipounamu"
   },
@@ -7983,9 +7397,7 @@
     "legal_entity": "Marshlands Family Pharmacy Limited",
     "address": "427 Marshland Road Marshland Christchurch 8051, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.474858,
-    "lng": 172.659174
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "mcglashen-pharmacy-nelson-marlborough",
@@ -8017,9 +7429,7 @@
     "legal_entity": "Schiehallion Limited",
     "address": "236 Papanui Road Strowan Christchurch 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.506292,
-    "lng": 172.616404
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "methven-pharmacy-canterbury",
@@ -8067,9 +7477,7 @@
     "legal_entity": "Netherby Pharmacy Limited",
     "address": "214 Chalmers Avenue Hampstead ASHBURTON 7700, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.910628,
-    "lng": 171.751085
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "nga-kete-pharmacy-southern",
@@ -8085,9 +7493,7 @@
     "legal_entity": "North Avon Road Pharmacy Limited",
     "address": "28 North Avon Road Richmond Christchurch 8013, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.517933,
-    "lng": 172.653952
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "north-otago-pharmacy-southern",
@@ -8127,9 +7533,7 @@
     "legal_entity": "Papanui Pharmacy (2008) Limited",
     "address": "438 Papanui Road, Strowan, Christchurch, 8052, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.500288,
-    "lng": 172.611168
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "parkside-pharmacy-on-oxford-terrace-canterbury",
@@ -8145,9 +7549,7 @@
     "legal_entity": "Pegasus Pharmacy Limited",
     "address": "52 Pegasus Main Street, Pegasus, 7612, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.314095,
-    "lng": 172.697636
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "pharmacy-ferrymead-canterbury",
@@ -8203,9 +7605,7 @@
     "legal_entity": "Qualpharm Limited",
     "address": "44 Mandeville Street, Riccarton, Christchurch, 8011, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.534034,
-    "lng": 172.60822
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "queen-street-pharmacy-nelson-marlborough",
@@ -8237,9 +7637,7 @@
     "legal_entity": "Redcliffs Pharmacy Limited",
     "address": "95 Main Road Redcliffs Christchurch 8081, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.562053,
-    "lng": 172.739265
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "redwood-pharmacy-2021-limited-canterbury",
@@ -8247,9 +7645,7 @@
     "legal_entity": "Redwood Pharmacy (2021) Limited",
     "address": "282 Main North Road Redwood Christchurch 8051, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.478061,
-    "lng": 172.617084
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "remedy-pharmacy-riccarton-canterbury",
@@ -8257,9 +7653,7 @@
     "legal_entity": "Riccarton Encounter Limited",
     "address": "107 Wainui Street Riccarton Christchurch 8041, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.530938,
-    "lng": 172.592716
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "remedy-pharmacy-st-albans-canterbury",
@@ -8267,9 +7661,7 @@
     "legal_entity": "Encounter Health Limited",
     "address": "250 Springfield Road St Albans Christchurch 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.509556,
-    "lng": 172.630434
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "remedy-pharmacy-st-george-s-canterbury",
@@ -8301,9 +7693,7 @@
     "legal_entity": "Searles Allenton Pharmacy [Ash] Limited",
     "address": "67 Harrison Street Allenton Ashburton 7700, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.888816,
-    "lng": 171.744733
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "selwyn-community-pharmacy-canterbury",
@@ -8311,9 +7701,7 @@
     "legal_entity": "Selwyn Community Pharmacy Limited",
     "address": "5B Gerald Street, Lincoln, 7608, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.640413,
-    "lng": 172.484735
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "selwyn-village-pharmacy-canterbury",
@@ -8321,9 +7709,7 @@
     "legal_entity": "Wong Health Limited",
     "address": "316 Selwyn Street, Spreydon, Christchurch, 8024, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.548126,
-    "lng": 172.622032
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "shields-pharmacy-limited-canterbury",
@@ -8331,19 +7717,15 @@
     "legal_entity": "Shields Pharmacy Limited",
     "address": "95 Main North Road Papanui CHRISTCHURCH 8052, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.491304,
-    "lng": 172.612526
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "shirley-dispensary-canterbury",
     "premises_name": "Shirley Dispensary",
     "legal_entity": "Shirley Dispensary 2025 Limited",
-    "address": "13 Marshland Road Shirley Christchurch 8061, Canterbury",
+    "address": "13 Marshland Road, Shirley, Christchurch, 8061, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.506918,
-    "lng": 172.662459
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "silverstream-kaiapoi-pharmacy-canterbury",
@@ -8359,9 +7741,7 @@
     "legal_entity": "St Albans Pharmacy (1999) Limited",
     "address": "1073 Colombo Street St Albans CHRISTCHURCH 8014, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.513587,
-    "lng": 172.636402
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "st-martins-pharmacy-canterbury",
@@ -8393,9 +7773,7 @@
     "legal_entity": "D & L Bell Limited",
     "address": "17 Wakefield Avenue Sumner CHRISTCHURCH 8081, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.569667,
-    "lng": 172.758984
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "sylvan-bank-pharmacy-southern",
@@ -8427,9 +7805,7 @@
     "legal_entity": "Eco Rx Limited",
     "address": "270 Ferry Road Waltham Christchurch 8011, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.5411,
-    "lng": 172.660052
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "three-rivers-pharmacy-canterbury",
@@ -8437,9 +7813,7 @@
     "legal_entity": "Searles Allenton Pharmacy [Ash] Limited",
     "address": "7-11 Allens Road Allenton Ashburton 7700, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.88497,
-    "lng": 171.744726
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-alexandra-pharmacy-southern",
@@ -8495,9 +7869,7 @@
     "legal_entity": "Brighton Village Pharmacy (2024) Limited",
     "address": "183 Shaw Avenue, New Brighton, Christchurch 8083, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.507268,
-    "lng": 172.726654
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-cashel-pharmacy-canterbury",
@@ -8529,9 +7901,7 @@
     "legal_entity": "Aranui Pharmacy (2006) Limited",
     "address": "338 Pages Road Aranui Christchurch 8061, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.517273,
-    "lng": 172.702107
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-eastgate-pharmacy-canterbury",
@@ -8547,9 +7917,7 @@
     "legal_entity": "Elmwood Pharmacy 2008 Limited",
     "address": "3 Normans Road, Strowan, Christchurch, 8052, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.509749,
-    "lng": 172.606725
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-fenwicks-pharmacy-canterbury",
@@ -8632,14 +8000,20 @@
     "region": "South Island | Te Waipounamu"
   },
   {
+    "id": "unichem-medical-corner-pharmacy-woodend-canterbury",
+    "premises_name": "Unichem Medical Corner Pharmacy Woodend",
+    "legal_entity": "SKP18 Limited",
+    "address": "79A Main North Road, Woodend, 7610, Canterbury",
+    "town": "Canterbury",
+    "region": "South Island | Te Waipounamu"
+  },
+  {
     "id": "unichem-moorhouse-pharmacy-canterbury",
     "premises_name": "Unichem Moorhouse Pharmacy",
     "legal_entity": "Moorhouse Pharmacy 2003 Limited",
     "address": "3 Pilgrim Place Sydenham Christchurch 8011, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.54072,
-    "lng": 172.63971
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-motueka-pharmacy-nelson-marlborough",
@@ -8658,14 +8032,12 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "unichem-olsen-s-pharmacy-west-coast",
-    "premises_name": "Unichem Olsen's Pharmacy",
+    "id": "unichem-olsens-pharmacy-west-coast",
+    "premises_name": "Unichem Olsens Pharmacy",
     "legal_entity": "Faywells Limited",
-    "address": "1 Guinness Street Greymouth 7805, West Coast",
+    "address": "2 Boundary Street, Greymouth, 7805, West Coast",
     "town": "West Coast",
-    "region": "South Island | Te Waipounamu",
-    "lat": -42.449593,
-    "lng": 171.20836
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-parklands-medical-pharmacy-canterbury",
@@ -8689,9 +8061,7 @@
     "legal_entity": "PA-MA-KO Limited",
     "address": "2 Riccarton Avenue, Christchurch Central, Christchurch, 8011, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.534263,
-    "lng": 172.625237
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-prestons-pharmacy-canterbury",
@@ -8715,9 +8085,7 @@
     "legal_entity": "Ravenswood Pharmacy Limited",
     "address": "11/6 Clayton Place Woodend 7610, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.307391,
-    "lng": 172.669003
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-redwoodtown-pharmacy-nelson-marlborough",
@@ -8739,11 +8107,9 @@
     "id": "unichem-riccarton-clinic-pharmacy-canterbury",
     "premises_name": "Unichem Riccarton Clinic Pharmacy",
     "legal_entity": "Radius Pharmacy Riccarton Limited",
-    "address": "4 Yaldhurst Road Upper Riccarton CHRISTCHURCH 8041, Canterbury",
+    "address": "4 Yaldhurst Road, Upper Riccarton, Christchurch, 8041, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.531572,
-    "lng": 172.571831
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-richmond-mall-pharmacy-nelson-marlborough",
@@ -8839,9 +8205,7 @@
     "legal_entity": "Faywells Limited",
     "address": "146 High Street Greymouth 7805, West Coast",
     "town": "West Coast",
-    "region": "South Island | Te Waipounamu",
-    "lat": -42.457576,
-    "lng": 171.205981
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-templeton-pharmacy-canterbury",
@@ -8849,9 +8213,7 @@
     "legal_entity": "Templeton Pharmacy (2015) Limited",
     "address": "5 Kirk Road Templeton Christchurch 8042, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.553363,
-    "lng": 172.473081
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-ufs-pharmacy-southern",
@@ -8867,9 +8229,7 @@
     "legal_entity": "Union Street Pharmacy (2024) Limited",
     "address": "18 Union Street, New Brighton, Christchurch 8061, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.508898,
-    "lng": 172.727528
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "unichem-waikiwi-pharmacy-southern",
@@ -8925,9 +8285,7 @@
     "legal_entity": "Vitacare Limited",
     "address": "423 Springston Rolleston Road Rolleston 7615, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.619236,
-    "lng": 172.402086
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "waihemo-pharmacy-southern",
@@ -8973,7 +8331,7 @@
     "id": "wanacare-pharmacy-southern",
     "premises_name": "Wanacare Pharmacy",
     "legal_entity": "Wanacare Pharmacy Limited",
-    "address": "23 Cardrona Valley Road, Wanaka 9305, Southern",
+    "address": "23 Cardrona Valley Road, Wanaka, 9305, Southern",
     "town": "Southern",
     "region": "South Island | Te Waipounamu"
   },
@@ -8981,7 +8339,7 @@
     "id": "wanaka-pharmacy-southern",
     "premises_name": "Wanaka Pharmacy",
     "legal_entity": "Wanaka Pharmacy Limited",
-    "address": "41 Helwick Street WANAKA 9305, Southern",
+    "address": "41 Helwick Street, Wanaka, 9305, Southern",
     "town": "Southern",
     "region": "South Island | Te Waipounamu"
   },
@@ -9005,11 +8363,9 @@
     "id": "westland-pharmacy-2010-limited-west-coast",
     "premises_name": "Westland Pharmacy (2010) Limited",
     "legal_entity": "Westland Pharmacy (2010) Limited",
-    "address": "10 Weld Street Hokitika 7810, West Coast",
+    "address": "10 Weld Street, Hokitika, 7810, West Coast",
     "town": "West Coast",
-    "region": "South Island | Te Waipounamu",
-    "lat": -42.717868,
-    "lng": 170.963176
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "windsor-pharmacy-southern",
@@ -9049,9 +8405,7 @@
     "legal_entity": "Woolston Pharmacy Limited",
     "address": "685 Ferry Road, Woolston, Christchurch, 8023, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.549054,
-    "lng": 172.682818
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-ashburton-south-south-canterbury",
@@ -9067,19 +8421,15 @@
     "legal_entity": "GDL Rx No10 Limited",
     "address": "755 Main North Road Belfast Christchurch 8051, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.447792,
-    "lng": 172.628332
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-church-corner-canterbury",
     "premises_name": "Woolworths Pharmacy Church Corner",
     "legal_entity": "GDL Rx No3 Limited",
-    "address": "361 Riccarton Road Upper Riccarton Christchurch 8041, Canterbury",
+    "address": "361 Riccarton Road, Upper Riccarton, Christchurch, 8041, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.532763,
-    "lng": 172.573062
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-dunedin-central-southern",
@@ -9103,9 +8453,7 @@
     "legal_entity": "GDL Rx No2 Limited",
     "address": "6 Buckleys Road Linwood Christchurch 8062, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.532992,
-    "lng": 172.674556
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-ferrymead-canterbury",
@@ -9113,9 +8461,7 @@
     "legal_entity": "GDL Rx No2 Limited",
     "address": "999 Ferry Road Ferrymead Christchurch 8023, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.556873,
-    "lng": 172.702498
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-hornby-canterbury",
@@ -9123,9 +8469,7 @@
     "legal_entity": "GDL Rx No10 Limited",
     "address": "17 Chappie Place Hornby Christchurch 8042, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.542854,
-    "lng": 172.526997
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-invercargill-southern",
@@ -9141,9 +8485,7 @@
     "legal_entity": "GDL Rx No5 Limited",
     "address": "71 Main Road North Papanui Christchurch 8052, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.493608,
-    "lng": 172.610288
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-rolleston-canterbury",
@@ -9151,9 +8493,7 @@
     "legal_entity": "GDL Rx No4 Limited",
     "address": "59 Rolleston Drive, Rolleston, 7614, Canterbury",
     "town": "Canterbury",
-    "region": "South Island | Te Waipounamu",
-    "lat": -43.594115,
-    "lng": 172.386668
+    "region": "South Island | Te Waipounamu"
   },
   {
     "id": "woolworths-pharmacy-the-palms-canterbury",
