@@ -11,4 +11,8 @@ jobs:
     steps:
       - name: Ping cron-availability
         run: |
-          curl -sf -X POST https://tere.co.nz/api/cron-availability
+          # -L follows the 308 redirect from tere.co.nz → terehealth.co.nz
+          # (without -L, curl silently returned 0 on the redirect body without
+          # ever hitting the real endpoint — the cron thought it was healthy
+          # while doing nothing). --max-time caps the cold-start latency.
+          curl -sfL -X POST --max-time 30 https://terehealth.co.nz/api/cron-availability
