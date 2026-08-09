@@ -32,7 +32,22 @@ const CATEGORY_ALLOWED = new Set([
 
 const CREATE_ALLOWLIST = new Set([
   'category', 'message', 'patient_name', 'patient_email', 'patient_phone',
-  'consultation_id', 'source',
+  'consultation_id', 'source', 'hipaa_acknowledged',
+])
+
+// Cap the free-text message to prevent DB/email blob abuse.
+const MESSAGE_MAX_LEN = 5000
+
+// Per-email intake throttle to stop spammers hammering a real user's inbox.
+const EMAIL_RATE_LIMIT_HOURS = 1
+const EMAIL_RATE_LIMIT_COUNT = 3      // 3 tickets per email per hour, then 429
+
+// Origins allowed to POST anonymous intakes.
+const ALLOWED_INTAKE_ORIGINS = new Set([
+  'https://terehealth.co.nz',
+  'https://www.terehealth.co.nz',
+  'https://terecare.com',
+  'https://www.terecare.com',
 ])
 
 const PATCH_ALLOWLIST = new Set([
@@ -306,6 +321,19 @@ export default async function handler(req, res) {
 
   // ── Anon submit ─────────────────────────────────────────────────────
   if (req.method === 'POST' && !action) {
+    // Reject non-JSON POSTs — blocks cross-origin form abuse that skips
+    // browser CORS preflight (form-encoded or text/plain bodies).
+    const ctype = String(req.headers['content-type'] || '').toLowerCase()
+    if (!ctype.startsWith('application/json')) {
+      return res.status(415).json({ error: 'application/json content-type required' })
+    }
+    // Origin check: intake POST must come from a Tere-owned host. Blocks
+    // form abuse where a malicious site POSTs a real user's email.
+    const origin = String(req.headers.origin || '').toLowerCase()
+    if (origin && !ALLOWED_INTAKE_ORIGINS.has(origin)) {
+      return res.status(403).json({ error: 'origin not allowed' })
+    }
+
     const supabase = admin()
     const raw = req.body || {}
     const payload = {}
@@ -318,10 +346,42 @@ export default async function handler(req, res) {
     if (!payload.message || !String(payload.message).trim()) {
       return res.status(400).json({ error: 'message is required' })
     }
+    if (String(payload.message).length > MESSAGE_MAX_LEN) {
+      return res.status(413).json({ error: `message too long (max ${MESSAGE_MAX_LEN} chars)` })
+    }
     if (!payload.patient_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.patient_email)) {
       return res.status(400).json({ error: 'valid patient_email is required so we can reply' })
     }
     payload.patient_email = String(payload.patient_email).trim().toLowerCase()
+
+    // US (terecare) intake requires HIPAA acknowledgment. Server-side check
+    // so a DevTools-modified client can't skip the notice + still submit PHI.
+    if (payload.source === 'terecare_intake') {
+      const ack = payload.hipaa_acknowledged
+      if (!ack || !ack.version || !ack.at) {
+        return res.status(400).json({ error: 'HIPAA Notice of Privacy Practices must be acknowledged before submitting' })
+      }
+    }
+    // hipaa_acknowledged doesn't map to a DB column — we surface it in the
+    // message body for the human reader instead. Strip before insert.
+    delete payload.hipaa_acknowledged
+
+    // Per-email rate limit — prevents an attacker from spamming intakes
+    // targeting a real user's inbox with autoresponder emails.
+    const sinceIso = new Date(Date.now() - EMAIL_RATE_LIMIT_HOURS * 3600000).toISOString()
+    const { count: recentCount, error: countErr } = await supabase
+      .from('patient_support_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('patient_email', payload.patient_email)
+      .gte('created_at', sinceIso)
+    if (countErr) {
+      console.error('[patient-support] rate-limit lookup:', countErr.message)
+    } else if ((recentCount || 0) >= EMAIL_RATE_LIMIT_COUNT) {
+      return res.status(429).json({
+        error: `too many submissions from this email — please wait before submitting again`,
+      })
+    }
+
     payload.status = 'new'
 
     const { data, error } = await supabase

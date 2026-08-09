@@ -36,6 +36,6 @@
   },
   "crons": [
     { "path": "/api/async-overdue",     "schedule": "0 8 * * *" },
-    { "path": "/api/cron-availability", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron-availability", "schedule": "0 9 * * *" }
   ]
 }

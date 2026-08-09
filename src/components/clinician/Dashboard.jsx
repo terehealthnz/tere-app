@@ -4,6 +4,7 @@ import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAc
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
+import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -652,6 +653,7 @@ export default function Dashboard() {
   const [savingProvAvail, setSavingProvAvail] = useState(false)
   const [referralBadge, setReferralBadge] = useState(0)
   const [approvalBadge, setApprovalBadge] = useState(0)
+  const teamBadge = useTereChatUnread()
   const [nowTick, setNowTick]             = useState(Date.now())
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
   const isRMO = sessionStorage.getItem('providerType') === 'rmo'
@@ -807,6 +809,7 @@ export default function Dashboard() {
           {[
             ['queue','Queue'],
             ['messages','💬 Messages'],
+            ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
             ['notes','Notes'],
             ['schedule','📅 Schedule'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
@@ -825,6 +828,7 @@ export default function Dashboard() {
         </div>
 
         {dashTab === 'messages' && <MessagesTab />}
+        {dashTab === 'tere-chat' && <TereChatTab />}
 
         {dashTab === 'queue' && (<>
           {/* Queue header */}

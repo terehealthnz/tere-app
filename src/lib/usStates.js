@@ -38,12 +38,26 @@ export function stateName(code) {
 
 // IP-based state hint via ipapi.co (free tier, 1000/day, no key needed).
 // Silently returns null on failure — caller falls back to manual dropdown.
+//
+// Result is cached in sessionStorage so callers can hit this from the landing
+// widget AND the intake gate without burning two quota slots. Shared corporate
+// NATs / VPNs hit the free-tier ceiling fast, so one lookup per session is
+// meaningfully cheaper than one per page.
+const CACHE_KEY = 'tere_us_state_hint'
+
 export async function detectStateFromIP() {
   try {
+    const cached = sessionStorage.getItem(CACHE_KEY)
+    if (cached !== null) return cached || null    // '' = "we tried, nothing to return"
+  } catch { /* storage disabled */ }
+  let out = null
+  try {
     const res = await fetch('https://ipapi.co/json/')
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data.country_code === 'US' && data.region_code) return data.region_code
+    if (res.ok) {
+      const data = await res.json()
+      if (data.country_code === 'US' && data.region_code) out = data.region_code
+    }
   } catch { /* offline / blocked */ }
-  return null
+  try { sessionStorage.setItem(CACHE_KEY, out || '') } catch {}
+  return out
 }

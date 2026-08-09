@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { US_STATES, detectStateFromIP } from '../../lib/usStates'
+import { LANGUAGES } from '../../lib/i18n'
+
+// Languages offered on Tere Care. Excludes NZ Pacific languages (mi, sm) —
+// mirrored from USStart. English is remapped to the US flag; the shared
+// i18n catalogue uses 🇬🇧 for the NZ audience.
+const US_LANG_CODES = new Set(['en', 'es', 'zh', 'ko', 'ja', 'fr', 'de', 'nl', 'ar', 'hi'])
+const US_LANGUAGES = LANGUAGES
+  .filter(l => US_LANG_CODES.has(l.code))
+  .map(l => l.code === 'en' ? { ...l, flag: '🇺🇸' } : l)
 
 // Tere Care — US-facing landing at terecare.com.
 // Distinct brand from Tere Health (NZ), same platform underneath.
@@ -27,6 +36,39 @@ const C = {
 }
 
 const START_URL = '/start'
+
+function NavLanguagePicker({ scrolled }) {
+  const [lang, setLang] = useState(() => {
+    try { return sessionStorage.getItem('patient_language') || 'en' } catch { return 'en' }
+  })
+  function onChange(e) {
+    const code = e.target.value
+    setLang(code)
+    try { sessionStorage.setItem('patient_language', code) } catch {}
+  }
+  return (
+    <select
+      aria-label="Language"
+      value={lang}
+      onChange={onChange}
+      style={{
+        appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+        background: 'transparent',
+        border: `1px solid rgba(251,247,239,${scrolled ? 0.3 : 0.25})`,
+        borderRadius: 999,
+        color: 'rgba(251,247,239,.85)',
+        padding: '5px 12px',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        fontSize: '.82rem',
+        cursor: 'pointer',
+      }}
+    >
+      {US_LANGUAGES.map(l => (
+        <option key={l.code} value={l.code} style={{ color: '#0F2029' }}>{l.nativeName}</option>
+      ))}
+    </select>
+  )
+}
 
 function Nav() {
   const [scrolled, setScrolled] = useState(false)
@@ -57,6 +99,7 @@ function Nav() {
         <a href="#how" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>How it works</a>
         <a href="#pricing" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
         <a href="#faq" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
+        <NavLanguagePicker scrolled={scrolled} />
         <a href={START_URL} style={{
           background: C.warm, color: 'white', textDecoration: 'none',
           padding: '9px 20px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,
@@ -705,8 +748,11 @@ function Footer() {
           color: 'rgba(251,247,239,.4)', fontSize: '.8rem',
         }}>
           <div>&copy; {new Date().getFullYear()} Tere Care. All rights reserved.</div>
-          <div>
-            <strong style={{ color: C.warm }}>Emergency?</strong> Call 911 immediately.
+          <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+            <Link to="/clinician" style={{ color: 'rgba(251,247,239,.5)', textDecoration: 'none' }}>Staff login</Link>
+            <div>
+              <strong style={{ color: C.warm }}>Emergency?</strong> Call 911 immediately.
+            </div>
           </div>
         </div>
       </div>

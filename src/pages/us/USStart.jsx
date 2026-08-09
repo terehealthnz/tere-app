@@ -1,6 +1,38 @@
 import React, { useState, useEffect } from 'react'
 import { getRegionConfig, REGIONS } from '../../lib/region'
 import { US_STATES, stateName, detectStateFromIP } from '../../lib/usStates'
+import { LANGUAGES, t } from '../../lib/i18n'
+
+// Small hook so all downstream screens re-render when the LanguagePicker
+// writes a new value to sessionStorage. The native 'storage' event only
+// fires cross-tab, so we also listen for a same-tab 'tere-lang-change'
+// event that the picker dispatches manually.
+function usePatientLang() {
+  const [lang, setLang] = useState(() => {
+    try { return sessionStorage.getItem('patient_language') || 'en' } catch { return 'en' }
+  })
+  useEffect(() => {
+    const h = () => {
+      try { setLang(sessionStorage.getItem('patient_language') || 'en') } catch {}
+    }
+    window.addEventListener('storage', h)
+    window.addEventListener('tere-lang-change', h)
+    return () => {
+      window.removeEventListener('storage', h)
+      window.removeEventListener('tere-lang-change', h)
+    }
+  }, [])
+  return lang
+}
+
+// Languages offered to US patients. Excludes mi (Te Reo) and sm (Samoan) — those
+// are NZ Pacific-specific and would confuse a US audience. Everything else in
+// the shared i18n catalogue is US-relevant. English shows the US flag (the
+// shared catalogue uses 🇬🇧 for the NZ audience).
+const US_LANG_CODES = new Set(['en', 'es', 'zh', 'ko', 'ja', 'fr', 'de', 'nl', 'ar', 'hi'])
+const US_LANGUAGES = LANGUAGES
+  .filter(l => US_LANG_CODES.has(l.code))
+  .map(l => l.code === 'en' ? { ...l, flag: '🇺🇸' } : l)
 
 // Tere Care — US patient intake, first screen.
 //
@@ -58,21 +90,69 @@ async function submitLead({ kind, name, email, phone, state, complaint, hipaa })
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      category:      'other',
-      source:        'terecare_intake',
-      patient_name:  name,
-      patient_email: email,
-      patient_phone: phone || null,
+      category:            'other',
+      source:              'terecare_intake',
+      patient_name:        name,
+      patient_email:       email,
+      patient_phone:       phone || null,
       message,
+      // Explicit HIPAA ack field so the server can enforce presence
+      // regardless of what's embedded in `message`. If the user reached
+      // this submit without walking the HipaaGate step, the server rejects.
+      hipaa_acknowledged:  hipaa ? { version: hipaa.version, at: hipaa.at } : null,
     }),
   })
-  if (!res.ok) throw new Error(`Submit failed: ${res.status}`)
+  if (!res.ok) {
+    let msg = `Submit failed: ${res.status}`
+    try { const j = await res.json(); if (j?.error) msg = j.error } catch {}
+    throw new Error(msg)
+  }
   return res.json()
 }
 
 // ─────────────────────────────────────────────────────────────────
 // Shared visual chrome
 // ─────────────────────────────────────────────────────────────────
+function LanguagePicker() {
+  // Reads / writes sessionStorage.patient_language (shared with NZ triage
+  // so if the user later hits a triage screen the choice persists).
+  const [lang, setLang] = useState(() => {
+    try { return sessionStorage.getItem('patient_language') || 'en' } catch { return 'en' }
+  })
+  function onChange(e) {
+    const code = e.target.value
+    setLang(code)
+    try { sessionStorage.setItem('patient_language', code) } catch {}
+    // Notify same-tab listeners (usePatientLang). The native 'storage' event
+    // only fires cross-tab, so without this our own screens wouldn't react.
+    try { window.dispatchEvent(new Event('tere-lang-change')) } catch {}
+  }
+  return (
+    <select
+      aria-label="Language"
+      value={lang}
+      onChange={onChange}
+      style={{
+        appearance: 'none',
+        WebkitAppearance: 'none',
+        MozAppearance: 'none',
+        background: 'transparent',
+        border: `1px solid ${C.line}`,
+        borderRadius: 999,
+        padding: '.35rem .9rem',
+        fontFamily: 'inherit',
+        fontSize: '.82rem',
+        color: C.ink2,
+        cursor: 'pointer',
+      }}
+    >
+      {US_LANGUAGES.map(l => (
+        <option key={l.code} value={l.code}>{l.nativeName}</option>
+      ))}
+    </select>
+  )
+}
+
 function Shell({ children }) {
   return (
     <div style={{
@@ -81,7 +161,11 @@ function Shell({ children }) {
       color: C.ink,
       display: 'flex', flexDirection: 'column',
     }}>
-      <header style={{ padding: '1.25rem 1.5rem', borderBottom: `1px solid ${C.lineSoft}` }}>
+      <header style={{
+        padding: '1.25rem 1.5rem',
+        borderBottom: `1px solid ${C.lineSoft}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
         <a href="/" style={{ textDecoration: 'none' }}>
           <span style={{
             fontFamily: 'Cormorant Garamond, Georgia, serif',
@@ -89,6 +173,7 @@ function Shell({ children }) {
             fontSize: '1.4rem', fontWeight: 600,
           }}>Tere Care</span>
         </a>
+        <LanguagePicker />
       </header>
       <main style={{ flex: 1, padding: '2rem 1.25rem 4rem' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -146,6 +231,7 @@ const secondaryBtn = {
 // Screen 1 — Location detection + state gate
 // ─────────────────────────────────────────────────────────────────
 function LocationGate({ onContinue }) {
+  const lang = usePatientLang()
   const [ipLoading, setIpLoading]     = useState(true)
   const [detected, setDetected]       = useState(null)      // 2-letter code from IP
   const [selected, setSelected]       = useState('')
@@ -178,16 +264,16 @@ function LocationGate({ onContinue }) {
         fontSize: 'clamp(1.9rem, 5vw, 2.5rem)',
         fontWeight: 500, letterSpacing: '-.015em',
         margin: '0 0 .5rem', lineHeight: 1.15,
-      }}>Where are you right now?</h1>
+      }}>{t('us_location_title', lang)}</h1>
       <p style={{
         color: C.ink2, lineHeight: 1.55, margin: '0 0 2rem',
         fontSize: '1rem',
       }}>
-        Our physicians can only see patients in states where they are licensed. We need to know your physical location at the time of your visit — not where you live.
+        {t('us_location_subtitle', lang)}
       </p>
 
       <label htmlFor="us-state" style={labelStyle}>
-        Your state {ipLoading && <span style={{ color: C.muted, fontWeight: 400 }}>· detecting…</span>}
+        {t('us_location_state_label', lang)} {ipLoading && <span style={{ color: C.muted, fontWeight: 400 }}>{t('us_location_detecting', lang)}</span>}
       </label>
       <select
         id="us-state"
@@ -195,7 +281,7 @@ function LocationGate({ onContinue }) {
         onChange={(e) => setSelected(e.target.value)}
         style={{ ...inputStyle, appearance: 'none', backgroundImage: 'none', paddingRight: '2.5rem' }}
       >
-        <option value="">— Select your state —</option>
+        <option value="">{t('us_location_state_placeholder', lang)}</option>
         {US_STATES.map(s => (
           <option key={s.code} value={s.code}>{s.name}</option>
         ))}
@@ -204,7 +290,7 @@ function LocationGate({ onContinue }) {
         <div style={{
           marginTop: '.5rem', fontSize: '.85rem', color: C.teal,
         }}>
-          ✓ We detected {stateName(detected)} from your connection. Please confirm this is where you actually are.
+          {t('us_location_detected_confirm', lang, { stateName: stateName(detected) })}
         </div>
       )}
 
@@ -219,7 +305,7 @@ function LocationGate({ onContinue }) {
           style={{ flexShrink: 0, transform: 'scale(1.1)', cursor: 'pointer' }}
         />
         <span style={{ fontSize: '.9rem', color: C.ink2 }}>
-          I'm physically in <strong>{selected ? stateName(selected) : 'the state selected above'}</strong> right now.
+          {t('us_attest_prefix', lang)}<strong>{selected ? stateName(selected) : t('us_attest_fallback_location', lang)}</strong>{t('us_attest_suffix', lang)}
         </span>
       </label>
 
@@ -233,7 +319,7 @@ function LocationGate({ onContinue }) {
           cursor: canContinue ? 'pointer' : 'not-allowed',
         }}
       >
-        Continue &nbsp;→
+        {t('us_continue', lang)}
       </button>
     </>
   )
@@ -250,6 +336,7 @@ function LocationGate({ onContinue }) {
 const HIPAA_NPP_VERSION = '1.0'
 
 function HipaaGate({ state, onAccept }) {
+  const lang = usePatientLang()
   const [ack, setAck] = useState(false)
   return (
     <>
@@ -260,7 +347,7 @@ function HipaaGate({ state, onAccept }) {
         display: 'flex', alignItems: 'center', gap: '.5rem',
       }}>
         <span>✓</span>
-        <span>We can see you in <strong>{stateName(state)}</strong>. One quick step before we ask about your visit.</span>
+        <span>{t('us_hipaa_banner_prefix', lang)}<strong>{stateName(state)}</strong>{t('us_hipaa_banner_suffix', lang)}</span>
       </div>
 
       <h1 style={{
@@ -268,12 +355,12 @@ function HipaaGate({ state, onAccept }) {
         fontSize: 'clamp(1.9rem, 5vw, 2.4rem)',
         fontWeight: 500, letterSpacing: '-.015em',
         margin: '0 0 .5rem', lineHeight: 1.15,
-      }}>Your privacy under HIPAA.</h1>
+      }}>{t('us_hipaa_title', lang)}</h1>
       <p style={{
         color: C.ink2, lineHeight: 1.55, margin: '0 0 1.5rem',
         fontSize: '1rem',
       }}>
-        Before we collect any health information, please review how we use and protect it.
+        {t('us_hipaa_subtitle', lang)}
       </p>
 
       <div style={{
@@ -286,23 +373,23 @@ function HipaaGate({ state, onAccept }) {
         }}>
           <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
             <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
-            <span>Your health info is used only for your care, payment, and our internal quality processes.</span>
+            <span>{t('us_hipaa_bullet_1', lang)}</span>
           </li>
           <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
             <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
-            <span>Stored encrypted on AWS under a Business Associate Agreement — not shared with employers, insurers, or advertisers.</span>
+            <span>{t('us_hipaa_bullet_2', lang)}</span>
           </li>
           <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
             <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
-            <span>Never sold. Never used for marketing without your permission.</span>
+            <span>{t('us_hipaa_bullet_3', lang)}</span>
           </li>
           <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
             <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
-            <span>You have the right to access your records, request amendments, and file complaints (with us or with HHS Office for Civil Rights).</span>
+            <span>{t('us_hipaa_bullet_4', lang)}</span>
           </li>
           <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
             <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
-            <span>We'll notify you within 60 days if a breach of your data ever occurred.</span>
+            <span>{t('us_hipaa_bullet_5', lang)}</span>
           </li>
         </ul>
       </div>
@@ -310,11 +397,11 @@ function HipaaGate({ state, onAccept }) {
       <p style={{
         fontSize: '.9rem', color: C.ink2, marginBottom: '1.25rem', lineHeight: 1.5,
       }}>
-        For the full details: <a
+        {t('us_hipaa_full_details_prefix', lang)}<a
           href="/notice-of-privacy-practices"
           target="_blank" rel="noopener noreferrer"
           style={{ color: C.teal, textDecoration: 'underline', fontWeight: 600 }}
-        >Read our full Notice of Privacy Practices →</a>
+        >{t('us_hipaa_full_details_link', lang)}</a>
       </p>
 
       <div style={{
@@ -342,7 +429,7 @@ function HipaaGate({ state, onAccept }) {
           cursor: 'pointer', margin: 0, flex: 1,
           userSelect: 'none', lineHeight: 1.45,
         }}>
-          I acknowledge I've received and reviewed Tere Care's Notice of Privacy Practices.
+          {t('us_hipaa_ack_label', lang)}
         </label>
       </div>
 
@@ -359,13 +446,13 @@ function HipaaGate({ state, onAccept }) {
           cursor: ack ? 'pointer' : 'not-allowed',
         }}
       >
-        Continue &nbsp;→
+        {t('us_continue', lang)}
       </button>
 
       <p style={{
         fontSize: '.75rem', color: C.muted, marginTop: '1rem',
       }}>
-        Wrong state? <a href="/start" style={{ color: C.teal, textDecoration: 'underline' }}>Change your state</a>
+        {t('us_wrong_state_prefix', lang)}<a href="/start" style={{ color: C.teal, textDecoration: 'underline' }}>{t('us_wrong_state_link', lang)}</a>
       </p>
     </>
   )
@@ -375,6 +462,7 @@ function HipaaGate({ state, onAccept }) {
 // Screen 2a — Licensed state, collect intake details
 // ─────────────────────────────────────────────────────────────────
 function IntakeForm({ state, hipaa, onSubmitted }) {
+  const lang = usePatientLang()
   const [name, setName]           = useState('')
   const [email, setEmail]         = useState('')
   const [phone, setPhone]         = useState('')
@@ -401,8 +489,17 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
       })
       onSubmitted()
     } catch (err) {
-      setError('Sorry — something went wrong submitting your details. Please try again or email hello@terecare.com directly.')
-      console.error('[us-intake]', err)
+      // Show any server-supplied error message when we have one (e.g., HIPAA
+      // gate not walked, rate-limited email, too-long complaint) so the user
+      // knows what to fix. Otherwise fall back to a generic prompt.
+      const raw = String(err?.message || '')
+      const friendly = raw && !raw.startsWith('Submit failed:')
+        ? raw
+        : t('us_intake_submit_error', lang)
+      setError(friendly)
+      // Don't dump the full error to the console — could leak form state
+      // to anyone with DevTools open. Just log a generic tag.
+      console.warn('[us-intake] submit failed')
     } finally {
       setSubmitting(false)
     }
@@ -419,14 +516,14 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
       }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
           <span>✓</span>
-          <span>We can see you in <strong>{stateName(state)}</strong>.</span>
+          <span>{t('us_intake_banner_prefix', lang)}<strong>{stateName(state)}</strong>{t('us_intake_banner_suffix', lang)}</span>
         </span>
         <span style={{
           fontSize: '.65rem', letterSpacing: '.14em', textTransform: 'uppercase',
           fontWeight: 700, color: C.gold,
           background: 'rgba(201,162,74,.15)',
           padding: '3px 8px', borderRadius: 99,
-        }}>Beta</span>
+        }}>{t('us_intake_beta', lang)}</span>
       </div>
 
       <h1 style={{
@@ -434,35 +531,35 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
         fontSize: 'clamp(1.9rem, 5vw, 2.4rem)',
         fontWeight: 500, letterSpacing: '-.015em',
         margin: '0 0 .5rem', lineHeight: 1.15,
-      }}>Tell us a bit about you.</h1>
+      }}>{t('us_intake_title', lang)}</h1>
       <p style={{
         color: C.ink2, lineHeight: 1.55, margin: '0 0 1.75rem',
         fontSize: '1rem',
       }}>
-        We're in early launch — a licensed physician will reach out personally to book your visit within one business day. No payment required to submit this form.
+        {t('us_intake_subtitle', lang)}
       </p>
 
       <div style={{ display: 'grid', gap: '1.1rem' }}>
         <div>
-          <label htmlFor="us-name" style={labelStyle}>Full name</label>
+          <label htmlFor="us-name" style={labelStyle}>{t('us_intake_name_label', lang)}</label>
           <input id="us-name" type="text" required autoComplete="name"
             value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="us-email" style={labelStyle}>Email</label>
+          <label htmlFor="us-email" style={labelStyle}>{t('us_intake_email_label', lang)}</label>
           <input id="us-email" type="email" required autoComplete="email"
             value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="us-phone" style={labelStyle}>Mobile <span style={{ color: C.muted, fontWeight: 400 }}>(optional but faster)</span></label>
+          <label htmlFor="us-phone" style={labelStyle}>{t('us_intake_mobile_label', lang)} <span style={{ color: C.muted, fontWeight: 400 }}>{t('us_intake_mobile_optional', lang)}</span></label>
           <input id="us-phone" type="tel" autoComplete="tel"
             value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="+1 555 555 5555" />
         </div>
         <div>
-          <label htmlFor="us-complaint" style={labelStyle}>What's going on?</label>
-          <textarea id="us-complaint" required rows={4}
+          <label htmlFor="us-complaint" style={labelStyle}>{t('us_intake_complaint_label', lang)}</label>
+          <textarea id="us-complaint" required rows={4} maxLength={2000}
             value={complaint} onChange={(e) => setComplaint(e.target.value)}
-            placeholder="Brief description of what you're experiencing (UTI symptoms, cold, minor injury, prescription refill, etc.)"
+            placeholder={t('us_intake_complaint_placeholder', lang)}
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} />
         </div>
       </div>
@@ -493,7 +590,7 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
           cursor: 'pointer', margin: 0, flex: 1,
           userSelect: 'none',
         }}>
-          I'm physically in <strong>{stateName(state)}</strong> right now.
+          {t('us_attest_prefix', lang)}<strong>{stateName(state)}</strong>{t('us_attest_suffix', lang)}
         </label>
       </div>
 
@@ -516,19 +613,19 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
           cursor: canSubmit ? 'pointer' : 'not-allowed',
         }}
       >
-        {submitting ? 'Sending…' : 'Send my details →'}
+        {submitting ? t('us_sending', lang) : t('us_intake_send', lang)}
       </button>
 
       <p style={{
         fontSize: '.8rem', color: C.muted, marginTop: '1.25rem', lineHeight: 1.5,
       }}>
-        <strong>Not for emergencies.</strong> If you have chest pain, breathing difficulty, severe bleeding, or any life-threatening symptom, call <strong>911</strong> or go to your nearest ER.
+        <strong>{t('us_intake_emergency_prefix', lang)}</strong>{t('us_intake_emergency_body_prefix', lang)}<strong>911</strong>{t('us_intake_emergency_body_suffix', lang)}
       </p>
 
       <p style={{
         fontSize: '.75rem', color: C.muted, marginTop: '.75rem',
       }}>
-        Wrong state? <a href="/start" style={{ color: C.teal, textDecoration: 'underline' }}>Change your state</a>
+        {t('us_wrong_state_prefix', lang)}<a href="/start" style={{ color: C.teal, textDecoration: 'underline' }}>{t('us_wrong_state_link', lang)}</a>
       </p>
     </form>
   )
@@ -538,6 +635,7 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
 // Screen 2b — Unlicensed state, waitlist capture
 // ─────────────────────────────────────────────────────────────────
 function WaitlistForm({ state, onSubmitted }) {
+  const lang = usePatientLang()
   const [name, setName]   = useState('')
   const [email, setEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -558,7 +656,7 @@ function WaitlistForm({ state, onSubmitted }) {
       })
       onSubmitted()
     } catch (err) {
-      setError('Sorry — something went wrong. Please try again or email hello@terecare.com directly.')
+      setError(t('us_waitlist_submit_error', lang))
       console.error('[us-intake-waitlist]', err)
     } finally {
       setSubmitting(false)
@@ -573,7 +671,7 @@ function WaitlistForm({ state, onSubmitted }) {
         padding: '.9rem 1rem', fontSize: '.9rem', marginBottom: '1.5rem',
         lineHeight: 1.5,
       }}>
-        <strong>Not yet licensed in {stateName(state)}.</strong> We can only see patients in states where our physicians are actively licensed. We're expanding — leave your details and we'll email you the moment we're live in your state.
+        <strong>{t('us_waitlist_banner_bold', lang, { stateName: stateName(state) })}</strong>{t('us_waitlist_banner_rest', lang)}
       </div>
 
       <h1 style={{
@@ -581,22 +679,22 @@ function WaitlistForm({ state, onSubmitted }) {
         fontSize: 'clamp(1.9rem, 5vw, 2.4rem)',
         fontWeight: 500, letterSpacing: '-.015em',
         margin: '0 0 .5rem', lineHeight: 1.15,
-      }}>Join the waitlist.</h1>
+      }}>{t('us_waitlist_title', lang)}</h1>
       <p style={{
         color: C.ink2, lineHeight: 1.55, margin: '0 0 1.75rem',
         fontSize: '1rem',
       }}>
-        Two fields — no obligation. We'll only email you when Tere Care launches in {stateName(state)}.
+        {t('us_waitlist_subtitle', lang, { stateName: stateName(state) })}
       </p>
 
       <div style={{ display: 'grid', gap: '1.1rem' }}>
         <div>
-          <label htmlFor="wl-name" style={labelStyle}>Name</label>
+          <label htmlFor="wl-name" style={labelStyle}>{t('us_waitlist_name_label', lang)}</label>
           <input id="wl-name" type="text" required autoComplete="name"
             value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="wl-email" style={labelStyle}>Email</label>
+          <label htmlFor="wl-email" style={labelStyle}>{t('us_intake_email_label', lang)}</label>
           <input id="wl-email" type="email" required autoComplete="email"
             value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
         </div>
@@ -621,7 +719,7 @@ function WaitlistForm({ state, onSubmitted }) {
           cursor: canSubmit ? 'pointer' : 'not-allowed',
         }}
       >
-        {submitting ? 'Sending…' : 'Add me to the waitlist →'}
+        {submitting ? t('us_sending', lang) : t('us_waitlist_send', lang)}
       </button>
     </form>
   )
@@ -631,6 +729,7 @@ function WaitlistForm({ state, onSubmitted }) {
 // Screen 3 — Confirmation
 // ─────────────────────────────────────────────────────────────────
 function Confirmation({ isWaitlist }) {
+  const lang = usePatientLang()
   return (
     <div style={{ textAlign: 'center', paddingTop: '2rem' }}>
       <div style={{
@@ -646,15 +745,13 @@ function Confirmation({ isWaitlist }) {
         fontWeight: 500, letterSpacing: '-.015em',
         margin: '0 0 1rem', lineHeight: 1.15,
       }}>
-        {isWaitlist ? "You're on the list." : "Thanks — we've got it."}
+        {isWaitlist ? t('us_done_title_waitlist', lang) : t('us_done_title_intake', lang)}
       </h1>
       <p style={{
         color: C.ink2, lineHeight: 1.6, margin: '0 auto 2rem',
         fontSize: '1rem', maxWidth: 440,
       }}>
-        {isWaitlist
-          ? "We'll email you the moment Tere Care goes live in your state. No spam, no follow-up unless you want it."
-          : "A licensed physician will reach out within one business day to schedule your visit. Check your email — you may get a confirmation from hello@terecare.com."}
+        {isWaitlist ? t('us_done_body_waitlist', lang) : t('us_done_body_intake', lang)}
       </p>
       <a href="/" style={{
         display: 'inline-block',
@@ -662,7 +759,7 @@ function Confirmation({ isWaitlist }) {
         textDecoration: 'none', border: `1.5px solid ${C.line}`,
         padding: '.75rem 1.5rem', borderRadius: 99,
         fontWeight: 600, fontSize: '.95rem',
-      }}>Back to home</a>
+      }}>{t('us_done_back_home', lang)}</a>
     </div>
   )
 }
