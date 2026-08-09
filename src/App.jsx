@@ -149,6 +149,16 @@ function StartRouter() {
   return <TereIntro />
 }
 
+// /waitlist dispatches by region. NZ visitors get the Tere Health
+// pre-launch waitlist page. US visitors get sent to /start, where
+// the US intake flow surfaces its own waitlist form for unlicensed
+// states — the NZ waitlist copy would be wrong on Tere Care.
+function WaitlistRouter() {
+  const region = detectRegion()
+  if (region === REGIONS.US) return <Navigate to="/start" replace />
+  return <Waitlist />
+}
+
 export default function App() {
   return (
     <ChunkErrorBoundary>
@@ -181,7 +191,7 @@ export default function App() {
         <Route path="/repeat-rx"              element={<RepeatPrescription />} />
         <Route path="/complaints"             element={<Complaints />} />
         <Route path="/watch"                  element={<Watch />} />
-        <Route path="/waitlist"               element={<Waitlist />} />
+        <Route path="/waitlist"               element={<WaitlistRouter />} />
         <Route path="/contact"                element={<Contact />} />
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/provider"               element={<ProviderApp />} />

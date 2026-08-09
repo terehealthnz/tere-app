@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useFeatureFlag } from '../lib/featureFlags'
+import { detectRegion, REGIONS } from '../lib/region'
 
 // Small amber banner that shows on public patient-facing pages while the
 // `waitlist_mode` feature flag is on. Hidden for provider/admin routes and
@@ -26,6 +27,10 @@ export default function BetaBanner() {
   if (!waitlistMode) return null
   if (bypassed) return null
   if (HIDDEN_PATH_PREFIXES.some(p => location.pathname.startsWith(p))) return null
+  // US (Tere Care) has its own beta positioning (state picker + inline beta
+  // tag on the intake form). The NZ-branded "Join the Tere Health waitlist"
+  // page this banner links to is wrong for US visitors — hide it.
+  if (detectRegion() === REGIONS.US) return null
 
   return (
     <div style={{
