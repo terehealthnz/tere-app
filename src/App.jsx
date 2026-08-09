@@ -118,6 +118,7 @@ const VitalsValidatePIS   = lazy(() => import('./pages/patient/VitalsValidatePar
 const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 const USLanding           = lazy(() => import('./pages/us/USLanding'))
 const USStart             = lazy(() => import('./pages/us/USStart'))
+const HipaaNotice         = lazy(() => import('./pages/us/HipaaNotice'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -156,6 +157,7 @@ export default function App() {
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
         <Route path="/start"                  element={<StartRouter />} />
+        <Route path="/notice-of-privacy-practices" element={<HipaaNotice />} />
         <Route path="/consent"                element={<ConsentPage />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />

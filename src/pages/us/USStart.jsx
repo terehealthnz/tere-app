@@ -208,19 +208,17 @@ function LocationGate({ onContinue }) {
       )}
 
       <label style={{
-        display: 'flex', gap: '.75rem', marginTop: '1.5rem',
-        padding: '1rem', background: 'white',
-        border: `1.5px solid ${C.line}`, borderRadius: 10,
-        cursor: 'pointer', alignItems: 'flex-start',
+        display: 'flex', gap: '.65rem', marginTop: '1.5rem',
+        cursor: 'pointer', alignItems: 'center',
       }}>
         <input
           type="checkbox"
           checked={attested}
           onChange={(e) => setAttested(e.target.checked)}
-          style={{ marginTop: 3, flexShrink: 0, transform: 'scale(1.15)' }}
+          style={{ flexShrink: 0, transform: 'scale(1.1)', cursor: 'pointer' }}
         />
-        <span style={{ fontSize: '.9rem', color: C.ink2, lineHeight: 1.5 }}>
-          I confirm I am <strong>physically located</strong> in {selected ? stateName(selected) : 'the state selected above'} at this moment, and understand that Tere Care can only provide care to patients physically in states where our physicians are licensed.
+        <span style={{ fontSize: '.9rem', color: C.ink2 }}>
+          I'm physically in <strong>{selected ? stateName(selected) : 'the state selected above'}</strong> right now.
         </span>
       </label>
 
@@ -283,9 +281,18 @@ function IntakeForm({ state, onSubmitted }) {
         border: `1px solid rgba(28,110,99,.2)`, borderRadius: 10,
         padding: '.75rem 1rem', fontSize: '.9rem', marginBottom: '1.5rem',
         display: 'flex', alignItems: 'center', gap: '.5rem',
+        justifyContent: 'space-between', flexWrap: 'wrap',
       }}>
-        <span>✓</span>
-        <span>We can see you in <strong>{stateName(state)}</strong>.</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+          <span>✓</span>
+          <span>We can see you in <strong>{stateName(state)}</strong>.</span>
+        </span>
+        <span style={{
+          fontSize: '.65rem', letterSpacing: '.14em', textTransform: 'uppercase',
+          fontWeight: 700, color: C.gold,
+          background: 'rgba(201,162,74,.15)',
+          padding: '3px 8px', borderRadius: 99,
+        }}>Beta</span>
       </div>
 
       <h1 style={{
@@ -326,22 +333,35 @@ function IntakeForm({ state, onSubmitted }) {
         </div>
       </div>
 
-      <label style={{
-        display: 'flex', gap: '.75rem', marginTop: '1.5rem',
-        padding: '.9rem 1rem', background: 'white',
-        border: `1.5px solid ${C.line}`, borderRadius: 10,
-        cursor: 'pointer', alignItems: 'flex-start',
+      <div style={{
+        marginTop: '1.5rem',
+        padding: '.85rem 1rem',
+        background: 'white',
+        border: `1.5px solid ${C.line}`,
+        borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '.75rem',
       }}>
         <input
-          type="checkbox"
+          type="checkbox" id="us-attest"
           checked={attested}
           onChange={(e) => setAttested(e.target.checked)}
-          style={{ marginTop: 3, flexShrink: 0, transform: 'scale(1.15)' }}
+          style={{
+            width: 18, height: 18,
+            margin: 0, flexShrink: 0,
+            cursor: 'pointer',
+            accentColor: C.teal,
+          }}
         />
-        <span style={{ fontSize: '.85rem', color: C.ink2, lineHeight: 1.5 }}>
-          I confirm I am <strong>physically located</strong> in {stateName(state)} right now, and understand Tere Care can only provide care to patients physically in states where our providers are licensed.
-        </span>
-      </label>
+        <label htmlFor="us-attest" style={{
+          fontSize: '.9rem', color: C.ink2,
+          cursor: 'pointer', margin: 0, flex: 1,
+          userSelect: 'none',
+        }}>
+          I'm physically in <strong>{stateName(state)}</strong> right now.
+        </label>
+      </div>
 
       {error && (
         <div style={{
