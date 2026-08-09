@@ -406,7 +406,7 @@ function Pricing() {
               <li>&nbsp;·&nbsp;Custom SLA, integration, and volume pricing</li>
             </ul>
 
-            <a href="mailto:terehealthnz@gmail.com?subject=Tere%20Care%20clinic%20partnership%20enquiry" style={{
+            <a href="mailto:hello@terecare.com?subject=Tere%20Care%20clinic%20partnership%20enquiry" style={{
               display: 'block',
               background: C.cream, color: C.tealDeep, textDecoration: 'none',
               padding: '1rem', borderRadius: 12,
@@ -579,7 +579,7 @@ function Footer() {
           </div>
           <div>
             <div style={{ color: C.cream, fontWeight: 700, marginBottom: '.5rem' }}>Contact</div>
-            <div><a href="mailto:terehealthnz@gmail.com" style={{ color: 'inherit', textDecoration: 'none' }}>terehealthnz@gmail.com</a></div>
+            <div><a href="mailto:hello@terecare.com" style={{ color: 'inherit', textDecoration: 'none' }}>hello@terecare.com</a></div>
             <div>Complaints: HHS Office for Civil Rights</div>
           </div>
         </div>

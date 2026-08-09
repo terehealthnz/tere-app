@@ -129,7 +129,7 @@ const CONFIG = {
     privacyLaw:       'Health Insurance Portability and Accountability Act (HIPAA)',
     breachNotifyDays: 60,                      // HITECH Act
     complaintsBody:   'HHS Office for Civil Rights',
-    supportEmail:     'terehealthnz@gmail.com',   // shared inbox until a US-specific address is stood up
+    supportEmail:     'hello@terecare.com',        // Cloudflare Email Routing → terehealthnz@gmail.com
     homeHost:         'terecare.com',
     licensedStates:   ['WA', 'CA', 'MO', 'TX', 'UT', 'ID'],  // Patrick's state licences
   },
