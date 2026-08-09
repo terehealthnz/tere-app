@@ -318,7 +318,7 @@ export default function ClinicianPatient() {
         {/* Vitals */}
         {v && !v.skipped && (v.hr || v.rr || v.spo2) && (
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
-            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.875rem' }}>Vital signs</div>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.875rem' }}>Estimated Vitals</div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               {v.hr  && <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>}
               {v.rr  && <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>}
@@ -352,7 +352,7 @@ export default function ClinicianPatient() {
           return (
             <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
               <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
-                Vitals trend <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.75rem' }}>· last {rows.length} encounter{rows.length === 1 ? '' : 's'}</span>
+                Estimated Vitals trend <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.75rem' }}>· last {rows.length} encounter{rows.length === 1 ? '' : 's'}</span>
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8125rem', fontFamily: 'ui-monospace, Menlo, monospace', minWidth: 380 }}>

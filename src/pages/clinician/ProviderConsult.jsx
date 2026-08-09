@@ -260,7 +260,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         v.spo2 && `SpO₂ ${v.spo2}%`,
         v.bp  && `BP ${v.bp}`,
       ].filter(Boolean)
-      if (vparts.length) lines.push(`Vitals: ${vparts.join(', ')}`)
+      if (vparts.length) lines.push(`Estimated Vitals: ${vparts.join(', ')}`)
     }
     const social = []
     if (data.tobacco_use === 'yes') social.push(`Smoker${data.tobacco_amount ? ` (${data.tobacco_amount})` : ''}`)
@@ -314,9 +314,9 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         // Inject vitals into notes once they arrive (if notes don't already have them)
         if (data.vitals && !data.vitals.skipped) {
           setCallNotes(prev => {
-            if (prev.includes('Vitals:')) return prev
+            if (prev.includes('Estimated Vitals:') || prev.includes('Vitals:')) return prev
             const ctx = buildTriageContext(data)
-            return ctx ? ctx + '\n\n' + prev.replace(/^Vitals:[^\n]*\n?/, '') : prev
+            return ctx ? ctx + '\n\n' + prev.replace(/^(?:Estimated )?Vitals:[^\n]*\n?/, '') : prev
           })
         }
         if (data.status === 'in_progress' && !inCall) {
@@ -779,7 +779,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             )}
 
             <div style={{ marginBottom:12 }}>
-              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:6 }}>Vitals</div>
+              <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:6 }}>Estimated Vitals</div>
               <VitalsRow vitals={consult.vitals} />
             </div>
 

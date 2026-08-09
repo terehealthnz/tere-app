@@ -689,7 +689,7 @@ export default function Vitals() {
         {phase === 'result' && (
           <div className="card">
             <h2 style={{ fontSize:'1.2rem', marginBottom:'1rem' }}>
-              Tere Vitals result
+              Estimated Vitals
             </h2>
 
             {/* rPPG results */}
@@ -699,7 +699,7 @@ export default function Vitals() {
                 border:`1.5px solid ${result?.hr ? 'var(--success)' : 'var(--border)'}`,
                 borderRadius:'var(--radius)', padding:'1rem', textAlign:'center'
               }}>
-                <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:4 }}>Heart Rate</div>
+                <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:4 }}>Est. heart rate</div>
                 <div style={{ fontSize:'2.5rem', fontWeight:700, color: result?.hr ? 'var(--success)' : 'var(--muted)', lineHeight:1 }}>
                   {result?.hr ?? '—'}
                 </div>
@@ -711,7 +711,7 @@ export default function Vitals() {
                 border:`1.5px solid ${result?.rr ? 'var(--success)' : 'var(--border)'}`,
                 borderRadius:'var(--radius)', padding:'1rem', textAlign:'center'
               }}>
-                <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:4 }}>Resp. Rate</div>
+                <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', marginBottom:4 }}>Est. resp. rate</div>
                 <div style={{ fontSize:'2.5rem', fontWeight:700, color: result?.rr ? 'var(--success)' : 'var(--muted)', lineHeight:1 }}>
                   {result?.rr ?? '—'}
                 </div>
