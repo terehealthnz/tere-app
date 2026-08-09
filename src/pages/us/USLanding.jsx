@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { US_STATES, detectStateFromIP } from '../../lib/usStates'
 
 // Tere Care — US-facing landing at terecare.com.
 // Distinct brand from Tere Health (NZ), same platform underneath.
@@ -66,6 +67,118 @@ function Nav() {
   )
 }
 
+function StartWidget() {
+  const [state, setState] = useState('')
+  const [detected, setDetected] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    detectStateFromIP().then(code => {
+      if (!cancelled && code) { setDetected(code); setState(code) }
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const canGo = !!state
+  const startUrl = state ? `${START_URL}?state=${state}` : '#'
+
+  return (
+    <div style={{
+      background: 'rgba(251,247,239,.08)',
+      border: '1.5px solid rgba(251,247,239,.15)',
+      borderRadius: 20,
+      padding: '1.25rem',
+      maxWidth: 520,
+      margin: '0 auto 1.75rem',
+      backdropFilter: 'blur(8px)',
+      boxShadow: '0 12px 40px rgba(0,0,0,.2)',
+    }}>
+      <div style={{
+        fontSize: '.75rem', letterSpacing: '.14em', textTransform: 'uppercase',
+        color: C.sage, fontWeight: 700, marginBottom: '.9rem',
+        fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'left',
+      }}>Start your consultation</div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr auto',
+        gap: '.6rem',
+        alignItems: 'stretch',
+      }} className="tere-start-widget-row">
+        <div style={{ position: 'relative' }}>
+          <select
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+            aria-label="Your state"
+            style={{
+              width: '100%', height: '100%',
+              padding: '.95rem 2.5rem .95rem 1rem',
+              fontSize: '.95rem',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              color: state ? C.ink : C.muted,
+              background: C.cream,
+              border: 'none', borderRadius: 12,
+              appearance: 'none',
+              cursor: 'pointer',
+              boxSizing: 'border-box',
+            }}
+          >
+            <option value="">Choose your state…</option>
+            {US_STATES.map(s => (
+              <option key={s.code} value={s.code} style={{ color: '#111' }}>{s.name}</option>
+            ))}
+          </select>
+          <span aria-hidden style={{
+            position: 'absolute', right: '.85rem', top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none', color: C.muted, fontSize: '.7rem',
+          }}>▼</span>
+        </div>
+        <a
+          href={startUrl}
+          onClick={(e) => { if (!canGo) e.preventDefault() }}
+          aria-disabled={!canGo}
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            background: C.warm, color: 'white',
+            textDecoration: 'none',
+            padding: '0 1.5rem', borderRadius: 12,
+            fontSize: '1rem', fontWeight: 700,
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            whiteSpace: 'nowrap',
+            opacity: canGo ? 1 : .5,
+            cursor: canGo ? 'pointer' : 'not-allowed',
+            boxShadow: canGo ? '0 6px 24px rgba(217,119,66,.4)' : 'none',
+            transition: 'opacity .15s',
+          }}
+        >
+          Start &nbsp;→
+        </a>
+      </div>
+
+      {detected && detected === state && (
+        <div style={{
+          fontSize: '.78rem', color: C.sage, marginTop: '.75rem',
+          fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'left',
+        }}>
+          ✓ Detected from your connection. You can change if wrong.
+        </div>
+      )}
+    </div>
+  )
+}
+
+const stackWidgetOnMobile = `
+@media (max-width: 480px) {
+  .tere-start-widget-row {
+    grid-template-columns: 1fr !important;
+  }
+  .tere-start-widget-row > a {
+    padding: 1rem 1.5rem !important;
+  }
+}
+`
+
 function Hero() {
   return (
     <section style={{
@@ -106,22 +219,23 @@ function Hero() {
           A state-licensed provider on video in minutes. Flat cash price, no insurance forms, prescriptions sent straight to your pharmacy. Simple.
         </p>
 
+        <StartWidget />
+
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-          <a href={START_URL} style={{
-            background: C.warm, color: 'white', textDecoration: 'none',
-            padding: '1.1rem 2.75rem', borderRadius: 99,
-            fontSize: '1.15rem', fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-            boxShadow: '0 8px 32px rgba(217,119,66,.4)',
-            letterSpacing: '.01em',
-          }}>Start a visit &nbsp;→</a>
           <a href="#how" style={{
             background: 'transparent', color: C.cream, textDecoration: 'none',
-            padding: '1.1rem 2rem', borderRadius: 99,
-            border: '1.5px solid rgba(251,247,239,.3)',
-            fontSize: '1.05rem', fontWeight: 600,
+            padding: '.75rem 1.5rem', borderRadius: 99,
+            fontSize: '.9rem', fontWeight: 600,
             fontFamily: 'Plus Jakarta Sans, sans-serif',
-          }}>How it works</a>
+            opacity: .8,
+          }}>How it works &nbsp;·</a>
+          <a href="#pricing" style={{
+            background: 'transparent', color: C.cream, textDecoration: 'none',
+            padding: '.75rem 1.5rem', borderRadius: 99,
+            fontSize: '.9rem', fontWeight: 600,
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            opacity: .8,
+          }}>Pricing</a>
         </div>
 
         {/* Emergency safety banner — always visible on hero */}
@@ -603,6 +717,7 @@ function Footer() {
 export default function USLanding() {
   return (
     <div style={{ background: C.cream, minHeight: '100vh' }}>
+      <style>{stackWidgetOnMobile}</style>
       <Nav />
       <Hero />
       <ValueProps />

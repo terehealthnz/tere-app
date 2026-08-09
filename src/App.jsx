@@ -117,6 +117,7 @@ const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDas
 const VitalsValidatePIS   = lazy(() => import('./pages/patient/VitalsValidateParticipantInfo'))
 const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 const USLanding           = lazy(() => import('./pages/us/USLanding'))
+const USStart             = lazy(() => import('./pages/us/USStart'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -138,6 +139,15 @@ function PwaRoot() {
   return <TereIntro />
 }
 
+// /start dispatches by region. US visitors get the US intake flow
+// (state licence gate + intent capture). Everyone else keeps the
+// existing NZ TereIntro flow.
+function StartRouter() {
+  const region = detectRegion()
+  if (region === REGIONS.US) return <USStart />
+  return <TereIntro />
+}
+
 export default function App() {
   return (
     <ChunkErrorBoundary>
@@ -145,7 +155,7 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
-        <Route path="/start"                  element={<TereIntro />} />
+        <Route path="/start"                  element={<StartRouter />} />
         <Route path="/consent"                element={<ConsentPage />} />
         <Route path="/triage"                 element={<AITriage />} />
         <Route path="/vitals"                 element={<VitalsCapture />} />
