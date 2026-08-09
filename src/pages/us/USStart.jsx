@@ -45,12 +45,13 @@ const C = {
 // the shared ticket queue rather than standing up a new US-specific
 // table until volume justifies it.
 // ─────────────────────────────────────────────────────────────────
-async function submitLead({ kind, name, email, phone, state, complaint }) {
+async function submitLead({ kind, name, email, phone, state, complaint, hipaa }) {
   const message = [
     `Kind: ${kind}`,                         // "US intake (licensed)" | "US intake (waitlist)"
     state && `State (patient-attested): ${state} (${stateName(state)})`,
     phone && `Phone: ${phone}`,
     complaint && `Chief complaint:\n${complaint}`,
+    hipaa && `HIPAA NPP acknowledged: v${hipaa.version} at ${hipaa.at}`,
   ].filter(Boolean).join('\n\n')
 
   const res = await fetch('/api/patient-support', {
@@ -239,9 +240,141 @@ function LocationGate({ onContinue }) {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// HIPAA acknowledgment gate — shown before any PHI is collected.
+// 45 CFR 164.520(c) requires we provide the NPP at or before first
+// service delivery and make a good-faith effort to obtain written
+// acknowledgment. Checkbox click + server-side timestamp satisfies
+// the acknowledgment part; the linked /notice-of-privacy-practices
+// page satisfies the provision part.
+// ─────────────────────────────────────────────────────────────────
+const HIPAA_NPP_VERSION = '1.0'
+
+function HipaaGate({ state, onAccept }) {
+  const [ack, setAck] = useState(false)
+  return (
+    <>
+      <div style={{
+        background: 'rgba(28,110,99,.08)', color: C.tealDeep,
+        border: `1px solid rgba(28,110,99,.2)`, borderRadius: 10,
+        padding: '.75rem 1rem', fontSize: '.9rem', marginBottom: '1.5rem',
+        display: 'flex', alignItems: 'center', gap: '.5rem',
+      }}>
+        <span>✓</span>
+        <span>We can see you in <strong>{stateName(state)}</strong>. One quick step before we ask about your visit.</span>
+      </div>
+
+      <h1 style={{
+        fontFamily: 'Cormorant Garamond, Georgia, serif',
+        fontSize: 'clamp(1.9rem, 5vw, 2.4rem)',
+        fontWeight: 500, letterSpacing: '-.015em',
+        margin: '0 0 .5rem', lineHeight: 1.15,
+      }}>Your privacy under HIPAA.</h1>
+      <p style={{
+        color: C.ink2, lineHeight: 1.55, margin: '0 0 1.5rem',
+        fontSize: '1rem',
+      }}>
+        Before we collect any health information, please review how we use and protect it.
+      </p>
+
+      <div style={{
+        background: 'white', border: `1.5px solid ${C.line}`,
+        borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1.25rem',
+      }}>
+        <ul style={{
+          listStyle: 'none', padding: 0, margin: 0,
+          fontSize: '.925rem', lineHeight: 1.65, color: C.ink2,
+        }}>
+          <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
+            <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <span>Your health info is used only for your care, payment, and our internal quality processes.</span>
+          </li>
+          <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
+            <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <span>Stored encrypted on AWS under a Business Associate Agreement — not shared with employers, insurers, or advertisers.</span>
+          </li>
+          <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
+            <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <span>Never sold. Never used for marketing without your permission.</span>
+          </li>
+          <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
+            <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <span>You have the right to access your records, request amendments, and file complaints (with us or with HHS Office for Civil Rights).</span>
+          </li>
+          <li style={{ padding: '.35rem 0', display: 'flex', gap: '.6rem' }}>
+            <span style={{ color: C.teal, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <span>We'll notify you within 60 days if a breach of your data ever occurred.</span>
+          </li>
+        </ul>
+      </div>
+
+      <p style={{
+        fontSize: '.9rem', color: C.ink2, marginBottom: '1.25rem', lineHeight: 1.5,
+      }}>
+        For the full details: <a
+          href="/notice-of-privacy-practices"
+          target="_blank" rel="noopener noreferrer"
+          style={{ color: C.teal, textDecoration: 'underline', fontWeight: 600 }}
+        >Read our full Notice of Privacy Practices →</a>
+      </p>
+
+      <div style={{
+        padding: '.85rem 1rem',
+        background: 'white',
+        border: `1.5px solid ${C.line}`,
+        borderRadius: 10,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '.75rem',
+      }}>
+        <input
+          type="checkbox" id="us-hipaa-ack"
+          checked={ack}
+          onChange={(e) => setAck(e.target.checked)}
+          style={{
+            width: 18, height: 18,
+            margin: 0, flexShrink: 0,
+            cursor: 'pointer',
+            accentColor: C.teal,
+          }}
+        />
+        <label htmlFor="us-hipaa-ack" style={{
+          fontSize: '.9rem', color: C.ink2,
+          cursor: 'pointer', margin: 0, flex: 1,
+          userSelect: 'none', lineHeight: 1.45,
+        }}>
+          I acknowledge I've received and reviewed Tere Care's Notice of Privacy Practices.
+        </label>
+      </div>
+
+      <button
+        onClick={() => ack && onAccept({
+          version: HIPAA_NPP_VERSION,
+          at: new Date().toISOString(),
+        })}
+        disabled={!ack}
+        style={{
+          ...primaryBtn,
+          marginTop: '1.5rem',
+          opacity: ack ? 1 : .4,
+          cursor: ack ? 'pointer' : 'not-allowed',
+        }}
+      >
+        Continue &nbsp;→
+      </button>
+
+      <p style={{
+        fontSize: '.75rem', color: C.muted, marginTop: '1rem',
+      }}>
+        Wrong state? <a href="/start" style={{ color: C.teal, textDecoration: 'underline' }}>Change your state</a>
+      </p>
+    </>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Screen 2a — Licensed state, collect intake details
 // ─────────────────────────────────────────────────────────────────
-function IntakeForm({ state, onSubmitted }) {
+function IntakeForm({ state, hipaa, onSubmitted }) {
   const [name, setName]           = useState('')
   const [email, setEmail]         = useState('')
   const [phone, setPhone]         = useState('')
@@ -264,6 +397,7 @@ function IntakeForm({ state, onSubmitted }) {
         phone: phone.trim(),
         state,
         complaint: complaint.trim(),
+        hipaa,
       })
       onSubmitted()
     } catch (err) {
@@ -557,20 +691,29 @@ export default function USStart() {
   }, [])
 
   const [state, setState] = useState(initialState)
+  const [hipaa, setHipaa] = useState(null)   // { version, at } once acknowledged
   const [step, setStep]   = useState(() => {
     if (!initialState) return 'location'
-    return licensed.has(initialState) ? 'licensed' : 'unlicensed'
+    // Licensed states get the HIPAA gate before PHI collection.
+    // Unlicensed goes straight to waitlist (no PHI, no gate needed).
+    return licensed.has(initialState) ? 'hipaa' : 'unlicensed'
   })
 
   function onLocationContinue({ state: chosen }) {
     setState(chosen)
-    setStep(licensed.has(chosen) ? 'licensed' : 'unlicensed')
+    setStep(licensed.has(chosen) ? 'hipaa' : 'unlicensed')
+  }
+
+  function onHipaaAccept(ack) {
+    setHipaa(ack)
+    setStep('licensed')
   }
 
   return (
     <Shell>
       {step === 'location'   && <LocationGate onContinue={onLocationContinue} />}
-      {step === 'licensed'   && <IntakeForm  state={state} onSubmitted={() => setStep('done')} />}
+      {step === 'hipaa'      && <HipaaGate    state={state} onAccept={onHipaaAccept} />}
+      {step === 'licensed'   && <IntakeForm   state={state} hipaa={hipaa} onSubmitted={() => setStep('done')} />}
       {step === 'unlicensed' && <WaitlistForm state={state} onSubmitted={() => setStep('done')} />}
       {step === 'done'       && <Confirmation isWaitlist={!licensed.has(state)} />}
     </Shell>
