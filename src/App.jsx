@@ -53,6 +53,7 @@ class ChunkErrorBoundary extends React.Component {
 
 // Eager: root screens shown immediately on first load
 import Landing from './pages/Landing'
+import { REGIONS, detectRegion } from './lib/region'
 import TereIntro from './components/patient/TereIntro'
 
 // Lazy: everything else split into separate chunks
@@ -115,6 +116,7 @@ const VitalsValidate      = lazy(() => import('./pages/patient/VitalsValidate'))
 const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDashboard'))
 const VitalsValidatePIS   = lazy(() => import('./pages/patient/VitalsValidateParticipantInfo'))
 const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
+const USLanding           = lazy(() => import('./pages/us/USLanding'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -130,8 +132,9 @@ function PwaRoot() {
     if (portal === 'admin') return <Navigate to="/admin" replace />
     return <Navigate to="/start" replace />
   }
-  const h = window.location.hostname
-  if (h === 'terehealth.co.nz' || h === 'www.terehealth.co.nz' || h === 'tere.co.nz' || h === 'www.tere.co.nz') return <Landing />
+  const region = detectRegion()
+  if (region === REGIONS.US) return <USLanding />
+  if (region === REGIONS.NZ) return <Landing />
   return <TereIntro />
 }
 
