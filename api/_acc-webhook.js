@@ -1,21 +1,66 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 
 function supabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
+// HMAC-SHA256 signature verification with replay protection.
+// Expected headers from ACC's webhook sender:
+//   x-acc-timestamp: unix seconds when the request was signed
+//   x-acc-signature: hex-encoded HMAC-SHA256(`${timestamp}.${rawBody}`, secret)
+// If ACC's actual signing scheme differs when they finalise the contract,
+// swap the message format below — the timing-safe compare + replay window
+// pattern stay the same.
+function verifyAccSignature({ signature, timestamp, rawBody, secret }) {
+  if (!signature || !timestamp || !secret) return false
+  // Reject stale requests > 5 min old to block replay.
+  const skew = Math.abs(Date.now() / 1000 - Number(timestamp))
+  if (!Number.isFinite(skew) || skew > 300) return false
+  try {
+    const expected = createHmac('sha256', secret)
+      .update(`${timestamp}.${rawBody}`, 'utf8')
+      .digest('hex')
+    const a = Buffer.from(signature, 'hex')
+    const b = Buffer.from(expected, 'hex')
+    if (a.length !== b.length) return false
+    return timingSafeEqual(a, b)
+  } catch {
+    return false
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  // Validate ACC webhook signature (add ACC_WEBHOOK_SECRET to env when live)
+  // Signature verification is MANDATORY. If ACC_WEBHOOK_SECRET is not set
+  // in Vercel env we reject every request — better to fail closed than
+  // let an unsigned POST mark an ACC claim as paid.
   const secret = process.env.ACC_WEBHOOK_SECRET
-  if (secret) {
-    const sig = req.headers['x-acc-signature']
-    if (sig !== secret) return res.status(401).json({ error: 'Invalid signature' })
+  if (!secret) {
+    console.warn('[acc-webhook] ACC_WEBHOOK_SECRET not configured — rejecting all requests')
+    return res.status(503).json({ error: 'Webhook not configured' })
   }
 
-  const { claimNumber, status, paymentAmount, paymentDate, reason, patientName, invoiceNumber } = req.body
+  // handler.js delivers req.body already JSON-parsed. Reconstruct the raw
+  // string for signature verification. ACC's canonical JSON round-trips
+  // cleanly through JSON.stringify.
+  const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
+
+  const signatureOk = verifyAccSignature({
+    signature: req.headers['x-acc-signature'],
+    timestamp: req.headers['x-acc-timestamp'],
+    rawBody,
+    secret,
+  })
+  if (!signatureOk) {
+    console.warn('[acc-webhook] signature verification failed')
+    return res.status(401).json({ error: 'Invalid signature' })
+  }
+
+  const parsed = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body) } catch { return {} } })() : (req.body || {})
+  const { claimNumber, status, paymentAmount, paymentDate, reason, patientName, invoiceNumber } = parsed
   if (!claimNumber || !status) return res.status(400).json({ error: 'claimNumber and status required' })
 
   const supabase = supabaseAdmin()
