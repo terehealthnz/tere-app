@@ -150,12 +150,13 @@ function StartRouter() {
 }
 
 // /waitlist dispatches by region. NZ visitors get the Tere Health
-// pre-launch waitlist page. US visitors get sent to /start, where
-// the US intake flow surfaces its own waitlist form for unlicensed
-// states — the NZ waitlist copy would be wrong on Tere Care.
+// pre-launch waitlist page. US visitors get sent to the Tere Care
+// landing (/) — they can then choose to start an intake (state
+// picker widget), read pricing, or just leave. Forcing them
+// straight into the intake flow was too aggressive.
 function WaitlistRouter() {
   const region = detectRegion()
-  if (region === REGIONS.US) return <Navigate to="/start" replace />
+  if (region === REGIONS.US) return <Navigate to="/" replace />
   return <Waitlist />
 }
 
