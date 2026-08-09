@@ -116,22 +116,34 @@ async function trackAuthFailure(ip) {
 }
 
 // ── Security headers ──────────────────────────────────────────────────────────
+//
+// CSP script-src:
+//   Dev  → includes 'unsafe-eval' (Vite's dev-server HMR needs it)
+//   Prod → drops 'unsafe-eval' so an XSS-injected script can't eval()
+//          arbitrary strings back to code execution
 function setSecurityHeaders(res) {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'strict-origin')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
+  const isProd = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
+  const scriptSrc = isProd
+    ? "script-src 'self' 'unsafe-inline'"
+    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
   res.setHeader(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",
-      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://cdn.jsdelivr.net https://storage.googleapis.com",
+      "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://cdn.jsdelivr.net https://storage.googleapis.com https://ipapi.co",
       "frame-src 'none'",
       "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
     ].join('; ')
   )
 }
