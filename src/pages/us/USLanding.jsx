@@ -333,7 +333,7 @@ function HowItWorks() {
     {
       n: '03',
       title: 'Video visit with a licensed provider',
-      body: 'Connect over video from your phone or laptop. A real clinician, not a chatbot.',
+      body: 'Connect over video from your phone or laptop. The clinical visit is always with a licensed provider — face to face, real time.',
     },
     {
       n: '04',
@@ -572,7 +572,7 @@ function About() {
           fontSize: '1.05rem', color: C.ink2, lineHeight: 1.7,
           margin: 0,
         }}>
-          No rotating offshore call center. No triage bot routing you before you see a real clinician. A licensed provider, on video, giving you real time and real answers.
+          Our intake asks smart questions to move you through faster and flag anything urgent — but every clinical decision, every prescription, every diagnosis is made by a licensed provider on video with you.
         </p>
       </div>
     </section>
