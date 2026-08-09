@@ -54,24 +54,45 @@ export function regionForHost(hostname) {
 /**
  * Browser-side region detection. Honours dev overrides from
  * localStorage.tere_region and the ?region= query param.
+ *
+ * Dev overrides are ONLY honoured on localhost / Vercel preview hosts
+ * — never on the production hostnames (terehealth.co.nz, terecare.com).
+ * Otherwise a one-time `?region=nz` used for QA on a laptop would
+ * silently override the real hostname routing on subsequent visits to
+ * prod, which broke terecare.com when a stale value was in localStorage.
  */
+function isDevHost(hostname) {
+  if (!hostname) return false
+  const h = hostname.toLowerCase()
+  return h === 'localhost'
+      || h === '127.0.0.1'
+      || h.endsWith('.local')
+      || h.endsWith('.vercel.app')      // preview deployments
+}
+
 export function detectRegion() {
   if (typeof window === 'undefined') return REGIONS.NZ
+  const hostname = window.location.hostname
+  const isDev = isDevHost(hostname)
 
-  // Query-param override — one-shot, wins over everything
+  // Query-param override — one-shot, only on dev/preview hosts
   const qp = new URLSearchParams(window.location.search).get('region')
-  if (qp && Object.values(REGIONS).includes(qp)) {
+  if (isDev && qp && Object.values(REGIONS).includes(qp)) {
     try { localStorage.setItem('tere_region', qp) } catch {}
     return qp
   }
 
-  // localStorage override — persists across navigations (dev only)
-  try {
-    const stored = localStorage.getItem('tere_region')
-    if (stored && Object.values(REGIONS).includes(stored)) return stored
-  } catch {}
+  // localStorage override — only on dev/preview hosts. Prod hostnames
+  // ignore any stale localStorage value; production routing is ALWAYS
+  // driven by the real hostname.
+  if (isDev) {
+    try {
+      const stored = localStorage.getItem('tere_region')
+      if (stored && Object.values(REGIONS).includes(stored)) return stored
+    } catch {}
+  }
 
-  return regionForHost(window.location.hostname)
+  return regionForHost(hostname)
 }
 
 /**
