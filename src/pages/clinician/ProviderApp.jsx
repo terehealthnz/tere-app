@@ -1202,14 +1202,14 @@ export default function ProviderApp() {
     return () => { clearInterval(interval); sub?.unsubscribe?.() }
   }, [load])
 
-  // Load availability
+  // Load availability — /api/providers is auth-gated; anon reads on
+  // `providers` were revoked in the 2026-08-09 RLS lockdown.
   useEffect(() => {
     if (!providerId) return
-    import('../../lib/supabase').then(({ supabase }) => {
-      supabase.from('providers').select('is_available').eq('id', providerId).single()
-        .then(({ data }) => { if (data) setIsAvail(data.is_available) })
-        .catch(() => {})
-    })
+    apiFetch(`/api/providers?id=${encodeURIComponent(providerId)}&columns=is_available`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.provider) setIsAvail(d.provider.is_available) })
+      .catch(() => {})
   }, [providerId])
 
   // Poll unread message count so the ✉️ badge stays fresh even when the

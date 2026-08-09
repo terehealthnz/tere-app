@@ -415,12 +415,16 @@ export default function ProviderSchedule({ embedded = false }) {
   const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    import('../../lib/supabase').then(({ supabase }) => {
-      supabase.from('providers').select('id, first_name, last_name').eq('is_active', true).eq('is_provider', true)
-        .then(({ data }) => {
-          setOtherProviders((data||[]).filter(p => p.id !== providerId))
-        }).catch(() => {})
-    })
+    // Auth-gated /api/provider-list returns only active providers with
+    // the display-safe fields we need here. Direct anon reads on
+    // `providers` were revoked in the 2026-08-09 RLS lockdown.
+    apiFetch('/api/provider-list')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        const list = (d?.providers || []).filter(p => p.is_provider && p.id !== providerId)
+        setOtherProviders(list)
+      })
+      .catch(() => {})
   }, [providerId])
 
   const content = (

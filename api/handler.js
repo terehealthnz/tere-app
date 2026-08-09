@@ -185,6 +185,7 @@ const ROUTES = {
   'push-subscribe':            () => import('./_push-subscribe.js'),
   'push-notify':               () => import('./_push-notify.js'),
   'provider-auth':             () => import('./_provider-auth.js'),
+  'provider-list':             () => import('./_provider-list.js'),
   'provider-reset-request':    () => import('./_provider-reset-request.js'),
   'provider-reset-complete':   () => import('./_provider-reset-complete.js'),
   'send-email':                () => import('./_send-email.js'),

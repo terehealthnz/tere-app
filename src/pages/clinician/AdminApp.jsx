@@ -559,9 +559,14 @@ function SettingsTab({ navigate, displayName }) {
   useEffect(() => {
     async function load() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('providers').select('id,first_name,last_name,color,is_active,is_available,is_provider,specialty,credential').eq('is_active',true).order('first_name')
-        setProviders(data||[])
+        // /api/provider-list is the anonymous, minimum-fields endpoint used
+        // by the login picker. Same shape as what we need here (active
+        // providers with display fields) and works without direct anon
+        // grants on the providers table (revoked 2026-08-09).
+        const res = await apiFetch('/api/provider-list')
+        if (!res.ok) return
+        const { providers: data } = await res.json()
+        setProviders(data || [])
       } catch {}
     }
     load()

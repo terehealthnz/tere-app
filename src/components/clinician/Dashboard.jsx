@@ -684,16 +684,17 @@ export default function Dashboard() {
     // Load this provider's availability + referral badge
     const pid = sessionStorage.getItem('providerId')
     if (pid) {
-      import('../../lib/supabase').then(({ supabase }) => {
-        supabase.from('providers').select('is_available').eq('id', pid).single()
-          .then(({ data }) => { if (data) setProvIsAvail(data.is_available) })
+      // Route through the auth-gated /api/providers endpoint — anon reads
+      // on `providers` were revoked in the 2026-08-09 RLS lockdown.
+      apiFetch(`/api/providers?id=${encodeURIComponent(pid)}&columns=is_available`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.provider) setProvIsAvail(d.provider.is_available) })
+        .catch(() => {})
+      import('../../lib/supabase').then(({ getRadiologyReferralCount }) =>
+        getRadiologyReferralCount({ filter: 'active', provider_id: pid })
+          .then(c => setReferralBadge(c))
           .catch(() => {})
-        import('../../lib/supabase').then(({ getRadiologyReferralCount }) =>
-          getRadiologyReferralCount({ filter: 'active', provider_id: pid })
-            .then(c => setReferralBadge(c))
-            .catch(() => {})
-        )
-      })
+      )
     }
     if (isSupervisor) {
       import('../../lib/supabase').then(({ getRadiologyReferralCount }) => {

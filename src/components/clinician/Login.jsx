@@ -55,24 +55,16 @@ export default function ClinicianLogin() {
   }
 
   useEffect(() => {
+    // Pre-auth login picker uses the server-mediated /api/provider-list
+    // endpoint (anonymous, minimum-fields allowlist) rather than
+    // `supabase.from('providers')` directly — anon reads on the
+    // providers table were revoked in the 2026-08-09 RLS lockdown.
     async function loadProviders() {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        let { data, error: err } = await supabase
-          .from('providers')
-          .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
-          .eq('is_active', true)
-          .order('first_name')
-        // Fallback: retry with base columns only if newer columns don't exist yet
-        if (err) {
-          ;({ data, error: err } = await supabase
-            .from('providers')
-            .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider')
-            .eq('is_active', true)
-            .order('first_name'))
-        }
-        if (err || !data?.length) { setProviders([]); return }
-        setProviders(data)
+        const res = await apiFetch('/api/provider-list')
+        if (!res.ok) { setProviders([]); return }
+        const { providers: data } = await res.json()
+        setProviders(data || [])
       } catch {
         setProviders([])
       }
