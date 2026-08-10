@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { getRegionConfig, REGIONS } from '../../lib/region'
 import { US_STATES, stateName, detectStateFromIP } from '../../lib/usStates'
 import { LANGUAGES, t } from '../../lib/i18n'
@@ -73,41 +74,62 @@ const C = {
 // (US_STATES + stateName imported from src/lib/usStates.js — shared with USLanding)
 
 // ─────────────────────────────────────────────────────────────────
-// Submit to the existing patient-support endpoint. We piggyback on
-// the shared ticket queue rather than standing up a new US-specific
-// table until volume justifies it.
+// US patient intake creates a REAL consultation record (not a support
+// ticket) so the patient joins the shared waiting-room + video flow
+// from the NZ codebase. patient_state is captured so provider-side
+// filtering (task follow-up) can gate pickup to US-licensed providers.
+//
+// Beta: no charge — payment_amount stays 0 for terecare intakes until
+// Stripe US is wired. Provider still gets paid via Tere Care ledger.
 // ─────────────────────────────────────────────────────────────────
-async function submitLead({ kind, name, email, phone, state, complaint, hipaa }) {
-  const message = [
-    `Kind: ${kind}`,                         // "US intake (licensed)" | "US intake (waitlist)"
-    state && `State (patient-attested): ${state} (${stateName(state)})`,
-    phone && `Phone: ${phone}`,
-    complaint && `Chief complaint:\n${complaint}`,
-    hipaa && `HIPAA NPP acknowledged: v${hipaa.version} at ${hipaa.at}`,
-  ].filter(Boolean).join('\n\n')
+function splitName(full) {
+  const parts = String(full || '').trim().split(/\s+/)
+  return { first: parts[0] || '', last: parts.slice(1).join(' ') || '' }
+}
 
-  const res = await fetch('/api/patient-support', {
+async function createUSConsultation({ name, dob, email, phone, state, complaint, hipaa, lang }) {
+  const { first, last } = splitName(name)
+  const notesForProvider = [
+    `US intake (Tere Care beta) — state: ${state} (${stateName(state)})`,
+    hipaa ? `HIPAA NPP acknowledged: v${hipaa.version} at ${hipaa.at}` : null,
+    'Beta consult — no charge collected at intake.',
+  ].filter(Boolean).join('\n')
+
+  const payload = {
+    // Core patient identity
+    patient_first_name: first,
+    patient_last_name:  last,
+    patient_dob:        dob || null,
+    patient_email:      email,
+    patient_phone:      phone || null,
+    patient_language:   lang || 'en',
+    // US-specific
+    patient_state:      state,
+    // Clinical
+    chief_complaint:    complaint,
+    consultation_type:  'video',
+    // Enters the queue directly; no payment gate for beta terecare intakes.
+    status:             'waiting',
+    payment_amount:     0,
+    // Consents — HIPAA replaces HDC; we mirror the shape the NZ flow
+    // expects so the provider chart doesn't show empty consent fields.
+    hdc_consent_at:     new Date().toISOString(),
+    // Free-text audit note surfaced to the reviewing provider
+    notes_draft:        notesForProvider,
+  }
+
+  const res = await fetch('/api/create-consultation', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      category:            'other',
-      source:              'terecare_intake',
-      patient_name:        name,
-      patient_email:       email,
-      patient_phone:       phone || null,
-      message,
-      // Explicit HIPAA ack field so the server can enforce presence
-      // regardless of what's embedded in `message`. If the user reached
-      // this submit without walking the HipaaGate step, the server rejects.
-      hipaa_acknowledged:  hipaa ? { version: hipaa.version, at: hipaa.at } : null,
-    }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) {
     let msg = `Submit failed: ${res.status}`
     try { const j = await res.json(); if (j?.error) msg = j.error } catch {}
     throw new Error(msg)
   }
-  return res.json()
+  const { consultation } = await res.json()
+  return consultation
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -461,9 +483,11 @@ function HipaaGate({ state, onAccept }) {
 // ─────────────────────────────────────────────────────────────────
 // Screen 2a — Licensed state, collect intake details
 // ─────────────────────────────────────────────────────────────────
-function IntakeForm({ state, hipaa, onSubmitted }) {
+function IntakeForm({ state, hipaa }) {
   const lang = usePatientLang()
+  const navigate = useNavigate()
   const [name, setName]           = useState('')
+  const [dob, setDob]             = useState('')
   const [email, setEmail]         = useState('')
   const [phone, setPhone]         = useState('')
   const [complaint, setComplaint] = useState('')
@@ -471,23 +495,32 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]         = useState(null)
 
-  const canSubmit = name.trim() && email.trim() && complaint.trim() && attested && !submitting
+  const canSubmit = name.trim() && dob && email.trim() && complaint.trim() && attested && !submitting
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!canSubmit) return
     setError(null); setSubmitting(true)
     try {
-      await submitLead({
-        kind: `US intake (licensed — ${state})`,
+      const consult = await createUSConsultation({
         name: name.trim(),
+        dob,
         email: email.trim(),
         phone: phone.trim(),
         state,
         complaint: complaint.trim(),
         hipaa,
+        lang,
       })
-      onSubmitted()
+      // Persist the id so /waiting/<id> and the shared downstream flow
+      // (PatientCall, PostConsult) can find it without hitting the DB again.
+      try {
+        sessionStorage.setItem('consultationId', consult.id)
+        sessionStorage.setItem('us_patient_state', state)
+        if (hipaa) sessionStorage.setItem('us_hipaa_ack', JSON.stringify(hipaa))
+      } catch {}
+      navigate(`/waiting/${consult.id}`, { replace: true })
+      return
     } catch (err) {
       // Show any server-supplied error message when we have one (e.g., HIPAA
       // gate not walked, rate-limited email, too-long complaint) so the user
@@ -544,6 +577,13 @@ function IntakeForm({ state, hipaa, onSubmitted }) {
           <label htmlFor="us-name" style={labelStyle}>{t('us_intake_name_label', lang)}</label>
           <input id="us-name" type="text" required autoComplete="name"
             value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label htmlFor="us-dob" style={labelStyle}>Date of birth</label>
+          <input id="us-dob" type="date" required autoComplete="bday"
+            value={dob} onChange={(e) => setDob(e.target.value)}
+            max={new Date().toISOString().slice(0, 10)}
+            style={inputStyle} />
         </div>
         <div>
           <label htmlFor="us-email" style={labelStyle}>{t('us_intake_email_label', lang)}</label>
