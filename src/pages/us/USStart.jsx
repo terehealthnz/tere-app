@@ -142,6 +142,25 @@ async function createUSConsultation({ name, dob, email, phone, state, complaint,
 // Choice persists via sessionStorage.patient_language and drives every
 // downstream t() call.
 // ─────────────────────────────────────────────────────────────────
+// Shared back link — appears at the top of every step except the first.
+// Renders as "← Back" in muted grey; clicks call onBack from the parent.
+function BackLink({ onClick }) {
+  if (!onClick) return null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: 'none', border: 'none', color: C.muted, cursor: 'pointer',
+        padding: '0 0 1.25rem', fontFamily: 'inherit', fontSize: '.85rem',
+        fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '.35rem',
+      }}
+    >
+      <span aria-hidden="true">←</span> Back
+    </button>
+  )
+}
+
 function LanguageLanding({ onContinue }) {
   const [lang, setLang] = useState(() => {
     try { return sessionStorage.getItem('patient_language') || 'en' } catch { return 'en' }
@@ -307,7 +326,7 @@ const secondaryBtn = {
 // ─────────────────────────────────────────────────────────────────
 // Screen 1 — Location detection + state gate
 // ─────────────────────────────────────────────────────────────────
-function LocationGate({ onContinue }) {
+function LocationGate({ onContinue, onBack }) {
   const lang = usePatientLang()
   const [ipLoading, setIpLoading]     = useState(true)
   const [detected, setDetected]       = useState(null)      // 2-letter code from IP
@@ -336,6 +355,7 @@ function LocationGate({ onContinue }) {
 
   return (
     <>
+      <BackLink onClick={onBack} />
       <h1 style={{
         fontFamily: 'Cormorant Garamond, Georgia, serif',
         fontSize: 'clamp(1.9rem, 5vw, 2.5rem)',
@@ -412,11 +432,12 @@ function LocationGate({ onContinue }) {
 // ─────────────────────────────────────────────────────────────────
 const HIPAA_NPP_VERSION = '1.0'
 
-function HipaaGate({ state, onAccept }) {
+function HipaaGate({ state, onAccept, onBack }) {
   const lang = usePatientLang()
   const [ack, setAck] = useState(false)
   return (
     <>
+      <BackLink onClick={onBack} />
       <div style={{
         background: 'rgba(28,110,99,.08)', color: C.tealDeep,
         border: `1px solid rgba(28,110,99,.2)`, borderRadius: 10,
@@ -538,7 +559,7 @@ function HipaaGate({ state, onAccept }) {
 // ─────────────────────────────────────────────────────────────────
 // Screen 2a — Licensed state, collect intake details
 // ─────────────────────────────────────────────────────────────────
-function IntakeForm({ state, hipaa }) {
+function IntakeForm({ state, hipaa, onBack }) {
   const lang = usePatientLang()
   const navigate = useNavigate()
   const [name, setName]           = useState('')
@@ -595,6 +616,7 @@ function IntakeForm({ state, hipaa }) {
 
   return (
     <form onSubmit={handleSubmit}>
+      <BackLink onClick={onBack} />
       <div style={{
         background: 'rgba(28,110,99,.08)', color: C.tealDeep,
         border: `1px solid rgba(28,110,99,.2)`, borderRadius: 10,
@@ -729,7 +751,7 @@ function IntakeForm({ state, hipaa }) {
 // ─────────────────────────────────────────────────────────────────
 // Screen 2b — Unlicensed state, waitlist capture
 // ─────────────────────────────────────────────────────────────────
-function WaitlistForm({ state, onSubmitted }) {
+function WaitlistForm({ state, onSubmitted, onBack }) {
   const lang = usePatientLang()
   const [name, setName]   = useState('')
   const [email, setEmail] = useState('')
@@ -760,6 +782,7 @@ function WaitlistForm({ state, onSubmitted }) {
 
   return (
     <form onSubmit={handleSubmit}>
+      <BackLink onClick={onBack} />
       <div style={{
         background: 'rgba(217,119,66,.1)', color: C.warmDeep,
         border: `1px solid rgba(217,119,66,.25)`, borderRadius: 10,
@@ -912,10 +935,10 @@ export default function USStart() {
   return (
     <Shell>
       {step === 'language'   && <LanguageLanding onContinue={onLanguageContinue} />}
-      {step === 'location'   && <LocationGate onContinue={onLocationContinue} />}
-      {step === 'hipaa'      && <HipaaGate    state={state} onAccept={onHipaaAccept} />}
-      {step === 'licensed'   && <IntakeForm   state={state} hipaa={hipaa} onSubmitted={() => setStep('done')} />}
-      {step === 'unlicensed' && <WaitlistForm state={state} onSubmitted={() => setStep('done')} />}
+      {step === 'location'   && <LocationGate   onContinue={onLocationContinue} onBack={() => setStep('language')} />}
+      {step === 'hipaa'      && <HipaaGate      state={state} onAccept={onHipaaAccept} onBack={() => setStep(initialState ? 'language' : 'location')} />}
+      {step === 'licensed'   && <IntakeForm     state={state} hipaa={hipaa} onBack={() => setStep('hipaa')} />}
+      {step === 'unlicensed' && <WaitlistForm   state={state} onSubmitted={() => setStep('done')} onBack={() => setStep(initialState ? 'language' : 'location')} />}
       {step === 'done'       && <Confirmation isWaitlist={!licensed.has(state)} />}
     </Shell>
   )
