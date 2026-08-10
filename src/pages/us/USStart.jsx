@@ -135,43 +135,100 @@ async function createUSConsultation({ name, dob, email, phone, state, complaint,
 // ─────────────────────────────────────────────────────────────────
 // Shared visual chrome
 // ─────────────────────────────────────────────────────────────────
-function LanguagePicker() {
-  // Reads / writes sessionStorage.patient_language (shared with NZ triage
-  // so if the user later hits a triage screen the choice persists).
+// ─────────────────────────────────────────────────────────────────
+// Screen 0 — Language landing (mirrors NZ TereIntro pattern but with
+// the Tere Care warm palette and no kiwi). Patient picks a language
+// first, then the state machine walks LocationGate → HipaaGate → intake.
+// Choice persists via sessionStorage.patient_language and drives every
+// downstream t() call.
+// ─────────────────────────────────────────────────────────────────
+function LanguageLanding({ onContinue }) {
   const [lang, setLang] = useState(() => {
     try { return sessionStorage.getItem('patient_language') || 'en' } catch { return 'en' }
   })
-  function onChange(e) {
-    const code = e.target.value
+  function selectLang(code) {
     setLang(code)
-    try { sessionStorage.setItem('patient_language', code) } catch {}
-    // Notify same-tab listeners (usePatientLang). The native 'storage' event
-    // only fires cross-tab, so without this our own screens wouldn't react.
-    try { window.dispatchEvent(new Event('tere-lang-change')) } catch {}
+    try {
+      sessionStorage.setItem('patient_language', code)
+      window.dispatchEvent(new Event('tere-lang-change'))
+    } catch {}
   }
   return (
-    <select
-      aria-label="Language"
-      value={lang}
-      onChange={onChange}
-      style={{
-        appearance: 'none',
-        WebkitAppearance: 'none',
-        MozAppearance: 'none',
-        background: 'transparent',
-        border: `1px solid ${C.line}`,
-        borderRadius: 999,
-        padding: '.35rem .9rem',
-        fontFamily: 'inherit',
-        fontSize: '.82rem',
-        color: C.ink2,
-        cursor: 'pointer',
-      }}
-    >
-      {US_LANGUAGES.map(l => (
-        <option key={l.code} value={l.code}>{l.nativeName}</option>
-      ))}
-    </select>
+    <div style={{ textAlign: 'center', paddingTop: '.5rem' }}>
+      {/* Warm hero mark — teal cross over sunburst rays, no kiwi. */}
+      <div style={{
+        width: 96, height: 96, margin: '0 auto 1.25rem',
+        borderRadius: '50%',
+        background: `radial-gradient(circle at 50% 40%, ${C.gold}22, transparent 70%)`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        position: 'relative',
+      }}>
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          {/* Sunburst rays */}
+          {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => (
+            <line key={deg} x1="32" y1="6" x2="32" y2="12"
+              stroke={C.gold} strokeWidth="2" strokeLinecap="round"
+              transform={`rotate(${deg} 32 32)`} opacity="0.55" />
+          ))}
+          {/* Circle + medical cross */}
+          <circle cx="32" cy="32" r="18" fill={C.teal} />
+          <rect x="29" y="22" width="6" height="20" rx="1.5" fill="white" />
+          <rect x="22" y="29" width="20" height="6" rx="1.5" fill="white" />
+        </svg>
+      </div>
+
+      <div style={{
+        fontFamily: 'Cormorant Garamond, Georgia, serif',
+        fontStyle: 'italic', color: C.tealDeep,
+        fontSize: 'clamp(2rem, 6vw, 2.6rem)', lineHeight: 1.05,
+        marginBottom: '.35rem',
+      }}>
+        Tere Care
+      </div>
+      <div style={{
+        fontSize: '.72rem', color: C.ink2, letterSpacing: '.15em',
+        textTransform: 'uppercase', fontWeight: 600, marginBottom: '1.75rem',
+      }}>
+        Urgent telemedicine · No insurance
+      </div>
+
+      <div style={{
+        fontSize: '.72rem', color: C.muted, textTransform: 'uppercase',
+        letterSpacing: '.1em', marginBottom: '.75rem', fontWeight: 600,
+      }}>
+        Choose your language
+      </div>
+      <div style={{
+        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 8, marginBottom: '1.75rem',
+      }}>
+        {US_LANGUAGES.map(l => {
+          const on = lang === l.code
+          return (
+            <button key={l.code} onClick={() => selectLang(l.code)} style={{
+              background: on ? `rgba(28,110,99,.12)` : 'white',
+              border: `1.5px solid ${on ? C.teal : C.line}`,
+              borderRadius: 10, padding: '10px 6px', cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              transition: 'all .15s',
+            }}>
+              <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>{l.flag}</span>
+              <span style={{
+                fontSize: '.68rem', color: on ? C.tealDeep : C.ink2,
+                fontFamily: 'inherit', fontWeight: on ? 700 : 500,
+              }}>{l.nativeName}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      <button onClick={onContinue} style={{
+        ...primaryBtn,
+        width: '100%',
+      }}>
+        Continue &nbsp;→
+      </button>
+    </div>
   )
 }
 
@@ -186,7 +243,6 @@ function Shell({ children }) {
       <header style={{
         padding: '1.25rem 1.5rem',
         borderBottom: `1px solid ${C.lineSoft}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <a href="/" style={{ textDecoration: 'none' }}>
           <span style={{
@@ -195,7 +251,6 @@ function Shell({ children }) {
             fontSize: '1.4rem', fontWeight: 600,
           }}>Tere Care</span>
         </a>
-        <LanguagePicker />
       </header>
       <main style={{ flex: 1, padding: '2rem 1.25rem 4rem' }}>
         <div style={{ maxWidth: 560, margin: '0 auto' }}>
@@ -495,7 +550,7 @@ function IntakeForm({ state, hipaa }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError]         = useState(null)
 
-  const canSubmit = name.trim() && dob && email.trim() && complaint.trim() && attested && !submitting
+  const canSubmit = name.trim() && dob && email.trim() && phone.trim() && complaint.trim() && attested && !submitting
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -591,8 +646,8 @@ function IntakeForm({ state, hipaa }) {
             value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="us-phone" style={labelStyle}>{t('us_intake_mobile_label', lang)} <span style={{ color: C.muted, fontWeight: 400 }}>{t('us_intake_mobile_optional', lang)}</span></label>
-          <input id="us-phone" type="tel" autoComplete="tel"
+          <label htmlFor="us-phone" style={labelStyle}>{t('us_intake_mobile_label', lang)}</label>
+          <input id="us-phone" type="tel" required autoComplete="tel"
             value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="+1 555 555 5555" />
         </div>
         <div>
@@ -829,10 +884,13 @@ export default function USStart() {
 
   const [state, setState] = useState(initialState)
   const [hipaa, setHipaa] = useState(null)   // { version, at } once acknowledged
+  // First step is the language picker — same posture as NZ TereIntro.
+  // Skip it if a language is already stashed in this session (e.g. user
+  // came back from a previous step via the browser back button).
   const [step, setStep]   = useState(() => {
+    const hasLang = (() => { try { return !!sessionStorage.getItem('patient_language') } catch { return false } })()
+    if (!hasLang) return 'language'
     if (!initialState) return 'location'
-    // Licensed states get the HIPAA gate before PHI collection.
-    // Unlicensed goes straight to waitlist (no PHI, no gate needed).
     return licensed.has(initialState) ? 'hipaa' : 'unlicensed'
   })
 
@@ -846,8 +904,14 @@ export default function USStart() {
     setStep('licensed')
   }
 
+  function onLanguageContinue() {
+    if (!initialState) setStep('location')
+    else setStep(licensed.has(initialState) ? 'hipaa' : 'unlicensed')
+  }
+
   return (
     <Shell>
+      {step === 'language'   && <LanguageLanding onContinue={onLanguageContinue} />}
       {step === 'location'   && <LocationGate onContinue={onLocationContinue} />}
       {step === 'hipaa'      && <HipaaGate    state={state} onAccept={onHipaaAccept} />}
       {step === 'licensed'   && <IntakeForm   state={state} hipaa={hipaa} onSubmitted={() => setStep('done')} />}

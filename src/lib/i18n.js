@@ -1184,16 +1184,16 @@ const T = {
 
   // Screen 2 — HipaaGate
   us_hipaa_banner_prefix: {
-    en: 'We can see you in ',
-    es: 'Podemos atenderle en ',
-    zh: '我们可以在',
+    en: 'Care is available in ',
+    es: 'Atención disponible en ',
+    zh: '我们在',
     ja: '当院は',
     ko: '저희는 ',
-    de: 'Wir können Sie in ',
-    nl: 'We kunnen u ontvangen in ',
-    fr: 'Nous pouvons vous recevoir en ',
-    ar: 'يمكننا استقبالك في ',
-    hi: 'हम आपको ',
+    de: 'Behandlung verfügbar in ',
+    nl: 'Zorg beschikbaar in ',
+    fr: 'Soins disponibles en ',
+    ar: 'الرعاية متاحة في ',
+    hi: 'देखभाल उपलब्ध है — ',
   },
   us_hipaa_banner_suffix: {
     en: '. One quick step before we ask about your visit.',
@@ -1354,16 +1354,16 @@ const T = {
 
   // Screen 3a — IntakeForm
   us_intake_banner_prefix: {
-    en: 'We can see you in ',
-    es: 'Podemos atenderle en ',
-    zh: '我们可以在',
+    en: 'Care is available in ',
+    es: 'Atención disponible en ',
+    zh: '我们在',
     ja: '当院は',
     ko: '저희는 ',
-    de: 'Wir können Sie in ',
-    nl: 'We kunnen u ontvangen in ',
-    fr: 'Nous pouvons vous recevoir en ',
-    ar: 'يمكننا استقبالك في ',
-    hi: 'हम आपको ',
+    de: 'Behandlung verfügbar in ',
+    nl: 'Zorg beschikbaar in ',
+    fr: 'Soins disponibles en ',
+    ar: 'الرعاية متاحة في ',
+    hi: 'देखभाल उपलब्ध है — ',
   },
   us_intake_banner_suffix: {
     en: '.',

@@ -99,7 +99,6 @@ function Nav() {
         <a href="#how" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>How it works</a>
         <a href="#pricing" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
         <a href="#faq" style={{ color: 'rgba(251,247,239,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
-        <NavLanguagePicker scrolled={scrolled} />
         <a href={START_URL} style={{
           background: C.warm, color: 'white', textDecoration: 'none',
           padding: '9px 20px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,

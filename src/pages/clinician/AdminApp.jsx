@@ -602,6 +602,7 @@ function SettingsTab({ navigate, displayName }) {
 
   const links = [
     { label:'Payroll',               icon:'💰',  sub:'Calculate & approve provider earnings', action:()=>navigate('/admin/payroll') },
+    { label:'State license verifications', icon:'🪪', sub:'Review pending provider US state licenses', action:()=>navigate('/clinician/admin/state-licenses') },
     { label:'Provider dashboard',    icon:'📊',  sub:'Clinician consultation view',           action:()=>navigate('/clinician/dashboard') },
     { label:'Change password',       icon:'🔑',  sub:'Update your PIN',                       action:()=>navigate('/clinician/change-password') },
     { label:'Two-factor authentication', icon:'🛡', sub:'Set up an authenticator app for MFA', action:()=>setShowMfa(true) },

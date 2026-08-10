@@ -1093,6 +1093,7 @@ function MenuTab({ navigate, displayName, isAdmin }) {
   const items = [
     ...(isAdmin ? [{ label:'Admin dashboard', icon:'⚙️', action:()=>navigate('/clinician/admin'), color:NAVY }] : []),
     { label:'Provider dashboard (desktop)', icon:'🖥', action:()=>navigate('/clinician/dashboard'), color:'#374151' },
+    { label:'US state licenses', icon:'🪪', action:()=>navigate('/clinician/state-licenses'), color:'#374151' },
     { label:'Change password', icon:'🔑', action:()=>navigate('/clinician/change-password'), color:'#374151' },
     { label:'Two-factor authentication', icon:'🛡', action:()=>setShowMfa(true), color:'#374151' },
     { label:'Sign out', icon:'→', action:signOut, color:'#DC2626' },

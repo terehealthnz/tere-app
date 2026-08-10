@@ -812,6 +812,7 @@ export default function Dashboard() {
             ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
             ['notes','Notes'],
             ['schedule','📅 Schedule'],
+            ['licenses','🪪 State licenses'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
             // Supervision tab is where the supervisor logs their scheduled
             // review meetings with each RMO. MCNZ requires evidence of these
@@ -992,6 +993,17 @@ export default function Dashboard() {
 
         {dashTab === 'notes' && <NotesTab navigate={navigate} />}
         {dashTab === 'schedule' && <ProviderSchedule embedded />}
+        {dashTab === 'licenses' && (
+          <div style={{ marginTop: 8 }}>
+            <button onClick={() => navigate('/clinician/state-licenses')}
+              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer' }}>
+              Open state licenses →
+            </button>
+            <p style={{ marginTop: '.75rem', fontSize: '.85rem', color: 'var(--muted)' }}>
+              Add / view your US state licenses. Once approved by admin, you'll be able to see patients from those states.
+            </p>
+          </div>
+        )}
         {dashTab === 'approvals' && isSupervisor && <ApprovalsTab onBadgeChange={setApprovalBadge} />}
         {dashTab === 'supervision' && isSupervisor && <SupervisionReviewsTab navigate={navigate} />}
         {dashTab === 'my-supervision' && isRMO && <RMOSupervisionSelfTab />}
