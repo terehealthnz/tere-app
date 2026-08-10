@@ -196,7 +196,7 @@ function LanguageLanding({ onContinue }) {
         fontSize: '.72rem', color: C.muted, textTransform: 'uppercase',
         letterSpacing: '.1em', marginBottom: '.75rem', fontWeight: 600,
       }}>
-        Choose your language
+        {t('choose_language', lang)}
       </div>
       <div style={{
         display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
@@ -226,7 +226,7 @@ function LanguageLanding({ onContinue }) {
         ...primaryBtn,
         width: '100%',
       }}>
-        Continue &nbsp;→
+        {t('us_continue', lang)} &nbsp;→
       </button>
     </div>
   )
