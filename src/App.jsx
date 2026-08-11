@@ -97,6 +97,7 @@ const AdminSchedule       = lazy(() => import('./pages/clinician/AdminSchedule')
 const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
 const AdminStateLicenses  = lazy(() => import('./pages/clinician/AdminStateLicenses'))
+const ProviderInbox       = lazy(() => import('./pages/clinician/ProviderInbox'))
 const Employers           = lazy(() => import('./pages/Employers'))
 const PrivacyPolicy       = lazy(() => import('./pages/PrivacyPolicy'))
 const Terms               = lazy(() => import('./pages/Terms'))
@@ -216,6 +217,7 @@ export default function App() {
         <Route path="/clinician/admin/flags"  element={<AdminFlags />} />
         <Route path="/clinician/state-licenses"       element={<ProviderStateLicenses />} />
         <Route path="/clinician/admin/state-licenses" element={<AdminStateLicenses />} />
+        <Route path="/clinician/inbox"                element={<ProviderInbox />} />
         <Route path="/clinician/consult/:id"  element={<ConsultView />} />
         <Route path="/clinician/notes/:id"    element={<NotesCompletion />} />
         <Route path="/careers"                element={<Careers />} />

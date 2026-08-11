@@ -1,0 +1,37 @@
+app = "tere-hl7-mtls"
+primary_region = "syd"
+
+[build]
+
+[[mounts]]
+  source = "hl7certs"
+  destination = "/certs"
+
+[env]
+  PORT = "8443"
+
+[[services]]
+  internal_port = 8443
+  protocol = "tcp"
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls_passthrough"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 50
+
+  [[services.tcp_checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "5s"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

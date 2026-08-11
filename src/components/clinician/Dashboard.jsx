@@ -813,6 +813,7 @@ export default function Dashboard() {
             ['notes','Notes'],
             ['schedule','📅 Schedule'],
             ['licenses','🪪 State licenses'],
+            ['inbox','📥 Inbox'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
             // Supervision tab is where the supervisor logs their scheduled
             // review meetings with each RMO. MCNZ requires evidence of these
@@ -1001,6 +1002,17 @@ export default function Dashboard() {
             </button>
             <p style={{ marginTop: '.75rem', fontSize: '.85rem', color: 'var(--muted)' }}>
               Add / view your US state licenses. Once approved by admin, you'll be able to see patients from those states.
+            </p>
+          </div>
+        )}
+        {dashTab === 'inbox' && (
+          <div style={{ marginTop: 8 }}>
+            <button onClick={() => navigate('/clinician/inbox')}
+              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer' }}>
+              Open inbox →
+            </button>
+            <p style={{ marginTop: '.75rem', fontSize: '.85rem', color: 'var(--muted)' }}>
+              Inbound lab results, referrals, and GP letters routed to you via Medical-Objects Capricorn.
             </p>
           </div>
         )}
