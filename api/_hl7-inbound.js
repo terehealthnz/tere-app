@@ -33,11 +33,11 @@ const MAX_BODY_BYTES = 6 * 1024 * 1024   // 6MB — conformance requires 5MB
 // escape / subcomponent). We read them from the MSH itself so we handle
 // non-default separators (rare in practice but not impossible).
 
-function detectLineBreak(raw) {
-  // Producers use \r, \n, or \r\n between segments. Detect and split.
-  if (raw.includes('\r\n')) return '\r\n'
-  if (raw.includes('\r'))   return '\r'
-  return '\n'
+function normaliseSegments(raw) {
+  // HL7 v2 nominally uses \r as the segment separator. Real-world Capricorn
+  // samples mix \r with a trailing \r\n at EOF, and some senders use \n.
+  // Normalise everything to \n then split, and drop empty lines.
+  return String(raw).replace(/\r\n?/g, '\n').split('\n').filter(s => s.length > 0)
 }
 
 function readSeparators(mshSegment) {
@@ -56,8 +56,7 @@ function readSeparators(mshSegment) {
 }
 
 function parseMessage(raw) {
-  const nl = detectLineBreak(raw)
-  const segments = raw.split(nl).filter(s => s.trim().length > 0)
+  const segments = normaliseSegments(raw)
   if (!segments.length || !segments[0].startsWith('MSH')) {
     throw new Error('Not an HL7 v2 message — missing MSH segment')
   }
@@ -218,12 +217,15 @@ async function matchProvider(supabase, receivingFacility, receivingApp) {
 
 async function matchPatient(supabase, patient) {
   if (!patient) return { match: null, confidence: 'none' }
-  // NHI first (PID-3 typically holds it in NZ).
-  if (patient.pid3) {
+  // NHI first (PID-3 typically holds it in NZ). v2.4 messages use the HD-
+  // variant format `EJH551Z^^NHI^NZLMOH^NI` — the actual ID is component 1.
+  // v2.1 messages usually just have the raw ID. Handle both.
+  const nhiCandidate = String(patient.pid3 || '').split('^')[0].trim()
+  if (nhiCandidate) {
     const { data: byNhi } = await supabase
       .from('patients')
       .select('id, first_name, last_name, dob, nhi')
-      .eq('nhi', patient.pid3)
+      .eq('nhi', nhiCandidate)
       .maybeSingle()
     if (byNhi) return { match: byNhi, confidence: 'strong' }
   }
