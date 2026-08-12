@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getCompleteSince } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import AdminSchedule from './AdminSchedule'
 import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
@@ -1034,7 +1033,6 @@ function BottomNav({ tab, setTab, dashBadge, msgBadge, teamBadge }) {
     { id:'tere-chat', icon:'💬', label:'Tere Chat', badge:teamBadge },
     { id:'analytics', icon:'📊', label:'Analytics',  badge:0 },
     { id:'bookings',  icon:'📆', label:'Bookings',   badge:0 },
-    { id:'schedule',  icon:'📅', label:'Schedule',   badge:0 },
     { id:'settings',  icon:'⚙️', label:'Settings',   badge:0 },
   ]
   return (
@@ -1257,7 +1255,6 @@ export default function AdminApp() {
         {tab === 'tere-chat' && <TereChatTab />}
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'bookings'  && <BookingsTab />}
-        {tab === 'schedule'  && <AdminSchedule embedded />}
         {tab === 'employers' && <EmployersTab />}
         {tab === 'research'  && <ResearchTab />}
         {tab === 'settings'  && <SettingsTab navigate={navigate} displayName={displayName} />}

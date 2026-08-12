@@ -20,5 +20,5 @@ ALTER TABLE providers
 -- Match on his MCNZ number to avoid depending on the display name.
 UPDATE providers
    SET licensed_states = ARRAY['WA','CA','MO','TX','UT','ID']
- WHERE mcnz_number = '99529'
+ WHERE mcnz_registration_number = '99529'
    AND (licensed_states IS NULL OR array_length(licensed_states, 1) IS NULL);

@@ -1,37 +1,49 @@
-app = "tere-hl7-mtls"
-primary_region = "syd"
+# fly.toml app configuration file generated for tere-hl7-mtls on 2026-08-10T23:58:59-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tere-hl7-mtls'
+primary_region = 'syd'
 
 [build]
+[env]
+  PORT = '8443'
 
 [[mounts]]
-  source = "hl7certs"
-  destination = "/certs"
+  source = 'hl7certs'
+  destination = '/certs'
 
-[env]
-  PORT = "8443"
+[http_service]
+  internal_port = 8443
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[services]]
+  protocol = 'tcp'
   internal_port = 8443
-  protocol = "tcp"
-  auto_stop_machines = false
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
   [[services.ports]]
     port = 443
-    handlers = ["tls_passthrough"]
+    handlers = ['tls_passthrough']
 
   [services.concurrency]
-    type = "connections"
+    type = 'connections'
     hard_limit = 100
     soft_limit = 50
 
   [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-    grace_period = "5s"
+    interval = '15s'
+    timeout = '2s'
+    grace_period = '5s'
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = 'shared'
   cpus = 1
   memory_mb = 256

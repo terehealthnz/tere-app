@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue, getCompleteSince, getPendingNotes, getCompletedNotes } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } from '../../components/clinician/ConsultModals'
-import ProviderSchedule from './ProviderSchedule'
 import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
@@ -1132,7 +1131,6 @@ function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge })
     { id:'messages', icon:'✉️', label:'Messages', badge:msgBadge },
     { id:'tere-chat',icon:'💬', label:'Tere Chat', badge:teamBadge },
     { id:'pms',      icon:'📊', label:'PMS',      badge:notesBadge },
-    { id:'schedule', icon:'📅', label:'Schedule', badge:0 },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
   return (
@@ -1367,7 +1365,6 @@ export default function ProviderApp() {
         {tab === 'messages' && <MessagesTab msgBadge={msgBadge} setMsgBadge={setMsgBadge} />}
         {tab === 'tere-chat' && <TereChatTab />}
         {tab === 'pms'      && <PMSTab navigate={navigate} />}
-        {tab === 'schedule' && <ProviderSchedule embedded />}
         {tab === 'menu'     && <MenuTab navigate={navigate} displayName={displayName} isAdmin={isAdmin} />}
       </div>
 

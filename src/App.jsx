@@ -90,10 +90,8 @@ const ProviderApp         = lazy(() => import('./pages/clinician/ProviderApp'))
 const ClinicianPatient    = lazy(() => import('./pages/clinician/ClinicianPatient'))
 const ProviderConsult     = lazy(() => import('./pages/clinician/ProviderConsult'))
 const ProviderNotes       = lazy(() => import('./pages/clinician/ProviderNotes'))
-const ProviderSchedule    = lazy(() => import('./pages/clinician/ProviderSchedule'))
 const ProviderEarnings    = lazy(() => import('./pages/clinician/ProviderEarnings'))
 const AdminApp            = lazy(() => import('./pages/clinician/AdminApp'))
-const AdminSchedule       = lazy(() => import('./pages/clinician/AdminSchedule'))
 const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
 const AdminStateLicenses  = lazy(() => import('./pages/clinician/AdminStateLicenses'))
@@ -202,9 +200,7 @@ export default function App() {
         <Route path="/provider/consult/:id"   element={<ProviderConsult />} />
         <Route path="/clinician/patient/:id"  element={<ClinicianPatient />} />
         <Route path="/provider/notes/:id"     element={<ProviderNotes />} />
-        <Route path="/provider/schedule"      element={<ProviderSchedule />} />
         <Route path="/admin"                  element={<AdminApp />} />
-        <Route path="/admin/schedule"         element={<AdminSchedule />} />
         <Route path="/admin/payroll"          element={<AdminPayroll />} />
         <Route path="/provider/earnings"      element={<ProviderEarnings embedded={false} />} />
         <Route path="/clinician"              element={<ClinicianLogin />} />

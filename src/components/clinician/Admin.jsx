@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getRecentConsultations, getPaymentPendingConsultations, getRatedConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import AdminSchedule  from '../../pages/clinician/AdminSchedule'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
@@ -1488,7 +1487,7 @@ function ProvidersPanel() {
                       <button onClick={() => update(p.id, { is_available: !p.is_available })}
                         disabled={saving === p.id}
                         style={{ background: p.is_available ? '#FEE2E2' : '#F0FDF4', color: p.is_available ? '#DC2626' : '#059669', border:'none', padding:'5px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
-                        {saving === p.id ? '…' : p.is_available ? 'Set unavailable' : 'Set available'}
+                        {saving === p.id ? '…' : p.is_available ? 'Set offline' : 'Set online'}
                       </button>
                     )}
                     {p.is_provider && (
@@ -3668,7 +3667,6 @@ function AdminBody() {
             { id:'finance',      label:'💰 Finance' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
-            { id:'schedule',     label:'📅 Schedule' },
             { id:'payroll',      label:'👛 Payroll' },
             { id:'safety',       label:'⚠ Safety' },
             { id:'employers',    label:'🏢 Employers' },
@@ -3737,7 +3735,6 @@ function AdminBody() {
               return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
               return <><AuditLogPanel /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
-            case 'schedule':   return <AdminSchedule embedded />
             case 'payroll':    return <AdminPayroll embedded />
             case 'safety':     return <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></>
             case 'employers':  return <EmployersPanel />

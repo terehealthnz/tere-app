@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAccPendingCount, getPendingPrescriptions, getPendingPrescriptionsCount, getCompleteSince, getAllCompleteConsultations, getMessagePendingConsultations } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
-import ProviderSchedule from '../../pages/clinician/ProviderSchedule'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
 
 function useClinicianAuth() {
@@ -793,13 +792,13 @@ export default function Dashboard() {
             <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
               <div style={{width:12,height:12,borderRadius:'50%',background:provIsAvail ? 'var(--success)' : '#D1D5DB',flexShrink:0}} />
               <div>
-                <div style={{fontWeight:700,fontSize:'.9375rem'}}>{provIsAvail ? 'You are available for patients' : 'You are currently unavailable'}</div>
-                <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>Your availability status shown to patients</div>
+                <div style={{fontWeight:700,fontSize:'.9375rem'}}>{provIsAvail ? "You're online — taking patients" : "You're offline"}</div>
+                <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>Toggle to open or close your queue</div>
               </div>
             </div>
             <button onClick={toggleProviderAvail} disabled={savingProvAvail}
               style={{background:provIsAvail ? 'var(--danger)' : 'var(--success)',color:'white',border:'none',padding:'8px 18px',borderRadius:'8px',fontWeight:700,fontSize:'.9375rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',whiteSpace:'nowrap'}}>
-              {savingProvAvail ? 'Saving…' : provIsAvail ? 'Set unavailable' : 'Set available'}
+              {savingProvAvail ? 'Saving…' : provIsAvail ? 'Go offline' : 'Go online'}
             </button>
           </div>
         )}
@@ -811,7 +810,6 @@ export default function Dashboard() {
             ['messages','💬 Messages'],
             ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
             ['notes','Notes'],
-            ['schedule','📅 Schedule'],
             ['licenses','🪪 State licenses'],
             ['inbox','📥 Inbox'],
             ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
@@ -993,7 +991,6 @@ export default function Dashboard() {
         </>)}
 
         {dashTab === 'notes' && <NotesTab navigate={navigate} />}
-        {dashTab === 'schedule' && <ProviderSchedule embedded />}
         {dashTab === 'licenses' && (
           <div style={{ marginTop: 8 }}>
             <button onClick={() => navigate('/clinician/state-licenses')}
