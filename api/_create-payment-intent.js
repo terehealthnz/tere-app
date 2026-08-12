@@ -25,14 +25,19 @@ export default async function handler(req, res) {
   // the admin work being paid for is real and disclosed to the patient
   // at booking.
   const PRICES = {
-    consult: { private: 6000, acc: 2000 },
-    video:   { private: 6000, acc: 2000 },
-    phone:   { private: 6000, acc: 2000 },
-    message: { private: 2500, acc: 2500 },
+    // international tier applies when the patient's billing address country
+    // is not NZ (typically tourists / visitors physically in NZ). See
+    // Payment.jsx — the country dropdown flips isInternational for us.
+    // Without this tier the payment intent silently fails with an undefined
+    // amount when isInternational=true.
+    consult: { private: 6000, acc: 2000, international: 10000 },
+    video:   { private: 6000, acc: 2000, international: 10000 },
+    phone:   { private: 6000, acc: 2000, international: 10000 },
+    message: { private: 2500, acc: 2500, international: 4000  },
     // Post-consult upsell: $10 for the insurance-formatted itemised PDF
     // receipt. Fulfilled by /api/generate-insurance-receipt after payment
     // settles. Not ACC-billable (a receipt isn't a health service).
-    receipt: { private: 1000, acc: 1000 },
+    receipt: { private: 1000, acc: 1000, international: 1000 },
   }
   const isIntl = req.body?.isInternational === true
   const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')

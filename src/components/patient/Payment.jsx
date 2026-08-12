@@ -37,6 +37,27 @@ const BASE_PRICES = {
 }
 const COUPON_DISCOUNT = 10
 
+// Billing-country dropdown. NZ = local rate. Anything else = international
+// rate. Compact list covering top NZ visitor origins + a fallback. We don't
+// display a full ISO country list because the price rule is binary
+// (NZ vs. non-NZ); more granularity here just adds friction.
+const BILLING_COUNTRIES = [
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'US', name: 'United States' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'DE', name: 'Germany' },
+  { code: 'FR', name: 'France' },
+  { code: 'NL', name: 'Netherlands' },
+  { code: 'CN', name: 'China' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'KR', name: 'South Korea' },
+  { code: 'IN', name: 'India' },
+  { code: 'SG', name: 'Singapore' },
+  { code: 'OTHER', name: 'Other' },
+]
+
 function PaymentForm({ consultationId, accEligible, consultationType }) {
   const navigate   = useNavigate()
   const stripe     = useStripe()
@@ -49,8 +70,12 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
   const [couponError, setCouponError]   = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
 
-  const [isInternational, setIsInternational] = useState(() => sessionStorage.getItem('is_international') === '1')
-  useEffect(() => { sessionStorage.setItem('is_international', isInternational ? '1' : '0') }, [isInternational])
+  // Billing country drives the pricing tier. Anything other than 'NZ' means
+  // international rate. We persist to sessionStorage so back/forward keeps
+  // the selection.
+  const [billingCountry, setBillingCountry] = useState(() => sessionStorage.getItem('billing_country') || 'NZ')
+  useEffect(() => { sessionStorage.setItem('billing_country', billingCountry) }, [billingCountry])
+  const isInternational = billingCountry !== 'NZ'
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
   const baseAmount = isInternational
     ? priceSet.international
@@ -184,23 +209,33 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           </div>
         )}
 
-        {/* International visitor rate — tourists / cruise passengers / business travellers in NZ */}
+        {/* Billing country — drives NZ ($60) vs international ($100) pricing.
+            Presented as a normal billing-address field, not a "tourist" flag,
+            so it doesn't feel like a paywall trap. */}
         {accEligible !== 'yes' && (
-          <label style={{ display:'flex', alignItems:'flex-start', gap:'.625rem', background: isInternational ? '#FFF7ED' : '#F8FAFC', border: `1px solid ${isInternational ? '#FED7AA' : '#E2E8F0'}`, borderRadius:'var(--radius-sm)', padding:'.875rem 1rem', marginBottom:'1.25rem', cursor:'pointer', fontSize:'.875rem', lineHeight:1.5 }}>
-            <input type="checkbox" checked={isInternational} onChange={e => setIsInternational(e.target.checked)}
-              style={{ marginTop:2, cursor:'pointer', flexShrink:0 }} />
-            <div>
-              <div style={{ fontWeight:700, color:'#0D2B45' }}>
-                I'm visiting New Zealand from overseas
+          <div style={{ background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:'var(--radius-sm)', padding:'.875rem 1rem', marginBottom:'1.25rem' }}>
+            <label style={{ display:'block', fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.4rem' }}>
+              Billing country
+            </label>
+            <select value={billingCountry} onChange={e => setBillingCountry(e.target.value)}
+              style={{ width:'100%', padding:'.55rem .7rem', fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', color:'#1A2A33', background:'white', border:'1.5px solid #E2E8F0', borderRadius:8, cursor:'pointer' }}>
+              {BILLING_COUNTRIES.map(c => (
+                <option key={c.code} value={c.code}>{c.name}</option>
+              ))}
+            </select>
+            {isInternational ? (
+              <div style={{ marginTop:'.5rem', fontSize:'.8125rem', color:'#6B7280', lineHeight:1.55 }}>
+                International visitor rate: <strong>NZ${priceSet.international}</strong>. Includes an itemised receipt suitable for travel-insurance claims.
+                <div style={{ marginTop:'.4rem', fontSize:'.75rem', color:'#B45309', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.4rem .55rem' }}>
+                  <strong>Injury from an accident in NZ?</strong> ACC covers visitors at the standard NZ$20 rate — please go back and update your ACC answer during triage if this applies.
+                </div>
               </div>
-              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:'.375rem' }}>
-                Non-resident rate: <strong>${priceSet.international}</strong>. I confirm I'm currently physically located in New Zealand. Includes an itemised receipt suitable for travel insurance claims.
+            ) : (
+              <div style={{ marginTop:'.5rem', fontSize:'.8125rem', color:'#6B7280' }}>
+                New Zealand resident rate: <strong>NZ${priceSet.private}</strong>.
               </div>
-              <div style={{ fontSize:'.75rem', color:'#B45309', marginTop:'.5rem', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.4rem .55rem', lineHeight:1.55 }}>
-                <strong>Important:</strong> If this is an accidental injury that happened in New Zealand, ACC covers visitors too — at the standard $20 rate. Please go back and update your ACC answer during triage if that applies.
-              </div>
-            </div>
-          </label>
+            )}
+          </div>
         )}
 
         {/* Coupon code */}
