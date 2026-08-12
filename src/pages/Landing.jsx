@@ -173,11 +173,14 @@ function Pricing() {
               <div style={{ fontWeight: 700, fontSize: '1.15rem', color: BRAND.navy, marginBottom: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.title}</div>
               <div style={{ fontSize: '.875rem', color: '#6B7280', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.subtitle}</div>
               <div style={{ marginBottom: '1.25rem' }}>
-                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.price}</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem' }}>
+                  <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.price}</span>
+                  <span style={{ fontSize: '.8125rem', color: '#6B7280', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>standard</span>
+                </div>
                 {p.accPrice === 0 ? (
-                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC</span>
+                  <div style={{ marginTop: '.25rem', fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC cover</div>
                 ) : p.accPrice ? (
-                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.accPrice} admin fee with ACC</span>
+                  <div style={{ marginTop: '.25rem', fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Just NZ${p.accPrice} with ACC cover</div>
                 ) : null}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', textAlign: 'left' }}>
