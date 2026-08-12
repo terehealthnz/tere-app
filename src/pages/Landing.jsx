@@ -153,8 +153,7 @@ function Pricing() {
           ACC-eligible injury? Just a NZ$20 admin fee — ACC covers your consultation.
         </p>
         <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
-          Prices in NZD · For patients located in Aotearoa New Zealand.{' '}
-          <a href="https://terecare.com" style={{ color: BRAND.teal, textDecoration: 'underline' }}>Visiting from the US?</a>
+          Prices in NZD · Patients located outside Aotearoa New Zealand pay a flat NZ$100 consultation fee.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
           {plans.map(p => (
