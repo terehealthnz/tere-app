@@ -31,7 +31,7 @@ const UPDATE_ALLOWLIST = new Set([
   'can_prescribe', 'can_refer', 'can_acc',
   'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
   'signature_url',
-  'base_rate', 'hourly_rate', 'holiday_pay_pct',
+  'base_rate',
   'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
   // MCNZ RMO supervision (see supabase-mcnz-supervision-migration.sql)
   'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
@@ -124,7 +124,7 @@ export default async function handler(req, res) {
       'mcnz_registration_number', 'scope_of_practice', 'pgy_level', 'supervision_plan_url',
       'availability_message',
       'signature_url',
-      'base_rate', 'hourly_rate', 'holiday_pay_pct',
+      'base_rate',
       'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
     ])
     const row = { first_name, last_name, email, pin_hash, must_change_password: true }

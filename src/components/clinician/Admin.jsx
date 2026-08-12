@@ -463,8 +463,6 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     // Payroll
     contract_type: 'contractor',
     base_rate: '',
-    hourly_rate: '',
-    holiday_pay_pct: '8',
     bank_account: '',
     ird_number: '',
     tax_code: 'M',
@@ -516,7 +514,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
       // Normalise payroll numerics — send as numbers, empty strings become null so
       // the endpoint doesn't try to parse "" as numeric.
       const payload = { ...form }
-      for (const k of ['base_rate', 'hourly_rate', 'holiday_pay_pct']) {
+      for (const k of ['base_rate']) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
@@ -779,16 +777,8 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                 </select>
               </div>
               <div>
-                <div style={labelStyle}>Base rate ($NZD / consultation)</div>
-                <input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} placeholder="e.g. 45.00" />
-              </div>
-              <div>
-                <div style={labelStyle}>Hourly rate ($NZD, optional)</div>
-                <input type="number" step="0.01" value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} style={inputStyle} placeholder="e.g. 120.00" />
-              </div>
-              <div>
-                <div style={labelStyle}>Holiday pay %</div>
-                <input type="number" step="0.1" value={form.holiday_pay_pct} onChange={e => set('holiday_pay_pct', e.target.value)} style={inputStyle} placeholder="8" />
+                <div style={labelStyle}>Per-consult override ($NZD, optional)</div>
+                <input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} placeholder="Leave blank for default $20 video / $10 message" />
               </div>
               <div>
                 <div style={labelStyle}>IRD number</div>
@@ -847,8 +837,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     acc_provider_number: provider.acc_provider_number || '',
     contract_type: provider.contract_type || 'contractor',
     base_rate: provider.base_rate ?? '',
-    hourly_rate: provider.hourly_rate ?? '',
-    holiday_pay_pct: provider.holiday_pay_pct ?? 8,
     bank_account: provider.bank_account || '',
     ird_number: provider.ird_number || '',
     tax_code: provider.tax_code || 'M',
@@ -869,7 +857,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     try {
       const { apiFetch } = await import('../../lib/api')
       const payload = { ...form }
-      for (const k of ['base_rate', 'hourly_rate', 'holiday_pay_pct']) {
+      for (const k of ['base_rate']) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
@@ -996,9 +984,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                   <option value="WT">WT (contractor)</option>
                 </select>
               </div>
-              <div><div style={labelStyle}>Base rate ($NZD / consult)</div><input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} /></div>
-              <div><div style={labelStyle}>Hourly rate ($NZD, optional)</div><input type="number" step="0.01" value={form.hourly_rate} onChange={e => set('hourly_rate', e.target.value)} style={inputStyle} /></div>
-              <div><div style={labelStyle}>Holiday pay %</div><input type="number" step="0.1" value={form.holiday_pay_pct} onChange={e => set('holiday_pay_pct', e.target.value)} style={inputStyle} /></div>
+              <div><div style={labelStyle}>Per-consult override ($NZD, optional)</div><input type="number" step="0.01" value={form.base_rate} onChange={e => set('base_rate', e.target.value)} style={inputStyle} placeholder="Blank = default $20 / $10" /></div>
               <div><div style={labelStyle}>IRD number</div><input value={form.ird_number} onChange={e => set('ird_number', e.target.value)} style={inputStyle} /></div>
               <div style={{ gridColumn:'1 / -1' }}><div style={labelStyle}>Bank account</div><input value={form.bank_account} onChange={e => set('bank_account', e.target.value)} style={inputStyle} /></div>
             </div>

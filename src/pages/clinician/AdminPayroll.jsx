@@ -138,7 +138,7 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
           )}
         </div>
         <div style={{ padding:'.875rem 1rem', borderTop:'1px solid #E2E8F0', background:'#F9FAFB', fontFamily:FF, fontSize:'.75rem', color:'#9CA3AF', lineHeight:1.6 }}>
-          $20 per video/phone consultation · $10 per message consultation · Contract rates
+          $20 per video/phone consultation · $10 per message consultation · Contractor — no holiday pay, no PAYE
         </div>
       </div>
     </div>

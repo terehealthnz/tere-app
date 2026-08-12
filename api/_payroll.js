@@ -1,4 +1,14 @@
-// Payroll API — calculate, approve, mark paid, payslips, emails
+// Payroll API — calculate, approve, mark paid, payslips, emails.
+//
+// Contract per-consult model (on-demand, no shifts):
+//   video / phone: $20.00 NZD
+//   message:       $10.00 NZD
+// No hourly rate. No holiday pay (contractor, not employee — Schedule 4
+// of the Holidays Act 2003 exempts contractors from statutory leave
+// entitlements; we compensate accordingly in the per-consult rate).
+//
+// providers.base_rate / hourly_rate / holiday_pay_pct columns exist in
+// the DB for historical reasons but are no longer read by this module.
 import { createClient } from '@supabase/supabase-js'
 
 const RATES = { message: 10.00, phone: 20.00, video: 20.00 }
@@ -40,18 +50,23 @@ async function buildSummaries(supabase, period_start, period_end) {
 
   const earningsMap = {}
   const countMap    = {}
+  const breakdownMap = {}          // per-provider: { video: N, phone: N, message: N }
   for (const c of consultations || []) {
-    const rate = RATES[c.consultation_type] ?? DEFAULT_RATE
+    const type = c.consultation_type || 'video'
+    const rate = RATES[type] ?? DEFAULT_RATE
     earningsMap[c.provider_id] = (earningsMap[c.provider_id] || 0) + rate
     countMap[c.provider_id]    = (countMap[c.provider_id] || 0) + 1
+    if (!breakdownMap[c.provider_id]) breakdownMap[c.provider_id] = { video: 0, phone: 0, message: 0 }
+    breakdownMap[c.provider_id][type] = (breakdownMap[c.provider_id][type] || 0) + 1
   }
   const savedMap = {}
   for (const r of payrollRows || []) savedMap[r.provider_id] = r
 
   return (providers || []).map(p => {
-    const count   = countMap[p.id] || 0
-    const saved   = savedMap[p.id]
-    const total   = parseFloat((earningsMap[p.id] || 0).toFixed(2))
+    const count     = countMap[p.id] || 0
+    const saved     = savedMap[p.id]
+    const total     = parseFloat((earningsMap[p.id] || 0).toFixed(2))
+    const breakdown = breakdownMap[p.id] || { video: 0, phone: 0, message: 0 }
     return {
       id:                 saved?.id || null,
       provider_id:        p.id,
@@ -62,6 +77,7 @@ async function buildSummaries(supabase, period_start, period_end) {
       period_end,
       consultation_count: count,
       rates:              RATES,
+      breakdown,                          // { video, phone, message }
       total_amount:       total,
       status:             saved?.status || 'draft',
       paid_at:            saved?.paid_at || null,
@@ -137,9 +153,8 @@ export default async function handler(req, res) {
       const summaries = await buildSummaries(supabase, period_start, period_end)
       const upserts = summaries.map(s => ({
         period_start: s.period_start, period_end: s.period_end, provider_id: s.provider_id,
-        consultation_count: s.consultation_count, base_rate: s.base_rate,
-        holiday_pay_rate: s.holiday_pay_rate, base_amount: s.base_amount,
-        holiday_pay_amount: s.holiday_pay_amount, total_amount: s.total_amount,
+        consultation_count: s.consultation_count,
+        total_amount:       s.total_amount,
         // Preserve existing status if already approved/paid
         ...(s.status === 'draft' ? {} : { status: s.status }),
       }))
@@ -202,17 +217,24 @@ export default async function handler(req, res) {
           .order('created_at'),
       ])
 
-      const count   = (consultations || []).length
-      const base    = parseFloat((count * BASE_RATE).toFixed(2))
-      const hol     = parseFloat((base * HOLIDAY_PAY_RATE).toFixed(2))
-      const total   = parseFloat((base + hol).toFixed(2))
+      const rows      = consultations || []
+      const count     = rows.length
+      const breakdown = { video: 0, phone: 0, message: 0 }
+      let total       = 0
+      for (const c of rows) {
+        const type = c.consultation_type || 'video'
+        const rate = RATES[type] ?? DEFAULT_RATE
+        breakdown[type] = (breakdown[type] || 0) + 1
+        total += rate
+      }
+      total = parseFloat(total.toFixed(2))
 
       const { buildPayslipPdf } = await import('./_pdf-builders.js')
       const pdfBuffer = await buildPayslipPdf({
         provider: prov, period_start: ps, period_end: pe,
-        consultations: consultations || [],
-        consultation_count: count, base_rate: BASE_RATE, holiday_pay_rate: HOLIDAY_PAY_RATE,
-        base_amount: base, holiday_pay_amount: hol, total_amount: total,
+        consultations: rows,
+        consultation_count: count, rates: RATES, breakdown,
+        total_amount: total,
       })
 
       return res.status(200).json({
@@ -245,10 +267,9 @@ export default async function handler(req, res) {
     <p style="font-size:15px;color:#374151;margin:0 0 24px">Your Tere Health earnings for <strong>${periodStr}</strong> are ready.</p>
     <div style="background:#F0F9FA;border:1px solid #D4EEF0;border-radius:12px;padding:20px 24px;margin-bottom:24px">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="color:#6B7280;padding:4px 0">Consultations</td><td style="text-align:right;font-weight:700;color:#0D2B45">${s.consultation_count}</td></tr>
-        <tr><td style="color:#6B7280;padding:4px 0">Base ($${s.base_rate.toFixed(2)} × ${s.consultation_count})</td><td style="text-align:right;color:#374151">$${s.base_amount.toFixed(2)}</td></tr>
-        <tr><td style="color:#6B7280;padding:4px 0">Holiday pay (8%)</td><td style="text-align:right;color:#374151">$${s.holiday_pay_amount.toFixed(2)}</td></tr>
-        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
+        <tr><td style="color:#6B7280;padding:4px 0">Video / phone (${s.breakdown.video + s.breakdown.phone} × $${RATES.video.toFixed(2)})</td><td style="text-align:right;color:#374151">$${((s.breakdown.video + s.breakdown.phone) * RATES.video).toFixed(2)}</td></tr>
+        <tr><td style="color:#6B7280;padding:4px 0">Message (${s.breakdown.message} × $${RATES.message.toFixed(2)})</td><td style="text-align:right;color:#374151">$${(s.breakdown.message * RATES.message).toFixed(2)}</td></tr>
+        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total (${s.consultation_count} consultations)</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
       </table>
     </div>
     <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>

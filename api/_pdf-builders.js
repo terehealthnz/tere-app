@@ -236,7 +236,13 @@ export function buildPayslipPdf(data) {
 
     doc.moveTo(50, 186).lineTo(W - 50, 186).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
 
-    // Earnings summary box
+    // Earnings summary box — per-consultation-type breakdown, no holiday pay.
+    const rates      = data.rates || { message: 10, phone: 20, video: 20 }
+    const breakdown  = data.breakdown || { video: 0, phone: 0, message: 0 }
+    const videoPhone = (breakdown.video || 0) + (breakdown.phone || 0)
+    const videoPhoneAmount = videoPhone * (rates.video || 20)
+    const messageAmount    = (breakdown.message || 0) * (rates.message || 10)
+
     let y = 200
     doc.rect(50, y, W - 100, 110).fill('#F0F9FA').stroke('#D4EEF0')
     doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Earnings Summary', 66, y + 12)
@@ -246,13 +252,13 @@ export function buildPayslipPdf(data) {
         .text(label, 66, y + yOff)
         .text(value, W - 160, y + yOff, { width: 110, align: 'right' })
     }
-    row(`Base pay (${data.consultation_count} consultations × $${Number(data.base_rate).toFixed(2)})`, `$${Number(data.base_amount).toFixed(2)}`, false, 32)
-    row(`Holiday pay in lieu (${(data.holiday_pay_rate * 100).toFixed(0)}%)`, `$${Number(data.holiday_pay_amount).toFixed(2)}`, false, 50)
+    row(`Video / phone (${videoPhone} × $${Number(rates.video).toFixed(2)})`,          `$${videoPhoneAmount.toFixed(2)}`, false, 32)
+    row(`Message (${breakdown.message || 0} × $${Number(rates.message).toFixed(2)})`,  `$${messageAmount.toFixed(2)}`,    false, 50)
     doc.moveTo(66, y + 68).lineTo(W - 66, y + 68).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
-    row('Total payment', `$${Number(data.total_amount).toFixed(2)}`, true, 76)
+    row(`Total (${data.consultation_count} consultations)`, `$${Number(data.total_amount).toFixed(2)}`, true, 76)
     y += 126
 
-    // Consultation breakdown
+    // Per-consultation breakdown table
     if ((data.consultations || []).length > 0) {
       doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Consultation Breakdown', 50, y)
       y += 18
@@ -263,8 +269,7 @@ export function buildPayslipPdf(data) {
         .text('Date', 58, y + 5)
         .text('Type', 150, y + 5)
         .text('Patient', 230, y + 5)
-        .text('Base', W - 160, y + 5, { width: 55, align: 'right' })
-        .text('Hol Pay', W - 100, y + 5, { width: 46, align: 'right' })
+        .text('Fee', W - 100, y + 5, { width: 46, align: 'right' })
       y += 18
 
       let shade = false
@@ -277,13 +282,14 @@ export function buildPayslipPdf(data) {
         shade = !shade
         const dateStr = new Date(c.created_at).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' })
         const initials = `${(c.patient_first_name || '').charAt(0)}${(c.patient_last_name || '').charAt(0)}.`
-        const type = (c.consultation_type || 'video').charAt(0).toUpperCase() + (c.consultation_type || 'video').slice(1)
+        const typeKey = c.consultation_type || 'video'
+        const type = typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
+        const fee = rates[typeKey] ?? rates.video ?? 20
         doc.fillColor('#374151').font('Helvetica').fontSize(8)
           .text(dateStr, 58, y + 4)
           .text(type, 150, y + 4)
           .text(initials, 230, y + 4)
-          .text(`$${Number(data.base_rate).toFixed(2)}`, W - 160, y + 4, { width: 55, align: 'right' })
-          .text(`$${(Number(data.base_rate) * data.holiday_pay_rate).toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
+          .text(`$${Number(fee).toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
         y += 16
       }
 
@@ -291,8 +297,7 @@ export function buildPayslipPdf(data) {
       doc.rect(50, y, W - 100, 18).fill('#E8F4F5')
       doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(8)
         .text(`Total: ${data.consultation_count} consultations`, 58, y + 5)
-        .text(`$${Number(data.base_amount).toFixed(2)}`, W - 160, y + 5, { width: 55, align: 'right' })
-        .text(`$${Number(data.holiday_pay_amount).toFixed(2)}`, W - 100, y + 5, { width: 46, align: 'right' })
+        .text(`$${Number(data.total_amount).toFixed(2)}`, W - 100, y + 5, { width: 46, align: 'right' })
       y += 30
     }
 
@@ -306,7 +311,7 @@ export function buildPayslipPdf(data) {
     doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text('Contractor services', 50, y)
     y += 12
     doc.font('Helvetica').fontSize(7.5).fillColor('#777')
-      .text('This is a record of casual contractor earnings including 8% holiday pay in lieu of annual leave as per the Holidays Act 2003.', 50, y, { width: W - 100 })
+      .text('This is a record of contractor earnings at flat per-consultation rates. As a contractor you are not entitled to statutory holiday pay under the Holidays Act 2003; the per-consult rate reflects this.', 50, y, { width: W - 100 })
     y += 14
     doc.text('This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.', 50, y, { width: W - 100 })
     y += 28
