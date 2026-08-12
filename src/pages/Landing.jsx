@@ -149,8 +149,12 @@ function Pricing() {
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
           One clear price
         </h2>
-        <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Just a $20 admin fee — ACC covers your consultation.
+        <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          ACC-eligible injury? Just a NZ$20 admin fee — ACC covers your consultation.
+        </p>
+        <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
+          Prices in NZD · For patients located in Aotearoa New Zealand.{' '}
+          <a href="https://terecare.com" style={{ color: BRAND.teal, textDecoration: 'underline' }}>Visiting from the US?</a>
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
           {plans.map(p => (
@@ -169,11 +173,11 @@ function Pricing() {
               <div style={{ fontWeight: 700, fontSize: '1.15rem', color: BRAND.navy, marginBottom: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.title}</div>
               <div style={{ fontSize: '.875rem', color: '#6B7280', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.subtitle}</div>
               <div style={{ marginBottom: '1.25rem' }}>
-                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>${p.price}</span>
+                <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.price}</span>
                 {p.accPrice === 0 ? (
                   <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC</span>
                 ) : p.accPrice ? (
-                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>${p.accPrice} admin fee with ACC</span>
+                  <span style={{ fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, marginLeft: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.accPrice} admin fee with ACC</span>
                 ) : null}
               </div>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', textAlign: 'left' }}>
@@ -285,7 +289,7 @@ function FAQ() {
   const faqs = [
     {
       q: 'Is this ACC-funded?',
-      a: 'Yes. If your condition is the result of an accident or injury, ACC covers most of the cost. You pay a small co-payment: $25 for video, $15 for phone. We handle the ACC claim for you.',
+      a: 'Yes. If your condition is the result of an accident or injury, ACC covers most of the cost. You pay a small co-payment: NZ$25 for video, NZ$15 for phone. We handle the ACC claim for you.',
     },
     {
       q: 'What can Tere Health treat?',
