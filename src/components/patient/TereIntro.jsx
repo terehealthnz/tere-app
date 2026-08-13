@@ -4,6 +4,7 @@ import { LANGUAGES, t } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
 import { createConsultation } from '../../lib/supabase'
 import { useFeatureFlag } from '../../lib/featureFlags'
+import GeoGateModal from './GeoGateModal'
 
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export default function TereIntro({ onStart }) {
   const [v, setV] = useState(false)
   const [starting, setStarting] = useState(false)
   const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
+  const [geoOpen, setGeoOpen] = useState(false)
   useEffect(() => { setTimeout(() => setV(true), 100) }, [])
 
   // While in waitlist mode, redirect visitors to the waitlist form so we
@@ -19,17 +21,32 @@ export default function TereIntro({ onStart }) {
   // page (the BetaBanner writes tere_beta_bypass=1 to sessionStorage).
   if (waitlistMode && !bypass) return <Navigate to="/waitlist" replace />
 
-  async function handleStart() {
+  // Two-phase entry: opening "Get started" arms the GeoGateModal, which
+  // hits /api/geo-check + captures the patient attestation. The modal calls
+  // us back via onGeoAccept and only THEN do we create the pre_triage row
+  // and route into /consent.
+  function handleStart() {
     if (starting) return
+    setGeoOpen(true)
+  }
+
+  async function onGeoAccept(geo) {
+    setGeoOpen(false)
     setStarting(true)
     try {
       // Pre-triage placeholder row so we can track drop-offs at the language
       // select stage. Routes through /api/create-consultation which accepts
       // this minimal payload — server derives payment_amount only when
       // consultation_type is one of the fixed-price shortcuts (repeat_rx).
+      // We also stamp what /api/geo-check saw + the patient's attestation
+      // so the provider (and any later audit) can see both signals.
       const pt = await createConsultation({
         status: 'pre_triage',
         patientLanguage: lang,
+        intakeIpCountry:  geo.ipCountry,
+        intakeIpHash:     geo.ipHash,
+        intakeAttestedNz: geo.attestedNz,
+        intakeAttestedAt: geo.attestedAt,
       })
       if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
     } catch {}
@@ -225,6 +242,12 @@ export default function TereIntro({ onStart }) {
         @keyframes blink { 0%,90%,100%{transform:scaleY(1)} 95%{transform:scaleY(.1)} }
         @keyframes tail { 0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(10deg)} }
       `}</style>
+      {geoOpen && (
+        <GeoGateModal
+          onAccept={onGeoAccept}
+          onCancel={() => setGeoOpen(false)}
+        />
+      )}
     </main>
   )
 }

@@ -151,6 +151,13 @@ export async function createConsultation(data) {
     device_type:                  deviceType,
     language_selected:            data.patientLanguage || 'en',
     patient_employment_sector:    categorizeEmploymentSector(data.employer),
+    // Intake geo gate — recorded at consult start via TereIntro's GeoGateModal.
+    // Server has already vetted the IP; we're storing what it saw + what the
+    // patient attested for provider visibility and audit.
+    ...(data.intakeIpCountry     !== undefined ? { intake_ip_country:  data.intakeIpCountry }     : {}),
+    ...(data.intakeIpHash        !== undefined ? { intake_ip_hash:     data.intakeIpHash }        : {}),
+    ...(data.intakeAttestedNz    !== undefined ? { intake_attested_nz: data.intakeAttestedNz }    : {}),
+    ...(data.intakeAttestedAt    !== undefined ? { intake_attested_at: data.intakeAttestedAt }    : {}),
   }
 
   const res = await apiFetch('/api/create-consultation', {

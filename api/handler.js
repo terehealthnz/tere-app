@@ -190,6 +190,7 @@ const ROUTES = {
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
   'hl7-inbound':               () => import('./_hl7-inbound.js'),
   'provider-inbox':            () => import('./_provider-inbox.js'),
+  'geo-check':                 () => import('./_geo-check.js'),
   'provider-reset-request':    () => import('./_provider-reset-request.js'),
   'provider-reset-complete':   () => import('./_provider-reset-complete.js'),
   'send-email':                () => import('./_send-email.js'),
