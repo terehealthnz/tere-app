@@ -192,6 +192,12 @@ export default async function handler(req, res) {
       const malformedCpn  = '!!invalid!!'
       const searchFamily  = String(req.query.family   || 'Herling').trim()
       const facilityId    = String(req.query.facility || 'G11238-E').trim()
+      // scope override, passed through to fhirGet so we can iterate without
+      // redeploying HPI_SCOPES. ?scope=none forces omission of the OAuth
+      // scope param entirely (HNZ's KeyCloak client has defaults configured
+      // server-side, so passing no scope Just Works).
+      const rawScope      = req.query.scope
+      const scopeOverride = rawScope === 'none' ? '' : (rawScope != null ? String(rawScope) : undefined)
 
       const scenarios = []
       const run = async (name, purpose, expected, fn) => {
@@ -219,31 +225,31 @@ export default async function handler(req, res) {
         '1. Positive Get Practitioner',
         `Retrieve a known valid HPI-CPN (${validCpn}) and confirm a well-formed Practitioner resource is returned.`,
         { status: 200, description: '200 OK with FHIR Practitioner resource' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`),
+        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`, null, scopeOverride),
       )
       await run(
         '2. Not-Found Get Practitioner',
         `Query a non-existent CPN (${notFoundCpn}) and confirm the product surfaces a 404 gracefully.`,
         { status: 404, description: '404 Not Found (or OperationOutcome)' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`),
+        () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`, null, scopeOverride),
       )
       await run(
         '3. Malformed Input Handling',
         'Query with malformed CPN characters to confirm we do not leak stack traces and pass errors through as 4xx.',
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`),
+        () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`, null, scopeOverride),
       )
       await run(
         '4. Search Practitioner by name',
         `Search for practitioners by family name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }),
+        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }, scopeOverride),
       )
       await run(
         '5. Get Facility (Location)',
         `Retrieve Location by HPI-O (${facilityId}) to confirm Location.r scope is honoured.`,
         { status: 200, description: '200 OK with FHIR Location resource (or documented 404)' },
-        () => fhirGet(`Location/${encodeURIComponent(facilityId)}`),
+        () => fhirGet(`Location/${encodeURIComponent(facilityId)}`, null, scopeOverride),
       )
 
       const summary = {
