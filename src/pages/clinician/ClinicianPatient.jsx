@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api'
 import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
+import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -58,9 +59,13 @@ export default function ClinicianPatient() {
   // Complete Encounter (from the static bar OR from the post-call overlay
   // inside the call popup). Setting to null unmounts and returns focus.
   const [activeNotes, setActiveNotes] = useState(null)
+  // Admin-only: send this patient back into the provider queue with a reason.
+  // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
+  const [sendBackOpen, setSendBackOpen] = useState(false)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
+  const isAdmin     = sessionStorage.getItem('providerIsAdmin') === 'true'
   const lockedRef   = useRef(false)
 
   useEffect(() => {
@@ -254,7 +259,21 @@ export default function ClinicianPatient() {
           <div style={{ fontFamily: 'Cormorant Garamond,Georgia,serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.1rem' }}>Tere</div>
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.75rem' }}>Patient details</div>
         </div>
+        {isAdmin && patient?.id && (
+          <button onClick={() => setSendBackOpen(true)}
+            style={{ background: 'rgba(255,255,255,.12)', color: 'white', border: '1px solid rgba(255,255,255,.25)', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: FF, fontWeight: 700, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
+            🔁 Send to queue
+          </button>
+        )}
       </div>
+
+      {sendBackOpen && patient && (
+        <SendBackToQueueModal
+          patient={patient}
+          onClose={() => setSendBackOpen(false)}
+          onDone={() => { /* toast + refresh could go here later */ }}
+        />
+      )}
 
       <div style={{ padding: '1.25rem 1rem calc(11rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
 

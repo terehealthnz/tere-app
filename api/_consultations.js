@@ -381,7 +381,134 @@ export default async function handler(req, res) {
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ ok: true })
     }
-    return res.status(400).json({ error: 'Unknown POST action (supported: mark-waitlist-notified)' })
+
+    // admin_send_to_queue — admin-initiated queue re-entry for a patient.
+    // Two encounter modes: reopen (same encounter, no new charge) and waiver
+    // (fresh consult, fee waived by admin — Tere absorbs the patient fee but
+    // the provider still gets paid per-consult). Both write an audit_logs row.
+    if (action === 'admin_send_to_queue') {
+      if (!auth?.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
+
+      const { patient_id, encounter_type, reason, waiver_reason, notify_patient } = req.body || {}
+      if (!patient_id) return res.status(400).json({ error: 'patient_id required' })
+      if (!['reopen', 'waiver'].includes(encounter_type)) return res.status(400).json({ error: 'encounter_type must be reopen or waiver' })
+      if (!reason || String(reason).trim().length < 2) return res.status(400).json({ error: 'reason required' })
+
+      // Load patient for downstream notification + audit.
+      const { data: pt } = await supabase.from('patients').select('id, first_name, last_name, email, phone, nhi').eq('id', patient_id).maybeSingle()
+      if (!pt) return res.status(404).json({ error: 'Patient not found' })
+
+      const nowIso = new Date().toISOString()
+      let resultConsult = null
+
+      if (encounter_type === 'reopen') {
+        // 7-day cap: find the most recent completed consult for this patient
+        // within the last 7 days. Older encounters cannot be reopened — admin
+        // must use the waiver path (fresh consult) instead so clinical records
+        // don't blur across episodes of care.
+        const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: recent } = await supabase.from('consultations')
+          .select('id, status, completed_at, created_at, notes_final')
+          .eq('patient_id', patient_id)
+          .gte('completed_at', cutoff)
+          .order('completed_at', { ascending: false })
+          .limit(1)
+        const target = (recent || [])[0]
+        if (!target) return res.status(400).json({ error: 'No completed consult within the last 7 days — use the waiver (fresh consult) path instead.' })
+
+        const { data: updated, error: uErr } = await supabase.from('consultations')
+          .update({
+            status:          'waiting',
+            reopened_at:     nowIso,
+            reopened_by:     auth.provider.id,
+            admin_initiated_reason: String(reason).trim().slice(0, 500),
+            updated_at:      nowIso,
+          })
+          .eq('id', target.id)
+          .select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi')
+          .single()
+        if (uErr) return res.status(500).json({ error: uErr.message })
+        resultConsult = updated
+      } else {
+        // waiver — fresh consult row with fee_waived=true, admin_initiated=true.
+        const { data: created, error: cErr } = await supabase.from('consultations').insert({
+          patient_id,
+          patient_first_name: pt.first_name,
+          patient_last_name:  pt.last_name,
+          patient_email:      pt.email,
+          patient_phone:      pt.phone,
+          patient_nhi:        pt.nhi,
+          status:             'waiting',
+          chief_complaint:    String(reason).trim().slice(0, 500),
+          fee_waived:         true,
+          waiver_reason:      String(waiver_reason || reason).trim().slice(0, 200),
+          waived_by_provider_id: auth.provider.id,
+          waived_at:          nowIso,
+          admin_initiated:    true,
+          admin_initiated_by: auth.provider.id,
+          admin_initiated_reason: String(reason).trim().slice(0, 500),
+          payment_amount:     0,
+        }).select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi').single()
+        if (cErr) return res.status(500).json({ error: cErr.message })
+        resultConsult = created
+      }
+
+      // Audit log — one row per admin queue action.
+      try {
+        await supabase.from('audit_logs').insert({
+          event_type:     'admin_sent_to_queue',
+          provider_id:    auth.provider.id,
+          provider_name:  [auth.provider.first_name, auth.provider.last_name].filter(Boolean).join(' ') || null,
+          provider_role:  'admin',
+          consultation_id: resultConsult.id,
+          resource_type:  'Consultation',
+          resource_id:    resultConsult.id,
+          patient_ref:    pt.nhi || pt.id,
+          metadata:       { encounter_type, reason: String(reason).trim().slice(0, 500), waiver_reason: waiver_reason || null, notify_patient: !!notify_patient },
+          ip:            (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+          user_agent:     req.headers['user-agent'] || null,
+        })
+      } catch { /* audit failures never block */ }
+
+      // Optional patient notification — email + SMS. Admin can uncheck per-encounter
+      // when the follow-up is provider-internal (e.g., "clinician wants to reassess"
+      // without patient prompt).
+      if (notify_patient && (pt.email || pt.phone)) {
+        const APP_URL = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
+        const shortReason = String(reason).trim().slice(0, 120)
+        const bodyText = `Tere Health has queued you for a follow-up (${shortReason}). A doctor will call you shortly. ${APP_URL}`
+        // Fire-and-forget — notification failure does not roll back the queue entry.
+        if (pt.email) {
+          fetch(`${APP_URL}/api/send-email`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'x-provider-id': auth.provider.id },
+            body:    JSON.stringify({
+              to:      pt.email,
+              subject: `Tere Health — follow-up requested`,
+              html:    `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
+                <p style="font-size:1.4rem;font-family:Georgia,serif;font-style:italic;color:#0D2B45">Tere Health</p>
+                <p>Kia ora ${pt.first_name || 'there'},</p>
+                <p>Our team has queued you for a follow-up consultation regarding your recent visit.</p>
+                <p><strong>Reason:</strong> ${shortReason}</p>
+                <p>A doctor will call you shortly. No further action is needed from you unless we're unable to reach you.</p>
+                <p style="color:#6B7280;font-size:.85rem;margin-top:1.5rem">Ngā mihi,<br><strong>Tere Health</strong></p>
+              </div>`,
+            }),
+          }).catch(() => {})
+        }
+        if (pt.phone) {
+          fetch(`${APP_URL}/api/sms`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', 'x-provider-id': auth.provider.id },
+            body:    JSON.stringify({ to: pt.phone, message: bodyText, type: 'admin_followup' }),
+          }).catch(() => {})
+        }
+      }
+
+      return res.status(200).json({ ok: true, consultation_id: resultConsult.id, encounter_type })
+    }
+
+    return res.status(400).json({ error: 'Unknown POST action (supported: mark-waitlist-notified, admin_send_to_queue)' })
   }
 
   if (req.method === 'PATCH') {

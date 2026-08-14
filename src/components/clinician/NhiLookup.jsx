@@ -32,7 +32,14 @@ export default function NhiLookup({ compact = false }) {
       const p = await findPatientByNhi(clean)
       if (p?.id) {
         setState({ phase: 'idle' })
-        navigate(`/clinician/patient/${p.id}`)
+        // ClinicianPatient is anchored on a consult id, so route to the
+        // patient's most-recent consult where possible. Fallback: land on the
+        // patient row and let admin use "Send back to queue" to create one.
+        if (p.last_consultation_id) {
+          navigate(`/clinician/patient/${p.last_consultation_id}`)
+        } else {
+          setState({ phase: 'no_consult', patient: p })
+        }
       } else {
         setState({ phase: 'not_found' })
       }
@@ -83,6 +90,11 @@ export default function NhiLookup({ compact = false }) {
       )}
       {state.phase === 'error' && (
         <div style={{ fontSize: '.7rem', color: '#B91C1C' }}>Error: {state.msg}</div>
+      )}
+      {state.phase === 'no_consult' && state.patient && (
+        <div style={{ fontSize: '.75rem', color: '#065F46', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 6, padding: '6px 10px' }}>
+          Found <strong>{state.patient.first_name} {state.patient.last_name}</strong> (NHI {state.patient.nhi}) — no consultations yet. Use Admin → Patients to view the record, or create their first consult via triage.
+        </div>
       )}
     </form>
   )

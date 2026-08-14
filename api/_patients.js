@@ -137,9 +137,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ patient: data })
     }
 
-    // GET ?nhi=<code> — dedicated NHI-first lookup used by the provider header
+    // GET ?nhi=<code> — dedicated NHI-first lookup used by the admin header
     // search widget. Distinct event_type so we can filter "who queried this
     // patient's NHI" separately from bulk directory searches.
+    //
+    // Also returns the patient's most-recent consult id so the UI can jump
+    // straight into the patient's chart (ClinicianPatient page is anchored
+    // on a consult id, not a patient id).
     if (req.query?.nhi) {
       const nhi = String(req.query.nhi).trim().toUpperCase()
       const { data, error } = await supabase
@@ -148,8 +152,19 @@ export default async function handler(req, res) {
         .ilike('nhi', nhi)
         .maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
+      let last_consultation_id = null
+      if (data?.id) {
+        const { data: lastConsult } = await supabase
+          .from('consultations')
+          .select('id')
+          .eq('patient_id', data.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        last_consultation_id = lastConsult?.id || null
+      }
       await auditPatientAccess(supabase, auth, req, 'nhi_query', nhi, { found: !!data })
-      return res.status(200).json({ patient: data || null })
+      return res.status(200).json({ patient: data ? { ...data, last_consultation_id } : null })
     }
 
     // List with optional search — provider-side patient directory (AdminPatients.jsx).

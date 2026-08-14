@@ -6,6 +6,7 @@ import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
+import NhiLookup from './NhiLookup'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1193,6 +1194,14 @@ function OverviewDashboard({ setAdminTab }) {
 
   return (
     <>
+      {/* NHI-first patient lookup — admin surface only. Every query writes a
+          nhi_query row to audit_logs. See docs/quality-management-system.md
+          §7.4 for the rationale (admin-only search + audit-on-lookup). */}
+      <div style={{ background:'white', borderRadius:12, padding:'.85rem 1.1rem', border:'1px solid #E2E8F0', marginBottom:'1rem', display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap' }}>
+        <div style={{ fontSize:'.85rem', color:'#0D2B45', fontWeight:600 }}>Find patient:</div>
+        <NhiLookup />
+      </div>
+
       {/* KPI strip */}
       <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap', marginBottom:'1rem' }}>
         <KPI label="Revenue today" value={`$${(kpis.revenueToday / 100).toFixed(0)}`} sub={`${kpis.consultsToday} consult${kpis.consultsToday === 1 ? '' : 's'}`} color="#059669" />
