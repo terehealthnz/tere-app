@@ -300,8 +300,11 @@ export default async function handler(req, res) {
     if (action === 'search_facility') {
       const name = String(req.query.name || '').trim()
       if (!name) return res.status(400).json({ error: 'name required' })
-      const r = await fhirGet('Location', { name })
-      return res.status(r.ok ? 200 : r.status).json({ status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 2000) })
+      const rawS = req.query.scope
+      const scopeOverride = rawS === 'none' ? '' : (rawS != null ? String(rawS) : undefined)
+      const userId = String(req.query.userid || auth.provider?.id || 'tere-service')
+      const r = await fhirGet('Location', { name }, scopeOverride, userId)
+      return res.status(r.ok ? 200 : r.status).json({ status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 3000) })
     }
 
     if (action === 'get_facility') {
