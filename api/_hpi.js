@@ -66,7 +66,7 @@ async function getBearer(scopeOverride) {
   return j.access_token
 }
 
-async function fhirGet(path, params, scopeOverride) {
+async function fhirGet(path, params, scopeOverride, userIdOverride) {
   if (!BASE_URL) throw new Error('HPI env missing: HPI_BASE_URL')
   const token = await getBearer(scopeOverride)
   const url = new URL(BASE_URL.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, ''))
@@ -74,16 +74,40 @@ async function fhirGet(path, params, scopeOverride) {
     if (v != null && v !== '') url.searchParams.set(k, v)
   }
   const started = Date.now()
+  // HNZ HPI FHIR API required headers (spec: hpi-ig.hip.digital.health.nz/general.html):
+  //   Authorization: Bearer {token}      — OAuth2 access token
+  //   x-api-key:     {key}               — issued with client credentials
+  //                                        (same value as HPI_CLIENT_ID per onboarding email)
+  //   userid:        {string}            — HPI-CPN of the human initiating the request
+  //   User-Agent:    {string}            — application identifier
+  //   X-Correlation-Id: {uuid}           — recommended for traceability
+  const corrId = (globalThis.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10))
   const r = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${token}`,
-      Accept:        'application/fhir+json',
+      Authorization:       `Bearer ${token}`,
+      Accept:              'application/fhir+json',
+      'x-api-key':         CLIENT_ID,
+      userid:              String(userIdOverride || 'tere-service'),
+      'User-Agent':        'TereHealth/1.0 (server; HPI FHIR proxy)',
+      'X-Correlation-Id':  corrId,
     },
   })
   const text = await r.text()
   let body
   try { body = text ? JSON.parse(text) : {} } catch { body = { raw: text.slice(0, 400) } }
-  return { status: r.status, ok: r.ok, body, url: url.toString(), duration_ms: Date.now() - started }
+  return {
+    status: r.status, ok: r.ok, body,
+    url: url.toString(),
+    request_headers: {
+      Authorization:      'Bearer <redacted>',
+      'x-api-key':        '<HPI_CLIENT_ID>',
+      userid:             String(userIdOverride || 'tere-service'),
+      'User-Agent':       'TereHealth/1.0 (server; HPI FHIR proxy)',
+      'X-Correlation-Id': corrId,
+      Accept:             'application/fhir+json',
+    },
+    duration_ms: Date.now() - started,
+  }
 }
 
 // Extract just the fields our admin UI actually needs, so we don't
@@ -198,6 +222,7 @@ export default async function handler(req, res) {
       // server-side, so passing no scope Just Works).
       const rawScope      = req.query.scope
       const scopeOverride = rawScope === 'none' ? '' : (rawScope != null ? String(rawScope) : undefined)
+      const userId        = String(req.query.userid || auth.provider?.id || 'tere-service')
 
       const scenarios = []
       const run = async (name, purpose, expected, fn) => {
@@ -225,31 +250,31 @@ export default async function handler(req, res) {
         '1. Positive Get Practitioner',
         `Retrieve a known valid HPI-CPN (${validCpn}) and confirm a well-formed Practitioner resource is returned.`,
         { status: 200, description: '200 OK with FHIR Practitioner resource' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`, null, scopeOverride),
+        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`, null, scopeOverride, userId),
       )
       await run(
         '2. Not-Found Get Practitioner',
         `Query a non-existent CPN (${notFoundCpn}) and confirm the product surfaces a 404 gracefully.`,
         { status: 404, description: '404 Not Found (or OperationOutcome)' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`, null, scopeOverride),
+        () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`, null, scopeOverride, userId),
       )
       await run(
         '3. Malformed Input Handling',
         'Query with malformed CPN characters to confirm we do not leak stack traces and pass errors through as 4xx.',
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`, null, scopeOverride),
+        () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`, null, scopeOverride, userId),
       )
       await run(
         '4. Search Practitioner by name',
         `Search for practitioners by family name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }, scopeOverride),
+        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }, scopeOverride, userId),
       )
       await run(
         '5. Get Facility (Location)',
         `Retrieve Location by HPI-O (${facilityId}) to confirm Location.r scope is honoured.`,
         { status: 200, description: '200 OK with FHIR Location resource (or documented 404)' },
-        () => fhirGet(`Location/${encodeURIComponent(facilityId)}`, null, scopeOverride),
+        () => fhirGet(`Location/${encodeURIComponent(facilityId)}`, null, scopeOverride, userId),
       )
 
       const summary = {
