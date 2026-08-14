@@ -19,6 +19,37 @@
 //   ?action=get_facility&hpi=<HPI-Facility>   — single facility/location
 
 import { guardProvider } from './_auth.js'
+import { createClient } from '@supabase/supabase-js'
+
+// Every HPI lookup is written to audit_logs so we can reconstruct which
+// admin queried which practitioner/facility, when, and from what IP.
+// Body payload is deliberately NOT logged — it may contain PII from HPI.
+async function auditHpi(auth, req, action, resource_type, resource_id, result) {
+  try {
+    const provider = auth?.provider || {}
+    const supabase = createClient(
+      process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    await supabase.from('audit_logs').insert({
+      event_type:     `hpi.${action}`,
+      provider_id:    provider.id || null,
+      provider_name:  [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null,
+      provider_role:  provider.is_admin ? 'admin' : (provider.is_provider ? 'provider' : null),
+      resource_type,
+      resource_id:    resource_id ? String(resource_id).slice(0, 100) : null,
+      metadata: {
+        hpi_status:      result?.status ?? null,
+        hpi_ok:          !!result?.ok,
+        correlation_id:  result?.request_headers?.['X-Correlation-Id'] || null,
+        duration_ms:     result?.duration_ms ?? null,
+      },
+      ip:         (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+      user_agent: req.headers['user-agent'] || null,
+    })
+  } catch { /* audit failures never block the primary action */ }
+}
 
 const TOKEN_URL = process.env.HPI_TOKEN_URL
 const BASE_URL  = process.env.HPI_BASE_URL
@@ -183,6 +214,7 @@ export default async function handler(req, res) {
       const cpn = String(req.query.cpn || '').trim()
       if (!cpn) return res.status(400).json({ error: 'cpn required' })
       const r = await fhirGet(`Practitioner/${encodeURIComponent(cpn)}`)
+      await auditHpi(auth, req, 'get_practitioner', 'Practitioner', cpn, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })
       return res.status(200).json({ practitioner: shapePractitioner(r.body), raw: r.body })
@@ -193,6 +225,7 @@ export default async function handler(req, res) {
       const given  = String(req.query.given  || '').trim()
       if (!family && !given) return res.status(400).json({ error: 'family or given required' })
       const r = await fhirGet('Practitioner', { family, given, _count: 20 })
+      await auditHpi(auth, req, 'search_practitioner', 'Practitioner', `family=${family}|given=${given}`, r)
       if (!r.ok) return res.status(r.status).json({ error: 'HPI error', body: r.body })
       const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
       return res.status(200).json({
@@ -290,6 +323,10 @@ export default async function handler(req, res) {
         failed: scenarios.filter(s => s.outcome === 'FAIL').length,
       }
 
+      // Single audit row per compliance run — captures which admin ran it
+      // and the pass/fail tally, without duplicating one row per scenario.
+      await auditHpi(auth, req, 'compliance_pack_run', 'ComplianceRun', `${summary.passed}/${summary.total}_pass`, { status: 200, ok: true, duration_ms: scenarios.reduce((a, s) => a + (s.duration_ms || 0), 0) })
+
       return res.status(200).json({
         product:      { name: 'Tere Health', product_id: 'HSAPP0404', organisation: 'Tere Health Limited', organisation_id: 'G11238-E' },
         environment:  { name: 'UAT', gateway: 'HIP AWS Gateway', base_url: BASE_URL, token_url: TOKEN_URL, auth: 'KeyCloak OAuth2 client_credentials' },
@@ -317,6 +354,7 @@ export default async function handler(req, res) {
       const hpi = String(req.query.hpi || '').trim()
       if (!hpi) return res.status(400).json({ error: 'hpi required' })
       const r = await fhirGet(`Location/${encodeURIComponent(hpi)}`)
+      await auditHpi(auth, req, 'get_facility', 'Location', hpi, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })
       return res.status(200).json({ facility: shapeLocation(r.body), raw: r.body })
