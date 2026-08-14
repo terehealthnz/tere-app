@@ -28,9 +28,11 @@ const SCOPES    = process.env.HPI_SCOPES || ''
 
 // In-memory token cache. Vercel serverless containers reuse this between
 // warm invocations, so most calls hit the cache and skip the token grant.
-let cached = { token: null, expires: 0 }
+// Cache is keyed by the scope string so an override-scope probe doesn't
+// mask a broken production scope.
+const tokenCache = new Map()
 
-async function getBearer() {
+async function getBearer(scopeOverride) {
   if (!TOKEN_URL || !CLIENT_ID || !SECRET) {
     const missing = []
     if (!TOKEN_URL) missing.push('HPI_TOKEN_URL')
@@ -38,14 +40,17 @@ async function getBearer() {
     if (!SECRET)    missing.push('HPI_CLIENT_SECRET')
     throw new Error(`HPI env missing: ${missing.join(', ')}`)
   }
+  const scope = scopeOverride !== undefined ? scopeOverride : SCOPES
+  const cacheKey = scope || '(none)'
   const now = Date.now()
-  if (cached.token && cached.expires > now + 5000) return cached.token
+  const cached = tokenCache.get(cacheKey)
+  if (cached && cached.expires > now + 5000) return cached.token
   const body = new URLSearchParams({
     grant_type:    'client_credentials',
     client_id:     CLIENT_ID,
     client_secret: SECRET,
   })
-  if (SCOPES) body.set('scope', SCOPES)
+  if (scope) body.set('scope', scope)
   const r = await fetch(TOKEN_URL, {
     method:  'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -53,17 +58,17 @@ async function getBearer() {
   })
   if (!r.ok) {
     const text = await r.text().catch(() => '')
-    throw new Error(`HPI token grant ${r.status}: ${text.slice(0, 200)}`)
+    throw new Error(`HPI token grant ${r.status}: ${text.slice(0, 400)}`)
   }
   const j = await r.json()
   const ttlMs = (Number(j.expires_in) || 300) * 1000
-  cached = { token: j.access_token, expires: now + ttlMs - 5000 }
-  return cached.token
+  tokenCache.set(cacheKey, { token: j.access_token, expires: now + ttlMs - 5000 })
+  return j.access_token
 }
 
-async function fhirGet(path, params) {
+async function fhirGet(path, params, scopeOverride) {
   if (!BASE_URL) throw new Error('HPI env missing: HPI_BASE_URL')
-  const token = await getBearer()
+  const token = await getBearer(scopeOverride)
   const url = new URL(BASE_URL.replace(/\/+$/, '') + '/' + path.replace(/^\/+/, ''))
   for (const [k, v] of Object.entries(params || {})) {
     if (v != null && v !== '') url.searchParams.set(k, v)
@@ -132,6 +137,22 @@ export default async function handler(req, res) {
           HPI_SCOPES:       !!SCOPES,
         },
       })
+    }
+
+    // token_probe: try the OAuth grant with an override scope (or no scope
+    // if ?scope=none). Diagnostic aid — HNZ's docs distinguish between short
+    // scope names ("Get-Practitioner") and long OAuth scope URIs, and it isn't
+    // obvious which one KeyCloak wants for the grant vs which one lands in
+    // the JWT. Use this to iterate without redeploying HPI_SCOPES.
+    if (action === 'token_probe') {
+      const raw = String(req.query.scope || '')
+      const override = raw === 'none' ? '' : raw
+      try {
+        const t = await getBearer(override)
+        return res.status(200).json({ ok: true, token_prefix: t.slice(0, 20) + '…', used_scope: override || '(none)' })
+      } catch (e) {
+        return res.status(200).json({ ok: false, error: e.message, tried_scope: override || '(none)' })
+      }
     }
 
     if (action === 'get_practitioner') {
