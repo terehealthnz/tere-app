@@ -67,6 +67,7 @@ export default async function handler(req, res) {
     .select(`
       id, created_at, chief_complaint, acc_read_code, notes_final,
       payment_amount, patient_first_name, patient_last_name, patient_email,
+      patient_nhi, patient_dob,
       provider_id, insurance_receipt_purchased_at
     `)
     .eq('id', consultationId).single()

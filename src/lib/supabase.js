@@ -467,6 +467,18 @@ export function subscribeToChatMessages(consultationId, callback) {
 
 // ── Patient profile helpers ──────────────────────────────────────────────────
 
+// Provider-side NHI-first lookup. Direct hit against patients.nhi (case-
+// insensitive on the server). Emits a `nhi_query` audit_log row server-side.
+// Returns { patient } or { patient: null } if not found.
+export async function findPatientByNhi(nhi) {
+  const clean = String(nhi || '').trim().toUpperCase()
+  if (!clean) return null
+  const res = await apiFetch(`/api/patients?nhi=${encodeURIComponent(clean)}`)
+  if (!res.ok) return null
+  const { patient } = await res.json()
+  return patient || null
+}
+
 export async function findPatient(firstName, lastName, dob) {
   const res = await apiFetch('/api/patients?action=lookup', {
     method: 'POST',

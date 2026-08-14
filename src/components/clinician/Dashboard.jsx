@@ -4,6 +4,7 @@ import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteC
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
+import NhiLookup from './NhiLookup.jsx'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -616,10 +617,13 @@ export default function Dashboard() {
                 <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>Toggle to open or close your queue</div>
               </div>
             </div>
-            <button onClick={toggleProviderAvail} disabled={savingProvAvail}
-              style={{background:provIsAvail ? 'var(--danger)' : 'var(--success)',color:'white',border:'none',padding:'8px 18px',borderRadius:'8px',fontWeight:700,fontSize:'.9375rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',whiteSpace:'nowrap'}}>
-              {savingProvAvail ? 'Saving…' : provIsAvail ? 'Go offline' : 'Go online'}
-            </button>
+            <div style={{display:'flex',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+              <NhiLookup compact />
+              <button onClick={toggleProviderAvail} disabled={savingProvAvail}
+                style={{background:provIsAvail ? 'var(--danger)' : 'var(--success)',color:'white',border:'none',padding:'8px 18px',borderRadius:'8px',fontWeight:700,fontSize:'.9375rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',whiteSpace:'nowrap'}}>
+                {savingProvAvail ? 'Saving…' : provIsAvail ? 'Go offline' : 'Go online'}
+              </button>
+            </div>
           </div>
         )}
 

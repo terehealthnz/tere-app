@@ -63,6 +63,37 @@ function projectProviderPatch(raw) {
   return patch
 }
 
+// NHI = 3 letters + 4 characters (last is check-digit-eligible so allow letter or digit)
+// Case-insensitive. Used only for outcome-tag classification, not validation.
+const NHI_LOOKS_LIKE = /^[A-Z]{3}[0-9]{4}$/i
+
+// Server-side patient-access audit. Every provider lookup / search / NHI query
+// writes a row so we can answer "who accessed patient X" during an OPC or
+// HDC audit. Body payloads never touch this log (audit_logs.metadata is
+// deliberately shallow — id + search term only). Silent failure so a broken
+// audit_logs table can't take down the primary API.
+async function auditPatientAccess(supabase, auth, req, event_type, patient_ref, extra) {
+  try {
+    const provider = auth?.provider || {}
+    await supabase.from('audit_logs').insert({
+      event_type,
+      provider_id:   provider.id || null,
+      provider_name: [provider.first_name, provider.last_name].filter(Boolean).join(' ') || null,
+      provider_role: provider.is_billing_admin ? 'billing_admin'
+                    : provider.is_supervisor    ? 'supervisor'
+                    : provider.is_admin         ? 'admin'
+                    : provider.is_provider      ? 'provider'
+                    : null,
+      resource_type: 'Patient',
+      resource_id:   patient_ref ? String(patient_ref).slice(0, 100) : null,
+      patient_ref:   patient_ref ? String(patient_ref).slice(0, 100) : null,
+      metadata:      extra || null,
+      ip:            (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+      user_agent:    req.headers['user-agent'] || null,
+    })
+  } catch { /* audit failures never block the primary action */ }
+}
+
 // action=lookup (name+DOB) and action=create are anon-facing (patient triage
 // runs before login). All other paths require provider auth.
 export default async function handler(req, res) {
@@ -71,8 +102,9 @@ export default async function handler(req, res) {
     (req.method === 'POST' && (action === 'create' || action === 'lookup')) ||
     (req.method === 'PATCH' && req.query?.anon === '1')
 
+  let auth = null
   if (!isAnonFlow) {
-    const auth = await guardProvider(req, res)
+    auth = await guardProvider(req, res)
     if (!auth) return
   }
 
@@ -101,7 +133,23 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('patients').select('*').eq('id', id).maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Patient not found' })
+      await auditPatientAccess(supabase, auth, req, 'patient_lookup', data.nhi || data.id, { by: 'id' })
       return res.status(200).json({ patient: data })
+    }
+
+    // GET ?nhi=<code> — dedicated NHI-first lookup used by the provider header
+    // search widget. Distinct event_type so we can filter "who queried this
+    // patient's NHI" separately from bulk directory searches.
+    if (req.query?.nhi) {
+      const nhi = String(req.query.nhi).trim().toUpperCase()
+      const { data, error } = await supabase
+        .from('patients')
+        .select('id, first_name, last_name, date_of_birth, nhi, phone, email, total_consultations, last_consultation_at')
+        .ilike('nhi', nhi)
+        .maybeSingle()
+      if (error) return res.status(500).json({ error: error.message })
+      await auditPatientAccess(supabase, auth, req, 'nhi_query', nhi, { found: !!data })
+      return res.status(200).json({ patient: data || null })
     }
 
     // List with optional search — provider-side patient directory (AdminPatients.jsx).
@@ -118,6 +166,14 @@ export default async function handler(req, res) {
     }
     const { data, error, count } = await q
     if (error) return res.status(500).json({ error: error.message })
+    // Audit the search itself — one row per query, not per result — with the
+    // search term in metadata so an audit can reconstruct what was hunted for.
+    // Bulk directory browsing (no search term) isn't audited to avoid noise.
+    if (search && search.trim()) {
+      const term = search.trim()
+      const eventType = NHI_LOOKS_LIKE.test(term) ? 'nhi_query' : 'patient_search'
+      await auditPatientAccess(supabase, auth, req, eventType, term, { result_count: data?.length || 0 })
+    }
     return res.status(200).json({ patients: data || [], count: count || 0 })
   }
 

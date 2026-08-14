@@ -377,11 +377,14 @@ export function buildInsuranceReceiptPdf({ consult, provider, payment }) {
       .text(`No: ${receiptId}`, 320, 134)
       .text(`Issued: ${chargedAt.toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 320, 148)
 
-    // Patient
+    // Patient — NHI is the primary NZ identifier used for insurance/ACC
+    // reconciliation, so it sits directly under the name.
     const patientName = `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || '—'
+    const patientNhi  = consult.patient_nhi || '—'
     doc.moveTo(M, 210).lineTo(W - M, 210).strokeColor('#DDD').lineWidth(0.5).stroke()
     doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Patient', M, 220)
     doc.font('Helvetica').fontSize(10).text(patientName, M, 234)
+    doc.font('Helvetica').fontSize(9).fillColor('#666').text(`NHI: ${patientNhi}`, M, 250)
 
     // Service provider (the doctor)
     const provName = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ') || 'Tere clinician'

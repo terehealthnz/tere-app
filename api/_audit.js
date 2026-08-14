@@ -22,12 +22,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const { limit: lim = 100, event_type, provider_id, from, to } = req.query
+    const { limit: lim = 100, event_type, provider_id, from, to, patient_ref, consultation_id } = req.query
     let q = supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(parseInt(lim))
     if (event_type) q = q.eq('event_type', event_type)
     if (provider_id) q = q.eq('provider_id', provider_id)
     if (from) q = q.gte('created_at', from)
-    if (to) q = q.lte('created_at', to)
+    if (to)   q = q.lte('created_at', to)
+    // patient_ref filter answers "who accessed patient X" — case-insensitive
+    // ilike on the patient_ref column, which we populate with NHI when we
+    // have it (hpi.get_practitioner, patient_lookup, nhi_query, phi_reveal).
+    if (patient_ref)    q = q.ilike('patient_ref', String(patient_ref).trim())
+    if (consultation_id) q = q.eq('consultation_id', consultation_id)
     const { data, error } = await q
     if (error && missingTable(error)) return res.status(200).json({ logs: [] })
     if (error) return res.status(500).json({ error: error.message })

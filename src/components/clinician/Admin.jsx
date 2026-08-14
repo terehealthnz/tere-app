@@ -1645,7 +1645,7 @@ function ConsultationLog() {
 
   const filtered = rows.filter(r => {
     const q = search.toLowerCase()
-    return !q || `${r.patient_first_name} ${r.patient_last_name} ${r.chief_complaint}`.toLowerCase().includes(q)
+    return !q || `${r.patient_first_name} ${r.patient_last_name} ${r.chief_complaint} ${r.patient_nhi || ''}`.toLowerCase().includes(q)
   })
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
