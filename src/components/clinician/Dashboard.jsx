@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { subscribeToQueue, updateConsultation, getAccPendingConsultations, getAccPendingCount, getPendingPrescriptions, getPendingPrescriptionsCount, getCompleteSince, getAllCompleteConsultations, getMessagePendingConsultations } from '../../lib/supabase'
+import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteConsultations, getMessagePendingConsultations } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
@@ -338,305 +338,137 @@ function MessagesTab() {
   )
 }
 
-function ApprovalsTab({ onBadgeChange }) {
-  const [items, setItems] = React.useState({ prescriptions: [], referrals: [], acc: [] })
-  const [loading, setLoading] = React.useState(true)
-  const [migrationError, setMigrationError] = React.useState(false)
-  const [states, setStates] = React.useState({})
+// Baseline pinned tabs shown to every provider on first load. Providers
+// can pin/unpin any tab via the More ▾ dropdown; their choices are stored
+// in localStorage under DASH_PIN_KEY (per-browser, not per-account).
+const DASH_PIN_KEY   = 'dashPinnedTabs.v1'
+const DEFAULT_PINNED = ['queue', 'tere-chat', 'inbox', 'messages']
 
-  async function load() {
+function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }) {
+  const allTabs = useMemo(() => {
+    const t = [
+      ['queue',     'Queue'],
+      ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
+      ['inbox',     '📥 Inbox'],
+      ['messages',  '💬 Messages'],
+      ['notes',     'Notes'],
+      ['licenses',  '🪪 State licenses'],
+    ]
+    if (isSupervisor) t.push(['supervision',    'Supervision'])
+    if (isRMO)        t.push(['my-supervision', 'My supervision'])
+    return t
+  }, [teamBadge, isSupervisor, isRMO])
+
+  const [pinned, setPinned] = useState(() => {
     try {
-      const { getRadiologyReferrals } = await import('../../lib/supabase')
-      const [rx, refs, acc] = await Promise.all([
-        getPendingPrescriptions().catch(e => { if (e.message?.includes('42P01')) { setMigrationError(true); return null } throw e }),
-        getRadiologyReferrals({ filter: 'pending_approval' }),
-        getAccPendingConsultations(),
-      ])
-      if (rx === null) { setLoading(false); return }
-      const loaded = { prescriptions: rx || [], referrals: refs || [], acc: acc || [] }
-      setItems(loaded)
-      onBadgeChange?.(loaded.prescriptions.length + loaded.referrals.length + loaded.acc.length)
-      setMigrationError(false)
-    } catch(e) { console.error(e); setMigrationError(true) }
-    setLoading(false)
-  }
-
-  React.useEffect(() => { load() }, [])
-  React.useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [])
-
-  const getState = id => states[id] || {}
-  const patchState = (id, patch) => setStates(s => ({ ...s, [id]: { ...(s[id] || {}), ...patch } }))
-
-  async function act(type, id, action) {
-    const st = getState(id)
-    patchState(id, { saving: true, error: null })
-    try {
-      const res = await apiFetch('/api/approve-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action, type, id,
-          supervisorId: sessionStorage.getItem('providerId'),
-          supervisorName: sessionStorage.getItem('providerDisplayName'),
-          ...(action === 'modify' ? { modifications: st.mods || {} } : {}),
-          ...(action === 'reject' ? { rejectionReason: st.reason || '' } : {}),
-        })
-      })
-      const data = await res.json()
-      if (data.ok) {
-        await load()
-        setStates(s => { const n = { ...s }; delete n[id]; return n })
-      } else {
-        patchState(id, { saving: false, error: data.error || 'Action failed' })
+      const raw = localStorage.getItem(DASH_PIN_KEY)
+      if (raw) {
+        const arr = JSON.parse(raw)
+        if (Array.isArray(arr) && arr.length > 0) return arr
       }
-    } catch(e) {
-      patchState(id, { saving: false, error: e.message })
-    }
+    } catch {}
+    return DEFAULT_PINNED
+  })
+  const [menuOpen,      setMenuOpen]      = useState(false)
+  const [customizeOpen, setCustomizeOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onDoc = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [menuOpen])
+
+  function togglePin(id) {
+    setPinned(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      try { localStorage.setItem(DASH_PIN_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+  function resetPinned() {
+    setPinned(DEFAULT_PINNED)
+    try { localStorage.setItem(DASH_PIN_KEY, JSON.stringify(DEFAULT_PINNED)) } catch {}
   }
 
-  function renderActionButtons(type, id, hasModify) {
-    const st = getState(id)
-    const mods = st.mods || {}
-    if (st.mode === 'reject') return (
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <button onClick={() => act(type, id, 'reject')} disabled={st.saving || !st.reason}
-          style={{ background: '#DC2626', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          {st.saving ? 'Rejecting…' : 'Confirm rejection'}
-        </button>
-        <button onClick={() => patchState(id, { mode: null, reason: '' })} disabled={st.saving}
-          style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          Cancel
-        </button>
-      </div>
-    )
-    if (st.mode === 'modify') return (
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <button onClick={() => act(type, id, 'modify')} disabled={st.saving || !Object.keys(mods).length}
-          style={{ background: 'var(--success)', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          {st.saving ? 'Sending…' : '✓ Send modified'}
-        </button>
-        <button onClick={() => patchState(id, { mode: null, mods: {} })} disabled={st.saving}
-          style={{ background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--muted)', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          Cancel
-        </button>
-      </div>
-    )
-    return (
-      <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
-        <button onClick={() => act(type, id, 'approve')} disabled={st.saving}
-          style={{ background: 'var(--success)', color: 'white', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          {st.saving ? 'Sending…' : '✓ Approve & Send'}
-        </button>
-        {hasModify && (
-          <button onClick={() => patchState(id, { mode: 'modify' })} disabled={st.saving}
-            style={{ background: '#FEF3C7', color: '#92400E', border: 'none', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-            ✎ Modify
-          </button>
-        )}
-        <button onClick={() => patchState(id, { mode: 'reject' })} disabled={st.saving}
-          style={{ background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans,sans-serif' }}>
-          ✕ Reject
-        </button>
-      </div>
-    )
-  }
+  const primary  = allTabs.filter(([id]) => pinned.includes(id))
+  const overflow = allTabs.filter(([id]) => !pinned.includes(id))
 
-  function renderRejectBox(id, placeholder) {
-    const st = getState(id)
-    if (st.mode !== 'reject') return null
-    return (
-      <div style={{ background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-        <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#991B1B', marginBottom: '.5rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>Rejection reason</div>
-        <textarea value={st.reason || ''} onChange={e => patchState(id, { reason: e.target.value })}
-          rows={3} placeholder={placeholder}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '.625rem', border: '1.5px solid #FECACA', borderRadius: 6, fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: '.875rem', resize: 'vertical' }} />
-      </div>
-    )
-  }
+  // If the active tab lives in overflow, surface it in primary so the user
+  // sees where they are without hunting through the dropdown.
+  const activeInOverflow = overflow.find(([id]) => id === dashTab)
+  const primaryToRender  = activeInOverflow ? [...primary, activeInOverflow] : primary
 
-  function renderUrgencyBadge(createdAt) {
-    const mins = Math.floor((Date.now() - new Date(createdAt)) / 60000)
-    if (mins <= 30) return null
-    return (
-      <span style={{ background: '#FEE2E2', color: '#DC2626', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, marginLeft: 'auto' }}>
-        {mins}m pending
-      </span>
-    )
-  }
-
-  const totalPending = items.prescriptions.length + items.referrals.length + items.acc.length
-
-  if (loading) return <div style={{ textAlign: 'center', padding: '3rem' }}><div className="spinner" /></div>
-
-  if (migrationError) return (
-    <div className="card" style={{ textAlign: 'center', padding: '2rem', borderColor: '#FECACA' }}>
-      <div style={{ fontSize: '1.5rem', marginBottom: '.75rem' }}>⚠️</div>
-      <h3 style={{ marginBottom: '.5rem' }}>Migration required</h3>
-      <p style={{ fontSize: '.875rem', color: 'var(--muted)' }}>
-        Run <code>supabase-supervisor-migration.sql</code> to enable the approvals workflow.
-      </p>
-    </div>
-  )
-
-  if (totalPending === 0) return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-        <h1 style={{ marginBottom: 0 }}>Pending approvals</h1>
-        <button onClick={load} style={{ background: 'var(--teal-light)', border: 'none', color: 'var(--teal)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 600, fontSize: '.875rem' }}>↻ Refresh</button>
-      </div>
-      <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✓</div>
-        <h3>No pending approvals</h3>
-        <p>Prescriptions, referrals, and ACC claims drafted by non-prescribing providers will appear here.</p>
-      </div>
-    </div>
+  const tabBtn = (id, label) => (
+    <button key={id} onClick={() => setDashTab(id)}
+      style={{padding:'7px 20px',borderRadius:'6px',border:'none',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.875rem',transition:'all .15s',background:dashTab===id?'var(--navy)':'transparent',color:dashTab===id?'white':'var(--muted)'}}>
+      {label}
+    </button>
   )
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-        <div>
-          <h1 style={{ marginBottom: '.25rem' }}>Pending approvals</h1>
-          <p style={{ fontSize: '.875rem' }}>{totalPending} item{totalPending !== 1 ? 's' : ''} awaiting your review</p>
+    <>
+      <div style={{display:'flex',gap:4,marginBottom:'1.25rem',background:'white',borderRadius:'var(--radius-sm)',padding:4,border:'1px solid var(--border)',width:'fit-content',flexWrap:'wrap',alignItems:'center'}}>
+        {primaryToRender.map(([id, label]) => tabBtn(id, label))}
+        <div ref={menuRef} style={{position:'relative'}}>
+          <button onClick={() => setMenuOpen(v => !v)}
+            style={{padding:'7px 14px',borderRadius:'6px',border:'none',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.875rem',background:'transparent',color:'var(--muted)'}}>
+            More ▾
+          </button>
+          {menuOpen && (
+            <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,minWidth:200,background:'white',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 6px 20px rgba(0,0,0,.08)',padding:4,zIndex:20}}>
+              {overflow.length === 0 && (
+                <div style={{padding:'8px 12px',fontSize:'.8rem',color:'var(--muted)'}}>All tabs pinned</div>
+              )}
+              {overflow.map(([id, label]) => (
+                <button key={id} onClick={() => { setDashTab(id); setMenuOpen(false) }}
+                  style={{display:'block',width:'100%',textAlign:'left',padding:'8px 12px',borderRadius:6,border:'none',background:'transparent',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.875rem',color:'var(--navy)'}}>
+                  {label}
+                </button>
+              ))}
+              <div style={{borderTop:'1px solid var(--border)',margin:'4px 0'}} />
+              <button onClick={() => { setCustomizeOpen(true); setMenuOpen(false) }}
+                style={{display:'block',width:'100%',textAlign:'left',padding:'8px 12px',borderRadius:6,border:'none',background:'transparent',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontSize:'.8rem',color:'var(--muted)'}}>
+                ⚙ Customize tabs…
+              </button>
+            </div>
+          )}
         </div>
-        <button onClick={load} style={{ background: 'var(--teal-light)', border: 'none', color: 'var(--teal)', padding: '8px 16px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans,sans-serif', fontWeight: 600, fontSize: '.875rem' }}>↻ Refresh</button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {items.prescriptions.map(rx => {
-          const st = getState(rx.id)
-          const mods = st.mods || {}
-          return (
-            <div key={rx.id} className="card card-sm" style={{ borderLeft: `4px solid ${Math.floor((Date.now() - new Date(rx.created_at)) / 60000) > 30 ? '#DC2626' : '#7C3AED'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{rx.patient_name}</span>
-                <span style={{ background: '#EDE9FE', color: '#7C3AED', fontSize: '.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>Prescription</span>
-                {renderUrgencyBadge(rx.created_at)}
-              </div>
-              <div style={{ fontSize: '.8125rem', color: 'var(--muted)', marginBottom: '.75rem' }}>
-                Drafted by <strong>{rx.drafted_by_name || rx.provider_name}</strong> · {timeAgo(rx.created_at)}
-              </div>
-              {st.mode === 'modify' ? (
-                <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-                  <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#92400E', marginBottom: '.625rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>Modify prescription</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
-                    {[['Drug','drug',rx.drug],['Dose','dose',rx.dose],['Quantity','quantity',rx.quantity],['Repeats','repeats',rx.repeats||0]].map(([lbl,key,def]) => (
-                      <div key={key}>
-                        <label style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>{lbl}</label>
-                        <input value={mods[key] !== undefined ? mods[key] : def}
-                          onChange={e => patchState(rx.id, { mods: { ...mods, [key]: e.target.value } })}
-                          style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: '.875rem' }} />
-                      </div>
-                    ))}
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <label style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Directions</label>
-                      <textarea value={mods.directions !== undefined ? mods.directions : rx.directions}
-                        onChange={e => patchState(rx.id, { mods: { ...mods, directions: e.target.value } })}
-                        rows={2} style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: '.875rem', resize: 'vertical' }} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.375rem .75rem', fontSize: '.875rem' }}>
-                    <div><span style={{ color: 'var(--muted)' }}>Drug:</span> <strong>{rx.drug}</strong></div>
-                    <div><span style={{ color: 'var(--muted)' }}>Dose:</span> {rx.dose}</div>
-                    <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--muted)' }}>Directions:</span> {rx.directions}</div>
-                    <div><span style={{ color: 'var(--muted)' }}>Qty:</span> {rx.quantity}</div>
-                    <div><span style={{ color: 'var(--muted)' }}>Repeats:</span> {rx.repeats || 0}</div>
-                    {rx.pharmacy_name && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--muted)' }}>Pharmacy:</span> {rx.pharmacy_name}</div>}
-                  </div>
-                </div>
-              )}
-              {renderRejectBox(rx.id, 'Explain why this prescription cannot be approved as drafted…')}
-              {st.error && <div className="alert alert-danger" style={{ marginBottom: '.75rem' }}>{st.error}</div>}
-              {renderActionButtons('prescription', rx.id, true)}
+      {customizeOpen && (
+        <div onClick={() => setCustomizeOpen(false)}
+          style={{position:'fixed',inset:0,zIndex:200,background:'rgba(13,43,69,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{background:'white',borderRadius:14,maxWidth:420,width:'100%',padding:'1.5rem',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+            <div style={{fontWeight:800,fontSize:'1.05rem',color:'var(--navy)',marginBottom:6}}>Customize dashboard tabs</div>
+            <div style={{fontSize:'.85rem',color:'var(--muted)',marginBottom:14}}>
+              Pick which tabs appear directly in your tab bar. Everything else stays available under More ▾.
             </div>
-          )
-        })}
-
-        {items.referrals.map(ref => {
-          const st = getState(ref.id)
-          const mods = st.mods || {}
-          return (
-            <div key={ref.id} className="card card-sm" style={{ borderLeft: `4px solid ${Math.floor((Date.now() - new Date(ref.created_at)) / 60000) > 30 ? '#DC2626' : '#92400E'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{ref.patient_name}</span>
-                <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: '.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>Referral</span>
-                {renderUrgencyBadge(ref.created_at)}
-              </div>
-              <div style={{ fontSize: '.8125rem', color: 'var(--muted)', marginBottom: '.75rem' }}>
-                Drafted by <strong>{ref.drafted_by_name || ref.provider_name}</strong> · {timeAgo(ref.created_at)}
-              </div>
-              {st.mode === 'modify' ? (
-                <div style={{ background: '#FFF7ED', border: '1.5px solid #FED7AA', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-                  <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#92400E', marginBottom: '.625rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>Modify referral</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
-                    {[['Investigation','investigation',ref.investigation],['Body part','body_part',ref.body_part||''],['Urgency','urgency',ref.urgency||'Routine']].map(([lbl,key,def]) => (
-                      <div key={key}>
-                        <label style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>{lbl}</label>
-                        <input value={mods[key] !== undefined ? mods[key] : def}
-                          onChange={e => patchState(ref.id, { mods: { ...mods, [key]: e.target.value } })}
-                          style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: '.875rem' }} />
-                      </div>
-                    ))}
-                    <div style={{ gridColumn: '1/-1' }}>
-                      <label style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginBottom: 2 }}>Clinical indication</label>
-                      <textarea value={mods.clinical_indication !== undefined ? mods.clinical_indication : (ref.clinical_indication || '')}
-                        onChange={e => patchState(ref.id, { mods: { ...mods, clinical_indication: e.target.value } })}
-                        rows={2} style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1.5px solid var(--border)', borderRadius: 6, fontFamily: 'Plus Jakarta Sans,sans-serif', fontSize: '.875rem', resize: 'vertical' }} />
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.375rem .75rem', fontSize: '.875rem' }}>
-                    <div><span style={{ color: 'var(--muted)' }}>Investigation:</span> <strong>{ref.investigation}</strong></div>
-                    {ref.body_part && <div><span style={{ color: 'var(--muted)' }}>Body part:</span> {ref.body_part}</div>}
-                    <div><span style={{ color: 'var(--muted)' }}>Urgency:</span> {ref.urgency || 'Routine'}</div>
-                    {ref.clinical_indication && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--muted)' }}>Indication:</span> {ref.clinical_indication}</div>}
-                    {ref.facility_name && <div style={{ gridColumn: '1/-1' }}><span style={{ color: 'var(--muted)' }}>Facility:</span> {ref.facility_name}</div>}
-                  </div>
-                </div>
-              )}
-              {renderRejectBox(ref.id, 'Explain why this referral cannot be approved as drafted…')}
-              {st.error && <div className="alert alert-danger" style={{ marginBottom: '.75rem' }}>{st.error}</div>}
-              {renderActionButtons('referral', ref.id, true)}
+            <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14}}>
+              {allTabs.map(([id, label]) => (
+                <label key={id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 10px',borderRadius:8,border:'1px solid var(--border)',cursor:'pointer',background:pinned.includes(id)?'rgba(11,110,118,.06)':'white'}}>
+                  <input type="checkbox" checked={pinned.includes(id)} onChange={() => togglePin(id)}
+                    style={{accentColor:'var(--teal)',cursor:'pointer'}} />
+                  <span style={{fontSize:'.9rem',color:'var(--navy)',fontWeight:600}}>{label}</span>
+                </label>
+              ))}
             </div>
-          )
-        })}
-
-        {items.acc.map(c => {
-          const st = getState(c.id)
-          const draft = c.acc_draft || {}
-          return (
-            <div key={c.id} className="card card-sm" style={{ borderLeft: `4px solid ${Math.floor((Date.now() - new Date(c.created_at)) / 60000) > 30 ? '#DC2626' : 'var(--success)'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.5rem' }}>
-                <span style={{ fontWeight: 700, fontSize: '1rem' }}>{c.patient_first_name} {c.patient_last_name}</span>
-                <span style={{ background: '#D1FAE5', color: '#065F46', fontSize: '.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>ACC Claim</span>
-                {renderUrgencyBadge(c.created_at)}
-              </div>
-              <div style={{ fontSize: '.8125rem', color: 'var(--muted)', marginBottom: '.75rem' }}>
-                Drafted by <strong>{c.provider_display_name || 'Provider'}</strong> · {timeAgo(c.created_at)}
-              </div>
-              {Object.keys(draft).length > 0 && (
-                <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '.875rem', marginBottom: '.875rem' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.375rem .75rem', fontSize: '.875rem' }}>
-                    {draft.cause && <div><span style={{ color: 'var(--muted)' }}>Cause:</span> {draft.cause}</div>}
-                    {draft.bodyPart && <div><span style={{ color: 'var(--muted)' }}>Body part:</span> {draft.bodyPart}</div>}
-                    {draft.diagnosisCode && <div><span style={{ color: 'var(--muted)' }}>Dx code:</span> {draft.diagnosisCode}</div>}
-                    {draft.injuryDate && <div><span style={{ color: 'var(--muted)' }}>Injury date:</span> {draft.injuryDate}</div>}
-                  </div>
-                </div>
-              )}
-              {renderRejectBox(c.id, 'Explain why this ACC claim cannot be approved…')}
-              {st.error && <div className="alert alert-danger" style={{ marginBottom: '.75rem' }}>{st.error}</div>}
-              {renderActionButtons('acc', c.id, false)}
+            <div style={{display:'flex',gap:8,justifyContent:'space-between'}}>
+              <button onClick={resetPinned}
+                style={{background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',padding:'.55rem 1rem',borderRadius:8,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.85rem'}}>
+                Reset to default
+              </button>
+              <button onClick={() => setCustomizeOpen(false)}
+                style={{background:'var(--navy)',color:'white',border:'none',padding:'.55rem 1.25rem',borderRadius:8,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:700,fontSize:'.9rem'}}>
+                Done
+              </button>
             </div>
-          )
-        })}
-      </div>
-    </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -651,7 +483,6 @@ export default function Dashboard() {
   const [provIsAvail, setProvIsAvail]     = useState(false)
   const [savingProvAvail, setSavingProvAvail] = useState(false)
   const [referralBadge, setReferralBadge] = useState(0)
-  const [approvalBadge, setApprovalBadge] = useState(0)
   const teamBadge = useTereChatUnread()
   const [nowTick, setNowTick]             = useState(Date.now())
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
@@ -696,17 +527,6 @@ export default function Dashboard() {
           .then(c => setReferralBadge(c))
           .catch(() => {})
       )
-    }
-    if (isSupervisor) {
-      import('../../lib/supabase').then(({ getRadiologyReferralCount }) => {
-        Promise.all([
-          getPendingPrescriptionsCount(),
-          getRadiologyReferralCount({ filter: 'pending_approval' }),
-          getAccPendingCount(),
-        ]).then(([rxC, refC, accC]) => {
-          setApprovalBadge((rxC || 0) + (refC || 0) + (accC || 0))
-        }).catch(() => {})
-      })
     }
     const interval = setInterval(() => {
       load()
@@ -803,29 +623,17 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tab switcher */}
-        <div style={{display:'flex',gap:4,marginBottom:'1.25rem',background:'white',borderRadius:'var(--radius-sm)',padding:4,border:'1px solid var(--border)',width:'fit-content'}}>
-          {[
-            ['queue','Queue'],
-            ['messages','💬 Messages'],
-            ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
-            ['notes','Notes'],
-            ['licenses','🪪 State licenses'],
-            ['inbox','📥 Inbox'],
-            ...(isSupervisor ? [['approvals', approvalBadge > 0 ? `Approvals (${approvalBadge})` : 'Approvals']] : []),
-            // Supervision tab is where the supervisor logs their scheduled
-            // review meetings with each RMO. MCNZ requires evidence of these
-            // meetings at an agreed cadence — this is the audit trail.
-            ...(isSupervisor ? [['supervision', 'Supervision']] : []),
-            // For RMOs — their own view of their supervisor + review log.
-            ...(isRMO ? [['my-supervision', 'My supervision']] : []),
-          ].map(([t,label]) => (
-            <button key={t} onClick={() => setDashTab(t)}
-              style={{padding:'7px 20px',borderRadius:'6px',border:'none',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',fontWeight:600,fontSize:'.875rem',transition:'all .15s',background:dashTab===t?'var(--navy)':'transparent',color:dashTab===t?'white':t==='approvals'&&approvalBadge>0?'#DC2626':'var(--muted)'}}>
-              {label}
-            </button>
-          ))}
-        </div>
+        {/* Tab switcher — baseline pinned tabs on the left, everything else
+            behind a "More ▾" dropdown. Providers can pin/unpin any tab via
+            the "Customize tabs" menu item; the pinned set is persisted per
+            browser in localStorage. */}
+        <DashTabSwitcher
+          dashTab={dashTab}
+          setDashTab={setDashTab}
+          teamBadge={teamBadge}
+          isSupervisor={isSupervisor}
+          isRMO={isRMO}
+        />
 
         {dashTab === 'messages' && <MessagesTab />}
         {dashTab === 'tere-chat' && <TereChatTab />}
@@ -1013,7 +821,6 @@ export default function Dashboard() {
             </p>
           </div>
         )}
-        {dashTab === 'approvals' && isSupervisor && <ApprovalsTab onBadgeChange={setApprovalBadge} />}
         {dashTab === 'supervision' && isSupervisor && <SupervisionReviewsTab navigate={navigate} />}
         {dashTab === 'my-supervision' && isRMO && <RMOSupervisionSelfTab />}
 

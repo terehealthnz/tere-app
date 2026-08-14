@@ -1,7 +1,7 @@
 # Tere Health — Incident Response Plan
 
-**Document version:** 1.0
-**Date:** 2026-07-08
+**Document version:** 1.1
+**Date:** 2026-08-12
 **Owner:** Patrick Herling (Chief compliance contact)
 **Review cadence:** Every six months, or after any material incident
 **Companion documents:** [`security-compliance.md`](./security-compliance.md) Section 10 (Breach Response), [`disaster-recovery-plan.md`](./disaster-recovery-plan.md)
@@ -146,7 +146,7 @@ Maintained separately from this document in a secure location for security reaso
 
 - **Sub-processor incident channels:** AWS Support (with premium support level appropriate to Bedrock usage), Supabase support portal, Vercel support portal, HealthLink support once NZePS integration is live.
 - **Legal:** Retainer relationship with a NZ-based privacy/health law firm — establish before first PHO contract.
-- **Insurance:** Cyber liability insurance — evaluate coverage before first PHO contract.
+- **Insurance:** Delta Insurance NZ Cyber Cover — 24/7 Cyber Claims Helpline **0800 335 820** (call immediately for any suspected P0/P1 cyber event; Delta's response service co-ordinates forensics, legal, PR and OPC notification with the insurer's panel).
 - **Regulatory:** Office of the Privacy Commissioner — public breach reporting form. HDC complaints form. Ministry of Health if HPI-related.
 - **Communication tools:** A private Signal group for the clinical team, tested to be reachable during incidents where email/Slack might be affected.
 

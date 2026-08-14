@@ -434,6 +434,59 @@ function SignaturePad({ onSaved, disabled }) {
   )
 }
 
+// Verifies an HPI-CPN against the Te Whatu Ora HPI FHIR API via
+// /api/hpi?action=get_practitioner. Renders a small button + a result chip
+// underneath the input it sits next to. Fires onFound(practitioner) so the
+// caller can prefill the provider name/scope fields if it wants to.
+function HpiVerifyButton({ cpn, onFound }) {
+  const [state, setState] = useState({ phase: 'idle' })
+  async function verify() {
+    if (!cpn) return
+    setState({ phase: 'loading' })
+    try {
+      const r = await apiFetch(`/api/hpi?action=get_practitioner&cpn=${encodeURIComponent(cpn)}`)
+      if (r.status === 404) { setState({ phase: 'not_found' }); return }
+      const j = await r.json()
+      if (!r.ok) { setState({ phase: 'error', msg: j?.error || `HTTP ${r.status}` }); return }
+      setState({ phase: 'ok', p: j.practitioner })
+      onFound?.(j.practitioner)
+    } catch (e) {
+      setState({ phase: 'error', msg: e.message || 'Network error' })
+    }
+  }
+  const loading = state.phase === 'loading'
+  return (
+    <div style={{ marginTop: 6 }}>
+      <button type="button" onClick={verify} disabled={!cpn || loading}
+        style={{
+          background: cpn ? '#0B6E76' : '#D1D5DB', color: 'white', border: 'none',
+          padding: '4px 10px', borderRadius: 6, fontSize: '.75rem', fontWeight: 700,
+          cursor: cpn && !loading ? 'pointer' : 'not-allowed',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+        }}>
+        {loading ? 'Checking HPI…' : 'Verify HPI-CPN'}
+      </button>
+      {state.phase === 'ok' && state.p && (
+        <div style={{ marginTop: 6, fontSize: '.75rem', padding: '6px 10px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 6, color: '#064E3B', lineHeight: 1.4 }}>
+          <strong>✓ HPI verified:</strong> {state.p.given} {state.p.family}
+          {state.p.active === false && <span style={{ color: '#B91C1C' }}> (INACTIVE)</span>}
+          {state.p.scope?.length > 0 && <div style={{ marginTop: 2, color: '#065F46' }}>{state.p.scope.join(' · ')}</div>}
+        </div>
+      )}
+      {state.phase === 'not_found' && (
+        <div style={{ marginTop: 6, fontSize: '.75rem', padding: '6px 10px', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 6, color: '#92400E' }}>
+          ⚠ Not found in HPI. Double-check the CPN.
+        </div>
+      )}
+      {state.phase === 'error' && (
+        <div style={{ marginTop: 6, fontSize: '.75rem', padding: '6px 10px', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 6, color: '#7F1D1D' }}>
+          ⚠ {state.msg}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AddProviderModal({ onClose, onCreated, prefill = {} }) {
   const [form, setForm] = React.useState({
     first_name: prefill.first_name || '',
@@ -672,6 +725,10 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                 <div>
                   <div style={labelStyle}>HPI-CPN</div>
                   <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} placeholder="Common Person Number" />
+                  <HpiVerifyButton cpn={form.cpn} onFound={p => {
+                    if (!form.first_name && p?.given)  set('first_name', p.given)
+                    if (!form.last_name  && p?.family) set('last_name',  p.family)
+                  }} />
                 </div>
                 <div>
                   <div style={labelStyle}>HPI number</div>
@@ -945,7 +1002,11 @@ function EditProviderModal({ provider, onClose, onSaved }) {
               </div>
               <div style={groupStyle}>
                 <div><div style={labelStyle}>MCNZ prescriber number</div><input value={form.prescriber_number} onChange={e => set('prescriber_number', e.target.value)} style={inputStyle} /></div>
-                <div><div style={labelStyle}>HPI-CPN</div><input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} /></div>
+                <div>
+                  <div style={labelStyle}>HPI-CPN</div>
+                  <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} />
+                  <HpiVerifyButton cpn={form.cpn} />
+                </div>
                 <div><div style={labelStyle}>HPI number</div><input value={form.hpi_number} onChange={e => set('hpi_number', e.target.value)} style={inputStyle} /></div>
                 <div><div style={labelStyle}>ACC provider number</div><input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} /></div>
               </div>

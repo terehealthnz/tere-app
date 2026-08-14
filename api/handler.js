@@ -70,6 +70,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
   // Data integrations (provider-triggered)
   'pms-data',
+  // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)
+  'hpi',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
@@ -169,6 +171,7 @@ const ROUTES = {
   'transcribe-token':          () => import('./_transcribe-token.js'),
   'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
+  'hpi':                       () => import('./_hpi.js'),
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
   'encounter-action':          () => import('./_encounter-action.js'),
