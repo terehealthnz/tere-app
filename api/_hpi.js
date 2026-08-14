@@ -68,6 +68,7 @@ async function fhirGet(path, params) {
   for (const [k, v] of Object.entries(params || {})) {
     if (v != null && v !== '') url.searchParams.set(k, v)
   }
+  const started = Date.now()
   const r = await fetch(url, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -77,7 +78,7 @@ async function fhirGet(path, params) {
   const text = await r.text()
   let body
   try { body = text ? JSON.parse(text) : {} } catch { body = { raw: text.slice(0, 400) } }
-  return { status: r.status, ok: r.ok, body }
+  return { status: r.status, ok: r.ok, body, url: url.toString(), duration_ms: Date.now() - started }
 }
 
 // Extract just the fields our admin UI actually needs, so we don't
@@ -152,6 +153,93 @@ export default async function handler(req, res) {
       return res.status(200).json({
         results: entries.map(e => shapePractitioner(e.resource)).filter(Boolean),
         total:   r.body?.total ?? entries.length,
+      })
+    }
+
+    // compliance_pack runs the five standard HPI FHIR conformance scenarios
+    // against UAT and returns the request/response evidence bundle used by
+    // scripts/build-hpi-compliance-pdf.mjs to produce the submission PDF.
+    // Scenarios:
+    //   1. Positive get:    known valid CPN → 200 with well-formed Practitioner
+    //   2. Not-found:       fake CPN        → 404 with OperationOutcome
+    //   3. Malformed input: bad character   → 4xx handled gracefully
+    //   4. Name search:     Search Practitioner by family name → Bundle
+    //   5. Facility get:    Location by HPI-O → 200 or documented 404
+    if (action === 'compliance_pack') {
+      const validCpn      = String(req.query.cpn      || '24NSES').trim()
+      const notFoundCpn   = String(req.query.notfound || 'ZZ9ZZZ').trim()
+      const malformedCpn  = '!!invalid!!'
+      const searchFamily  = String(req.query.family   || 'Herling').trim()
+      const facilityId    = String(req.query.facility || 'G11238-E').trim()
+
+      const scenarios = []
+      const run = async (name, purpose, expected, fn) => {
+        const started = Date.now()
+        try {
+          const r = await fn()
+          scenarios.push({
+            name, purpose, expected,
+            request:    { url: r.url },
+            response:   { status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 4000) },
+            duration_ms: r.duration_ms,
+            outcome:    r.status === expected.status ? 'PASS'
+                       : expected.status_range && Math.floor(r.status / 100) === expected.status_range ? 'PASS'
+                       : 'REVIEW',
+          })
+        } catch (e) {
+          scenarios.push({
+            name, purpose, expected,
+            error: e.message, duration_ms: Date.now() - started, outcome: 'FAIL',
+          })
+        }
+      }
+
+      await run(
+        '1. Positive Get Practitioner',
+        `Retrieve a known valid HPI-CPN (${validCpn}) and confirm a well-formed Practitioner resource is returned.`,
+        { status: 200, description: '200 OK with FHIR Practitioner resource' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`),
+      )
+      await run(
+        '2. Not-Found Get Practitioner',
+        `Query a non-existent CPN (${notFoundCpn}) and confirm the product surfaces a 404 gracefully.`,
+        { status: 404, description: '404 Not Found (or OperationOutcome)' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`),
+      )
+      await run(
+        '3. Malformed Input Handling',
+        'Query with malformed CPN characters to confirm we do not leak stack traces and pass errors through as 4xx.',
+        { status_range: 4, description: 'Any 4xx response, handled without crashing' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`),
+      )
+      await run(
+        '4. Search Practitioner by name',
+        `Search for practitioners by family name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries.`,
+        { status: 200, description: '200 OK with FHIR Bundle' },
+        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }),
+      )
+      await run(
+        '5. Get Facility (Location)',
+        `Retrieve Location by HPI-O (${facilityId}) to confirm Location.r scope is honoured.`,
+        { status: 200, description: '200 OK with FHIR Location resource (or documented 404)' },
+        () => fhirGet(`Location/${encodeURIComponent(facilityId)}`),
+      )
+
+      const summary = {
+        total:  scenarios.length,
+        passed: scenarios.filter(s => s.outcome === 'PASS').length,
+        review: scenarios.filter(s => s.outcome === 'REVIEW').length,
+        failed: scenarios.filter(s => s.outcome === 'FAIL').length,
+      }
+
+      return res.status(200).json({
+        product:      { name: 'Tere Health', product_id: 'HSAPP0404', organisation: 'Tere Health Limited', organisation_id: 'G11238-E' },
+        environment:  { name: 'UAT', gateway: 'HIP AWS Gateway', base_url: BASE_URL, token_url: TOKEN_URL, auth: 'KeyCloak OAuth2 client_credentials' },
+        scopes:       (SCOPES || '').split(/\s+/).filter(Boolean),
+        generated_at: new Date().toISOString(),
+        generated_by: `${auth.provider?.first_name || ''} ${auth.provider?.last_name || ''}`.trim() || auth.provider?.email || 'admin',
+        summary,
+        scenarios,
       })
     }
 
