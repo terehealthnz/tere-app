@@ -93,6 +93,30 @@ const DOCS_MAP = {
     title: 'Audit Log Retention Policy',
     badges: ['10-year retention', 'Append-only', 'HIPC 2020 aligned'],
   },
+  'quality-management-system': {
+    src: 'quality-management-system.md',
+    out: 'Tere_Health_Quality_Management_System.pdf',
+    title: 'Quality Management System',
+    badges: ['ISO 13485-aligned', 'Class IIa SaMD', 'WAND 260729'],
+  },
+  'risk-management-file': {
+    src: 'risk-management-file.md',
+    out: 'Tere_Health_Risk_Management_File.pdf',
+    title: 'Risk Management File — Tere Vitals',
+    badges: ['ISO 14971 aligned', '5 hazard families', 'All ALARP or better'],
+  },
+  'software-lifecycle-file': {
+    src: 'software-lifecycle-file.md',
+    out: 'Tere_Health_Software_Lifecycle_File.pdf',
+    title: 'Software Lifecycle File — Tere Vitals',
+    badges: ['IEC 62304 aligned', 'Class B safety', 'Trunk-based SDLC'],
+  },
+  'declaration-of-conformity': {
+    src: 'declaration-of-conformity.md',
+    out: 'Tere_Health_Declaration_of_Conformity.pdf',
+    title: 'Declaration of Conformity — Tere Vitals',
+    badges: ['WAND 260729-WAND-786DQ9', 'Class IIa', 'GMDN 57960'],
+  },
 }
 
 const CSS = `
