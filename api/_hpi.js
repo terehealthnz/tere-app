@@ -266,9 +266,9 @@ export default async function handler(req, res) {
       )
       await run(
         '4. Search Practitioner by name',
-        `Search for practitioners by family name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries.`,
+        `Search for practitioners by name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries. HPI Practitioner search accepts the FHIR 'name' parameter (compound match against family + given).`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { family: searchFamily, _count: 5 }, scopeOverride, userId),
+        () => fhirGet('Practitioner', { name: searchFamily }, scopeOverride, userId),
       )
       await run(
         '5. Get Facility (Location)',
@@ -293,6 +293,15 @@ export default async function handler(req, res) {
         summary,
         scenarios,
       })
+    }
+
+    // search_facility: find a valid Location by name so we can supply a real
+    // ID to the get_facility scenario. FHIR searches Location by name.
+    if (action === 'search_facility') {
+      const name = String(req.query.name || '').trim()
+      if (!name) return res.status(400).json({ error: 'name required' })
+      const r = await fhirGet('Location', { name })
+      return res.status(r.ok ? 200 : r.status).json({ status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 2000) })
     }
 
     if (action === 'get_facility') {
