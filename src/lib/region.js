@@ -70,6 +70,20 @@ function isDevHost(hostname) {
       || h.endsWith('.vercel.app')      // preview deployments
 }
 
+/**
+ * Convenience predicate: true when the current SPA is loaded on the US
+ * (Tere Care) surface. Used to gate NHI displays + NZ-only intake copy
+ * so US patients never see New Zealand identifiers or clinician tools
+ * accidentally leak NHI into the US admin/provider view.
+ *
+ * Read-only at module scope is fine — hostname doesn't change during the
+ * SPA session, so callers can invoke this from render bodies without a
+ * hook. If we ever add SSR, wrap this in a proper React context.
+ */
+export function isUS() {
+  return detectRegion() === REGIONS.US
+}
+
 export function detectRegion() {
   if (typeof window === 'undefined') return REGIONS.NZ
   const hostname = window.location.hostname

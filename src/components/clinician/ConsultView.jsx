@@ -13,6 +13,7 @@ import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
 import { apiFetch } from '../../lib/api'
+import { isUS } from '../../lib/region'
 import { Modal, PrescribeModal, XrayModal, ACCModal } from './ClinicalActionModals'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -488,14 +489,14 @@ export default function ConsultView() {
                   Patient info
                 </div>
                 {[
-                  ['NHI', consult.patient_nhi],
+                  isUS() ? null : ['NHI', consult.patient_nhi],
                   ['DOB', consult.patient_dob],
                   ['Location', consult.patient_location],
                   ['ACC', consult.acc_eligible === 'yes' ? '✓ Eligible' : 'Not eligible'],
                   ['Employer', consult.acc_employer],
                   ['Allergies', consult.patient_allergies || 'None documented'],
                   ['Interpreter', consult.interpreter_requested ? '🌐 Requested' : null],
-                ].filter(([,v]) => v).map(([k,v]) => (
+                ].filter(row => row && row[1]).map(([k,v]) => (
                   <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid var(--border)',fontSize:'.8125rem'}}>
                     <span style={{color:'var(--muted)'}}>{k}</span>
                     <span style={{fontWeight:500,color: k==='ACC'&&v.startsWith('✓') ? 'var(--success)' : k==='Allergies'&&v!=='None documented' ? 'var(--danger)' : 'var(--text)'}}>{v}</span>

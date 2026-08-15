@@ -5,6 +5,11 @@ import { t, t_bilingual, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
 import { findFaceRegion } from '../../lib/rppg'
+import { isUS } from '../../lib/region'
+
+// On terecare.com (isUS()) we skip the NHI question — US patients have no
+// NHI. Any step whose next was 'nhi' becomes 'pharmacy' in that region.
+const NEXT_AFTER_ALLERGIES = () => isUS() ? 'pharmacy' : 'nhi'
 
 // ── Anonymous analytics helper ─────────────────────────────────────────────────
 function trackEvent(event_name, metadata = {}) {
@@ -91,10 +96,10 @@ const STEPS = [
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next:'nhi' },
+  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
-  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'nhi' },
+  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
   { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
@@ -499,7 +504,7 @@ export default function AITriage() {
     // Route allergies: always go to admin questions (nhi); ACC description comes after acc_employer
     if (step.id === 'allergies') {
       setData(newData)
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'nhi', newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
       return
     }
 
@@ -520,7 +525,7 @@ export default function AITriage() {
     // After acc_employer, go to admin questions (nhi/pharmacy/gp)
     if (step.id === 'acc_employer') {
       setData(newData)
-      advanceToStep('nhi', newData)
+      advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
       return
     }
 
