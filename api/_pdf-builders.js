@@ -236,15 +236,11 @@ export function buildPayslipPdf(data) {
 
     doc.moveTo(50, 186).lineTo(W - 50, 186).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
 
-    // Earnings summary box — per-consultation-type breakdown, no holiday pay.
-    const rates      = data.rates || { message: 10, phone: 20, video: 20 }
-    const breakdown  = data.breakdown || { video: 0, phone: 0, message: 0 }
-    const videoPhone = (breakdown.video || 0) + (breakdown.phone || 0)
-    const videoPhoneAmount = videoPhone * (rates.video || 20)
-    const messageAmount    = (breakdown.message || 0) * (rates.message || 10)
+    // Earnings summary box — flat per-consult rate per provider.
+    const rate = Number(data.base_rate ?? 20)
 
     let y = 200
-    doc.rect(50, y, W - 100, 110).fill('#F0F9FA').stroke('#D4EEF0')
+    doc.rect(50, y, W - 100, 90).fill('#F0F9FA').stroke('#D4EEF0')
     doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Earnings Summary', 66, y + 12)
 
     const row = (label, value, bold = false, yOff = 0) => {
@@ -252,11 +248,10 @@ export function buildPayslipPdf(data) {
         .text(label, 66, y + yOff)
         .text(value, W - 160, y + yOff, { width: 110, align: 'right' })
     }
-    row(`Video / phone (${videoPhone} × $${Number(rates.video).toFixed(2)})`,          `$${videoPhoneAmount.toFixed(2)}`, false, 32)
-    row(`Message (${breakdown.message || 0} × $${Number(rates.message).toFixed(2)})`,  `$${messageAmount.toFixed(2)}`,    false, 50)
-    doc.moveTo(66, y + 68).lineTo(W - 66, y + 68).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
-    row(`Total (${data.consultation_count} consultations)`, `$${Number(data.total_amount).toFixed(2)}`, true, 76)
-    y += 126
+    row(`${data.consultation_count} consultations × $${rate.toFixed(2)}`, `$${Number(data.total_amount).toFixed(2)}`, false, 34)
+    doc.moveTo(66, y + 54).lineTo(W - 66, y + 54).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+    row('Total', `$${Number(data.total_amount).toFixed(2)}`, true, 62)
+    y += 106
 
     // Per-consultation breakdown table
     if ((data.consultations || []).length > 0) {
@@ -284,12 +279,11 @@ export function buildPayslipPdf(data) {
         const initials = `${(c.patient_first_name || '').charAt(0)}${(c.patient_last_name || '').charAt(0)}.`
         const typeKey = c.consultation_type || 'video'
         const type = typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
-        const fee = rates[typeKey] ?? rates.video ?? 20
         doc.fillColor('#374151').font('Helvetica').fontSize(8)
           .text(dateStr, 58, y + 4)
           .text(type, 150, y + 4)
           .text(initials, 230, y + 4)
-          .text(`$${Number(fee).toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
+          .text(`$${rate.toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
         y += 16
       }
 

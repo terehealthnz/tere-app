@@ -5,8 +5,6 @@ import { apiFetch } from '../../lib/api'
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const FF   = 'Plus Jakarta Sans, sans-serif'
-const BASE_RATE = 15.00
-const HOLIDAY_RATE = 0.08
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -124,7 +122,7 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
                     <td style={{ padding:'.625rem .5rem', color:'#374151' }}>
                       {c.patient_first_name?.charAt(0)}{c.patient_last_name?.charAt(0)}.
                     </td>
-                    <td style={{ padding:'.625rem 1rem', textAlign:'right', color:TEAL, fontWeight:600 }}>${(BASE_RATE * (1 + HOLIDAY_RATE)).toFixed(2)}</td>
+                    <td style={{ padding:'.625rem 1rem', textAlign:'right', color:TEAL, fontWeight:600 }}>${Number(summary.base_rate ?? 20).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -138,16 +136,64 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
           )}
         </div>
         <div style={{ padding:'.875rem 1rem', borderTop:'1px solid #E2E8F0', background:'#F9FAFB', fontFamily:FF, fontSize:'.75rem', color:'#9CA3AF', lineHeight:1.6 }}>
-          $20 per video/phone consultation · $10 per message consultation · Contractor — no holiday pay, no PAYE
+          Per-provider rate: ${Number(summary.base_rate ?? 20).toFixed(2)} per consultation · Contractor — no holiday pay, no PAYE
         </div>
       </div>
     </div>
   )
 }
 
+// ── Per-provider rate editor (chip → inline input → PATCH /api/providers) ────
+
+function RateEditor({ summary, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [value,   setValue]   = useState(String(Number(summary.base_rate ?? 20).toFixed(2)))
+  const [saving,  setSaving]  = useState(false)
+
+  async function save() {
+    const num = Number(value)
+    if (!Number.isFinite(num) || num < 0 || num > 500) { setEditing(false); return }
+    if (num.toFixed(2) === Number(summary.base_rate ?? 20).toFixed(2)) { setEditing(false); return }
+    setSaving(true)
+    try {
+      const r = await apiFetch(`/api/providers?id=${summary.provider_id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ base_rate: num }),
+      })
+      if (r.ok) { setEditing(false); onSaved?.() }
+    } catch {}
+    setSaving(false)
+  }
+
+  if (editing) {
+    return (
+      <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+        <span style={{ fontSize:'.75rem', color:'#6B7280' }}>$</span>
+        <input type="number" step="0.50" min="0" max="500" value={value} autoFocus
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+          style={{ width:64, padding:'2px 6px', border:`1px solid ${TEAL}`, borderRadius:6, fontFamily:FF, fontSize:'.75rem' }} />
+        <button onClick={save} disabled={saving}
+          style={{ background:TEAL, color:'white', border:'none', borderRadius:6, padding:'2px 8px', fontFamily:FF, fontSize:'.7rem', fontWeight:700, cursor:'pointer', opacity:saving?0.6:1 }}>
+          {saving ? '…' : '✓'}
+        </button>
+        <button onClick={() => setEditing(false)}
+          style={{ background:'transparent', color:'#6B7280', border:'none', padding:'2px 4px', cursor:'pointer', fontSize:'.75rem' }}>✕</button>
+      </span>
+    )
+  }
+  return (
+    <button onClick={() => setEditing(true)}
+      title="Edit per-consult rate"
+      style={{ background:'#F3F4F6', color:NAVY, border:'1px dashed #CBD5E1', borderRadius:99, padding:'2px 8px', fontFamily:FF, fontSize:'.6875rem', fontWeight:700, cursor:'pointer' }}>
+      ${Number(summary.base_rate ?? 20).toFixed(2)}/consult ✎
+    </button>
+  )
+}
+
 // ── Provider card ─────────────────────────────────────────────────────────────
 
-function ProviderCard({ summary, period_start, period_end, onAction, actionLoading }) {
+function ProviderCard({ summary, period_start, period_end, onAction, onRateChanged, actionLoading }) {
   const [showReview, setShowReview] = useState(false)
   const isLoading = k => actionLoading === `${summary.provider_id}:${k}`
 
@@ -161,9 +207,10 @@ function ProviderCard({ summary, period_start, period_end, onAction, actionLoadi
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{summary.provider_name}</div>
-            <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginTop:2 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginTop:4, flexWrap:'wrap' }}>
               <span style={{ fontSize:'.8125rem', color:'#6B7280' }}>{summary.consultation_count} consult{summary.consultation_count !== 1 ? 's' : ''}</span>
               <StatusChip status={summary.status} paidAt={summary.paid_at} />
+              <RateEditor summary={summary} onSaved={onRateChanged} />
             </div>
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
@@ -394,7 +441,7 @@ export default function AdminPayroll({ embedded = false }) {
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:'.875rem', marginBottom:'1.5rem' }}>
           {displayed.map(s => (
-            <ProviderCard key={s.provider_id} summary={s} period_start={period.period_start} period_end={period.period_end} onAction={handleAction} actionLoading={actionLoading} />
+            <ProviderCard key={s.provider_id} summary={s} period_start={period.period_start} period_end={period.period_end} onAction={handleAction} onRateChanged={load} actionLoading={actionLoading} />
           ))}
         </div>
       )}

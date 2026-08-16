@@ -4,6 +4,8 @@ import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteC
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
+import ProviderInbox from '../../pages/clinician/ProviderInbox.jsx'
+import ProviderEarnings from '../../pages/clinician/ProviderEarnings.jsx'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -351,6 +353,7 @@ function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }
       ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
       ['inbox',     '📥 Inbox'],
       ['messages',  '💬 Messages'],
+      ['earnings',  '💰 Earnings'],
       ['notes',     'Notes'],
       ['licenses',  '🪪 State licenses'],
     ]
@@ -810,17 +813,8 @@ export default function Dashboard() {
             </p>
           </div>
         )}
-        {dashTab === 'inbox' && (
-          <div style={{ marginTop: 8 }}>
-            <button onClick={() => navigate('/clinician/inbox')}
-              style={{ background: 'var(--navy)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.9rem', cursor: 'pointer' }}>
-              Open inbox →
-            </button>
-            <p style={{ marginTop: '.75rem', fontSize: '.85rem', color: 'var(--muted)' }}>
-              Inbound lab results, referrals, and GP letters routed to you via Medical-Objects Capricorn.
-            </p>
-          </div>
-        )}
+        {dashTab === 'inbox' && <ProviderInbox embedded />}
+        {dashTab === 'earnings' && <ProviderEarnings embedded />}
         {dashTab === 'supervision' && isSupervisor && <SupervisionReviewsTab navigate={navigate} />}
         {dashTab === 'my-supervision' && isRMO && <RMOSupervisionSelfTab />}
 

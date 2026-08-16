@@ -1,18 +1,16 @@
 // Payroll API — calculate, approve, mark paid, payslips, emails.
 //
-// Contract per-consult model (on-demand, no shifts):
-//   video / phone: $20.00 NZD
-//   message:       $10.00 NZD
-// No hourly rate. No holiday pay (contractor, not employee — Schedule 4
-// of the Holidays Act 2003 exempts contractors from statutory leave
-// entitlements; we compensate accordingly in the per-consult rate).
+// Contract per-consult model (on-demand, no shifts, contractor not
+// employee — Schedule 4 of the Holidays Act 2003 exempts contractors
+// from statutory leave entitlements; we compensate in the per-consult
+// rate). Rate is per-provider, stored in providers.base_rate, editable
+// from AdminPayroll. All consult types are billed at the same flat rate.
 //
-// providers.base_rate / hourly_rate / holiday_pay_pct columns exist in
-// the DB for historical reasons but are no longer read by this module.
+// Legacy providers.hourly_rate / holiday_pay_pct columns exist for
+// historical reasons but are not read here.
 import { createClient } from '@supabase/supabase-js'
 
-const RATES = { message: 10.00, phone: 20.00, video: 20.00 }
-const DEFAULT_RATE = 20.00
+const FALLBACK_RATE = 20.00   // used only if a provider row has null base_rate
 
 // Reference Monday for fortnightly calculations (2024-01-01 is a Monday)
 const REF_MS = new Date('2024-01-01T00:00:00Z').getTime()
@@ -41,32 +39,25 @@ function getPastFortnights(count = 13) {
 
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
-    supabase.from('providers').select('id,first_name,last_name,credential,color,email').eq('is_active', true).order('first_name'),
-    supabase.from('consultations').select('provider_id,consultation_type').eq('status', 'complete').not('provider_id', 'is', null)
+    supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate').eq('is_active', true).order('first_name'),
+    supabase.from('consultations').select('provider_id').eq('status', 'complete').not('provider_id', 'is', null)
       .gte('created_at', period_start + 'T00:00:00.000Z')
       .lte('created_at', period_end + 'T23:59:59.999Z'),
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
   ])
 
-  const earningsMap = {}
-  const countMap    = {}
-  const breakdownMap = {}          // per-provider: { video: N, phone: N, message: N }
+  const countMap = {}
   for (const c of consultations || []) {
-    const type = c.consultation_type || 'video'
-    const rate = RATES[type] ?? DEFAULT_RATE
-    earningsMap[c.provider_id] = (earningsMap[c.provider_id] || 0) + rate
-    countMap[c.provider_id]    = (countMap[c.provider_id] || 0) + 1
-    if (!breakdownMap[c.provider_id]) breakdownMap[c.provider_id] = { video: 0, phone: 0, message: 0 }
-    breakdownMap[c.provider_id][type] = (breakdownMap[c.provider_id][type] || 0) + 1
+    countMap[c.provider_id] = (countMap[c.provider_id] || 0) + 1
   }
   const savedMap = {}
   for (const r of payrollRows || []) savedMap[r.provider_id] = r
 
   return (providers || []).map(p => {
-    const count     = countMap[p.id] || 0
-    const saved     = savedMap[p.id]
-    const total     = parseFloat((earningsMap[p.id] || 0).toFixed(2))
-    const breakdown = breakdownMap[p.id] || { video: 0, phone: 0, message: 0 }
+    const count = countMap[p.id] || 0
+    const rate  = Number(p.base_rate ?? FALLBACK_RATE)
+    const saved = savedMap[p.id]
+    const total = parseFloat((count * rate).toFixed(2))
     return {
       id:                 saved?.id || null,
       provider_id:        p.id,
@@ -76,8 +67,7 @@ async function buildSummaries(supabase, period_start, period_end) {
       period_start,
       period_end,
       consultation_count: count,
-      rates:              RATES,
-      breakdown,                          // { video, phone, message }
+      base_rate:          rate,
       total_amount:       total,
       status:             saved?.status || 'draft',
       paid_at:            saved?.paid_at || null,
@@ -100,6 +90,11 @@ export default async function handler(req, res) {
     if (type === 'summary') {
       if (!period_start || !period_end) return res.status(400).json({ error: 'Missing period' })
       const summaries = await buildSummaries(supabase, period_start, period_end)
+      // Per-provider self-view (ProviderEarnings) — return just one row.
+      if (provider_id) {
+        const one = summaries.find(s => s.provider_id === provider_id) || null
+        return res.status(200).json({ summary: one })
+      }
       const total_payroll       = parseFloat(summaries.reduce((s, x) => s + x.total_amount, 0).toFixed(2))
       const total_consultations = summaries.reduce((s, x) => s + x.consultation_count, 0)
       const active_providers    = summaries.filter(x => x.consultation_count > 0).length
@@ -209,7 +204,7 @@ export default async function handler(req, res) {
       }
 
       const [{ data: prov }, { data: consultations }] = await Promise.all([
-        supabase.from('providers').select('first_name,last_name,credential,email').eq('id', pid).single(),
+        supabase.from('providers').select('first_name,last_name,credential,email,base_rate').eq('id', pid).single(),
         supabase.from('consultations')
           .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
           .eq('status', 'complete').eq('provider_id', pid)
@@ -217,23 +212,16 @@ export default async function handler(req, res) {
           .order('created_at'),
       ])
 
-      const rows      = consultations || []
-      const count     = rows.length
-      const breakdown = { video: 0, phone: 0, message: 0 }
-      let total       = 0
-      for (const c of rows) {
-        const type = c.consultation_type || 'video'
-        const rate = RATES[type] ?? DEFAULT_RATE
-        breakdown[type] = (breakdown[type] || 0) + 1
-        total += rate
-      }
-      total = parseFloat(total.toFixed(2))
+      const rows  = consultations || []
+      const count = rows.length
+      const rate  = Number(prov?.base_rate ?? FALLBACK_RATE)
+      const total = parseFloat((count * rate).toFixed(2))
 
       const { buildPayslipPdf } = await import('./_pdf-builders.js')
       const pdfBuffer = await buildPayslipPdf({
         provider: prov, period_start: ps, period_end: pe,
         consultations: rows,
-        consultation_count: count, rates: RATES, breakdown,
+        consultation_count: count, base_rate: rate,
         total_amount: total,
       })
 
@@ -267,9 +255,8 @@ export default async function handler(req, res) {
     <p style="font-size:15px;color:#374151;margin:0 0 24px">Your Tere Health earnings for <strong>${periodStr}</strong> are ready.</p>
     <div style="background:#F0F9FA;border:1px solid #D4EEF0;border-radius:12px;padding:20px 24px;margin-bottom:24px">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
-        <tr><td style="color:#6B7280;padding:4px 0">Video / phone (${s.breakdown.video + s.breakdown.phone} × $${RATES.video.toFixed(2)})</td><td style="text-align:right;color:#374151">$${((s.breakdown.video + s.breakdown.phone) * RATES.video).toFixed(2)}</td></tr>
-        <tr><td style="color:#6B7280;padding:4px 0">Message (${s.breakdown.message} × $${RATES.message.toFixed(2)})</td><td style="text-align:right;color:#374151">$${(s.breakdown.message * RATES.message).toFixed(2)}</td></tr>
-        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total (${s.consultation_count} consultations)</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
+        <tr><td style="color:#6B7280;padding:4px 0">${s.consultation_count} consultations × $${Number(s.base_rate).toFixed(2)}</td><td style="text-align:right;color:#374151">$${s.total_amount.toFixed(2)}</td></tr>
+        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
       </table>
     </div>
     <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>

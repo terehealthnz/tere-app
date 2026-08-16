@@ -76,7 +76,7 @@ function MessageRow({ msg, onOpen }) {
   )
 }
 
-function MessageView({ id, onClose, onChanged }) {
+function MessageView({ id, onClose, onChanged, embedded = false }) {
   const [msg, setMsg]   = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -136,7 +136,7 @@ function MessageView({ id, onClose, onChanged }) {
   const patient = [msg.patient_first_name, msg.patient_last_name].filter(Boolean).join(' ') || 'Unknown patient'
 
   return (
-    <div style={{ padding: '1.25rem 1.5rem 3rem', background: '#F7F5F0', minHeight: '100dvh', fontFamily: FF }}>
+    <div style={{ padding: embedded ? '.5rem 0 1rem' : '1.25rem 1.5rem 3rem', background: embedded ? 'transparent' : '#F7F5F0', minHeight: embedded ? 'auto' : '100dvh', fontFamily: FF }}>
       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '1rem' }}>
         <button onClick={onClose} style={backBtn}>← Back to inbox</button>
         <button onClick={archive} disabled={busy} style={{ ...backBtn, marginLeft: 'auto' }}>
@@ -232,7 +232,7 @@ function MessageView({ id, onClose, onChanged }) {
   )
 }
 
-export default function ProviderInbox() {
+export default function ProviderInbox({ embedded = false }) {
   const navigate = useNavigate()
   const [rows, setRows]     = useState([])
   const [loading, setLoading] = useState(true)
@@ -240,7 +240,11 @@ export default function ProviderInbox() {
   const [openId, setOpenId] = useState(null)
 
   useEffect(() => {
-    if (!sessionStorage.getItem('clinicianAuth')) { navigate('/clinician?redirect=/clinician/inbox'); return }
+    // Standalone route enforces its own auth redirect; when embedded the
+    // parent (Dashboard) has already guarded.
+    if (!embedded && !sessionStorage.getItem('clinicianAuth')) {
+      navigate('/clinician?redirect=/clinician/inbox'); return
+    }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -257,7 +261,30 @@ export default function ProviderInbox() {
   }
 
   if (openId) {
-    return <MessageView id={openId} onClose={() => setOpenId(null)} onChanged={load} />
+    return <MessageView id={openId} onClose={() => setOpenId(null)} onChanged={load} embedded={embedded} />
+  }
+
+  const list = (
+    <>
+      {loading && <div style={{ textAlign: 'center', color: '#6B7280' }}>Loading…</div>}
+      {error && <div style={{ color: '#991B1B', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.9rem' }}>{error}</div>}
+      {!loading && !rows.length && (
+        <div style={{ background: 'white', border: '1px dashed #D1D5DB', borderRadius: 12, padding: '2rem', textAlign: 'center', color: '#6B7280', fontSize: '.9rem' }}>
+          No inbound messages routed to you.
+        </div>
+      )}
+      <div style={{ display: 'grid', gap: '.6rem' }}>
+        {rows.map(m => <MessageRow key={m.id} msg={m} onOpen={setOpenId} />)}
+      </div>
+    </>
+  )
+
+  if (embedded) {
+    return (
+      <div style={{ padding: '.5rem 0 1rem', fontFamily: FF }}>
+        {list}
+      </div>
+    )
   }
 
   return (
@@ -271,16 +298,7 @@ export default function ProviderInbox() {
       </div>
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '1.5rem 1.25rem 3rem' }}>
-        {loading && <div style={{ textAlign: 'center', color: '#6B7280' }}>Loading…</div>}
-        {error && <div style={{ color: '#991B1B', background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.9rem' }}>{error}</div>}
-        {!loading && !rows.length && (
-          <div style={{ background: 'white', border: '1px dashed #D1D5DB', borderRadius: 12, padding: '2rem', textAlign: 'center', color: '#6B7280', fontSize: '.9rem' }}>
-            No inbound messages routed to you.
-          </div>
-        )}
-        <div style={{ display: 'grid', gap: '.6rem' }}>
-          {rows.map(m => <MessageRow key={m.id} msg={m} onOpen={setOpenId} />)}
-        </div>
+        {list}
       </div>
     </div>
   )
