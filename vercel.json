@@ -7,7 +7,6 @@
       ]
     },
     {
-      "//": "Security headers for the SPA HTML shell served directly by Vercel edge. api/handler.js already sets the same headers on every /api/* response; this block covers the outer HTML page that Vercel serves before the API is ever called. Values mirror handler.js setSecurityHeaders(). unsafe-inline in script-src is retained because React's inline event handlers require it and CSP nonces are a bigger refactor.",
       "source": "/((?!api/|assets/).*)",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
