@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteConsultations, getMessagePendingConsultations } from '../../lib/supabase'
+import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteConsultations } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
@@ -167,184 +167,13 @@ function TypeBadge({ type }) {
   )
 }
 
-function MessagesTab() {
-  const navigate = useNavigate()
-  const [rows, setRows] = React.useState([])
-  const [loading, setLoading] = React.useState(true)
-  const [responding, setResponding] = React.useState(null)
-  const [responseText, setResponseText] = React.useState('')
-  const [sending, setSending] = React.useState(false)
-  const [sent, setSent] = React.useState({})
-
-  async function load() {
-    setLoading(true)
-    try {
-      const rows = await getMessagePendingConsultations()
-      // Client-side filter for async_symptom_detail (small extra restriction on
-      // top of the server's status=message + in {waiting,in_progress}).
-      setRows((rows || []).filter(r => r.async_symptom_detail))
-    } catch(e) { console.error(e) }
-    setLoading(false)
-  }
-
-  async function sendResponse(consultation) {
-    setSending(true)
-    try {
-      const providerId = sessionStorage.getItem('providerId')
-      const providerDisplay = sessionStorage.getItem('providerDisplayName')
-      await updateConsultation(consultation.id, {
-        status: 'complete',
-        clinical_notes: {
-          S: [
-            consultation.chief_complaint,
-            consultation.async_symptom_detail ? `\nDetail: ${consultation.async_symptom_detail}` : null,
-            consultation.async_symptom_progression ? `Progression: ${consultation.async_symptom_progression}` : null,
-            consultation.async_daily_impact ? `Daily impact: ${consultation.async_daily_impact}` : null,
-          ].filter(Boolean).join('\n'),
-          O: `Medical history: ${consultation.medical_history || 'nil'}\nMedications: ${consultation.medications || 'nil'}\nAllergies: ${consultation.patient_allergies || 'nil'}`,
-          A: '',
-          P: responseText,
-        },
-        async_response: responseText,
-        async_responded_at: new Date().toISOString(),
-        notes_finalised: true,
-        notes_finalised_at: new Date().toISOString(),
-        outcome: 'message_response',
-        provider_display_name: providerDisplay || null,
-        ...(providerId ? { provider_id: providerId } : {}),
-      })
-
-      // Capture the payment hold (message consultations use manual capture)
-      if (consultation.payment_intent_id) {
-        try {
-          await apiFetch('/api/capture-payment', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentIntentId: consultation.payment_intent_id }),
-          })
-        } catch (e) { console.error('Payment capture error:', e) }
-      }
-
-      // Try to send email response
-      try {
-        await apiFetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: consultation.patient_email,
-            name: `${consultation.patient_first_name} ${consultation.patient_last_name}`,
-            notes: { A: '', P: responseText },
-            actions: [],
-            consult: consultation,
-          })
-        })
-      } catch {}
-
-      setSent(s => ({ ...s, [consultation.id]: true }))
-      setRows(rs => rs.filter(r => r.id !== consultation.id))
-      setResponding(null)
-      setResponseText('')
-    } catch(e) { console.error(e) }
-    setSending(false)
-  }
-
-  React.useEffect(() => { load() }, [])
-
-  if (loading) return <div style={{ textAlign:'center', padding:'3rem' }}><div className="spinner" /></div>
-
-  return (
-    <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1.25rem' }}>
-        <h1 style={{ marginBottom:0 }}>Message consultations</h1>
-        <button onClick={load} style={{ background:'var(--teal-light)', border:'none', color:'var(--teal)', padding:'8px 16px', borderRadius:'var(--radius-sm)', cursor:'pointer', fontFamily:'Plus Jakarta Sans,sans-serif', fontWeight:600, fontSize:'.875rem' }}>↻ Refresh</button>
-      </div>
-
-      {rows.length === 0 ? (
-        <div className="card" style={{ textAlign:'center', padding:'3rem' }}>
-          <div style={{ fontSize:'2.5rem', marginBottom:'1rem' }}>💬</div>
-          <h3>No pending messages</h3>
-          <p>Message consultations awaiting response will appear here.</p>
-        </div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
-          {rows.map(c => (
-            <div key={c.id} className="card card-sm" style={{ borderLeft:'4px solid #D97706' }}>
-              <div style={{ display:'flex', alignItems:'start', justifyContent:'space-between', gap:'1rem', marginBottom:'.75rem' }}>
-                <div>
-                  <div style={{ display:'flex', alignItems:'center', gap:'8px', marginBottom:'.375rem' }}>
-                    <h3>{c.patient_first_name} {c.patient_last_name}</h3>
-                    <TypeBadge type="message" />
-                    {c.acc_eligible === 'yes' && <span className="badge badge-info">ACC</span>}
-                  </div>
-                  <div style={{ fontSize:'.8125rem', color:'var(--muted)' }}>{timeAgo(c.created_at)} · {c.patient_email}</div>
-                </div>
-                <button onClick={() => setResponding(responding === c.id ? null : c.id)}
-                  className="btn btn-primary btn-sm">
-                  {responding === c.id ? 'Cancel' : 'Respond'}
-                </button>
-              </div>
-
-              <div style={{ background:'var(--bg)', borderRadius:'var(--radius-sm)', padding:'.875rem', marginBottom:'.75rem' }}>
-                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--muted)', marginBottom:'.375rem' }}>Chief complaint</div>
-                <div style={{ fontSize:'.9375rem', lineHeight:1.6 }}>{c.chief_complaint}</div>
-              </div>
-
-              {c.async_symptom_detail && (
-                <div style={{ background:'white', border:'1px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'.875rem', marginBottom:'.75rem' }}>
-                  <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'var(--muted)', marginBottom:'.375rem' }}>Symptom detail</div>
-                  <div style={{ fontSize:'.9375rem', lineHeight:1.6, whiteSpace:'pre-wrap' }}>{c.async_symptom_detail}</div>
-                  {c.async_symptom_progression && <div style={{ fontSize:'.8125rem', color:'var(--muted)', marginTop:'.375rem' }}>Progression: {c.async_symptom_progression}</div>}
-                  {c.async_daily_impact && <div style={{ fontSize:'.8125rem', color:'var(--muted)' }}>Daily impact: {c.async_daily_impact}</div>}
-                  {c.async_requests?.length > 0 && (
-                    <div style={{ display:'flex', gap:'.375rem', flexWrap:'wrap', marginTop:'.5rem' }}>
-                      {c.async_requests.map(r => (
-                        <span key={r} style={{ background:'var(--teal-light)', color:'var(--teal)', fontSize:'.75rem', fontWeight:600, padding:'2px 8px', borderRadius:99 }}>{r}</span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(c.medical_history || c.medications || c.patient_allergies) && (
-                <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap', marginBottom:'.75rem' }}>
-                  {c.medical_history && <div style={{ fontSize:'.8125rem', color:'var(--muted)' }}><strong>Hx:</strong> {c.medical_history}</div>}
-                  {c.medications && <div style={{ fontSize:'.8125rem', color:'var(--muted)' }}><strong>Meds:</strong> {c.medications}</div>}
-                  {c.patient_allergies && <div style={{ fontSize:'.8125rem', color:'var(--danger)' }}><strong>Allergies:</strong> {c.patient_allergies}</div>}
-                </div>
-              )}
-
-              {responding === c.id && (
-                <div style={{ borderTop:'1px solid var(--border)', paddingTop:'.875rem' }}>
-                  <div style={{ fontSize:'.8125rem', fontWeight:600, color:'var(--text)', marginBottom:'.5rem' }}>Your response</div>
-                  <textarea
-                    value={responseText}
-                    onChange={e => setResponseText(e.target.value)}
-                    rows={6}
-                    placeholder="Type your clinical response here. This will be emailed to the patient and saved to their record."
-                    style={{ width:'100%', boxSizing:'border-box', border:'1.5px solid var(--border)', borderRadius:'var(--radius-sm)', padding:'.75rem', fontFamily:'Plus Jakarta Sans,sans-serif', fontSize:'.9375rem', resize:'vertical', lineHeight:1.6, outline:'none' }}
-                  />
-                  <button
-                    onClick={() => sendResponse(c)}
-                    disabled={sending || !responseText.trim()}
-                    className="btn btn-primary"
-                    style={{ marginTop:'.75rem', width:'100%' }}>
-                    {sending ? 'Sending…' : 'Send response & complete consultation'}
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // Baseline pinned tabs shown to every provider on first load. Providers
 // can pin/unpin any tab via the More ▾ dropdown; their choices are stored
 // in localStorage under DASH_PIN_KEY (per-browser, not per-account).
-const DASH_PIN_KEY   = 'dashPinnedTabs.v1'
-const DEFAULT_PINNED = ['queue', 'tere-chat', 'inbox', 'messages']
+// v2 bump forces a defaults reset for existing users after we pinned
+// Earnings and dropped the dead Messages tab.
+const DASH_PIN_KEY   = 'dashPinnedTabs.v2'
+const DEFAULT_PINNED = ['queue', 'tere-chat', 'inbox', 'earnings']
 
 function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }) {
   const allTabs = useMemo(() => {
@@ -352,7 +181,6 @@ function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }
       ['queue',     'Queue'],
       ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
       ['inbox',     '📥 Inbox'],
-      ['messages',  '💬 Messages'],
       ['earnings',  '💰 Earnings'],
       ['notes',     'Notes'],
       ['licenses',  '🪪 State licenses'],
@@ -638,7 +466,6 @@ export default function Dashboard() {
           isRMO={isRMO}
         />
 
-        {dashTab === 'messages' && <MessagesTab />}
         {dashTab === 'tere-chat' && <TereChatTab />}
 
         {dashTab === 'queue' && (<>

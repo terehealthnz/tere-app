@@ -226,7 +226,6 @@ const ROUTES = {
   'get-availability':          () => import('./_get-availability.js'),
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
   'async-consult':             () => import('./_async-consult.js'),
-  'async-overdue':             () => import('./_async-overdue.js'),
   'admin-patch':               () => import('./_admin-patch.js'),
   'initiate-call':             () => import('./_initiate-call.js'),
   'ring-timeout':              () => import('./_ring-timeout.js'),

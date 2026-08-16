@@ -331,10 +331,6 @@ export async function getAllCompleteConsultations(limit = 200, columns = null) {
   if (columns) params.columns = columns
   return consultsFilter('all_complete', params)
 }
-export async function getMessagePendingConsultations(columns = null) {
-  const params = columns ? { columns } : {}
-  return consultsFilter('message_pending', params)
-}
 export async function getProviderPeriodConsults({ providerId, start, end, columns } = {}) {
   const params = {}
   if (providerId) params.providerId = providerId
