@@ -124,16 +124,14 @@ export default function TereChatTab({ onRead }) {
   }, [messages.length])
 
   // Provider list — powers both @mention autocomplete and the new-DM picker.
+  // Server-mediated via /api/providers (direct anon SELECT on providers was
+  // dropped in the security refactor; this endpoint is guardProvider-authed).
   useEffect(() => {
     (async () => {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase
-          .from('providers')
-          .select('id, first_name, last_name, is_admin, is_provider, color')
-          .eq('is_active', true)
-          .order('first_name')
-        setProviders(data || [])
+        const r = await apiFetch('/api/providers?filter=active-full')
+        const j = await r.json()
+        setProviders(Array.isArray(j?.providers) ? j.providers : [])
       } catch {}
     })()
   }, [])
