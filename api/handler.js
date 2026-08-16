@@ -64,7 +64,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Provider comms
   'send-email', 'send-to-gp', 'send-waitlist-email', 'notify-waitlist', 'sms',
   // Schedule + availability
-  'schedule', 'set-availability', 'set-provider-avail',
+  'schedule', 'set-availability',
   // Approvals + admin
   'approve-draft', 'admin-patch', 'audit', 'payroll',
   'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
@@ -221,7 +221,6 @@ const ROUTES = {
   'analytics-events':          () => import('./_analytics-events.js'),
   'bedrock-test':              () => import('./_bedrock-test.js'),
   'set-availability':          () => import('./_set-availability.js'),
-  'set-provider-avail':        () => import('./_set-provider-avail.js'),
   'get-queue':                 () => import('./_get-queue.js'),
   'get-availability':          () => import('./_get-availability.js'),
   'confirm-waiting':           () => import('./_confirm-waiting.js'),

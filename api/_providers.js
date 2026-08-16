@@ -26,8 +26,7 @@ function admin() {
 // (change via /api/change-password), created_at.
 const UPDATE_ALLOWLIST = new Set([
   'first_name', 'last_name', 'credential', 'specialty', 'color',
-  'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin', 'is_billing_admin', 'is_available',
-  'availability_message',
+  'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
   'can_prescribe', 'can_refer', 'can_acc',
   'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
   'signature_url',
@@ -64,7 +63,7 @@ export default async function handler(req, res) {
     if (filter === 'active-full') {
       const { data, error } = await supabase
         .from('providers')
-        .select('id, first_name, last_name, credential, specialty, color, is_active, is_available, is_provider, is_admin, is_supervisor, is_billing_admin, can_prescribe, can_refer, can_acc, prescriber_number, cpn, availability_message')
+        .select('id, first_name, last_name, credential, specialty, color, is_active, is_provider, is_admin, is_supervisor, is_billing_admin, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
         .eq('is_active', true)
         .order('first_name')
       if (error) return res.status(500).json({ error: error.message })
@@ -74,7 +73,7 @@ export default async function handler(req, res) {
     // Default: modest projection, only active + is_provider rows.
     const { data, error } = await supabase
       .from('providers')
-      .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, is_available, availability_message, provider_type, supervisor_id, supervision_plan_url')
+      .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, provider_type, supervisor_id, supervision_plan_url')
       .order('first_name')
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ providers: data || [] })
@@ -167,19 +166,6 @@ export default async function handler(req, res) {
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
-    }
-
-    // MCNZ supervision guard — an RMO must have a named supervisor on file
-    // before they can go available. This is the paper-trail requirement, not
-    // an online-status requirement: MCNZ's standard is that the supervisor is
-    // contactable, not that they are seeing patients at the same time. Their
-    // real-time availability is a phone/Slack contract, tracked out-of-band.
-    if (patch.is_available === true) {
-      const { data: target } = await supabase
-        .from('providers').select('provider_type, supervisor_id').eq('id', id).maybeSingle()
-      if (target && target.provider_type === 'rmo' && !target.supervisor_id) {
-        return res.status(400).json({ error: 'RMO must have an assigned supervisor before going available' })
-      }
     }
 
     patch.updated_at = new Date().toISOString()

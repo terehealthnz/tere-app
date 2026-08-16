@@ -885,8 +885,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     is_provider: !!provider.is_provider,
     is_admin: !!provider.is_admin,
     is_supervisor: !!provider.is_supervisor,
-    is_available: !!provider.is_available,
-    availability_message: provider.availability_message || '',
     can_prescribe: !!provider.can_prescribe,
     can_refer: !!provider.can_refer,
     can_acc: !!provider.can_acc,
@@ -977,10 +975,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                   ))}
                 </div>
               </div>
-              <div>
-                <div style={labelStyle}>Availability message</div>
-                <input value={form.availability_message} onChange={e => set('availability_message', e.target.value)} style={inputStyle} placeholder="Optional" />
-              </div>
             </div>
           </div>
 
@@ -990,7 +984,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
               <label style={checkboxStyle}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
               <label style={checkboxStyle}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
               <label style={checkboxStyle}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_available} onChange={e => set('is_available', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Available now</span></label>
             </div>
           </div>
 
@@ -1528,36 +1521,8 @@ function ProvidersPanel() {
                     <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.5rem' }}>
                       {p.specialty || (p.is_admin && !p.is_provider ? 'Admin only' : 'Clinician')}
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
-                      <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:p.is_available ? '#059669' : '#D1D5DB' }} />
-                      <span style={{ fontSize:'.8125rem', color:p.is_available ? '#059669' : '#9CA3AF', minWidth:70 }}>
-                        {p.is_available ? 'Available' : 'Unavailable'}
-                      </span>
-                      {p.is_provider && (
-                        <input
-                          value={p.availability_message || ''}
-                          onChange={e => setProviders(ps => ps.map(q => q.id === p.id ? { ...q, availability_message: e.target.value } : q))}
-                          placeholder="Availability message…"
-                          style={{ flex:1, border:'1px solid #E2E8F0', borderRadius:6, padding:'4px 8px', fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}
-                        />
-                      )}
-                    </div>
                   </div>
                   <div style={{ display:'flex', flexDirection:'row', flexWrap:'wrap', gap:'.375rem', alignItems:'center', gridColumn:'1 / -1' }}>
-                    {p.is_provider && (
-                      <button onClick={() => update(p.id, { is_available: !p.is_available })}
-                        disabled={saving === p.id}
-                        style={{ background: p.is_available ? '#FEE2E2' : '#F0FDF4', color: p.is_available ? '#DC2626' : '#059669', border:'none', padding:'5px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
-                        {saving === p.id ? '…' : p.is_available ? 'Set offline' : 'Set online'}
-                      </button>
-                    )}
-                    {p.is_provider && (
-                      <button onClick={() => update(p.id, { availability_message: p.availability_message || '' })}
-                        disabled={saving === p.id}
-                        style={{ background:'#F0F9FA', color:'#0B6E76', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap' }}>
-                        Save message
-                      </button>
-                    )}
                     {p.provider_type === 'rmo' && (
                       <button onClick={async () => {
                         setSaving(p.id)

@@ -572,19 +572,6 @@ function SettingsTab({ navigate, displayName }) {
     getSchedule().then(sc => setNextTimes(sc.next_times||'')).catch(()=>{})
   }, [])
 
-  async function toggleProviderAvail(id, val) {
-    setSaving(id)
-    try {
-      const res = await apiFetch('/api/set-provider-avail', {
-        method: 'POST',
-        body: JSON.stringify({ providerId: id, isAvailable: val }),
-      })
-      if (!res.ok) throw new Error('Failed')
-      setProviders(ps => ps.map(p => p.id===id ? {...p,is_available:val} : p))
-    } catch (e) { console.error('toggleProviderAvail error:', e) }
-    setSaving(null)
-  }
-
   async function saveMsg() {
     setSavingMsg(true)
     try { await setSchedule(nextTimes); setMsgSaved(true); setTimeout(()=>setMsgSaved(false),2500) }
@@ -609,35 +596,6 @@ function SettingsTab({ navigate, displayName }) {
 
   return (
     <div style={{ padding:'1rem', fontFamily:FF }}>
-      {/* Provider availability */}
-      <div style={{ background:'white', borderRadius:12, padding:'1.25rem', marginBottom:'.875rem', border:'1px solid #E2E8F0' }}>
-        <div style={{ fontWeight:700, color:NAVY, marginBottom:'1rem', fontSize:'.9375rem' }}>Provider availability</div>
-        {providers.filter(p => p.is_provider).length === 0 ? (
-          <div style={{ color:'#9CA3AF', fontSize:'.875rem', textAlign:'center', padding:'1rem' }}>No active providers found</div>
-        ) : (
-          <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
-            {providers.filter(p => p.is_provider).map(p => (
-              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:'.875rem' }}>
-                <div style={{ width:42, height:42, borderRadius:'50%', background:p.color||TEAL, display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:700, fontSize:'1rem', flexShrink:0 }}>
-                  {p.first_name[0]}{p.last_name[0]}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, color:NAVY, fontSize:'.875rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{providerDisplayName(p)}</div>
-                  <div style={{ fontSize:'.75rem', color:'#9CA3AF' }}>{p.specialty||'Clinician'}</div>
-                </div>
-                <button
-                  onClick={() => toggleProviderAvail(p.id, !p.is_available)}
-                  disabled={saving===p.id}
-                  style={{ background:p.is_available?'#F0FDF4':'#FEF2F2', color:p.is_available?'#059669':'#DC2626', border:`1px solid ${p.is_available?'#BBF7D0':'#FECACA'}`, borderRadius:99, padding:'7px 14px', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.8125rem', whiteSpace:'nowrap', minHeight:40, flexShrink:0 }}
-                >
-                  {saving===p.id ? '…' : p.is_available ? '● On' : '○ Off'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Next available message */}
       <div style={{ background:'white', borderRadius:12, padding:'1.25rem', marginBottom:'.875rem', border:'1px solid #E2E8F0' }}>
         <div style={{ fontWeight:700, color:NAVY, marginBottom:'.25rem', fontSize:'.9375rem' }}>Closed-screen message</div>

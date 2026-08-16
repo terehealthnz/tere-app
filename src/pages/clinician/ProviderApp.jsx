@@ -1180,8 +1180,6 @@ export default function ProviderApp() {
   const [consultations, setConsultations] = useState([])
   const [loading, setLoading]     = useState(true)
   const [starting, setStarting]   = useState(null)
-  const [isAvail, setIsAvail]     = useState(false)
-  const [savingAvail, setSavingAvail] = useState(false)
   const [isOnline, setIsOnline]   = useState(navigator.onLine)
   const [showInstall, setShowInstall] = useState(false)
   const [showSaveDevice, setShowSaveDevice] = useState(false)
@@ -1202,16 +1200,6 @@ export default function ProviderApp() {
     const sub = subscribeToQueue(() => load())
     return () => { clearInterval(interval); sub?.unsubscribe?.() }
   }, [load])
-
-  // Load availability — /api/providers is auth-gated; anon reads on
-  // `providers` were revoked in the 2026-08-09 RLS lockdown.
-  useEffect(() => {
-    if (!providerId) return
-    apiFetch(`/api/providers?id=${encodeURIComponent(providerId)}&columns=is_available`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.provider) setIsAvail(d.provider.is_available) })
-      .catch(() => {})
-  }, [providerId])
 
   // Poll unread message count so the ✉️ badge stays fresh even when the
   // provider hasn't opened the Messages tab yet. Filters out already-resolved
@@ -1270,22 +1258,6 @@ export default function ProviderApp() {
     window.addEventListener('offline', off)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
-
-  async function toggleAvail() {
-    if (!providerId) return
-    setSavingAvail(true)
-    try {
-      const v = !isAvail
-      const res = await apiFetch('/api/set-provider-avail', {
-        method: 'POST',
-        body: JSON.stringify({ providerId, isAvailable: v }),
-      })
-      if (!res.ok) throw new Error('Failed to update availability')
-      setIsAvail(v)
-    } catch (e) {
-      console.error('toggleAvail error:', e)
-    } finally { setSavingAvail(false) }
-  }
 
   async function startConsult(c) {
     const isMessage = c.consultation_type === 'message' || c.consultation_subtype === 'async_message'
@@ -1351,12 +1323,7 @@ export default function ProviderApp() {
               ⚙️ Admin
             </button>
           )}
-          <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.875rem', maxWidth:80, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{displayName}</span>
-          <button onClick={toggleAvail} disabled={savingAvail}
-            style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,.1)', border:'none', borderRadius:99, padding:'6px 12px', cursor:'pointer', minHeight:44 }}>
-            <div style={{ width:10, height:10, borderRadius:'50%', background: isAvail ? '#10B981' : '#6B7280', flexShrink:0 }} />
-            <span style={{ color:'rgba(255,255,255,.8)', fontSize:'.75rem', fontFamily:FF }}>{savingAvail ? '…' : isAvail ? 'Available' : 'Closed'}</span>
-          </button>
+          <span style={{ color:'rgba(255,255,255,.7)', fontSize:'.875rem', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{displayName}</span>
         </div>
       </div>
 

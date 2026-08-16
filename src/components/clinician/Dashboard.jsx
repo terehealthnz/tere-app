@@ -311,8 +311,6 @@ export default function Dashboard() {
   const [loading, setLoading]             = useState(true)
   const [joiningId, setJoiningId]         = useState(null)
   const [todaysConsults, setTodaysConsults] = useState([])
-  const [provIsAvail, setProvIsAvail]     = useState(false)
-  const [savingProvAvail, setSavingProvAvail] = useState(false)
   const [referralBadge, setReferralBadge] = useState(0)
   const teamBadge = useTereChatUnread()
   const [nowTick, setNowTick]             = useState(Date.now())
@@ -344,15 +342,9 @@ export default function Dashboard() {
   useEffect(() => {
     load()
     getTodaysConsultations().then(setTodaysConsults)
-    // Load this provider's availability + referral badge
+    // Load radiology referral badge for this provider.
     const pid = sessionStorage.getItem('providerId')
     if (pid) {
-      // Route through the auth-gated /api/providers endpoint — anon reads
-      // on `providers` were revoked in the 2026-08-09 RLS lockdown.
-      apiFetch(`/api/providers?id=${encodeURIComponent(pid)}&columns=is_available`)
-        .then(r => r.ok ? r.json() : null)
-        .then(d => { if (d?.provider) setProvIsAvail(d.provider.is_available) })
-        .catch(() => {})
       import('../../lib/supabase').then(({ getRadiologyReferralCount }) =>
         getRadiologyReferralCount({ filter: 'active', provider_id: pid })
           .then(c => setReferralBadge(c))
@@ -366,22 +358,6 @@ export default function Dashboard() {
     const sub = subscribeToQueue(() => load())
     return () => { clearInterval(interval); sub?.unsubscribe?.() }
   }, [load])
-
-  async function toggleProviderAvail() {
-    const pid = sessionStorage.getItem('providerId')
-    if (!pid) return
-    setSavingProvAvail(true)
-    try {
-      const newVal = !provIsAvail
-      const res = await apiFetch('/api/set-provider-avail', {
-        method: 'POST',
-        body: JSON.stringify({ providerId: pid, isAvailable: newVal }),
-      })
-      if (!res.ok) throw new Error('Failed')
-      setProvIsAvail(newVal)
-    } catch (e) { console.error('toggleProviderAvail error:', e) }
-    setSavingProvAvail(false)
-  }
 
   async function dismissConsult(id) {
     try {
@@ -436,23 +412,6 @@ export default function Dashboard() {
       </nav>
 
       <div className="container-wide" style={{paddingTop:'1.75rem',paddingBottom:'3rem',background:'var(--bg)',minHeight:'calc(100dvh - 56px)'}}>
-
-        {/* Per-provider availability toggle */}
-        {sessionStorage.getItem('providerId') && (
-          <div style={{background:'white',borderRadius:'var(--radius-sm)',border:'2px solid ' + (provIsAvail ? 'var(--success)' : '#D1D5DB'),padding:'1rem 1.25rem',marginBottom:'1rem',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
-            <div style={{display:'flex',alignItems:'center',gap:'10px'}}>
-              <div style={{width:12,height:12,borderRadius:'50%',background:provIsAvail ? 'var(--success)' : '#D1D5DB',flexShrink:0}} />
-              <div>
-                <div style={{fontWeight:700,fontSize:'.9375rem'}}>{provIsAvail ? "You're online — taking patients" : "You're offline"}</div>
-                <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>Toggle to open or close your queue</div>
-              </div>
-            </div>
-            <button onClick={toggleProviderAvail} disabled={savingProvAvail}
-              style={{background:provIsAvail ? 'var(--danger)' : 'var(--success)',color:'white',border:'none',padding:'8px 18px',borderRadius:'8px',fontWeight:700,fontSize:'.9375rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif',whiteSpace:'nowrap'}}>
-              {savingProvAvail ? 'Saving…' : provIsAvail ? 'Go offline' : 'Go online'}
-            </button>
-          </div>
-        )}
 
         {/* Tab switcher — baseline pinned tabs on the left, everything else
             behind a "More ▾" dropdown. Providers can pin/unpin any tab via
