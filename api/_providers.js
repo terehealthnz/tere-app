@@ -11,7 +11,49 @@
 
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
+import { Resend } from 'resend'
 import { guardProvider } from './_auth.js'
+
+// Auto-notification recipient for new-provider onboarding.
+// RHCNZ (Rural Health Care NZ) needs each Tere provider's MCNZ number on
+// file to accept referrals. Holly is their Applications Consultant —
+// confirmed 2026-08-17 (see docs/regulatory/rhcnz/README.md). Move to env
+// var if the recipient changes.
+const RHCNZ_ONBOARDING_NOTIFICATION_EMAIL = 'Holly.Johnson@rhcnz.com'
+
+// Fire-and-forget email to Holly with a new provider's identity + MCNZ
+// number so RHCNZ can keep their referrer registry current. Best-effort:
+// failures logged but never break the provider create/update flow.
+async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) return
+  if (!provider?.is_provider) return   // admin-only rows don't need to be shared
+  try {
+    const resend = new Resend(resendKey)
+    const name  = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ')
+    const mcnz  = provider.mcnz_registration_number || '(pending — will follow up)'
+    const cpn   = provider.cpn || '(not yet issued)'
+    const verb  = changeType === 'new' ? 'has been onboarded at' : 'MCNZ number updated for'
+    await resend.emails.send({
+      from:    'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to:      RHCNZ_ONBOARDING_NOTIFICATION_EMAIL,
+      subject: `Tere Health provider ${changeType === 'new' ? 'onboarded' : 'updated'} — ${name} (MCNZ ${mcnz})`,
+      html: `<p>Kia ora Holly,</p>
+             <p>This is an automated notification — the following provider ${verb} <strong>Tere Health Limited</strong> and will be referring to RHCNZ:</p>
+             <table style="border-collapse:collapse;margin:1rem 0">
+               <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Name</td><td style="font-weight:600">${name}</td></tr>
+               <tr><td style="padding:4px 12px 4px 0;color:#6B7280">MCNZ number</td><td style="font-weight:600">${mcnz}</td></tr>
+               <tr><td style="padding:4px 12px 4px 0;color:#6B7280">HPI-CPN</td><td>${cpn}</td></tr>
+               <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Tere HPI-O</td><td>G11238-E</td></tr>
+             </table>
+             <p>No action required unless you need anything further from us.</p>
+             <p style="color:#6B7280;font-size:12px">Ngā mihi<br>Tere Health · terehealth.co.nz</p>`,
+    })
+  } catch (e) {
+    console.error('[providers] RHCNZ notification failed:', e.message)
+  }
+}
 
 function admin() {
   return createClient(
@@ -138,9 +180,13 @@ export default async function handler(req, res) {
     const { data: created, error } = await supabase
       .from('providers')
       .insert(row)
-      .select('id, first_name, last_name, email, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
+      .select('id, first_name, last_name, email, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn, mcnz_registration_number')
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
+
+    // Notify RHCNZ (Holly) of the new provider so their referrer registry
+    // stays in sync. Best-effort — doesn't affect the response.
+    notifyRhcnzOfProvider(created, { changeType: 'new' })
 
     // Return the plain PIN so admin can share it with the new provider on first
     // login. The provider will be forced to change it on next login
@@ -170,6 +216,16 @@ export default async function handler(req, res) {
 
     patch.updated_at = new Date().toISOString()
 
+    // Snapshot the pre-update MCNZ number so we can tell if this PATCH is
+    // adding it for the first time (or changing it), which is the trigger for
+    // re-notifying RHCNZ.
+    let previousMcnz = null
+    if ('mcnz_registration_number' in patch) {
+      const { data: before } = await supabase
+        .from('providers').select('mcnz_registration_number').eq('id', id).maybeSingle()
+      previousMcnz = before?.mcnz_registration_number || null
+    }
+
     const { data, error } = await supabase
       .from('providers')
       .update(patch)
@@ -177,6 +233,12 @@ export default async function handler(req, res) {
       .select()
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
+
+    // Notify RHCNZ (Holly) if the MCNZ number was just filled in or updated —
+    // this is the field they actually need for their referrer registry.
+    if ('mcnz_registration_number' in patch && (patch.mcnz_registration_number || null) !== previousMcnz && data?.is_provider) {
+      notifyRhcnzOfProvider(data, { changeType: 'update' })
+    }
 
     return res.status(200).json({ provider: data })
   }
