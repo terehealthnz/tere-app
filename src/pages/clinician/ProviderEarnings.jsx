@@ -201,7 +201,8 @@ export default function ProviderEarnings({ embedded = true }) {
       )}
 
       <div style={{ fontSize:'.75rem', color:'#9CA3AF', textAlign:'center', lineHeight:1.6, padding:'.75rem 0 0', maxWidth:520, margin:'0 auto' }}>
-        You engage Tere Health as an independent contractor. Tere pays you directly at your per-consult rate above; no PAYE is deducted, no holiday pay is loaded. <strong style={{ color:'#6B7280' }}>You are responsible for reporting this income and paying tax on it yourself.</strong>
+        <div style={{ color:'#374151', fontWeight:600, marginBottom:'.35rem' }}>Rates: $20 per video/phone consultation · $10 per message consultation</div>
+        This is a record of contractor earnings. Contractors are responsible for their own tax. <strong style={{ color:'#6B7280' }}>Tere Health does not deduct PAYE.</strong>
       </div>
     </div>
   )

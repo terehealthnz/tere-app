@@ -42,11 +42,11 @@ export async function buildPrescriptionPdf(data) {
       .text(data.providerName || 'Tere Clinician', 50, 134)
       .text(`Prescriber No: ${data.prescriberNumber || '—'}`, 50, 148)
       .text('Tere Health Limited · terehealth.co.nz', 50, 162)
-    // Prescriber contact — required by DG authorisation so the pharmacy can
-    // verify identity or request amendments. Falls back to Tere reception
-    // when the provider row has no email on file.
-    const prescriberEmail = data.providerEmail || 'terehealthnz@gmail.com'
-    doc.fillColor('#555').fontSize(9).text(`Contact: ${prescriberEmail}`, 50, 176)
+    // Prescriber contact — DG authorisation requires an address the pharmacy
+    // can use to verify identity or request amendments. Always the central
+    // monitored inbox so scripts don't route replies to a provider's personal
+    // email; provider identity is uniquely pinned by the MCNZ number above.
+    doc.fillColor('#555').fontSize(9).text('Contact: terehealthnz@gmail.com', 50, 176)
 
     if (data.approvedByName) {
       doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)
@@ -88,11 +88,16 @@ export async function buildPrescriptionPdf(data) {
     }
 
     const sigY = 440
-    // Prescriber signature — three paths:
-    //   1. signature-exempt (DG authorisation): render "Signature Exempt" label, no image
-    //   2. signed with uploaded image
-    //   3. signed with blank line (image fetch failed or none on file)
-    if (data.signatureExempt) {
+    // Prescriber signature — four paths, checked in order:
+    //   1. signatureText override (sample/demo PDFs only — italic-font text
+    //      stand-in when we don't want to ship a real signature image)
+    //   2. signature-exempt (DG authorisation): render "Signature Exempt" label
+    //   3. signed with uploaded image
+    //   4. signed with blank line (image fetch failed or none on file)
+    if (data.signatureText) {
+      doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(20)
+        .text(String(data.signatureText), 55, sigY - 26)
+    } else if (data.signatureExempt) {
       doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(11).text('Signature Exempt', 50, sigY - 16)
     } else if (sigBuf) {
       try {
@@ -107,6 +112,19 @@ export async function buildPrescriptionPdf(data) {
 
     doc.fillColor('#AAA').fontSize(8)
       .text('This prescription was electronically issued by Tere Health Limited. Not valid if altered.', 50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 })
+
+    // Optional diagonal watermark (used only for sample / demo PDFs that
+    // are shared with pharmacies for format review before go-live). Renders
+    // last so it sits on top of every other element.
+    if (data.watermark) {
+      doc.save()
+      doc.translate(doc.page.width / 2, doc.page.height / 2)
+      doc.rotate(-30)
+      doc.fillColor('#DC2626', 0.22)
+      doc.font('Helvetica-Bold').fontSize(72)
+      doc.text(String(data.watermark), -doc.page.width / 2, -40, { width: doc.page.width, align: 'center' })
+      doc.restore()
+    }
 
     doc.end()
   })

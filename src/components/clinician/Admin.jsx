@@ -1423,13 +1423,11 @@ function ProvidersPanel() {
 
   async function load() {
     try {
-      const { supabase } = await import('../../lib/supabase')
-      const { data, error } = await supabase
-        .from('providers')
-        .select('*')
-        .order('first_name')
-      if (error) throw error
-      setProviders(data || [])
+      const { apiFetch } = await import('../../lib/api')
+      const res = await apiFetch('/api/providers?filter=admin-manage')
+      if (!res.ok) throw new Error('load-failed')
+      const { providers } = await res.json()
+      setProviders(providers || [])
     } catch { setProviders([]) }
     setLoading(false)
   }

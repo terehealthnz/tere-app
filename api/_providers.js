@@ -128,6 +128,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ providers: data || [] })
     }
 
+    // Admin manage view — full row for every provider (active + inactive,
+    // including admin-only rows). Powers the Admin > Providers panel where
+    // the edit modal reads every editable column. Admin-scoped only.
+    if (filter === 'admin-manage') {
+      if (!auth.provider?.is_admin) {
+        return res.status(403).json({ error: 'Admin role required' })
+      }
+      const { data, error } = await supabase
+        .from('providers')
+        .select('*')
+        .order('first_name')
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ providers: data || [] })
+    }
+
     // Default: modest projection, only active + is_provider rows.
     const { data, error } = await supabase
       .from('providers')
