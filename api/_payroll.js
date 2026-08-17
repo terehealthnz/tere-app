@@ -9,8 +9,18 @@
 // Legacy providers.hourly_rate / holiday_pay_pct columns exist for
 // historical reasons but are not read here.
 import { createClient } from '@supabase/supabase-js'
+import { guardProvider } from './_auth.js'
 
 const FALLBACK_RATE = 20.00   // used only if a provider row has null base_rate
+
+// Every payroll endpoint reads sensitive pay data. Non-admin callers may
+// only see their OWN provider_id — anything else is a 403. Admin callers
+// (billing_admin included) get full visibility.
+function canSeeProvider(auth, requestedProviderId) {
+  if (!auth?.provider) return false
+  if (auth.provider.is_admin || auth.provider.is_billing_admin) return true
+  return String(auth.provider.id) === String(requestedProviderId)
+}
 
 // Reference Monday for fortnightly calculations (2024-01-01 is a Monday)
 const REF_MS = new Date('2024-01-01T00:00:00Z').getTime()
@@ -77,6 +87,9 @@ async function buildSummaries(supabase, period_start, period_end) {
 }
 
 export default async function handler(req, res) {
+  const auth = await guardProvider(req, res)
+  if (!auth) return
+  const isAdminLike = !!(auth.provider?.is_admin || auth.provider?.is_billing_admin)
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   // ── GET ───────────────────────────────────────────────────────────────────────
@@ -89,12 +102,16 @@ export default async function handler(req, res) {
 
     if (type === 'summary') {
       if (!period_start || !period_end) return res.status(400).json({ error: 'Missing period' })
-      const summaries = await buildSummaries(supabase, period_start, period_end)
       // Per-provider self-view (ProviderEarnings) — return just one row.
       if (provider_id) {
+        if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
+        const summaries = await buildSummaries(supabase, period_start, period_end)
         const one = summaries.find(s => s.provider_id === provider_id) || null
         return res.status(200).json({ summary: one })
       }
+      // Full-org overview — admin only.
+      if (!isAdminLike) return res.status(403).json({ error: 'Admin role required' })
+      const summaries = await buildSummaries(supabase, period_start, period_end)
       const total_payroll       = parseFloat(summaries.reduce((s, x) => s + x.total_amount, 0).toFixed(2))
       const total_consultations = summaries.reduce((s, x) => s + x.consultation_count, 0)
       const active_providers    = summaries.filter(x => x.consultation_count > 0).length
@@ -107,6 +124,7 @@ export default async function handler(req, res) {
 
     if (type === 'history') {
       if (!provider_id) return res.status(400).json({ error: 'Missing provider_id' })
+      if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const { data } = await supabase.from('payroll_periods').select('*').eq('provider_id', provider_id)
         .order('period_start', { ascending: false }).limit(24)
       return res.status(200).json({ periods: data || [] })
@@ -114,6 +132,7 @@ export default async function handler(req, res) {
 
     if (type === 'ytd') {
       if (!provider_id) return res.status(400).json({ error: 'Missing provider_id' })
+      if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const year = new Date().getFullYear()
       const { data } = await supabase.from('payroll_periods').select('total_amount,consultation_count,period_start,period_end,status')
         .eq('provider_id', provider_id).gte('period_start', `${year}-01-01`).lte('period_end', `${year}-12-31`)
@@ -127,6 +146,7 @@ export default async function handler(req, res) {
 
     if (type === 'consultations') {
       if (!provider_id || !period_start || !period_end) return res.status(400).json({ error: 'Missing params' })
+      if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const { data } = await supabase.from('consultations')
         .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
         .eq('status', 'complete').eq('provider_id', provider_id)
@@ -141,6 +161,12 @@ export default async function handler(req, res) {
   // ── POST ──────────────────────────────────────────────────────────────────────
   if (req.method === 'POST') {
     const { action } = req.body
+
+    // Every mutating POST here is admin-only EXCEPT payslip which non-admin
+    // providers can self-request for their own periods (checked below).
+    if (['calculate','approve','approve_all','mark_paid','mark_all_paid','send_email'].includes(action)) {
+      if (!isAdminLike) return res.status(403).json({ error: 'Admin role required' })
+    }
 
     if (action === 'calculate') {
       const { period_start, period_end } = req.body
@@ -202,6 +228,9 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: 'Period not found' })
         ps = row.period_start; pe = row.period_end; pid = row.provider_id
       }
+
+      // Non-admin providers may only download their OWN payslip.
+      if (!canSeeProvider(auth, pid)) return res.status(403).json({ error: 'Forbidden' })
 
       const [{ data: prov }, { data: consultations }] = await Promise.all([
         supabase.from('providers').select('first_name,last_name,credential,email,base_rate').eq('id', pid).single(),

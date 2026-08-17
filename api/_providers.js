@@ -21,6 +21,19 @@ import { guardProvider } from './_auth.js'
 // var if the recipient changes.
 const RHCNZ_ONBOARDING_NOTIFICATION_EMAIL = 'Holly.Johnson@rhcnz.com'
 
+// HTML-escape user-supplied strings before templating into an email body.
+// Provider fields come from admin form input — an admin who typo'd or
+// deliberately pasted markup could otherwise punch through into Holly's
+// inbox as HTML.
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Fire-and-forget email to Holly with a new provider's identity + MCNZ
 // number so RHCNZ can keep their referrer registry current. Best-effort:
 // failures logged but never break the provider create/update flow.
@@ -30,15 +43,18 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
   if (!provider?.is_provider) return   // admin-only rows don't need to be shared
   try {
     const resend = new Resend(resendKey)
-    const name  = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ')
-    const mcnz  = provider.mcnz_registration_number || '(pending — will follow up)'
-    const cpn   = provider.cpn || '(not yet issued)'
-    const verb  = changeType === 'new' ? 'has been onboarded at' : 'MCNZ number updated for'
+    const nameRaw = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ')
+    const mcnzRaw = provider.mcnz_registration_number || '(pending — will follow up)'
+    const cpnRaw  = provider.cpn || '(not yet issued)'
+    const name = escapeHtml(nameRaw)
+    const mcnz = escapeHtml(mcnzRaw)
+    const cpn  = escapeHtml(cpnRaw)
+    const verb = changeType === 'new' ? 'has been onboarded at' : 'MCNZ number updated for'
     await resend.emails.send({
       from:    'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to:      RHCNZ_ONBOARDING_NOTIFICATION_EMAIL,
-      subject: `Tere Health provider ${changeType === 'new' ? 'onboarded' : 'updated'} — ${name} (MCNZ ${mcnz})`,
+      subject: `Tere Health provider ${changeType === 'new' ? 'onboarded' : 'updated'} — ${nameRaw} (MCNZ ${mcnzRaw})`,
       html: `<p>Kia ora Holly,</p>
              <p>This is an automated notification — the following provider ${verb} <strong>Tere Health Limited</strong> and will be referring to RHCNZ:</p>
              <table style="border-collapse:collapse;margin:1rem 0">
