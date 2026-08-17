@@ -27,6 +27,19 @@ function admin() {
 const ATTACHMENT_BUCKET = 'hl7-attachments'
 const MAX_BODY_BYTES = 6 * 1024 * 1024   // 6MB — conformance requires 5MB
 
+// Tere Health's HPI-O. Test/prod use the same identifier — Medical-Objects
+// routes internally by HPI-O and treats us as one organisational receiver.
+// Known MSH-6 variants Capricorn Cloud sends in the test network:
+//   "DEMO Tere Heal (G11238-E)"   (truncated 20-char)
+//   "DEMO Tere Health (G11238-E)"
+//   "G11238-E"                    (raw)
+const TERE_HPI_O = 'G11238-E'
+function msh6IsOurOrg(receivingFacility) {
+  if (!receivingFacility) return false
+  const s = String(receivingFacility).toUpperCase().replace(/\s+/g, '')
+  return s === TERE_HPI_O || s.includes(`(${TERE_HPI_O})`) || s.endsWith(TERE_HPI_O)
+}
+
 // ─── HL7 v2 parser ──────────────────────────────────────────────────────────
 // HL7 v2 is pipe-delimited. Field separator is MSH-1 (default '|').
 // Encoding chars are MSH-2 (default '^~\&' meaning component / repetition /
@@ -362,8 +375,16 @@ export default async function handler(req, res) {
   const supabase = admin()
   const summary = extractSummary(parsed)
 
-  // Provider match — reject with CR if unknown (conformance requirement).
-  const provider = await matchProvider(supabase, summary.receivingFacility, summary.receivingApp)
+  // Receiver match. Two acceptable shapes:
+  //   1. MSH-6 = our HPI-O (org-level receipt — Medical-Objects routes the
+  //      whole org, no provider identifier in the envelope). matched_provider_id
+  //      stays null; provider ownership is inferred later from OBR-16 /
+  //      PV1-7.1 (TODO once we see real production shapes).
+  //   2. MSH-5/6 = a specific provider's HPI-CPN / hpi_number.
+  const orgReceipt = msh6IsOurOrg(summary.receivingFacility)
+  const provider = orgReceipt
+    ? null
+    : await matchProvider(supabase, summary.receivingFacility, summary.receivingApp)
   const patientMatch = await matchPatient(supabase, summary.patient)
 
   const requiredMissing = []
@@ -376,9 +397,9 @@ export default async function handler(req, res) {
     msaCode = 'CR'
     errorText = `Missing required fields: ${requiredMissing.join(', ')}`
     status = 'rejected'
-  } else if (!provider) {
+  } else if (!provider && !orgReceipt) {
     msaCode = 'CR'
-    errorText = `Receiving provider not registered with Tere Health (${summary.receivingApp || '?'}/${summary.receivingFacility || '?'})`
+    errorText = `Receiver not registered with Tere Health (${summary.receivingApp || '?'}/${summary.receivingFacility || '?'})`
     status = 'rejected'
   } else {
     msaCode = 'CA'
