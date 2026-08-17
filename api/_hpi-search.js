@@ -12,6 +12,27 @@ const HPI_CLIENT_ID = process.env.HPI_CLIENT_ID
 const HPI_SECRET    = process.env.HPI_CLIENT_SECRET
 const HPI_SCOPES    = process.env.HPI_SCOPES || ''
 
+// HNZ HPI FHIR API requires this header set on every request (per
+// hpi-ig.hip.digital.health.nz/general.html + onboarding email):
+//   Authorization:    Bearer {token}
+//   x-api-key:        {HPI_CLIENT_ID}   ← mandatory; rejection without this
+//                                          is silent (comes back as 401/403)
+//   userid:           {string}          ← end-user identifier
+//   User-Agent:       {string}          ← identifies our app
+//   X-Correlation-Id: {uuid}            ← recommended for HNZ traceability
+function hpiHeaders(token, userId) {
+  const corrId = (globalThis.crypto?.randomUUID?.() ||
+                  String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10))
+  return {
+    Authorization:      `Bearer ${token}`,
+    Accept:             'application/fhir+json',
+    'x-api-key':        HPI_CLIENT_ID,
+    userid:             String(userId || 'tere-service'),
+    'User-Agent':       'TereHealth/1.0 (server; HPI FHIR proxy)',
+    'X-Correlation-Id': corrId,
+  }
+}
+
 let cachedToken = null
 let tokenExpiry = 0
 
@@ -108,9 +129,7 @@ export default async function handler(req, res) {
       if (!HPI_BASE_URL) return res.json({ results: mockResults, mock: true })
       const base = HPI_BASE_URL.replace(/\/+$/, '')
       const url = `${base}/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
-      const hpiRes = await globalThis.fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/fhir+json' },
-      })
+      const hpiRes = await globalThis.fetch(url, { headers: hpiHeaders(token, 'tere-triage') })
       if (!hpiRes.ok) return res.json({ results: mockResults, mock: true })
 
       const bundle = await hpiRes.json()
@@ -153,10 +172,7 @@ export default async function handler(req, res) {
     const base = HPI_BASE_URL.replace(/\/+$/, '')
     const url = `${base}/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
     const hpiRes = await globalThis.fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/fhir+json',
-      },
+      headers: hpiHeaders(token, type === 'radiology' ? 'tere-referral' : 'tere-prescribe'),
     })
 
     if (!hpiRes.ok) {
