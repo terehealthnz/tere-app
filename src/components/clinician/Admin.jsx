@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getRecentConsultations, getPaymentPendingConsultations, getRatedConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
@@ -1967,98 +1967,6 @@ function OutstandingPrescriptions() {
   )
 }
 
-function RatingsPanel() {
-  const [rows, setRows] = React.useState([])
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    async function load() {
-      try {
-        const rows = await getRatedConsultations()
-        setRows((rows || []).slice(0, 100))
-      } catch { setRows([]) }
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  const avg = rows.length ? (rows.reduce((a, r) => a + r.rating, 0) / rows.length).toFixed(1) : '—'
-  const flagged = rows.filter(r => r.rating <= 2)
-
-  const byProvider = {}
-  rows.forEach(r => {
-    const p = r.provider_display_name || 'Unknown'
-    if (!byProvider[p]) byProvider[p] = { total: 0, count: 0 }
-    byProvider[p].total += r.rating
-    byProvider[p].count++
-  })
-
-  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
-
-  return (
-    <div style={card}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-        <div>
-          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>★ Patient ratings</div>
-          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Post-consultation satisfaction scores</div>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ background: '#FFFBEB', color: '#92400E', fontWeight: 700, fontSize: '1.5rem', padding: '.25rem .875rem', borderRadius: 8 }}>{avg} ★</div>
-          <div style={{ fontSize: '.8125rem', color: '#9CA3AF' }}>{rows.length} reviews</div>
-        </div>
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
-      ) : rows.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#9CA3AF' }}>No ratings yet — rating link is included in every patient summary email.</div>
-      ) : (
-        <>
-          {/* Per-provider averages */}
-          {Object.keys(byProvider).length > 1 && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
-              {Object.entries(byProvider).map(([name, { total, count }]) => (
-                <div key={name} style={{ background: '#F8FAFC', borderRadius: 8, padding: '.5rem .875rem', fontSize: '.8125rem' }}>
-                  <span style={{ fontWeight: 600, color: '#0D2B45' }}>{name.split(' ').pop()}</span>
-                  <span style={{ color: '#9CA3AF' }}> — </span>
-                  <span style={{ fontWeight: 700, color: '#D97706' }}>{(total/count).toFixed(1)} ★</span>
-                  <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}> ({count})</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Flagged low ratings */}
-          {flagged.length > 0 && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '.75rem 1rem', marginBottom: '1rem' }}>
-              <div style={{ fontWeight: 700, fontSize: '.875rem', color: '#DC2626', marginBottom: '.5rem' }}>⚠ {flagged.length} low rating{flagged.length > 1 ? 's' : ''} (1-2 stars) — review recommended</div>
-              {flagged.map(r => (
-                <div key={r.id} style={{ fontSize: '.8125rem', color: '#7F1D1D', marginBottom: '.25rem' }}>
-                  <strong>{r.patient_first_name} {r.patient_last_name}</strong> — {r.rating}★{r.rating_comment ? `: "${r.rating_comment}"` : ''}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Recent comments */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.625rem' }}>
-            {rows.filter(r => r.rating_comment).slice(0, 8).map(r => (
-              <div key={r.id} style={{ background: r.rating <= 2 ? '#FFF5F5' : '#F8FAFC', borderRadius: 8, padding: '.75rem 1rem', border: `1px solid ${r.rating <= 2 ? '#FECACA' : '#E2E8F0'}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
-                  <span style={{ fontWeight: 600, fontSize: '.8125rem', color: '#0D2B45' }}>{r.patient_first_name} {r.patient_last_name}</span>
-                  <span style={{ color: '#F59E0B', fontSize: '.875rem' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</span>
-                  {r.provider_display_name && <span style={{ fontSize: '.75rem', color: '#9CA3AF' }}>· {r.provider_display_name}</span>}
-                </div>
-                <div style={{ fontSize: '.8125rem', color: '#374151', lineHeight: 1.5 }}>"{r.rating_comment}"</div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 function AnalyticsPanel() {
   const [range, setRange] = React.useState(7) // days
   const [data, setData] = React.useState([])
@@ -2999,68 +2907,6 @@ function EmployersPanel() {
   )
 }
 
-function AppointmentsPanel() {
-  const [rows, setRows] = React.useState([])
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    async function load() {
-      try {
-        const { getUpcomingAppointments } = await import('../../lib/supabase')
-        const data = await getUpcomingAppointments()
-        setRows(data)
-      } catch { setRows([]) }
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
-
-  async function updateStatus(id, status) {
-    try {
-      const { updateAppointmentStatus } = await import('../../lib/supabase')
-      await updateAppointmentStatus(id, status)
-      setRows(rs => rs.filter(r => r.id !== id))
-    } catch {}
-  }
-
-  return (
-    <div style={card}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
-        <div>
-          <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Upcoming appointments</div>
-          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Next 7 days — pending and confirmed</div>
-        </div>
-        <span style={{ background:'#EFF6FF', color:'#1D4ED8', fontWeight:700, fontSize:'.875rem', padding:'3px 10px', borderRadius:99 }}>{rows.length}</span>
-      </div>
-      {loading ? (
-        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
-      ) : rows.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No upcoming appointments</div>
-      ) : (
-        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
-          {rows.map(r => (
-            <div key={r.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'.75rem 1rem', background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0', gap:'1rem', flexWrap:'wrap' }}>
-              <div>
-                <div style={{ fontWeight:600, fontSize:'.9rem', color:'#0D2B45' }}>{r.patient_name}</div>
-                <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>{new Date(r.appointment_date).toLocaleDateString('en-NZ', { weekday:'short', day:'numeric', month:'short' })} at {r.slot_time?.slice(0,5)} · {r.reason || 'General'}</div>
-              </div>
-              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                <span style={{ background: r.status === 'confirmed' ? '#F0FDF4' : '#FEF3C7', color: r.status === 'confirmed' ? '#059669' : '#D97706', fontWeight:600, fontSize:'.75rem', padding:'2px 8px', borderRadius:99 }}>{r.status}</span>
-                {r.status === 'pending' && (
-                  <button onClick={() => updateStatus(r.id, 'confirmed')} style={{ background:'#0B6E76', color:'white', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>Confirm</button>
-                )}
-                <button onClick={() => updateStatus(r.id, 'cancelled')} style={{ background:'#FEE2E2', color:'#DC2626', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function RecallsPanel() {
   const [rows, setRows] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -3119,90 +2965,6 @@ function RecallsPanel() {
             )
           })}
         </div>
-      )}
-    </div>
-  )
-}
-
-function RevenuePanel() {
-  const [rows, setRows] = React.useState([])
-  const [reservationCount, setReservationCount] = React.useState(0)
-  const [loading, setLoading] = React.useState(true)
-
-  React.useEffect(() => {
-    async function load() {
-      try {
-        const { getReservationCount } = await import('../../lib/supabase')
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString()
-        const [consultResult, reservationResult] = await Promise.allSettled([
-          getCompleteSince(thirtyDaysAgo, 'created_at, payment_amount_nzd, payment_amount, acc_eligible, status'),
-          getReservationCount(thirtyDaysAgo),
-        ])
-        if (consultResult.status === 'fulfilled') setRows(consultResult.value || [])
-        if (reservationResult.status === 'fulfilled') setReservationCount(reservationResult.value || 0)
-      } catch { setRows([]) }
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
-
-  const consultTotal = rows.reduce((s, r) => s + (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)), 0)
-  const reservationTotal = reservationCount * 15
-  const grandTotal = consultTotal + reservationTotal
-  const accCount = rows.filter(r => r.acc_eligible === 'yes').length
-  const privateCount = rows.length - accCount
-
-  return (
-    <div style={card}>
-      <div style={{ marginBottom:'1.25rem' }}>
-        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Revenue — last 30 days</div>
-        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Completed consultations + reservation fees</div>
-      </div>
-      {loading ? (
-        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
-      ) : (
-        <>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'.75rem', marginBottom:'.75rem' }}>
-            {[
-              ['Total revenue', `$${grandTotal.toFixed(2)}`, '#059669'],
-              ['Consultation revenue', `$${consultTotal.toFixed(2)}`, '#0B6E76'],
-              ['Reservation fees', `$${reservationTotal.toFixed(2)}`, '#7C3AED'],
-            ].map(([label, value, color]) => (
-              <div key={label} style={{ background:'#F8FAFC', borderRadius:8, padding:'.875rem', textAlign:'center' }}>
-                <div style={{ fontSize:'1.25rem', fontWeight:700, color }}>{value}</div>
-                <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>{label}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem', marginBottom:'1.25rem' }}>
-            {[
-              ['Private consults', privateCount, '#0B6E76'],
-              ['ACC consults', accCount, '#1D4ED8'],
-            ].map(([label, value, color]) => (
-              <div key={label} style={{ background:'#F8FAFC', borderRadius:8, padding:'.875rem', textAlign:'center' }}>
-                <div style={{ fontSize:'1.25rem', fontWeight:700, color }}>{value}</div>
-                <div style={{ fontSize:'.75rem', color:'#9CA3AF', marginTop:2 }}>{label}</div>
-              </div>
-            ))}
-          </div>
-          {rows.length > 0 && (
-            <button onClick={() => {
-              const csv = ['Date,Type,Amount NZD', ...rows.map(r => [
-                new Date(r.created_at).toLocaleDateString('en-NZ'),
-                r.acc_eligible === 'yes' ? 'ACC' : 'Private',
-                (r.payment_amount_nzd || (r.payment_amount ? r.payment_amount / 100 : 0)).toFixed(2),
-              ].join(',')), ...(reservationCount > 0 ? [`Last 30 days,Reservation fees,${reservationTotal.toFixed(2)}`] : [])].join('\n')
-              const a = document.createElement('a')
-              a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
-              a.download = `revenue-${new Date().toISOString().slice(0,10)}.csv`
-              a.click()
-            }} style={{ background:'#F0F9FA', color:'#0B6E76', border:'1px solid #0B6E76', padding:'7px 14px', borderRadius:8, cursor:'pointer', fontSize:'.8125rem', fontWeight:600, fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-              ↓ Export CSV
-            </button>
-          )}
-        </>
       )}
     </div>
   )
@@ -3658,9 +3420,31 @@ function AdminBody() {
   const [waitlist, setWaitlist]   = useState([])
   const [notified, setNotified]   = useState(false)
   const [notifying, setNotifying] = useState(false)
+  // Pending counts surfaced as tab badges. Kept lightweight (single fetch
+  // on mount + refresh every 60s) — heavier live counts live inside the
+  // Overview dashboard panel.
+  const [pendingCounts, setPendingCounts] = useState({ support: 0, gp_letters: 0 })
 
   useEffect(() => {
     getWaitlist().then(data => setWaitlist(data || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    async function loadCounts() {
+      try {
+        const [ticketsR, gpR] = await Promise.allSettled([
+          apiFetch('/api/patient-support?status=new').then(r => r.json()),
+          apiFetch('/api/consultations?filter=pending_gp_letter').then(r => r.json()),
+        ])
+        const tickets = ticketsR.status === 'fulfilled' ? (ticketsR.value?.tickets || []) : []
+        const adminTickets = tickets.filter(t => !t.routing_status || t.routing_status === 'admin_inbox')
+        const gp = gpR.status === 'fulfilled' ? (gpR.value?.consultations || gpR.value || []) : []
+        setPendingCounts({ support: adminTickets.length, gp_letters: (Array.isArray(gp) ? gp.length : 0) })
+      } catch {}
+    }
+    loadCounts()
+    const t = setInterval(loadCounts, 60_000)
+    return () => clearInterval(t)
   }, [])
 
   async function notifyWaitlist() {
@@ -3697,15 +3481,13 @@ function AdminBody() {
           const ADMIN_TABS = [
             { id:'overview',     label:'📊 Overview' },
             { id:'operations',   label:'🩺 Operations' },
-            { id:'finance',      label:'💰 Finance' },
+            { id:'finance',      label:'💰 Finance & Payroll' },
+            { id:'team',         label:'👥 Team & Careers' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
-            { id:'payroll',      label:'👛 Payroll' },
-            { id:'safety',       label:'⚠ Safety' },
             { id:'employers',    label:'🏢 Employers' },
-            { id:'careers',      label:'💼 Careers' },
-            { id:'support',      label:'🎫 Support' },
-            { id:'gp_letters',   label:'✉️ GP letters' },
+            { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
+            { id:'gp_letters',   label:`✉️ GP letters${pendingCounts.gp_letters ? ` (${pendingCounts.gp_letters})` : ''}` },
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
           ]
@@ -3761,17 +3543,16 @@ function AdminBody() {
             case 'overview':
               return <><OverviewDashboard setAdminTab={setAdminTab} /></>
             case 'operations':
-              return <><AppointmentsPanel /><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<ProvidersPanel /></>
+              return <><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<OutstandingPrescriptions /><OutstandingReferrals /></>
             case 'finance':
-              return <><RevenuePanel /><AnalyticsPanel /><FailedPayments /><OutstandingPrescriptions /><OutstandingReferrals /></>
+              return <><AnalyticsPanel /><FailedPayments /><AdminPayroll embedded /></>
+            case 'team':
+              return <><ProvidersPanel /><CareersPanel /></>
             case 'quality':
               return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
               return <><AuditLogPanel /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
-            case 'payroll':    return <AdminPayroll embedded />
-            case 'safety':     return <><IncidentsPanel /><ComplaintsPanel /><BreachPanel /></>
             case 'employers':  return <EmployersPanel />
-            case 'careers':    return <CareersPanel />
             case 'support':    return <SupportPanel />
             case 'gp_letters': return <GpLettersPanel />
             case 'research':   return <AdminResearch embedded />
