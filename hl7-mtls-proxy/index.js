@@ -10,10 +10,16 @@ import { URL } from 'node:url'
 const PORT = Number(process.env.PORT || 8443)
 const HL7_BRIDGE_SECRET = process.env.HL7_BRIDGE_SECRET
 const UPSTREAM_URL      = process.env.UPSTREAM_URL || 'https://terehealth.co.nz/api/hl7-inbound'
-const CA_PATH           = process.env.CA_PATH || '/certs/medobjects-intermediate.pem'
+// CA chain used to validate the Medical-Objects Capricorn client cert.
+// Test network: /certs/demo-client-chain-g3.pem (root + intermediate concat).
+const CA_PATH           = process.env.CA_PATH || '/certs/demo-client-chain-g3.pem'
 const SERVER_CERT_PATH  = process.env.SERVER_CERT_PATH || '/certs/server.pem'
 const SERVER_KEY_PATH   = process.env.SERVER_KEY_PATH  || '/certs/server.key'
-const ALLOWED_CN        = (process.env.ALLOWED_CN || '').trim()  // optional pin
+// Comma-separated allowlist of client cert CNs. Empty = accept any cert the CA
+// chain trusts (dangerous — always set in prod). Case-insensitive match.
+// Test network CN: hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au
+const ALLOWED_CNS = (process.env.ALLOWED_CNS || process.env.ALLOWED_CN || '')
+  .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 
 if (!HL7_BRIDGE_SECRET) { console.error('HL7_BRIDGE_SECRET missing'); process.exit(1) }
 
@@ -52,10 +58,16 @@ async function forward(body, replyHeaders) {
 function acceptCert(socket) {
   const cert = socket.getPeerCertificate()
   if (!cert || !Object.keys(cert).length) return false
-  if (!socket.authorized) return false            // node's chain validation against `ca`
-  if (ALLOWED_CN) {
-    const cn = (cert.subject && cert.subject.CN) || ''
-    if (cn !== ALLOWED_CN) return false
+  if (!socket.authorized) {
+    console.warn('[proxy] cert rejected by chain validation:', socket.authorizationError)
+    return false
+  }
+  if (ALLOWED_CNS.length) {
+    const cn = ((cert.subject && cert.subject.CN) || '').toLowerCase()
+    if (!ALLOWED_CNS.includes(cn)) {
+      console.warn(`[proxy] cert CN not allowlisted: ${cn}`)
+      return false
+    }
   }
   return true
 }

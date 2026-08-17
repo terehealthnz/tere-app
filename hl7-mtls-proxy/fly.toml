@@ -9,18 +9,11 @@ primary_region = 'syd'
 [build]
 [env]
   PORT = '8443'
+  DOMAIN = 'hl7.terehealth.co.nz'
 
 [[mounts]]
   source = 'hl7certs'
   destination = '/certs'
-
-[http_service]
-  internal_port = 8443
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
 
 [[services]]
   protocol = 'tcp'
