@@ -389,12 +389,19 @@ function SignaturePad({ onSaved, disabled }) {
     setErrorMsg(null)
     try {
       const canvas = canvasRef.current
-      const blob = await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('canvas.toBlob returned null')), 'image/png'))
-      const { supabase } = await import('../../lib/supabase')
-      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
-      const { error: upErr } = await supabase.storage.from('signatures').upload(path, blob, { contentType: 'image/png', cacheControl: '3600', upsert: false })
-      if (upErr) throw upErr
-      const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
+      // Convert canvas to raw base64 PNG (strip the data URL prefix). Small
+      // enough (<50KB typical) that JSON transport is fine — avoids multipart.
+      const dataUrl = canvas.toDataURL('image/png')
+      const png_base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
+      const { apiFetch } = await import('../../lib/api')
+      const res = await apiFetch('/api/providers?action=upload_signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ png_base64 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Upload failed')
+      const publicUrl = data.url
       setSavedUrl(publicUrl)
       setStatus('saved')
       onSaved && onSaved(publicUrl)

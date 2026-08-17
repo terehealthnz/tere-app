@@ -153,6 +153,39 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    // Server-mediated signature upload — replaces the previous client-side
+    // anon supabase.storage.from('signatures').upload(...). Admin-only so
+    // the anon INSERT policy on the signatures bucket can be dropped.
+    // Body: { png_base64: '<raw base64, no data URL prefix>' }.
+    if (req.query?.action === 'upload_signature') {
+      if (!auth.provider?.is_admin) {
+        return res.status(403).json({ error: 'Admin role required' })
+      }
+      const b64 = String(req.body?.png_base64 || '')
+      if (!b64) return res.status(400).json({ error: 'png_base64 required' })
+      // Reject caller-supplied data URL prefixes — server owns the mime type.
+      if (b64.startsWith('data:')) {
+        return res.status(400).json({ error: 'Send raw base64, not a data URL' })
+      }
+      let buf
+      try { buf = Buffer.from(b64, 'base64') } catch { return res.status(400).json({ error: 'Invalid base64' }) }
+      if (buf.length === 0)         return res.status(400).json({ error: 'Empty payload' })
+      if (buf.length > 512 * 1024)  return res.status(400).json({ error: `Signature too large (${buf.length} bytes, max 524288)` })
+      // Verify PNG magic bytes so we can't be tricked into uploading arbitrary
+      // content (e.g. JS files) under an .png filename.
+      const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+      if (!buf.subarray(0, 8).equals(PNG_MAGIC)) {
+        return res.status(400).json({ error: 'Payload is not a valid PNG' })
+      }
+      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+      const { error: upErr } = await supabase.storage.from('signatures').upload(path, buf, {
+        contentType: 'image/png', cacheControl: '3600', upsert: false,
+      })
+      if (upErr) return res.status(500).json({ error: `Upload failed: ${upErr.message}` })
+      const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
+      return res.status(200).json({ url: publicUrl })
+    }
+
     if (!auth.provider?.is_admin) {
       return res.status(403).json({ error: 'Admin role required to create providers' })
     }
