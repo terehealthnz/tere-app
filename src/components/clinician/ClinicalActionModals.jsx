@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import HpiSearch from '../HpiSearch'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
-import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
+import { RHCNZ_REGIONS, autoSelectRegion } from '../../lib/rhcnzRegions'
 
 export function Modal({ open, onClose, title, children }) {
   if (!open) return null
@@ -558,12 +558,33 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   const [xr, setXr] = useState({ investigation:'X-ray', bodyPart:'', indication:'', urgency:'Urgent (within 24 hours)', history:'' })
   const [facility, setFacility] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [rhcnzRegionId, setRhcnzRegionId] = useState('')
+  const [rhcnzAutoReason, setRhcnzAutoReason] = useState(null) // "postcode 8011" / "nearest clinic (2.3 km)" / null
+  const [regionTouchedByUser, setRegionTouchedByUser] = useState(false)
   const [extra, setExtra] = useState({
     cscNumber: '', phoneHome: '', phoneMobile: consult?.patient_phone || '',
     otherFunding: '', dateOfInjury: '', copyToDoctor: '',
     preferredName: '', address: consult?.patient_address || '', gender: consult?.patient_gender || '',
   })
   const [showExtra, setShowExtra] = useState(false)
+
+  // Auto-select the RHCNZ region from patient address (postcode-prefix
+  // fallback until BDM sends clinic coordinates — see rhcnzRegions.js).
+  // Never overwrites a manual pick.
+  useEffect(() => {
+    if (regionTouchedByUser) return
+    const match = autoSelectRegion({
+      patientAddress: extra.address,
+      patientCoords: consult?.patient_lat && consult?.patient_lng
+        ? { lat: consult.patient_lat, lng: consult.patient_lng }
+        : null,
+    })
+    if (match) {
+      setRhcnzRegionId(match.regionId)
+      setRhcnzAutoReason(match.reason)
+    } else {
+      setRhcnzAutoReason(null)
+    }
+  }, [extra.address, consult?.patient_lat, consult?.patient_lng, regionTouchedByUser])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''
@@ -676,12 +697,17 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         </div>
         <div className="form-group">
           <label>Send to RHCNZ (recommended)</label>
-          <select value={rhcnzRegionId} onChange={e => setRhcnzRegionId(e.target.value)}>
+          <select value={rhcnzRegionId} onChange={e => { setRhcnzRegionId(e.target.value); setRegionTouchedByUser(true); setRhcnzAutoReason(null) }}>
             <option value="">— Other facility (free-text below) —</option>
             {RHCNZ_REGIONS.map(r => (
               <option key={r.id} value={r.id}>{r.brand} — {r.region}</option>
             ))}
           </select>
+          {isRhcnz && rhcnzAutoReason && (
+            <div style={{fontSize:'.7rem',color:'var(--muted)',marginTop:4,fontStyle:'italic'}}>
+              Auto-selected from {rhcnzAutoReason} — pick a different region above if you'd rather.
+            </div>
+          )}
           {isRhcnz && (
             <div style={{background:'#F0FDFA',border:'1px solid #99F6E4',borderRadius:8,padding:'.5rem .75rem',marginTop:6,fontSize:'.75rem',color:'#0F766E',lineHeight:1.5}}>
               📧 Referral will be sent (urgent) to <strong>{RHCNZ_REGIONS.find(r => r.id === rhcnzRegionId)?.email}</strong>. RHCNZ will contact the patient to book.
