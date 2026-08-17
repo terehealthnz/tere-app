@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit'
+import fs from 'node:fs'
+import path from 'node:path'
 
 // Fetch a signature image URL into a Buffer for pdfkit's `doc.image()` API.
 // Returns null on any failure so callers can fall back to a signature line.
@@ -10,6 +12,21 @@ async function fetchSignatureBuffer(url) {
     const arr = await r.arrayBuffer()
     return Buffer.from(arr)
   } catch { return null }
+}
+
+// Tere Health logo — loaded lazily from public/ so it ships with the Vercel
+// deployment. Cached module-level to avoid disk reads on every PDF. Embedding
+// the logo also bulks referral PDFs past the 10 KB threshold that RHCNZ's
+// automation uses to filter out signature-only / whitespace-only emails
+// (Holly Johnson feedback 2026-08-17).
+let _tereLogoBuf = null
+function tereLogoBuffer() {
+  if (_tereLogoBuf !== null) return _tereLogoBuf
+  try {
+    const p = path.join(process.cwd(), 'public', 'tere-logo.png')
+    _tereLogoBuf = fs.readFileSync(p)
+  } catch { _tereLogoBuf = false }
+  return _tereLogoBuf || null
 }
 
 // DG statement — required verbatim on any prescription sent without a
@@ -144,11 +161,19 @@ export async function buildReferralPdf(data) {
     const RIGHT   = W - 50
     const LABEL_W = 160
 
-    // Header — Tere brand + "eReferral"
+    // Header — Tere brand + "eReferral". Embeds tere-logo.png on the right
+    // to (a) look properly branded and (b) push file size past the 10 KB
+    // filter RHCNZ (and likely other imaging providers) use in their auto-
+    // routing pipelines (Holly Johnson feedback 2026-08-17).
     doc.rect(0, 0, W, 70).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 20)
     doc.font('Helvetica').fontSize(10).text('terehealth.co.nz · Tere Health Limited · HPI-O G11238-E', LEFT, 46)
-    doc.font('Helvetica-Bold').fontSize(14).text('eReferral', RIGHT - 100, 30, { width: 100, align: 'right' })
+    const logo = tereLogoBuffer()
+    if (logo) {
+      try { doc.image(logo, RIGHT - 60, 10, { fit: [50, 50], align: 'right' }) } catch {}
+    } else {
+      doc.font('Helvetica-Bold').fontSize(14).text('eReferral', RIGHT - 100, 30, { width: 100, align: 'right' })
+    }
 
     let y = 90
 
@@ -174,7 +199,11 @@ export async function buildReferralPdf(data) {
     sectionBar('REFERRAL DETAILS')
     row('Referral ID', data.referralId)
     row('Referred To', data.facilityName)
+    // Force NZ time — otherwise the server's local timezone (LA when Patrick
+    // runs it) leaks into the "Referral Sent" line and RHCNZ sees yesterday's
+    // date (Holly feedback 2026-08-17).
     row('Referral Sent', new Date().toLocaleString('en-NZ', {
+      timeZone: 'Pacific/Auckland',
       day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
     }))
     y += 6
@@ -243,7 +272,9 @@ export async function buildReferralPdf(data) {
     doc.fillColor('#999').font('Helvetica').fontSize(9).text('Referring clinician signature', LEFT, sigY + 4)
     doc.moveTo(300, sigY).lineTo(RIGHT, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.text('Date', 300, sigY + 4)
-    doc.font('Helvetica').fontSize(9).fillColor('#333').text(new Date().toLocaleDateString('en-NZ'), 305, sigY - 12)
+    doc.font('Helvetica').fontSize(9).fillColor('#333').text(
+      new Date().toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland' }), 305, sigY - 12
+    )
 
     doc.fillColor('#AAA').fontSize(8)
       .text('Electronically issued by Tere Health Limited · For clinical use only', LEFT, doc.page.height - 50, { align: 'center', width: RIGHT - LEFT })

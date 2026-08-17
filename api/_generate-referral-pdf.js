@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import crypto from 'node:crypto'
 import { buildReferralPdf } from './_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
 
@@ -132,8 +133,12 @@ export default async function handler(req, res) {
       if (prov?.signature_url) signatureUrl = prov.signature_url
     } catch {}
   }
+  // Pre-generate the referral row UUID so it can render on the PDF (Holly
+  // RHCNZ feedback 2026-08-17). We use it as the id on the subsequent insert
+  // so PDF + DB row + email attachment all share the same reference.
+  const referralId = crypto.randomUUID()
   const pdfData = {
-    referralId: null, // set post-insert below
+    referralId,
     providerName, providerCpn, providerMcnz, providerPhone,
     patientName, patientPreferredName, patientNhi, patientDob, patientGender,
     patientEthnicity, patientAddress,
@@ -190,16 +195,15 @@ export default async function handler(req, res) {
     } catch (e) { deliveryErrors.push(`Patient email failed: ${e.message}`) }
   }
 
-  let referralId = null
   try {
-    const { data } = await supabase.from('radiology_referrals').insert({
+    await supabase.from('radiology_referrals').insert({
+      id: referralId,   // preserves PDF ↔ DB ↔ email match (pre-generated above)
       ...commonRow,
       referral_status: 'sent',
       approval_status: 'not_required',
       delivery_status: deliveryErrors.length ? 'error' : 'sent',
       delivery_error: deliveryErrors.join('; ') || null,
-    }).select('id').single()
-    referralId = data?.id
+    })
   } catch (e) { deliveryErrors.push(`DB save failed: ${e.message}`) }
 
   res.json({ ok: true, referralId, pdfBase64, deliveryErrors: deliveryErrors.length ? deliveryErrors : undefined })
