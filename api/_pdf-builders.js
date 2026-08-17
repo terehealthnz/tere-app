@@ -121,81 +121,114 @@ export async function buildReferralPdf(data) {
     doc.on('end', () => resolve(Buffer.concat(chunks)))
     doc.on('error', reject)
 
-    doc.rect(0, 0, doc.page.width, 70).fill('#0B6E76')
-    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', 50, 20)
-    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 46)
+    const W       = doc.page.width
+    const LEFT    = 50
+    const RIGHT   = W - 50
+    const LABEL_W = 160
 
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('RADIOLOGY REFERRAL', 50, 90)
-    doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
+    // Header — Tere brand + "eReferral"
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz · Tere Health Limited · HPI-O G11238-E', LEFT, 46)
+    doc.font('Helvetica-Bold').fontSize(14).text('eReferral', RIGHT - 100, 30, { width: 100, align: 'right' })
 
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Referring Clinician', 50, 120)
-    doc.font('Helvetica').fontSize(10)
-      .text(data.providerName || 'Tere Clinician', 50, 134)
-      .text(`CPN: ${data.providerCpn || '—'}`, 50, 148)
-      .text('Tere Health Limited · terehealth.co.nz', 50, 162)
+    let y = 90
+
+    // Helper — draws a "SECTION NAME" bar
+    const sectionBar = (label) => {
+      doc.rect(LEFT, y, RIGHT - LEFT, 18).fill('#0B6E76')
+      doc.fillColor('white').font('Helvetica-Bold').fontSize(10).text(label, LEFT + 8, y + 4)
+      y += 22
+    }
+
+    // Helper — draws a label:value row (wraps value)
+    const row = (label, value, opts = {}) => {
+      const v = (value == null || value === '') ? '—' : String(value)
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#333').text(label, LEFT, y, { width: LABEL_W })
+      const color = opts.color || '#1A2A33'
+      doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(color)
+        .text(v, LEFT + LABEL_W + 8, y, { width: RIGHT - LEFT - LABEL_W - 8 })
+      const h = doc.heightOfString(v, { width: RIGHT - LEFT - LABEL_W - 8, fontSize: 9 })
+      y += Math.max(14, h + 4)
+    }
+
+    // ── Section 1: Referral details ─────────────────────────────────
+    sectionBar('REFERRAL DETAILS')
+    row('Referral ID', data.referralId)
+    row('Referred To', data.facilityName)
+    row('Referral Sent', new Date().toLocaleString('en-NZ', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }))
+    y += 6
+
+    // ── Section 2: Patient details ──────────────────────────────────
+    sectionBar('PATIENT DETAILS')
+    const [firstName, ...restNames] = String(data.patientName || '').trim().split(/\s+/)
+    const lastName = restNames.pop() || ''
+    row('Surname', lastName)
+    row('First name(s)', [firstName, ...restNames].join(' '))
+    if (data.patientPreferredName) row('Preferred name', data.patientPreferredName)
+    row('Gender', data.patientGender)
+    row('Date of Birth', data.patientDob)
+    if (data.patientEthnicity) row('Ethnicities', data.patientEthnicity)
+    row('NHI Number', data.patientNhi)
+    if (data.cscNumber) row('CSC', data.cscNumber)
+    row('Phone (Home)', data.patientPhoneHome)
+    row('Phone (Mobile)', data.patientPhoneMobile)
+    row('Address', data.patientAddress)
+    y += 6
+
+    // ── Section 3: Funding ──────────────────────────────────────────
+    sectionBar('FUNDING')
+    const accYesNo = data.accClaimNumber ? 'YES' : 'NO'
+    row('ACC', accYesNo, { color: data.accClaimNumber ? '#065F46' : '#1A2A33', bold: true })
+    if (data.accClaimNumber) row('ACC Number', data.accClaimNumber)
+    if (data.dateOfInjury) row('Date of injury', data.dateOfInjury)
+    if (data.otherFundingPathway) row('Other funding pathway', data.otherFundingPathway)
+    y += 6
+
+    // ── Section 4: Examination & clinical ───────────────────────────
+    if (y > doc.page.height - 200) { doc.addPage(); y = 50 }
+    sectionBar('EXAMINATION & CLINICAL DETAILS')
+    row('Examination requested', `${data.investigation || ''}${data.bodyPart ? ' — ' + data.bodyPart : ''}`, { bold: true })
+    row('Clinical details', data.clinicalIndication)
+    if (data.history) row('Relevant history', data.history)
+    y += 6
+
+    // ── Section 5: Referrer & report ────────────────────────────────
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50 }
+    sectionBar('REFERRER & REPORT DETAILS')
+    const urgencyColor = String(data.urgency || '').toLowerCase().includes('urgent') ? '#DC2626'
+                       : String(data.urgency || '').toLowerCase().includes('semi')   ? '#D97706' : '#059669'
+    row('Urgency', data.urgency || 'Routine', { bold: true, color: urgencyColor })
+    row('Referrer Name', data.providerName)
+    row('Referrer Phone', data.providerPhone)
+    row('Referrer NZMC', data.providerMcnz || data.providerCpn)
+    row('Practice Name', 'Tere Health Limited')
+    row('Practice Address', '41 Adams Lane, Springlands, Blenheim 7201, New Zealand')
+    row('Practice Dispatch', data.referrerMoShortcode || 'G11238-E')
+    if (data.copyToDoctor) row('Additional Report To', data.copyToDoctor)
 
     if (data.approvedByName) {
+      y += 8
       doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)
-        .text(`Countersigned by: ${data.approvedByName}`, 50, 176)
-    }
-
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Patient', 300, 120)
-    doc.font('Helvetica').fontSize(10)
-      .text(data.patientName, 300, 134)
-      .text(`NHI: ${data.patientNhi || '—'}`, 300, 148)
-      .text(`DOB: ${data.patientDob || '—'}`, 300, 162)
-    doc.text(`Date: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 300, 176)
-
-    doc.moveTo(50, 200).lineTo(doc.page.width - 50, 200).strokeColor('#DDD').lineWidth(0.5).stroke()
-
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text('Investigation', 50, 215)
-    doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(13).text(
-      `${data.investigation}${data.bodyPart ? ' — ' + data.bodyPart : ''}`, 50, 232
-    )
-
-    const urgencyColor = data.urgency?.toLowerCase().includes('urgent') ? '#DC2626' : data.urgency?.toLowerCase().includes('semi') ? '#D97706' : '#059669'
-    doc.fillColor(urgencyColor).font('Helvetica-Bold').fontSize(10).text(`Urgency: ${data.urgency || 'Routine'}`, 50, 252)
-
-    doc.moveTo(50, 270).lineTo(doc.page.width - 50, 270).strokeColor('#DDD').lineWidth(0.5).stroke()
-
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Clinical Indication', 50, 280)
-    doc.font('Helvetica').fontSize(10).fillColor('#555').text(data.clinicalIndication || '—', 50, 294, { width: doc.page.width - 100 })
-
-    let y = 294 + (data.clinicalIndication ? Math.ceil(data.clinicalIndication.length / 80) * 14 : 14) + 10
-
-    if (data.history) {
-      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Relevant History', 50, y)
+        .text(`Countersigned by: ${data.approvedByName}`, LEFT, y)
       y += 14
-      doc.font('Helvetica').fontSize(10).fillColor('#555').text(data.history, 50, y, { width: doc.page.width - 100 })
-      y += Math.ceil(data.history.length / 80) * 14 + 10
     }
 
-    if (data.accClaimNumber) {
-      doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(10).text(`ACC Claim No: ${data.accClaimNumber}`, 50, y)
-      y += 20
-    }
-
-    doc.moveTo(50, y).lineTo(doc.page.width - 50, y).strokeColor('#DDD').lineWidth(0.5).stroke()
-    y += 10
-
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Referred To', 50, y)
-    doc.font('Helvetica').fontSize(10).fillColor('#555')
-      .text(data.facilityName || 'To be arranged by patient', 50, y + 14)
-    if (data.facilityAddress) doc.text(data.facilityAddress, 50, y + 28)
-    if (data.facilityPhone) doc.text(`Ph: ${data.facilityPhone}`, 50, y + 42)
-
-    const sigY = doc.page.height - 120
+    // Signature block near page bottom
+    const sigY = Math.max(y + 30, doc.page.height - 120)
     if (sigBuf) {
-      try { doc.image(sigBuf, 50, sigY - 40, { fit: [170, 40], align: 'center' }) } catch {}
+      try { doc.image(sigBuf, LEFT, sigY - 40, { fit: [170, 40] }) } catch {}
     }
-    doc.moveTo(50, sigY).lineTo(220, sigY).strokeColor('#999').lineWidth(0.5).stroke()
-    doc.fillColor('#999').font('Helvetica').fontSize(9).text('Referring clinician signature', 50, sigY + 4)
-    doc.moveTo(300, sigY).lineTo(doc.page.width - 50, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.moveTo(LEFT, sigY).lineTo(LEFT + 170, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.fillColor('#999').font('Helvetica').fontSize(9).text('Referring clinician signature', LEFT, sigY + 4)
+    doc.moveTo(300, sigY).lineTo(RIGHT, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.text('Date', 300, sigY + 4)
     doc.font('Helvetica').fontSize(9).fillColor('#333').text(new Date().toLocaleDateString('en-NZ'), 305, sigY - 12)
 
     doc.fillColor('#AAA').fontSize(8)
-      .text('Electronically issued by Tere Health Limited · For clinical use only', 50, doc.page.height - 50, { align: 'center', width: doc.page.width - 100 })
+      .text('Electronically issued by Tere Health Limited · For clinical use only', LEFT, doc.page.height - 50, { align: 'center', width: RIGHT - LEFT })
 
     doc.end()
   })

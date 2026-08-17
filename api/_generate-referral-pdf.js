@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { buildReferralPdf } from './_pdf-builders.js'
+import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -27,12 +28,22 @@ async function notifySupervisors(supabase, subject, html) {
   }
 }
 
+// Server-side region → intake email lookup. Client never gets to name the
+// destination directly for RHCNZ referrals — spoofing safeguard.
+function rhcnzRegionServerSide(id) {
+  return RHCNZ_REGIONS.find(r => r.id === id) || null
+}
+
 export default async function handler(req, res) {
   const {
-    consultationId, providerId, providerName, providerCpn,
-    patientName, patientNhi, patientDob, patientEmail,
+    consultationId, providerId, providerName, providerCpn, providerMcnz, providerPhone,
+    patientName, patientPreferredName, patientNhi, patientDob, patientGender,
+    patientEthnicity, patientEmail, patientAddress,
+    patientPhoneHome, patientPhoneMobile,
+    cscNumber, otherFundingPathway, dateOfInjury, copyToDoctor,
     investigation, bodyPart, clinicalIndication, urgency, history, accClaimNumber,
     facilityName, facilityHpiId, facilityEmail, facilityPhone, facilityAddress,
+    rhcnzRegionId,
     needsApproval, draftedByName,
   } = req.body || {}
 
@@ -40,28 +51,51 @@ export default async function handler(req, res) {
 
   const supabase = supabaseAdmin()
 
+  // RHCNZ region overrides facility name/email — server-side lookup so client
+  // can't send a referral to an arbitrary address.
+  const rhcnzRegion = rhcnzRegionId ? rhcnzRegionServerSide(rhcnzRegionId) : null
+  const finalFacilityName  = rhcnzRegion ? `${rhcnzRegion.brand} — ${rhcnzRegion.region}` : facilityName
+  const finalFacilityEmail = rhcnzRegion ? rhcnzRegion.email                              : facilityEmail
+  const finalUrgency       = rhcnzRegion ? 'Urgent'                                       : urgency
+  const referrerMoShortcode = TERE_MO_SHORTCODE
+
+  const commonRow = {
+    consultation_id: consultationId || null,
+    provider_id: providerId || null,
+    provider_name: providerName,
+    provider_cpn: providerCpn,
+    patient_name: patientName,
+    patient_nhi: patientNhi,
+    patient_dob: patientDob,
+    patient_email: patientEmail,
+    investigation, body_part: bodyPart, clinical_indication: clinicalIndication,
+    urgency: finalUrgency, history, acc_claim_number: accClaimNumber,
+    facility_name: finalFacilityName,
+    facility_hpi_id: facilityHpiId,
+    facility_email: finalFacilityEmail,
+    facility_phone: facilityPhone,
+    facility_address: facilityAddress,
+    // RHCNZ / template-required fields (migration 2026-08-17)
+    rhcnz_region_id: rhcnzRegion?.id || null,
+    csc_number: cscNumber || null,
+    patient_phone_home: patientPhoneHome || null,
+    patient_phone_mobile: patientPhoneMobile || null,
+    other_funding_pathway: otherFundingPathway || null,
+    date_of_injury: dateOfInjury || null,
+    copy_to_doctor: copyToDoctor || null,
+    referrer_mo_shortcode: referrerMoShortcode,
+    patient_preferred_name: patientPreferredName || null,
+    patient_address: patientAddress || null,
+  }
+
   // ── Pending approval path ────────────────────────────────────────────
   if (needsApproval) {
     let referralId = null
     try {
       const { data } = await supabase.from('radiology_referrals').insert({
-        consultation_id: consultationId || null,
+        ...commonRow,
         drafted_by_id: providerId || null,
         drafted_by_name: draftedByName || providerName,
-        provider_id: providerId || null,
-        provider_name: providerName,
-        provider_cpn: providerCpn,
-        patient_name: patientName,
-        patient_nhi: patientNhi,
-        patient_dob: patientDob,
-        patient_email: patientEmail,
-        investigation, body_part: bodyPart, clinical_indication: clinicalIndication,
-        urgency, history, acc_claim_number: accClaimNumber,
-        facility_name: facilityName,
-        facility_hpi_id: facilityHpiId,
-        facility_email: facilityEmail,
-        facility_phone: facilityPhone,
-        facility_address: facilityAddress,
         referral_status: 'pending',
         approval_status: 'pending_approval',
         delivery_status: 'pending',
@@ -78,9 +112,9 @@ export default async function handler(req, res) {
        <table style="border-collapse:collapse;margin:1rem 0">
          <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Patient</td><td style="font-weight:600">${patientName}</td></tr>
          <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Investigation</td><td style="font-weight:600">${investigation}${bodyPart ? ' — ' + bodyPart : ''}</td></tr>
-         <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Urgency</td><td>${urgency || 'Routine'}</td></tr>
+         <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Urgency</td><td>${finalUrgency || 'Routine'}</td></tr>
          <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Indication</td><td>${clinicalIndication || '—'}</td></tr>
-         <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Facility</td><td>${facilityName || '—'}</td></tr>
+         <tr><td style="padding:4px 12px 4px 0;color:#6B7280">Facility</td><td>${finalFacilityName || '—'}</td></tr>
        </table>
        <p>Please log in to the Tere dashboard to approve, modify, or reject this referral.</p>
        <p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
@@ -90,7 +124,6 @@ export default async function handler(req, res) {
   }
 
   // ── Direct send path ─────────────────────────────────────────────────
-  // Look up referring clinician's signature so the PDF renders it above the line.
   let signatureUrl = null
   if (providerId) {
     try {
@@ -99,7 +132,19 @@ export default async function handler(req, res) {
       if (prov?.signature_url) signatureUrl = prov.signature_url
     } catch {}
   }
-  const pdfData = { providerName, providerCpn, patientName, patientNhi, patientDob, investigation, bodyPart, clinicalIndication, urgency, history, accClaimNumber, facilityName, facilityAddress, facilityPhone, signatureUrl }
+  const pdfData = {
+    referralId: null, // set post-insert below
+    providerName, providerCpn, providerMcnz, providerPhone,
+    patientName, patientPreferredName, patientNhi, patientDob, patientGender,
+    patientEthnicity, patientAddress,
+    patientPhoneHome, patientPhoneMobile,
+    cscNumber, otherFundingPathway, dateOfInjury, copyToDoctor,
+    investigation, bodyPart, clinicalIndication, urgency: finalUrgency, history, accClaimNumber,
+    facilityName: finalFacilityName, facilityAddress, facilityPhone,
+    referrerMoShortcode,
+    signatureUrl,
+  }
+
   let pdfBuffer
   try {
     pdfBuffer = await buildReferralPdf(pdfData)
@@ -109,16 +154,23 @@ export default async function handler(req, res) {
 
   const pdfBase64 = pdfBuffer.toString('base64')
   const deliveryErrors = []
+  const subjectPrefix = rhcnzRegion ? 'URGENT — Tere Health eReferral' : 'Radiology Referral — Tere Health'
+  const emailSubject  = `${subjectPrefix} — ${patientName} (${finalUrgency || 'Routine'})`
 
-  if (facilityEmail && process.env.RESEND_API_KEY) {
+  if (finalFacilityEmail && process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY)
       await resend.emails.send({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
-        to: facilityEmail,
-        subject: `Radiology Referral — ${patientName} (${urgency || 'Routine'}) — Tere Health`,
-        html: `<p>Please find attached a radiology referral from Tere Health.</p><p><strong>Patient:</strong> ${patientName}<br><strong>Investigation:</strong> ${investigation}${bodyPart ? ' — ' + bodyPart : ''}<br><strong>Urgency:</strong> ${urgency || 'Routine'}<br><strong>Clinician:</strong> ${providerName}</p>`,
+        to: finalFacilityEmail,
+        subject: emailSubject,
+        html: `<p>Please find attached an ${rhcnzRegion ? '<strong>urgent</strong> ' : ''}imaging referral from Tere Health.</p>
+               <p><strong>Patient:</strong> ${patientName}<br>
+                  <strong>Investigation:</strong> ${investigation}${bodyPart ? ' — ' + bodyPart : ''}<br>
+                  <strong>Urgency:</strong> ${finalUrgency || 'Routine'}<br>
+                  <strong>Clinician:</strong> ${providerName}${providerMcnz ? ` (MCNZ ${providerMcnz})` : ''}</p>
+               <p style="color:#6B7280;font-size:12px">Tere Health Limited · HPI-O G11238-E · terehealth.co.nz</p>`,
         attachments: [{ filename: `referral-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
     } catch (e) { deliveryErrors.push(`Facility email failed: ${e.message}`) }
@@ -131,8 +183,8 @@ export default async function handler(req, res) {
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
-        subject: `Your radiology referral from Tere Health`,
-        html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${facilityName || 'the imaging centre'}</strong>.</p><p>Urgency: ${urgency || 'Routine'}</p><p>Tere Health Team</p>`,
+        subject: `Your imaging referral from Tere Health`,
+        html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${finalFacilityName || 'the imaging centre'}</strong>.</p>${rhcnzRegion ? `<p>${rhcnzRegion.brand} (${rhcnzRegion.region}) will contact you to book the appointment.</p>` : ''}<p>Urgency: ${finalUrgency || 'Routine'}</p><p>Tere Health Team</p>`,
         attachments: [{ filename: 'referral.pdf', content: pdfBase64 }],
       })
     } catch (e) { deliveryErrors.push(`Patient email failed: ${e.message}`) }
@@ -141,22 +193,8 @@ export default async function handler(req, res) {
   let referralId = null
   try {
     const { data } = await supabase.from('radiology_referrals').insert({
-      consultation_id: consultationId || null,
-      provider_id: providerId || null,
-      provider_name: providerName,
-      provider_cpn: providerCpn,
-      patient_name: patientName,
-      patient_nhi: patientNhi,
-      patient_dob: patientDob,
-      patient_email: patientEmail,
-      investigation, body_part: bodyPart, clinical_indication: clinicalIndication,
-      urgency, history, acc_claim_number: accClaimNumber,
-      facility_name: facilityName,
-      facility_hpi_id: facilityHpiId,
-      facility_email: facilityEmail,
-      facility_phone: facilityPhone,
-      facility_address: facilityAddress,
-      referral_status: 'pending',
+      ...commonRow,
+      referral_status: 'sent',
       approval_status: 'not_required',
       delivery_status: deliveryErrors.length ? 'error' : 'sent',
       delivery_error: deliveryErrors.join('; ') || null,

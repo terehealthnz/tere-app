@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import HpiSearch from '../HpiSearch'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
+import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
 
 export function Modal({ open, onClose, title, children }) {
   if (!open) return null
@@ -556,10 +557,18 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
 export function XrayModal({ open, onClose, consult, onDone }) {
   const [xr, setXr] = useState({ investigation:'X-ray', bodyPart:'', indication:'', urgency:'Urgent (within 24 hours)', history:'' })
   const [facility, setFacility] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
+  const [rhcnzRegionId, setRhcnzRegionId] = useState('')
+  const [extra, setExtra] = useState({
+    cscNumber: '', phoneHome: '', phoneMobile: consult?.patient_phone || '',
+    otherFunding: '', dateOfInjury: '', copyToDoctor: '',
+    preferredName: '', address: consult?.patient_address || '', gender: consult?.patient_gender || '',
+  })
+  const [showExtra, setShowExtra] = useState(false)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''
   const canRefer = sessionStorage.getItem('providerCanRefer') !== 'false'
+  const isRhcnz = !!rhcnzRegionId
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -574,21 +583,33 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           providerId: sessionStorage.getItem('providerId'),
           providerName: sessionStorage.getItem('providerDisplayName'),
           providerCpn: sessionStorage.getItem('providerCpn'),
+          providerMcnz: sessionStorage.getItem('providerMcnz'),
+          providerPhone: sessionStorage.getItem('providerPhone'),
           patientName: `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim(),
+          patientPreferredName: extra.preferredName || null,
           patientNhi: consult?.patient_nhi,
           patientDob: consult?.patient_dob,
+          patientGender: extra.gender || null,
           patientEmail: consult?.patient_email,
+          patientAddress: extra.address || null,
+          patientPhoneHome: extra.phoneHome || null,
+          patientPhoneMobile: extra.phoneMobile || null,
+          cscNumber: extra.cscNumber || null,
+          otherFundingPathway: extra.otherFunding || null,
+          dateOfInjury: extra.dateOfInjury || null,
+          copyToDoctor: extra.copyToDoctor || null,
           investigation: xr.investigation,
           bodyPart: xr.bodyPart,
           clinicalIndication: xr.indication,
           urgency: xr.urgency,
           history: xr.history,
           accClaimNumber: accNum,
-          facilityName: facility.name,
-          facilityHpiId: facility.hpiId,
-          facilityEmail: facility.email,
-          facilityPhone: facility.phone,
-          facilityAddress: facility.address,
+          rhcnzRegionId: rhcnzRegionId || null,
+          facilityName: isRhcnz ? null : facility.name,
+          facilityHpiId: isRhcnz ? null : facility.hpiId,
+          facilityEmail: isRhcnz ? null : facility.email,
+          facilityPhone: isRhcnz ? null : facility.phone,
+          facilityAddress: isRhcnz ? null : facility.address,
           needsApproval: !canRefer,
           draftedByName: sessionStorage.getItem('providerDisplayName'),
         }),
@@ -654,19 +675,94 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           </div>}
         </div>
         <div className="form-group">
-          <label>Radiology facility</label>
-          <HpiSearch
-            type="radiology"
-            value={facility.name}
-            onSelect={r => setFacility({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address })}
-            placeholder="Search radiology providers…"
-          />
-          {facility.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{facility.address}</div>}
+          <label>Send to RHCNZ (recommended)</label>
+          <select value={rhcnzRegionId} onChange={e => setRhcnzRegionId(e.target.value)}>
+            <option value="">— Other facility (free-text below) —</option>
+            {RHCNZ_REGIONS.map(r => (
+              <option key={r.id} value={r.id}>{r.brand} — {r.region}</option>
+            ))}
+          </select>
+          {isRhcnz && (
+            <div style={{background:'#F0FDFA',border:'1px solid #99F6E4',borderRadius:8,padding:'.5rem .75rem',marginTop:6,fontSize:'.75rem',color:'#0F766E',lineHeight:1.5}}>
+              📧 Referral will be sent (urgent) to <strong>{RHCNZ_REGIONS.find(r => r.id === rhcnzRegionId)?.email}</strong>. RHCNZ will contact the patient to book.
+            </div>
+          )}
         </div>
-        {!facility.email && facility.name && (
-          <div className="form-group">
-            <label>Facility email <span style={{color:'var(--muted)',fontWeight:400}}>(if not found above)</span></label>
-            <input value={facility.email} onChange={e=>setFacility(f=>({...f,email:e.target.value}))} placeholder="referrals@radiology.co.nz" type="email" />
+
+        {!isRhcnz && (
+          <>
+            <div className="form-group">
+              <label>Radiology facility</label>
+              <HpiSearch
+                type="radiology"
+                value={facility.name}
+                onSelect={r => setFacility({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address })}
+                placeholder="Search radiology providers…"
+              />
+              {facility.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{facility.address}</div>}
+            </div>
+            {!facility.email && facility.name && (
+              <div className="form-group">
+                <label>Facility email <span style={{color:'var(--muted)',fontWeight:400}}>(if not found above)</span></label>
+                <input value={facility.email} onChange={e=>setFacility(f=>({...f,email:e.target.value}))} placeholder="referrals@radiology.co.nz" type="email" />
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Additional patient/funding details — RHCNZ template asks for these */}
+        <div className="form-group">
+          <button type="button" onClick={() => setShowExtra(v => !v)}
+            style={{background:'none',border:'none',padding:0,color:'var(--teal)',fontWeight:600,cursor:'pointer',fontFamily:'inherit',fontSize:'.8125rem'}}>
+            {showExtra ? '▾' : '▸'} Additional patient / referral details {isRhcnz ? '(RHCNZ recommended)' : '(optional)'}
+          </button>
+        </div>
+        {showExtra && (
+          <div style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:8,padding:'.75rem',marginBottom:'1rem'}}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Preferred name</label>
+                <input value={extra.preferredName} onChange={e=>setExtra(x=>({...x,preferredName:e.target.value}))} />
+              </div>
+              <div className="form-group">
+                <label>Gender</label>
+                <input value={extra.gender} onChange={e=>setExtra(x=>({...x,gender:e.target.value}))} placeholder="M / F / Other" />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Phone (mobile)</label>
+                <input value={extra.phoneMobile} onChange={e=>setExtra(x=>({...x,phoneMobile:e.target.value}))} />
+              </div>
+              <div className="form-group">
+                <label>Phone (home)</label>
+                <input value={extra.phoneHome} onChange={e=>setExtra(x=>({...x,phoneHome:e.target.value}))} />
+              </div>
+            </div>
+            <div className="form-group">
+              <label>Address</label>
+              <input value={extra.address} onChange={e=>setExtra(x=>({...x,address:e.target.value}))} placeholder="Street, suburb, city, postcode" />
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>CSC number</label>
+                <input value={extra.cscNumber} onChange={e=>setExtra(x=>({...x,cscNumber:e.target.value}))} placeholder="Community Services Card" />
+              </div>
+              {accNum && (
+                <div className="form-group">
+                  <label>Date of injury</label>
+                  <input type="date" value={extra.dateOfInjury} onChange={e=>setExtra(x=>({...x,dateOfInjury:e.target.value}))} />
+                </div>
+              )}
+            </div>
+            <div className="form-group">
+              <label>Other funding pathway <span style={{color:'var(--muted)',fontWeight:400}}>(e.g. Southern Cross)</span></label>
+              <input value={extra.otherFunding} onChange={e=>setExtra(x=>({...x,otherFunding:e.target.value}))} />
+            </div>
+            <div className="form-group">
+              <label>Additional report to <span style={{color:'var(--muted)',fontWeight:400}}>(copy to GP, name + address)</span></label>
+              <input value={extra.copyToDoctor} onChange={e=>setExtra(x=>({...x,copyToDoctor:e.target.value}))} />
+            </div>
           </div>
         )}
         {canRefer && (
