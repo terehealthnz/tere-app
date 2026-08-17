@@ -1,24 +1,32 @@
 // node-fetch not needed — using built-in fetch
+//
+// HPI client bootstrap — reads all endpoints + credentials from the same env
+// vars api/_hpi.js uses (HPI_TOKEN_URL, HPI_BASE_URL, HPI_CLIENT_ID,
+// HPI_CLIENT_SECRET, HPI_SCOPES). Previously these were hardcoded to
+// production hosts with a wrong path, which meant every request failed auth
+// against our UAT credentials and the code silently served mock data.
+
+const HPI_TOKEN_URL = process.env.HPI_TOKEN_URL
+const HPI_BASE_URL  = process.env.HPI_BASE_URL
+const HPI_CLIENT_ID = process.env.HPI_CLIENT_ID
+const HPI_SECRET    = process.env.HPI_CLIENT_SECRET
+const HPI_SCOPES    = process.env.HPI_SCOPES || ''
 
 let cachedToken = null
 let tokenExpiry = 0
 
 async function getHpiToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken
-
-  const clientId = process.env.HPI_CLIENT_ID
-  const clientSecret = process.env.HPI_CLIENT_SECRET
-
-  if (!clientId || !clientSecret) return null
+  if (!HPI_TOKEN_URL || !HPI_CLIENT_ID || !HPI_SECRET) return null
 
   const params = new URLSearchParams({
-    grant_type: 'client_credentials',
-    client_id: clientId,
-    client_secret: clientSecret,
-    scope: 'openid',
+    grant_type:    'client_credentials',
+    client_id:     HPI_CLIENT_ID,
+    client_secret: HPI_SECRET,
   })
+  if (HPI_SCOPES) params.set('scope', HPI_SCOPES)
 
-  const res = await globalThis.fetch('https://auth.digital.health.nz/oauth2/token', {
+  const res = await globalThis.fetch(HPI_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
@@ -28,7 +36,7 @@ async function getHpiToken() {
 
   const data = await res.json()
   cachedToken = data.access_token
-  tokenExpiry = Date.now() + (data.expires_in - 60) * 1000
+  tokenExpiry = Date.now() + (Number(data.expires_in) - 60) * 1000
   return cachedToken
 }
 
@@ -97,8 +105,9 @@ export default async function handler(req, res) {
     if (!token) return res.json({ results: mockResults, mock: true })
 
     try {
-      // Sandbox HPI Practitioner search
-      const url = `https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
+      if (!HPI_BASE_URL) return res.json({ results: mockResults, mock: true })
+      const base = HPI_BASE_URL.replace(/\/+$/, '')
+      const url = `${base}/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
       const hpiRes = await globalThis.fetch(url, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/fhir+json' },
       })
@@ -135,8 +144,14 @@ export default async function handler(req, res) {
     return res.json({ results, mock: true })
   }
 
+  if (!HPI_BASE_URL) {
+    const q = query.toLowerCase()
+    return res.json({ results: mockData.filter(r => r.name.toLowerCase().includes(q)).slice(0, 6), mock: true })
+  }
+
   try {
-    const url = `https://hpi.digital.health.nz/fhir/v1/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
+    const base = HPI_BASE_URL.replace(/\/+$/, '')
+    const url = `${base}/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
     const hpiRes = await globalThis.fetch(url, {
       headers: {
         Authorization: `Bearer ${token}`,
