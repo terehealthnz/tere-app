@@ -634,7 +634,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
 
   const inputStyle = { width:'100%', padding:'8px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif' }
   const labelStyle = { fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:'.04em' }
-  const checkboxStyle = { display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', border:'1px solid #E2E8F0', borderRadius:6, background:'#F8FAFC' }
+  const pill = (checked) => ({ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', borderRadius:6, border:`1.5px solid ${checked?'#0B6E76':'#E2E8F0'}`, background:checked?'#E6F3F4':'#F8FAFC', color:checked?'#0B6E76':'#374151', fontWeight:checked?600:400, transition:'all .12s ease' })
   const groupStyle = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }
   const sectionStyle = { padding:'1rem 1.25rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, marginBottom:'.75rem' }
   const sectionTitle = { fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem', textTransform:'uppercase', letterSpacing:'.04em' }
@@ -704,10 +704,11 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
           <div style={sectionStyle}>
             <div style={sectionTitle}>Roles</div>
             <div style={groupStyle}>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
+              <label style={pill(form.is_provider)}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
+              <label style={pill(form.is_admin)}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
+              <label style={pill(form.is_supervisor)}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
             </div>
+            <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:'.5rem', fontStyle:'italic' }}>Tick as many as apply — a person can be both a clinician and an admin.</div>
           </div>
 
           {/* Capabilities */}
@@ -715,9 +716,9 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
             <div style={sectionStyle}>
               <div style={sectionTitle}>Clinical capabilities</div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'.75rem' }}>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+                <label style={pill(form.can_prescribe)}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
+                <label style={pill(form.can_refer)}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
+                <label style={pill(form.can_acc)}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
               </div>
               <div style={groupStyle}>
                 <div>
@@ -751,7 +752,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
           {form.is_provider && (
             <div style={sectionStyle}>
               <div style={sectionTitle}>MCNZ supervision (RMO only)</div>
-              <label style={{ ...checkboxStyle, marginBottom: '.5rem' }}>
+              <label style={{ ...pill(form.is_rmo), marginBottom: '.5rem' }}>
                 <input type="checkbox" checked={form.is_rmo} onChange={e => set('is_rmo', e.target.checked)} />
                 <span style={{ fontSize:'.875rem' }}>This provider is an RMO under MCNZ supervision</span>
               </label>
@@ -931,7 +932,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
 
   const inputStyle = { width:'100%', padding:'8px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.875rem', fontFamily:'Plus Jakarta Sans, sans-serif' }
   const labelStyle = { fontSize:'.75rem', color:'#6B7280', fontWeight:600, marginBottom:4, textTransform:'uppercase', letterSpacing:'.04em' }
-  const checkboxStyle = { display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', border:'1px solid #E2E8F0', borderRadius:6, background:'#F8FAFC' }
+  const pill = (checked) => ({ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'6px 10px', borderRadius:6, border:`1.5px solid ${checked?'#0B6E76':'#E2E8F0'}`, background:checked?'#E6F3F4':'#F8FAFC', color:checked?'#0B6E76':'#374151', fontWeight:checked?600:400, transition:'all .12s ease' })
   const groupStyle = { display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }
   const sectionStyle = { padding:'1rem 1.25rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8, marginBottom:'.75rem' }
   const sectionTitle = { fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.75rem', textTransform:'uppercase', letterSpacing:'.04em' }
@@ -981,19 +982,20 @@ function EditProviderModal({ provider, onClose, onSaved }) {
           <div style={sectionStyle}>
             <div style={sectionTitle}>Roles</div>
             <div style={groupStyle}>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
-              <label style={checkboxStyle}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
+              <label style={pill(form.is_provider)}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
+              <label style={pill(form.is_admin)}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
+              <label style={pill(form.is_supervisor)}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
             </div>
+            <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:'.5rem', fontStyle:'italic' }}>Tick as many as apply — a person can be both a clinician and an admin.</div>
           </div>
 
           {form.is_provider && (
             <div style={sectionStyle}>
               <div style={sectionTitle}>Clinical capabilities</div>
               <div style={{ display:'flex', flexWrap:'wrap', gap:'.5rem', marginBottom:'.75rem' }}>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
-                <label style={checkboxStyle}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+                <label style={pill(form.can_prescribe)}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
+                <label style={pill(form.can_refer)}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
+                <label style={pill(form.can_acc)}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
               </div>
               <div style={groupStyle}>
                 <div><div style={labelStyle}>MCNZ prescriber number</div><input value={form.prescriber_number} onChange={e => set('prescriber_number', e.target.value)} style={inputStyle} /></div>
