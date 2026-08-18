@@ -1,8 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiFetch } from './api'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Preview builds (Vercel branch deploys, non-main) route to the staging Supabase
+// project so pre-prod testing can't touch real PHI. VITE_ENV_STAGE is injected
+// at build time by the npm build script — see package.json. Falls back to prod
+// values if the _STAGING vars aren't set (safe default for local dev).
+const isPreview = import.meta.env.VITE_ENV_STAGE === 'preview'
+const url = isPreview
+  ? (import.meta.env.VITE_SUPABASE_URL_STAGING || import.meta.env.VITE_SUPABASE_URL)
+  : import.meta.env.VITE_SUPABASE_URL
+const key = isPreview
+  ? (import.meta.env.VITE_SUPABASE_ANON_KEY_STAGING || import.meta.env.VITE_SUPABASE_ANON_KEY)
+  : import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!url || !key) {
   console.warn('Supabase env vars not set — using mock mode')

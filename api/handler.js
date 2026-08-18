@@ -2,6 +2,16 @@
 // bodyParser disabled so multipart streams reach _transcribe.js intact via formidable
 export const config = { api: { bodyParser: false } }
 
+// Staging env aliasing — Preview branch deploys read _STAGING variants so no
+// individual endpoint has to know about the split. Runs once per cold start
+// before any endpoint module is imported. Falls through to prod values if
+// staging vars aren't defined (safe default for local dev + Production).
+if (process.env.VERCEL_ENV === 'preview') {
+  if (process.env.VITE_SUPABASE_URL_STAGING)         process.env.VITE_SUPABASE_URL         = process.env.VITE_SUPABASE_URL_STAGING
+  if (process.env.VITE_SUPABASE_ANON_KEY_STAGING)    process.env.VITE_SUPABASE_ANON_KEY    = process.env.VITE_SUPABASE_ANON_KEY_STAGING
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY_STAGING) process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY_STAGING
+}
+
 // Routes that require an authenticated provider (Supabase JWT OR sessionStorage
 // x-provider-id). Everything not in this set is either patient-facing (with its
 // own guards inside the endpoint — token verification, column allowlist,
