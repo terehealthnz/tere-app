@@ -275,19 +275,31 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: data || [] })
     }
 
-    // ACC provider conversions that were subsequently flagged (admin safety review)
+    // ACC provider conversions that were subsequently flagged (admin safety review).
+    // Fail-soft: if any of the acc_converted_* columns aren't in the current
+    // schema (migration not yet run), return an empty list rather than 500 —
+    // the panel gracefully renders "no flagged conversions" instead of
+    // crashing the admin overview.
     if (filter === 'acc_converted_flagged') {
       const cols = projection || 'id, patient_first_name, patient_last_name, acc_converted_at, acc_injury_details, acc_body_part, acc_read_code, notes_flagged, acc_converted_by'
       const limit = Math.max(1, Math.min(200, parseInt(req.query?.limit) || 20))
-      const { data, error } = await supabase
-        .from('consultations')
-        .select(cols)
-        .eq('acc_converted_by_provider', true)
-        .eq('notes_flagged', true)
-        .order('acc_converted_at', { ascending: false })
-        .limit(limit)
-      if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      try {
+        const { data, error } = await supabase
+          .from('consultations')
+          .select(cols)
+          .eq('acc_converted_by_provider', true)
+          .eq('notes_flagged', true)
+          .order('acc_converted_at', { ascending: false })
+          .limit(limit)
+        if (error) {
+          console.warn('[acc_converted_flagged] query error, returning []:', error.message)
+          return res.status(200).json({ consultations: [], warning: error.message })
+        }
+        return res.status(200).json({ consultations: data || [] })
+      } catch (e) {
+        console.warn('[acc_converted_flagged] threw, returning []:', e.message)
+        return res.status(200).json({ consultations: [], warning: e.message })
+      }
     }
 
     if (filter === 'notes_flagged_count') {

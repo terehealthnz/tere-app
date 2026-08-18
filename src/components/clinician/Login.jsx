@@ -226,7 +226,7 @@ export default function ClinicianLogin() {
                 <button key={p.id} onClick={() => setSelected(p)}
                   style={{background:'white',border:`2px solid ${p.color || '#0B6E76'}`,borderRadius:12,padding:'1rem 1.25rem',cursor:'pointer',textAlign:'left',fontFamily:'Plus Jakarta Sans, sans-serif',display:'flex',alignItems:'center',gap:'1rem'}}>
                   <div style={{width:44,height:44,borderRadius:'50%',background:p.color || '#0B6E76',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:'1.125rem',flexShrink:0}}>
-                    {p.first_name[0]}{p.last_name[0]}
+                    {(p.first_name || '?').charAt(0)}{(p.last_name || '?').charAt(0)}
                   </div>
                   <div>
                     <div style={{fontWeight:700,color:'#0D2B45',fontSize:'1rem'}}>{providerDisplayName(p)}</div>

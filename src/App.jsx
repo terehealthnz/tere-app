@@ -2,8 +2,17 @@ import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 
 function isChunkError(error) {
-  return error?.message?.includes('dynamically imported module') ||
-         error?.message?.includes('Loading chunk') ||
+  const msg = error?.message || ''
+  // Vite lazy-load failures after a redeploy come in several flavours
+  // depending on browser + timing. All map to "the JS chunk hash the
+  // bundle wants no longer exists on the server, so index.html was
+  // returned instead" — a hard reload picks up the fresh hashes.
+  return msg.includes('dynamically imported module') ||
+         msg.includes('Loading chunk') ||
+         msg.includes('Failed to fetch dynamically imported') ||
+         msg.includes('Importing a module script failed') ||
+         msg.includes('MIME type of "text/html"') ||
+         msg.includes('module script but the server responded') ||
          error?.name === 'ChunkLoadError'
 }
 
