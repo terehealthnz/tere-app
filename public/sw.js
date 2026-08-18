@@ -1,9 +1,9 @@
 /* Tere Health Service Worker — push notifications + offline shell */
 
-// Bumped v4 → v5 to invalidate the old cache that was serving stale
-// index.html with dead chunk hashes after deploys, causing every button
-// click to hit ChunkErrorBoundary → "Something went wrong".
-const CACHE = 'tere-v5'
+// Bumped v5 → v6 to flush stale /pharmacies.json (pre-CW-seed) that
+// was hiding new pharmacies from the picker even though the file on
+// disk had them. Also flushes the stale CSP-blocked shell.
+const CACHE = 'tere-v6'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 

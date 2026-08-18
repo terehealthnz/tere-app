@@ -46,7 +46,7 @@ export default function Dashboard() {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     sessionStorage.removeItem('tere_clinician')
-    navigate('/clinician/login')
+    navigate('/clinician')
   }
 
   const waiting    = consultations.filter(c => c.status === 'waiting')

@@ -87,6 +87,22 @@ function checkAccEligible(text) {
   return ACC_INJURY_KEYWORDS.some(kw => lower.includes(kw))
 }
 
+// Returning-patient recap: build the "last time you told me…" summary shown in
+// updates_check. Only lists sections we actually have data for — if a field is
+// blank/none, it's omitted so we don't say "Allergies: none" and force the
+// patient to re-confirm nothing. If all three are empty, returns null and the
+// caller should skip updates_check entirely.
+function summarizeOnFile(d) {
+  const parts = []
+  const clean = (v) => (v || '').trim()
+  const isNone = (v) => !v || ['none','n/a','nil','no','nothing'].includes(v.toLowerCase())
+  if (clean(d.medications) && !isNone(clean(d.medications))) parts.push(`• Medications: ${clean(d.medications)}`)
+  if (clean(d.allergies)  && !isNone(clean(d.allergies)))    parts.push(`• Allergies: ${clean(d.allergies)}`)
+  if (clean(d.medical_history) && !isNone(clean(d.medical_history))) parts.push(`• History: ${clean(d.medical_history)}`)
+  if (parts.length === 0) return null
+  return `Last time you told me:\n${parts.join('\n')}\n\nAny changes since then?`
+}
+
 const STEPS = [
   { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
@@ -94,6 +110,10 @@ const STEPS = [
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'complaint' },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
+  // Returning-patient shortcut: show what's on file, ask if anything has changed.
+  // If nothing on file, this step is skipped and we go straight to complaint (see
+  // returning-patient branch in submitAnswer). Message is dynamic — see summarizeOnFile.
+  { id:'updates_check', message:(d) => summarizeOnFile(d), field:'updates_needed', type:'yesno', validate:()=>true, next:'complaint' },
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
   { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
@@ -386,6 +406,14 @@ export default function AITriage() {
       setTereTyping(false)
       setMessages(prev => [...prev, { role:'tere', text:msg }])
       setWaitingForPhoto(step.type === 'photo')
+      // Prefill the input for returning-patient updates so they edit instead of retype.
+      // Only fires when we're in the updates flow (_historyReviewed set) and there's
+      // an existing value on the corresponding field. New patients get an empty input.
+      if (newData._historyReviewed) {
+        if (step.id === 'history'     && newData.medical_history) setInput(newData.medical_history)
+        else if (step.id === 'medications' && newData.medications)     setInput(newData.medications)
+        else if (step.id === 'allergies'   && newData.allergies)       setInput(newData.allergies)
+      }
     }, typingDelay)
   }
 
@@ -485,7 +513,10 @@ export default function AITriage() {
           setTimeout(() => {
             setTereTyping(false)
             setMessages(prev => [...prev, { role:'tere', text: t('welcome_back', lang, { firstName: patient.first_name }) }])
-            advanceToStep('complaint', prefilled)
+            // If we have meds/allergies/history on file, offer a Y/N updates check.
+            // Otherwise there's nothing to recap — go straight to complaint.
+            const hasSomethingOnFile = summarizeOnFile(prefilled) !== null
+            advanceToStep(hasSomethingOnFile ? 'updates_check' : 'complaint', prefilled)
           }, 800)
           return
         }
@@ -496,14 +527,42 @@ export default function AITriage() {
       return
     }
 
+    // Returning-patient updates flow: yes → walk history/meds/allergies with
+    // prefilled input; no → straight to complaint. Either branch marks
+    // _historyReviewed so acc_check knows not to re-ask history downstream.
+    if (step.id === 'updates_check') {
+      const reviewed = { ...newData, _historyReviewed: true }
+      setData(reviewed)
+      if (processed === 'yes') {
+        advanceToStep('history', reviewed)
+      } else {
+        advanceToStep('complaint', reviewed)
+      }
+      return
+    }
+
     // Clear AI suggestion once patient has answered the acc_check step
     if (step.id === 'acc_check') {
       setAccSuggestion(null)
+      // Returning patient already reviewed history/meds/allergies via updates_check —
+      // skip re-asking those three and jump to the admin block (or ACC description).
+      if (newData._historyReviewed) {
+        setData(newData)
+        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
+        return
+      }
     }
 
-    // Route allergies: always go to admin questions (nhi); ACC description comes after acc_employer
+    // Route allergies: normally goes to admin questions (nhi). But if the patient
+    // came in via updates_check yes, we haven't done complaint/acc_check yet, so
+    // loop back to complaint (which will run acc_check then correctly skip
+    // history/meds/allergies via the _historyReviewed guard above).
     if (step.id === 'allergies') {
       setData(newData)
+      if (newData._historyReviewed && !newData.chief_complaint) {
+        advanceToStep('complaint', newData)
+        return
+      }
       advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
       return
     }
@@ -863,26 +922,20 @@ export default function AITriage() {
   // are never sent to a Tere server.
   const [nearestByLocation, setNearestByLocation] = useState(null)  // null=untried, []=denied, [items]=located
 
-  // Lazy-load the register once, then filter to pharmacies that have a
-  // dispensary_email on file — we only offer emailable pharmacies since fax
-  // was decommissioned 2026-08-01. Falls back to the full list if the
-  // emailable-ids lookup fails (better than blocking triage entirely).
+  // Lazy-load the full Medsafe register (~1,063 community pharmacies) with a
+  // cache-buster so an SW-cached pre-seed copy can't hide new entries. We used
+  // to filter down to only pharmacies with a dispensary_email on file, but that
+  // was hiding ~90% of the register from patients. Non-emailable pharmacies now
+  // fall back to a patient-carried PDF at prescribe time (Path B).
   useEffect(() => {
     if (pharmacyIndex !== null) return
     let cancelled = false
     ;(async () => {
       try {
-        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
-          fetch('/pharmacies.json'),
-          import('../../lib/supabase'),
-        ])
+        const registerRes = await fetch(`/pharmacies.json?v=${Date.now()}`)
         const list = registerRes.ok ? await registerRes.json() : []
         if (!Array.isArray(list)) { if (!cancelled) setPharmacyIndex([]); return }
-        const emailable = await fetchEmailablePharmacyIds()
-        const filtered = emailable && emailable.size > 0
-          ? list.filter(p => emailable.has(p.id))
-          : list
-        if (!cancelled) setPharmacyIndex(filtered)
+        if (!cancelled) setPharmacyIndex(list)
       } catch {
         if (!cancelled) setPharmacyIndex([])
       }
@@ -1145,13 +1198,32 @@ export default function AITriage() {
               <div style={{fontSize:'.65rem',color:'#6B7280',marginTop:6}}>Your location is only used to sort — nothing is sent to Tere.</div>
             </div>
           )}
+          {/* Manual geolocation fallback — the silent auto-request in the effect above only
+              fires on first mount and silently swallows denials/timeouts, so users who never
+              got the browser prompt (Safari on iOS, cross-origin iframe, permission previously
+              denied) had no way to trigger "near me". This button lets them re-request. */}
+          {(nearestByLocation === null || (Array.isArray(nearestByLocation) && nearestByLocation.length === 0)) && (
+            <button
+              onClick={async () => {
+                try {
+                  const { requestUserLocation, nearestPharmacies } = await import('../../lib/nearestPharmacy')
+                  const coords = await requestUserLocation()
+                  setNearestByLocation(nearestPharmacies(coords, pharmacyIndex || [], 3))
+                } catch {
+                  alert('Could not access your location. Please allow location access in your browser settings, or search by name/suburb/postcode below.')
+                }
+              }}
+              style={{width:'100%',marginBottom:8,background:'white',border:'1.5px solid var(--teal)',color:'var(--teal)',borderRadius:8,padding:'10px',fontWeight:700,fontSize:'.85rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+              📍 Find pharmacies near me
+            </button>
+          )}
           <div style={{position:'relative',marginBottom:6}}>
             <div style={{display:'flex',gap:6}}>
               <input
                 value={pharmacyQuery}
                 onChange={e => { setPharmacyQuery(e.target.value); setPharmacyResults([]) }}
                 onKeyDown={e => { if (e.key === 'Enter' && pharmacyQuery.trim()) { handleSendValue(pharmacyQuery.trim()); setPharmacyQuery(''); setPharmacyResults([]) } }}
-                placeholder="e.g. Unichem Whanganui, Chemist Wh…"
+                placeholder="Name, suburb, or postcode (e.g. Springlands, 7201)"
                 autoFocus
                 style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
               />

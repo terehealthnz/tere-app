@@ -1705,6 +1705,154 @@ const T = {
     ar: 'العودة إلى الصفحة الرئيسية',
     hi: 'मुख्य पृष्ठ पर वापस जाएँ',
   },
+
+  // ─── GeoGateModal — shown to patients before any consult; must be translated
+  // because it's the first thing a non-English speaker sees after picking their
+  // language on the landing page. Blocking a patient in English when they've
+  // selected Chinese is a confidence-killer.
+
+  geo_checking_title: {
+    en: 'Checking your location…',
+    mi: 'Kei te tirotiro i tō wāhi…', // TODO cert
+    sm: 'O lo\'o siaki lou nofoaga…', // TODO cert
+    zh: '正在检查您的位置…', ja: '位置情報を確認中…', ko: '위치를 확인 중입니다…',
+    de: 'Standort wird überprüft…', nl: 'Locatie wordt gecontroleerd…',
+    fr: 'Vérification de votre emplacement…', es: 'Comprobando su ubicación…',
+    ar: 'جارٍ التحقق من موقعك…', hi: 'आपका स्थान जांचा जा रहा है…',
+  },
+  geo_checking_wait: {
+    en: 'One moment.',
+    mi: 'Tatari koa.', sm: 'Fa\'atali mo se taimi.', // TODO cert
+    zh: '请稍候。', ja: '少々お待ちください。', ko: '잠시만요.',
+    de: 'Einen Moment bitte.', nl: 'Een moment.',
+    fr: 'Un instant.', es: 'Un momento.',
+    ar: 'لحظة من فضلك.', hi: 'एक क्षण।',
+  },
+  geo_blocked_title: {
+    en: 'Available in New Zealand only',
+    mi: 'Ka whiwhi anake i Aotearoa', sm: 'Avanoa i Niu Sila lava', // TODO cert
+    zh: '仅在新西兰境内提供服务', ja: 'ニュージーランド国内のみ利用可能',
+    ko: '뉴질랜드에서만 이용 가능',
+    de: 'Nur in Neuseeland verfügbar', nl: 'Alleen beschikbaar in Nieuw-Zeeland',
+    fr: 'Disponible uniquement en Nouvelle-Zélande',
+    es: 'Disponible únicamente en Nueva Zelanda',
+    ar: 'متاح في نيوزيلندا فقط', hi: 'केवल न्यूज़ीलैंड में उपलब्ध',
+  },
+  geo_blocked_body: {
+    en: 'Tere Health can only see patients who are physically in Aotearoa New Zealand at the time of the consultation. Our physicians are registered under NZ law (MCNZ) and our indemnity cover is scoped to NZ care.',
+    mi: 'Ka taea anake e Tere Health te kite i ngā tūroro kei Aotearoa i te wā o te uiuinga. Kua rēhitatia ō mātou tākuta i raro i te ture o Aotearoa (MCNZ), ā, ko tō mātou kaupare he tiaki mō Aotearoa anake.', // TODO cert
+    sm: 'E mafai lava e Tere Health ona vaai i ma\'i o loo i totonu o Aotearoa Niu Sila i le taimi o le talanoaga. O o matou fomai ua resitalaina i tulafono a Niu Sila (MCNZ) ma o le matou puipuiga e na o le tausiga i Niu Sila.', // TODO cert
+    zh: 'Tere Health 仅可为在会诊时身处新西兰境内的患者提供服务。我们的医生依照新西兰法律（MCNZ）注册，我们的责任保险仅涵盖在新西兰境内的医疗服务。',
+    ja: 'Tere Healthは、診察時にニュージーランド国内にいる患者様のみを対応いたします。医師はニュージーランド法（MCNZ）に基づき登録されており、賠償責任保険はニュージーランド国内での診療に限定されます。',
+    ko: 'Tere Health는 진료 시점에 뉴질랜드에 계신 환자분만 진료할 수 있습니다. 저희 의료진은 뉴질랜드 법(MCNZ)에 따라 등록되어 있으며, 배상책임 보험은 뉴질랜드 내 진료에 한정됩니다.',
+    de: 'Tere Health kann nur Patienten behandeln, die sich zum Zeitpunkt der Konsultation physisch in Aotearoa Neuseeland befinden. Unsere Ärzte sind nach neuseeländischem Recht (MCNZ) registriert und unsere Haftpflichtversicherung ist auf die Versorgung in Neuseeland beschränkt.',
+    nl: 'Tere Health kan alleen patiënten behandelen die zich tijdens de consultatie fysiek in Aotearoa Nieuw-Zeeland bevinden. Onze artsen zijn geregistreerd volgens Nieuw-Zeelands recht (MCNZ) en onze aansprakelijkheidsdekking geldt alleen voor zorg in Nieuw-Zeeland.',
+    fr: 'Tere Health ne peut consulter que des patients physiquement présents en Aotearoa Nouvelle-Zélande au moment de la consultation. Nos médecins sont enregistrés selon la loi néo-zélandaise (MCNZ) et notre couverture d\'assurance est limitée aux soins prodigués en Nouvelle-Zélande.',
+    es: 'Tere Health solo puede atender a pacientes que se encuentren físicamente en Aotearoa Nueva Zelanda en el momento de la consulta. Nuestros médicos están registrados conforme a la ley neozelandesa (MCNZ) y nuestra cobertura de responsabilidad se limita a la atención en Nueva Zelanda.',
+    ar: 'لا يمكن لـ Tere Health رؤية سوى المرضى الموجودين فعلياً في أوتياروا نيوزيلندا وقت الاستشارة. أطباؤنا مسجلون وفقاً للقانون النيوزيلندي (MCNZ) وتغطية التأمين لدينا محصورة بالرعاية داخل نيوزيلندا.',
+    hi: 'Tere Health केवल उन रोगियों को देख सकता है जो परामर्श के समय शारीरिक रूप से आओटियारोआ न्यूज़ीलैंड में हैं। हमारे डॉक्टर न्यूज़ीलैंड कानून (MCNZ) के तहत पंजीकृत हैं और हमारी क्षतिपूर्ति कवर न्यूज़ीलैंड में देखभाल तक सीमित है।',
+  },
+  geo_blocked_ip: {
+    en: "We're seeing your connection as ${country}. If you're using a VPN or corporate network that routes traffic overseas, please disable it and try again.",
+    mi: 'E kite ana mātou i tō hononga i ${country}. Mēnā kei te whakamahi koe i te VPN, tēnā monokia ka whakamātau anō.', // TODO cert
+    sm: 'O lo\'o matou vaai i lau feso\'ota\'iga i ${country}. Afai o e fa\'aogaina se VPN, fa\'amolemole tape ma toe fa\'ata\'ita\'i.', // TODO cert
+    zh: '我们检测到您的连接位于 ${country}。如果您正在使用 VPN 或将流量转发至海外的企业网络，请将其停用后重试。',
+    ja: '接続元は ${country} と表示されています。VPN や海外経由の社内ネットワークをご利用の場合は、無効にしてから再度お試しください。',
+    ko: '연결 위치가 ${country}로 확인됩니다. VPN 또는 해외로 트래픽을 라우팅하는 회사 네트워크를 사용 중이라면 해제한 뒤 다시 시도해 주세요.',
+    de: 'Ihre Verbindung erscheint als ${country}. Wenn Sie ein VPN oder ein Unternehmensnetzwerk verwenden, das den Datenverkehr ins Ausland leitet, deaktivieren Sie es bitte und versuchen Sie es erneut.',
+    nl: 'We zien uw verbinding als ${country}. Als u een VPN of een bedrijfsnetwerk gebruikt dat verkeer via het buitenland stuurt, schakel dit dan uit en probeer het opnieuw.',
+    fr: 'Votre connexion apparaît comme provenant de ${country}. Si vous utilisez un VPN ou un réseau d\'entreprise qui achemine le trafic à l\'étranger, veuillez le désactiver et réessayer.',
+    es: 'Detectamos que su conexión proviene de ${country}. Si está usando una VPN o una red corporativa que enruta el tráfico al extranjero, desactívela e inténtelo de nuevo.',
+    ar: 'نرى أن اتصالك يبدو من ${country}. إذا كنت تستخدم شبكة VPN أو شبكة عمل توجّه حركة الإنترنت إلى الخارج، يرجى تعطيلها والمحاولة مرة أخرى.',
+    hi: 'हम आपका कनेक्शन ${country} में देख रहे हैं। यदि आप कोई VPN या ऐसा कॉर्पोरेट नेटवर्क उपयोग कर रहे हैं जो ट्रैफ़िक विदेश भेजता है, तो कृपया उसे बंद करके फिर से प्रयास करें।',
+  },
+  geo_retry: {
+    en: "I'm in NZ — retry",
+    mi: 'Kei Aotearoa au — ngana anō', sm: 'Ou te i Niu Sila — toe fa\'ata\'ita\'i', // TODO cert
+    zh: '我在新西兰 — 重试', ja: 'ニュージーランドにいます — 再試行',
+    ko: '뉴질랜드에 있어요 — 다시 시도',
+    de: 'Ich bin in NZ — erneut versuchen', nl: 'Ik ben in NZ — opnieuw proberen',
+    fr: 'Je suis en NZ — réessayer', es: 'Estoy en NZ — reintentar',
+    ar: 'أنا في نيوزيلندا — إعادة المحاولة', hi: 'मैं न्यूज़ीलैंड में हूँ — पुनः प्रयास करें',
+  },
+  geo_close: {
+    en: 'Close',
+    mi: 'Katia', sm: 'Tapuni', // TODO cert
+    zh: '关闭', ja: '閉じる', ko: '닫기',
+    de: 'Schließen', nl: 'Sluiten', fr: 'Fermer', es: 'Cerrar',
+    ar: 'إغلاق', hi: 'बंद करें',
+  },
+  geo_attest_title: {
+    en: "Confirm you're in New Zealand",
+    mi: 'Whakaū kei Aotearoa koe', sm: 'Fa\'amaonia o lo\'o e i Niu Sila', // TODO cert
+    zh: '请确认您在新西兰境内', ja: 'ニュージーランドにいることを確認してください',
+    ko: '뉴질랜드에 계신지 확인해 주세요',
+    de: 'Bestätigen Sie, dass Sie in Neuseeland sind',
+    nl: 'Bevestig dat u zich in Nieuw-Zeeland bevindt',
+    fr: 'Confirmez que vous êtes en Nouvelle-Zélande',
+    es: 'Confirme que se encuentra en Nueva Zelanda',
+    ar: 'أكد أنك في نيوزيلندا', hi: 'पुष्टि करें कि आप न्यूज़ीलैंड में हैं',
+  },
+  geo_attest_body: {
+    en: 'Our physicians can only see patients who are physically in New Zealand at the time of the consultation. Please confirm below before we begin.',
+    mi: 'Ka taea anake e ō mātou tākuta te kite i ngā tūroro kei Aotearoa i te wā o te uiuinga. Tēnā whakaū i raro i mua i tā tāua tīmatanga.', // TODO cert
+    sm: 'E mafai lava e o matou fomai ona vaai i ma\'i o loo i totonu o Niu Sila i le taimi o le talanoaga. Fa\'amolemole fa\'amaonia i lalo a\'o le\'i amata.', // TODO cert
+    zh: '我们的医生只能为在会诊时身处新西兰境内的患者提供服务。请在下方确认后再开始。',
+    ja: '当院の医師は、診察時にニュージーランド国内にいる患者様のみを診察できます。開始前に以下にご確認ください。',
+    ko: '저희 의료진은 진료 시점에 뉴질랜드에 계신 환자분만 진료할 수 있습니다. 시작하기 전에 아래에서 확인해 주세요.',
+    de: 'Unsere Ärzte können nur Patienten behandeln, die sich zum Zeitpunkt der Konsultation physisch in Neuseeland befinden. Bitte bestätigen Sie dies unten, bevor wir beginnen.',
+    nl: 'Onze artsen kunnen alleen patiënten behandelen die zich tijdens de consultatie fysiek in Nieuw-Zeeland bevinden. Bevestig dit hieronder voordat we beginnen.',
+    fr: 'Nos médecins ne peuvent consulter que des patients physiquement présents en Nouvelle-Zélande au moment de la consultation. Veuillez confirmer ci-dessous avant de commencer.',
+    es: 'Nuestros médicos solo pueden atender a pacientes que se encuentren físicamente en Nueva Zelanda en el momento de la consulta. Por favor confirme a continuación antes de comenzar.',
+    ar: 'لا يمكن لأطبائنا رؤية سوى المرضى الموجودين فعلياً في نيوزيلندا وقت الاستشارة. يرجى التأكيد أدناه قبل أن نبدأ.',
+    hi: 'हमारे डॉक्टर केवल उन रोगियों को देख सकते हैं जो परामर्श के समय शारीरिक रूप से न्यूज़ीलैंड में हैं। शुरू करने से पहले कृपया नीचे पुष्टि करें।',
+  },
+  geo_attest_checkbox_bold: {
+    en: 'I am physically located in New Zealand right now.',
+    mi: 'Kei Aotearoa ahau i tēnei wā tonu.', sm: 'O lo\'o ou i totonu o Niu Sila i le taimi lenei.', // TODO cert
+    zh: '我目前正身处新西兰境内。', ja: '私は現在、ニュージーランド国内にいます。',
+    ko: '저는 지금 뉴질랜드에 있습니다.',
+    de: 'Ich befinde mich derzeit physisch in Neuseeland.',
+    nl: 'Ik bevind me op dit moment fysiek in Nieuw-Zeeland.',
+    fr: 'Je me trouve actuellement physiquement en Nouvelle-Zélande.',
+    es: 'Actualmente me encuentro físicamente en Nueva Zelanda.',
+    ar: 'أنا حالياً موجود فعلياً في نيوزيلندا.', hi: 'मैं इस समय शारीरिक रूप से न्यूज़ीलैंड में हूँ।',
+  },
+  geo_attest_checkbox_rest: {
+    en: 'I understand that I cannot be seen by a Tere Health clinician if I am overseas, and that providing false information here is a serious matter.',
+    mi: 'Kei te mārama ahau kāore e taea e ahau te kitea e tētahi kaimahi hauora o Tere Health mēnā kei tāwāhi ahau, ā, he take nui te tuku kōrero teka i konei.', // TODO cert
+    sm: 'Ou te malamalama e le mafai ona vaai a\'u e se foma\'i o Tere Health pe a ou i fafo, ma o le tuuina atu o fa\'amatalaga sese iinei o se mea taua tele.', // TODO cert
+    zh: '我理解如果我身处海外，Tere Health 的医生将无法为我诊治，并且在此提供虚假信息属于严重事项。',
+    ja: '海外にいる場合、Tere Healthの医師の診察を受けられないこと、およびここで虚偽の情報を提供することは重大な事案であることを理解しています。',
+    ko: '해외에 있는 경우 Tere Health 임상의로부터 진료를 받을 수 없으며, 여기에 허위 정보를 제공하는 것은 중대한 사안임을 이해합니다.',
+    de: 'Ich verstehe, dass ich von einem Tere Health-Kliniker nicht behandelt werden kann, wenn ich mich im Ausland befinde, und dass falsche Angaben hier eine ernste Angelegenheit sind.',
+    nl: 'Ik begrijp dat ik niet door een Tere Health-clinicus kan worden gezien als ik in het buitenland ben, en dat het verstrekken van valse informatie hier een ernstige zaak is.',
+    fr: 'Je comprends que je ne peux pas être vu par un clinicien Tere Health si je suis à l\'étranger, et que fournir de fausses informations ici est une affaire grave.',
+    es: 'Entiendo que no puedo ser atendido por un médico de Tere Health si me encuentro en el extranjero, y que proporcionar información falsa aquí es un asunto grave.',
+    ar: 'أدرك أنه لا يمكن أن يراني طبيب من Tere Health إذا كنت خارج نيوزيلندا، وأن تقديم معلومات كاذبة هنا أمر خطير.',
+    hi: 'मैं समझता/समझती हूँ कि यदि मैं विदेश में हूँ तो Tere Health का चिकित्सक मुझे नहीं देख सकता, और यहाँ गलत जानकारी देना एक गंभीर विषय है।',
+  },
+  geo_continue: {
+    en: 'Continue →',
+    mi: 'Haere tonu →', sm: 'Fa\'aauau →', // TODO cert
+    zh: '继续 →', ja: '続ける →', ko: '계속 →',
+    de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →',
+    ar: 'متابعة →', hi: 'जारी रखें →',
+  },
+  geo_attest_ip_warning: {
+    en: "(Your connection appears to be in ${country}. We've flagged this for the clinician.)",
+    mi: '(Ko tō hononga e āhua ana kei ${country}. Kua tohua tēnei mā te kaimahi hauora.)', // TODO cert
+    sm: '(O lau feso\'ota\'iga e foliga mai o lo\'o i ${country}. Ua matou fa\'ailoga lenei mo le foma\'i.)', // TODO cert
+    zh: '（您的连接似乎位于 ${country}。我们已标记提示医生。）',
+    ja: '（お客様の接続元は ${country} と表示されています。医師に注意喚起としてフラグを立てました。）',
+    ko: '(연결 위치가 ${country}로 확인됩니다. 임상의를 위해 표시해 두었습니다.)',
+    de: '(Ihre Verbindung scheint sich in ${country} zu befinden. Wir haben dies für den Kliniker markiert.)',
+    nl: '(Uw verbinding lijkt zich in ${country} te bevinden. We hebben dit gemarkeerd voor de clinicus.)',
+    fr: '(Votre connexion semble se trouver en ${country}. Nous l\'avons signalé au clinicien.)',
+    es: '(Su conexión parece encontrarse en ${country}. Lo hemos marcado para el médico.)',
+    ar: '(يبدو أن اتصالك في ${country}. لقد أبلغنا الطبيب بذلك.)',
+    hi: '(आपका कनेक्शन ${country} में दिखाई दे रहा है। हमने चिकित्सक के लिए इसे चिह्नित कर दिया है।)',
+  },
 }
 
 /**

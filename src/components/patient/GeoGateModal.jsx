@@ -16,6 +16,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { t, getLang } from '../../lib/i18n'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -26,6 +27,7 @@ export default function GeoGateModal({ onAccept, onCancel }) {
   const [country, setCountry] = useState(null)
   const [ipHash, setIpHash] = useState(null)
   const [attested, setAttested] = useState(false)
+  const lang = getLang()
 
   useEffect(() => { check() }, [])
   async function check() {
@@ -62,13 +64,14 @@ export default function GeoGateModal({ onAccept, onCancel }) {
       padding: '1rem', fontFamily: FF,
     }}>
       <div style={{
+        position: 'relative',
         background: 'white', borderRadius: 16, maxWidth: 460, width: '100%',
         padding: '1.75rem 1.5rem', boxShadow: '0 20px 60px rgba(0,0,0,.35)',
       }}>
         {phase === 'checking' && (
           <div style={{ textAlign: 'center', padding: '1rem 0' }}>
-            <div style={{ fontWeight: 700, color: NAVY, marginBottom: 6 }}>Checking your location…</div>
-            <div style={{ color: '#6B7280', fontSize: '.875rem' }}>One moment.</div>
+            <div style={{ fontWeight: 700, color: NAVY, marginBottom: 6 }}>{t('geo_checking_title', lang)}</div>
+            <div style={{ color: '#6B7280', fontSize: '.875rem' }}>{t('geo_checking_wait', lang)}</div>
           </div>
         )}
 
@@ -76,14 +79,14 @@ export default function GeoGateModal({ onAccept, onCancel }) {
           <>
             <div style={{ fontSize: '2rem', textAlign: 'center', marginBottom: 8 }}>🌏</div>
             <div style={{ fontWeight: 800, color: NAVY, fontSize: '1.15rem', textAlign: 'center', marginBottom: 10 }}>
-              Available in New Zealand only
+              {t('geo_blocked_title', lang)}
             </div>
             <div style={{ color: '#374151', fontSize: '.925rem', lineHeight: 1.55, marginBottom: 14 }}>
-              Tere Health can only see patients who are physically in Aotearoa New Zealand at the time of the consultation. Our physicians are registered under NZ law (MCNZ) and our indemnity cover is scoped to NZ care.
+              {t('geo_blocked_body', lang)}
             </div>
             {country && (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.7rem .9rem', fontSize: '.85rem', color: '#4B5563', marginBottom: 14 }}>
-                We're seeing your connection as <strong>{country}</strong>. If you're using a VPN or corporate network that routes traffic overseas, please disable it and try again.
+                {t('geo_blocked_ip', lang, { country })}
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
@@ -91,13 +94,13 @@ export default function GeoGateModal({ onAccept, onCancel }) {
                 flex: 1, background: TEAL, color: 'white', border: 'none',
                 padding: '.7rem 1rem', borderRadius: 10, fontWeight: 700,
                 cursor: 'pointer', fontFamily: FF, fontSize: '.9rem',
-              }}>I'm in NZ — retry</button>
+              }}>{t('geo_retry', lang)}</button>
               {onCancel && (
                 <button onClick={onCancel} style={{
                   background: 'none', color: '#6B7280', border: '1px solid #E5E7EB',
                   padding: '.7rem 1rem', borderRadius: 10, fontWeight: 600,
                   cursor: 'pointer', fontFamily: FF, fontSize: '.9rem',
-                }}>Close</button>
+                }}>{t('geo_close', lang)}</button>
               )}
             </div>
           </>
@@ -105,12 +108,21 @@ export default function GeoGateModal({ onAccept, onCancel }) {
 
         {phase === 'attest' && (
           <>
+            {/* Corner × for patients who realise they're overseas / don't want to
+                proceed. Without this the attest card was a hard-stop with no exit. */}
+            {onCancel && (
+              <button onClick={onCancel} aria-label={t('geo_close', lang)} style={{
+                position: 'absolute', top: 10, right: 12, background: 'none',
+                border: 'none', color: '#9CA3AF', fontSize: '1.5rem', lineHeight: 1,
+                cursor: 'pointer', fontFamily: FF, padding: 4,
+              }}>×</button>
+            )}
             <div style={{ fontSize: '1.75rem', textAlign: 'center', marginBottom: 6 }}>🇳🇿</div>
             <div style={{ fontWeight: 800, color: NAVY, fontSize: '1.1rem', textAlign: 'center', marginBottom: 8 }}>
-              Confirm you're in New Zealand
+              {t('geo_attest_title', lang)}
             </div>
             <div style={{ color: '#374151', fontSize: '.9rem', lineHeight: 1.55, marginBottom: 14 }}>
-              Our physicians can only see patients who are physically in New Zealand at the time of the consultation. Please confirm below before we begin.
+              {t('geo_attest_body', lang)}
             </div>
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -122,17 +134,17 @@ export default function GeoGateModal({ onAccept, onCancel }) {
               <input type="checkbox" checked={attested} onChange={(e) => setAttested(e.target.checked)}
                 style={{ marginTop: 3, cursor: 'pointer', flexShrink: 0, accentColor: TEAL, transform: 'scale(1.1)' }} />
               <span style={{ fontSize: '.9rem', color: NAVY, lineHeight: 1.5 }}>
-                <strong>I am physically located in New Zealand right now.</strong> I understand that I cannot be seen by a Tere Health clinician if I am overseas, and that providing false information here is a serious matter.
+                <strong>{t('geo_attest_checkbox_bold', lang)}</strong> {t('geo_attest_checkbox_rest', lang)}
               </span>
             </label>
             <button onClick={proceed} disabled={!attested} style={{
               width: '100%', background: attested ? TEAL : '#D1D5DB', color: 'white',
               border: 'none', padding: '.85rem 1rem', borderRadius: 12, fontWeight: 800,
               cursor: attested ? 'pointer' : 'not-allowed', fontFamily: FF, fontSize: '.95rem',
-            }}>Continue →</button>
+            }}>{t('geo_continue', lang)}</button>
             {country && country !== 'NZ' && (
               <div style={{ marginTop: 10, fontSize: '.75rem', color: '#B45309', textAlign: 'center', lineHeight: 1.5 }}>
-                (Your connection appears to be in {country}. We've flagged this for the clinician.)
+                {t('geo_attest_ip_warning', lang, { country })}
               </div>
             )}
           </>
