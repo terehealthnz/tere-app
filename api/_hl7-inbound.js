@@ -50,7 +50,17 @@ function normaliseSegments(raw) {
   // HL7 v2 nominally uses \r as the segment separator. Real-world Capricorn
   // samples mix \r with a trailing \r\n at EOF, and some senders use \n.
   // Normalise everything to \n then split, and drop empty lines.
-  return String(raw).replace(/\r\n?/g, '\n').split('\n').filter(s => s.length > 0)
+  //
+  // MLLP framing: if the upstream forwarder passes through the raw MLLP frame
+  // (<VT>=0x0B start-block, <FS>=0x1C end-block), our first segment starts with
+  // \v instead of MSH → false-positive "missing MSH segment" reject. Strip both
+  // frame chars + any BOM/leading whitespace before splitting. See Medical-Objects
+  // helpdesk case #1058382 (2026-08-18) where our 2.4 ack failed with
+  // "missing MSH segment" on a valid message.
+  const stripped = String(raw)
+    .replace(/^[\x0B﻿\s]+/, '')
+    .replace(/[\x0B\x1C]/g, '')
+  return stripped.replace(/\r\n?/g, '\n').split('\n').filter(s => s.length > 0)
 }
 
 function readSeparators(mshSegment) {
@@ -140,22 +150,26 @@ function buildAck({ inbound, msaCode, errorText }) {
   const msh = segment(inbound, 'MSH')
   const sep = inbound.separators
   const nowHl7 = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)
-  // Swap sender/receiver: MSH-3/4 become MSH-5/6 of the ack, and vice versa.
+  // Swap sender/receiver: original MSH-3/4 (sender) become ACK MSH-5/6.
   const origSendingApp   = field(msh, 3)
   const origSendingFac   = field(msh, 4)
-  const origReceivingApp = field(msh, 5)
-  const origReceivingFac = field(msh, 6)
   const origControlId    = field(msh, 10)
   const processingId     = field(msh, 11) || 'P'
   const version          = field(msh, 12) || '2.4'
+  // MSH-3 of ACK identifies the acknowledging system (us). Reflecting incoming
+  // MSH-5 is wrong — senders often put a gateway name there (BOPHL7 etc), not
+  // our real system name. Hardcode. See Medical-Objects helpdesk case #1058382
+  // (2026-08-18) where our 2.1 ack returned MSH-3=BOPHL7 (echoed) instead of
+  // "Tere Health". MSH-4 stays as our HPI-O (env-scoped).
+  const ackSendingApp = 'Tere Health'
+  const ackSendingFac = process.env.TERE_HPI_O || TERE_HPI_O
   // MSH-10 of the ack MUST NOT equal MSA-2 of the ack (per checklist).
-  // Use a random control id.
   const ackControlId = crypto.randomBytes(8).toString('hex').toUpperCase()
 
   const encChars = `${sep.componentSep}${sep.repetitionSep}${sep.escapeChar}${sep.subComponentSep}`
   const mshOut = [
     'MSH', encChars,
-    origReceivingApp, origReceivingFac,
+    ackSendingApp, ackSendingFac,
     origSendingApp, origSendingFac,
     nowHl7, '',
     'ACK', ackControlId, processingId, version,
@@ -345,7 +359,7 @@ export default async function handler(req, res) {
     // Log and reject as HL7 ack (Capricorn will retry — that's fine while we
     // debug the proxy config; better than a 401 that trips their alarms).
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send('MSH|^~\\&|TERE|TERE|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|CR|UNKNOWN|Auth failed\r')
+    return res.status(200).send('MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Auth failed\r')
   }
 
   let raw
@@ -353,11 +367,11 @@ export default async function handler(req, res) {
     raw = await readRawBody(req)
   } catch (e) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send(`MSH|^~\\&|TERE|TERE|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|CR|UNKNOWN|${e.message}\r`)
+    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
   }
   if (!raw || !raw.trim()) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send('MSH|^~\\&|TERE|TERE|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|CR|UNKNOWN|Empty body\r')
+    return res.status(200).send('MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Empty body\r')
   }
 
   let parsed
@@ -365,7 +379,7 @@ export default async function handler(req, res) {
     parsed = parseMessage(raw)
   } catch (e) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send(`MSH|^~\\&|TERE|TERE|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|CR|UNKNOWN|${e.message}\r`)
+    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
   }
 
   // If it's an incoming ACK to one of OUR sends, accept quietly with HTTP 200
@@ -397,17 +411,22 @@ export default async function handler(req, res) {
   if (!summary.patient.lastName)  requiredMissing.push('PID-5.1')
   if (!summary.messageType)       requiredMissing.push('MSH-9')
 
+  // MSA-1 codes: HL7 v2 scenario "a" (single-ack Original Mode — what MO uses)
+  // requires application-level codes (AA/AE/AR), not commit-level (CA/CE/CR).
+  // CA/CE/CR are only used in scenario "b" (Enhanced Mode two-phase acks).
+  // See MO helpdesk case #1058382 (2026-08-18) — our success ack was CA when
+  // it should have been AA. Reject-with-reason stays as AR.
   let msaCode, errorText, status
   if (requiredMissing.length) {
-    msaCode = 'CR'
+    msaCode = 'AR'
     errorText = `Missing required fields: ${requiredMissing.join(', ')}`
     status = 'rejected'
   } else if (!provider && !orgReceipt) {
-    msaCode = 'CR'
+    msaCode = 'AR'
     errorText = `Receiver not registered with Tere Health (${summary.receivingApp || '?'}/${summary.receivingFacility || '?'})`
     status = 'rejected'
   } else {
-    msaCode = 'CA'
+    msaCode = 'AA'
     errorText = null
     status = patientMatch.match ? 'received' : 'needs_review'
   }
@@ -431,7 +450,7 @@ export default async function handler(req, res) {
   // WITHIN THE SAME ENV. Cross-env supersede would silently mix test + prod
   // provenance, defeating the separation Medical-Objects requires.
   let supersedesId = null
-  if (msaCode === 'CA' && summary.order.obr3_1) {
+  if (msaCode === 'AA' && summary.order.obr3_1) {
     const { data: prior } = await supabase
       .from('inbound_hl7_messages')
       .select('id')
