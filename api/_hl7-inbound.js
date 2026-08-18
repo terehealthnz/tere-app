@@ -51,13 +51,24 @@ function normaliseSegments(raw) {
   // samples mix \r with a trailing \r\n at EOF, and some senders use \n.
   // Normalise everything to \n then split, and drop empty lines.
   //
-  // Strip MLLP framing (0x0B start-block, 0x1C end-block), BOM (0xFEFF), and
-  // any leading whitespace so segments[0] can reach MSH. Uses explicit
-  // (BOM) because a raw BOM char in the regex literal can be lost during file
-  // editing. See MO helpdesk case #1058382.
-  const stripped = String(raw)
-    .replace(/[\x0B\x1C﻿]/g, '')
+  // Belt-and-braces cleanup for anything a sender might prefix or embed:
+  //   - MLLP framing bytes (0x0B start-block, 0x1C end-block)
+  //   - BOMs (UTF-8 EF BB BF, UTF-16 FE FF / FF FE — encoding auto-detected
+  //     one layer up in readRawBody, but a stray BOM char could still exist)
+  //   - Null bytes (UTF-16-without-BOM misdetects should be caught upstream,
+  //     but strip null bytes as a floor so 'M\0S\0H' → 'MSH')
+  //   - Leading whitespace
+  //   - Anything before the actual MSH: if we still don't see MSH at the
+  //     start, slice from the first occurrence of "MSH" + a plausible field
+  //     separator (|). This is the last line of defence against unknown
+  //     length-prefix or wrapper framing we haven't seen yet.
+  let stripped = String(raw)
+    .replace(/[\x00\x0B\x1C﻿]/g, '')
     .replace(/^\s+/, '')
+  if (!stripped.startsWith('MSH')) {
+    const idx = stripped.search(/MSH[|^]/)
+    if (idx > 0) stripped = stripped.slice(idx)
+  }
   return stripped.replace(/\r\n?/g, '\n').split('\n').filter(s => s.length > 0)
 }
 
@@ -87,14 +98,16 @@ function readSeparators(mshSegment) {
   }
 }
 
-function parseMessage(raw) {
+function parseMessage(raw, rawBuf) {
   const segments = normaliseSegments(raw)
   // Accept HL7 batch protocol wrappers: skip FHS/BHS/BTS/FTS headers and find
   // the actual MSH. If MSH isn't the first segment, that's OK — the batch
   // header segments carry no clinical data we care about at this layer.
   const mshIdx = segments.findIndex(s => s.startsWith('MSH'))
   if (mshIdx < 0) {
-    throw new Error(`Not an HL7 v2 message — no MSH segment found. ${hexPrefix(raw)}`)
+    // rawBuf preserves the pre-decode bytes so operators debugging on the
+    // MO side see what actually arrived (encoding, framing bytes, wrappers).
+    throw new Error(`Not an HL7 v2 message — no MSH segment found. ${hexPrefix(rawBuf || raw)}`)
   }
   // Drop everything before MSH (batch headers) and after any trailer.
   const msgSegments = segments.slice(mshIdx).filter(s => !/^(BTS|FTS)/.test(s))
@@ -339,10 +352,16 @@ async function extractAndStorePdfs(supabase, messageId, parsed) {
 // ─── Body reader ────────────────────────────────────────────────────────────
 
 async function readRawBody(req) {
-  // If Vercel already parsed the body as JSON we'd lose delimiters. We only
-  // trust text/plain or application/hl7-v2 — anything else is rejected.
-  if (typeof req.body === 'string' && req.body.length) return req.body
-  // Vercel exposes the raw stream for non-JSON content types.
+  // Returns { text, buf } — text is the best-guess decoded string, buf is the
+  // raw Buffer preserved for hex-dump diagnostics on parse failure. Encoding
+  // auto-detected by BOM (UTF-16LE / UTF-16BE / UTF-8). If no BOM, defaults
+  // to UTF-8. This matters because Medical-Objects's Capricorn Cloud sender
+  // has historically shipped 2.4 messages as UTF-16LE — see case #1058382,
+  // 2026-08-18. Bare .toString('utf8') on a UTF-16 buffer gives one null-byte
+  // between every ASCII char, and MSH becomes M\0S\0H\0 — fails startsWith.
+  if (typeof req.body === 'string' && req.body.length) {
+    return { text: req.body, buf: Buffer.from(req.body, 'utf8') }
+  }
   const chunks = []
   let total = 0
   for await (const chunk of req) {
@@ -350,7 +369,30 @@ async function readRawBody(req) {
     if (total > MAX_BODY_BYTES) throw new Error(`Message exceeds ${MAX_BODY_BYTES} bytes`)
     chunks.push(chunk)
   }
-  return Buffer.concat(chunks).toString('utf8')
+  const buf = Buffer.concat(chunks)
+  let text
+  if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
+    text = buf.slice(2).toString('utf16le')
+  } else if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+    // UTF-16BE — swap bytes then decode as LE
+    const swapped = Buffer.alloc(buf.length - 2)
+    for (let i = 2; i < buf.length; i += 2) {
+      swapped[i - 2]     = buf[i + 1] || 0
+      swapped[i - 2 + 1] = buf[i]
+    }
+    text = swapped.toString('utf16le')
+  } else if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    text = buf.slice(3).toString('utf8')
+  } else {
+    text = buf.toString('utf8')
+    // Heuristic: if the decoded text is >20% null bytes, it's probably
+    // UTF-16LE-without-BOM. Re-decode.
+    const nullCount = (text.match(/\x00/g) || []).length
+    if (nullCount > text.length * 0.2) {
+      text = buf.toString('utf16le')
+    }
+  }
+  return { text, buf }
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────────
@@ -377,13 +419,15 @@ export default async function handler(req, res) {
     return res.status(200).send('MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Auth failed\r')
   }
 
-  let raw
+  let body
   try {
-    raw = await readRawBody(req)
+    body = await readRawBody(req)
   } catch (e) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
   }
+  const raw = body.text
+  const rawBuf = body.buf
   if (!raw || !raw.trim()) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     return res.status(200).send('MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Empty body\r')
@@ -391,7 +435,7 @@ export default async function handler(req, res) {
 
   let parsed
   try {
-    parsed = parseMessage(raw)
+    parsed = parseMessage(raw, rawBuf)
   } catch (e) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
