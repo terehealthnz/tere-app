@@ -24,15 +24,16 @@ const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
 // Flat $60 consult across every live-consult type (video and phone are the
 // same price — patient picks whichever suits them, provider decides on the
-// call). ACC-eligible consults charge only the $20 administrative fee — the
+// call). ACC-eligible consults charge only the $25 administrative fee — the
 // consultation itself is billed direct to ACC (see docs/security-compliance.md
 // and Terms §5). International visitor rate is $100 (illness only; ACC still
 // covers accidental-injury consults at the standard rate). `message` kept
 // for backend repeat-Rx compat but not surfaced as a user-facing product.
+// Must stay in sync with api/_create-payment-intent.js PRICES.
 const BASE_PRICES = {
-  consult: { private: 60, acc: 20, international: 100 },
-  video:   { private: 60, acc: 20, international: 100 },
-  phone:   { private: 60, acc: 20, international: 100 },
+  consult: { private: 60, acc: 25, international: 100 },
+  video:   { private: 60, acc: 25, international: 100 },
+  phone:   { private: 60, acc: 25, international: 100 },
   message: { private: 25, acc: 25, international: 40 },
 }
 const COUPON_DISCOUNT = 10
@@ -82,6 +83,11 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
     : (accEligible === 'yes' ? priceSet.acc : priceSet.private)
   const discount = couponApplied ? COUPON_DISCOUNT : 0
   const amount = Math.max(baseAmount - discount, 0)
+  // Guard against flash-of-$0 on first paint if consultationType/accEligible
+  // hadn't hydrated from sessionStorage yet. baseAmount will always be
+  // truthy for a valid consultationType, so falsy = "still loading".
+  const amountReady = Number.isFinite(amount) && amount > 0
+  const amountText = amountReady ? `$${amount}` : '…'
 
   // Create payment intent (re-create if coupon changes)
   useEffect(() => {
@@ -186,7 +192,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
               </div>
             )}
             <div style={{fontSize:'2rem',fontWeight:700,color: couponApplied ? '#059669' : 'var(--navy)'}}>
-              ${amount}
+              {amountText}
             </div>
           </div>
         </div>
@@ -227,7 +233,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
               <div style={{ marginTop:'.5rem', fontSize:'.8125rem', color:'#6B7280', lineHeight:1.55 }}>
                 International visitor rate: <strong>NZ${priceSet.international}</strong>. Includes an itemised receipt suitable for travel-insurance claims.
                 <div style={{ marginTop:'.4rem', fontSize:'.75rem', color:'#B45309', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.4rem .55rem' }}>
-                  <strong>Injury from an accident in NZ?</strong> ACC covers visitors at the standard NZ$20 rate — please go back and update your ACC answer during triage if this applies.
+                  <strong>Injury from an accident in NZ?</strong> ACC covers visitors at the standard NZ$25 rate — please go back and update your ACC answer during triage if this applies.
                 </div>
               </div>
             ) : (
@@ -283,7 +289,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         )}
 
         <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'.875rem',marginBottom:'1.25rem',fontSize:'.8125rem',lineHeight:1.7,color:'#6B7280'}}>
-          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>${amount}</strong> but <strong>not charged</strong> until your consultation is complete. You're only charged for the method your doctor uses. Cancel before it starts and the hold is released automatically.
+          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>{amountText}</strong> but <strong>not charged</strong> until your consultation is complete. You're only charged for the method your doctor uses. Cancel before it starts and the hold is released automatically.
         </div>
 
         <div style={{marginBottom:'1.25rem'}}>
@@ -302,7 +308,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
         )}
 
         <button type="submit" className="btn btn-primary btn-full" disabled={loading || !clientSecret}>
-          {loading ? 'Processing…' : `Join queue — hold up to $${amount}`}
+          {loading ? 'Processing…' : `Join queue — hold up to ${amountText}`}
         </button>
       </div>
 
@@ -311,11 +317,6 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           🔒 Secured by Stripe · Card details are never stored by Tere
         </div>
         <div style={{display:'flex',justifyContent:'center',gap:'1.25rem',flexWrap:'wrap'}}>
-          <button type="button"
-            onClick={() => navigate('/consultation-type')}
-            style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
-            ← Change consultation type
-          </button>
           <button type="button"
             onClick={() => navigate('/')}
             style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
