@@ -12,14 +12,14 @@ export default async function handler(req, res) {
   // 'video'/'phone' rows resolve to the same $60. Message stays $25 as an
   // async product.
   //
-  // ACC-eligible consults: patient pays a $20 administrative co-payment
+  // ACC-eligible consults: patient pays a $25 administrative co-payment
   // covering platform access, prescription/referral processing, and
   // after-hours availability — items outside the scope of the ACC MST1/
   // MST3 schedule fee. ACC is separately billed the full specialist rate
   // (MST1 $96.38 initial / MST3 $48.20 follow-up) via _acc-claims.js.
   //
   // Why a co-pay at all: ACC settles invoices on a 30-60 day cycle. The
-  // $20 patient card charge settles in 1-2 business days, meaning every
+  // $25 patient card charge settles in 1-2 business days, meaning every
   // consult generates immediate provider payment regardless of the ACC
   // clearing lag. Cash flow for the provider is the primary rationale;
   // the admin work being paid for is real and disclosed to the patient
@@ -30,9 +30,9 @@ export default async function handler(req, res) {
     // Payment.jsx — the country dropdown flips isInternational for us.
     // Without this tier the payment intent silently fails with an undefined
     // amount when isInternational=true.
-    consult: { private: 6000, acc: 2000, international: 10000 },
-    video:   { private: 6000, acc: 2000, international: 10000 },
-    phone:   { private: 6000, acc: 2000, international: 10000 },
+    consult: { private: 6000, acc: 2500, international: 10000 },
+    video:   { private: 6000, acc: 2500, international: 10000 },
+    phone:   { private: 6000, acc: 2500, international: 10000 },
     message: { private: 2500, acc: 2500, international: 4000  },
     // Post-consult upsell: $10 for the insurance-formatted itemised PDF
     // receipt. Fulfilled by /api/generate-insurance-receipt after payment

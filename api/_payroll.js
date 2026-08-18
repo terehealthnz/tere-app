@@ -11,7 +11,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 
-const FALLBACK_RATE = 20.00   // used only if a provider row has null base_rate
+const FALLBACK_RATE = 25.00   // used only if a provider row has null base_rate
 
 // Every payroll endpoint reads sensitive pay data. Non-admin callers may
 // only see their OWN provider_id — anything else is a 403. Admin callers

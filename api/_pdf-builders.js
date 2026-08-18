@@ -319,7 +319,7 @@ export function buildPayslipPdf(data) {
     doc.moveTo(50, 186).lineTo(W - 50, 186).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
 
     // Earnings summary box — flat per-consult rate per provider.
-    const rate = Number(data.base_rate ?? 20)
+    const rate = Number(data.base_rate ?? 25)
 
     let y = 200
     doc.rect(50, y, W - 100, 90).fill('#F0F9FA').stroke('#D4EEF0')
