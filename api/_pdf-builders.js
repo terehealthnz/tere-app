@@ -399,6 +399,125 @@ export function buildPayslipPdf(data) {
   })
 }
 
+// ACC invoice PDF — sent to providerinvoices@acc.co.nz per Megan Trezise's
+// billing guide (2026-08-17). Not a "Tax Invoice" — Tere Health Limited is
+// NOT GST-registered (medical services are exempt under s21 GSTA 1985 so
+// there's no compulsory registration threshold to worry about). The IRD
+// invoice rules still apply for record-keeping (vendor + client + date +
+// amount + service code + quantity), and the exemption line is called out
+// explicitly so ACC's finance team doesn't code the invoice as GST-inclusive.
+export function buildAccInvoicePdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const LEFT = 50
+    const RIGHT = W - 50
+    const nzDate = (d) => {
+      const dt = d ? new Date(d) : new Date()
+      return dt.toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric' })
+    }
+    const nzInvoiceRef = () => {
+      const dt = new Date()
+      const s = dt.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      return 'INV-' + s.replace(/[^0-9]/g, '').slice(0, 12)
+    }
+    const invoiceRef = data.invoiceRef || nzInvoiceRef()
+    const amountDollars = (data.amountCents / 100).toFixed(2)
+
+    // Header — Tere brand strip + logo
+    doc.rect(0, 0, W, 80).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 22)
+    doc.font('Helvetica').fontSize(9).text('terehealth.co.nz · Tere Health Limited', LEFT, 50)
+    doc.text('HPI-O G11238-E · ACC Vendor G11238 · NZBN 9429053023413', LEFT, 63)
+    try {
+      const logo = tereLogoBuffer()
+      if (logo) doc.image(logo, RIGHT - 60, 15, { fit: [50, 50], align: 'right' })
+    } catch {}
+
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(20).text('Invoice', LEFT, 100)
+    doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Reference: ${invoiceRef}`, LEFT, 128)
+    doc.text(`Issued: ${nzDate()}`, LEFT, 141)
+
+    // Bill-to (ACC)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Bill to', LEFT, 170)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text('ACC (Accident Compensation Corporation)', LEFT, 184)
+      .text('providerinvoices@acc.co.nz', LEFT, 198)
+
+    // Vendor (Tere)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Vendor', 320, 170)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text('Tere Health Limited', 320, 184)
+      .text('ACC Vendor ID: G11238', 320, 198)
+      .text('NZBN 9429053023413', 320, 212)
+
+    // Line items table
+    let y = 240
+    doc.rect(LEFT, y, RIGHT - LEFT, 22).fill('#0D2B45')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(9)
+      .text('CLIENT / SERVICE',     LEFT + 8,  y + 6)
+      .text('DATE OF SERVICE',      280,       y + 6)
+      .text('CODE',                 400,       y + 6)
+      .text('AMOUNT NZD',           RIGHT - 90, y + 6, { width: 82, align: 'right' })
+    y += 26
+
+    // Client line 1: name + claim number
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
+      .text(data.patientName || '(client name)', LEFT + 8, y)
+    doc.font('Helvetica').fontSize(9).fillColor('#374151')
+      .text(`Claim #: ${data.claimNumber || '(pending — patient-supplied)'}`, LEFT + 8, y + 14)
+    if (data.patientNhi) doc.text(`NHI: ${data.patientNhi}`, LEFT + 8, y + 27)
+
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(9)
+      .text(nzDate(data.dateOfService), 280, y + 4)
+      .text(data.serviceCode || '—',    400, y + 4)
+      .text(`$${amountDollars}`,        RIGHT - 90, y + 4, { width: 82, align: 'right' })
+    y += 48
+
+    // Service description
+    doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#E5E7EB').lineWidth(0.5).stroke()
+    y += 8
+    const svcLabel = data.serviceCode === 'MST3' ? 'Follow-up specialist telehealth consultation'
+                    : data.serviceCode === 'MST1' ? 'Initial specialist telehealth consultation'
+                    : 'Specialist telehealth consultation'
+    doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Service: ${svcLabel}`, LEFT + 8, y)
+    doc.text(`Clinician: ${data.providerName || 'Tere Health provider'}${data.providerHpi ? ` · HPI ${data.providerHpi}` : ''}`, LEFT + 8, y + 14)
+    y += 40
+
+    // Total
+    doc.rect(LEFT, y, RIGHT - LEFT, 30).fill('#F0F9FA')
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Total payable', LEFT + 12, y + 9)
+    doc.font('Helvetica-Bold').fontSize(14).fillColor('#0B6E76').text(`$${amountDollars} NZD`, RIGHT - 130, y + 6, { width: 120, align: 'right' })
+    y += 40
+
+    // GST exemption statement
+    doc.font('Helvetica-Oblique').fontSize(8.5).fillColor('#6B7280').text(
+      'Medical services provided by a registered medical practitioner. Exempt from GST under s21 of the Goods and Services Tax Act 1985. Tere Health Limited is not GST-registered; no GST applies to this invoice.',
+      LEFT + 4, y + 6, { width: RIGHT - LEFT - 8 }
+    )
+    y += 40
+
+    // Payment details footer
+    doc.rect(LEFT, y, RIGHT - LEFT, 60).lineWidth(0.5).strokeColor('#E5E7EB').stroke()
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#0D2B45').text('Payment', LEFT + 8, y + 8)
+    doc.font('Helvetica').fontSize(8.5).fillColor('#374151')
+      .text('Payee: Tere Health Limited (ACC Vendor G11238)', LEFT + 8, y + 22)
+      .text('Bank details on file with ACC — please pay to the account registered against vendor G11238.', LEFT + 8, y + 34)
+      .text('Queries: terehealthnz@gmail.com  ·  +64 29 043 234 27', LEFT + 8, y + 46)
+
+    // Bottom disclaimer
+    doc.fillColor('#AAA').fontSize(7.5)
+      .text('Tere Health Limited · terehealth.co.nz · Electronically issued', LEFT, doc.page.height - 40, { align: 'center', width: RIGHT - LEFT })
+
+    doc.end()
+  })
+}
+
 // Insurance-formatted receipt PDF — the $10 upsell delivered from
 // /api/generate-insurance-receipt. Contains everything a private health
 // insurer needs to reimburse the patient: Tere legal entity + IRD/GST

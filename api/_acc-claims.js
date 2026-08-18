@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { Resend } from 'resend'
+import { buildAccInvoicePdf } from './_pdf-builders.js'
 
 const ACC_BASE_URL = process.env.ACC_SANDBOX === 'false'
   ? 'https://apiservices.acc.co.nz'
@@ -35,6 +37,12 @@ function getACCRateCents(consultationType, isFollowup) {
 }
 
 async function submitToACC(claimPayload) {
+  // Retained for future eBusiness / PMS-integrated pathway. Not called from
+  // the default flow today — ACC does not expose a REST API for direct
+  // claim submission (per Megan Trezise 2026-08-17). The realistic
+  // channels are ProviderHub (manual web portal), PMS-integrated
+  // eBusiness (HL7 EDI), or emailed invoices to providerinvoices@acc.co.nz.
+  // We now use the email path (see emailAccInvoice below).
   const response = await fetch(`${ACC_BASE_URL}/api/v2/claims`, {
     method: 'POST',
     headers: {
@@ -56,6 +64,46 @@ async function submitToACC(claimPayload) {
 function generateSimulatedClaimNumber() {
   const prefix = process.env.ACC_SANDBOX === 'false' ? 'ACC' : 'TEST'
   return `${prefix}${Date.now().toString().slice(-8)}`
+}
+
+// Email an IRD-compliant invoice PDF to providerinvoices@acc.co.nz. Gated
+// by ACC_AUTOSEND_INVOICES=true so the first deploy doesn't accidentally
+// spam ACC — flip the env var when the provider registration is approved
+// and rates have been sanity-checked. terehealthnz@gmail.com is always
+// cc'd so we keep a copy of every invoice we submit.
+async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi }) {
+  if (process.env.ACC_AUTOSEND_INVOICES !== 'true') return { skipped: 'ACC_AUTOSEND_INVOICES not enabled' }
+  if (!process.env.RESEND_API_KEY) return { skipped: 'RESEND_API_KEY missing' }
+  const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
+  const pdfBuffer = await buildAccInvoicePdf({
+    patientName,
+    patientNhi:      consult.patient_nhi,
+    claimNumber,
+    serviceCode,
+    amountCents,
+    providerName,
+    providerHpi,
+    dateOfService:   consult.completed_at || consult.created_at,
+  })
+  const pdfBase64 = pdfBuffer.toString('base64')
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const invoiceRef = `Invoice ${claimNumber} — ${patientName}`
+  await resend.emails.send({
+    from:    'Tere Health <hello@terehealth.co.nz>',
+    replyTo: 'terehealthnz@gmail.com',
+    to:      'providerinvoices@acc.co.nz',
+    cc:      'terehealthnz@gmail.com',
+    subject: `${invoiceRef} (Vendor G11238)`,
+    html:    `<p>Kia ora ACC Provider Invoices team,</p>
+              <p>Please find attached an invoice for services rendered under ACC vendor <strong>G11238</strong> (Tere Health Limited).</p>
+              <p><strong>Client:</strong> ${patientName}${consult.patient_nhi ? ` · NHI ${consult.patient_nhi}` : ''}<br>
+                 <strong>Claim #:</strong> ${claimNumber}<br>
+                 <strong>Service code:</strong> ${serviceCode}<br>
+                 <strong>Amount:</strong> $${(amountCents / 100).toFixed(2)} NZD (GST exempt — s21 GSTA 1985)</p>
+              <p style="color:#6B7280;font-size:12px">Tere Health Limited · terehealth.co.nz · HPI-O G11238-E</p>`,
+    attachments: [{ filename: `${claimNumber}.pdf`, content: pdfBase64 }],
+  })
+  return { sent: true }
 }
 
 export default async function handler(req, res) {
@@ -181,13 +229,29 @@ export default async function handler(req, res) {
       acc_submitted_at:  new Date().toISOString(),
     }).eq('id', consultationId)
 
+    // Email the IRD-compliant invoice PDF to providerinvoices@acc.co.nz.
+    // Gated by ACC_AUTOSEND_INVOICES=true so the first deploy stays silent
+    // — you flip that env when Patrick's ACC provider approval lands and
+    // rates have been verified. Failures don't block the claim row.
+    let invoiceOutcome = null
+    try {
+      invoiceOutcome = await emailAccInvoice({
+        claimNumber, consult, serviceCode, amountCents,
+        providerName: pName, providerHpi: hpiNumber,
+      })
+    } catch (e) {
+      invoiceOutcome = { error: e.message }
+      console.error('acc-claims: emailAccInvoice failed:', e.message)
+    }
+
     res.json({
       ok: true,
       claimNumber,
       simulated: !hasCredentials,
       amountCents,
+      invoice:   invoiceOutcome,
       note: !hasCredentials
-        ? 'ACC credentials not configured — set ACC_API_KEY, ACC_VENDOR_ID, and provider HPI number'
+        ? 'ACC does not expose a public REST API. Claim recorded internally; invoice PDF emailed to providerinvoices@acc.co.nz when ACC_AUTOSEND_INVOICES=true.'
         : undefined,
     })
   } catch (e) {
