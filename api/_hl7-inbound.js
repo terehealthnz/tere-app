@@ -333,10 +333,15 @@ export default async function handler(req, res) {
   }
 
   // Shared secret from upstream mTLS proxy. Absence = reject silently (200).
+  // Length-check before timingSafeEqual — it throws on length mismatch, which
+  // would surface as a 500 JSON error instead of a proper HL7 auth-fail ack.
   const bridgeSecret = process.env.HL7_BRIDGE_SECRET
   const supplied = req.headers['x-tere-bridge-secret']
+  const suppliedBuf = Buffer.from(String(supplied || ''))
+  const secretBuf   = Buffer.from(String(bridgeSecret || ''))
   if (!bridgeSecret || !supplied ||
-      !crypto.timingSafeEqual(Buffer.from(String(supplied)), Buffer.from(bridgeSecret))) {
+      suppliedBuf.length !== secretBuf.length ||
+      !crypto.timingSafeEqual(suppliedBuf, secretBuf)) {
     // Log and reject as HL7 ack (Capricorn will retry — that's fine while we
     // debug the proxy config; better than a 401 that trips their alarms).
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
