@@ -1513,11 +1513,16 @@ function ProvidersPanel() {
         <div style={{ display:'flex', flexDirection:'column', gap:'.75rem' }}>
           {providers.map(p => {
             const displayName = providerDisplayName(p)
+            // Null-safe initials — admin-manage filter returns admin-only rows
+            // which may have empty/null first/last names. Unguarded indexing
+            // would throw TypeError and unmount the entire admin tree.
+            const initial1 = (p.first_name || '?').charAt(0).toUpperCase()
+            const initial2 = (p.last_name  || '?').charAt(0).toUpperCase()
             return (
               <div key={p.id} style={{ background:'#F8FAFC', borderRadius:8, padding:'1rem 1.25rem', border:`1px solid ${p.is_active ? '#E2E8F0' : '#FECACA'}`, opacity: p.is_active ? 1 : 0.6 }}>
                 <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:'1rem', alignItems:'start', flexWrap:'wrap' }}>
                   <div style={{ width:44, height:44, borderRadius:'50%', background:p.color||'#0B6E76', display:'flex', alignItems:'center', justifyContent:'center', color:'white', fontWeight:700, fontSize:'1.1rem', flexShrink:0 }}>
-                    {p.first_name[0]}{p.last_name[0]}
+                    {initial1}{initial2}
                   </div>
                   <div>
                     <div style={{ fontWeight:700, fontSize:'.9375rem', color:'#0D2B45', marginBottom:2 }}>
@@ -1561,7 +1566,7 @@ function ProvidersPanel() {
                       {p.is_active ? 'Deactivate' : 'Activate'}
                     </button>
                     <button onClick={async () => {
-                      const confirmed = window.confirm(`Permanently delete ${p.first_name} ${p.last_name}? This is irreversible.\n\nIf they have any consultation history, deletion will be refused and you should Deactivate instead.`)
+                      const confirmed = window.confirm(`Permanently delete ${displayName}? This is irreversible.\n\nIf they have any consultation history, deletion will be refused and you should Deactivate instead.`)
                       if (!confirmed) return
                       setSaving(p.id)
                       try {
