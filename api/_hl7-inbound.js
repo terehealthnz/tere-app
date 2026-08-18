@@ -412,21 +412,6 @@ export default async function handler(req, res) {
     status = patientMatch.match ? 'received' : 'needs_review'
   }
 
-  // Update handling — same OBR-3.1 supersedes prior message from same sender.
-  let supersedesId = null
-  if (msaCode === 'CA' && summary.order.obr3_1) {
-    const { data: prior } = await supabase
-      .from('inbound_hl7_messages')
-      .select('id')
-      .eq('obr_3_1_filler_order', summary.order.obr3_1)
-      .eq('msh_4_sending_facility', summary.sendingFacility || '')
-      .is('superseded_by_id', null)
-      .order('received_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (prior) supersedesId = prior.id
-  }
-
   // Which upstream mTLS proxy sent this? Set by the Fly proxy via a header —
   // 'nz-test' from tere-hl7-mtls-test (hl7-test.terehealth.co.nz), 'nz-prod'
   // from tere-hl7-mtls (hl7.terehealth.co.nz). Naming pattern is
@@ -436,9 +421,29 @@ export default async function handler(req, res) {
   // charts (when built) MUST filter to env in the *-prod set to avoid test
   // messages polluting real patient records. Added 2026-08-17 in response
   // to MO helpdesk (Tony Cruice, case #1058382) requiring proper test/prod
-  // separation.
+  // separation. Computed here (before the supersede query below) so that
+  // supersedes stay scoped to the same env — a prod message with a
+  // colliding OBR-3.1 must not swallow a test message and vice versa.
   const rawEnv = String(req.headers['x-tere-env'] || 'nz-prod').toLowerCase()
   const receivedEnv = /^[a-z]{2,3}-(prod|test)$/.test(rawEnv) ? rawEnv : 'nz-prod'
+
+  // Update handling — same OBR-3.1 supersedes prior message from same sender
+  // WITHIN THE SAME ENV. Cross-env supersede would silently mix test + prod
+  // provenance, defeating the separation Medical-Objects requires.
+  let supersedesId = null
+  if (msaCode === 'CA' && summary.order.obr3_1) {
+    const { data: prior } = await supabase
+      .from('inbound_hl7_messages')
+      .select('id')
+      .eq('obr_3_1_filler_order', summary.order.obr3_1)
+      .eq('msh_4_sending_facility', summary.sendingFacility || '')
+      .eq('env', receivedEnv)
+      .is('superseded_by_id', null)
+      .order('received_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (prior) supersedesId = prior.id
+  }
 
   const insertRow = {
     env:                      receivedEnv,
