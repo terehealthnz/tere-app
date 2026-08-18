@@ -422,7 +422,21 @@ export default async function handler(req, res) {
     if (prior) supersedesId = prior.id
   }
 
+  // Which upstream mTLS proxy sent this? Set by the Fly proxy via a header —
+  // 'nz-test' from tere-hl7-mtls-test (hl7-test.terehealth.co.nz), 'nz-prod'
+  // from tere-hl7-mtls (hl7.terehealth.co.nz). Naming pattern is
+  // <country>-<prod|test> so AU/US expansion drops in without a migration
+  // (au-prod, au-test, us-prod, us-test). Defaults to 'nz-prod' for
+  // back-compat if the header is missing. Downstream auto-filing to patient
+  // charts (when built) MUST filter to env in the *-prod set to avoid test
+  // messages polluting real patient records. Added 2026-08-17 in response
+  // to MO helpdesk (Tony Cruice, case #1058382) requiring proper test/prod
+  // separation.
+  const rawEnv = String(req.headers['x-tere-env'] || 'nz-prod').toLowerCase()
+  const receivedEnv = /^[a-z]{2,3}-(prod|test)$/.test(rawEnv) ? rawEnv : 'nz-prod'
+
   const insertRow = {
+    env:                      receivedEnv,
     msh_10_control_id:        summary.controlId,
     msh_9_message_type:       summary.messageType,
     msh_9_event:              summary.messageType.split('^')[1] || null,

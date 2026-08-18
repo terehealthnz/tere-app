@@ -10,6 +10,16 @@ import { URL } from 'node:url'
 const PORT = Number(process.env.PORT || 8443)
 const HL7_BRIDGE_SECRET = process.env.HL7_BRIDGE_SECRET
 const UPSTREAM_URL      = process.env.UPSTREAM_URL || 'https://terehealth.co.nz/api/hl7-inbound'
+// '<country>-<prod|test>' — stamped on the outbound forward so the Vercel
+// endpoint can tag the message row + prevent test messages ever hitting
+// downstream auto-file logic. Naming pattern reserves room for AU/US
+// expansion (au-prod, au-test, us-prod, us-test) without another rename.
+// Two Fly apps exist today (see fly.toml + fly.test.toml):
+//   tere-hl7-mtls       — hl7.terehealth.co.nz      — TERE_ENV=nz-prod
+//   tere-hl7-mtls-test  — hl7-test.terehealth.co.nz — TERE_ENV=nz-test
+const TERE_ENV = /^[a-z]{2,3}-(prod|test)$/.test(String(process.env.TERE_ENV || '').toLowerCase())
+  ? String(process.env.TERE_ENV).toLowerCase()
+  : 'nz-prod'
 // CA chain used to validate the Medical-Objects Capricorn client cert.
 // Test network: /certs/demo-client-chain-g3.pem (root + intermediate concat).
 const CA_PATH           = process.env.CA_PATH || '/certs/demo-client-chain-g3.pem'
@@ -42,6 +52,7 @@ async function forward(body, replyHeaders) {
         'Content-Type':          'application/hl7-v2',
         'Content-Length':        Buffer.byteLength(body),
         'X-Tere-Bridge-Secret':  HL7_BRIDGE_SECRET,
+        'X-Tere-Env':            TERE_ENV,
         ...replyHeaders,
       },
     }, (res) => {
@@ -119,5 +130,5 @@ const server = https.createServer({
 }, handleRequest)
 
 server.listen(PORT, () => {
-  console.log(`hl7-mtls-proxy listening on :${PORT} → ${UPSTREAM_URL}`)
+  console.log(`hl7-mtls-proxy [${TERE_ENV}] listening on :${PORT} → ${UPSTREAM_URL}`)
 })

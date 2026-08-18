@@ -10,6 +10,7 @@ primary_region = 'syd'
 [env]
   PORT = '8443'
   DOMAIN = 'hl7.terehealth.co.nz'
+  TERE_ENV = 'nz-prod'
 
 [[mounts]]
   source = 'hl7certs'

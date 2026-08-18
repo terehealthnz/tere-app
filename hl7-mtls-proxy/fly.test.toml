@@ -1,0 +1,57 @@
+# Fly.io config for the TEST HL7 mTLS receiver — a second, fully-separate
+# app so Medical-Objects (and any other sender) has a distinct endpoint +
+# TLS identity for test traffic that cannot cross into production.
+#
+# Deploy from this directory with:
+#   fly deploy -c fly.test.toml
+#
+# Sister prod app (fly.toml): tere-hl7-mtls · hl7.terehealth.co.nz  · TERE_ENV=nz-prod
+# This test app:              tere-hl7-mtls-test · hl7-test.terehealth.co.nz · TERE_ENV=nz-test
+#
+# AU/US expansion later drops in as tere-hl7-mtls-au / tere-hl7-mtls-au-test etc.
+# with TERE_ENV=au-prod / au-test — no schema migration, the env column already
+# accepts any '<country>-<prod|test>' string.
+#
+# Shared Docker image (Dockerfile + index.js + entrypoint.sh) — identical code,
+# different domain + env tag. The Vercel /api/hl7-inbound endpoint stores the
+# TERE_ENV value against every row so downstream auto-file logic can filter
+# to env LIKE '%-prod' only.
+
+app = 'tere-hl7-mtls-test'
+primary_region = 'syd'
+
+[build]
+[env]
+  PORT = '8443'
+  DOMAIN = 'hl7-test.terehealth.co.nz'
+  TERE_ENV = 'nz-test'
+
+[[mounts]]
+  source = 'hl7certs_test'
+  destination = '/certs'
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 8443
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 443
+    handlers = ['tls_passthrough']
+
+  [services.concurrency]
+    type = 'connections'
+    hard_limit = 100
+    soft_limit = 50
+
+  [[services.tcp_checks]]
+    interval = '15s'
+    timeout = '2s'
+    grace_period = '5s'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256
