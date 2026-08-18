@@ -51,16 +51,25 @@ function normaliseSegments(raw) {
   // samples mix \r with a trailing \r\n at EOF, and some senders use \n.
   // Normalise everything to \n then split, and drop empty lines.
   //
-  // MLLP framing: if the upstream forwarder passes through the raw MLLP frame
-  // (<VT>=0x0B start-block, <FS>=0x1C end-block), our first segment starts with
-  // \v instead of MSH → false-positive "missing MSH segment" reject. Strip both
-  // frame chars + any BOM/leading whitespace before splitting. See Medical-Objects
-  // helpdesk case #1058382 (2026-08-18) where our 2.4 ack failed with
-  // "missing MSH segment" on a valid message.
+  // Strip MLLP framing (0x0B start-block, 0x1C end-block), BOM (0xFEFF), and
+  // any leading whitespace so segments[0] can reach MSH. Uses explicit
+  // (BOM) because a raw BOM char in the regex literal can be lost during file
+  // editing. See MO helpdesk case #1058382.
   const stripped = String(raw)
-    .replace(/^[\x0B﻿\s]+/, '')
-    .replace(/[\x0B\x1C]/g, '')
+    .replace(/[\x0B\x1C﻿]/g, '')
+    .replace(/^\s+/, '')
   return stripped.replace(/\r\n?/g, '\n').split('\n').filter(s => s.length > 0)
+}
+
+// Hex dump of the first N bytes — used only when parse fails, so a downstream
+// operator (Tony at MO in this case) can see exactly what bytes we received
+// without needing us to plumb debug logs. Returned in MSA-3 of the reject ack.
+function hexPrefix(raw, n = 32) {
+  const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw), 'utf8')
+  const slice = buf.slice(0, n)
+  const hex = Array.from(slice, b => b.toString(16).padStart(2, '0')).join(' ')
+  const ascii = Array.from(slice, b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('')
+  return `hex[0..${slice.length}]=${hex} ascii="${ascii}"`
 }
 
 function readSeparators(mshSegment) {
@@ -80,12 +89,18 @@ function readSeparators(mshSegment) {
 
 function parseMessage(raw) {
   const segments = normaliseSegments(raw)
-  if (!segments.length || !segments[0].startsWith('MSH')) {
-    throw new Error('Not an HL7 v2 message — missing MSH segment')
+  // Accept HL7 batch protocol wrappers: skip FHS/BHS/BTS/FTS headers and find
+  // the actual MSH. If MSH isn't the first segment, that's OK — the batch
+  // header segments carry no clinical data we care about at this layer.
+  const mshIdx = segments.findIndex(s => s.startsWith('MSH'))
+  if (mshIdx < 0) {
+    throw new Error(`Not an HL7 v2 message — no MSH segment found. ${hexPrefix(raw)}`)
   }
-  const sep = readSeparators(segments[0])
+  // Drop everything before MSH (batch headers) and after any trailer.
+  const msgSegments = segments.slice(mshIdx).filter(s => !/^(BTS|FTS)/.test(s))
+  const sep = readSeparators(msgSegments[0])
   const parsed = { segments: [], separators: sep }
-  for (const line of segments) {
+  for (const line of msgSegments) {
     // For MSH, the field separator is field 1 (a special case in HL7).
     // We normalise: MSH-1 = '|', then MSH-2 = encoding chars, then MSH-3...
     if (line.startsWith('MSH')) {
