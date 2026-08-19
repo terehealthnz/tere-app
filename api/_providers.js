@@ -211,6 +211,40 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    // Rotate an existing provider's PIN + re-send the welcome email. Admin-only.
+    // Body: { id: '<uuid>' }. Returns the new plain PIN in the response for
+    // out-of-band handoff if the email bounces. Sets must_change_password=true
+    // so the provider is forced to change the PIN on their next login (matches
+    // the original create-provider flow).
+    if (req.query?.action === 'resend_welcome') {
+      if (!auth.provider?.is_admin) {
+        return res.status(403).json({ error: 'Admin role required' })
+      }
+      const id = String(req.body?.id || req.query?.id || '')
+      if (!id) return res.status(400).json({ error: 'id required' })
+      const { data: target, error: fetchErr } = await supabase
+        .from('providers')
+        .select('id, first_name, last_name, email')
+        .eq('id', id)
+        .maybeSingle()
+      if (fetchErr) return res.status(500).json({ error: fetchErr.message })
+      if (!target)  return res.status(404).json({ error: 'Provider not found' })
+      if (!target.email) return res.status(400).json({ error: 'Provider has no email address on file' })
+      const newPin = String(Math.floor(100000 + Math.random() * 900000))
+      const pin_hash = await bcrypt.hash(newPin, 10)
+      const { error: updErr } = await supabase
+        .from('providers')
+        .update({ pin_hash, must_change_password: true })
+        .eq('id', id)
+      if (updErr) return res.status(500).json({ error: updErr.message })
+      sendProviderWelcomeEmail(target, newPin)  // fire-and-forget
+      return res.status(200).json({
+        ok: true,
+        email: target.email,
+        newPin,
+        note: 'PIN rotated + welcome email re-sent. Provider must change PIN on next login.',
+      })
+    }
     // Server-mediated signature upload — replaces the previous client-side
     // anon supabase.storage.from('signatures').upload(...). Admin-only so
     // the anon INSERT policy on the signatures bucket can be dropped.
