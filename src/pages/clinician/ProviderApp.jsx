@@ -1091,6 +1091,7 @@ function MenuTab({ navigate, displayName, isAdmin }) {
   }
   const items = [
     ...(isAdmin ? [{ label:'Admin dashboard', icon:'⚙️', action:()=>navigate('/clinician/admin'), color:NAVY }] : []),
+    { label:'My profile', icon:'👤', action:()=>navigate('/clinician/profile'), color:'#374151' },
     { label:'Provider dashboard (desktop)', icon:'🖥', action:()=>navigate('/clinician/dashboard'), color:'#374151' },
     { label:'Earnings — payment records', icon:'💰', action:()=>navigate('/provider/earnings'), color:'#374151' },
     { label:'US state licenses', icon:'🪪', action:()=>navigate('/clinician/state-licenses'), color:'#374151' },

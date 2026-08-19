@@ -101,7 +101,6 @@ async function sendProviderWelcomeEmail(provider, initialPin) {
             <div style="font-weight:700;color:#0B6E76;margin-bottom:.5rem">First-time login</div>
             <table style="border-collapse:collapse">
               <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Sign-in page</td><td><a href="${loginUrl}" style="color:#0B6E76">${loginUrl}</a></td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Email</td><td style="font-weight:600">${email}</td></tr>
               <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Initial PIN</td><td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:1.1rem;letter-spacing:.05em">${pin}</td></tr>
             </table>
             <div style="margin-top:.75rem;font-size:.85rem;color:#B45309"><strong>You'll be asked to change this PIN on your first login</strong> — pick something only you know.</div>
@@ -109,9 +108,10 @@ async function sendProviderWelcomeEmail(provider, initialPin) {
 
           <p style="font-weight:700;margin-bottom:.4rem">What to do first</p>
           <ol style="margin-top:0;padding-left:1.25rem">
-            <li>Sign in at the link above with your email + the PIN.</li>
-            <li>Set a new PIN.</li>
-            <li>Complete the on-screen profile prompts — MCNZ number, HPI-CPN, ACC provider number (if you're ACC-registered), specialty, and any additional details.</li>
+            <li>Open the sign-in page and find <strong>your name</strong> in the list — tap your tile.</li>
+            <li>Enter the initial PIN above.</li>
+            <li>Set a new PIN when prompted.</li>
+            <li>Complete your profile — MCNZ number, HPI-CPN, ACC provider number (if you're ACC-registered), specialty, prescribing signature, and any other details we still need.</li>
             <li>Turn on two-factor authentication (TOTP) from your profile — it's a two-minute setup and required for prescribing.</li>
           </ol>
 
@@ -155,6 +155,22 @@ const UPDATE_ALLOWLIST = new Set([
   // MFA (TOTP) — admin can clear both fields to recover a provider who
   // lost their authenticator. Provider self-service uses /api/provider-mfa.
   'mfa_enabled', 'mfa_secret_encoded',
+])
+
+// Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via
+// the /clinician/profile self-service page. Deliberately excluded: role +
+// capability flags (is_admin/is_provider/is_supervisor/is_billing_admin/
+// is_active/can_prescribe/can_refer/can_acc), color, base_rate, contract
+// fields, supervisor_id/scope, MFA — those are clinical-governance or
+// admin decisions, not self-declarable. IRD/bank/tax_code included so a
+// provider can self-serve payroll info without exposing it to admin
+// unnecessarily. First/last name allowed so a new provider can fix typos.
+const SELF_UPDATE_ALLOWLIST = new Set([
+  'first_name', 'last_name', 'credential', 'specialty',
+  'prescriber_number', 'mcnz_registration_number', 'cpn', 'hpi_number', 'acc_provider_number',
+  'scope_of_practice', 'pgy_level',
+  'signature_url',
+  'bank_account', 'ird_number', 'tax_code',
 ])
 
 export default async function handler(req, res) {
@@ -246,12 +262,15 @@ export default async function handler(req, res) {
       })
     }
     // Server-mediated signature upload — replaces the previous client-side
-    // anon supabase.storage.from('signatures').upload(...). Admin-only so
-    // the anon INSERT policy on the signatures bucket can be dropped.
-    // Body: { png_base64: '<raw base64, no data URL prefix>' }.
+    // anon supabase.storage.from('signatures').upload(...). Admin can upload
+    // for any provider; a non-admin provider can only upload their own
+    // signature via the /clinician/profile self-service page.
+    // Body: { png_base64: '<raw base64, no data URL prefix>', provider_id? }.
     if (req.query?.action === 'upload_signature') {
-      if (!auth.provider?.is_admin) {
-        return res.status(403).json({ error: 'Admin role required' })
+      const targetId = String(req.body?.provider_id || req.query?.provider_id || auth.provider?.id || '')
+      const isSelf = targetId && targetId === auth.provider?.id
+      if (!auth.provider?.is_admin && !isSelf) {
+        return res.status(403).json({ error: 'Admin role required to upload for another provider' })
       }
       const b64 = String(req.body?.png_base64 || '')
       if (!b64) return res.status(400).json({ error: 'png_base64 required' })
@@ -359,16 +378,23 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    if (!auth.provider?.is_admin) {
-      return res.status(403).json({ error: 'Admin role required to update providers' })
-    }
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
+
+    // Self-edit path: a provider may PATCH their OWN row with a narrower
+    // allowlist that excludes role/capability/is_active/color/base_rate/
+    // supervision/MFA fields — those are governance decisions, not
+    // self-declarable. Admins on any row still use the full allowlist.
+    const isSelf = auth.provider?.id === id
+    if (!auth.provider?.is_admin && !isSelf) {
+      return res.status(403).json({ error: 'Admin role required to update other providers' })
+    }
+    const allowlist = auth.provider?.is_admin ? UPDATE_ALLOWLIST : SELF_UPDATE_ALLOWLIST
 
     const raw = req.body || {}
     const patch = {}
     for (const [k, v] of Object.entries(raw)) {
-      if (UPDATE_ALLOWLIST.has(k)) patch[k] = v
+      if (allowlist.has(k)) patch[k] = v
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })

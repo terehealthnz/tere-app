@@ -103,6 +103,7 @@ const ProviderEarnings    = lazy(() => import('./pages/clinician/ProviderEarning
 const AdminApp            = lazy(() => import('./pages/clinician/AdminApp'))
 const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
+const MyProfile           = lazy(() => import('./pages/clinician/MyProfile'))
 const AdminStateLicenses  = lazy(() => import('./pages/clinician/AdminStateLicenses'))
 const ProviderInbox       = lazy(() => import('./pages/clinician/ProviderInbox'))
 const Employers           = lazy(() => import('./pages/Employers'))
@@ -214,6 +215,7 @@ export default function App() {
         <Route path="/provider/earnings"      element={<ProviderEarnings embedded={false} />} />
         <Route path="/clinician"              element={<ClinicianLogin />} />
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
+        <Route path="/clinician/profile"      element={<MyProfile />} />
         <Route path="/clinician/change-password" element={<ChangePassword />} />
         <Route path="/clinician/forgot-password" element={<ForgotPassword />} />
         <Route path="/clinician/reset-password"  element={<ResetPassword />} />
