@@ -130,6 +130,7 @@ const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 const USLanding           = lazy(() => import('./pages/us/USLanding'))
 const USStart             = lazy(() => import('./pages/us/USStart'))
 const HipaaNotice         = lazy(() => import('./pages/us/HipaaNotice'))
+const AULanding           = lazy(() => import('./pages/au/AULanding'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -147,8 +148,8 @@ function PwaRoot() {
   }
   const region = detectRegion()
   if (region === REGIONS.US) return <USLanding />
-  if (region === REGIONS.NZ) return <Landing />
-  return <TereIntro />
+  if (region === REGIONS.AU) return <AULanding />
+  return <Landing />
 }
 
 // /start dispatches by region. US visitors get the US intake flow
