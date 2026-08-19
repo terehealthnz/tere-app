@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { apiFetch } from '../../lib/api'
 
 // Tere Health Australia — AU-facing landing at tere.co.nz (beta preview).
 // Distinct brand from Tere Health (NZ) and Tere Care (US), same platform
@@ -445,26 +446,22 @@ function Waitlist() {
     if (!email) return
     setStatus('submitting'); setMsg('')
     try {
-      const res = await fetch('/api/au-waitlist', {
+      const res = await apiFetch('/api/au-waitlist', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, state }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), state }),
       })
       if (res.ok) {
         setStatus('ok')
-        setMsg('Thanks — we\'ll email you the moment Tere AU accepts real patients.')
-      } else if (res.status === 404) {
-        // Endpoint not yet built — still capture locally so we don't lose leads.
-        try { localStorage.setItem('tere_au_waitlist_' + Date.now(), JSON.stringify({ email, state })) } catch {}
-        setStatus('ok')
-        setMsg('Thanks — you\'re on the list. We\'ll be in touch.')
+        setMsg("Thanks — we'll email you the moment Tere Health Australia accepts real patients.")
       } else {
-        setStatus('err'); setMsg('Something went wrong — please email hello@tere.co.nz instead.')
+        const data = await res.json().catch(() => ({}))
+        setStatus('err')
+        setMsg(data.error || 'Something went wrong — please email hello@tere.co.nz instead.')
       }
     } catch {
-      try { localStorage.setItem('tere_au_waitlist_' + Date.now(), JSON.stringify({ email, state })) } catch {}
-      setStatus('ok')
-      setMsg('Thanks — you\'re on the list. We\'ll be in touch.')
+      setStatus('err')
+      setMsg('Connection error — please try again, or email hello@tere.co.nz.')
     }
   }
 

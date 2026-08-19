@@ -153,22 +153,31 @@ function PwaRoot() {
 }
 
 // /start dispatches by region. US visitors get the US intake flow
-// (state licence gate + intent capture). Everyone else keeps the
-// existing NZ TereIntro flow.
+// (state licence gate + intent capture). AU visitors bounce back to
+// the AULanding waitlist section unless they carry the beta bypass
+// (sessionStorage.tere_beta_bypass, set by visiting any AU URL with
+// ?dev=beta). Everyone else keeps the existing NZ TereIntro flow.
 function StartRouter() {
   const region = detectRegion()
   if (region === REGIONS.US) return <USStart />
+  if (region === REGIONS.AU) {
+    const bypass = (() => { try { return sessionStorage.getItem('tere_beta_bypass') === '1' } catch { return false } })()
+    if (!bypass) return <Navigate to="/#waitlist" replace />
+    // Bypass on: fall through so Patrick / testers can continue building
+    // against the real AU intake flow (TereIntro → triage → …). AU
+    // patients never see this without the query-param dev unlock.
+  }
   return <TereIntro />
 }
 
-// /waitlist dispatches by region. NZ visitors get the Tere Health
-// pre-launch waitlist page. US visitors get sent to the Tere Care
-// landing (/) — they can then choose to start an intake (state
-// picker widget), read pricing, or just leave. Forcing them
-// straight into the intake flow was too aggressive.
+// /waitlist dispatches by region.
+//   NZ  → dedicated Waitlist page (Tere Health branded)
+//   US  → landing (Tere Care has its own state-picker CTA, no waitlist page)
+//   AU  → landing waitlist section (AULanding has the form inline)
 function WaitlistRouter() {
   const region = detectRegion()
   if (region === REGIONS.US) return <Navigate to="/" replace />
+  if (region === REGIONS.AU) return <Navigate to="/#waitlist" replace />
   return <Waitlist />
 }
 

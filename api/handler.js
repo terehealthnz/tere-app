@@ -208,6 +208,7 @@ const ROUTES = {
   'provider-reset-complete':   () => import('./_provider-reset-complete.js'),
   'send-email':                () => import('./_send-email.js'),
   'waitlist-signup':           () => import('./_waitlist-signup.js'),
+  'au-waitlist':               () => import('./_au-waitlist.js'),
   'send-to-gp':                () => import('./_send-to-gp.js'),
   'transcribe':                () => import('./_transcribe.js'),
   'translate':                 () => import('./_translate.js'),
