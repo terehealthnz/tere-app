@@ -71,6 +71,64 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
   }
 }
 
+// Fire-and-forget welcome email to a newly-created provider containing
+// their initial PIN + login instructions. The PIN also comes back in the
+// POST response so admin can share it manually if the email bounces or
+// the provider hasn't given us their address yet. Best-effort — logs on
+// failure but never breaks the create call.
+async function sendProviderWelcomeEmail(provider, initialPin) {
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) return
+  if (!provider?.email) return  // no address on file — admin will share PIN out-of-band
+  if (!initialPin) return       // shouldn't happen — insert path always sets one
+  try {
+    const resend = new Resend(resendKey)
+    const firstName = escapeHtml(provider.first_name || 'there')
+    const email     = escapeHtml(provider.email)
+    const pin       = escapeHtml(initialPin)
+    const loginUrl  = 'https://terehealth.co.nz/clinician'
+    await resend.emails.send({
+      from:    'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to:      provider.email,
+      subject: 'Welcome to Tere Health — your provider account is ready',
+      html: `
+        <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;color:#111827;line-height:1.55">
+          <p style="font-size:1.05rem">Kia ora ${firstName},</p>
+          <p>Your provider account has been created on <strong>Tere Health</strong>. You can sign in now and finish setting up your profile — the app will walk you through what's needed.</p>
+
+          <div style="background:#F0F9FA;border:1px solid #C7EAEC;border-radius:10px;padding:1rem 1.25rem;margin:1.25rem 0">
+            <div style="font-weight:700;color:#0B6E76;margin-bottom:.5rem">First-time login</div>
+            <table style="border-collapse:collapse">
+              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Sign-in page</td><td><a href="${loginUrl}" style="color:#0B6E76">${loginUrl}</a></td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Email</td><td style="font-weight:600">${email}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Initial PIN</td><td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:1.1rem;letter-spacing:.05em">${pin}</td></tr>
+            </table>
+            <div style="margin-top:.75rem;font-size:.85rem;color:#B45309"><strong>You'll be asked to change this PIN on your first login</strong> — pick something only you know.</div>
+          </div>
+
+          <p style="font-weight:700;margin-bottom:.4rem">What to do first</p>
+          <ol style="margin-top:0;padding-left:1.25rem">
+            <li>Sign in at the link above with your email + the PIN.</li>
+            <li>Set a new PIN.</li>
+            <li>Complete the on-screen profile prompts — MCNZ number, HPI-CPN, ACC provider number (if you're ACC-registered), specialty, and any additional details.</li>
+            <li>Turn on two-factor authentication (TOTP) from your profile — it's a two-minute setup and required for prescribing.</li>
+          </ol>
+
+          <p style="margin-top:1.25rem">If anything doesn't work or you weren't expecting this email, reply to this message and it'll come straight to us.</p>
+
+          <p style="color:#6B7280;font-size:.8rem;margin-top:1.75rem;border-top:1px solid #E5E7EB;padding-top:1rem">
+            Tere Health Limited · MCNZ-registered NZ telehealth · HPI-O G11238-E<br>
+            <a href="https://terehealth.co.nz" style="color:#0B6E76">terehealth.co.nz</a>
+          </p>
+        </div>
+      `,
+    })
+  } catch (e) {
+    console.error('[providers] provider welcome email failed:', e.message)
+  }
+}
+
 function admin() {
   return createClient(
     process.env.VITE_SUPABASE_URL,
@@ -251,6 +309,10 @@ export default async function handler(req, res) {
     // Notify RHCNZ (Holly) of the new provider so their referrer registry
     // stays in sync. Best-effort — doesn't affect the response.
     notifyRhcnzOfProvider(created, { changeType: 'new' })
+    // Email the new provider their sign-in details + PIN. Best-effort — the
+    // PIN also comes back in the response below so admin can share it
+    // manually if the email fails or the provider has no address yet.
+    sendProviderWelcomeEmail(created, finalPin)
 
     // Return the plain PIN so admin can share it with the new provider on first
     // login. The provider will be forced to change it on next login
