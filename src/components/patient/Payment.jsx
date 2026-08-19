@@ -31,9 +31,9 @@ const STRIPE_OPTIONS = { locale: 'en-NZ' }
 // for backend repeat-Rx compat but not surfaced as a user-facing product.
 // Must stay in sync with api/_create-payment-intent.js PRICES.
 const BASE_PRICES = {
-  consult: { private: 60, acc: 25, international: 100 },
-  video:   { private: 60, acc: 25, international: 100 },
-  phone:   { private: 60, acc: 25, international: 100 },
+  consult: { private: 65, acc: 25, international: 100 },
+  video:   { private: 65, acc: 25, international: 100 },
+  phone:   { private: 65, acc: 25, international: 100 },
   message: { private: 25, acc: 25, international: 40 },
 }
 const COUPON_DISCOUNT = 10

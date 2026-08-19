@@ -85,8 +85,8 @@ export default function Terms() {
         <Section title="3. Payment and fees">
           <p>Consultation fees (all prices in NZ dollars, inclusive of GST):</p>
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
-            <li style={{ marginBottom: '.375rem' }}><strong>Consultation:</strong> $60 flat. Video or audio at the doctor's discretion inside the call.</li>
-            <li style={{ marginBottom: '.375rem' }}><strong>ACC-eligible consultation:</strong> $20 Tere administrative fee (see Section 5). The consultation itself is billed directly to ACC by Tere and is not charged to you.</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Consultation:</strong> $65 flat. Video or audio at the doctor's discretion inside the call.</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>ACC-eligible consultation:</strong> $25 Tere administrative fee (see Section 5). The consultation itself is billed directly to ACC by Tere and is not charged to you.</li>
           </ul>
           <p style={{ marginTop: '.75rem' }}>Payment is processed securely by our payment provider. We do not store your card details.</p>
         </Section>
@@ -96,9 +96,9 @@ export default function Terms() {
           <p style={{ marginTop: '.75rem' }}>If a clinician determines they cannot assist with your query and closes the consultation without providing care, you will receive a full refund. We exercise this discretion fairly.</p>
         </Section>
 
-        <Section title="5. ACC claims and the $20 administrative fee">
+        <Section title="5. ACC claims and the $25 administrative fee">
           <p>For injuries eligible under the Accident Compensation Act 2001, Tere Health will file an ACC claim on your behalf at no additional charge. Tere Health is registered with ACC as a specialist telehealth provider and bills the applicable ACC schedule fee (MST1 for an initial consultation, MST3 for a follow-up) directly to ACC. You are not charged for the consultation itself.</p>
-          <p style={{ marginTop: '.75rem' }}>A <strong>$20 administrative fee</strong> applies to every ACC-eligible consultation. This fee is separate from and additional to the ACC-covered consultation, and covers services that are not included in the ACC schedule fee:</p>
+          <p style={{ marginTop: '.75rem' }}>A <strong>$25 administrative fee</strong> applies to every ACC-eligible consultation. This fee is separate from and additional to the ACC-covered consultation, and covers services that are not included in the ACC schedule fee:</p>
           <ul style={{ marginTop: '.5rem', paddingLeft: '1.25rem' }}>
             <li style={{ marginBottom: '.375rem' }}>Access to the Tere Health digital platform, including secure video/audio infrastructure, subtitles in twelve languages, and the patient app.</li>
             <li style={{ marginBottom: '.375rem' }}>Administrative processing of prescriptions, referrals, medical certificates, and pharmacy coordination on your behalf.</li>
@@ -106,8 +106,8 @@ export default function Terms() {
             <li style={{ marginBottom: '.375rem' }}>SMS and email notifications, including consultation join links, joining reminders, and post-consultation summaries.</li>
             <li style={{ marginBottom: '.375rem' }}>Long-term digital retention of your consultation records for the period required by New Zealand health information law.</li>
           </ul>
-          <p style={{ marginTop: '.75rem' }}>The $20 fee is disclosed to you at three points before payment: on this Terms page, on our pricing page, and again on the payment screen at time of booking. You may decline any ACC-eligible consultation before booking if you do not wish to pay the administrative fee.</p>
-          <p style={{ marginTop: '.75rem' }}>Eligibility for ACC cover is determined by ACC, not by Tere Health. If, after clinical assessment, your presentation is not eligible for ACC cover, the full private consultation fee ($60) applies instead of the $20 administrative fee. Your card will be charged accordingly and this will be shown on your post-consultation billing summary.</p>
+          <p style={{ marginTop: '.75rem' }}>The $25 fee is disclosed to you at three points before payment: on this Terms page, on our pricing page, and again on the payment screen at time of booking. You may decline any ACC-eligible consultation before booking if you do not wish to pay the administrative fee.</p>
+          <p style={{ marginTop: '.75rem' }}>Eligibility for ACC cover is determined by ACC, not by Tere Health. If, after clinical assessment, your presentation is not eligible for ACC cover, the full private consultation fee ($65) applies instead of the $25 administrative fee. Your card will be charged accordingly and this will be shown on your post-consultation billing summary.</p>
         </Section>
 
         <Section title="6. Your responsibilities">

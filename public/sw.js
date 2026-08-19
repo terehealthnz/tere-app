@@ -1,9 +1,9 @@
 /* Tere Health Service Worker — push notifications + offline shell */
 
-// Bumped v5 → v6 to flush stale /pharmacies.json (pre-CW-seed) that
-// was hiding new pharmacies from the picker even though the file on
-// disk had them. Also flushes the stale CSP-blocked shell.
-const CACHE = 'tere-v6'
+// Bumped v6 → v7 to force provider dashboards to pick up the 'My
+// profile' header button (was serving stale shell to already-cached
+// admins). Also carries the 60→65 patient price update.
+const CACHE = 'tere-v7'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 

@@ -30,9 +30,9 @@ export default async function handler(req, res) {
     // Payment.jsx — the country dropdown flips isInternational for us.
     // Without this tier the payment intent silently fails with an undefined
     // amount when isInternational=true.
-    consult: { private: 6000, acc: 2500, international: 10000 },
-    video:   { private: 6000, acc: 2500, international: 10000 },
-    phone:   { private: 6000, acc: 2500, international: 10000 },
+    consult: { private: 6500, acc: 2500, international: 10000 },
+    video:   { private: 6500, acc: 2500, international: 10000 },
+    phone:   { private: 6500, acc: 2500, international: 10000 },
     message: { private: 2500, acc: 2500, international: 4000  },
     // Post-consult upsell: $10 for the insurance-formatted itemised PDF
     // receipt. Fulfilled by /api/generate-insurance-receipt after payment
