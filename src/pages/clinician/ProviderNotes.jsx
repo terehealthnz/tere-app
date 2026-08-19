@@ -186,10 +186,13 @@ function ChangePharmacyModal({ rx, onClose, onDone }) {
     if (!picked?.id) { setEmail(''); return }
     ;(async () => {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('pharmacy_contacts')
-          .select('dispensary_email').eq('pharmacy_id', picked.id).maybeSingle()
-        if (data?.dispensary_email) setEmail(data.dispensary_email)
+        // Server-mediated — anon SELECT on pharmacy_contacts was revoked
+        // in 2026-08-09_rls_lockdown.sql. Route via /api/pharmacy-contacts?id=…
+        // which uses service_role. See ClinicalActionModals.jsx for context.
+        const { apiFetch } = await import('../../lib/api')
+        const r = await apiFetch(`/api/pharmacy-contacts?id=${encodeURIComponent(picked.id)}`)
+        const j = await r.json().catch(() => ({}))
+        if (j.contact?.dispensary_email) setEmail(j.contact.dispensary_email)
       } catch {}
     })()
   }, [picked])

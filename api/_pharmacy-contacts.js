@@ -24,6 +24,28 @@ function admin() {
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   const supabase = admin()
+
+  // Single-pharmacy lookup mode: ?id=<pharmacy_id> → { dispensary_email, phone, hpi_id }
+  // Replaces the browser-side `.from('pharmacy_contacts').select().eq('pharmacy_id',…)`
+  // that stopped working after 2026-08-09_rls_lockdown.sql revoked anon SELECT
+  // on this table. Symptom was 'No dispensary email on file' for pharmacies
+  // that had been seeded (e.g. Chemist Warehouse Springlands via cw-seed).
+  // Dispensary email/phone are business contact data (findable on Healthpoint)
+  // — not PHI — so it's safe to expose to any authenticated provider without
+  // finer-grained auth.
+  const singleId = String(req.query?.id || '').trim()
+  if (singleId) {
+    const { data, error } = await supabase
+      .from('pharmacy_contacts')
+      .select('pharmacy_id, dispensary_email, phone, hpi_id')
+      .eq('pharmacy_id', singleId)
+      .maybeSingle()
+    if (error) return res.status(500).json({ error: error.message })
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
+    return res.status(200).json({ contact: data || null })
+  }
+
+  // Default: emailable-set mode (list of pharmacy_ids with a dispensary_email).
   // Supabase default row cap is 1000; we've already seeded ~1050 emailable
   // pharmacies so raise the limit or the picker silently hides ~5% of stores.
   const { data, error } = await supabase

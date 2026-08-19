@@ -77,10 +77,11 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
     if (!medsafeId) return
     ;(async () => {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('pharmacy_contacts')
-          .select('dispensary_email,phone,hpi_id')
-          .eq('pharmacy_id', medsafeId).maybeSingle()
+        // See sibling lookup below for the RLS-lockdown rationale.
+        const { apiFetch } = await import('../../lib/api')
+        const r = await apiFetch(`/api/pharmacy-contacts?id=${encodeURIComponent(medsafeId)}`)
+        const j = await r.json().catch(() => ({}))
+        const data = j.contact
         if (data) {
           setPharmacy(p => ({
             ...p,
@@ -144,10 +145,14 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
     setPharmacyQuery('')
     if (p.id) {
       try {
-        const { supabase } = await import('../../lib/supabase')
-        const { data } = await supabase.from('pharmacy_contacts')
-          .select('dispensary_email,phone,hpi_id')
-          .eq('pharmacy_id', p.id).maybeSingle()
+        // Server-mediated lookup — anon SELECT on pharmacy_contacts was revoked
+        // in 2026-08-09_rls_lockdown.sql, so a browser .from(…).eq(…) returns
+        // null and the UI shows 'No dispensary email on file' even when the
+        // row exists. Route via /api/pharmacy-contacts?id=… which uses service_role.
+        const { apiFetch } = await import('../../lib/api')
+        const r = await apiFetch(`/api/pharmacy-contacts?id=${encodeURIComponent(p.id)}`)
+        const j = await r.json().catch(() => ({}))
+        const data = j.contact
         if (data) {
           setPharmacy(prev => ({
             ...prev,
