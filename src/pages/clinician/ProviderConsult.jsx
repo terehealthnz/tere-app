@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
-import { LiveKitRoom, useParticipants } from '@livekit/components-react'
+import { LiveKitRoom, useParticipants, useRoomContext } from '@livekit/components-react'
 import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import '@livekit/components-styles'
@@ -43,6 +43,17 @@ function VitalBadge({ label, value, unit, status }) {
       {unit && <div style={{ fontSize:'.625rem', color:'#9CA3AF' }}>{unit}</div>}
     </div>
   )
+}
+
+// RoomCapture — invisible child that lives inside <LiveKitRoom> and copies
+// the underlying Room instance into a parent-owned ref via useRoomContext.
+// Needed because tereScribe wants to pull audio tracks directly from the
+// Room, but the Room only exists in React context — parents can't read it
+// without this bridge.
+function RoomCapture({ roomRef }) {
+  const room = useRoomContext()
+  useEffect(() => { if (roomRef && room) roomRef.current = room }, [room, roomRef])
+  return null
 }
 
 // PatientPresenceStamp — lives inside <LiveKitRoom>. Watches the participants
@@ -156,6 +167,11 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [medsafeList, setMedsafeList] = useState(null)
   const recorderRef = useRef(null)
+  // Captured LiveKit Room instance — populated by <RoomCapture> below when
+  // <LiveKitRoom> connects. tereScribe uses it to pull the local + remote
+  // audio tracks directly (avoids the empty-blob bug from grabbing a second
+  // getUserMedia stream).
+  const scribeRoomRef = useRef(null)
   const pollRef = useRef(null)
 
   // Lazy-load pharmacy register the first time the picker opens.
@@ -429,7 +445,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
 
   async function startScribe() {
     setScribeState('recording')
-    recorderRef.current = new ConsultationRecorder()
+    // Pass the live LiveKit Room so the recorder mixes local mic + remote
+    // audio (both sides) instead of grabbing a second, potentially-muted
+    // mic stream via getUserMedia — see tereScribe.js for the reason.
+    recorderRef.current = new ConsultationRecorder({ room: scribeRoomRef.current })
     try { await recorderRef.current.start() }
     catch (e) { console.error(e); setScribeState('idle') }
   }
@@ -438,6 +457,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     setScribeState('transcribing')
     try {
       const blob = await recorderRef.current.stop()
+      if (!blob || blob.size === 0) {
+        console.warn('[scribe] Empty audio blob — skipping transcribe (would 400)')
+        return null
+      }
       const text = await transcribeAudio(blob)
       setTranscript(text)
       setCallNotes(n => n ? `${n}\n\n[Transcript]\n${text}` : `[Transcript]\n${text}`)
@@ -584,6 +607,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           data-lk-theme="default"
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
+          <RoomCapture roomRef={scribeRoomRef} />
           {(() => {
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             // Languages we can offer as override sources = all with real
