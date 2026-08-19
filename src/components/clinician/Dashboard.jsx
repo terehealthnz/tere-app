@@ -393,6 +393,10 @@ export default function Dashboard() {
         <span className="navbar-brand">Tere</span>
         <div className="navbar-right">
           <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>{sessionStorage.getItem('providerDisplayName') || 'Clinician'}</span>
+          <button onClick={() => navigate('/clinician/profile')}
+            style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'6px 12px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
+            My profile
+          </button>
           <button onClick={() => { localStorage.removeItem('tere_portal'); sessionStorage.clear(); navigate('/clinician') }}
             style={{background:'rgba(255,255,255,.1)',border:'none',color:'rgba(255,255,255,.7)',padding:'6px 12px',borderRadius:'6px',cursor:'pointer',fontSize:'.8125rem'}}>
             Sign out
