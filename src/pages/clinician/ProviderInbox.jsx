@@ -163,6 +163,12 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
   const litPdfAttachment = display.isLit
     ? (msg.attachments || []).find(a => a.content_type === 'application/pdf')
     : null
+  // Suppress the attachment we already embedded as the LIT report body —
+  // otherwise the PDF renders twice (once as the primary display, once
+  // in the Attachments section below with its own iframe).
+  const attachmentsToList = (msg.attachments || []).filter(a =>
+    !(litPdfAttachment && a.id === litPdfAttachment.id)
+  )
   // OBX rows to render in the results table: hide the FT/TX + ED pair for LIT
   // messages (they're rendered separately below as the report body).
   const obxTableRows = display.isLit
@@ -278,17 +284,10 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
         </div>
       )}
 
-      {(() => {
-        // Suppress the attachment we already embedded as the LIT report body —
-        // otherwise the PDF renders twice (once as the primary display, once
-        // in the Attachments section below with its own iframe).
-        const attachments = (msg.attachments || []).filter(a =>
-          !(litPdfAttachment && a.id === litPdfAttachment.id)
-        )
-        return attachments.length > 0 && (
+      {attachmentsToList.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
           <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>Attachments</div>
-          {attachments.map(a => (
+          {attachmentsToList.map(a => (
             <div key={a.id} style={{ marginBottom: '.75rem' }}>
               <div style={{ fontSize: '.85rem', color: '#374151', marginBottom: 4 }}>
                 {a.filename || `OBX-${a.obx_index}`} · {a.content_type} · {Math.round((a.size_bytes || 0) / 1024)} KB
