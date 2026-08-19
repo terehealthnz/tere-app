@@ -69,6 +69,10 @@ export default function Dashboard() {
               {waiting.length} waiting
             </span>
           )}
+          <button onClick={() => navigate('/clinician/profile')} className="btn btn-ghost btn-sm"
+            style={{ color:'rgba(255,255,255,0.5)', fontSize:'0.8rem' }}>
+            My profile
+          </button>
           <button onClick={() => navigate('/clinician/admin')} className="btn btn-ghost btn-sm"
             style={{ color:'rgba(255,255,255,0.5)', fontSize:'0.8rem' }}>
             Admin
