@@ -85,10 +85,18 @@ export default function MyProfile() {
   async function save() {
     setError(''); setSuccess(''); setSaving(true)
     try {
+      // Coerce empty strings to null so Postgres doesn't reject typed columns
+      // (pgy_level is integer, dates are timestamp, etc — "" fails cast with
+      // 'invalid input syntax for type integer'). null is the correct
+      // representation of a cleared field.
+      const cleaned = {}
+      for (const [k, v] of Object.entries(form)) {
+        cleaned[k] = (typeof v === 'string' && v.trim() === '') ? null : v
+      }
       const r = await apiFetch(`/api/providers?id=${me.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(cleaned),
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'Save failed')
