@@ -3,6 +3,7 @@ import HpiSearch from '../HpiSearch'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
 import { RHCNZ_REGIONS, autoSelectRegion } from '../../lib/rhcnzRegions'
+import { isNZ } from '../../lib/region'
 
 export function Modal({ open, onClose, title, children }) {
   if (!open) return null
@@ -695,11 +696,15 @@ export function XrayModal({ open, onClose, consult, onDone }) {
               <option>Routine</option>
             </select>
           </div>
-          {accNum && <div className="form-group">
+          {isNZ() && accNum && <div className="form-group">
             <label>ACC claim</label>
             <input value={accNum} readOnly style={{background:'var(--bg)',color:'var(--success)'}} />
           </div>}
         </div>
+        {/* RHCNZ = Rural Health Coalition NZ, our NZ radiology partner
+            (ARG / Bay / Pacific). Hidden on AU beta — AU has its own
+            private radiology directory that isn't wired yet. */}
+        {isNZ() && (
         <div className="form-group">
           <label>Send to RHCNZ (recommended)</label>
           <select value={rhcnzRegionId} onChange={e => { setRhcnzRegionId(e.target.value); setRegionTouchedByUser(true); setRhcnzAutoReason(null) }}>
@@ -719,6 +724,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
             </div>
           )}
         </div>
+        )}
 
         {!isRhcnz && (
           <>
@@ -796,7 +802,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
             </div>
           </div>
         )}
-        {canRefer && (
+        {isNZ() && canRefer && (
           <div className="alert alert-success" style={{fontSize:'.8125rem'}}>
             ✓ CRR eligible as telehealth doctor. ACC-funded for injury presentations.
           </div>

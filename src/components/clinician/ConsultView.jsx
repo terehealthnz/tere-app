@@ -492,8 +492,8 @@ export default function ConsultView() {
                   isNZ() ? ['NHI', consult.patient_nhi] : null,
                   ['DOB', consult.patient_dob],
                   ['Location', consult.patient_location],
-                  ['ACC', consult.acc_eligible === 'yes' ? '✓ Eligible' : 'Not eligible'],
-                  ['Employer', consult.acc_employer],
+                  isNZ() ? ['ACC', consult.acc_eligible === 'yes' ? '✓ Eligible' : 'Not eligible'] : null,
+                  isNZ() ? ['Employer', consult.acc_employer] : null,
                   ['Allergies', consult.patient_allergies || 'None documented'],
                   ['Interpreter', consult.interpreter_requested ? '🌐 Requested' : null],
                 ].filter(row => row && row[1]).map(([k,v]) => (
@@ -504,8 +504,9 @@ export default function ConsultView() {
                 ))}
               </div>
 
-              {/* Convert to ACC — only when not already ACC */}
-              {consult.acc_eligible !== 'yes' && !consult.acc_converted_by_provider && (
+              {/* Convert to ACC — NZ only, only when not already ACC.
+                  ACC is NZ workers' comp; AU uses Medicare/private billing. */}
+              {isNZ() && consult.acc_eligible !== 'yes' && !consult.acc_converted_by_provider && (
                 <button
                   onClick={() => setShowAccConvert(true)}
                   style={{ width:'100%', marginTop:'.75rem', padding:'8px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'.875rem' }}
@@ -513,7 +514,7 @@ export default function ConsultView() {
                   ⚡ Convert to ACC claim
                 </button>
               )}
-              {consult.acc_converted_by_provider && (
+              {isNZ() && consult.acc_converted_by_provider && (
                 <div style={{ marginTop:'.75rem', padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
                   ✓ Converted to ACC — pending admin lodgement
                 </div>
@@ -683,16 +684,18 @@ export default function ConsultView() {
 
         {/* Action buttons */}
         <div style={{borderTop:'1px solid var(--border)',padding:'.75rem',flexShrink:0,display:'flex',flexDirection:'column',gap:'.5rem'}}>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'.5rem'}}>
+          <div style={{display:'grid',gridTemplateColumns: isNZ() ? '1fr 1fr 1fr' : '1fr 1fr',gap:'.5rem'}}>
             <button onClick={() => setModals(m=>({...m,rx:true}))} style={{background:'#EDE9FE',color:'#5B21B6',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
               💊 Rx
             </button>
             <button onClick={() => setModals(m=>({...m,xr:true}))} style={{background:'#FEF3C7',color:'#92400E',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
               🩻 XR
             </button>
-            <button onClick={() => setModals(m=>({...m,acc:true}))} style={{background:'var(--success-bg)',color:'#065F46',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
-              ✓ ACC
-            </button>
+            {isNZ() && (
+              <button onClick={() => setModals(m=>({...m,acc:true}))} style={{background:'var(--success-bg)',color:'#065F46',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+                ✓ ACC
+              </button>
+            )}
           </div>
           <button onClick={endConsult} className="btn btn-primary btn-full" style={{borderRadius:'var(--radius-sm)'}}>
             Complete consultation

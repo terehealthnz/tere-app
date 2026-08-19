@@ -1,13 +1,18 @@
 import React, { useState } from 'react'
 import { apiFetch } from '../../lib/api'
+import { isNZ } from '../../lib/region'
 
-const STEPS = [
+// ACC is NZ-only (accident compensation). Filter it out for AU/US so the
+// checklist has 4 steps rather than 5, and the step index conditions
+// (step === 3 → summary on non-NZ, ACC on NZ) still line up correctly.
+const ALL_STEPS = [
   { id: 'rx',      label: 'Prescription',     icon: '💊' },
   { id: 'imaging', label: 'Imaging',           icon: '🩻' },
   { id: 'notes',   label: 'Clinical Notes',    icon: '📝' },
-  { id: 'acc',     label: 'ACC Submission',    icon: '✓'  },
+  { id: 'acc',     label: 'ACC Submission',    icon: '✓', nzOnly: true },
   { id: 'summary', label: 'Patient Summary',   icon: '📧' },
 ]
+const STEPS = ALL_STEPS.filter(s => !s.nzOnly || isNZ())
 
 export default function PostConsultChecklist({ consult, notes, actions, onComplete }) {
   const [step, setStep]           = useState(0)
@@ -71,12 +76,16 @@ export default function PostConsultChecklist({ consult, notes, actions, onComple
 
   const current = STEPS[step]
   const canNext = () => {
-    if (step === 0) return rxDone !== null
-    if (step === 1) return xrDone !== null
-    if (step === 2) return true
-    if (step === 3) return accDone !== null
-    if (step === 4) return true
-    return true
+    // Guard by step ID rather than numeric index — STEPS is filtered by
+    // region (ACC dropped outside NZ), so numeric indexes shift.
+    switch (current?.id) {
+      case 'rx':      return rxDone !== null
+      case 'imaging': return xrDone !== null
+      case 'notes':   return true
+      case 'acc':     return accDone !== null
+      case 'summary': return true
+      default:        return true
+    }
   }
 
   return (
