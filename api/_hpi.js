@@ -55,7 +55,14 @@ const TOKEN_URL = process.env.HPI_TOKEN_URL
 const BASE_URL  = process.env.HPI_BASE_URL
 const CLIENT_ID = process.env.HPI_CLIENT_ID
 const SECRET    = process.env.HPI_CLIENT_SECRET
-const SCOPES    = process.env.HPI_SCOPES || ''
+// HNZ OAuth spec requires scopes as a single space-separated string. The
+// Vercel dashboard's textarea preserves any newlines the user pastes in,
+// which the HPI token endpoint then rejects as "invalid_scope" because the
+// resulting body has "Location.r\n https://..." with a literal newline in
+// the middle of a URI. Normalise: collapse any \r\n\t + runs of spaces down
+// to a single space. Handles pasted-from-doc formatting without needing the
+// env var to be re-entered. See ticket IN-3502 diagnostic 2026-08-18.
+const SCOPES = (process.env.HPI_SCOPES || '').replace(/\s+/g, ' ').trim()
 
 // In-memory token cache. Vercel serverless containers reuse this between
 // warm invocations, so most calls hit the cache and skip the token grant.
