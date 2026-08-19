@@ -23,11 +23,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-function toE164NZ(phone) {
-  const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('640')) return `+64${digits.slice(3)}`  // +6402... → +642...
-  if (digits.startsWith('64')) return `+${digits}`
-  if (digits.startsWith('0')) return `+64${digits.slice(1)}`
+// Normalise a phone number to E.164. Respects an explicit '+' prefix so
+// US/AU/other-country numbers dial correctly — before this fix a US number
+// +15419548763 was force-prepended with +64 → +6415419548763 (nonsense),
+// Telnyx silently failed and the callee never rang. See 2026-08-19 fix in
+// _initiate-call.js which was the mirror site of this bug.
+function toE164(phone) {
+  const raw = String(phone || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('+')) return '+' + raw.slice(1).replace(/\D/g, '')
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('640')) return `+64${digits.slice(3)}`
+  if (digits.startsWith('64'))  return `+${digits}`
+  if (digits.startsWith('0'))   return `+64${digits.slice(1)}`
   return `+64${digits}`
 }
 
@@ -58,7 +66,7 @@ export default async function handler(req, res) {
   // Room name must match _create-room.js + _join-room.js + _initiate-call.js —
   // the provider is already in this room when they click "Call phone".
   const roomName = `tere-${consultationId.slice(0, 8)}`
-  const to = toE164NZ(consult.patient_phone)
+  const to = toE164(consult.patient_phone)
 
   try {
     // SipClient uses the LiveKit HTTP(S) API endpoint; convert wss:// if set.

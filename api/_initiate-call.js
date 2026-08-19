@@ -2,11 +2,22 @@ import { AccessToken, SipClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 
-function toE164NZ(phone) {
-  const digits = phone.replace(/\D/g, '')
+// Normalise a phone number to E.164. Respects an explicit '+' prefix (the
+// caller already supplied a country code — trust them, including AU +61 and
+// US +1). Otherwise assume NZ. This bug bit us 2026-08-19 when Justin's
+// US number +15419548763 was force-prepended with +64 → +6415419548763
+// (nonsense number). Telnyx silently failed, no ring.
+function toE164(phone) {
+  const raw = String(phone || '').trim()
+  if (!raw) return ''
+  // Explicit country code already there — strip formatting, keep the '+'.
+  if (raw.startsWith('+')) return '+' + raw.slice(1).replace(/\D/g, '')
+  const digits = raw.replace(/\D/g, '')
+  // NZ mobile/landline conventions
   if (digits.startsWith('640')) return `+64${digits.slice(3)}`
   if (digits.startsWith('64'))  return `+${digits}`
   if (digits.startsWith('0'))   return `+64${digits.slice(1)}`
+  // Ambiguous bare digits with no '+' and no leading 0 — default NZ.
   return `+64${digits}`
 }
 
@@ -182,7 +193,7 @@ export default async function handler(req, res) {
         const sip = new SipClient(httpUrl, lkApiKey, lkApiSecret)
         const participant = await sip.createSipParticipant(
           sipTrunkId,
-          toE164NZ(consult.patient_phone),
+          toE164(consult.patient_phone),
           `tere-${consultationId.slice(0, 8)}`,
           {
             fromNumber,
