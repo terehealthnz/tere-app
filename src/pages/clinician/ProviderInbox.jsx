@@ -8,6 +8,23 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { parseHl7Display } from '../../lib/hl7Display'
+
+// Render a string that may contain HL7 emphasis sentinels from decodeHl7Escapes
+// (__HL7BOLD_START__ / __HL7BOLD_END__) into React nodes with real <strong>
+// tags. Keeps the render escape-safe — no dangerouslySetInnerHTML needed.
+function renderHl7Text(text) {
+  const parts = String(text || '').split(/(__HL7BOLD_START__|__HL7BOLD_END__)/g)
+  const out = []
+  let bold = false
+  parts.forEach((p, i) => {
+    if (p === '__HL7BOLD_START__') { bold = true; return }
+    if (p === '__HL7BOLD_END__')   { bold = false; return }
+    if (!p) return
+    out.push(bold ? <strong key={i}>{p}</strong> : <React.Fragment key={i}>{p}</React.Fragment>)
+  })
+  return out
+}
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -132,8 +149,25 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
   }
   if (!msg) return <div style={{ padding: '1rem', color: '#6B7280' }}>Loading…</div>
 
-  const s = msg.parsed_summary || {}
   const patient = [msg.patient_first_name, msg.patient_last_name].filter(Boolean).join(' ') || 'Unknown patient'
+  // Re-parse the raw message client-side to pick up display fields (dates,
+  // OBR-4.2 label, OBR-25 corrected, LIT FT/PDF pairing) that live outside
+  // parsed_summary. Belt-and-braces against older messages parsed before
+  // 2026-08-19 when these fields were added — see [[project-tere-medical-objects]].
+  const display = parseHl7Display(msg.raw_message || '')
+  // For LIT (referral-copy / rendered report) messages the FT/TX text and the
+  // ED (PDF) observation are the same content in two formats per HL7 standard.
+  // Per Medical-Objects (Tony Cruice, 2026-08-19), the PDF should be preferred
+  // as the primary display because its formatting is richer; the FT text is a
+  // fallback for systems that can't render PDF.
+  const litPdfAttachment = display.isLit
+    ? (msg.attachments || []).find(a => a.content_type === 'application/pdf')
+    : null
+  // OBX rows to render in the results table: hide the FT/TX + ED pair for LIT
+  // messages (they're rendered separately below as the report body).
+  const obxTableRows = display.isLit
+    ? display.obxRows.filter(o => o.valueType !== 'FT' && o.valueType !== 'TX' && o.valueType !== 'ED')
+    : display.obxRows
 
   return (
     <div style={{ padding: embedded ? '.5rem 0 1rem' : '1.25rem 1.5rem 3rem', background: embedded ? 'transparent' : '#F7F5F0', minHeight: embedded ? 'auto' : '100dvh', fontFamily: FF }}>
@@ -155,13 +189,55 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
           <div>Message type</div><div><code style={{ fontFamily: MONO }}>{msg.msh_9_message_type} · v{msg.msh_12_version}</code></div>
           <div>From</div><div>{msg.msh_4_sending_facility || '—'}</div>
           <div>OBR-3.1 filler</div><div style={{ fontFamily: MONO }}>{msg.obr_3_1_filler_order || '—'}</div>
-          <div>OBR-4 service</div><div>{msg.obr_4_service_id || '—'}</div>
+          <div>Service</div><div>
+            {display.obr4Label || msg.obr_4_service_id || '—'}
+            {display.corrected && <span style={{ marginLeft: 8, color: '#991B1B', fontWeight: 700 }}>— (Corrected)</span>}
+          </div>
+          {display.orderingName && (<><div>Referred by</div><div>{display.orderingName}{display.orderingId ? <span style={{ color: '#6B7280' }}> · {display.orderingId}</span> : null}</div></>)}
+          {display.dates.requested && (<><div>Requested date</div><div>{display.dates.requested}</div></>)}
+          {display.dates.observation && (<><div>Effective / exam</div><div>{display.dates.observation}</div></>)}
+          {display.dates.generated && (<><div>Generated date</div><div>{display.dates.generated}</div></>)}
           <div>Received</div><div>{new Date(msg.received_at).toLocaleString()}</div>
           <div>Ack sent</div><div><code style={{ fontFamily: MONO }}>MSA|{msg.ack_msa_1}</code>{msg.ack_msa_3_error ? ` · ${msg.ack_msa_3_error}` : ''}</div>
         </div>
       </div>
 
-      {s.obx && s.obx.length > 0 && (
+      {/* LIT (referral-copy) messages: prefer PDF over FT text as the primary
+          display — PDF has richer formatting than the plaintext fallback. Per
+          Medical-Objects (Tony Cruice, 2026-08-19). Only fall back to the
+          FT text if no PDF attachment exists on the message. */}
+      {display.isLit && litPdfAttachment && litPdfAttachment.signed_url && (
+        <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>
+            {display.obr4Label || 'Report'}
+            {display.corrected && <span style={{ marginLeft: 8, color: '#991B1B' }}>— (Corrected)</span>}
+          </div>
+          <iframe title={litPdfAttachment.filename || 'Report PDF'}
+            src={litPdfAttachment.signed_url}
+            style={{ width: '100%', height: 800, border: '1px solid #E5E7EB', borderRadius: 8 }} />
+          <div style={{ marginTop: 8, fontSize: '.8rem', color: '#6B7280' }}>
+            <a href={litPdfAttachment.signed_url} target="_blank" rel="noopener noreferrer"
+              style={{ color: TEAL, textDecoration: 'underline', fontWeight: 600 }}>
+              Open PDF in new tab ↗
+            </a>
+          </div>
+        </div>
+      )}
+
+      {display.isLit && !litPdfAttachment && display.litText && (
+        <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>
+            {display.obr4Label || 'Report'}
+            {display.corrected && <span style={{ marginLeft: 8, color: '#991B1B' }}>— (Corrected)</span>}
+            <span style={{ marginLeft: 8, fontSize: '.75rem', color: '#6B7280', fontWeight: 400 }}>· plaintext fallback (no PDF attached)</span>
+          </div>
+          <pre style={{ fontFamily: MONO, fontSize: '.85rem', color: '#111827', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+            {renderHl7Text(display.litText)}
+          </pre>
+        </div>
+      )}
+
+      {obxTableRows.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
           <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>Results / observations (OBX)</div>
           <table style={{ width: '100%', fontSize: '.85rem', borderCollapse: 'collapse' }}>
@@ -175,9 +251,9 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
               </tr>
             </thead>
             <tbody>
-              {s.obx.map((o, i) => (
+              {obxTableRows.map((o, i) => (
                 <tr key={i} style={{ borderTop: '1px solid #F3F4F6' }}>
-                  <td style={{ padding: '5px 8px 5px 0', fontFamily: MONO }}>{o.identifier}</td>
+                  <td style={{ padding: '5px 8px 5px 0' }}>{o.identLabel || o.identifier}</td>
                   <td style={{ padding: '5px 8px', fontFamily: MONO }}>{o.value}</td>
                   <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.units}</td>
                   <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.refRange}</td>
@@ -189,19 +265,30 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
         </div>
       )}
 
-      {s.notes && s.notes.length > 0 && (
+      {display.notesLines.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
           <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.5rem' }}>Notes (NTE)</div>
-          <div style={{ fontFamily: MONO, fontSize: '.82rem', whiteSpace: 'pre-wrap', color: '#374151' }}>
-            {s.notes.join('\n')}
+          <div style={{ fontFamily: MONO, fontSize: '.82rem', color: '#374151' }}>
+            {display.notesLines.map((line, i) => (
+              <div key={i} style={{ padding: '1px 0', whiteSpace: 'pre-wrap' }}>
+                {line}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {msg.attachments && msg.attachments.length > 0 && (
+      {(() => {
+        // Suppress the attachment we already embedded as the LIT report body —
+        // otherwise the PDF renders twice (once as the primary display, once
+        // in the Attachments section below with its own iframe).
+        const attachments = (msg.attachments || []).filter(a =>
+          !(litPdfAttachment && a.id === litPdfAttachment.id)
+        )
+        return attachments.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
           <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>Attachments</div>
-          {msg.attachments.map(a => (
+          {attachments.map(a => (
             <div key={a.id} style={{ marginBottom: '.75rem' }}>
               <div style={{ fontSize: '.85rem', color: '#374151', marginBottom: 4 }}>
                 {a.filename || `OBX-${a.obx_index}`} · {a.content_type} · {Math.round((a.size_bytes || 0) / 1024)} KB

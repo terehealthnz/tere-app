@@ -240,6 +240,27 @@ function extractSummary(parsed) {
     order: {
       obr3_1:  component(obr, 3, 1, parsed),
       obr4:    field(obr, 4),
+      // Component-level breakdown of OBR-4 (Universal Service Identifier).
+      // Component 2 is the human-readable service name — that's what the
+      // inbox UI should show, not the full "LIT^MO TEST 2.4 MSG - BAY X2".
+      // OBR-4.1 = 'LIT' signals the FT observation is a rendered copy of
+      // the same content in the PDF (HL7 v2 standard, see MO helpdesk case
+      // #1058382, Tony Cruice review 2026-08-19).
+      obr4_1:  component(obr, 4, 1, parsed),
+      obr4_2:  component(obr, 4, 2, parsed),
+      // Date mapping per Medical-Objects (Tony Cruice, 2026-08-19):
+      //   Requested date  — OBR-27.4 (Q/T Start Date/Time), fallback OBR-6
+      //   Effective/exam  — OBR-7
+      //   Generated date  — OBR-22 (results rpt/status change), fallback MSH-7
+      // OBR-27 is Quantity/Timing:
+      //   qty^interval^duration^start^end^priority^condition
+      // so subcomponent 4 (component index) is the requested start date/time.
+      requestedDate:   parseHl7Datetime(component(obr, 27, 4, parsed)) || parseHl7Datetime(field(obr, 6)),
+      observationDate: parseHl7Datetime(field(obr, 7)),
+      generatedDate:   parseHl7Datetime(field(obr, 22)) || parseHl7Datetime(field(msh, 7)),
+      // OBR-25 Result Status: 'C' = Corrected. Downstream UI highlights.
+      resultStatus: field(obr, 25),
+      corrected: (field(obr, 25) || '').trim().toUpperCase() === 'C',
     },
     obx: obxes.map(o => ({
       idx:      Number(field(o, 1)) || 0,
@@ -573,8 +594,11 @@ export default async function handler(req, res) {
       .eq('id', supersedesId)
   }
 
-  // Extract + store any PDF attachments (best-effort).
-  if (msaCode === 'CA' && insertRow.has_pdf) {
+  // Extract + store any PDF attachments (best-effort). Previously gated on
+  // msaCode === 'CA' — that code hasn't existed since we moved to scenario
+  // "a" application-level acks (AA/AR) on 2026-08-18, so PDFs silently
+  // stopped being extracted. Fixed here — extract on any AA (success) ack.
+  if (msaCode === 'AA' && insertRow.has_pdf) {
     try { await extractAndStorePdfs(supabase, msg.id, parsed) }
     catch (e) { console.error('[hl7-inbound] pdf extract failed:', e.message) }
   }
