@@ -271,7 +271,17 @@ function renderMessage(msg, opts = {}) {
 
     <details open style="background:white;border:1px solid #E2E8F0;border-radius:12px;padding:.75rem 1rem;">
       <summary style="font-weight:700;color:${NAVY};">Raw HL7 (for debugging)</summary>
-      <pre style="margin-top:.5rem;font-family:${MONO};font-size:.78rem;color:#374151;white-space:pre-wrap;word-break:break-all;">${esc(rawText)}</pre>
+      <div style="margin-top:.5rem;font-family:${MONO};font-size:.78rem;color:#374151;">
+        ${rawText.split('\n').map(line => {
+          // Cap per-line length — the ED PDF OBX carries ~100k chars of
+          // base64 which would blow the screenshot past chromium's max
+          // texture size. Show a truncated marker instead.
+          const display = line.length > 400
+            ? line.slice(0, 400) + ` … [truncated ${line.length - 400} more chars]`
+            : line
+          return `<div style="word-break:break-all;padding:1px 0;">${esc(display) || '&nbsp;'}</div>`
+        }).join('')}
+      </div>
     </details>
   </div>
 </body></html>`

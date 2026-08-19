@@ -311,9 +311,11 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
 
       <details style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '.75rem 1rem' }}>
         <summary style={{ cursor: 'pointer', fontWeight: 700, color: NAVY }}>Raw HL7 (for debugging)</summary>
-        <pre style={{ marginTop: '.5rem', fontFamily: MONO, fontSize: '.78rem', color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-          {msg.raw_message}
-        </pre>
+        <div style={{ marginTop: '.5rem', fontFamily: MONO, fontSize: '.78rem', color: '#374151' }}>
+          {String(msg.raw_message || '').replace(/\r/g, '\n').split('\n').map((line, i) => (
+            <div key={i} style={{ wordBreak: 'break-all', padding: '1px 0' }}>{line || ' '}</div>
+          ))}
+        </div>
       </details>
     </div>
   )
