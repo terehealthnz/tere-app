@@ -887,6 +887,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
   const [form, setForm] = React.useState({
     first_name: provider.first_name || '',
     last_name:  provider.last_name || '',
+    email:      provider.email || '',
     credential: provider.credential || 'Dr',
     specialty:  provider.specialty || '',
     color:      provider.color || '#0B6E76',
@@ -965,6 +966,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
             <div style={groupStyle}>
               <div><div style={labelStyle}>First name *</div><input value={form.first_name} onChange={e => set('first_name', e.target.value)} style={inputStyle} /></div>
               <div><div style={labelStyle}>Last name *</div><input value={form.last_name} onChange={e => set('last_name', e.target.value)} style={inputStyle} /></div>
+              <div style={{ gridColumn:'1 / -1' }}><div style={labelStyle}>Email</div><input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="provider@example.com" style={inputStyle} /></div>
               <div>
                 <div style={labelStyle}>Credential</div>
                 <select value={form.credential} onChange={e => set('credential', e.target.value)} style={inputStyle}>

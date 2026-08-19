@@ -141,6 +141,11 @@ function admin() {
 // (identity — change via a dedicated flow), pin_hash / password columns
 // (change via /api/change-password), created_at.
 const UPDATE_ALLOWLIST = new Set([
+  // email is admin-only editable — deliberately excluded from SELF_UPDATE_ALLOWLIST
+  // so a provider can't reassign their own account identity, but admin can fix
+  // typos or fill in missing email addresses on rows created before email was
+  // captured.
+  'email',
   'first_name', 'last_name', 'credential', 'specialty', 'color',
   'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
   'can_prescribe', 'can_refer', 'can_acc',
