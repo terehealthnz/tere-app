@@ -1318,6 +1318,11 @@ export default function ProviderApp() {
       <div style={{ background:NAVY, paddingTop:'calc(.875rem + env(safe-area-inset-top))', paddingBottom:'.875rem', paddingLeft:'1.25rem', paddingRight:'1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <span style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.4rem', letterSpacing:'.06em' }}>Tere</span>
         <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+          <button onClick={() => navigate('/clinician/profile')}
+            title="Edit my profile"
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.18)', color:'rgba(255,255,255,.85)', fontSize:'.75rem', cursor:'pointer', fontFamily:FF, minHeight:34, flexShrink:0 }}>
+            👤 Profile
+          </button>
           {isAdmin && (
             <button onClick={() => navigate('/admin')}
               style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.18)', color:'rgba(255,255,255,.85)', fontSize:'.75rem', cursor:'pointer', fontFamily:FF, minHeight:34, flexShrink:0 }}>
