@@ -131,18 +131,37 @@ export default function MyProfile() {
             <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .35rem' }}>{sec.title}</h3>
             {sec.subtitle && <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.75rem' }}>{sec.subtitle}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '.75rem' }}>
-              {sec.fields.map(f => (
-                <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '.8125rem', color: '#4B5563' }}>
-                  {f.label}{f.required && <span style={{ color: '#DC2626' }}> *</span>}
-                  <input
-                    type="text"
-                    value={form[f.key] ?? ''}
-                    placeholder={f.placeholder || ''}
-                    onChange={e => setForm({ ...form, [f.key]: e.target.value })}
-                    style={{ padding: '.55rem .7rem', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: FF, fontSize: '.9rem', outline: 'none' }}
-                  />
-                </label>
-              ))}
+              {sec.fields.map(f => {
+                // Prescriber-number quick-fill: for MCNZ-registered doctors the
+                // prescriber number IS the MCNZ number. NPs / dentists / pharmacist
+                // prescribers have distinct codes — that's why the fields stay
+                // separate — but for the 90% case, a one-tap 'same as MCNZ' is
+                // faster than typing the same 5 digits twice.
+                const canCopyFromMcnz = f.key === 'prescriber_number'
+                  && form.mcnz_registration_number
+                  && form.prescriber_number !== form.mcnz_registration_number
+                return (
+                  <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '.8125rem', color: '#4B5563' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{f.label}{f.required && <span style={{ color: '#DC2626' }}> *</span>}</span>
+                      {canCopyFromMcnz && (
+                        <button type="button"
+                          onClick={() => setForm({ ...form, prescriber_number: form.mcnz_registration_number })}
+                          style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.75rem', cursor: 'pointer', padding: 0, fontFamily: FF, fontWeight: 600 }}>
+                          Same as MCNZ ↑
+                        </button>
+                      )}
+                    </span>
+                    <input
+                      type="text"
+                      value={form[f.key] ?? ''}
+                      placeholder={f.placeholder || ''}
+                      onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                      style={{ padding: '.55rem .7rem', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: FF, fontSize: '.9rem', outline: 'none' }}
+                    />
+                  </label>
+                )
+              })}
             </div>
           </section>
         ))}
