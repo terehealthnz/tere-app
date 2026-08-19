@@ -24,8 +24,6 @@ export const REGIONS = Object.freeze({
 const NZ_HOSTS = new Set([
   'terehealth.co.nz',
   'www.terehealth.co.nz',
-  'tere.co.nz',
-  'www.tere.co.nz',
 ])
 
 const US_HOSTS = new Set([
@@ -34,7 +32,11 @@ const US_HOSTS = new Set([
 ])
 
 const AU_HOSTS = new Set([
-  // populate when the AU domain is registered
+  // tere.co.nz repurposed as AU-beta preview 2026-08-19 (Shively partnership
+  // build-out). NZ prod is exclusively terehealth.co.nz — do NOT add
+  // tere.co.nz back to NZ_HOSTS without also removing the AU beta banner.
+  'tere.co.nz',
+  'www.tere.co.nz',
 ])
 
 /**
@@ -82,6 +84,19 @@ function isDevHost(hostname) {
  */
 export function isUS() {
   return detectRegion() === REGIONS.US
+}
+
+// Positive-form predicates for the other two surfaces. Prefer these to
+// `!isUS()` when the intent is really "NZ-only" (e.g. NHI display, ACC
+// billing, MCNZ registration) — the negation was written when AU didn't
+// exist yet, and now `!isUS()` incorrectly matches AU too. Similarly,
+// prefer `isAU()` over the previous `!isUS() && !isNZ()` compound.
+export function isNZ() {
+  return detectRegion() === REGIONS.NZ
+}
+
+export function isAU() {
+  return detectRegion() === REGIONS.AU
 }
 
 export function detectRegion() {

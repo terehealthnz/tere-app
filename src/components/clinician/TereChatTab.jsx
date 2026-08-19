@@ -12,7 +12,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -396,7 +396,7 @@ export default function TereChatTab({ onRead }) {
             <div style={{ padding: '1rem', borderBottom: '1px solid #E2E8F0' }}>
               <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.5rem' }}>Attach patient</div>
               <input autoFocus value={patientSearch} onChange={e => searchPatients(e.target.value)}
-                placeholder={isUS() ? 'Search by name…' : 'Search by name or NHI…'}
+                placeholder={isNZ() ? 'Search by name or NHI…' : 'Search by name…'}
                 style={{ width: '100%', padding: '.5rem .75rem', border: '1.5px solid #E2E8F0', borderRadius: 8, fontFamily: FF, fontSize: '.875rem', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -413,7 +413,7 @@ export default function TereChatTab({ onRead }) {
                   onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}>
                   <div style={{ fontWeight: 700, color: NAVY, fontSize: '.875rem' }}>{p.first_name} {p.last_name}</div>
-                  <div style={{ fontSize: '.75rem', color: '#6B7280' }}>{p.date_of_birth || 'DOB unknown'}{!isUS() && p.nhi ? ` · NHI ${p.nhi}` : ''}</div>
+                  <div style={{ fontSize: '.75rem', color: '#6B7280' }}>{p.date_of_birth || 'DOB unknown'}{isNZ() && p.nhi ? ` · NHI ${p.nhi}` : ''}</div>
                 </button>
               ))}
             </div>

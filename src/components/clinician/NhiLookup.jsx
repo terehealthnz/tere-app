@@ -14,16 +14,17 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { findPatientByNhi } from '../../lib/supabase'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 
 const NHI_RE = /^[A-Z]{3}[A-Z0-9]{4}$/i
 
 export default function NhiLookup({ compact = false }) {
   const navigate = useNavigate()
-  // NHI is a NZ-only identifier. On terecare.com the widget renders nothing —
-  // US patients have no NHI to look up. The equivalent US identifier flow
-  // (SSN-last-4 / insurance member id) is not yet built.
-  if (isUS()) return null
+  // NHI is a NZ-only identifier. On terecare.com (US) and tere.co.nz
+  // (AU beta) the widget renders nothing — those patients have no NHI.
+  // The equivalent US identifier flow (SSN-last-4 / insurance member id)
+  // and AU flow (Medicare card + IRN) are not yet built.
+  if (!isNZ()) return null
   const [nhi, setNhi]         = useState('')
   const [state, setState]     = useState({ phase: 'idle' })
 

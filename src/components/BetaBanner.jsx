@@ -24,13 +24,37 @@ export default function BetaBanner() {
     setBypassed(sessionStorage.getItem('tere_beta_bypass') === '1')
   }, [location.search])
 
+  const region = detectRegion()
+  const onHiddenPath = HIDDEN_PATH_PREFIXES.some(p => location.pathname.startsWith(p))
+
+  // AU beta preview banner (tere.co.nz) — shown UNCONDITIONALLY on public
+  // patient pages regardless of waitlist_mode. AU has no real intake yet —
+  // this makes clear to Shively / early testers that they're looking at a
+  // preview build, not something real. Not shown on clinician/admin routes.
+  if (region === REGIONS.AU && !onHiddenPath) {
+    return (
+      <div style={{
+        background: 'linear-gradient(90deg,#FEE2E2 0%,#FECACA 100%)',
+        borderBottom: '1px solid rgba(153,27,27,.25)',
+        padding: '10px 16px',
+        textAlign: 'center',
+        fontFamily: 'Plus Jakarta Sans, sans-serif',
+        fontSize: '.8125rem',
+        color: '#7F1D1D',
+        lineHeight: 1.5,
+      }}>
+        <strong>AU BETA PREVIEW</strong> — Tere Health Australia is not yet accepting real patients. AHPRA registration + AU entity formation in progress.
+      </div>
+    )
+  }
+
   if (!waitlistMode) return null
   if (bypassed) return null
-  if (HIDDEN_PATH_PREFIXES.some(p => location.pathname.startsWith(p))) return null
+  if (onHiddenPath) return null
   // US (Tere Care) has its own beta positioning (state picker + inline beta
   // tag on the intake form). The NZ-branded "Join the Tere Health waitlist"
   // page this banner links to is wrong for US visitors — hide it.
-  if (detectRegion() === REGIONS.US) return null
+  if (region === REGIONS.US) return null
 
   return (
     <div style={{

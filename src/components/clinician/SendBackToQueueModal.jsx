@@ -15,7 +15,7 @@
 
 import React, { useState } from 'react'
 import { apiFetch } from '../../lib/api'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -76,14 +76,14 @@ export default function SendBackToQueueModal({ patient, onClose, onDone }) {
         <div style={{ fontWeight: 800, color: NAVY, fontSize: '1.1rem', marginBottom: 4 }}>Send back to provider queue</div>
         <div style={{ fontSize: '.8rem', color: '#6B7280', marginBottom: 16 }}>
           <strong>{patient.first_name} {patient.last_name}</strong>
-          {!isUS() && patient.nhi && <> · NHI {patient.nhi}</>}
+          {isNZ() && patient.nhi && <> · NHI {patient.nhi}</>}
         </div>
 
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }}>Reason</div>
           <select value={reasonPreset} onChange={(e) => setReasonPreset(e.target.value)}
             style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border,#E2E8F0)', fontFamily: 'inherit', fontSize: '.9rem', background: 'white' }}>
-            {REASON_PRESETS.filter(r => !(isUS() && r === 'NHI correction')).map(r => <option key={r} value={r}>{r}</option>)}
+            {REASON_PRESETS.filter(r => isNZ() || r !== 'NHI correction').map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           {isOther && (
             <input type="text" value={freeText} onChange={(e) => setFreeText(e.target.value)}

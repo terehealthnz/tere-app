@@ -7,7 +7,7 @@ import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import NhiLookup from './NhiLookup'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -1199,12 +1199,12 @@ function OverviewDashboard({ setAdminTab }) {
 
   return (
     <>
-      {/* NHI-first patient lookup — NZ admin only. Wrapped in !isUS() so
+      {/* NHI-first patient lookup — NZ admin only. Wrapped in isNZ() so
           the whole widget block (including the "Find patient:" label) is
-          gone on terecare.com. Every query writes a nhi_query row to
-          audit_logs. See docs/quality-management-system.md §7.4 for the
-          rationale (admin-only search + audit-on-lookup). */}
-      {!isUS() && (
+          gone on terecare.com AND on tere.co.nz (AU beta — Medicare is
+          the AU identifier, not NHI). Every query writes a nhi_query row
+          to audit_logs. See docs/quality-management-system.md §7.4. */}
+      {isNZ() && (
         <div style={{ background:'white', borderRadius:12, padding:'.85rem 1.1rem', border:'1px solid #E2E8F0', marginBottom:'1rem', display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap' }}>
           <div style={{ fontSize:'.85rem', color:'#0D2B45', fontWeight:600 }}>Find patient:</div>
           <NhiLookup />
@@ -1383,7 +1383,7 @@ function GpLettersPanel() {
             <div style={{ padding:'1.25rem 1.5rem', fontSize:'.875rem', color:'#374151' }}>
               <div style={{ marginBottom:'.875rem' }}>
                 <div style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:2 }}>Patient</div>
-                <div>{open.patient_first_name} {open.patient_last_name}{!isUS() && ` · NHI ${open.patient_nhi || '—'}`} · DOB {open.patient_dob || '—'}</div>
+                <div>{open.patient_first_name} {open.patient_last_name}{isNZ() && ` · NHI ${open.patient_nhi || '—'}`} · DOB {open.patient_dob || '—'}</div>
               </div>
               <div style={{ marginBottom:'.875rem' }}>
                 <div style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em', marginBottom:2 }}>Sending to</div>
@@ -1902,7 +1902,7 @@ function OutstandingReferrals() {
                     </div>
                     <div style={{ fontSize:'.8125rem', color:'#9CA3AF' }}>
                       {r.provider_name} · Sent {new Date(r.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' })} ({days}d ago)
-                      {!isUS() && r.patient_nhi && ` · NHI: ${r.patient_nhi}`}
+                      {isNZ() && r.patient_nhi && ` · NHI: ${r.patient_nhi}`}
                     </div>
                     {r.result_notes && (
                       <div style={{ marginTop:'.5rem', fontSize:'.8125rem', color:'#0B6E76', background:'#F0F9FA', padding:'4px 8px', borderRadius:4 }}>{r.result_notes}</div>

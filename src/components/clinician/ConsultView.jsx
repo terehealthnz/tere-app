@@ -13,7 +13,7 @@ import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
 import { apiFetch } from '../../lib/api'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 import { Modal, PrescribeModal, XrayModal, ACCModal } from './ClinicalActionModals'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -489,7 +489,7 @@ export default function ConsultView() {
                   Patient info
                 </div>
                 {[
-                  isUS() ? null : ['NHI', consult.patient_nhi],
+                  isNZ() ? ['NHI', consult.patient_nhi] : null,
                   ['DOB', consult.patient_dob],
                   ['Location', consult.patient_location],
                   ['ACC', consult.acc_eligible === 'yes' ? '✓ Eligible' : 'Not eligible'],

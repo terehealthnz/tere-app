@@ -5,11 +5,13 @@ import { t, t_bilingual, getLang, getLangMeta } from '../../lib/i18n'
 import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
 import { findFaceRegion } from '../../lib/rppg'
-import { isUS } from '../../lib/region'
+import { isNZ } from '../../lib/region'
 
-// On terecare.com (isUS()) we skip the NHI question — US patients have no
-// NHI. Any step whose next was 'nhi' becomes 'pharmacy' in that region.
-const NEXT_AFTER_ALLERGIES = () => isUS() ? 'pharmacy' : 'nhi'
+// NHI is a NZ-only identifier — skip the NHI question on non-NZ surfaces
+// (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
+// becomes 'pharmacy' outside NZ. AU beta will grow a Medicare-card
+// equivalent when the AU intake flow lands (Phase 2).
+const NEXT_AFTER_ALLERGIES = () => isNZ() ? 'nhi' : 'pharmacy'
 
 // ── Anonymous analytics helper ─────────────────────────────────────────────────
 function trackEvent(event_name, metadata = {}) {
