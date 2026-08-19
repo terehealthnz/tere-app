@@ -1,20 +1,35 @@
 import { createClient } from '@supabase/supabase-js'
 import { apiFetch } from './api'
 
-// Preview builds (Vercel branch deploys, non-main) route to the staging Supabase
-// project so pre-prod testing can't touch real PHI. VITE_ENV_STAGE is injected
-// at build time by the npm build script — see package.json. Falls back to prod
-// values if the _STAGING vars aren't set (safe default for local dev).
+// Region routing: tere.co.nz is the AU beta surface (separate Supabase
+// project in ap-southeast-2, spun up 2026-08-19 for the Shively/AU
+// build-out). Everywhere else (terehealth.co.nz NZ, terecare.com US)
+// hits the NZ Supabase project. Detection is hostname-based at module
+// load — matches AU_HOSTS in src/lib/region.js. SSR falls back to NZ.
+//
+// Preview builds (Vercel branch deploys) still route to the NZ staging
+// project via VITE_ENV_STAGE='preview' — AU preview branches would need
+// their own staging project. Not built yet; AU beta only has prod so far.
+const AU_HOSTS = new Set(['tere.co.nz', 'www.tere.co.nz'])
+const hostname = typeof window !== 'undefined'
+  ? String(window.location.hostname || '').toLowerCase()
+  : ''
+const isAU = AU_HOSTS.has(hostname)
+
 const isPreview = import.meta.env.VITE_ENV_STAGE === 'preview'
-const url = isPreview
-  ? (import.meta.env.VITE_SUPABASE_URL_STAGING || import.meta.env.VITE_SUPABASE_URL)
-  : import.meta.env.VITE_SUPABASE_URL
-const key = isPreview
-  ? (import.meta.env.VITE_SUPABASE_ANON_KEY_STAGING || import.meta.env.VITE_SUPABASE_ANON_KEY)
-  : import.meta.env.VITE_SUPABASE_ANON_KEY
+const url = isAU
+  ? import.meta.env.VITE_SUPABASE_URL_AU
+  : isPreview
+    ? (import.meta.env.VITE_SUPABASE_URL_STAGING || import.meta.env.VITE_SUPABASE_URL)
+    : import.meta.env.VITE_SUPABASE_URL
+const key = isAU
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY_AU
+  : isPreview
+    ? (import.meta.env.VITE_SUPABASE_ANON_KEY_STAGING || import.meta.env.VITE_SUPABASE_ANON_KEY)
+    : import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!url || !key) {
-  console.warn('Supabase env vars not set — using mock mode')
+  console.warn(`Supabase env vars not set for region ${isAU ? 'AU' : 'NZ'} — using mock mode`)
 }
 
 export const supabase = createClient(
