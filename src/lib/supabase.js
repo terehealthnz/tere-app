@@ -576,9 +576,14 @@ export function providerDisplayName(p) {
   if (!p) return 'Provider'
   const cred = (p.credential || '').trim()
   const full = `${p.first_name} ${p.last_name}`
-  if (cred === 'M.D.' || cred === 'D.O.') return `Dr ${full}`
   if (!cred) return full
-  return `${full} ${cred}`
+  // Doctoral credentials read as a prefix in NZ/AU/UK conventions ("Dr Rachel
+  // Thomas") — everything else is a post-nominal ("Sarah Jones, NP"). Match
+  // case-insensitively and tolerate trailing dots.
+  const credNorm = cred.replace(/\./g, '').toUpperCase()
+  const PREFIX_CREDS = new Set(['DR', 'MD', 'DO', 'MBCHB', 'MBBS', 'MB CHB', 'BM'])
+  if (PREFIX_CREDS.has(credNorm)) return `Dr ${full}`
+  return `${full}, ${cred}`
 }
 
 export async function getProviders() {
