@@ -257,15 +257,25 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
               </tr>
             </thead>
             <tbody>
-              {obxTableRows.map((o, i) => (
+              {obxTableRows.map((o, i) => {
+                const mainId = o.identLabel || o.identifier
+                // Show sub-analyte inline when present (e.g. panel results).
+                // Both differ → "DIFFERENTIAL — Neut Seg". Same or no
+                // subId → main only.
+                const showSub = o.subLabel && o.subLabel !== mainId
+                return (
                 <tr key={i} style={{ borderTop: '1px solid #F3F4F6' }}>
-                  <td style={{ padding: '5px 8px 5px 0' }}>{o.identLabel || o.identifier}</td>
+                  <td style={{ padding: '5px 8px 5px 0' }}>
+                    {mainId}
+                    {showSub && <span style={{ color: '#94A3B8' }}> — {o.subLabel}</span>}
+                  </td>
                   <td style={{ padding: '5px 8px', fontFamily: MONO }}>{o.value}</td>
-                  <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.units}</td>
+                  <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.unitsLabel || o.units}</td>
                   <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.refRange}</td>
                   <td style={{ padding: '5px 8px', color: o.abnormal ? '#991B1B' : '#6B7280', fontWeight: o.abnormal ? 700 : 400 }}>{o.abnormal}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -128,13 +128,25 @@ export function parseHl7Display(raw) {
     const f = line.split('|')
     const identRaw = f[3] || ''
     const identParts = identRaw.split('^')
+    // OBX-4 = Observation Sub-ID. For panel results (CBC differential,
+    // urine dipstick multi-analyte, tumour marker groups) the main OBX-3
+    // is the panel code (e.g. 4030^DIFFERENTIAL^L) and OBX-4 carries the
+    // specific analyte (NEUS^Neut Seg, LYMP^Lymphocytes, etc.). Without
+    // this, every row in a differential collapses to the same label.
+    const subRaw = f[4] || ''
+    const subParts = subRaw.split('^')
+    const unitsRaw = f[6] || ''
+    const unitsParts = unitsRaw.split('^')
     return {
       idx:        Number(f[1]) || 0,
       valueType:  (f[2] || '').toUpperCase(),
       identifier: identRaw,
       identLabel: identParts[1] || identParts[0] || '',
+      subId:      subRaw,
+      subLabel:   subParts[1] || subParts[0] || '',
       value:      f[5] || '',
-      units:      f[6] || '',
+      units:      unitsRaw,
+      unitsLabel: unitsParts[1] || unitsParts[0] || '',
       refRange:   f[7] || '',
       abnormal:   f[8] || '',
     }

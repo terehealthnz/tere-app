@@ -313,6 +313,10 @@ function extractSummary(parsed, group) {
       idx:      Number(field(o, 1)) || 0,
       valueType: field(o, 2),
       identifier: field(o, 3),
+      // OBX-4 Observation Sub-ID — analyte within a panel (CBC differential
+      // cell types, urine dipstick components). Without this every row in
+      // a panel collapses to the same identifier label. Added 2026-08-20.
+      subId:    field(o, 4),
       value:    field(o, 5),
       units:    field(o, 6),
       refRange: field(o, 7),
