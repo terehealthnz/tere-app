@@ -138,6 +138,47 @@ function segments(parsed, name) {
   return parsed.segments.filter(s => s.name === name)
 }
 
+// Walk parsed.segments in order and split into per-report groups.
+// A "report" = one OBR + its trailing OBX/NTE segments, with the
+// most-recent PID attached. This handles the NZ HealthLink batching
+// pattern where multiple patient reports live under a single MSH.
+//   PID → OBR → OBX* → NTE* → PID → OBR → OBX*  → ...
+// If a message has no OBR at all, returns a single group with just
+// the PID (may still be usable — the outer handler decides).
+function groupBatchedReports(parsed) {
+  const groups = []
+  let currentPid = null
+  let currentGroup = null
+  for (const seg of parsed.segments) {
+    switch (seg.name) {
+      case 'MSH': case 'MSA': case 'FHS': case 'BHS': case 'BTS': case 'FTS':
+        break // envelope, skip
+      case 'PID':
+        currentPid = seg
+        currentGroup = null   // next OBR starts a fresh group under this PID
+        break
+      case 'OBR':
+        currentGroup = { pid: currentPid, obr: seg, obxes: [], notes: [] }
+        groups.push(currentGroup)
+        break
+      case 'OBX':
+        if (currentGroup) currentGroup.obxes.push(seg)
+        break
+      case 'NTE':
+        if (currentGroup) currentGroup.notes.push(seg)
+        break
+      // Unknown/uninteresting segments are ignored for grouping purposes;
+      // the full raw_message is still stored per row for audit.
+    }
+  }
+  // Edge case: PID present but no OBR (e.g. ADT-like or malformed). Return
+  // a single stub group so the outer handler can still emit an ACK + row.
+  if (!groups.length && currentPid) {
+    groups.push({ pid: currentPid, obr: null, obxes: [], notes: [] })
+  }
+  return groups
+}
+
 function field(seg, index) {
   if (!seg) return ''
   return (seg.fields[index] ?? '').toString()
@@ -212,12 +253,18 @@ function buildAck({ inbound, msaCode, errorText }) {
 
 // ─── Matching helpers ───────────────────────────────────────────────────────
 
-function extractSummary(parsed) {
+// extractSummary now takes a per-report `group` produced by
+// groupBatchedReports. MSH fields still come from the message-level
+// header; PID/OBR/OBX/NTE come from the group so batched messages
+// yield one summary per report. Callers that don't pass a group get
+// the legacy behaviour (first PID + first OBR + all OBX/NTE) for
+// backwards compatibility during rollout.
+function extractSummary(parsed, group) {
   const msh = segment(parsed, 'MSH')
-  const pid = segment(parsed, 'PID')
-  const obr = segment(parsed, 'OBR')
-  const obxes = segments(parsed, 'OBX')
-  const ntes = segments(parsed, 'NTE')
+  const pid   = group ? group.pid   : segment(parsed, 'PID')
+  const obr   = group ? group.obr   : segment(parsed, 'OBR')
+  const obxes = group ? group.obxes : segments(parsed, 'OBX')
+  const ntes  = group ? group.notes : segments(parsed, 'NTE')
 
   const pidName = field(pid, 5)                          // last^first^middle
   const [lastName, firstName, middleName] = pidName.split(parsed.separators.componentSep)
@@ -324,10 +371,14 @@ async function ensureBucket(supabase) {
   catch { /* already exists */ }
 }
 
-async function extractAndStorePdfs(supabase, messageId, parsed) {
+// extractAndStorePdfs now accepts an explicit list of OBX segments so
+// batched messages associate each PDF with the correct row. Falls back
+// to all OBX in the parsed message if `obxList` is not supplied
+// (single-report messages / callers not updated yet).
+async function extractAndStorePdfs(supabase, messageId, parsed, obxList) {
   // OBX with ED (encapsulated data) type of ^PDF^Base64^<data> is the
   // common variant. See Medical-Objects "How to determine a PDF OBX".
-  const obxes = segments(parsed, 'OBX')
+  const obxes = obxList || segments(parsed, 'OBX')
   const results = []
   for (const obx of obxes) {
     const valueType = field(obx, 2)
@@ -472,136 +523,167 @@ export default async function handler(req, res) {
   }
 
   const supabase = admin()
-  const summary = extractSummary(parsed)
 
-  // Receiver match. Two acceptable shapes:
-  //   1. MSH-6 = our HPI-O (org-level receipt — Medical-Objects routes the
-  //      whole org, no provider identifier in the envelope). matched_provider_id
-  //      stays null; provider ownership is inferred later from OBR-16 /
-  //      PV1-7.1 (TODO once we see real production shapes).
-  //   2. MSH-5/6 = a specific provider's HPI-CPN / hpi_number.
-  const orgReceipt = msh6IsOurOrg(summary.receivingFacility)
-  const provider = orgReceipt
-    ? null
-    : await matchProvider(supabase, summary.receivingFacility, summary.receivingApp)
-  const patientMatch = await matchPatient(supabase, summary.patient)
-
-  const requiredMissing = []
-  if (!summary.controlId)         requiredMissing.push('MSH-10')
-  if (!summary.patient.lastName)  requiredMissing.push('PID-5.1')
-  if (!summary.messageType)       requiredMissing.push('MSH-9')
-
-  // MSA-1 codes: HL7 v2 scenario "a" (single-ack Original Mode — what MO uses)
-  // requires application-level codes (AA/AE/AR), not commit-level (CA/CE/CR).
-  // CA/CE/CR are only used in scenario "b" (Enhanced Mode two-phase acks).
-  // See MO helpdesk case #1058382 (2026-08-18) — our success ack was CA when
-  // it should have been AA. Reject-with-reason stays as AR.
-  let msaCode, errorText, status
-  if (requiredMissing.length) {
-    msaCode = 'AR'
-    errorText = `Missing required fields: ${requiredMissing.join(', ')}`
-    status = 'rejected'
-  } else if (!provider && !orgReceipt) {
-    msaCode = 'AR'
-    errorText = `Receiver not registered with Tere Health (${summary.receivingApp || '?'}/${summary.receivingFacility || '?'})`
-    status = 'rejected'
-  } else {
-    msaCode = 'AA'
-    errorText = null
-    status = patientMatch.match ? 'received' : 'needs_review'
+  // Fan-out for batched ORU messages (NZ HealthLink cost-saving pattern —
+  // multiple patient reports under one MSH). Each PID/OBR pair becomes its
+  // own row so the provider inbox surfaces every patient distinctly.
+  // Single-report messages are just a batch of size 1 — same code path.
+  const groups = groupBatchedReports(parsed)
+  if (!groups.length) {
+    // No PID/OBR at all — pathological. Reject at message level.
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    return res.status(200).send(buildAck({
+      inbound: parsed,
+      msaCode: 'AR',
+      errorText: 'Missing required fields: PID / OBR',
+    }))
   }
 
-  // Which upstream mTLS proxy sent this? Set by the Fly proxy via a header —
-  // 'nz-test' from tere-hl7-mtls-test (hl7-test.terehealth.co.nz), 'nz-prod'
-  // from tere-hl7-mtls (hl7.terehealth.co.nz). Naming pattern is
-  // <country>-<prod|test> so AU/US expansion drops in without a migration
-  // (au-prod, au-test, us-prod, us-test). Defaults to 'nz-prod' for
-  // back-compat if the header is missing. Downstream auto-filing to patient
-  // charts (when built) MUST filter to env in the *-prod set to avoid test
-  // messages polluting real patient records. Added 2026-08-17 in response
-  // to MO helpdesk (Tony Cruice, case #1058382) requiring proper test/prod
-  // separation. Computed here (before the supersede query below) so that
-  // supersedes stay scoped to the same env — a prod message with a
-  // colliding OBR-3.1 must not swallow a test message and vice versa.
+  // Message-level receiver/env resolution — same for every report in the batch.
+  const firstSummary = extractSummary(parsed, groups[0])
+  const orgReceipt = msh6IsOurOrg(firstSummary.receivingFacility)
+  const provider = orgReceipt
+    ? null
+    : await matchProvider(supabase, firstSummary.receivingFacility, firstSummary.receivingApp)
+
+  // Which upstream mTLS proxy sent this? Set by the CF Worker / Fly proxy via
+  // a header — 'nz-test' from the *-test proxy, 'nz-prod' from the prod proxy.
+  // Naming pattern is <country>-<prod|test> so AU/US expansion drops in without
+  // a migration. Defaults to 'nz-prod' for back-compat if header is missing.
+  // Downstream auto-filing to patient charts (when built) MUST filter to env
+  // in the *-prod set to avoid test messages polluting real patient records.
+  // Scoped BEFORE supersede queries so a prod message with a colliding OBR-3.1
+  // cannot swallow a test message and vice versa.
   const rawEnv = String(req.headers['x-tere-env'] || 'nz-prod').toLowerCase()
   const receivedEnv = /^[a-z]{2,3}-(prod|test)$/.test(rawEnv) ? rawEnv : 'nz-prod'
 
-  // Update handling — same OBR-3.1 supersedes prior message from same sender
-  // WITHIN THE SAME ENV. Cross-env supersede would silently mix test + prod
-  // provenance, defeating the separation Medical-Objects requires.
-  let supersedesId = null
-  if (msaCode === 'AA' && summary.order.obr3_1) {
-    const { data: prior } = await supabase
-      .from('inbound_hl7_messages')
-      .select('id')
-      .eq('obr_3_1_filler_order', summary.order.obr3_1)
-      .eq('msh_4_sending_facility', summary.sendingFacility || '')
-      .eq('env', receivedEnv)
-      .is('superseded_by_id', null)
-      .order('received_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (prior) supersedesId = prior.id
-  }
-
-  const insertRow = {
-    env:                      receivedEnv,
-    msh_10_control_id:        summary.controlId,
-    msh_9_message_type:       summary.messageType,
-    msh_9_event:              summary.messageType.split('^')[1] || null,
-    msh_12_version:           summary.version,
-    msh_4_sending_facility:   summary.sendingFacility,
-    msh_5_receiving_app:      summary.receivingApp,
-    msh_6_receiving_facility: summary.receivingFacility,
-    msh_7_datetime:           parseHl7Datetime(field(msh, 7)),
-    patient_pid_3:            summary.patient.pid3,
-    patient_first_name:       summary.patient.firstName,
-    patient_last_name:        summary.patient.lastName,
-    patient_middle_name:      summary.patient.middleName,
-    patient_dob:              summary.patient.dob,
-    patient_sex:              summary.patient.sex,
-    obr_3_1_filler_order:     summary.order.obr3_1 || null,
-    obr_4_service_id:         summary.order.obr4 || null,
-    matched_provider_id:      provider?.id || null,
-    matched_patient_id:       patientMatch.match?.id || null,
-    match_confidence:         patientMatch.confidence,
-    raw_message:              raw.slice(0, MAX_BODY_BYTES),
-    parsed_summary:           summary,
-    has_pdf:                  summary.obx.some(o => o.valueType === 'ED'),
-    supersedes_id:            supersedesId,
-    ack_msa_1:                msaCode,
-    ack_msa_3_error:          errorText,
-    ack_returned_at:          new Date().toISOString(),
-    status,
-  }
-
-  const { data: msg, error: insErr } = await supabase
-    .from('inbound_hl7_messages')
-    .insert(insertRow)
-    .select('id')
-    .maybeSingle()
-  if (insErr) {
-    console.error('[hl7-inbound] insert failed:', insErr.message)
+  // Message-level validation: MSH-10 + MSH-9 apply once. Missing means the
+  // whole message is rejected (nothing to persist per-report either).
+  const messageMissing = []
+  if (!firstSummary.controlId)   messageMissing.push('MSH-10')
+  if (!firstSummary.messageType) messageMissing.push('MSH-9')
+  if (!provider && !orgReceipt)  messageMissing.push('receiver-not-registered')
+  if (messageMissing.length) {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send(buildAck({ inbound: parsed, msaCode: 'CE', errorText: 'Internal storage error' }))
+    return res.status(200).send(buildAck({
+      inbound: parsed,
+      msaCode: 'AR',
+      errorText: messageMissing[0] === 'receiver-not-registered'
+        ? `Receiver not registered with Tere Health (${firstSummary.receivingApp || '?'}/${firstSummary.receivingFacility || '?'})`
+        : `Missing required fields: ${messageMissing.join(', ')}`,
+    }))
   }
 
-  // Mark the prior row as superseded so the UI only shows the latest.
-  if (supersedesId) {
-    await supabase
+  // Per-report insert loop. Each patient in the batch gets its own row keyed
+  // by (msh_10_control_id, batch_position, env, msh_4_sending_facility).
+  const rawMessage = raw.slice(0, MAX_BODY_BYTES)
+  const nowIso = new Date().toISOString()
+  const perReportResults = []
+
+  for (let batchPosition = 0; batchPosition < groups.length; batchPosition++) {
+    const group = groups[batchPosition]
+    const summary = extractSummary(parsed, group)
+    const patientMatch = await matchPatient(supabase, summary.patient)
+
+    // Per-report validation: PID-5.1 (patient last name). If missing on THIS
+    // report, mark it needs_review but keep going — other reports may be fine.
+    let status, ackErrorText
+    if (!summary.patient.lastName) {
+      status = 'needs_review'
+      ackErrorText = 'Missing PID-5.1 (patient last name)'
+    } else {
+      status = patientMatch.match ? 'received' : 'needs_review'
+      ackErrorText = null
+    }
+
+    // Update handling — same OBR-3.1 supersedes prior message from same sender
+    // WITHIN THE SAME ENV. Cross-env supersede would silently mix test + prod
+    // provenance, defeating the separation Medical-Objects requires.
+    let supersedesId = null
+    if (summary.order.obr3_1) {
+      const { data: prior } = await supabase
+        .from('inbound_hl7_messages')
+        .select('id')
+        .eq('obr_3_1_filler_order', summary.order.obr3_1)
+        .eq('msh_4_sending_facility', summary.sendingFacility || '')
+        .eq('env', receivedEnv)
+        .is('superseded_by_id', null)
+        .order('received_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (prior) supersedesId = prior.id
+    }
+
+    const insertRow = {
+      env:                      receivedEnv,
+      batch_position:           batchPosition,
+      msh_10_control_id:        summary.controlId,
+      msh_9_message_type:       summary.messageType,
+      msh_9_event:              summary.messageType.split('^')[1] || null,
+      msh_12_version:           summary.version,
+      msh_4_sending_facility:   summary.sendingFacility,
+      msh_5_receiving_app:      summary.receivingApp,
+      msh_6_receiving_facility: summary.receivingFacility,
+      msh_7_datetime:           parseHl7Datetime(field(msh, 7)),
+      patient_pid_3:            summary.patient.pid3,
+      patient_first_name:       summary.patient.firstName,
+      patient_last_name:        summary.patient.lastName,
+      patient_middle_name:      summary.patient.middleName,
+      patient_dob:              summary.patient.dob,
+      patient_sex:              summary.patient.sex,
+      obr_3_1_filler_order:     summary.order.obr3_1 || null,
+      obr_4_service_id:         summary.order.obr4 || null,
+      matched_provider_id:      provider?.id || null,
+      matched_patient_id:       patientMatch.match?.id || null,
+      match_confidence:         patientMatch.confidence,
+      raw_message:              rawMessage,
+      parsed_summary:           summary,
+      has_pdf:                  summary.obx.some(o => o.valueType === 'ED'),
+      supersedes_id:            supersedesId,
+      ack_msa_1:                'AA',
+      ack_msa_3_error:          ackErrorText,
+      ack_returned_at:          nowIso,
+      status,
+    }
+
+    // Upsert on the composite idempotency key — retries of the same message
+    // update the existing row rather than duplicating.
+    const { data: msg, error: insErr } = await supabase
       .from('inbound_hl7_messages')
-      .update({ superseded_by_id: msg.id })
-      .eq('id', supersedesId)
+      .upsert(insertRow, { onConflict: 'msh_10_control_id,batch_position,env,msh_4_sending_facility' })
+      .select('id')
+      .maybeSingle()
+    if (insErr) {
+      console.error('[hl7-inbound] insert failed:', insErr.message, 'batch_position=', batchPosition)
+      perReportResults.push({ batchPosition, ok: false, error: insErr.message })
+      continue
+    }
+
+    if (supersedesId) {
+      await supabase
+        .from('inbound_hl7_messages')
+        .update({ superseded_by_id: msg.id })
+        .eq('id', supersedesId)
+    }
+
+    if (insertRow.has_pdf) {
+      try { await extractAndStorePdfs(supabase, msg.id, parsed, group.obxes) }
+      catch (e) { console.error('[hl7-inbound] pdf extract failed:', e.message, 'batch_position=', batchPosition) }
+    }
+
+    perReportResults.push({ batchPosition, ok: true, msgId: msg.id })
   }
 
-  // Extract + store any PDF attachments (best-effort). Previously gated on
-  // msaCode === 'CA' — that code hasn't existed since we moved to scenario
-  // "a" application-level acks (AA/AR) on 2026-08-18, so PDFs silently
-  // stopped being extracted. Fixed here — extract on any AA (success) ack.
-  if (msaCode === 'AA' && insertRow.has_pdf) {
-    try { await extractAndStorePdfs(supabase, msg.id, parsed) }
-    catch (e) { console.error('[hl7-inbound] pdf extract failed:', e.message) }
-  }
+  // Message-level ACK: AA if at least one row landed. If EVERY report failed
+  // to insert (unusual — probably a DB outage), return AE so MO retries.
+  const allFailed = perReportResults.every(r => !r.ok)
+  const anyFailed = perReportResults.some(r => !r.ok)
+  const msaCode = allFailed ? 'AE' : 'AA'
+  const errorText = allFailed
+    ? 'Internal storage error on all reports'
+    : anyFailed
+      ? `Partial: ${perReportResults.filter(r => !r.ok).length}/${perReportResults.length} reports failed to persist`
+      : null
 
   res.setHeader('Content-Type', 'text/plain; charset=utf-8')
   return res.status(200).send(buildAck({ inbound: parsed, msaCode, errorText }))
