@@ -52,6 +52,69 @@ function esc(s) {
   if (s == null) return ''
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }
+
+// HL7 v2 CE (Coded Element) — <code>^<text>^<codesystem>. Prefer the
+// human-readable middle component; fall back to the code if text missing.
+function displayCE(ce) {
+  if (!ce) return ''
+  const parts = String(ce).split('^')
+  return parts[1] || parts[0] || ''
+}
+
+// Parse the batched raw_message and enrich each row's obx entries with
+// OBX-4 (Observation Sub-ID). Needed because the parsed_summary snapshot
+// stored at ingest time only captures OBX-3 (main identifier) — but for
+// a CBC differential the specific analyte (Neut Seg / Lymphocytes /
+// Monocytes) lives in OBX-4, not OBX-3. Ingest parser should be updated
+// to persist subId, but for this screenshot script we re-parse from
+// raw_message which is the authoritative wire format.
+function enrichObxWithSubId(row) {
+  if (!row.raw_message || !row.parsed_summary?.obx) return
+  const lines = String(row.raw_message).replace(/\r\n?/g, '\n').split('\n').filter(Boolean)
+  // Walk to find OBR matching this row's filler order, then collect its OBX
+  const filler = row.obr_3_1_filler_order || ''
+  const obxes = []
+  let inMyReport = false
+  for (const line of lines) {
+    if (line.startsWith('OBR|')) {
+      const parts = line.split('|')
+      const obrFiller = (parts[3] || '').split('^')[0]
+      inMyReport = obrFiller === filler
+      continue
+    }
+    if (line.startsWith('PID|')) { inMyReport = false; continue }
+    if (inMyReport && line.startsWith('OBX|')) {
+      obxes.push(line.split('|'))
+    }
+  }
+  // Enrich parsed_summary.obx in-order (assumes idx alignment which is
+  // safe because obx are sequential within a report)
+  row.parsed_summary.obx.forEach((o, i) => {
+    const obxSeg = obxes[i]
+    if (obxSeg) {
+      const subIdRaw = obxSeg[4] || ''
+      o.subId = displayCE(subIdRaw)
+    }
+  })
+}
+
+// Render an HL7 v2 escaped text field into HTML.
+//   \.br\  → line break
+//   \H\    → start bold
+//   \N\    → end bold
+// Escape HTML metacharacters first, then replace the HL7 escapes.
+function displayHl7Text(s) {
+  if (s == null) return ''
+  return esc(String(s))
+    .replace(/\\\.br\\/gi, '<br>')
+    .replace(/\\H\\/g, '<strong>')
+    .replace(/\\N\\/g, '</strong>')
+    .replace(/\\F\\/g, '|')     // field separator escape
+    .replace(/\\S\\/g, '^')     // component separator escape
+    .replace(/\\R\\/g, '~')     // repetition separator escape
+    .replace(/\\T\\/g, '&amp;') // subcomponent separator escape
+    .replace(/\\E\\/g, '\\')    // literal escape character
+}
 function pill(text, bg, color) {
   return `<span style="display:inline-block;background:${bg};color:${color};padding:2px 8px;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;">${esc(text)}</span>`
 }
@@ -91,7 +154,7 @@ function renderInboxList(rows) {
 
   ${rows.map((r, i) => {
     const patient = [r.patient_first_name, r.patient_last_name].filter(Boolean).join(' ') || '(no name)'
-    const test = (r.obr_4_service_id || '').split('^')[1] || (r.obr_4_service_id || '').split('^')[0] || '—'
+    const test = displayCE(r.obr_4_service_id) || '—'
     return `<div class="row">
       <div class="rowidx">#${r.batch_position}</div>
       <div class="rowbody">
@@ -149,7 +212,7 @@ function renderPatientDetail(row) {
   </div>
 
   <div class="kv">
-    <div class="k">Test</div><div class="v">${esc(row.obr_4_service_id || '—')}</div>
+    <div class="k">Test</div><div class="v">${esc(displayCE(row.obr_4_service_id) || '—')}</div>
     <div class="k">Filler order</div><div class="v">${esc(row.obr_3_1_filler_order || '—')}</div>
     <div class="k">MSH-10</div><div class="v">${esc(row.msh_10_control_id)}</div>
     <div class="k">Sender</div><div class="v">${esc(row.msh_4_sending_facility)}</div>
@@ -161,20 +224,31 @@ function renderPatientDetail(row) {
     <table>
       <thead><tr><th>#</th><th>Type</th><th>Identifier</th><th>Value</th><th>Units</th><th>Ref range</th><th>Flag</th></tr></thead>
       <tbody>
-        ${obx.map(o => `<tr>
+        ${obx.map(o => {
+          const isFT = (o.valueType || '').toUpperCase() === 'FT'
+          const valueHtml = isFT ? displayHl7Text(o.value) : `<strong>${esc(o.value || '')}</strong>`
+          // Analyte name: OBX-4 sub-ID takes precedence (differential cell
+          // types, panel sub-analytes). Falls back to OBX-3 (main test
+          // identifier). Show both when both exist and differ, e.g.
+          // "DIFFERENTIAL — Neut Seg".
+          const mainId = displayCE(o.identifier)
+          const analyte = o.subId && o.subId !== mainId
+            ? `${esc(mainId)} <span style="color:#94A3B8;">— ${esc(o.subId)}</span>`
+            : esc(o.subId || mainId)
+          return `<tr>
           <td class="mono">${o.idx}</td>
           <td class="mono">${esc(o.valueType || '')}</td>
-          <td>${esc(o.identifier || '')}</td>
-          <td class="mono"><strong>${esc(o.value || '')}</strong></td>
-          <td>${esc(o.units || '')}</td>
+          <td>${analyte}</td>
+          <td class="${isFT ? '' : 'mono'}">${valueHtml}</td>
+          <td>${esc(displayCE(o.units))}</td>
           <td>${esc(o.refRange || '')}</td>
           <td>${esc(o.abnormal || '')}</td>
-        </tr>`).join('')}
+        </tr>`}).join('')}
       </tbody>
     </table>` : ''}
 
   ${notes.length ? `<h2>Notes</h2>
-    ${notes.map(n => `<div class="note">${esc(n)}</div>`).join('')}` : ''}
+    ${notes.map(n => `<div class="note">${displayHl7Text(n)}</div>`).join('')}` : ''}
 
   <div style="margin-top:24px;font-size:.72rem;color:#94A3B8;text-align:center;">
     Tere Health · HPI-O G11238-E · case #1058382 · batch position ${row.batch_position} of ${row.parsed_summary?.controlId ? '' : ''}
@@ -210,6 +284,7 @@ async function main() {
 
     // 2. Per-patient detail card
     for (const row of rows) {
+      enrichObxWithSubId(row)
       const n = String(row.batch_position + 1).padStart(2, '0')
       const outPath = path.join(os.homedir(), 'Downloads', `tony-hl7-batch-${n}.png`)
       console.log(`Rendering patient #${row.batch_position} → ${path.basename(outPath)}…`)
