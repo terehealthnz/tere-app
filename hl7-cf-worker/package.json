@@ -1,0 +1,16 @@
+{
+  "name": "tere-hl7-cf-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for mTLS-terminated HL7 receive from Medical-Objects Capricorn. Forwards to Vercel /api/hl7-inbound.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail --format pretty",
+    "secret:bridge": "wrangler secret put HL7_BRIDGE_SECRET"
+  },
+  "devDependencies": {
+    "wrangler": "^3.100.0"
+  }
+}

@@ -7,6 +7,11 @@ import http from 'node:http'
 import https from 'node:https'
 import { URL } from 'node:url'
 
+// NOTE (2026-08-19): this Fly.io proxy is being retired. See hl7-cf-worker/
+// for the Cloudflare Worker replacement. Reason: Fly edge silently dropped
+// 9/13 messages in Tony's test burst — see docs/incidents/ if written up.
+// Keep this file until CF Worker cutover is verified end-to-end.
+
 const PORT = Number(process.env.PORT || 8443)
 const HL7_BRIDGE_SECRET = process.env.HL7_BRIDGE_SECRET
 const UPSTREAM_URL      = process.env.UPSTREAM_URL || 'https://terehealth.co.nz/api/hl7-inbound'

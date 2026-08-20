@@ -1,0 +1,50 @@
+# wrangler.toml — Cloudflare Worker config for the Tere Health HL7 receive proxy.
+#
+# Replaces the Fly.io tere-hl7-mtls proxy with a Cloudflare Worker.
+# CF handles TLS termination + client cert validation at the edge; the Worker
+# receives an already-validated request and forwards to Vercel.
+#
+# Why we moved from Fly:
+#   Fly's edge proxy silently dropped ~9 of 13 messages in Tony's 2026-08-19
+#   test burst — TCP resets between MO's Capricorn and our machine before the
+#   Node HTTP handler could read the body. Also our proxy code had no error
+#   handler on req.on('error') so failures were completely silent. CF's
+#   Workers runtime handles all of this at the edge with proper observability
+#   via Workers Analytics + Logpush.
+
+name = "tere-hl7-mtls"
+main = "src/worker.js"
+compatibility_date = "2026-08-19"
+
+# Free-tier Worker limits (all well within our needs):
+#   100k requests/day, 10ms CPU/req, 128MB memory, 1MB request/response.
+# HL7 messages average <200KB; PDF attachments (Radiology, discharge letters)
+# can reach ~1MB. If we ever see >1MB messages we'll need Workers Paid ($5/mo).
+
+# Route: hl7.terehealth.co.nz/* → this Worker. DNS is already on Cloudflare
+# (terehealth.co.nz nameservers point at leo.ns.cloudflare.com,
+# bella.ns.cloudflare.com) so no nameserver change needed — just a Worker
+# route rule.
+routes = [
+  { pattern = "hl7.terehealth.co.nz/*", zone_name = "terehealth.co.nz" }
+]
+
+# Environment variables — non-secret defaults committed to git.
+# Sensitive values (HL7_BRIDGE_SECRET) set via `wrangler secret put HL7_BRIDGE_SECRET`.
+[vars]
+UPSTREAM_URL = "https://terehealth.co.nz/api/hl7-inbound"
+TERE_ENV     = "nz-prod"
+# Comma-separated allowlist of client cert CNs (case-insensitive). Empty = accept
+# any cert the CF-validated CA chain trusts (never leave empty in prod).
+# Update via: wrangler secret put ALLOWED_CNS  (or edit here + redeploy).
+# 2026-08-19 test network CN:
+#   hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au
+ALLOWED_CNS = "hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au"
+
+# Logpush destination (optional, for long-term audit trail) can be added later:
+# https://developers.cloudflare.com/workers/observability/logpush/
+
+# Observability: Workers-level analytics + Real-Time Logs are on by default.
+# Streamed logs via: wrangler tail --format pretty
+[observability]
+enabled = true
