@@ -39,7 +39,7 @@ const NAVY = '#0D2B45'
 const CONFIDENCE_BADGE = {
   high:   { color: '#059669', bg: 'rgba(5,150,105,.2)',  label: '🟢', hint: 'High confidence' },
   medium: { color: '#D97706', bg: 'rgba(217,119,6,.2)',  label: '🟡', hint: 'Medium confidence — verify verbally' },
-  low:    { color: '#DC2626', bg: 'rgba(220,38,38,.2)',  label: '🔴', hint: 'Low confidence — request interpreter' },
+  low:    { color: '#DC2626', bg: 'rgba(220,38,38,.2)',  label: '🔴', hint: 'Low confidence — confirm verbally in English' },
 }
 
 export default function LiveSubtitles({
