@@ -175,7 +175,7 @@ export default function TereCorporate() {
               fontSize: '1.075rem', color: '#4B5563', lineHeight: 1.55,
               margin: '0 0 1.75rem', maxWidth: 540,
             }}>
-              Live translation across 20+ languages including Te Reo Māori. Vitals estimated from the patient's phone — no wearable needed. Video, prescribing, and messaging on top. Built in NZ, available for your practice to integrate.
+              Live subtitle translation across eight languages, plus written translation for Te Reo Māori, Samoan, Arabic and Hindi. Vitals estimated from the patient's phone — no wearable needed. Built in NZ, available for your practice to integrate.
             </p>
             <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
               <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
@@ -255,10 +255,10 @@ export default function TereCorporate() {
           <Bento span={2} dark>
             <BentoTitle icon="video" dark>Live translation</BentoTitle>
             <BentoBody dark>
-              Real-time subtitle translation during video consults across 20+ languages including Te Reo Māori, Samoan, Tongan, and Simplified Chinese.
+              Real-time subtitle translation during video consults across eight languages. Written translation for Te Reo Māori, Samoan, Arabic and Hindi where subtitles aren't available.
             </BentoBody>
             <div style={{ marginTop: '1.25rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['te reo māori', 'sāmoan', '中文', 'tongan', 'हिन्दी', 'العربية'].map(v => (
+              {['te reo māori', '中文', 'gagana sāmoa', 'हिन्दी', 'العربية', 'français'].map(v => (
                 <span key={v} style={{ background: 'rgba(212,238,240,.15)', color: TEAL_L, border: `1px solid rgba(212,238,240,.3)`, borderRadius: 8, padding: '4px 10px', fontSize: '.68rem', fontWeight: 700 }}>{v}</span>
               ))}
             </div>
@@ -336,7 +336,7 @@ export default function TereCorporate() {
             {/* Demo video */}
             <div>
               <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.08)' }}>
-                <video controls preload="metadata" playsInline poster="/corporate/hl7-abnormal.png"
+                <video controls preload="metadata" playsInline poster="/corporate/consult-translation.png"
                        style={{ width: '100%', height: 'auto', display: 'block' }}>
                   <source src="/videos/tere-demo.mp4" type="video/mp4" />
                 </video>
