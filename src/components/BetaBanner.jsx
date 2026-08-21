@@ -27,10 +27,13 @@ export default function BetaBanner() {
   const region = detectRegion()
   const onHiddenPath = HIDDEN_PATH_PREFIXES.some(p => location.pathname.startsWith(p))
 
-  // AU beta preview banner (tere.co.nz) — shown UNCONDITIONALLY on public
-  // patient pages regardless of waitlist_mode. AU has no real intake yet —
-  // this makes clear to Shively / early testers that they're looking at a
-  // preview build, not something real. Not shown on clinician/admin routes.
+  // Corporate host (tere.co.nz) is not a patient surface — no waitlist,
+  // no beta banner, no CTAs to book. Just a company page.
+  if (region === REGIONS.CORP) return null
+
+  // AU beta preview banner — only fires when we actually have an AU host
+  // routed (AU_HOSTS in region.js). Historically also served on tere.co.nz
+  // during the Shively pitch window; now retired 2026-08-21.
   if (region === REGIONS.AU && !onHiddenPath) {
     return (
       <div style={{

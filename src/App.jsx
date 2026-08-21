@@ -131,6 +131,7 @@ const USLanding           = lazy(() => import('./pages/us/USLanding'))
 const USStart             = lazy(() => import('./pages/us/USStart'))
 const HipaaNotice         = lazy(() => import('./pages/us/HipaaNotice'))
 const AULanding           = lazy(() => import('./pages/au/AULanding'))
+const TereCorporate       = lazy(() => import('./pages/corporate/TereCorporate'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -147,6 +148,15 @@ function PwaRoot() {
     return <Navigate to="/start" replace />
   }
   const region = detectRegion()
+  // ?preview=au on the corporate host loads the (unlisted) AULanding for
+  // internal reference — otherwise the AU preview is not routed since
+  // the AU beta was retired 2026-08-21. See region.js for full context.
+  if (region === REGIONS.CORP) {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === 'au') {
+      return <AULanding />
+    }
+    return <TereCorporate />
+  }
   if (region === REGIONS.US) return <USLanding />
   if (region === REGIONS.AU) return <AULanding />
   return <Landing />
@@ -160,6 +170,12 @@ function PwaRoot() {
 function StartRouter() {
   const region = detectRegion()
   if (region === REGIONS.US) return <USStart />
+  if (region === REGIONS.CORP) {
+    // Corporate host has no intake — send /start visitors to the NZ
+    // patient service (most likely intent for someone typing tere.co.nz).
+    if (typeof window !== 'undefined') window.location.href = 'https://terehealth.co.nz/start'
+    return null
+  }
   if (region === REGIONS.AU) {
     const bypass = (() => { try { return sessionStorage.getItem('tere_beta_bypass') === '1' } catch { return false } })()
     if (!bypass) return <Navigate to="/#waitlist" replace />
@@ -178,6 +194,11 @@ function WaitlistRouter() {
   const region = detectRegion()
   if (region === REGIONS.US) return <Navigate to="/" replace />
   if (region === REGIONS.AU) return <Navigate to="/#waitlist" replace />
+  if (region === REGIONS.CORP) {
+    // Corporate host has no waitlist — send visitors to the NZ waitlist.
+    if (typeof window !== 'undefined') window.location.href = 'https://terehealth.co.nz/waitlist'
+    return null
+  }
   return <Waitlist />
 }
 

@@ -16,9 +16,15 @@
 // the hostname.
 
 export const REGIONS = Object.freeze({
-  NZ: 'nz',
-  AU: 'au',
-  US: 'us',
+  NZ:   'nz',
+  AU:   'au',
+  US:   'us',
+  // CORP = Tere Health Ltd corporate / tech-IP holding page. Not a patient
+  // jurisdiction — serves the parent-company narrative (mission, licensed
+  // jurisdictions, compliance posture, contact). Distinct from AU/NZ/US
+  // patient surfaces so no health data flows or intake logic ever fires
+  // on this hostname.
+  CORP: 'corp',
 })
 
 const NZ_HOSTS = new Set([
@@ -31,10 +37,13 @@ const US_HOSTS = new Set([
   'www.terecare.com',
 ])
 
-const AU_HOSTS = new Set([
-  // tere.co.nz repurposed as AU-beta preview 2026-08-19 (Shively partnership
-  // build-out). NZ prod is exclusively terehealth.co.nz — do NOT add
-  // tere.co.nz back to NZ_HOSTS without also removing the AU beta banner.
+// AU launch domain TBD. Empty until we register an AU-facing hostname
+// (e.g. tere.com.au). tere.co.nz used to sit here as an AU-beta preview
+// but was repurposed 2026-08-21 as the corporate page after Shively
+// declined and AU-launch timing became open-ended.
+const AU_HOSTS = new Set([])
+
+const CORP_HOSTS = new Set([
   'tere.co.nz',
   'www.tere.co.nz',
 ])
@@ -47,9 +56,10 @@ const AU_HOSTS = new Set([
 export function regionForHost(hostname) {
   if (!hostname) return REGIONS.NZ
   const h = hostname.toLowerCase()
-  if (US_HOSTS.has(h)) return REGIONS.US
-  if (AU_HOSTS.has(h)) return REGIONS.AU
-  if (NZ_HOSTS.has(h)) return REGIONS.NZ
+  if (US_HOSTS.has(h))   return REGIONS.US
+  if (AU_HOSTS.has(h))   return REGIONS.AU
+  if (CORP_HOSTS.has(h)) return REGIONS.CORP
+  if (NZ_HOSTS.has(h))   return REGIONS.NZ
   return REGIONS.NZ
 }
 
@@ -97,6 +107,10 @@ export function isNZ() {
 
 export function isAU() {
   return detectRegion() === REGIONS.AU
+}
+
+export function isCorp() {
+  return detectRegion() === REGIONS.CORP
 }
 
 export function detectRegion() {
@@ -182,6 +196,26 @@ const CONFIG = {
     supportEmail:     'hello@terecare.com',        // Cloudflare Email Routing → terehealthnz@gmail.com
     homeHost:         'terecare.com',
     licensedStates:   ['WA', 'CA', 'MO', 'TX', 'UT', 'ID'],  // Patrick's state licences
+  },
+  [REGIONS.CORP]: {
+    brand:            'Tere Health Ltd',
+    tagline:          'Rural telemedicine platform — New Zealand, United States, and Australia.',
+    // No currency / emergency / poison / e-prescribing — corporate page
+    // never serves patient intake so these fields are left null.
+    currency:         null,
+    currencySymbol:   null,
+    emergency:        null,
+    emergencyLabel:   null,
+    poisonCentre:     null,
+    poisonLabel:      null,
+    ePrescribing:     null,
+    jurisdiction:     'Global (NZ parent, operating in NZ / US / AU)',
+    privacyLaw:       null,
+    breachNotifyDays: null,
+    complaintsBody:   null,
+    supportEmail:     'hello@terehealth.co.nz',
+    homeHost:         'tere.co.nz',
+    licensedStates:   null,
   },
 }
 
