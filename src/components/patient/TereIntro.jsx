@@ -33,16 +33,29 @@ export default function TereIntro({ onStart }) {
   async function onGeoAccept(geo) {
     setGeoOpen(false)
     setStarting(true)
-    // Back-button guard: if a patient navigates back to /start and
-    // re-accepts the geo dialog, don't create another pre_triage row.
-    // Reuse the existing consultation_id. Prevents orphan spam in the
-    // DB when a patient hits back a few times mid-intake.
+    // Back-button guard: only reuse an existing pre_triage row if the
+    // referenced consultation is STILL in an active pre-payment state.
+    // A stale row from a previous completed visit (e.g. patient came
+    // back the next day for a new complaint) must be ignored so a
+    // fresh row is created for the new episode.
     const existingId = sessionStorage.getItem('consultation_id')
                     || sessionStorage.getItem('consultationId')
     if (existingId) {
-      if (onStart) onStart()
-      else navigate('/consent')
-      return
+      try {
+        const { getConsultation } = await import('../../lib/supabase')
+        const c = await getConsultation(existingId)
+        const REUSABLE = new Set(['pre_triage','draft'])
+        if (c && REUSABLE.has(c.status)) {
+          if (onStart) onStart()
+          else navigate('/consent')
+          return
+        }
+        // Stale — clear both key variants so nothing downstream
+        // accidentally reads them, then fall through to create fresh.
+        sessionStorage.removeItem('consultation_id')
+        sessionStorage.removeItem('consultationId')
+        sessionStorage.removeItem('paymentIntentId')
+      } catch { /* lookup failed — fall through and create fresh */ }
     }
     try {
       // Pre-triage placeholder row so we can track drop-offs at the language

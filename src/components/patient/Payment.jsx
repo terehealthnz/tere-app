@@ -335,16 +335,29 @@ export default function Payment() {
   const consultationType = sessionStorage.getItem('consultationType') || 'consult'
   useEffect(() => {
     if (!consultationId) { navigate('/start'); return }
-    // Back-button guard: if the patient already paid (paymentIntentId
-    // set + consult moved to 'waiting'), rendering the payment form
-    // again risks a duplicate charge. Skip forward to the next step
-    // in the flow rather than let them re-submit.
-    const paidIntentId = sessionStorage.getItem('paymentIntentId')
-    if (!paidIntentId) return
-    const forwardTo = consultationType === 'message'
-      ? '/message-sent'
-      : `/vitals/${consultationId}`
-    navigate(forwardTo, { replace: true })
+    // Back-button guard: if the patient already paid for THIS
+    // consultation, rendering the payment form again risks a duplicate
+    // charge. Verify against the DB (not sessionStorage) so a stale
+    // paymentIntentId from a previous completed visit doesn't
+    // accidentally block a legitimate new payment.
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { getConsultation } = await import('../../lib/supabase')
+        const c = await getConsultation(consultationId)
+        if (cancelled) return
+        // 'pre_triage' and 'draft' → not yet paid, show form.
+        // 'waiting' or beyond → already paid, forward to next step.
+        const PAID_STATUSES = new Set(['waiting','vitals_requested','vitals_complete','ready','in_progress','waitlisted','complete','completed'])
+        if (c && PAID_STATUSES.has(c.status)) {
+          const forwardTo = consultationType === 'message'
+            ? '/message-sent'
+            : `/vitals/${consultationId}`
+          navigate(forwardTo, { replace: true })
+        }
+      } catch { /* If lookup fails, show the form and let Stripe idempotency + server-side handle it. */ }
+    })()
+    return () => { cancelled = true }
   }, [consultationId, consultationType, navigate])
 
   return (
