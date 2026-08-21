@@ -584,6 +584,10 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
+      // Onboarding gate: blank date input means no gate. Drop it so the
+      // CREATE payload doesn't send an empty string that Postgres can't
+      // coerce to timestamptz.
+      if (payload.patient_access_from === '') delete payload.patient_access_from
       const wasRmo = !!payload.is_rmo
       // Translate MCNZ supervision toggle into DB fields.
       if (payload.is_rmo) {
@@ -931,6 +935,8 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     ird_number: provider.ird_number || '',
     tax_code: provider.tax_code || 'M',
     signature_url: provider.signature_url || '',
+    // Onboarding gate — YYYY-MM-DD for the date input. Blank means no gate.
+    patient_access_from: provider.patient_access_from ? String(provider.patient_access_from).slice(0, 10) : '',
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
@@ -951,6 +957,10 @@ function EditProviderModal({ provider, onClose, onSaved }) {
         if (payload[k] === '' || payload[k] == null) delete payload[k]
         else payload[k] = Number(payload[k])
       }
+      // Onboarding gate: empty string means "no gate" — send null so
+      // Postgres clears the timestamptz column (empty string would
+      // fail type coercion).
+      if (payload.patient_access_from === '') payload.patient_access_from = null
       const res = await apiFetch(`/api/providers?id=${provider.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -1054,6 +1064,35 @@ function EditProviderModal({ provider, onClose, onSaved }) {
               )}
               <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.5rem' }}>Draw below to replace the current signature. Leaving it blank keeps the existing one.</div>
               <SignaturePad onSaved={url => url && set('signature_url', url)} />
+            </div>
+          )}
+
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Onboarding gate</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
+                Blank = full patient access immediately. Set a future date to keep this provider in the practice sandbox until then. They can still log in, edit their profile, and try flows — real patients only appear in their queue once this date passes.
+              </div>
+              <div style={{ display:'flex', gap:'.5rem', alignItems:'flex-end' }}>
+                <div style={{ flex:1 }}>
+                  <div style={labelStyle}>Full access unlocks on</div>
+                  <input
+                    type="date"
+                    value={form.patient_access_from}
+                    onChange={e => set('patient_access_from', e.target.value)}
+                    style={inputStyle}
+                  />
+                </div>
+                {form.patient_access_from && (
+                  <button
+                    type="button"
+                    onClick={() => set('patient_access_from', '')}
+                    style={{ background:'white', color:'#DC2626', border:'1px solid #FCA5A5', borderRadius:6, padding:'8px 12px', fontSize:'.8rem', fontWeight:600, cursor:'pointer', height:'fit-content' }}
+                  >
+                    Clear gate
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
