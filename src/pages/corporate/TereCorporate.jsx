@@ -289,8 +289,8 @@ export default function TereCorporate() {
             </BentoBody>
             {/* All 12 languages we support today. Filled chips = live AI
                 subtitles during video consult. Outlined chips = written
-                translation (no live subtitles yet; falls back to
-                interpreter offer during a call). Honest either way,
+                translation only (no live subtitles for these; AWS
+                Transcribe has no streaming model). Honest either way
                 without needing a separate table. */}
             <div style={{ marginTop: '1.25rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
@@ -317,7 +317,7 @@ export default function TereCorporate() {
               ))}
             </div>
             <div style={{ marginTop: '.7rem', fontSize: '.68rem', color: 'rgba(212,238,240,.55)', lineHeight: 1.5 }}>
-              Filled: live subtitles during video consult. Outlined: written translation, interpreter offered live.
+              Filled: live subtitles during video consult. Outlined: written translation only.
             </div>
           </Bento>
 
