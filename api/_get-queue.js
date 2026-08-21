@@ -1,10 +1,18 @@
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
   const auth = await guardProvider(req, res)
   if (!auth) return
+
+  // Practice mode / onboarding gate. Gated providers force practice=true;
+  // non-gated providers opt in via the x-practice-mode header. All
+  // consultation queries below filter by is_practice=<mode> so a gated
+  // provider only ever sees the sandbox queue, and a non-gated provider
+  // in practice mode is fully insulated from real patient rows.
+  const { practice, mode, unlockAt } = resolveDataMode(auth.provider, req)
 
   try {
     const { createClient } = await import('@supabase/supabase-js')
@@ -35,10 +43,12 @@ export default async function handler(req, res) {
     const [activeRes, paidWaitlistRes] = await Promise.all([
       supabase.from('consultations').select('*')
         .in('status', ACTIVE)
+        .eq('is_practice', practice)
         .or(`cooldown_until.is.null,cooldown_until.lt.${nowIso}`)
         .order('created_at', { ascending: true }),
       supabase.from('consultations').select('*')
         .eq('status', 'waitlisted')
+        .eq('is_practice', practice)
         .not('payment_intent_id', 'is', null)
         .order('created_at', { ascending: true }),
     ])
@@ -54,7 +64,11 @@ export default async function handler(req, res) {
       })
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
-    res.status(200).json({ consultations })
+    // Return the effective data mode so the UI can render banner + toggle
+    // state without a second round-trip. Gated providers can't turn it
+    // off; live providers see the toggle sync back to whatever the
+    // server actually applied.
+    res.status(200).json({ consultations, dataMode: { mode, practice, unlockAt } })
   } catch (e) {
     console.error('[get-queue]', e)
     res.status(500).json({ error: e.message })
