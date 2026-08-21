@@ -149,6 +149,16 @@ function groupBatchedReports(parsed) {
   const groups = []
   let currentPid = null
   let currentGroup = null
+  // AL1/DG1 sit at the PID-level (between PID and the first OBR) and
+  // describe the patient's state for the whole visit, not one lab. Collect
+  // them under the current PID and attach only to the FIRST group we emit
+  // for that PID — every group carries a reference so downstream can find
+  // them, but only one gets the populated array to avoid double-import
+  // (task #231).
+  let pidAl1s = []
+  let pidDg1s = []
+  let firstGroupForPid = null
+
   for (const seg of parsed.segments) {
     switch (seg.name) {
       case 'MSH': case 'MSA': case 'FHS': case 'BHS': case 'BTS': case 'FTS':
@@ -156,9 +166,34 @@ function groupBatchedReports(parsed) {
       case 'PID':
         currentPid = seg
         currentGroup = null   // next OBR starts a fresh group under this PID
+        // Reset PID-level collectors for the new patient
+        pidAl1s = []
+        pidDg1s = []
+        firstGroupForPid = null
+        break
+      case 'AL1':
+        // Allergies live at PID scope. Buffered until we know which group
+        // to attach them to.
+        if (firstGroupForPid) firstGroupForPid.al1s.push(seg)
+        else pidAl1s.push(seg)
+        break
+      case 'DG1':
+        if (firstGroupForPid) firstGroupForPid.dg1s.push(seg)
+        else pidDg1s.push(seg)
         break
       case 'OBR':
-        currentGroup = { pid: currentPid, obr: seg, obxes: [], notes: [] }
+        currentGroup = {
+          pid: currentPid, obr: seg,
+          obxes: [], notes: [],
+          al1s: [], dg1s: [],
+        }
+        // First OBR after a new PID owns any buffered AL1/DG1 that
+        // preceded it. Later OBRs under the same PID get empty arrays.
+        if (!firstGroupForPid) {
+          currentGroup.al1s = pidAl1s
+          currentGroup.dg1s = pidDg1s
+          firstGroupForPid = currentGroup
+        }
         groups.push(currentGroup)
         break
       case 'OBX':
@@ -173,8 +208,13 @@ function groupBatchedReports(parsed) {
   }
   // Edge case: PID present but no OBR (e.g. ADT-like or malformed). Return
   // a single stub group so the outer handler can still emit an ACK + row.
+  // Preserve any AL1/DG1 collected — they still belong to this patient.
   if (!groups.length && currentPid) {
-    groups.push({ pid: currentPid, obr: null, obxes: [], notes: [] })
+    groups.push({
+      pid: currentPid, obr: null,
+      obxes: [], notes: [],
+      al1s: pidAl1s, dg1s: pidDg1s,
+    })
   }
   return groups
 }
@@ -373,6 +413,142 @@ async function matchPatient(supabase, patient) {
 async function ensureBucket(supabase) {
   try { await supabase.storage.createBucket(ATTACHMENT_BUCKET, { public: false }) }
   catch { /* already exists */ }
+}
+
+// ─── Structured history import (task #231) ──────────────────────────────
+
+// HL7 AL1 (Patient Allergy Information):
+//   AL1|<set id>|<type CE>|<allergen CE>|<severity CE>|<reaction>|<onset date>
+// AL1-2 type code:  DA=drug FA=food EA=environment MA=misc AA=animal PA=plant
+// AL1-3 allergen:   code^text^codesystem — prefer text (component 2), fall
+//                   back to raw string when text component missing.
+// AL1-4 severity:   SV=severe MO=moderate MI=mild U=unknown
+function extractAllergensFromGroup(group, parsed) {
+  const out = []
+  for (const seg of group.al1s || []) {
+    const typeCode = component(seg, 2, 1, parsed) || field(seg, 2)
+    const allergenRaw = field(seg, 3)
+    const allergenText = component(seg, 3, 2, parsed) || allergenRaw.split(parsed.separators.componentSep)[0] || ''
+    const allergen = allergenText.trim()
+    if (!allergen) continue
+    const sevCode = (component(seg, 4, 1, parsed) || field(seg, 4) || '').toUpperCase()
+    const severity = { SV: 'severe', MO: 'moderate', MI: 'mild' }[sevCode] || null
+    const type = { DA: 'drug', FA: 'food', EA: 'environmental', MA: 'other', AA: 'other', PA: 'other' }[typeCode] || 'other'
+    out.push({
+      allergen,
+      allergen_type: type,
+      reaction: field(seg, 5) || null,
+      reaction_severity: severity,
+      onset_date: parseHl7Date(field(seg, 6)),
+    })
+  }
+  return out
+}
+
+// HL7 DG1 (Diagnosis):
+//   DG1|<set id>|<coding method>|<code CE>|<description>|<datetime>|<type>
+// DG1-3 code CE: code^description^codesystem  (ICD10 or SNOMED typically)
+// DG1-4 description: deprecated in v2.5 but many senders still emit it.
+// DG1-6 type code: A=admitting W=working F=final D=discharge — we don't
+//   map to a status column since our condition status vocabulary is
+//   different; default to 'active' for import.
+function extractConditionsFromGroup(group, parsed) {
+  const out = []
+  for (const seg of group.dg1s || []) {
+    const codeRaw = field(seg, 3)
+    const parts = codeRaw.split(parsed.separators.componentSep)
+    const icd10 = parts[0] || ''
+    const codedText = parts[1] || ''
+    const descField = field(seg, 4)
+    const condition = (codedText || descField || icd10).trim()
+    if (!condition) continue
+    out.push({
+      condition,
+      icd10_code: icd10 || null,
+      onset_date: parseHl7Date(field(seg, 5)),
+    })
+  }
+  return out
+}
+
+// Import AL1/DG1 into the structured history tables. Only called after a
+// strong NHI auto-file — we know the patient. Idempotent: skips entries
+// that already exist (case-insensitive allergen match, or same ICD-10
+// code). Never mutates existing rows. Failures are logged but do NOT
+// abort the parent HL7 insert.
+async function applyStructuredHistoryFromHl7(supabase, hl7MessageId, patientId, group, parsed) {
+  const allergens = extractAllergensFromGroup(group, parsed)
+  const conditions = extractConditionsFromGroup(group, parsed)
+  if (!allergens.length && !conditions.length) return { allergens: 0, conditions: 0 }
+
+  let allergensAdded = 0
+  if (allergens.length) {
+    // Pull current active allergens once for case-insensitive dedup.
+    const { data: existing } = await supabase
+      .from('patient_allergens')
+      .select('allergen')
+      .eq('patient_id', patientId)
+      .eq('is_active', true)
+    const known = new Set((existing || []).map(r => (r.allergen || '').trim().toLowerCase()))
+    for (const a of allergens) {
+      if (known.has(a.allergen.toLowerCase())) continue
+      const { error } = await supabase.from('patient_allergens').insert({
+        patient_id: patientId,
+        allergen: a.allergen,
+        allergen_type: a.allergen_type,
+        reaction: a.reaction,
+        reaction_severity: a.reaction_severity,
+        onset_date: a.onset_date,
+        source_hl7_message_id: hl7MessageId,
+        created_by: null,
+        created_by_name: 'HL7 import',
+      })
+      if (error) {
+        console.error('[hl7-inbound] allergen insert failed:', error.message)
+      } else {
+        allergensAdded++
+        known.add(a.allergen.toLowerCase())
+      }
+    }
+  }
+
+  let conditionsAdded = 0
+  if (conditions.length) {
+    // Dedup: match on ICD-10 code when we have one, else on lowercased
+    // condition text. Providers who entered a code get preference — we
+    // don't want to add "Type 2 Diabetes" as a new row when they've
+    // already got "E11.9" recorded.
+    const { data: existing } = await supabase
+      .from('patient_conditions')
+      .select('condition, icd10_code, status')
+      .eq('patient_id', patientId)
+    const knownCodes = new Set((existing || []).filter(r => r.icd10_code).map(r => r.icd10_code.toUpperCase()))
+    const knownText  = new Set((existing || []).map(r => (r.condition || '').trim().toLowerCase()))
+    for (const c of conditions) {
+      const codeUp = (c.icd10_code || '').toUpperCase()
+      if (codeUp && knownCodes.has(codeUp)) continue
+      if (knownText.has(c.condition.toLowerCase())) continue
+      const { error } = await supabase.from('patient_conditions').insert({
+        patient_id: patientId,
+        condition: c.condition,
+        icd10_code: c.icd10_code,
+        status: 'active',
+        onset_date: c.onset_date,
+        source_hl7_message_id: hl7MessageId,
+        created_by: null,
+        created_by_name: 'HL7 import',
+      })
+      if (error) {
+        console.error('[hl7-inbound] condition insert failed:', error.message)
+      } else {
+        conditionsAdded++
+        if (codeUp) knownCodes.add(codeUp)
+        knownText.add(c.condition.toLowerCase())
+      }
+    }
+  }
+
+  return { allergens: allergensAdded, conditions: conditionsAdded }
 }
 
 // extractAndStorePdfs now accepts an explicit list of OBX segments so
@@ -687,6 +863,23 @@ export default async function handler(req, res) {
     if (insertRow.has_pdf) {
       try { await extractAndStorePdfs(supabase, msg.id, parsed, group.obxes) }
       catch (e) { console.error('[hl7-inbound] pdf extract failed:', e.message, 'batch_position=', batchPosition) }
+    }
+
+    // Structured history import (task #231). Only fires on auto-file —
+    // otherwise we don't know whose chart to write to. AL1 → allergens,
+    // DG1 → conditions. Dedupes against existing rows. Never blocks the
+    // parent HL7 insert if it fails.
+    if (autoFile && (group.al1s?.length || group.dg1s?.length)) {
+      try {
+        const added = await applyStructuredHistoryFromHl7(supabase, msg.id, filedToPatientId, group, parsed)
+        if (added.allergens || added.conditions) {
+          console.log('[hl7-inbound] structured-history import: patient=', filedToPatientId,
+                      'allergens=', added.allergens, 'conditions=', added.conditions,
+                      'batch_position=', batchPosition)
+        }
+      } catch (e) {
+        console.error('[hl7-inbound] structured-history import failed:', e.message, 'batch_position=', batchPosition)
+      }
     }
 
     perReportResults.push({ batchPosition, ok: true, msgId: msg.id })
