@@ -461,6 +461,7 @@ export default function TereCorporate() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '.75rem' }}>
           {[
             { label: 'NZ privacy',  value: 'Health Information Privacy Code 2020' },
+            { label: 'NZ standards', value: 'Aligned with HISO 10001 (HL7), 10023 (HPI), 10046 (NHI), 10029 (HISF). Independent audit not undertaken.' },
             { label: 'US privacy',  value: 'HIPAA, BAA-covered, PHI in-region' },
             { label: 'Clinical AI', value: 'Encrypted, not used for model training' },
             { label: 'Audit',       value: 'Every clinical PHI access logged' },
