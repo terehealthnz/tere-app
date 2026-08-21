@@ -181,8 +181,8 @@ export default function TereCorporate() {
           <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: NAVY, fontSize: '1.5rem', fontWeight: 700 }}>Tere</span>
           <span style={{ fontSize: '.72rem', letterSpacing: '.14em', textTransform: 'uppercase', color: '#6B7280', fontWeight: 700 }}>Health Ltd</span>
         </div>
-        <a href="mailto:hello@terehealth.co.nz" style={{ color: NAVY, textDecoration: 'none', fontSize: '.85rem', fontWeight: 600, opacity: .8 }}>
-          hello@terehealth.co.nz
+        <a href="mailto:terehealthnz@gmail.com" style={{ color: NAVY, textDecoration: 'none', fontSize: '.85rem', fontWeight: 600, opacity: .8 }}>
+          terehealthnz@gmail.com
         </a>
       </div>
 
@@ -208,7 +208,7 @@ export default function TereCorporate() {
               Live subtitle translation across eight languages, plus written translation for Te Reo Māori, Samoan, Arabic and Hindi. Vitals estimated from the patient's phone. No wearable needed. Built in NZ, available to integrate.
             </p>
             <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-              <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
+              <a href="mailto:terehealthnz@gmail.com?subject=Book%20a%20call%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: NAVY, color: 'white', textDecoration: 'none',
                 padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
@@ -287,10 +287,37 @@ export default function TereCorporate() {
             <BentoBody dark>
               Real-time subtitle translation during video consults across eight languages. Written translation for Te Reo Māori, Samoan, Arabic and Hindi where subtitles aren't available.
             </BentoBody>
+            {/* All 12 languages we support today. Filled chips = live AI
+                subtitles during video consult. Outlined chips = written
+                translation (no live subtitles yet; falls back to
+                interpreter offer during a call). Honest either way,
+                without needing a separate table. */}
             <div style={{ marginTop: '1.25rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['te reo māori', '中文', 'gagana sāmoa', 'हिन्दी', 'العربية', 'français'].map(v => (
-                <span key={v} style={{ background: 'rgba(212,238,240,.15)', color: TEAL_L, border: `1px solid rgba(212,238,240,.3)`, borderRadius: 8, padding: '4px 10px', fontSize: '.68rem', fontWeight: 700 }}>{v}</span>
+              {[
+                { l: 'english',       live: true  },
+                { l: '中文',           live: true  },
+                { l: '日本語',         live: true  },
+                { l: '한국어',         live: true  },
+                { l: 'deutsch',       live: true  },
+                { l: 'nederlands',    live: true  },
+                { l: 'français',      live: true  },
+                { l: 'español',       live: true  },
+                { l: 'te reo māori',  live: false },
+                { l: 'gagana sāmoa',  live: false },
+                { l: 'العربية',       live: false },
+                { l: 'हिन्दी',        live: false },
+              ].map(({ l, live }) => (
+                <span key={l} style={{
+                  background: live ? 'rgba(212,238,240,.15)' : 'transparent',
+                  color: TEAL_L,
+                  border: `1px solid rgba(212,238,240,${live ? '.3' : '.2'})`,
+                  borderRadius: 8, padding: '4px 10px',
+                  fontSize: '.68rem', fontWeight: 700,
+                }}>{l}</span>
               ))}
+            </div>
+            <div style={{ marginTop: '.7rem', fontSize: '.68rem', color: 'rgba(212,238,240,.55)', lineHeight: 1.5 }}>
+              Filled: live subtitles during video consult. Outlined: written translation, interpreter offered live.
             </div>
           </Bento>
 
@@ -392,7 +419,7 @@ export default function TereCorporate() {
 
         {[
           { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients. The live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
-          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20demo%20Integration' },
+          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:terehealthnz@gmail.com?subject=Book%20a%20demo%20Integration' },
         ].map((row, i) => (
           <div key={row.title} className="corp-deploy-row" style={{
             display: 'flex', alignItems: 'center', gap: '1.25rem',
@@ -460,12 +487,12 @@ export default function TereCorporate() {
             <p style={{ color: 'rgba(255,255,255,.75)', fontSize: '1rem', margin: '0 0 1.75rem', maxWidth: 520, lineHeight: 1.55 }}>
               Whether you're evaluating a full white label deployment or want to plug a single component (vitals, lab receive, prescribing) into what you already run, we'd like to hear how it might fit.
             </p>
-            <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20practice%20integration" style={{
+            <a href="mailto:terehealthnz@gmail.com?subject=Tere%20platform%20practice%20integration" style={{
               display: 'inline-flex', alignItems: 'center', gap: 10,
               background: 'white', color: NAVY, textDecoration: 'none',
               padding: '14px 24px', borderRadius: 12, fontWeight: 700, fontSize: '.95rem',
             }}>
-              hello@terehealth.co.nz <Icon path={I.arrow} size={16} />
+              terehealthnz@gmail.com <Icon path={I.arrow} size={16} />
             </a>
           </div>
           <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(212,238,240,.15)', borderRadius: 16, padding: '1.75rem 2rem' }}>
