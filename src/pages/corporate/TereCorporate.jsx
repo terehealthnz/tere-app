@@ -336,7 +336,7 @@ export default function TereCorporate() {
             {/* Demo video */}
             <div>
               <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.08)' }}>
-                <video controls preload="metadata" playsInline poster="/corporate/consult-translation.png"
+                <video controls preload="metadata" playsInline
                        style={{ width: '100%', height: 'auto', display: 'block' }}>
                   <source src="/videos/tere-demo.mp4" type="video/mp4" />
                 </video>
