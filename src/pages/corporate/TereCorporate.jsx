@@ -168,14 +168,14 @@ export default function TereCorporate() {
               fontWeight: 600, lineHeight: 1.02, margin: '1.25rem 0 1.25rem',
               color: NAVY, letterSpacing: '-.02em',
             }}>
-              The clinical software behind rural&nbsp;telehealth,{' '}
-              <span style={{ color: TEAL, fontStyle: 'italic' }}>ready for your practice.</span>
+              Telemedicine that reaches every patient —{' '}
+              <span style={{ color: TEAL, fontStyle: 'italic' }}>in their own language.</span>
             </h1>
             <p style={{
               fontSize: '1.075rem', color: '#4B5563', lineHeight: 1.55,
               margin: '0 0 1.75rem', maxWidth: 540,
             }}>
-              Tere builds the platform behind our own NZ telemedicine service — vitals from a phone camera, HL7 messaging with community labs, structured prescribing, video consult. Available for GP practices and PHOs to integrate.
+              Live translation across 20+ languages including Te Reo Māori. Vitals estimated from the patient's phone — no wearable needed. Video, prescribing, and messaging on top. Built in NZ, available for your practice to integrate.
             </p>
             <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
               <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
@@ -196,19 +196,19 @@ export default function TereCorporate() {
             </div>
           </div>
 
-          {/* Hero screenshot — real product proof, off-set for visual depth */}
-          <div style={{ position: 'relative', minHeight: 480 }}>
+          {/* Hero screenshot — live consult with translation, our headline
+              differentiator. Speaks to language + inclusion at first glance. */}
+          <div style={{ position: 'relative', minHeight: 420 }}>
             <div style={{
               position: 'absolute', top: 20, left: 40, right: 0, bottom: 0,
               background: TEAL_L, borderRadius: 20, transform: 'rotate(2deg)',
             }} />
-            <img src="/corporate/hl7-abnormal.png" alt="Provider view of an inbound HL7 lab report with abnormal detection"
+            <img src="/corporate/consult-translation.png" alt="Live video consultation with real-time subtitle translation between Te Reo Māori and English"
                  style={{
                    position: 'relative', width: '100%', height: 'auto',
                    borderRadius: 20, boxShadow: '0 30px 60px rgba(13,43,69,.20)',
                    border: '1px solid #E2E8F0',
                  }} />
-            {/* Little floating annotation to hint at what the reader is looking at */}
             <div style={{
               position: 'absolute', bottom: -20, left: -20,
               background: 'white', borderRadius: 12, padding: '.6rem .85rem',
@@ -216,8 +216,8 @@ export default function TereCorporate() {
               display: 'flex', alignItems: 'center', gap: '.6rem',
               fontSize: '.75rem', fontWeight: 600, color: NAVY,
             }}>
-              <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 8, padding: '2px 8px', fontWeight: 700, fontSize: '.68rem' }}>⚠ ABNORMAL</span>
-              HL7 message auto-parsed, flagged, filed to chart on NHI match.
+              <span style={{ background: TEAL_L, color: TEAL, borderRadius: 8, padding: '2px 8px', fontWeight: 700, fontSize: '.68rem' }}>🌐 20+ LANGUAGES</span>
+              Live subtitle translation during the consult.
             </div>
           </div>
         </div>
@@ -243,30 +243,31 @@ export default function TereCorporate() {
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
-          {/* Row 1 — large HL7 tile with screenshot */}
-          <Bento span={4} image="/corporate/hl7-inbox.png" imageAlt="Provider inbox showing inbound lab results, some flagged abnormal">
-            <BentoTitle icon="inbox">Lab &amp; referral inbox</BentoTitle>
+          {/* Row 1 — VITALS featured (large tile with phone mockup),
+              LANGUAGE alongside as a strong second differentiator */}
+          <Bento span={4} image="/corporate/vitals-capture.png" imageAlt="Patient using their phone to capture vitals — heart rate, oxygen saturation, and respiratory rate in real time">
+            <BentoTitle icon="scan">Vitals from a phone camera</BentoTitle>
             <BentoBody>
-              Inbound results and letters land in the provider inbox, matched to the right patient chart and flagged when out-of-range. No manual scanning of PDFs, no chasing paper.
+              Patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in about thirty seconds. No wearable, no peripheral — nothing for rural patients to buy or set up.
             </BentoBody>
           </Bento>
 
           <Bento span={2} dark>
-            <BentoTitle icon="scan" dark>Vitals from a phone camera</BentoTitle>
+            <BentoTitle icon="video" dark>Live translation</BentoTitle>
             <BentoBody dark>
-              Patients hold up their phone and get heart rate, oxygen saturation, and respiratory rate in about 30 seconds. No wearable, no peripheral.
+              Real-time subtitle translation during video consults across 20+ languages including Te Reo Māori, Samoan, Tongan, and Simplified Chinese.
             </BentoBody>
-            <div style={{ marginTop: '1.25rem', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {['HR', 'SpO2', 'RR', 'BP'].map(v => (
-                <span key={v} style={{ background: 'rgba(212,238,240,.15)', color: TEAL_L, border: `1px solid rgba(212,238,240,.3)`, borderRadius: 8, padding: '4px 10px', fontSize: '.72rem', fontWeight: 700 }}>{v}</span>
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {['te reo māori', 'sāmoan', '中文', 'tongan', 'हिन्दी', 'العربية'].map(v => (
+                <span key={v} style={{ background: 'rgba(212,238,240,.15)', color: TEAL_L, border: `1px solid rgba(212,238,240,.3)`, borderRadius: 8, padding: '4px 10px', fontSize: '.68rem', fontWeight: 700 }}>{v}</span>
               ))}
             </div>
           </Bento>
 
-          {/* Row 2 — 3 medium tiles */}
+          {/* Row 2 — 3 standard tiles */}
           <Bento span={2}>
             <BentoTitle icon="video">Video consult</BentoTitle>
-            <BentoBody>End-to-end video visits with live subtitles in 20+ languages. Built for patients on rural connections and older devices.</BentoBody>
+            <BentoBody>End-to-end video visits built for patients on rural connections and older devices. Waiting room, transcript, in-call notes.</BentoBody>
           </Bento>
 
           <Bento span={2}>
@@ -276,10 +277,16 @@ export default function TereCorporate() {
 
           <Bento span={2}>
             <BentoTitle icon="file">Structured chart</BentoTitle>
-            <BentoBody>Allergies, medications, and conditions as clean structured records — not free-text. Populated from inbound letters where possible.</BentoBody>
+            <BentoBody>Allergies, medications, and conditions as clean structured records. Populated from inbound letters where possible.</BentoBody>
           </Bento>
 
-          {/* Row 3 — 3 medium tiles */}
+          {/* Row 3 — 3 standard tiles. HL7 now sits here as expected background,
+              not the featured tile it used to be. */}
+          <Bento span={2}>
+            <BentoTitle icon="inbox">Lab &amp; referral inbox</BentoTitle>
+            <BentoBody>Inbound results and letters land in the provider inbox, matched to the right patient chart and flagged when out-of-range.</BentoBody>
+          </Bento>
+
           <Bento span={2}>
             <BentoTitle icon="network">Imaging referrals</BentoTitle>
             <BentoBody>One-click referral to the nearest private imaging clinic, routed by patient postcode.</BentoBody>
@@ -288,11 +295,6 @@ export default function TereCorporate() {
           <Bento span={2}>
             <BentoTitle icon="activity">Clinical notes</BentoTitle>
             <BentoBody>AI-assisted note drafts from the consultation, ready for the clinician to review and sign. Never trained on patient data.</BentoBody>
-          </Bento>
-
-          <Bento span={2}>
-            <BentoTitle icon="users">Identity &amp; safety</BentoTitle>
-            <BentoBody>Verified clinician identity, patient matching, and clinical governance workflows appropriate to the jurisdiction.</BentoBody>
           </Bento>
         </div>
       </div>

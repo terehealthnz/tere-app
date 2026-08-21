@@ -1,10 +1,15 @@
 // scripts/build-corporate-screenshots.mjs
 //
-// Generates the two product screenshots embedded in the corporate landing
+// Generates the product screenshots embedded in the corporate landing
 // (src/pages/corporate/TereCorporate.jsx):
 //
-//   public/corporate/hl7-inbox.png     — inbox list (fanned-out batch)
-//   public/corporate/hl7-abnormal.png  — HL7 detail with abnormal flags
+//   public/corporate/consult-translation.png — hero: live consult with subtitles
+//   public/corporate/vitals-capture.png      — featured: phone camera + vitals
+//   public/corporate/hl7-inbox.png           — supporting: lab inbox
+//   public/corporate/hl7-abnormal.png        — supporting: HL7 detail (unused hero, keep for reference)
+//
+// Priority order matches Patrick's positioning (2026-08-21): language +
+// vitals are the big selling points; HL7 receive is expected background.
 //
 // Uses hardcoded mock patient data. No DB access, no PHI risk. Rerun any
 // time to refresh the marketing surface — the UI style closely mirrors the
@@ -177,32 +182,183 @@ function renderReportDetail() {
 </body></html>`
 }
 
-async function shoot(html, outPath, viewportHeight) {
+// ─── Consult with live subtitles ─────────────────────────────────────────
+// Mock live consult surface. Two video panels + a language pill + a bottom
+// subtitle bar showing source (Te Reo Māori) and English translation.
+// Not a screenshot of the real call UI — a marketing render of the same
+// visual language, safe for public display.
+function renderConsultWithTranslation() {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body { font-family:${FF}; background:#0B1220; margin:0; padding:0; color:white; }
+  .frame { width:1120px; height:700px; background:linear-gradient(135deg,#0B1220 0%,#152238 100%); padding:24px; box-sizing:border-box; display:flex; flex-direction:column; gap:16px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; }
+  .brand { display:flex; align-items:baseline; gap:8px; opacity:.9; }
+  .brand .n { font-family:Cormorant Garamond,Georgia,serif; font-style:italic; color:#D4EEF0; font-size:1.3rem; font-weight:700; }
+  .brand .s { font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:#94A3B8; font-weight:700; }
+  .timer { display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:99px; padding:6px 14px; font-family:${MONO}; font-size:.78rem; color:#D4EEF0; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#DC2626; box-shadow:0 0 0 4px rgba(220,38,38,.15); }
+  .videos { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .vid { background:#1F2937; border-radius:16px; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .vid.provider { background:radial-gradient(circle at 40% 30%, #334155 0%, #1F2937 60%); }
+  .vid.patient  { background:radial-gradient(circle at 60% 40%, #3E4C63 0%, #1A2536 60%); }
+  .silhouette { width:180px; height:180px; border-radius:50%; background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.04)); display:flex; align-items:center; justify-content:center; font-size:3rem; color:rgba(255,255,255,.4); font-weight:700; }
+  .label { position:absolute; bottom:14px; left:14px; background:rgba(0,0,0,.55); backdrop-filter:blur(6px); color:white; padding:4px 12px; border-radius:8px; font-size:.75rem; font-weight:600; letter-spacing:.02em; }
+  .lang { position:absolute; top:14px; right:14px; background:rgba(11,110,118,.9); color:white; padding:4px 12px; border-radius:8px; font-size:.7rem; font-weight:700; letter-spacing:.03em; display:inline-flex; align-items:center; gap:6px; }
+  .subs { background:rgba(0,0,0,.55); backdrop-filter:blur(8px); border:1px solid rgba(212,238,240,.14); border-radius:16px; padding:18px 24px; min-height:120px; display:flex; flex-direction:column; gap:10px; }
+  .subs .row1 { display:flex; align-items:flex-start; gap:12px; }
+  .subs .who { font-size:.7rem; text-transform:uppercase; letter-spacing:.08em; color:#94A3B8; font-weight:700; padding-top:3px; min-width:70px; }
+  .subs .txt { font-size:1.1rem; line-height:1.4; color:white; }
+  .subs .txt.trans { color:#D4EEF0; font-style:italic; }
+  .divider { border:0; border-top:1px solid rgba(255,255,255,.08); margin:2px 0; }
+</style></head><body>
+<div class="frame">
+  <div class="topbar">
+    <div class="brand"><span class="n">Tere</span><span class="s">Consult</span></div>
+    <div class="timer"><span class="dot"></span> 04:12 · Live</div>
+  </div>
+
+  <div class="videos">
+    <div class="vid provider">
+      <div class="silhouette">👨🏻‍⚕️</div>
+      <div class="label">Dr Aroha Whitiaua — Emergency</div>
+    </div>
+    <div class="vid patient">
+      <div class="silhouette">👤</div>
+      <div class="lang">🌐 Te Reo Māori → English</div>
+      <div class="label">Tama · Kaikohe</div>
+    </div>
+  </div>
+
+  <div class="subs">
+    <div class="row1">
+      <div class="who">Patient</div>
+      <div class="txt">Kei te mamae taku pane, ā, ka mate taku puku.</div>
+    </div>
+    <hr class="divider"/>
+    <div class="row1">
+      <div class="who">Translation</div>
+      <div class="txt trans">I have a headache, and I feel nauseous.</div>
+    </div>
+  </div>
+</div>
+</body></html>`
+}
+
+// ─── Vitals capture (phone camera) ───────────────────────────────────────
+// Stylized rendering: phone mockup with camera preview + real-time vital
+// readouts overlaying. Mock silhouette, no real face. Shows what the
+// patient sees during a 30-second capture.
+function renderVitalsCapture() {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body { font-family:${FF}; background:#0B1220; margin:0; padding:0; color:white; }
+  .frame { width:1120px; height:700px; background:linear-gradient(135deg,#152238 0%,#0B1220 100%); padding:32px; box-sizing:border-box; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; }
+  .side { display:flex; flex-direction:column; gap:14px; }
+  .eyebrow { font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:#0B6E76; font-weight:700; }
+  h1 { font-family:Cormorant Garamond,Georgia,serif; font-size:2.4rem; line-height:1.05; margin:0; color:white; font-weight:600; letter-spacing:-.01em; }
+  h1 .accent { color:#D4EEF0; font-style:italic; }
+  p { color:rgba(255,255,255,.75); font-size:1rem; line-height:1.55; margin:0; }
+  .metrics { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px; }
+  .metric { background:rgba(255,255,255,.05); border:1px solid rgba(212,238,240,.15); border-radius:12px; padding:14px 16px; }
+  .metric .label { font-size:.72rem; color:#94A3B8; letter-spacing:.05em; text-transform:uppercase; font-weight:700; }
+  .metric .value { font-family:${MONO}; font-size:1.5rem; font-weight:700; color:white; margin-top:4px; }
+  .metric .unit { font-size:.75rem; color:#D4EEF0; font-weight:600; }
+
+  .phone-wrap { display:flex; align-items:center; justify-content:center; }
+  .phone { width:320px; height:600px; background:#000; border-radius:44px; padding:12px; box-shadow:0 40px 80px rgba(0,0,0,.5); position:relative; }
+  .screen { width:100%; height:100%; background:linear-gradient(180deg, #1E293B 0%, #0F172A 100%); border-radius:34px; overflow:hidden; position:relative; }
+  .notch { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:110px; height:26px; background:#000; border-radius:16px; z-index:2; }
+  .camera-view { position:absolute; inset:0; padding:56px 16px 16px; display:flex; flex-direction:column; }
+  .face-oval { flex:1; border:2px dashed rgba(212,238,240,.4); border-radius:180px/220px; display:flex; align-items:center; justify-content:center; position:relative; margin-bottom:12px; }
+  .face-oval::after { content:''; position:absolute; inset:12px; border-radius:170px/210px; background:radial-gradient(ellipse at 50% 40%, rgba(212,238,240,.08) 0%, transparent 60%); }
+  .face-icon { font-size:5rem; opacity:.35; }
+  .pulse { position:absolute; top:14px; right:14px; background:rgba(220,38,38,.9); color:white; padding:4px 10px; border-radius:99px; font-size:.7rem; font-weight:700; display:inline-flex; align-items:center; gap:6px; }
+  .pulse-dot { width:6px; height:6px; border-radius:50%; background:white; }
+  .capture-status { text-align:center; font-size:.72rem; color:#94A3B8; letter-spacing:.05em; text-transform:uppercase; font-weight:700; margin-bottom:8px; }
+  .progress { height:4px; background:rgba(255,255,255,.1); border-radius:2px; overflow:hidden; margin-bottom:14px; }
+  .progress .bar { height:100%; width:68%; background:linear-gradient(90deg, #0B6E76, #D4EEF0); border-radius:2px; }
+  .live-vitals { background:rgba(0,0,0,.5); border-radius:16px; padding:12px 14px; display:grid; grid-template-columns:1fr 1fr; gap:8px 12px; }
+  .live-vitals .lv { display:flex; align-items:baseline; justify-content:space-between; }
+  .live-vitals .lv .l { font-size:.65rem; color:#94A3B8; letter-spacing:.05em; text-transform:uppercase; font-weight:700; }
+  .live-vitals .lv .v { font-family:${MONO}; font-size:1.1rem; font-weight:700; color:white; }
+</style></head><body>
+<div class="frame">
+  <div class="side">
+    <div class="eyebrow">Vitals in ~30 seconds</div>
+    <h1>Just the phone.<br/><span class="accent">No wearable.</span></h1>
+    <p>Rural patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in real time — no cuff, no oximeter, no equipment for them to buy or set up.</p>
+    <div class="metrics">
+      <div class="metric"><div class="label">Heart rate</div><div class="value">78 <span class="unit">bpm</span></div></div>
+      <div class="metric"><div class="label">SpO2</div><div class="value">97 <span class="unit">%</span></div></div>
+      <div class="metric"><div class="label">Resp rate</div><div class="value">16 <span class="unit">/ min</span></div></div>
+      <div class="metric"><div class="label">Signal</div><div class="value">Strong <span class="unit">✓</span></div></div>
+    </div>
+  </div>
+
+  <div class="phone-wrap">
+    <div class="phone">
+      <div class="screen">
+        <div class="notch"></div>
+        <div class="camera-view">
+          <div class="pulse"><span class="pulse-dot"></span> LIVE</div>
+          <div class="face-oval"><span class="face-icon">👤</span></div>
+          <div class="capture-status">Hold still · 21 s remaining</div>
+          <div class="progress"><div class="bar"></div></div>
+          <div class="live-vitals">
+            <div class="lv"><span class="l">HR</span><span class="v">78</span></div>
+            <div class="lv"><span class="l">SpO₂</span><span class="v">97%</span></div>
+            <div class="lv"><span class="l">RR</span><span class="v">16</span></div>
+            <div class="lv"><span class="l">HRV</span><span class="v">42</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>`
+}
+
+async function shoot(html, outPath, viewportHeight, opts = {}) {
   const browser = await chromium.launch()
   const ctx = await browser.newContext({ viewport: { width: 1120, height: viewportHeight }, deviceScaleFactor: 2 })
   const page = await ctx.newPage()
   await page.setContent(html, { waitUntil: 'domcontentloaded' })
-  // Trim: measure actual content height so the screenshot fits tightly.
-  const contentHeight = await page.evaluate(() => {
-    const body = document.body
-    const container = body.querySelector('.container') || body.querySelector('.card') || body
-    const rect = container.getBoundingClientRect()
-    return Math.ceil(rect.bottom + 32)
-  })
-  await page.setViewportSize({ width: 1120, height: contentHeight })
-  await page.screenshot({ path: outPath, fullPage: false })
+  let contentHeight = viewportHeight
+  if (opts.fixedHeight) {
+    // Fixed-size marketing mockups (frame is exactly W×H). Screenshot the
+    // .frame element directly rather than auto-measuring, to keep the
+    // aspect ratio consistent for landing-page embedding.
+    await page.setViewportSize({ width: 1120, height: viewportHeight })
+    const frame = await page.locator('.frame').first()
+    await frame.screenshot({ path: outPath })
+  } else {
+    // Auto-trim: measure actual content height so the screenshot fits tightly.
+    contentHeight = await page.evaluate(() => {
+      const body = document.body
+      const container = body.querySelector('.container') || body.querySelector('.card') || body
+      const rect = container.getBoundingClientRect()
+      return Math.ceil(rect.bottom + 32)
+    })
+    await page.setViewportSize({ width: 1120, height: contentHeight })
+    await page.screenshot({ path: outPath, fullPage: false })
+  }
   await browser.close()
   const stat = await fs.stat(outPath)
-  console.log(`  wrote ${outPath} (${Math.round(stat.size / 1024)} KB, ${contentHeight}px tall)`)
+  console.log(`  wrote ${outPath} (${Math.round(stat.size / 1024)} KB)`)
 }
 
 async function main() {
   const outDir = path.resolve('public/corporate')
   await fs.mkdir(outDir, { recursive: true })
-  console.log('Rendering inbox list…')
-  await shoot(renderInboxList(),  path.join(outDir, 'hl7-inbox.png'),    900)
-  console.log('Rendering report detail…')
-  await shoot(renderReportDetail(), path.join(outDir, 'hl7-abnormal.png'), 900)
+  console.log('Rendering consult with translation (HERO)…')
+  await shoot(renderConsultWithTranslation(), path.join(outDir, 'consult-translation.png'), 700, { fixedHeight: true })
+  console.log('Rendering vitals capture (FEATURED)…')
+  await shoot(renderVitalsCapture(),          path.join(outDir, 'vitals-capture.png'),      700, { fixedHeight: true })
+  console.log('Rendering inbox list (supporting)…')
+  await shoot(renderInboxList(),              path.join(outDir, 'hl7-inbox.png'),           900)
+  console.log('Rendering report detail (kept for reference)…')
+  await shoot(renderReportDetail(),           path.join(outDir, 'hl7-abnormal.png'),        900)
   console.log('\nDone. Refresh tere.co.nz to see updated screenshots.')
 }
 
