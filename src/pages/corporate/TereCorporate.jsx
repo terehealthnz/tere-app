@@ -178,12 +178,12 @@ export default function TereCorporate() {
               Tere builds the platform behind our own NZ telemedicine service — vitals from a phone camera, HL7 messaging with community labs, structured prescribing, video consult. Available for GP practices and PHOs to integrate.
             </p>
             <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-              <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20integration" style={{
+              <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: NAVY, color: 'white', textDecoration: 'none',
                 padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
               }}>
-                Talk to us <Icon path={I.arrow} size={16} />
+                Book a call <Icon path={I.arrow} size={16} />
               </a>
               <a href="#demo" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -244,17 +244,17 @@ export default function TereCorporate() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
           {/* Row 1 — large HL7 tile with screenshot */}
-          <Bento span={4} image="/corporate/hl7-inbox.png" imageAlt="Provider inbox showing 9 patient reports fanned out from one batched HL7 message">
-            <BentoTitle icon="inbox">HL7 v2 receive</BentoTitle>
+          <Bento span={4} image="/corporate/hl7-inbox.png" imageAlt="Provider inbox showing inbound lab results, some flagged abnormal">
+            <BentoTitle icon="inbox">Lab &amp; referral inbox</BentoTitle>
             <BentoBody>
-              Live Medical-Objects integration receiving lab results, GP letters, and referral reports. Batched messages fan out per-patient. Auto-filed to patient chart on NHI match. AL1 allergens and DG1 conditions auto-import into structured history.
+              Inbound results and letters land in the provider inbox, matched to the right patient chart and flagged when out-of-range. No manual scanning of PDFs, no chasing paper.
             </BentoBody>
           </Bento>
 
           <Bento span={2} dark>
-            <BentoTitle icon="scan" dark>Vitals estimator</BentoTitle>
+            <BentoTitle icon="scan" dark>Vitals from a phone camera</BentoTitle>
             <BentoBody dark>
-              rPPG (remote photoplethysmography) from the phone camera. HR, SpO2, respiratory rate. No wearable. Video never leaves the device — inference runs client-side.
+              Patients hold up their phone and get heart rate, oxygen saturation, and respiratory rate in about 30 seconds. No wearable, no peripheral.
             </BentoBody>
             <div style={{ marginTop: '1.25rem', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {['HR', 'SpO2', 'RR', 'BP'].map(v => (
@@ -266,33 +266,33 @@ export default function TereCorporate() {
           {/* Row 2 — 3 medium tiles */}
           <Bento span={2}>
             <BentoTitle icon="video">Video consult</BentoTitle>
-            <BentoBody>LiveKit-based video with real-time AI subtitles in 20+ languages. Waiting room, in-call notes, transcript export, screenshot capture.</BentoBody>
+            <BentoBody>End-to-end video visits with live subtitles in 20+ languages. Built for patients on rural connections and older devices.</BentoBody>
           </Bento>
 
           <Bento span={2}>
             <BentoTitle icon="pill">Prescribing</BentoTitle>
-            <BentoBody>NZ signature-exempt prescriptions to community pharmacy by email or fax. Controlled-drug classification, drug-allergy cross-checks, prescriber contact detail on the PDF.</BentoBody>
+            <BentoBody>Send scripts straight to community pharmacies. Controlled-drug handling and drug-allergy safety checks built in.</BentoBody>
           </Bento>
 
           <Bento span={2}>
             <BentoTitle icon="file">Structured chart</BentoTitle>
-            <BentoBody>Allergens, medications, conditions as first-class rows — not free-text. HL7 inbound letters auto-populate. Prescribing looks up allergens before dispatch.</BentoBody>
+            <BentoBody>Allergies, medications, and conditions as clean structured records — not free-text. Populated from inbound letters where possible.</BentoBody>
           </Bento>
 
           {/* Row 3 — 3 medium tiles */}
           <Bento span={2}>
-            <BentoTitle icon="network">Imaging referral</BentoTitle>
-            <BentoBody>Structured PDF referrals to private radiology (RHCNZ + Marlborough Medical Imaging), routed by patient postcode to the region-appropriate clinic.</BentoBody>
+            <BentoTitle icon="network">Imaging referrals</BentoTitle>
+            <BentoBody>One-click referral to the nearest private imaging clinic, routed by patient postcode.</BentoBody>
           </Bento>
 
           <Bento span={2}>
-            <BentoTitle icon="activity">AI clinical notes</BentoTitle>
-            <BentoBody>Consult transcript → structured SOAP note draft. Provider reviews and signs. BAA-covered inference, no training on patient data.</BentoBody>
+            <BentoTitle icon="activity">Clinical notes</BentoTitle>
+            <BentoBody>AI-assisted note drafts from the consultation, ready for the clinician to review and sign. Never trained on patient data.</BentoBody>
           </Bento>
 
           <Bento span={2}>
-            <BentoTitle icon="users">Patient identity</BentoTitle>
-            <BentoBody>HNZ HPI directory lookup for clinicians and facilities. NHI matching for patient records. MCNZ supervision workflow, provider MFA.</BentoBody>
+            <BentoTitle icon="users">Identity &amp; safety</BentoTitle>
+            <BentoBody>Verified clinician identity, patient matching, and clinical governance workflows appropriate to the jurisdiction.</BentoBody>
           </Bento>
         </div>
       </div>
@@ -310,7 +310,7 @@ export default function TereCorporate() {
                 <span style={{ color: TEAL_L, fontStyle: 'italic' }}>~30 seconds. No wearable.</span>
               </h2>
               <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,.78)', lineHeight: 1.6, margin: '0 0 1.75rem', maxWidth: 480 }}>
-                Our remote photoplethysmography (rPPG) pipeline extracts pulse from subtle skin-tone changes in the video signal. The patient's own phone becomes the sensor. Runs entirely client-side.
+                The patient's own phone becomes the sensor. Meaningful readings without a wearable, without asking rural patients to buy hardware they don't have.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.75rem', marginBottom: '1.5rem' }}>
                 {[
@@ -327,7 +327,7 @@ export default function TereCorporate() {
                 ))}
               </div>
               <div style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.6)', lineHeight: 1.55 }}>
-                WAND registration on file · Blood-pressure accuracy under HDEC-scoped observational study.
+                In production for heart rate and oxygen saturation. Blood pressure under ongoing clinical validation.
               </div>
             </div>
 
@@ -356,10 +356,10 @@ export default function TereCorporate() {
         </p>
 
         {[
-          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ. HDC-registered, ACC-connected, MOH-notified. Live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
-          { icon: 'network', title: 'GP practice / PHO integration',   desc: 'White-label the platform under your practice or PHO brand, or license individual components into your existing workflow. Data flows stay with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=GP%20/%20PHO%20integration' },
-          { icon: 'shield',  title: 'US B2B2C + enterprise',            desc: 'Tere Care US surface, positioned for employer-benefit / insurer partnerships (B2B2C) and direct enterprise deployment. HIPAA-covered, provider state-licensing built in.', status: 'preparing' },
-          { icon: 'users',   title: 'AU rural + remote',                desc: 'Tere Health Australia, planned for MMM6-7 rural + remote communities. AHPRA registration + AU entity formation in progress; Medical Director via TTMRA.', status: 'preparing' },
+          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients — the live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
+          { icon: 'network', title: 'GP practice / PHO integration',   desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Practice%20integration' },
+          { icon: 'shield',  title: 'US enterprise partnerships',       desc: 'Positioned for employer and insurer partnerships in the United States. Not yet open to the public.', status: 'preparing' },
+          { icon: 'users',   title: 'Australia rural + remote',         desc: 'Planned for rural and remote communities. Entity formation and clinical registration in progress.', status: 'preparing' },
         ].map((row, i) => (
           <div key={row.title} style={{
             display: 'flex', alignItems: 'center', gap: '1.25rem',
