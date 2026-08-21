@@ -1,273 +1,453 @@
 // Tere Health Ltd corporate landing (tere.co.nz).
 //
-// Not a patient surface — this page never asks for health information,
-// exposes intake, or collects data.
+// Audience: NZ GP office manager or PHO evaluating a platform partner.
+// Positioning: NZ-built telemedicine IP, licensable component-by-component
+// or as a white-label platform, with real product screenshots as proof.
 //
-// Positioning (2026-08-21): NZ-built telemedicine platform, live in-market,
-// with IP components (rPPG vitals estimator, HL7 v2 receive pipeline,
-// consult workflow) that can be integrated into an existing GP practice
-// or rural health provider's workflow. Primary audience: NZ practice
-// managers + rural health leads evaluating a platform partner.
+// Not a patient surface — no health data flows, no intake.
 
 import React from 'react'
 
 const NAVY   = '#0D2B45'
+const NAVY_D = '#081C33'
 const TEAL   = '#0B6E76'
 const TEAL_L = '#D4EEF0'
 const CREAM  = '#F7F5F0'
+const CREAM_D = '#EFEAE0'
+const AMBER  = '#B45309'
 const FF     = 'Plus Jakarta Sans, sans-serif'
 const SERIF  = 'Cormorant Garamond, Georgia, serif'
+const YEAR   = new Date().getFullYear()
 
-const YEAR = new Date().getFullYear()
+// ─── Icons ────────────────────────────────────────────────────────────────
+// Inline SVG in Lucide style — 24×24, currentColor stroke. Beats emoji.
+const Icon = ({ path, size = 20, color = 'currentColor', fill = 'none' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color}
+       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+       style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0 }}>
+    {path}
+  </svg>
+)
+const I = {
+  activity:  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />,
+  heart:     <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />,
+  inbox:     <><polyline points="22 12 16 12 14 15 10 15 8 12 2 12" /><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" /></>,
+  pill:      <><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" /><path d="m8.5 8.5 7 7" /></>,
+  scan:      <><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><rect x="7" y="8" width="10" height="8" rx="1" /></>,
+  video:     <><polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" /></>,
+  shield:    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+  network:   <><circle cx="12" cy="12" r="3" /><circle cx="19" cy="5" r="2" /><circle cx="5" cy="5" r="2" /><circle cx="19" cy="19" r="2" /><circle cx="5" cy="19" r="2" /><line x1="10.5" y1="10.5" x2="6" y2="6" /><line x1="13.5" y1="10.5" x2="18" y2="6" /><line x1="13.5" y1="13.5" x2="18" y2="18" /><line x1="10.5" y1="13.5" x2="6" y2="18" /></>,
+  file:      <><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><polyline points="14 3 14 9 20 9" /><line x1="9" y1="14" x2="15" y2="14" /><line x1="9" y1="17" x2="15" y2="17" /></>,
+  users:     <><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></>,
+  check:     <polyline points="20 6 9 17 4 12" />,
+  arrow:     <><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></>,
+  play:      <polygon points="6 4 20 12 6 20 6 4" fill="currentColor" />,
+}
 
-function IntegrationCard({ title, body }) {
+// ─── Small reusable pieces ────────────────────────────────────────────────
+const Tag = ({ children, tone = 'teal' }) => {
+  const map = {
+    teal:  { bg: TEAL_L, fg: TEAL },
+    amber: { bg: '#FEF3C7', fg: AMBER },
+    green: { bg: '#D1FAE5', fg: '#065F46' },
+  }
+  const m = map[tone]
   return (
-    <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.1rem 1.25rem' }}>
-      <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.35rem', fontSize: '.95rem' }}>{title}</div>
-      <div style={{ color: '#4B5563', fontSize: '.85rem', lineHeight: 1.55 }}>{body}</div>
-    </div>
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      background: m.bg, color: m.fg,
+      padding: '3px 10px', borderRadius: 99,
+      fontSize: '.7rem', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+    }}>
+      {children}
+    </span>
   )
 }
 
-function VitalMetric({ label, unit, note }) {
-  return (
-    <div style={{ background: 'rgba(11,110,118,.06)', border: `1px solid ${TEAL_L}`, borderRadius: 10, padding: '.85rem 1rem', textAlign: 'center' }}>
-      <div style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>{label}</div>
-      <div style={{ color: TEAL, fontWeight: 700, fontSize: '.85rem', margin: '2px 0' }}>{unit}</div>
-      {note && <div style={{ color: '#6B7280', fontSize: '.7rem', lineHeight: 1.35 }}>{note}</div>}
-    </div>
-  )
-}
+const SectionEyebrow = ({ children }) => (
+  <div style={{
+    fontSize: '.72rem', fontWeight: 700, letterSpacing: '.14em',
+    textTransform: 'uppercase', color: TEAL, marginBottom: '.9rem',
+  }}>
+    {children}
+  </div>
+)
 
-function Jurisdiction({ flag, brand, tagline, url, live, note }) {
-  return (
-    <a href={live ? url : undefined}
-       onClick={live ? undefined : (e) => e.preventDefault()}
-       style={{
-         display: 'block', textDecoration: 'none', color: 'inherit',
-         background: 'white', border: '1px solid #E2E8F0', borderRadius: 14,
-         padding: '1.1rem 1.25rem', cursor: live ? 'pointer' : 'default',
-         transition: 'transform .15s, box-shadow .15s',
-         opacity: live ? 1 : 0.65,
-       }}
-       onMouseEnter={(e) => { if (live) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(13,43,69,0.08)' } }}
-       onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none' }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem', marginBottom: '.3rem' }}>
-        <span style={{ fontSize: '1.2rem' }}>{flag}</span>
-        <span style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>{brand}</span>
-        {!live && (
-          <span style={{ marginLeft: 'auto', fontSize: '.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 99 }}>
-            Preparing
-          </span>
-        )}
+const SectionHeading = ({ children, style }) => (
+  <h2 style={{
+    fontFamily: SERIF, fontSize: 'clamp(1.75rem, 3vw, 2.35rem)',
+    fontWeight: 600, lineHeight: 1.1, margin: '0 0 1rem',
+    color: NAVY, letterSpacing: '-.01em',
+    ...style,
+  }}>
+    {children}
+  </h2>
+)
+
+// Bento cell — the base tile in the feature grid. Variable size + optional
+// image + optional dark background.
+const Bento = ({ span = 1, dark, image, imageAlt, children, style }) => (
+  <div style={{
+    gridColumn: `span ${span}`,
+    background: dark ? NAVY : 'white',
+    color: dark ? 'white' : NAVY,
+    border: dark ? 'none' : '1px solid #E2E8F0',
+    borderRadius: 20,
+    overflow: 'hidden',
+    display: 'flex', flexDirection: 'column',
+    minHeight: 240,
+    ...style,
+  }}>
+    {image && (
+      <div style={{
+        background: dark ? NAVY_D : CREAM_D,
+        padding: '1.25rem 1.25rem 0',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        minHeight: 200,
+      }}>
+        <img src={image} alt={imageAlt}
+             style={{
+               maxWidth: '100%', maxHeight: 220,
+               borderRadius: '10px 10px 0 0',
+               boxShadow: '0 20px 40px rgba(13,43,69,.15)',
+               display: 'block',
+             }} />
       </div>
-      <div style={{ color: '#4B5563', fontSize: '.82rem', marginBottom: '.4rem', lineHeight: 1.5 }}>{tagline}</div>
-      <div style={{ color: TEAL, fontSize: '.8rem', fontWeight: 600 }}>
-        {live ? `${url.replace(/^https?:\/\//, '')} →` : (note || 'Launching soon')}
-      </div>
-    </a>
-  )
-}
-
-function ComplianceRow({ label, value }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '1rem', padding: '.55rem 0', borderTop: '1px solid #E2E8F0' }}>
-      <span style={{ color: '#4B5563', fontSize: '.85rem' }}>{label}</span>
-      <span style={{ color: NAVY, fontWeight: 600, fontSize: '.85rem', textAlign: 'right' }}>{value}</span>
+    )}
+    <div style={{ padding: '1.5rem 1.75rem', flex: 1 }}>
+      {children}
     </div>
-  )
-}
+  </div>
+)
 
+const BentoTitle = ({ icon, children, dark }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
+    <span style={{ color: dark ? TEAL_L : TEAL }}><Icon path={I[icon]} size={20} /></span>
+    <span style={{ fontWeight: 700, fontSize: '1rem', color: dark ? 'white' : NAVY }}>{children}</span>
+  </div>
+)
+
+const BentoBody = ({ children, dark }) => (
+  <div style={{
+    color: dark ? 'rgba(255,255,255,.75)' : '#4B5563',
+    fontSize: '.875rem', lineHeight: 1.55,
+  }}>
+    {children}
+  </div>
+)
+
+// ─── Page ─────────────────────────────────────────────────────────────────
 export default function TereCorporate() {
   return (
-    <div style={{ minHeight: '100dvh', background: CREAM, fontFamily: FF, color: NAVY }}>
-      {/* Hero — repositioned around NZ IP licensing / integration */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '4rem 1.5rem 2.5rem' }}>
-        <div style={{ fontSize: '.75rem', fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: TEAL, marginBottom: '1rem' }}>
-          Tere Health Ltd
+    <div style={{
+      minHeight: '100dvh', background: CREAM, fontFamily: FF, color: NAVY,
+      // Progressive enhancement — subtle noise texture on cream for warmth.
+      backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(11,110,118,.04) 0, transparent 40%), radial-gradient(circle at 70% 80%, rgba(13,43,69,.03) 0, transparent 40%)',
+    }}>
+
+      {/* Slim top-of-page brand bar — no nav, no CTAs. Just presence. */}
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '1.5rem 1.5rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem' }}>
+          <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: NAVY, fontSize: '1.5rem', fontWeight: 700 }}>Tere</span>
+          <span style={{ fontSize: '.72rem', letterSpacing: '.14em', textTransform: 'uppercase', color: '#6B7280', fontWeight: 700 }}>Health Ltd</span>
         </div>
-        <h1 style={{ fontFamily: SERIF, fontSize: 'clamp(2.1rem, 5vw, 3.2rem)', fontWeight: 700, lineHeight: 1.1, margin: '0 0 1.25rem', color: NAVY }}>
-          A New Zealand telemedicine platform,<br/>
-          <span style={{ color: TEAL, fontStyle: 'italic' }}>ready to integrate into your practice.</span>
-        </h1>
-        <p style={{ fontSize: '1.05rem', color: '#4B5563', lineHeight: 1.55, margin: '0 0 1.5rem', maxWidth: 680 }}>
-          Tere Health builds the clinical software behind our own telemedicine service — vitals estimation from a phone camera, HL7 messaging with community labs, structured clinical notes, prescribing, and video consult. GP practices and rural health providers can integrate these components into their existing workflow.
-        </p>
-        <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-          <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20—%20integration%20enquiry" style={{ background: TEAL, color: 'white', textDecoration: 'none', padding: '10px 20px', borderRadius: 99, fontWeight: 700, fontSize: '.9rem' }}>
-            Talk to us about integration
-          </a>
-          <a href="#demo" style={{ background: 'transparent', color: NAVY, textDecoration: 'none', padding: '10px 20px', borderRadius: 99, fontWeight: 700, fontSize: '.9rem', border: '1px solid #CBD5E1' }}>
-            Watch a consultation ↓
-          </a>
-        </div>
+        <a href="mailto:hello@terehealth.co.nz" style={{ color: NAVY, textDecoration: 'none', fontSize: '.85rem', fontWeight: 600, opacity: .8 }}>
+          hello@terehealth.co.nz
+        </a>
       </div>
 
-      {/* For NZ providers — the main pitch */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '1rem 1.5rem 3rem' }}>
-        <div style={{ display: 'inline-block', background: TEAL_L, color: TEAL, padding: '3px 10px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.75rem' }}>
-          For NZ GP + rural health providers
-        </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: NAVY, margin: '0 0 .5rem' }}>
-          Plug into a proven telemedicine stack, without building it yourself.
-        </h2>
-        <p style={{ color: '#4B5563', fontSize: '.95rem', margin: '0 0 1.5rem', maxWidth: 680, lineHeight: 1.6 }}>
-          Every component below runs in production today serving NZ patients. We can license the pieces you need, run the full platform under your brand, or partner on rural service delivery — whichever shape works for your practice.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '.75rem' }}>
-          <IntegrationCard title="Video consult"     body="LiveKit-based video with AI subtitles in 20+ languages. Waiting room, screenshot capture, transcript." />
-          <IntegrationCard title="Vitals estimation" body="rPPG from phone camera — HR, SpO2, respiratory rate. Under active clinical validation." />
-          <IntegrationCard title="HL7 v2 receive"    body="Live Medical-Objects integration receiving lab + referral messages, auto-filing to patient chart on NHI match." />
-          <IntegrationCard title="Prescribing"       body="NZ signature-exempt prescriptions to community pharmacy by email or fax, controlled-drug classification, drug-allergy cross-checks." />
-          <IntegrationCard title="Imaging referral"  body="Structured PDF referrals to private radiology (RHCNZ + MMI) with region-aware clinic routing." />
-          <IntegrationCard title="Structured chart"  body="Allergens, medications, conditions as first-class rows. HL7 GP-letter segments auto-import." />
-          <IntegrationCard title="AI clinical notes" body="Consult transcript → structured SOAP note draft. BAA-covered, no training on patient data." />
-          <IntegrationCard title="Patient identity"  body="HPI directory lookup, NHI matching, MCNZ supervision workflow, MFA for providers." />
-        </div>
-      </div>
-
-      {/* Vitals estimator — technical differentiator */}
-      <div style={{ background: 'white', borderTop: '1px solid #E2E8F0', borderBottom: '1px solid #E2E8F0' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', padding: '3rem 1.5rem' }}>
-          <div style={{ display: 'inline-block', background: TEAL_L, color: TEAL, padding: '3px 10px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.75rem' }}>
-            Signature IP
-          </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: NAVY, margin: '0 0 .5rem' }}>
-            Vitals estimator — measurement from a phone camera.
-          </h2>
-          <p style={{ color: '#4B5563', fontSize: '.95rem', margin: '0 0 1.5rem', maxWidth: 680, lineHeight: 1.6 }}>
-            Our remote photoplethysmography (rPPG) pipeline extracts pulse from subtle skin-tone changes in the video signal. No wearable, no peripheral — the patient's own phone becomes the sensor. Runs client-side, models loaded on-demand, video never leaves the device.
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '.6rem', marginBottom: '1.5rem' }}>
-            <VitalMetric label="Heart rate"      unit="bpm"     note="~30 s scan" />
-            <VitalMetric label="SpO2"            unit="%"       note="Calibrated per-device" />
-            <VitalMetric label="Respiratory rate" unit="breaths/min" note="From chest micro-motion" />
-            <VitalMetric label="Blood pressure"  unit="mmHg"    note="Under validation" />
-          </div>
-          <div style={{ background: CREAM, borderRadius: 10, padding: '1rem 1.25rem', fontSize: '.85rem', color: '#4B5563', lineHeight: 1.55 }}>
-            <strong style={{ color: NAVY }}>Clinical validation status:</strong> Heart rate and SpO2 in use in production; respiratory rate ships with confidence gating. Blood pressure runs behind an HDEC-scoped research study for accuracy vs cuff standard. WAND registration on file.
-          </div>
-        </div>
-      </div>
-
-      {/* Demo video */}
-      <div id="demo" style={{ maxWidth: 960, margin: '0 auto', padding: '3rem 1.5rem 1.5rem' }}>
-        <div style={{ display: 'inline-block', background: TEAL_L, color: TEAL, padding: '3px 10px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.75rem' }}>
-          See it in action
-        </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: NAVY, margin: '0 0 .5rem' }}>
-          A full consultation, end to end.
-        </h2>
-        <p style={{ color: '#4B5563', fontSize: '.95rem', margin: '0 0 1.25rem', maxWidth: 680, lineHeight: 1.6 }}>
-          From landing on the site to speaking with an emergency physician — vitals scan, triage, video consult, prescription — in under two minutes.
-        </p>
-        <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 64px rgba(13,43,69,.25)' }}>
-          <video controls preload="metadata" playsInline style={{ width: '100%', height: 'auto', display: 'block' }}>
-            <source src="/videos/tere-demo.mp4" type="video/mp4" />
-            Your browser doesn't support HTML5 video. <a href="/videos/tere-demo.mp4" style={{ color: TEAL_L }}>Download the video</a>.
-          </video>
-        </div>
-      </div>
-
-      {/* Platform + compliance side-by-side */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '3rem 1.5rem 2rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 14, padding: '1.5rem 1.75rem' }}>
-            <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.75rem' }}>Platform architecture</div>
-            <p style={{ color: '#4B5563', fontSize: '.9rem', lineHeight: 1.55, margin: 0 }}>
-              Single codebase across jurisdictions. Region-scoped configuration for currency, e-prescribing, licensing, consent, emergency numbers. Server-mediated PHI access, feature-flagged rollouts, and role-based provider / admin / billing surfaces. Client-side rPPG so raw video never crosses the network.
-            </p>
-          </div>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 14, padding: '1.5rem 1.75rem' }}>
-            <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.75rem' }}>Compliance posture</div>
-            <ComplianceRow label="NZ privacy" value="Health Information Privacy Code 2020" />
-            <ComplianceRow label="US privacy" value="HIPAA (BAA-covered, PHI hosted in-region)" />
-            <ComplianceRow label="Clinical AI" value="Encrypted, BAA-covered, not used for model training" />
-            <ComplianceRow label="Audit"      value="Every clinical PHI access logged and reviewable" />
-          </div>
-        </div>
-      </div>
-
-      {/* Deployment frames — how the same platform serves different customer shapes */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
-        <div style={{ display: 'inline-block', background: TEAL_L, color: TEAL, padding: '3px 10px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', marginBottom: '.75rem' }}>
-          How it's used
-        </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: NAVY, margin: '0 0 .5rem' }}>
-          One platform, several deployment shapes.
-        </h2>
-        <p style={{ color: '#4B5563', fontSize: '.95rem', margin: '0 0 1.5rem', maxWidth: 680, lineHeight: 1.6 }}>
-          Same clinical engine underneath. Different fronts, different commercial models, different regulatory frameworks — configured per deployment.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '.75rem' }}>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', marginBottom: '.35rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>🇳🇿</span>
-              <span style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>NZ direct telehealth</span>
-              <span style={{ marginLeft: 'auto', fontSize: '.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#065F46', background: '#D1FAE5', padding: '2px 8px', borderRadius: 99 }}>Live</span>
-            </div>
-            <div style={{ color: '#4B5563', fontSize: '.85rem', lineHeight: 1.55, marginBottom: '.5rem' }}>
-              Tere Health, our own consumer telemedicine service for rural NZ. HDC-registered, ACC-connected, MOH-notified. Live proof point for everything on this page.
-            </div>
-            <a href="https://terehealth.co.nz" style={{ color: TEAL, fontSize: '.8rem', fontWeight: 600, textDecoration: 'none' }}>terehealth.co.nz →</a>
-          </div>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', marginBottom: '.35rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>🏥</span>
-              <span style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>GP practice / PHO integration</span>
-              <span style={{ marginLeft: 'auto', fontSize: '.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 99 }}>Available</span>
-            </div>
-            <div style={{ color: '#4B5563', fontSize: '.85rem', lineHeight: 1.55, marginBottom: '.5rem' }}>
-              White-label the platform under your practice or PHO brand, or license individual components (rPPG, HL7 receive, prescribing) into your existing workflow. Data flows stay with you.
-            </div>
-            <a href="mailto:hello@terehealth.co.nz?subject=GP%20/%20PHO%20integration" style={{ color: TEAL, fontSize: '.8rem', fontWeight: 600, textDecoration: 'none' }}>Talk to us →</a>
-          </div>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', marginBottom: '.35rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>🇺🇸</span>
-              <span style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>US B2B2C + B2B</span>
-              <span style={{ marginLeft: 'auto', fontSize: '.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 99 }}>Preparing</span>
-            </div>
-            <div style={{ color: '#4B5563', fontSize: '.85rem', lineHeight: 1.55, marginBottom: '.5rem' }}>
-              Tere Care US surface, positioned for employer-benefit / insurer partnerships (B2B2C) and direct enterprise deployment (B2B). HIPAA-covered, provider state-licensing built in.
-            </div>
-            <span style={{ color: '#6B7280', fontSize: '.8rem', fontStyle: 'italic' }}>Launching soon</span>
-          </div>
-          <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '.5rem', marginBottom: '.35rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>🇦🇺</span>
-              <span style={{ fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>AU rural + remote</span>
-              <span style={{ marginLeft: 'auto', fontSize: '.62rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#92400E', background: '#FEF3C7', padding: '2px 8px', borderRadius: 99 }}>Preparing</span>
-            </div>
-            <div style={{ color: '#4B5563', fontSize: '.85rem', lineHeight: 1.55, marginBottom: '.5rem' }}>
-              Tere Health Australia, planned for MMM6-7 rural + remote communities. AHPRA registration + AU entity formation in progress; Medical Director via TTMRA.
-            </div>
-            <span style={{ color: '#6B7280', fontSize: '.8rem', fontStyle: 'italic' }}>In preparation</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Contact */}
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '0 1.5rem 5rem' }}>
-        <div style={{ background: NAVY, color: 'white', borderRadius: 14, padding: '2rem', display: 'flex', flexWrap: 'wrap', gap: '1rem 2rem', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* HERO — asymmetric bento. Copy left, product screenshot right. */}
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '4rem 1.5rem 3.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1fr)', gap: '3rem', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: '.75rem', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: '.35rem' }}>
-              Talk to us
+            <Tag tone="green">
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 99, background: '#059669' }} /> Live in NZ
+            </Tag>
+            <h1 style={{
+              fontFamily: SERIF, fontSize: 'clamp(2.4rem, 5.5vw, 4rem)',
+              fontWeight: 600, lineHeight: 1.02, margin: '1.25rem 0 1.25rem',
+              color: NAVY, letterSpacing: '-.02em',
+            }}>
+              The clinical software behind rural&nbsp;telehealth,{' '}
+              <span style={{ color: TEAL, fontStyle: 'italic' }}>ready for your practice.</span>
+            </h1>
+            <p style={{
+              fontSize: '1.075rem', color: '#4B5563', lineHeight: 1.55,
+              margin: '0 0 1.75rem', maxWidth: 540,
+            }}>
+              Tere builds the platform behind our own NZ telemedicine service — vitals from a phone camera, HL7 messaging with community labs, structured prescribing, video consult. Available for GP practices and PHOs to integrate.
+            </p>
+            <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
+              <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20integration" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: NAVY, color: 'white', textDecoration: 'none',
+                padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
+              }}>
+                Talk to us <Icon path={I.arrow} size={16} />
+              </a>
+              <a href="#demo" style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'transparent', color: NAVY, textDecoration: 'none',
+                padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
+                border: '1px solid #CBD5E1',
+              }}>
+                <Icon path={I.play} size={12} color={TEAL} fill={TEAL} /> Watch demo
+              </a>
             </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: 700 }}>hello@terehealth.co.nz</div>
-            <div style={{ fontSize: '.85rem', color: '#CBD5E1', marginTop: '.35rem' }}>Practice integration, licensing, partnerships, press.</div>
           </div>
-          <div style={{ fontSize: '.8rem', color: '#94A3B8', lineHeight: 1.6 }}>
-            <div>Tere Health Ltd</div>
-            <div>Nelson, New Zealand</div>
+
+          {/* Hero screenshot — real product proof, off-set for visual depth */}
+          <div style={{ position: 'relative', minHeight: 480 }}>
+            <div style={{
+              position: 'absolute', top: 20, left: 40, right: 0, bottom: 0,
+              background: TEAL_L, borderRadius: 20, transform: 'rotate(2deg)',
+            }} />
+            <img src="/corporate/hl7-abnormal.png" alt="Provider view of an inbound HL7 lab report with abnormal detection"
+                 style={{
+                   position: 'relative', width: '100%', height: 'auto',
+                   borderRadius: 20, boxShadow: '0 30px 60px rgba(13,43,69,.20)',
+                   border: '1px solid #E2E8F0',
+                 }} />
+            {/* Little floating annotation to hint at what the reader is looking at */}
+            <div style={{
+              position: 'absolute', bottom: -20, left: -20,
+              background: 'white', borderRadius: 12, padding: '.6rem .85rem',
+              boxShadow: '0 12px 30px rgba(13,43,69,.15)',
+              display: 'flex', alignItems: 'center', gap: '.6rem',
+              fontSize: '.75rem', fontWeight: 600, color: NAVY,
+            }}>
+              <span style={{ background: '#FEE2E2', color: '#991B1B', borderRadius: 8, padding: '2px 8px', fontWeight: 700, fontSize: '.68rem' }}>⚠ ABNORMAL</span>
+              HL7 message auto-parsed, flagged, filed to chart on NHI match.
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{ borderTop: '1px solid #E2E8F0', padding: '1.5rem', textAlign: 'center', color: '#94A3B8', fontSize: '.75rem' }}>
-        © {YEAR} Tere Health Ltd. NZ patients:{' '}
-        <a href="https://terehealth.co.nz" style={{ color: TEAL, textDecoration: 'none', fontWeight: 600 }}>terehealth.co.nz</a>
+      {/* Thin metric strip — quiet proof under the hero */}
+      <div style={{ borderTop: '1px solid rgba(13,43,69,.08)', borderBottom: '1px solid rgba(13,43,69,.08)', background: 'rgba(255,255,255,.4)' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem 2rem', alignItems: 'center', justifyContent: 'center', color: '#4B5563', fontSize: '.78rem', fontWeight: 600 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HDC registered</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HIPAA + BAA-covered</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HPI directory connected</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HL7 v2 receive live</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> rPPG in production</span>
+        </div>
+      </div>
+
+      {/* BENTO — what we've built. Variable-size tiles, one large with the inbox screenshot. */}
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '5rem 1.5rem 3rem' }}>
+        <SectionEyebrow>What we've built</SectionEyebrow>
+        <SectionHeading>Everything a rural telemedicine service needs — component by component.</SectionHeading>
+        <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
+          Each of these runs in production today, serving NZ patients. License the pieces that fit your workflow, or run the full platform under your brand.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
+          {/* Row 1 — large HL7 tile with screenshot */}
+          <Bento span={4} image="/corporate/hl7-inbox.png" imageAlt="Provider inbox showing 9 patient reports fanned out from one batched HL7 message">
+            <BentoTitle icon="inbox">HL7 v2 receive</BentoTitle>
+            <BentoBody>
+              Live Medical-Objects integration receiving lab results, GP letters, and referral reports. Batched messages fan out per-patient. Auto-filed to patient chart on NHI match. AL1 allergens and DG1 conditions auto-import into structured history.
+            </BentoBody>
+          </Bento>
+
+          <Bento span={2} dark>
+            <BentoTitle icon="scan" dark>Vitals estimator</BentoTitle>
+            <BentoBody dark>
+              rPPG (remote photoplethysmography) from the phone camera. HR, SpO2, respiratory rate. No wearable. Video never leaves the device — inference runs client-side.
+            </BentoBody>
+            <div style={{ marginTop: '1.25rem', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {['HR', 'SpO2', 'RR', 'BP'].map(v => (
+                <span key={v} style={{ background: 'rgba(212,238,240,.15)', color: TEAL_L, border: `1px solid rgba(212,238,240,.3)`, borderRadius: 8, padding: '4px 10px', fontSize: '.72rem', fontWeight: 700 }}>{v}</span>
+              ))}
+            </div>
+          </Bento>
+
+          {/* Row 2 — 3 medium tiles */}
+          <Bento span={2}>
+            <BentoTitle icon="video">Video consult</BentoTitle>
+            <BentoBody>LiveKit-based video with real-time AI subtitles in 20+ languages. Waiting room, in-call notes, transcript export, screenshot capture.</BentoBody>
+          </Bento>
+
+          <Bento span={2}>
+            <BentoTitle icon="pill">Prescribing</BentoTitle>
+            <BentoBody>NZ signature-exempt prescriptions to community pharmacy by email or fax. Controlled-drug classification, drug-allergy cross-checks, prescriber contact detail on the PDF.</BentoBody>
+          </Bento>
+
+          <Bento span={2}>
+            <BentoTitle icon="file">Structured chart</BentoTitle>
+            <BentoBody>Allergens, medications, conditions as first-class rows — not free-text. HL7 inbound letters auto-populate. Prescribing looks up allergens before dispatch.</BentoBody>
+          </Bento>
+
+          {/* Row 3 — 3 medium tiles */}
+          <Bento span={2}>
+            <BentoTitle icon="network">Imaging referral</BentoTitle>
+            <BentoBody>Structured PDF referrals to private radiology (RHCNZ + Marlborough Medical Imaging), routed by patient postcode to the region-appropriate clinic.</BentoBody>
+          </Bento>
+
+          <Bento span={2}>
+            <BentoTitle icon="activity">AI clinical notes</BentoTitle>
+            <BentoBody>Consult transcript → structured SOAP note draft. Provider reviews and signs. BAA-covered inference, no training on patient data.</BentoBody>
+          </Bento>
+
+          <Bento span={2}>
+            <BentoTitle icon="users">Patient identity</BentoTitle>
+            <BentoBody>HNZ HPI directory lookup for clinicians and facilities. NHI matching for patient records. MCNZ supervision workflow, provider MFA.</BentoBody>
+          </Bento>
+        </div>
+      </div>
+
+      {/* DARK FULL-BLEED — signature IP + demo video */}
+      <div id="demo" style={{ background: NAVY, color: 'white', padding: '5rem 0 5rem' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: '3rem', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TEAL_L, marginBottom: '.9rem' }}>
+                Signature IP
+              </div>
+              <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(1.9rem, 3.3vw, 2.6rem)', fontWeight: 600, lineHeight: 1.05, margin: '0 0 1.25rem', letterSpacing: '-.01em' }}>
+                Vitals from a phone camera.<br/>
+                <span style={{ color: TEAL_L, fontStyle: 'italic' }}>~30 seconds. No wearable.</span>
+              </h2>
+              <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,.78)', lineHeight: 1.6, margin: '0 0 1.75rem', maxWidth: 480 }}>
+                Our remote photoplethysmography (rPPG) pipeline extracts pulse from subtle skin-tone changes in the video signal. The patient's own phone becomes the sensor. Runs entirely client-side.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.75rem', marginBottom: '1.5rem' }}>
+                {[
+                  { label: 'Heart rate',      unit: 'bpm',              note: 'In production' },
+                  { label: 'SpO2',            unit: '%',                note: 'In production' },
+                  { label: 'Respiratory rate', unit: 'breaths / min',   note: 'Confidence-gated' },
+                  { label: 'Blood pressure',  unit: 'mmHg',             note: 'Under validation' },
+                ].map(v => (
+                  <div key={v.label} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(212,238,240,.15)', borderRadius: 10, padding: '.85rem 1rem' }}>
+                    <div style={{ fontSize: '.85rem', fontWeight: 700 }}>{v.label}</div>
+                    <div style={{ fontSize: '.75rem', color: TEAL_L, fontWeight: 600, marginTop: 2 }}>{v.unit}</div>
+                    <div style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.55)', marginTop: 4 }}>{v.note}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.6)', lineHeight: 1.55 }}>
+                WAND registration on file · Blood-pressure accuracy under HDEC-scoped observational study.
+              </div>
+            </div>
+
+            {/* Demo video */}
+            <div>
+              <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.08)' }}>
+                <video controls preload="metadata" playsInline poster="/corporate/hl7-abnormal.png"
+                       style={{ width: '100%', height: 'auto', display: 'block' }}>
+                  <source src="/videos/tere-demo.mp4" type="video/mp4" />
+                </video>
+              </div>
+              <div style={{ marginTop: '.85rem', fontSize: '.8rem', color: 'rgba(255,255,255,.6)', textAlign: 'center' }}>
+                A full patient consultation, end to end — under two minutes.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* DEPLOYMENT FRAMES — 4 pill-style rows, not a card grid */}
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '5rem 1.5rem 3rem' }}>
+        <SectionEyebrow>Deployment shapes</SectionEyebrow>
+        <SectionHeading>Same clinical engine, different frames.</SectionHeading>
+        <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
+          One platform underneath — different fronts, commercial models, and regulatory frameworks configured per deployment.
+        </p>
+
+        {[
+          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ. HDC-registered, ACC-connected, MOH-notified. Live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
+          { icon: 'network', title: 'GP practice / PHO integration',   desc: 'White-label the platform under your practice or PHO brand, or license individual components into your existing workflow. Data flows stay with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=GP%20/%20PHO%20integration' },
+          { icon: 'shield',  title: 'US B2B2C + enterprise',            desc: 'Tere Care US surface, positioned for employer-benefit / insurer partnerships (B2B2C) and direct enterprise deployment. HIPAA-covered, provider state-licensing built in.', status: 'preparing' },
+          { icon: 'users',   title: 'AU rural + remote',                desc: 'Tere Health Australia, planned for MMM6-7 rural + remote communities. AHPRA registration + AU entity formation in progress; Medical Director via TTMRA.', status: 'preparing' },
+        ].map((row, i) => (
+          <div key={row.title} style={{
+            display: 'flex', alignItems: 'center', gap: '1.25rem',
+            background: 'white', border: '1px solid #E2E8F0', borderRadius: 16,
+            padding: '1.25rem 1.5rem', marginBottom: '.75rem',
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: 12,
+              background: TEAL_L, color: TEAL,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icon path={I[row.icon]} size={20} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem', marginBottom: '.2rem' }}>
+                <span style={{ fontWeight: 700, color: NAVY, fontSize: '1rem' }}>{row.title}</span>
+                {row.status === 'live'     && <Tag tone="green">Live</Tag>}
+                {row.status === 'available' && <Tag tone="amber">Available</Tag>}
+                {row.status === 'preparing' && <Tag tone="amber">Preparing</Tag>}
+              </div>
+              <div style={{ color: '#4B5563', fontSize: '.875rem', lineHeight: 1.55 }}>{row.desc}</div>
+            </div>
+            {row.link && (
+              <a href={row.link} style={{
+                color: TEAL, fontSize: '.85rem', fontWeight: 700,
+                textDecoration: 'none', flexShrink: 0,
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+                {row.link.startsWith('mailto') ? 'Talk to us' : row.link.replace(/^https?:\/\//, '')} <Icon path={I.arrow} size={14} />
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* COMPLIANCE — pill row, not a table-in-a-card */}
+      <div style={{ maxWidth: 1180, margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
+        <SectionEyebrow>Compliance posture</SectionEyebrow>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '.75rem' }}>
+          {[
+            { label: 'NZ privacy',  value: 'Health Information Privacy Code 2020' },
+            { label: 'US privacy',  value: 'HIPAA, BAA-covered, PHI in-region' },
+            { label: 'Clinical AI', value: 'Encrypted, not used for model training' },
+            { label: 'Audit',       value: 'Every clinical PHI access logged' },
+          ].map(c => (
+            <div key={c.label} style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1rem 1.15rem' }}>
+              <div style={{ fontSize: '.68rem', color: '#6B7280', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 4 }}>{c.label}</div>
+              <div style={{ fontSize: '.85rem', color: NAVY, fontWeight: 600, lineHeight: 1.4 }}>{c.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* CONTACT — full-bleed navy */}
+      <div style={{ background: NAVY, color: 'white', padding: '4.5rem 0' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '2.5rem', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TEAL_L, marginBottom: '.9rem' }}>
+              Let's talk
+            </div>
+            <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(2rem, 3.6vw, 2.9rem)', fontWeight: 600, lineHeight: 1.05, margin: '0 0 1.25rem', letterSpacing: '-.01em' }}>
+              Bring rural-grade telehealth into&nbsp;your practice.
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,.75)', fontSize: '1rem', margin: '0 0 1.75rem', maxWidth: 520, lineHeight: 1.55 }}>
+              Whether you're evaluating a full white-label deployment or want to plug a single component (rPPG, HL7 receive, prescribing) into what you already run — we'd like to hear how it might fit.
+            </p>
+            <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20—%20practice%20integration" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              background: 'white', color: NAVY, textDecoration: 'none',
+              padding: '14px 24px', borderRadius: 12, fontWeight: 700, fontSize: '.95rem',
+            }}>
+              hello@terehealth.co.nz <Icon path={I.arrow} size={16} />
+            </a>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(212,238,240,.15)', borderRadius: 16, padding: '1.75rem 2rem' }}>
+            <div style={{ fontSize: '.7rem', color: TEAL_L, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.5rem' }}>Tere Health Ltd</div>
+            <div style={{ fontSize: '.95rem', color: 'white', fontWeight: 600, lineHeight: 1.6 }}>
+              Nelson, New Zealand<br/>
+              NZ-registered clinical software company<br/>
+              Operating <a href="https://terehealth.co.nz" style={{ color: TEAL_L, fontWeight: 600, textDecoration: 'none' }}>terehealth.co.nz</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: NAVY_D, color: 'rgba(255,255,255,.5)', padding: '1.25rem', textAlign: 'center', fontSize: '.75rem' }}>
+        © {YEAR} Tere Health Ltd. NZ patients: <a href="https://terehealth.co.nz" style={{ color: TEAL_L, textDecoration: 'none', fontWeight: 600 }}>terehealth.co.nz</a>
       </div>
     </div>
   )
