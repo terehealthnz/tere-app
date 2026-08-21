@@ -213,7 +213,7 @@ export default function TereCorporate() {
                 background: NAVY, color: 'white', textDecoration: 'none',
                 padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
               }}>
-                Book a call <Icon path={I.arrow} size={16} />
+                Book a demo <Icon path={I.arrow} size={16} />
               </a>
               <a href="#demo" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -246,8 +246,8 @@ export default function TereCorporate() {
               display: 'flex', alignItems: 'center', gap: '.6rem',
               fontSize: '.75rem', fontWeight: 600, color: NAVY,
             }}>
-              <span style={{ background: TEAL_L, color: TEAL, borderRadius: 8, padding: '2px 8px', fontWeight: 700, fontSize: '.68rem' }}>🌐 20+ LANGUAGES</span>
-              Live subtitle translation during the consult.
+              <span style={{ background: TEAL_L, color: TEAL, borderRadius: 8, padding: '2px 8px', fontWeight: 700, fontSize: '.68rem' }}>🌐 LIVE TRANSLATION</span>
+              Real time subtitles during the consult.
             </div>
           </div>
         </div>
@@ -366,9 +366,12 @@ export default function TereCorporate() {
             {/* Demo video */}
             <div>
               <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 30px 60px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,.08)' }}>
-                <video controls preload="metadata" playsInline
+                <video controls preload="auto" playsInline
                        style={{ width: '100%', height: 'auto', display: 'block' }}>
-                  <source src="/videos/tere-demo.mp4" type="video/mp4" />
+                  {/* #t=0.1 asks the browser to seek to 0.1s so a real
+                      frame shows in the player before you press play,
+                      instead of the black placeholder default. */}
+                  <source src="/videos/tere-demo.mp4#t=0.1" type="video/mp4" />
                 </video>
               </div>
               <div style={{ marginTop: '.85rem', fontSize: '.8rem', color: 'rgba(255,255,255,.6)', textAlign: 'center' }}>
