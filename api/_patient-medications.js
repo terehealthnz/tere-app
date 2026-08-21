@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 const ALLOWLIST = new Set([
   'drug', 'dose', 'frequency', 'route', 'indication',
@@ -27,13 +28,15 @@ function project(raw) {
 export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
+  // Practice-mode scope for child PHI reads/writes.
+  const { practice } = resolveDataMode(auth.provider, req)
   const supabase = admin()
 
   if (req.method === 'GET') {
     const { patientId } = req.query || {}
     if (!patientId) return res.status(400).json({ error: 'patientId query param required' })
     const { data, error } = await supabase
-      .from('patient_medications').select('*').eq('patient_id', patientId)
+      .from('patient_medications').select('*').eq('patient_id', patientId).eq('is_practice', practice)
       .order('is_active', { ascending: false }).order('created_at', { ascending: false })
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ medications: data || [] })
@@ -43,6 +46,7 @@ export default async function handler(req, res) {
     const body = req.body || {}
     if (!body.patientId || !body.drug) return res.status(400).json({ error: 'patientId + drug required' })
     const row = { patient_id: body.patientId, ...project(body),
+                  is_practice: practice,
                   created_by: auth.provider?.id || null,
                   created_by_name: auth.provider?.display_name || auth.email || null }
     const { data, error } = await supabase.from('patient_medications').insert(row).select().single()
@@ -56,7 +60,7 @@ export default async function handler(req, res) {
     const patch = project(req.body || {})
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No allowed columns in patch' })
     patch.updated_at = new Date().toISOString()
-    const { data, error } = await supabase.from('patient_medications').update(patch).eq('id', id).select().single()
+    const { data, error } = await supabase.from('patient_medications').update(patch).eq('id', id).eq('is_practice', practice).select().single()
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ medication: data })
   }
@@ -64,7 +68,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
-    const { error } = await supabase.from('patient_medications').delete().eq('id', id)
+    const { error } = await supabase.from('patient_medications').delete().eq('id', id).eq('is_practice', practice)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ ok: true })
   }

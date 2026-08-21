@@ -15,6 +15,7 @@
 // in whose chart.
 
 import { createClient } from '@supabase/supabase-js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -34,6 +35,9 @@ export default async function handler(req, res) {
   const providerId = req.auth?.providerId || req.auth?.id || null
   if (!providerId) return res.status(401).json({ error: 'Provider identity required' })
 
+  // Practice-mode scope for HL7 filing (auth already applied at router).
+  const { practice } = resolveDataMode(req.auth?.provider, req)
+
   const supabase = admin()
 
   // Fetch the message to confirm it exists + capture pre-state for audit.
@@ -41,6 +45,7 @@ export default async function handler(req, res) {
     .from('inbound_hl7_messages')
     .select('id, filed_to_patient_id, matched_patient_id, patient_first_name, patient_last_name')
     .eq('id', messageId)
+    .eq('is_practice', practice)
     .maybeSingle()
   if (msgErr) return res.status(500).json({ error: msgErr.message })
   if (!msg)   return res.status(404).json({ error: 'HL7 message not found' })
@@ -54,6 +59,7 @@ export default async function handler(req, res) {
         filed_by_provider_id: null,
       })
       .eq('id', messageId)
+      .eq('is_practice', practice)
     if (updErr) return res.status(500).json({ error: updErr.message })
 
     await supabase.from('audit_log').insert({
@@ -73,6 +79,7 @@ export default async function handler(req, res) {
     .from('patients')
     .select('id, first_name, last_name')
     .eq('id', patientId)
+    .eq('is_practice', practice)
     .maybeSingle()
   if (patErr)   return res.status(500).json({ error: patErr.message })
   if (!patient) return res.status(404).json({ error: 'Patient not found' })
@@ -85,6 +92,7 @@ export default async function handler(req, res) {
       filed_by_provider_id: providerId,
     })
     .eq('id', messageId)
+    .eq('is_practice', practice)
   if (updErr) return res.status(500).json({ error: updErr.message })
 
   await supabase.from('audit_log').insert({

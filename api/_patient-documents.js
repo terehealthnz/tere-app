@@ -13,6 +13,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 const BUCKET = 'patient-documents'
 const MAX_BYTES = 20 * 1024 * 1024  // 20 MB
@@ -37,6 +38,9 @@ export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
 
+  // Practice-mode scope for patient-document reads/writes/deletes.
+  const { practice } = resolveDataMode(auth.provider, req)
+
   const supabase = admin()
 
   if (req.method === 'GET') {
@@ -46,6 +50,7 @@ export default async function handler(req, res) {
       .from('patient_documents')
       .select('*')
       .eq('patient_id', patientId)
+      .eq('is_practice', practice)
       .order('created_at', { ascending: false })
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ documents: data || [] })
@@ -88,6 +93,7 @@ export default async function handler(req, res) {
       uploaded_by:       auth.provider?.id || null,
       uploaded_by_name:  auth.provider?.display_name || auth.email || null,
       source:            validSource,
+      is_practice:       practice,
     }).select().single()
     if (error) {
       // Row insert failed after storage succeeded — clean up the orphan file.
@@ -101,7 +107,7 @@ export default async function handler(req, res) {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
     const { data: row, error: getErr } = await supabase
-      .from('patient_documents').select('id, file_url').eq('id', id).maybeSingle()
+      .from('patient_documents').select('id, file_url').eq('id', id).eq('is_practice', practice).maybeSingle()
     if (getErr) return res.status(500).json({ error: getErr.message })
     if (!row) return res.status(404).json({ error: 'Document not found' })
 
@@ -112,7 +118,7 @@ export default async function handler(req, res) {
       if (idx >= 0) key = row.file_url.slice(idx + BUCKET.length + 2)
     }
     if (key) await supabase.storage.from(BUCKET).remove([key]).catch(() => {})
-    const { error: delErr } = await supabase.from('patient_documents').delete().eq('id', id)
+    const { error: delErr } = await supabase.from('patient_documents').delete().eq('id', id).eq('is_practice', practice)
     if (delErr) return res.status(500).json({ error: delErr.message })
     return res.status(200).json({ ok: true })
   }

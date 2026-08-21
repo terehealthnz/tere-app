@@ -16,6 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(
@@ -75,13 +76,16 @@ export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
 
+  // Practice-mode / onboarding-gate scope for all consultation reads/writes.
+  const { practice } = resolveDataMode(auth.provider, req)
+
   const supabase = admin()
 
   if (req.method === 'GET') {
     const { id, filter, patientId } = req.query || {}
 
     if (id) {
-      const { data, error } = await supabase.from('consultations').select('*').eq('id', id).maybeSingle()
+      const { data, error } = await supabase.from('consultations').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Consultation not found' })
       return res.status(200).json({ consultation: data })
@@ -92,6 +96,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued, vitals')
         .eq('patient_id', patientId)
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(20)
       if (error) return res.status(500).json({ error: error.message })
@@ -103,6 +108,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select('*')
         .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
+        .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -118,6 +124,7 @@ export default async function handler(req, res) {
         .not('notes_finalised_at', 'is', null)
         .not('gp_email', 'is', null)
         .is('gp_letter_sent_at', null)
+        .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -128,6 +135,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select('id, patient_first_name, patient_last_name, patient_email, patient_phone, created_at')
         .eq('status', 'waitlisted')
+        .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -170,6 +178,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select(cols)
         .eq('notes_flagged', true)
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -184,6 +193,7 @@ export default async function handler(req, res) {
       const limit = Math.max(1, Math.min(500, parseInt(req.query?.limit) || 100))
       const { data, error } = await supabase
         .from('consultations').select(cols)
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false }).limit(limit)
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -196,6 +206,7 @@ export default async function handler(req, res) {
         .from('consultations').select(cols)
         .not('payment_intent_id', 'is', null)
         .neq('status', 'complete')
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -207,6 +218,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from('consultations').select(cols)
         .not('rating', 'is', null)
+        .eq('is_practice', practice)
         .order('rated_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -225,6 +237,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase
         .from('consultations').select(cols)
         .eq('status', 'complete')
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
@@ -238,6 +251,7 @@ export default async function handler(req, res) {
         .from('consultations').select(cols)
         .eq('consultation_type', 'message')
         .in('status', ['waiting', 'in_progress'])
+        .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -253,7 +267,7 @@ export default async function handler(req, res) {
       const start = req.query?.start
       const end   = req.query?.end
       const cols = projection || 'id, created_at, patient_first_name, patient_last_name, consultation_type'
-      let q = supabase.from('consultations').select(cols).eq('status', 'complete').eq('provider_id', wantId)
+      let q = supabase.from('consultations').select(cols).eq('status', 'complete').eq('provider_id', wantId).eq('is_practice', practice)
       if (start) q = q.gte('created_at', String(start))
       if (end)   q = q.lte('created_at', String(end))
       q = q.order('created_at', { ascending: false })
@@ -270,6 +284,7 @@ export default async function handler(req, res) {
         .select(cols)
         .eq('research_consent', true)
         .eq('status', 'complete')
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ consultations: data || [] })
@@ -289,6 +304,7 @@ export default async function handler(req, res) {
           .select(cols)
           .eq('acc_converted_by_provider', true)
           .eq('notes_flagged', true)
+          .eq('is_practice', practice)
           .order('acc_converted_at', { ascending: false })
           .limit(limit)
         if (error) {
@@ -307,6 +323,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select('id', { count: 'exact', head: true })
         .eq('notes_flagged', true)
+        .eq('is_practice', practice)
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ count: count || 0 })
     }
@@ -316,6 +333,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'complete')
+        .eq('is_practice', practice)
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ count: count || 0 })
     }
@@ -329,6 +347,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .select(cols)
         .eq('status', 'complete')
+        .eq('is_practice', practice)
         .gte('created_at', String(since))
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
@@ -344,6 +363,7 @@ export default async function handler(req, res) {
         .select(cols)
         .eq('status', 'complete')
         .eq('notes_finalised', false)
+        .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
@@ -359,6 +379,7 @@ export default async function handler(req, res) {
         .select(cols)
         .eq('status', 'complete')
         .eq('notes_finalised', true)
+        .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
@@ -371,7 +392,7 @@ export default async function handler(req, res) {
       const { employerId, since } = req.query || {}
       if (!employerId) return res.status(400).json({ error: 'employerId query param required' })
       const cols = projection || 'patient_first_name, patient_last_name, created_at, consultation_type, billing_code'
-      let q = supabase.from('consultations').select(cols).eq('employer_id', String(employerId))
+      let q = supabase.from('consultations').select(cols).eq('employer_id', String(employerId)).eq('is_practice', practice)
       if (since) q = q.gte('created_at', String(since))
       const { data, error } = await q
       if (error) return res.status(500).json({ error: error.message })
@@ -390,6 +411,7 @@ export default async function handler(req, res) {
         .from('consultations')
         .update({ status: 'waiting', updated_at: new Date().toISOString() })
         .eq('status', 'waitlisted')
+        .eq('is_practice', practice)
       if (error) return res.status(500).json({ error: error.message })
       return res.status(200).json({ ok: true })
     }
@@ -407,7 +429,7 @@ export default async function handler(req, res) {
       if (!reason || String(reason).trim().length < 2) return res.status(400).json({ error: 'reason required' })
 
       // Load patient for downstream notification + audit.
-      const { data: pt } = await supabase.from('patients').select('id, first_name, last_name, email, phone, nhi').eq('id', patient_id).maybeSingle()
+      const { data: pt } = await supabase.from('patients').select('id, first_name, last_name, email, phone, nhi').eq('id', patient_id).eq('is_practice', practice).maybeSingle()
       if (!pt) return res.status(404).json({ error: 'Patient not found' })
 
       const nowIso = new Date().toISOString()
@@ -422,6 +444,7 @@ export default async function handler(req, res) {
         const { data: recent } = await supabase.from('consultations')
           .select('id, status, completed_at, created_at, notes_final')
           .eq('patient_id', patient_id)
+          .eq('is_practice', practice)
           .gte('completed_at', cutoff)
           .order('completed_at', { ascending: false })
           .limit(1)
@@ -437,6 +460,7 @@ export default async function handler(req, res) {
             updated_at:      nowIso,
           })
           .eq('id', target.id)
+          .eq('is_practice', practice)
           .select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi')
           .single()
         if (uErr) return res.status(500).json({ error: uErr.message })
@@ -460,6 +484,7 @@ export default async function handler(req, res) {
           admin_initiated_by: auth.provider.id,
           admin_initiated_reason: String(reason).trim().slice(0, 500),
           payment_amount:     0,
+          is_practice:        practice,
         }).select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi').single()
         if (cErr) return res.status(500).json({ error: cErr.message })
         resultConsult = created
@@ -541,6 +566,7 @@ export default async function handler(req, res) {
       .from('consultations')
       .update(patch)
       .eq('id', id)
+      .eq('is_practice', practice)
       .select()
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })

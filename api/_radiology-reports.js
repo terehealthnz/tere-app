@@ -12,6 +12,7 @@
 //           provider_notes?, action?: 'mark_reviewed'|'archive' }
 
 import { createClient } from '@supabase/supabase-js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -22,6 +23,8 @@ const SIGNED_URL_TTL_SECONDS = 60 * 15  // 15-min viewer link
 export default async function handler(req, res) {
   const supabase = admin()
   const providerId = req.headers['x-provider-id'] || req.auth?.providerId || null
+  // Practice-mode scope for radiology report reads/writes (auth applied at router).
+  const { practice } = resolveDataMode(req.auth?.provider, req)
 
   if (req.method === 'GET') {
     const id = req.query?.id
@@ -30,6 +33,7 @@ export default async function handler(req, res) {
         .from('radiology_reports')
         .select('*')
         .eq('id', id)
+        .eq('is_practice', practice)
         .maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Not found' })
@@ -63,7 +67,7 @@ export default async function handler(req, res) {
 
     const status = req.query?.status
     const patientId = req.query?.patient_id
-    let q = supabase.from('radiology_reports').select('*').order('received_at', { ascending: false }).limit(200)
+    let q = supabase.from('radiology_reports').select('*').eq('is_practice', practice).order('received_at', { ascending: false }).limit(200)
     if (status) q = q.eq('status', status)
     if (patientId) q = q.eq('patient_id', patientId)
     const { data, error } = await q
@@ -100,6 +104,7 @@ export default async function handler(req, res) {
       .from('radiology_reports')
       .update(patch)
       .eq('id', id)
+      .eq('is_practice', practice)
       .select()
       .single()
 

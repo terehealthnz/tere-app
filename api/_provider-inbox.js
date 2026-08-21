@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(
@@ -38,6 +39,8 @@ export default async function handler(req, res) {
   if (!auth) return
   const provider = auth.provider || {}
   const isAdmin = !!provider.is_admin
+  // Practice-mode scope for HL7 message reads/writes.
+  const { practice } = resolveDataMode(provider, req)
   const supabase = admin()
   const { id, admin: adminQ, action, patient_id: patientIdQ } = req.query || {}
 
@@ -56,6 +59,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .select('matched_provider_id')
       .eq('id', a.message_id)
+      .eq('is_practice', practice)
       .maybeSingle()
     if (!msg) return res.status(404).json({ error: 'message not found' })
     if (!isAdmin && msg.matched_provider_id !== provider.id) {
@@ -73,6 +77,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .select('*, attachments:inbound_hl7_attachments(id, obx_index, content_type, storage_path, filename, size_bytes)')
       .eq('id', id)
+      .eq('is_practice', practice)
       .maybeSingle()
     const { data, error } = await q
     if (error) return res.status(500).json({ error: error.message })
@@ -94,6 +99,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .select('id, msh_9_message_type, msh_4_sending_facility, obr_3_1_filler_order, obr_4_service_id, received_at, filed_at, filed_by_provider_id, has_pdf, patient_first_name, patient_last_name')
       .eq('filed_to_patient_id', patientIdQ)
+      .eq('is_practice', practice)
       .is('superseded_by_id', null)
       .order('received_at', { ascending: false })
       .limit(100)
@@ -106,6 +112,7 @@ export default async function handler(req, res) {
     const { data, error } = await supabase
       .from('inbound_hl7_messages')
       .select('id, msh_9_message_type, msh_12_version, msh_4_sending_facility, patient_first_name, patient_last_name, patient_dob, matched_provider_id, matched_patient_id, match_confidence, has_pdf, status, ack_msa_1, obr_3_1_filler_order, received_at, filed_to_patient_id, filed_at, filed_by_provider_id')
+      .eq('is_practice', practice)
       .is('superseded_by_id', null)
       .is('archived_at', null)
       .order('received_at', { ascending: false })
@@ -119,6 +126,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .select('id, msh_9_message_type, msh_12_version, msh_4_sending_facility, patient_first_name, patient_last_name, patient_dob, matched_patient_id, match_confidence, has_pdf, status, obr_3_1_filler_order, received_at, read_by_provider_at')
       .eq('matched_provider_id', provider.id)
+      .eq('is_practice', practice)
       .is('superseded_by_id', null)
       .is('archived_at', null)
       .order('received_at', { ascending: false })
@@ -134,6 +142,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .select('matched_provider_id')
       .eq('id', id)
+      .eq('is_practice', practice)
       .maybeSingle()
     if (!current) return res.status(404).json({ error: 'not found' })
     if (!isAdmin && current.matched_provider_id !== provider.id) {
@@ -158,6 +167,7 @@ export default async function handler(req, res) {
       .from('inbound_hl7_messages')
       .update(patch)
       .eq('id', id)
+      .eq('is_practice', practice)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ ok: true })
   }

@@ -12,6 +12,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(
@@ -108,6 +109,10 @@ export default async function handler(req, res) {
     if (!auth) return
   }
 
+  // Practice-mode scope for provider paths. Anon triage flows (create/lookup)
+  // don't have an auth context and always write live patient rows.
+  const { practice } = resolveDataMode(auth?.provider, req)
+
   const supabase = admin()
 
   if (req.method === 'PATCH') {
@@ -121,7 +126,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
     patch.updated_at = new Date().toISOString()
-    const { error } = await supabase.from('patients').update(patch).eq('id', id)
+    let updateQ = supabase.from('patients').update(patch).eq('id', id)
+    if (!isAnonFlow) updateQ = updateQ.eq('is_practice', practice)
+    const { error } = await updateQ
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ ok: true })
   }
@@ -130,7 +137,7 @@ export default async function handler(req, res) {
     const { id, search, limit: rawLimit, offset: rawOffset } = req.query || {}
 
     if (id) {
-      const { data, error } = await supabase.from('patients').select('*').eq('id', id).maybeSingle()
+      const { data, error } = await supabase.from('patients').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Patient not found' })
       await auditPatientAccess(supabase, auth, req, 'patient_lookup', data.nhi || data.id, { by: 'id' })
@@ -150,6 +157,7 @@ export default async function handler(req, res) {
         .from('patients')
         .select('id, first_name, last_name, date_of_birth, nhi, phone, email, total_consultations, last_consultation_at')
         .ilike('nhi', nhi)
+        .eq('is_practice', practice)
         .maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       let last_consultation_id = null
@@ -158,6 +166,7 @@ export default async function handler(req, res) {
           .from('consultations')
           .select('id')
           .eq('patient_id', data.id)
+          .eq('is_practice', practice)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -173,6 +182,7 @@ export default async function handler(req, res) {
     let q = supabase
       .from('patients')
       .select('id, first_name, last_name, date_of_birth, nhi, phone, email, total_consultations, last_consultation_at, research_consent', { count: 'exact' })
+      .eq('is_practice', practice)
       .order('last_consultation_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1)
     if (search && search.trim()) {
@@ -236,13 +246,13 @@ export default async function handler(req, res) {
       // Re-parent consultations + consents, then delete the secondary patient row.
       // Total consultations is summed to preserve the analytics history.
       const [pRes, sRes] = await Promise.all([
-        supabase.from('patients').select('total_consultations').eq('id', primaryId).maybeSingle(),
-        supabase.from('patients').select('total_consultations').eq('id', secondaryId).maybeSingle(),
+        supabase.from('patients').select('total_consultations').eq('id', primaryId).eq('is_practice', practice).maybeSingle(),
+        supabase.from('patients').select('total_consultations').eq('id', secondaryId).eq('is_practice', practice).maybeSingle(),
       ])
       if (pRes.error || !pRes.data) return res.status(404).json({ error: 'Primary patient not found' })
       if (sRes.error || !sRes.data) return res.status(404).json({ error: 'Secondary patient not found' })
 
-      const consultUpdate = await supabase.from('consultations').update({ patient_id: primaryId }).eq('patient_id', secondaryId)
+      const consultUpdate = await supabase.from('consultations').update({ patient_id: primaryId }).eq('patient_id', secondaryId).eq('is_practice', practice)
       if (consultUpdate.error) return res.status(500).json({ error: consultUpdate.error.message })
 
       const consentUpdate = await supabase.from('consents').update({ consultation_id: primaryId }).eq('consultation_id', secondaryId)
@@ -252,9 +262,10 @@ export default async function handler(req, res) {
       const pUpdate = await supabase.from('patients')
         .update({ total_consultations: total, updated_at: new Date().toISOString() })
         .eq('id', primaryId)
+        .eq('is_practice', practice)
       if (pUpdate.error) return res.status(500).json({ error: pUpdate.error.message })
 
-      const del = await supabase.from('patients').delete().eq('id', secondaryId)
+      const del = await supabase.from('patients').delete().eq('id', secondaryId).eq('is_practice', practice)
       if (del.error) return res.status(500).json({ error: del.error.message })
 
       return res.status(200).json({ ok: true, primaryId, mergedFrom: secondaryId, total })

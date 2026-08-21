@@ -14,6 +14,9 @@
 // patient side.
 
 import { createClient } from '@supabase/supabase-js'
+// resolveDataMode not usable here: this endpoint is dual-mode (patient path is
+// unauthed). Practice scoping is derived from the parent consult's is_practice
+// so a message inserted under a practice consult is correctly tagged.
 
 function admin() {
   return createClient(
@@ -119,7 +122,7 @@ export default async function handler(req, res) {
   // being inserted against random uuids.
   const { data: consult } = await supabase
     .from('consultations')
-    .select('id')
+    .select('id, is_practice')
     .eq('id', consultation_id)
     .maybeSingle()
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
@@ -135,6 +138,7 @@ export default async function handler(req, res) {
     photo_url: photo_url || null,
     translated_text: translated_text || null,
     detected_language: langDefault,
+    is_practice: !!consult.is_practice,
   }).select().maybeSingle()
   if (error) return res.status(500).json({ error: error.message })
 

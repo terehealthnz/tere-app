@@ -28,6 +28,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(
@@ -44,6 +45,9 @@ export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
 
+  // Practice-mode scope for encounter state transitions.
+  const { practice } = resolveDataMode(auth.provider, req)
+
   const { id } = req.query || {}
   if (!id) return res.status(400).json({ error: 'id query param required' })
   const { action } = req.body || {}
@@ -54,6 +58,7 @@ export default async function handler(req, res) {
     .from('consultations')
     .select('id, status, call_attempts, no_answer_count, last_seen_at, patient_id, patient_phone')
     .eq('id', id)
+    .eq('is_practice', practice)
     .maybeSingle()
   if (getErr) return res.status(500).json({ error: getErr.message })
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
@@ -128,6 +133,7 @@ export default async function handler(req, res) {
     .from('consultations')
     .update(patch)
     .eq('id', id)
+    .eq('is_practice', practice)
     .select('id, status, call_attempts, no_answer_count, encounter_completed_at, last_attempt_at, no_show_at')
     .maybeSingle()
   if (updErr) return res.status(500).json({ error: updErr.message })

@@ -6,6 +6,7 @@
 // creation and shouldn't be tampered with).
 
 import { createClient } from '@supabase/supabase-js'
+import { resolveDataMode } from './_provider-access-gate.js'
 
 function admin() {
   return createClient(
@@ -47,6 +48,9 @@ function projectColumns(raw) {
 }
 
 export default async function handler(req, res) {
+  // Practice-mode scope for radiology referral reads/writes (auth applied at router).
+  const { practice } = resolveDataMode(req.auth?.provider, req)
+
   if (req.method === 'GET') {
     const { filter, provider_id, patient_nhi, columns, count } = req.query || {}
     const admin_client = admin()
@@ -55,6 +59,8 @@ export default async function handler(req, res) {
     let q = wantCount
       ? admin_client.from('radiology_referrals').select('id', { count: 'exact', head: true })
       : admin_client.from('radiology_referrals').select(projectColumns(columns))
+
+    q = q.eq('is_practice', practice)
 
     if (filter === 'active') {
       q = q.not('referral_status', 'eq', 'result_received').not('referral_status', 'eq', 'dna')
@@ -99,6 +105,7 @@ export default async function handler(req, res) {
     .from('radiology_referrals')
     .update(patch)
     .eq('id', id)
+    .eq('is_practice', practice)
   if (error) return res.status(500).json({ error: error.message })
   return res.status(200).json({ ok: true })
 }
