@@ -39,7 +39,7 @@ export default async function handler(req, res) {
   const provider = auth.provider || {}
   const isAdmin = !!provider.is_admin
   const supabase = admin()
-  const { id, admin: adminQ, action } = req.query || {}
+  const { id, admin: adminQ, action, patient_id: patientIdQ } = req.query || {}
 
   // Signed URL for a single attachment (used by the inbox viewer).
   if (req.method === 'POST' && action === 'signed_attachment_url') {
@@ -84,11 +84,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ message: row })
   }
 
+  // Chart view — every HL7 report filed to this patient, newest first.
+  // Any authed provider can see (same trust boundary as viewing the chart
+  // itself). Returned rows are compact — just enough for the chart's
+  // Reports section to render titles + dates. Full detail loads via
+  // GET ?id=<uuid> when a row is clicked.
+  if (req.method === 'GET' && patientIdQ) {
+    const { data, error } = await supabase
+      .from('inbound_hl7_messages')
+      .select('id, msh_9_message_type, msh_4_sending_facility, obr_3_1_filler_order, obr_4_service_id, received_at, filed_at, filed_by_provider_id, has_pdf, patient_first_name, patient_last_name')
+      .eq('filed_to_patient_id', patientIdQ)
+      .is('superseded_by_id', null)
+      .order('received_at', { ascending: false })
+      .limit(100)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ messages: data || [] })
+  }
+
   if (req.method === 'GET' && adminQ) {
     if (!isAdmin) return res.status(403).json({ error: 'admin only' })
     const { data, error } = await supabase
       .from('inbound_hl7_messages')
-      .select('id, msh_9_message_type, msh_12_version, msh_4_sending_facility, patient_first_name, patient_last_name, patient_dob, matched_provider_id, matched_patient_id, match_confidence, has_pdf, status, ack_msa_1, obr_3_1_filler_order, received_at')
+      .select('id, msh_9_message_type, msh_12_version, msh_4_sending_facility, patient_first_name, patient_last_name, patient_dob, matched_provider_id, matched_patient_id, match_confidence, has_pdf, status, ack_msa_1, obr_3_1_filler_order, received_at, filed_to_patient_id, filed_at, filed_by_provider_id')
       .is('superseded_by_id', null)
       .is('archived_at', null)
       .order('received_at', { ascending: false })

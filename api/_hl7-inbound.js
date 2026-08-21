@@ -618,6 +618,17 @@ export default async function handler(req, res) {
       if (prior) supersedesId = prior.id
     }
 
+    // Auto-file on strong NHI match: PID-3 hit an existing patients row,
+    // so this report unambiguously belongs to that patient. Set filing
+    // metadata at receive time so it appears on the chart immediately
+    // — no manual "File to chart" click needed for routine lab/imaging.
+    // filed_by_provider_id stays NULL to signal system-filed vs manual.
+    // Weaker matches (name+DOB only, or no match) sit in the inbox
+    // needs_review queue for provider disposition.
+    const autoFile = patientMatch.confidence === 'strong' && patientMatch.match?.id
+    const filedToPatientId = autoFile ? patientMatch.match.id : null
+    const filedAt          = autoFile ? nowIso : null
+
     const insertRow = {
       env:                      receivedEnv,
       batch_position:           batchPosition,
@@ -640,6 +651,9 @@ export default async function handler(req, res) {
       matched_provider_id:      provider?.id || null,
       matched_patient_id:       patientMatch.match?.id || null,
       match_confidence:         patientMatch.confidence,
+      filed_to_patient_id:      filedToPatientId,
+      filed_at:                 filedAt,
+      filed_by_provider_id:     null,          // system-filed (NULL = auto)
       raw_message:              rawMessage,
       parsed_summary:           summary,
       has_pdf:                  summary.obx.some(o => o.valueType === 'ED'),

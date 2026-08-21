@@ -6,9 +6,9 @@
 // URLs from Supabase Storage.
 
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { parseHl7Display } from '../../lib/hl7Display'
+import { parseHl7Display, isAbnormal } from '../../lib/hl7Display'
 
 // Render a string that may contain HL7 emphasis sentinels from decodeHl7Escapes
 // (__HL7BOLD_START__ / __HL7BOLD_END__) into React nodes with real <strong>
@@ -60,6 +60,21 @@ function StatusPill({ status, unread }) {
   )
 }
 
+function FiledPill({ auto }) {
+  // Green = filed to a patient chart. Sub-label distinguishes auto (system
+  // matched by NHI at receive time — high confidence) from provider-filed
+  // (a human chose the patient — the message wasn't strongly NHI-matched).
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: '#D1FAE5', color: '#065F46', padding: '2px 8px', borderRadius: 99,
+      fontSize: '.7rem', fontWeight: 700, letterSpacing: '.02em', textTransform: 'uppercase',
+    }}>
+      ✓ Filed{auto ? '' : ' (manual)'}
+    </span>
+  )
+}
+
 function MessageRow({ msg, onOpen }) {
   const unread = !msg.read_by_provider_at
   const patient = [msg.patient_first_name, msg.patient_last_name].filter(Boolean).join(' ') || '—'
@@ -78,6 +93,7 @@ function MessageRow({ msg, onOpen }) {
             <span style={{ color: '#6B7280', fontSize: '.8rem' }}>· from {msg.msh_4_sending_facility}</span>
           )}
           {msg.has_pdf && <span style={{ fontSize: '.75rem' }}>📄</span>}
+          {msg.filed_to_patient_id && <FiledPill auto={!msg.filed_by_provider_id} />}
         </div>
         {msg.obr_3_1_filler_order && (
           <div style={{ marginTop: 2, color: '#4B5563', fontSize: '.8rem', fontFamily: MONO }}>
@@ -140,6 +156,46 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
     finally     { setBusy(false) }
   }
 
+  // File to the fuzzy-matched patient. Only exposed when matched_patient_id
+  // is set but filed_to_patient_id isn't — i.e. parser found a candidate but
+  // confidence was too low to auto-file (typically name+DOB match without an
+  // NHI). Provider confirms by clicking.
+  async function fileToMatched() {
+    if (busy) return
+    if (!msg?.matched_patient_id) return
+    setBusy(true)
+    try {
+      const res = await apiFetch('/api/hl7-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: id, patientId: msg.matched_patient_id }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'File failed')
+      setMsg(m => ({ ...m, filed_to_patient_id: msg.matched_patient_id, filed_at: new Date().toISOString(), filed_by_provider_id: 'self' }))
+      onChanged?.()
+    } catch (e) { setError(String(e.message || e)) }
+    finally     { setBusy(false) }
+  }
+
+  async function unfile() {
+    if (busy) return
+    if (!confirm('Remove this report from the patient chart? It stays in the inbox for re-filing.')) return
+    setBusy(true)
+    try {
+      const res = await apiFetch('/api/hl7-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId: id, unfile: true }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'Unfile failed')
+      setMsg(m => ({ ...m, filed_to_patient_id: null, filed_at: null, filed_by_provider_id: null }))
+      onChanged?.()
+    } catch (e) { setError(String(e.message || e)) }
+    finally     { setBusy(false) }
+  }
+
   if (error) {
     return (
       <div style={{ padding: '1rem', color: '#991B1B' }}>{error}
@@ -150,11 +206,11 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
   if (!msg) return <div style={{ padding: '1rem', color: '#6B7280' }}>Loading…</div>
 
   const patient = [msg.patient_first_name, msg.patient_last_name].filter(Boolean).join(' ') || 'Unknown patient'
-  // Re-parse the raw message client-side to pick up display fields (dates,
-  // OBR-4.2 label, OBR-25 corrected, LIT FT/PDF pairing) that live outside
-  // parsed_summary. Belt-and-braces against older messages parsed before
-  // 2026-08-19 when these fields were added — see [[project-tere-medical-objects]].
-  const display = parseHl7Display(msg.raw_message || '')
+  // Prefer parsed_summary (per-report, correct even for batched fan-out
+  // rows) over raw_message re-parse (which always picks the FIRST OBR in
+  // the batched envelope and shows patient #1's dates for every row).
+  // Regression noted by Tony Cruice 2026-08-20 case #1058382 point 1.
+  const display = parseHl7Display(msg.raw_message || '', msg.parsed_summary)
   // For LIT (referral-copy / rendered report) messages the FT/TX text and the
   // ED (PDF) observation are the same content in two formats per HL7 standard.
   // Per Medical-Objects (Tony Cruice, 2026-08-19), the PDF should be preferred
@@ -177,16 +233,43 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
 
   return (
     <div style={{ padding: embedded ? '.5rem 0 1rem' : '1.25rem 1.5rem 3rem', background: embedded ? 'transparent' : '#F7F5F0', minHeight: embedded ? 'auto' : '100dvh', fontFamily: FF }}>
-      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button onClick={onClose} style={backBtn}>← Back to inbox</button>
-        <button onClick={archive} disabled={busy} style={{ ...backBtn, marginLeft: 'auto' }}>
-          {busy ? '…' : 'Archive'}
-        </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '.5rem', flexWrap: 'wrap' }}>
+          {!msg.filed_to_patient_id && msg.matched_patient_id && (
+            <button onClick={fileToMatched} disabled={busy} style={{ ...backBtn, background: TEAL, color: 'white', borderColor: TEAL }}>
+              {busy ? '…' : `File to ${patient}'s chart`}
+            </button>
+          )}
+          {msg.filed_to_patient_id && (
+            <button onClick={unfile} disabled={busy} style={{ ...backBtn, color: '#991B1B', borderColor: '#FCA5A5' }}>
+              {busy ? '…' : 'Unfile'}
+            </button>
+          )}
+          <button onClick={archive} disabled={busy} style={backBtn}>
+            {busy ? '…' : 'Archive'}
+          </button>
+        </div>
       </div>
 
       <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '.6rem' }}>
           <StatusPill status={msg.status} unread={false} />
+          {msg.filed_to_patient_id && <FiledPill auto={!msg.filed_by_provider_id} />}
+          {/* Top-of-report ABNORMAL indicator — fires when any OBX row is
+              flagged (OBX-8) or numerically outside its reference range.
+              Matches how Trinity Windows summarises the overall report so
+              a clinician sees the abnormal flag at a glance rather than
+              scanning every row. Requested by Tony Cruice 2026-08-20. */}
+          {display.anyAbnormal && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: '#FEE2E2', color: '#991B1B', padding: '2px 8px', borderRadius: 99,
+              fontSize: '.7rem', fontWeight: 700, letterSpacing: '.02em', textTransform: 'uppercase',
+            }}>
+              ⚠ Abnormal
+            </span>
+          )}
           <span style={{ fontWeight: 700, color: NAVY, fontSize: '1.15rem' }}>{patient}</span>
           {msg.patient_dob && <span style={{ color: '#4B5563', fontSize: '.85rem' }}>· DOB {msg.patient_dob}</span>}
           {msg.patient_pid_3 && <span style={{ color: '#4B5563', fontSize: '.85rem' }}>· PID {msg.patient_pid_3}</span>}
@@ -263,16 +346,35 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
                 // Both differ → "DIFFERENTIAL — Neut Seg". Same or no
                 // subId → main only.
                 const showSub = o.subLabel && o.subLabel !== mainId
+                // Row is abnormal if OBX-8 flags it OR we derived
+                // out-of-range from OBX-5 vs OBX-7. Highlights the value
+                // cell so a low HGB (91 vs 130-175) reads as red even
+                // when Trinity/MO ships an empty OBX-8.
+                const abn = isAbnormal(o.effectiveAbnormal)
+                const isFT = o.valueType === 'FT' || o.valueType === 'TX'
                 return (
                 <tr key={i} style={{ borderTop: '1px solid #F3F4F6' }}>
                   <td style={{ padding: '5px 8px 5px 0' }}>
                     {mainId}
                     {showSub && <span style={{ color: '#94A3B8' }}> — {o.subLabel}</span>}
                   </td>
-                  <td style={{ padding: '5px 8px', fontFamily: MONO }}>{o.value}</td>
+                  <td style={{
+                    padding: '5px 8px', fontFamily: MONO,
+                    color: abn ? '#991B1B' : '#111827',
+                    fontWeight: abn ? 700 : 400,
+                    whiteSpace: isFT ? 'pre-wrap' : 'normal',
+                  }}>
+                    {renderHl7Text(o.value)}
+                  </td>
                   <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.unitsLabel || o.units}</td>
                   <td style={{ padding: '5px 8px', color: '#6B7280' }}>{o.refRange}</td>
-                  <td style={{ padding: '5px 8px', color: o.abnormal ? '#991B1B' : '#6B7280', fontWeight: o.abnormal ? 700 : 400 }}>{o.abnormal}</td>
+                  <td style={{
+                    padding: '5px 8px',
+                    color: abn ? '#991B1B' : '#6B7280',
+                    fontWeight: abn ? 700 : 400,
+                  }}>
+                    {o.effectiveAbnormal}
+                  </td>
                 </tr>
                 )
               })}
@@ -281,15 +383,14 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
         </div>
       )}
 
-      {display.notesLines.length > 0 && (
+      {display.notesText && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
-          <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.5rem' }}>Notes (NTE)</div>
-          <div style={{ fontFamily: MONO, fontSize: '.82rem', color: '#374151' }}>
-            {display.notesLines.map((line, i) => (
-              <div key={i} style={{ padding: '1px 0', whiteSpace: 'pre-wrap' }}>
-                {line}
-              </div>
-            ))}
+          <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.5rem' }}>Notes</div>
+          {/* Sequential NTE segments in HL7 are just line-length splits of
+              one comment block — render as one continuous text region
+              (no per-segment divider bars). Tony Cruice 2026-08-20 point 5. */}
+          <div style={{ fontFamily: MONO, fontSize: '.82rem', color: '#374151', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {renderHl7Text(display.notesText)}
           </div>
         </div>
       )}
@@ -332,10 +433,28 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
 
 export default function ProviderInbox({ embedded = false }) {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows]     = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState(null)
-  const [openId, setOpenId] = useState(null)
+  // Deep-link support: ?id=<uuid> opens that message directly. Used by
+  // ClinicianPatient's Reports section to jump straight to a filed HL7.
+  const [openId, setOpenId] = useState(() => searchParams.get('id') || null)
+
+  useEffect(() => {
+    const q = searchParams.get('id')
+    if (q !== openId) setOpenId(q || null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
+  function openMessage(mid) {
+    setOpenId(mid)
+    if (!embedded) setSearchParams({ id: mid }, { replace: true })
+  }
+  function closeMessage() {
+    setOpenId(null)
+    if (!embedded) setSearchParams({}, { replace: true })
+  }
 
   useEffect(() => {
     // Standalone route enforces its own auth redirect; when embedded the
@@ -359,7 +478,7 @@ export default function ProviderInbox({ embedded = false }) {
   }
 
   if (openId) {
-    return <MessageView id={openId} onClose={() => setOpenId(null)} onChanged={load} embedded={embedded} />
+    return <MessageView id={openId} onClose={closeMessage} onChanged={load} embedded={embedded} />
   }
 
   const list = (
@@ -372,7 +491,7 @@ export default function ProviderInbox({ embedded = false }) {
         </div>
       )}
       <div style={{ display: 'grid', gap: '.6rem' }}>
-        {rows.map(m => <MessageRow key={m.id} msg={m} onOpen={setOpenId} />)}
+        {rows.map(m => <MessageRow key={m.id} msg={m} onOpen={openMessage} />)}
       </div>
     </>
   )

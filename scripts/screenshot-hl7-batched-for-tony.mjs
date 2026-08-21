@@ -115,6 +115,48 @@ function displayHl7Text(s) {
     .replace(/\\T\\/g, '&amp;') // subcomponent separator escape
     .replace(/\\E\\/g, '\\')    // literal escape character
 }
+
+// Numeric abnormality detection — see src/lib/hl7Display.js for the
+// canonical implementation. Duplicated here because the screenshot script
+// runs standalone. Handles "min-max", ">min", "<max" reference ranges.
+function computeNumericAbnormal(valueStr, rangeStr) {
+  if (!valueStr || !rangeStr) return null
+  const v = Number(String(valueStr).replace(/[^0-9.\-eE+]/g, ''))
+  if (!isFinite(v)) return null
+  const r = String(rangeStr).trim()
+  const range = r.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/)
+  if (range) {
+    const lo = Number(range[1]), hi = Number(range[2])
+    if (v < lo) return 'L'
+    if (v > hi) return 'H'
+    return 'N'
+  }
+  const gt = r.match(/^>\s*(-?\d+(?:\.\d+)?)$/)
+  if (gt) return v <= Number(gt[1]) ? 'L' : 'N'
+  const lt = r.match(/^<\s*(-?\d+(?:\.\d+)?)$/)
+  if (lt) return v >= Number(lt[1]) ? 'H' : 'N'
+  return null
+}
+function effectiveAbnormal(obx) {
+  const raw = String(obx?.abnormal || '').trim().toUpperCase()
+  if (raw) return raw
+  return computeNumericAbnormal(obx?.value, obx?.refRange)
+}
+function isAbnormalFlag(f) {
+  if (!f) return false
+  const s = String(f).trim().toUpperCase()
+  return !!s && s !== 'N'
+}
+
+// Format an ISO datetime (parsed_summary.order.* dates are stored ISO)
+// as dd/mm/yyyy hh:mm — matches Trinity Windows convention.
+function fmtDt(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 function pill(text, bg, color) {
   return `<span style="display:inline-block;background:${bg};color:${color};padding:2px 8px;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;">${esc(text)}</span>`
 }
@@ -155,6 +197,7 @@ function renderInboxList(rows) {
   ${rows.map((r, i) => {
     const patient = [r.patient_first_name, r.patient_last_name].filter(Boolean).join(' ') || '(no name)'
     const test = displayCE(r.obr_4_service_id) || '—'
+    const rowAbn = (r.parsed_summary?.obx || []).some(o => isAbnormalFlag(effectiveAbnormal(o)))
     return `<div class="row">
       <div class="rowidx">#${r.batch_position}</div>
       <div class="rowbody">
@@ -165,6 +208,7 @@ function renderInboxList(rows) {
       </div>
       <div class="rowright">
         ${pill(r.status || '—', '#FEF3C7', '#92400E')}
+        ${rowAbn ? pill('⚠ Abnormal', '#FEE2E2', '#991B1B') : ''}
         <span>received ${new Date(r.received_at).toISOString().slice(11,19)}Z</span>
       </div>
     </div>`
@@ -182,6 +226,12 @@ function renderPatientDetail(row) {
   const test = (row.obr_4_service_id || '').split('^')[1] || (row.obr_4_service_id || '').split('^')[0] || '—'
   const obx = (row.parsed_summary?.obx) || []
   const notes = (row.parsed_summary?.notes) || []
+  const order = row.parsed_summary?.order || {}
+  // Enrich each OBX with effective abnormal (server-stored or computed
+  // from OBX-5 vs OBX-7). Feeds the top-of-report ABNORMAL indicator +
+  // per-row red-bold styling — matches the inbox render.
+  obx.forEach(o => { o.effective = effectiveAbnormal(o) })
+  const anyAbnormal = obx.some(o => isAbnormalFlag(o.effective))
   return `<!doctype html><html><head><meta charset="utf-8">
 <style>
   body { font-family:${FF}; background:#F7F5F0; margin:0; padding:24px; color:${NAVY}; }
@@ -197,7 +247,8 @@ function renderPatientDetail(row) {
   th { text-align:left; background:#F1F5F9; padding:6px 8px; color:${NAVY}; font-weight:700; border-bottom:2px solid #CBD5E1; }
   td { padding:6px 8px; border-bottom:1px solid #E2E8F0; vertical-align:top; }
   td.mono { font-family:${MONO}; }
-  .note { background:#F8FAFC; border-left:3px solid #CBD5E1; padding:6px 12px; font-size:.82rem; margin:4px 0; color:#374151; }
+  .notes { background:#F8FAFC; padding:10px 14px; border-radius:6px; font-family:${MONO}; font-size:.82rem; color:#374151; white-space:pre-wrap; word-break:break-word; }
+  .abnval { color:#991B1B; font-weight:700; }
 </style></head><body>
 <div class="card">
   <div class="header">
@@ -207,12 +258,16 @@ function renderPatientDetail(row) {
     </div>
     <div style="text-align:right;">
       ${pill(row.status || '—', '#FEF3C7', '#92400E')}
+      ${anyAbnormal ? ' ' + pill('⚠ Abnormal', '#FEE2E2', '#991B1B') : ''}
       <div class="meta" style="margin-top:6px;">batch #${row.batch_position}</div>
     </div>
   </div>
 
   <div class="kv">
-    <div class="k">Test</div><div class="v">${esc(displayCE(row.obr_4_service_id) || '—')}</div>
+    <div class="k">Test</div><div class="v">${esc(displayCE(row.obr_4_service_id) || '—')}${order.corrected ? ' <span style="color:#991B1B;font-weight:700;">— (Corrected)</span>' : ''}</div>
+    ${order.requestedDate   ? `<div class="k">Requested date</div><div class="v">${esc(fmtDt(order.requestedDate))}</div>` : ''}
+    ${order.observationDate ? `<div class="k">Effective / exam</div><div class="v">${esc(fmtDt(order.observationDate))}</div>` : ''}
+    ${order.generatedDate   ? `<div class="k">Generated date</div><div class="v">${esc(fmtDt(order.generatedDate))}</div>` : ''}
     <div class="k">Filler order</div><div class="v">${esc(row.obr_3_1_filler_order || '—')}</div>
     <div class="k">MSH-10</div><div class="v">${esc(row.msh_10_control_id)}</div>
     <div class="k">Sender</div><div class="v">${esc(row.msh_4_sending_facility)}</div>
@@ -222,33 +277,29 @@ function renderPatientDetail(row) {
 
   ${obx.length ? `<h2>Observations (${obx.length})</h2>
     <table>
-      <thead><tr><th>#</th><th>Type</th><th>Identifier</th><th>Value</th><th>Units</th><th>Ref range</th><th>Flag</th></tr></thead>
+      <thead><tr><th>#</th><th>Test</th><th>Value</th><th>Units</th><th>Ref range</th><th>Flag</th></tr></thead>
       <tbody>
         ${obx.map(o => {
           const isFT = (o.valueType || '').toUpperCase() === 'FT'
-          const valueHtml = isFT ? displayHl7Text(o.value) : `<strong>${esc(o.value || '')}</strong>`
-          // Analyte name: OBX-4 sub-ID takes precedence (differential cell
-          // types, panel sub-analytes). Falls back to OBX-3 (main test
-          // identifier). Show both when both exist and differ, e.g.
-          // "DIFFERENTIAL — Neut Seg".
+          const abn = isAbnormalFlag(o.effective)
+          const valueHtml = isFT ? displayHl7Text(o.value) : esc(o.value || '')
           const mainId = displayCE(o.identifier)
           const analyte = o.subId && o.subId !== mainId
             ? `${esc(mainId)} <span style="color:#94A3B8;">— ${esc(o.subId)}</span>`
             : esc(o.subId || mainId)
           return `<tr>
           <td class="mono">${o.idx}</td>
-          <td class="mono">${esc(o.valueType || '')}</td>
           <td>${analyte}</td>
-          <td class="${isFT ? '' : 'mono'}">${valueHtml}</td>
+          <td class="${isFT ? '' : 'mono'} ${abn ? 'abnval' : ''}">${valueHtml}</td>
           <td>${esc(displayCE(o.units))}</td>
           <td>${esc(o.refRange || '')}</td>
-          <td>${esc(o.abnormal || '')}</td>
+          <td class="${abn ? 'abnval' : ''}">${esc(o.effective || '')}</td>
         </tr>`}).join('')}
       </tbody>
     </table>` : ''}
 
   ${notes.length ? `<h2>Notes</h2>
-    ${notes.map(n => `<div class="note">${displayHl7Text(n)}</div>`).join('')}` : ''}
+    <div class="notes">${notes.map(n => displayHl7Text(n)).join('\n')}</div>` : ''}
 
   <div style="margin-top:24px;font-size:.72rem;color:#94A3B8;text-align:center;">
     Tere Health · HPI-O G11238-E · case #1058382 · batch position ${row.batch_position} of ${row.parsed_summary?.controlId ? '' : ''}

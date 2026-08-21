@@ -38,6 +38,7 @@ export default function ClinicianPatient() {
   const [expandedId, setExpandedId] = useState(null)
   const [noteModal, setNoteModal] = useState(null) // holds a past consultation record
   const [imaging, setImaging]     = useState([])
+  const [hl7Reports, setHl7Reports] = useState([])
   const [radReferrals, setRadReferrals] = useState([])
   const [pastRx, setPastRx]       = useState([])
   const [documents, setDocuments] = useState([])
@@ -113,7 +114,7 @@ export default function ClinicianPatient() {
           } catch {}
         }
         if (data?.patient_id) {
-          const [pt, pastConsults, imagingRes, rx, docs, allg, meds, conds] = await Promise.all([
+          const [pt, pastConsults, imagingRes, rx, docs, allg, meds, conds, hl7Res] = await Promise.all([
             getPatient(data.patient_id).catch(() => null),
             getPatientConsultations(data.patient_id),
             apiFetch(`/api/radiology-reports?patient_id=${encodeURIComponent(data.patient_id)}`)
@@ -123,6 +124,8 @@ export default function ClinicianPatient() {
             patientAllergensApi.list(data.patient_id).catch(() => []),
             patientMedicationsApi.list(data.patient_id).catch(() => []),
             patientConditionsApi.list(data.patient_id).catch(() => []),
+            apiFetch(`/api/provider-inbox?patient_id=${encodeURIComponent(data.patient_id)}`)
+              .then(r => r.json()).catch(() => ({ messages: [] })),
           ])
           setPatient(pt || null)
           setHistory(pastConsults.filter(c => c.id !== id))
@@ -132,6 +135,7 @@ export default function ClinicianPatient() {
           setAllergens(Array.isArray(allg) ? allg : [])
           setMedications(Array.isArray(meds) ? meds : [])
           setConditions(Array.isArray(conds) ? conds : [])
+          setHl7Reports(Array.isArray(hl7Res?.messages) ? hl7Res.messages : [])
           // Radiology referrals ordered by any Tere provider for this patient.
           // Filtered by NHI on the server since radiology_referrals doesn't
           // have a patient_id FK yet (it uses NHI + name + DOB for matching).
@@ -761,6 +765,48 @@ export default function ClinicianPatient() {
             </div>
           )
         })()}
+
+        {/* HL7 reports on file — inbound messages filed to this patient's chart.
+            Filed automatically at receive time when PID-3 NHI matches an existing
+            patient (see api/_hl7-inbound.js), or manually by a provider from the
+            inbox. Click a row to open the full message viewer. */}
+        {hl7Reports.length > 0 && (
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>
+                📨 Lab & referral reports ({hl7Reports.length})
+              </div>
+              <button onClick={() => navigate('/clinician/inbox')}
+                style={{ background: 'transparent', color: TEAL, border: 'none', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                All inbox →
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {hl7Reports.map(m => {
+                const title = m.obr_4_service_id || m.msh_9_message_type || 'HL7 report'
+                const auto = !m.filed_by_provider_id
+                return (
+                  <button key={m.id} onClick={() => navigate(`/clinician/inbox?id=${m.id}`)}
+                    style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.875rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '1rem', width: '100%' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '.8125rem', fontWeight: 700, color: NAVY, marginBottom: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{title}</span>
+                        {m.has_pdf && <span style={{ fontSize: '.75rem' }}>📄</span>}
+                      </div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>
+                        {new Date(m.received_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {m.msh_4_sending_facility ? ` · ${m.msh_4_sending_facility}` : ''}
+                        {' · '}
+                        {auto ? 'Auto-filed (NHI match)' : 'Filed by provider'}
+                      </div>
+                    </div>
+                    <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Imaging on file — auto-attached radiology reports (NHI-matched via Bedrock in _telnyx-inbound-fax.js).
             Renders even when empty so providers see the section exists and know where reports will appear. */}

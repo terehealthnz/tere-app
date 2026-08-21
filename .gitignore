@@ -58,3 +58,7 @@ ios/DerivedData/
 
 # Windcave certification test outputs — local only, contains transaction IDs
 windcave-cert-logs/
+
+# AU beta env-copy workflow — never commit
+.env.au-secrets
+.env.nz-copy

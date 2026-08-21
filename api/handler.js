@@ -80,6 +80,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'incidents', 'complaints', 'breach', 'handover', 'patient-flags',
   // Data integrations (provider-triggered)
   'pms-data',
+  // HL7 inbox filing (assign message to patient chart)
+  'hl7-file',
   // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)
   'hpi',
 ])
@@ -202,6 +204,7 @@ const ROUTES = {
   'provider-licenses':         () => import('./_provider-licenses.js'),
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
   'hl7-inbound':               () => import('./_hl7-inbound.js'),
+  'hl7-file':                  () => import('./_hl7-file.js'),
   'provider-inbox':            () => import('./_provider-inbox.js'),
   'geo-check':                 () => import('./_geo-check.js'),
   'provider-reset-request':    () => import('./_provider-reset-request.js'),

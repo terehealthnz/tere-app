@@ -41,9 +41,19 @@ export function applyHl7EmphasisTags(escapedHtml) {
 
 // HL7 datetime → dd/mm/yyyy [hh:mm]. Matches the Trinity Windows convention
 // Tony showed in his screenshots so our render lines up alongside theirs.
+// Also accepts ISO strings (the server already stores parsed_summary dates
+// as ISO via parseHl7Datetime in _hl7-inbound.js).
 export function formatHl7Datetime(s) {
   if (!s) return null
-  const clean = String(s).replace(/[^\d]/g, '').slice(0, 14)
+  const str = String(s)
+  // ISO 8601 (e.g. 2026-08-19T14:00:00Z) — parse via Date.
+  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
+    const d = new Date(str)
+    if (isNaN(d)) return null
+    const pad = n => String(n).padStart(2, '0')
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+  const clean = str.replace(/[^\d]/g, '').slice(0, 14)
   if (clean.length < 8) return null
   const y = clean.slice(0, 4), mo = clean.slice(4, 6), d = clean.slice(6, 8)
   if (clean.length < 12) return `${d}/${mo}/${y}`
@@ -51,19 +61,152 @@ export function formatHl7Datetime(s) {
   return `${d}/${mo}/${y} ${hr}:${mi}`
 }
 
-// Extract display fields from raw HL7. Handles pipe-delimited v2.1 through
-// v2.5 uniformly — we only touch fields our UI needs (MSH-7, OBR-4/6/7/25,
-// OBX rows, NTE per-line). Batch wrappers (FHS/BHS/BTS/FTS) are skipped
-// exactly as the backend parser does.
-export function parseHl7Display(raw) {
+// Numeric abnormality: value outside the OBX-7 reference range. Handles the
+// common formats laboratories emit:
+//   "130-175"   — inclusive min–max
+//   "3.5-11.0"  — decimal min–max
+//   ">4.0"      — lower bound only
+//   "<10"       — upper bound only
+// Non-numeric ranges (e.g. "Negative", "See report") return null → we don't
+// second-guess textual results, we just trust OBX-8. Value strings that
+// aren't parseable numbers also return null.
+export function computeNumericAbnormal(valueStr, rangeStr) {
+  if (!valueStr || !rangeStr) return null
+  const v = Number(String(valueStr).replace(/[^0-9.\-eE+]/g, ''))
+  if (!isFinite(v)) return null
+  const r = String(rangeStr).trim()
+  const range = r.match(/^(-?\d+(?:\.\d+)?)\s*[-–]\s*(-?\d+(?:\.\d+)?)$/)
+  if (range) {
+    const lo = Number(range[1]), hi = Number(range[2])
+    if (v < lo) return 'L'
+    if (v > hi) return 'H'
+    return 'N'
+  }
+  const gt = r.match(/^>\s*(-?\d+(?:\.\d+)?)$/)
+  if (gt) return v <= Number(gt[1]) ? 'L' : 'N'
+  const lt = r.match(/^<\s*(-?\d+(?:\.\d+)?)$/)
+  if (lt) return v >= Number(lt[1]) ? 'H' : 'N'
+  return null
+}
+
+// Effective abnormal flag for a single OBX row.
+//   1. Prefer OBX-8 as sent (HL7 v2.3.1 table 0078: L/H/LL/HH/A/AA/N/…).
+//   2. If OBX-8 empty AND we can parse both value + range, derive L/H/N.
+//   3. Otherwise null (unknown).
+// N or empty-after-derivation → normal; anything else → abnormal for the
+// purposes of the top-of-report ABNORMAL indicator.
+export function effectiveAbnormal(obx) {
+  const raw = String(obx?.abnormal || '').trim().toUpperCase()
+  if (raw) return raw
+  const derived = computeNumericAbnormal(obx?.value, obx?.refRange)
+  return derived
+}
+
+export function isAbnormal(flag) {
+  if (!flag) return false
+  const f = String(flag).trim().toUpperCase()
+  if (!f || f === 'N') return false
+  return true
+}
+
+// Extract display fields for the inbox renderer.
+//
+// PRIMARY source is `parsedSummary` — the per-report summary the server built
+// at receive time (api/_hl7-inbound.js `extractSummary`). For batched messages
+// that were fanned out into multiple rows, this is the ONLY correct source —
+// each DB row shares the same full raw_message, so re-parsing it always
+// grabs the first PID/OBR. Regression noted by Tony Cruice 2026-08-20
+// (case #1058382): "Dates are missing again for Requested, Effective and
+// Generated" — root cause was patient #2+ falling into raw parse instead
+// of per-report summary.
+//
+// FALLBACK to raw parsing for legacy rows (pre-fanout, no parsed_summary)
+// and for the LIT PDF/FT extraction which needs the full OBX segment string.
+export function parseHl7Display(raw, parsedSummary) {
   const empty = {
     obr4_1: '', obr4_2: '', obr4Label: '',
     corrected: false,
     dates: { generated: null, requested: null, observation: null },
     obxRows: [],
-    notesLines: [],
+    notesText: '',
     isLit: false,
     litText: null,
+    orderingName: '',
+    orderingId: '',
+    anyAbnormal: false,
+  }
+  // Preferred path: server-parsed per-report summary. Guaranteed to be the
+  // right patient's OBR/OBX/NTE even when raw_message is the batched envelope.
+  if (parsedSummary?.order && parsedSummary?.obx) {
+    const o = parsedSummary.order || {}
+    const obr4Raw = o.obr4 || ''
+    const obr4_1 = o.obr4_1 || obr4Raw.split('^')[0] || ''
+    const obr4_2 = o.obr4_2 || obr4Raw.split('^')[1] || ''
+    const isLit = String(obr4_1).toUpperCase() === 'LIT'
+    const obxRows = (parsedSummary.obx || []).map(x => {
+      const identRaw = x.identifier || ''
+      const identParts = identRaw.split('^')
+      const subRaw = x.subId || ''
+      const subParts = subRaw.split('^')
+      const unitsRaw = x.units || ''
+      const unitsParts = unitsRaw.split('^')
+      const valueType = String(x.valueType || '').toUpperCase()
+      const rawValue = x.value || ''
+      // Decode escapes for FT / TX formatted-text observations so \.br\
+      // renders as a newline instead of raw backslash-dot-br-backslash.
+      // Per HL7 v2 datatype 3.13 (Tony Cruice 2026-08-20).
+      const value = (valueType === 'FT' || valueType === 'TX')
+        ? decodeHl7Escapes(rawValue)
+        : rawValue
+      return {
+        idx:        Number(x.idx) || 0,
+        valueType,
+        identifier: identRaw,
+        identLabel: identParts[1] || identParts[0] || '',
+        subId:      subRaw,
+        subLabel:   subParts[1] || subParts[0] || '',
+        value,
+        rawValue,
+        units:      unitsRaw,
+        unitsLabel: unitsParts[1] || unitsParts[0] || '',
+        refRange:   x.refRange || '',
+        abnormal:   x.abnormal || '',
+      }
+    })
+    // Compute per-row effective abnormal + a top-level any-abnormal flag,
+    // so the header can show one ABNORMAL pill that matches how Trinity
+    // Windows summarises a report.
+    obxRows.forEach(row => { row.effectiveAbnormal = effectiveAbnormal(row) })
+    const anyAbnormal = obxRows.some(r => isAbnormal(r.effectiveAbnormal))
+    let litText = null
+    if (isLit) {
+      const textObx = obxRows.find(r => r.valueType === 'FT' || r.valueType === 'TX')
+      if (textObx) litText = textObx.value  // already decoded above
+    }
+    // Notes: server stores each NTE segment's field(3) as an entry in the
+    // `notes` array. Concatenate + decode escapes so downstream renders a
+    // single continuous text block rather than one bordered card per NTE
+    // (Tony Cruice 2026-08-20 point 5: "NTE segments visible boundary again").
+    const notesText = (parsedSummary.notes || [])
+      .map(n => decodeHl7Escapes(n))
+      .join('\n')
+    return {
+      obr4_1, obr4_2,
+      obr4Label: obr4_2 || obr4_1 || obr4Raw,
+      corrected: !!o.corrected,
+      dates: {
+        generated:   formatHl7Datetime(o.generatedDate),
+        requested:   formatHl7Datetime(o.requestedDate),
+        observation: formatHl7Datetime(o.observationDate),
+      },
+      orderingName: '',
+      orderingId:   '',
+      obxRows,
+      notesText,
+      isLit,
+      litText,
+      anyAbnormal,
+    }
   }
   if (!raw) return empty
 
@@ -137,25 +280,34 @@ export function parseHl7Display(raw) {
     const subParts = subRaw.split('^')
     const unitsRaw = f[6] || ''
     const unitsParts = unitsRaw.split('^')
-    return {
+    const valueType = (f[2] || '').toUpperCase()
+    const rawValue = f[5] || ''
+    const value = (valueType === 'FT' || valueType === 'TX')
+      ? decodeHl7Escapes(rawValue)
+      : rawValue
+    const row = {
       idx:        Number(f[1]) || 0,
-      valueType:  (f[2] || '').toUpperCase(),
+      valueType,
       identifier: identRaw,
       identLabel: identParts[1] || identParts[0] || '',
       subId:      subRaw,
       subLabel:   subParts[1] || subParts[0] || '',
-      value:      f[5] || '',
+      value,
+      rawValue,
       units:      unitsRaw,
       unitsLabel: unitsParts[1] || unitsParts[0] || '',
       refRange:   f[7] || '',
       abnormal:   f[8] || '',
     }
+    row.effectiveAbnormal = effectiveAbnormal(row)
+    return row
   })
+  const anyAbnormal = obxRows.some(r => isAbnormal(r.effectiveAbnormal))
 
-  const notesLines = nteSegs.map(line => {
+  const notesText = nteSegs.map(line => {
     const f = line.split('|')
     return decodeHl7Escapes(f[3] || '')
-  }).filter(Boolean)
+  }).filter(Boolean).join('\n')
 
   // For LIT (referral copy / rendered report), the FT/TX observation and the
   // ED (PDF) observation are two representations of the SAME content per HL7
@@ -165,7 +317,7 @@ export function parseHl7Display(raw) {
   let litText = null
   if (isLit) {
     const textObx = obxRows.find(o => o.valueType === 'FT' || o.valueType === 'TX')
-    if (textObx) litText = decodeHl7Escapes(textObx.value)
+    if (textObx) litText = textObx.value  // already decoded in row build above
   }
 
   return {
@@ -177,8 +329,9 @@ export function parseHl7Display(raw) {
     orderingName,
     orderingId,
     obxRows,
-    notesLines,
+    notesText,
     isLit,
     litText,
+    anyAbnormal,
   }
 }
