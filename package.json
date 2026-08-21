@@ -7,7 +7,7 @@
     "dev:op": "op run --env-file='.env.example' -- vite",
     "server": "node server.js",
     "server:op": "op run --env-file='.env.example' -- node server.js",
-    "build": "VITE_ENV_STAGE=$VERCEL_ENV vite build",
+    "build": "VITE_ENV_STAGE=$VERCEL_ENV vite build && node scripts/build-corporate-html.mjs",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

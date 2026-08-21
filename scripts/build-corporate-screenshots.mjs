@@ -7,6 +7,7 @@
 //   public/corporate/vitals-capture.png      — featured: phone camera + vitals
 //   public/corporate/hl7-inbox.png           — supporting: lab inbox
 //   public/corporate/hl7-abnormal.png        — supporting: HL7 detail (unused hero, keep for reference)
+//   public/corporate/og-preview.png          — 1200x630 social/text preview card
 //
 // Priority order matches Patrick's positioning (2026-08-21): language +
 // vitals are the big selling points; HL7 receive is expected background.
@@ -319,9 +320,55 @@ function renderVitalsCapture() {
 </body></html>`
 }
 
+// ─── OG preview card (1200x630) ──────────────────────────────────────────
+// Fixed-size social/text preview card. Shown when tere.co.nz is shared
+// on Slack / iMessage / Twitter / LinkedIn / anywhere with OG scraping.
+// Composition mimics the corporate hero: brand-lockup left, headline
+// centered, mini language + vitals chips to hint at the two hero features.
+function renderOgPreview() {
+  return `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  html, body { margin:0; padding:0; }
+  body { font-family:${FF}; background:#F7F5F0; color:${NAVY}; }
+  .frame { width:1200px; height:630px; padding:80px 90px; box-sizing:border-box; display:flex; flex-direction:column; justify-content:space-between; position:relative; overflow:hidden;
+           background: radial-gradient(circle at 20% 20%, rgba(11,110,118,.08) 0, transparent 45%), radial-gradient(circle at 85% 90%, rgba(13,43,69,.06) 0, transparent 45%), #F7F5F0; }
+  .brand { display:flex; align-items:baseline; gap:14px; }
+  .brand .n { font-family:Cormorant Garamond,Georgia,serif; font-style:italic; color:${NAVY}; font-size:3.2rem; font-weight:700; }
+  .brand .s { font-size:1rem; letter-spacing:.14em; text-transform:uppercase; color:#6B7280; font-weight:700; }
+  h1 { font-family:Cormorant Garamond,Georgia,serif; font-size:4.4rem; line-height:1; margin:0; color:${NAVY}; font-weight:600; letter-spacing:-.02em; max-width:1000px; }
+  h1 .accent { color:${TEAL}; font-style:italic; }
+  .sub { font-size:1.4rem; color:#4B5563; line-height:1.4; margin-top:22px; max-width:900px; }
+  .foot { display:flex; align-items:center; justify-content:space-between; gap:24px; }
+  .chips { display:flex; gap:10px; flex-wrap:wrap; }
+  .chip { background:white; border:1px solid #E2E8F0; color:${NAVY}; padding:10px 18px; border-radius:999px; font-size:1rem; font-weight:700; display:inline-flex; align-items:center; gap:8px; }
+  .chip .dot { width:8px; height:8px; border-radius:999px; background:${TEAL}; }
+  .url { font-size:1.1rem; color:${TEAL}; font-weight:700; letter-spacing:.02em; }
+</style></head><body>
+<div class="frame">
+  <div class="brand">
+    <span class="n">Tere</span>
+    <span class="s">Health Ltd</span>
+  </div>
+  <div>
+    <h1>Telemedicine that reaches every patient,<br/><span class="accent">in their own language.</span></h1>
+    <div class="sub">A New Zealand built platform. Live subtitle translation, vitals from a phone camera, video, prescribing and messaging on top.</div>
+  </div>
+  <div class="foot">
+    <div class="chips">
+      <span class="chip"><span class="dot"></span> Live translation</span>
+      <span class="chip"><span class="dot"></span> Vitals from a phone</span>
+      <span class="chip"><span class="dot"></span> Rural first</span>
+    </div>
+    <div class="url">tere.co.nz</div>
+  </div>
+</div>
+</body></html>`
+}
+
 async function shoot(html, outPath, viewportHeight, opts = {}) {
+  const width = opts.width || 1120
   const browser = await chromium.launch()
-  const ctx = await browser.newContext({ viewport: { width: 1120, height: viewportHeight }, deviceScaleFactor: 2 })
+  const ctx = await browser.newContext({ viewport: { width, height: viewportHeight }, deviceScaleFactor: opts.deviceScaleFactor || 2 })
   const page = await ctx.newPage()
   await page.setContent(html, { waitUntil: 'domcontentloaded' })
   let contentHeight = viewportHeight
@@ -329,7 +376,7 @@ async function shoot(html, outPath, viewportHeight, opts = {}) {
     // Fixed-size marketing mockups (frame is exactly W×H). Screenshot the
     // .frame element directly rather than auto-measuring, to keep the
     // aspect ratio consistent for landing-page embedding.
-    await page.setViewportSize({ width: 1120, height: viewportHeight })
+    await page.setViewportSize({ width, height: viewportHeight })
     const frame = await page.locator('.frame').first()
     await frame.screenshot({ path: outPath })
   } else {
@@ -359,6 +406,8 @@ async function main() {
   await shoot(renderInboxList(),              path.join(outDir, 'hl7-inbox.png'),           900)
   console.log('Rendering report detail (kept for reference)…')
   await shoot(renderReportDetail(),           path.join(outDir, 'hl7-abnormal.png'),        900)
+  console.log('Rendering OG preview (1200x630 for social/text share)…')
+  await shoot(renderOgPreview(),              path.join(outDir, 'og-preview.png'),          630, { fixedHeight: true, width: 1200, deviceScaleFactor: 1 })
   console.log('\nDone. Refresh tere.co.nz to see updated screenshots.')
 }
 

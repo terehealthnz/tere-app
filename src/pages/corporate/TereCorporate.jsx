@@ -373,20 +373,19 @@ export default function TereCorporate() {
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.75rem', marginBottom: '1.5rem' }}>
                 {[
-                  { label: 'Heart rate',      unit: 'bpm',              note: 'In production' },
-                  { label: 'SpO2',            unit: '%',                note: 'In production' },
-                  { label: 'Respiratory rate', unit: 'breaths / min',   note: 'Confidence-gated' },
-                  { label: 'Blood pressure',  unit: 'mmHg',             note: 'Under validation' },
+                  { label: 'Heart rate',       unit: 'bpm' },
+                  { label: 'SpO2',             unit: '%' },
+                  { label: 'Respiratory rate', unit: 'breaths / min' },
+                  { label: 'Blood pressure',   unit: 'mmHg' },
                 ].map(v => (
                   <div key={v.label} style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(212,238,240,.15)', borderRadius: 10, padding: '.85rem 1rem' }}>
                     <div style={{ fontSize: '.85rem', fontWeight: 700 }}>{v.label}</div>
                     <div style={{ fontSize: '.75rem', color: TEAL_L, fontWeight: 600, marginTop: 2 }}>{v.unit}</div>
-                    <div style={{ fontSize: '.68rem', color: 'rgba(255,255,255,.55)', marginTop: 4 }}>{v.note}</div>
                   </div>
                 ))}
               </div>
-              <div style={{ fontSize: '.78rem', color: 'rgba(255,255,255,.6)', lineHeight: 1.55 }}>
-                In production for heart rate and oxygen saturation. Blood pressure under ongoing clinical validation.
+              <div style={{ fontSize: '.72rem', color: 'rgba(255,255,255,.5)', lineHeight: 1.55 }}>
+                All values are AI estimates from the phone camera, not yet independently ISO validated. A clinician reviews before any decision is made.
               </div>
             </div>
 
