@@ -13,10 +13,18 @@
 // as an admin-onboarding tool, not a general clinician surface.
 //
 // Actions (all GET unless noted):
-//   ?action=ping                              — health/env check
+//   ?action=ping                              — health/env check (DIAG)
+//   ?action=token_probe                       — oauth grant test (DIAG)
+//   ?action=compliance_pack                   — full conformance suite (DIAG)
 //   ?action=get_practitioner&cpn=<HPI-CPN>    — single practitioner by HPI number
 //   ?action=search_practitioner&family=X&given=Y — name search
 //   ?action=get_facility&hpi=<HPI-Facility>   — single facility/location
+//
+// Diagnostic actions (marked DIAG above) are gated behind
+// HPI_DIAG_ENABLED=true — they were needed during onboarding + compliance
+// submission (ticket IN-3502, 2026-08-13) but shouldn't linger as always-on
+// endpoints in prod. Set the env var to re-enable temporarily if HNZ asks
+// for follow-up compliance evidence, otherwise leave off.
 
 import { guardProvider } from './_auth.js'
 import { createClient } from '@supabase/supabase-js'
@@ -186,6 +194,16 @@ export default async function handler(req, res) {
   if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
 
   const { action } = req.query || {}
+
+  // Gate diagnostic actions post-compliance-submission (task #257). These
+  // stay available if HPI_DIAG_ENABLED=true is set in Vercel, otherwise
+  // return 404 so probes can't enumerate our env or exercise the OAuth
+  // grant. Production actions (get_practitioner / search_practitioner /
+  // get_facility / search_facility) always run.
+  const DIAG_ACTIONS = new Set(['ping', 'token_probe', 'compliance_pack'])
+  if (DIAG_ACTIONS.has(action) && process.env.HPI_DIAG_ENABLED !== 'true') {
+    return res.status(404).json({ error: 'Not found' })
+  }
 
   try {
     if (action === 'ping') {
