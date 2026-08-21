@@ -33,6 +33,20 @@ export async function apiFetch(path, options = {}) {
     } catch {}
   }
 
+  // Practice mode toggle. When the provider has flipped the practice
+  // toggle in the header, sessionStorage.practice_mode = '1'. Every
+  // /api/ call carries the header so server endpoints filter
+  // is_practice accordingly. Server ignores the header for
+  // onboarding-gated providers (they're always in practice regardless)
+  // and for admins unless they've explicitly enabled it.
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      if (sessionStorage.getItem('practice_mode') === '1') {
+        headers['x-practice-mode'] = 'true'
+      }
+    } catch {}
+  }
+
   const res = await fetch(path, { ...options, headers })
   return res
 }

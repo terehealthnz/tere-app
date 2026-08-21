@@ -7,6 +7,7 @@ import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
+import PracticeModeBanner from '../../components/clinician/PracticeModeBanner.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1302,6 +1303,9 @@ export default function ProviderApp() {
 
   return (
     <div style={{ height:'100dvh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none', position:'relative', overflow:'hidden' }}>
+      {/* Practice/onboarding mode banner (hidden in live mode) */}
+      <PracticeModeBanner />
+
       {/* Offline banner */}
       {!isOnline && (
         <div style={{ background:'#DC2626', color:'white', textAlign:'center', padding:'.625rem', fontSize:'.875rem', fontWeight:600, zIndex:300 }}>

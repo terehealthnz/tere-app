@@ -82,6 +82,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'pms-data',
   // HL7 inbox filing (assign message to patient chart)
   'hl7-file',
+  // Provider practice-mode sandbox seed / reset
+  'practice-seed', 'practice-reset',
   // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)
   'hpi',
 ])
@@ -206,6 +208,9 @@ const ROUTES = {
   'hl7-inbound':               () => import('./_hl7-inbound.js'),
   'hl7-file':                  () => import('./_hl7-file.js'),
   'provider-inbox':            () => import('./_provider-inbox.js'),
+  'practice-seed':             () => import('./_practice-seed.js'),
+  'practice-reset':            () => import('./_practice-reset.js'),
+  'cron-unlock-reminders':     () => import('./_cron-unlock-reminders.js'),
   'geo-check':                 () => import('./_geo-check.js'),
   'provider-reset-request':    () => import('./_provider-reset-request.js'),
   'provider-reset-complete':   () => import('./_provider-reset-complete.js'),

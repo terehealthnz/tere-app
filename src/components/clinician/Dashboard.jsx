@@ -6,6 +6,7 @@ import { apiFetch } from '../../lib/api'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
 import ProviderInbox from '../../pages/clinician/ProviderInbox.jsx'
 import ProviderEarnings from '../../pages/clinician/ProviderEarnings.jsx'
+import PracticeModeBanner from './PracticeModeBanner.jsx'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -389,6 +390,7 @@ export default function Dashboard() {
 
   return (
     <div className="page">
+      <PracticeModeBanner />
       <nav className="navbar">
         <span className="navbar-brand">Tere</span>
         <div className="navbar-right">

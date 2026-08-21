@@ -160,6 +160,9 @@ const UPDATE_ALLOWLIST = new Set([
   // MFA (TOTP) — admin can clear both fields to recover a provider who
   // lost their authenticator. Provider self-service uses /api/provider-mfa.
   'mfa_enabled', 'mfa_secret_encoded',
+  // Onboarding gate — admin sets a future date. Nulled to open access
+  // immediately. See supabase/2026-08-21_provider_patient_access_gate.sql
+  'patient_access_from',
 ])
 
 // Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via
@@ -344,6 +347,7 @@ export default async function handler(req, res) {
       'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
       'mcnz_registration_number', 'scope_of_practice', 'pgy_level', 'supervision_plan_url',
       'availability_message',
+      'patient_access_from',
       'signature_url',
       'base_rate',
       'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',

@@ -532,6 +532,10 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     signature_url: '',
     // Auth
     pin: '',
+    // Onboarding gate — patient_access_from. Blank = no gate (full access
+    // immediately). YYYY-MM-DD = provider can log in and use the practice
+    // sandbox but cannot access real patients until that date passes.
+    patient_access_from: '',
   })
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
@@ -803,6 +807,26 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Onboarding gate — optional patient_access_from */}
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Onboarding gate (optional)</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
+                Set a date to delay real patient access. The new provider can log in, edit their profile, and use the practice sandbox from day one — real patients only appear in their queue once this date passes. Leave blank for immediate access.
+              </div>
+              <div>
+                <div style={labelStyle}>Full access unlocks on</div>
+                <input
+                  type="date"
+                  value={form.patient_access_from}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={e => set('patient_access_from', e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
             </div>
           )}
 
