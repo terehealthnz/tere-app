@@ -100,7 +100,7 @@ export default function TereCorporate() {
             brand="Tere Health Australia"
             tagline="Rural + remote telemedicine for MMM6-7 communities. AHPRA registration + AU entity formation in progress."
             live={false}
-            note="Launching Q4 2026"
+            note="In preparation"
           />
         </div>
       </div>
