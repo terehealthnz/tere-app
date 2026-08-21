@@ -138,7 +138,7 @@ export default function LiveSubtitles({
       }}>
       {paused ? (
         <div style={{ maxWidth: 720, margin: '0 auto', background: 'rgba(217,119,6,.9)', border: '1px solid #FCD34D', color: 'white', padding: '.625rem 1rem', borderRadius: 10, textAlign: 'center', fontSize: '.875rem', fontWeight: 700, pointerEvents: 'auto' }}>
-          🔇 AI subtitles paused — speak clinical instructions in English or request Language Line
+          🔇 AI subtitles paused — confirm any important instructions in English
         </div>
       ) : (
         <div style={{ maxWidth: 720, margin: '0 auto', background: 'rgba(0,0,0,.55)', borderRadius: 10, pointerEvents: 'auto', backdropFilter: 'blur(6px)', display: 'flex', flexDirection: 'column' }}>
