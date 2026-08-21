@@ -33,6 +33,17 @@ export default function TereIntro({ onStart }) {
   async function onGeoAccept(geo) {
     setGeoOpen(false)
     setStarting(true)
+    // Back-button guard: if a patient navigates back to /start and
+    // re-accepts the geo dialog, don't create another pre_triage row.
+    // Reuse the existing consultation_id. Prevents orphan spam in the
+    // DB when a patient hits back a few times mid-intake.
+    const existingId = sessionStorage.getItem('consultation_id')
+                    || sessionStorage.getItem('consultationId')
+    if (existingId) {
+      if (onStart) onStart()
+      else navigate('/consent')
+      return
+    }
     try {
       // Pre-triage placeholder row so we can track drop-offs at the language
       // select stage. Routes through /api/create-consultation which accepts

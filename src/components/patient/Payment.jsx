@@ -334,8 +334,18 @@ export default function Payment() {
   const accEligible      = sessionStorage.getItem('accEligible') || 'no'
   const consultationType = sessionStorage.getItem('consultationType') || 'consult'
   useEffect(() => {
-    if (!consultationId) navigate('/start')
-  }, [consultationId, navigate])
+    if (!consultationId) { navigate('/start'); return }
+    // Back-button guard: if the patient already paid (paymentIntentId
+    // set + consult moved to 'waiting'), rendering the payment form
+    // again risks a duplicate charge. Skip forward to the next step
+    // in the flow rather than let them re-submit.
+    const paidIntentId = sessionStorage.getItem('paymentIntentId')
+    if (!paidIntentId) return
+    const forwardTo = consultationType === 'message'
+      ? '/message-sent'
+      : `/vitals/${consultationId}`
+    navigate(forwardTo, { replace: true })
+  }, [consultationId, consultationType, navigate])
 
   return (
     <div className="page">
