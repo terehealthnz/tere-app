@@ -1,3 +1,5 @@
+# General crawler policy — allow indexing of public marketing pages, block
+# private/authed surfaces and API endpoints.
 User-agent: *
 Allow: /
 Disallow: /api/
@@ -10,5 +12,93 @@ Disallow: /payment
 Disallow: /call
 Disallow: /done
 Disallow: /demo/
+
+# ─── AI training + retrieval crawlers ────────────────────────────────────
+# We disallow site-wide for the well-known AI crawlers. This is
+# voluntary — well-behaved crawlers (OpenAI, Anthropic, Google-Extended,
+# Perplexity, Meta, Common Crawl, etc.) respect these directives; bad
+# actors will ignore them. Belt-and-braces: Cloudflare "Block AI Scrapers
+# and Crawlers" is enabled at the edge for the same list.
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ChatGPT-User
+Disallow: /
+
+User-agent: OAI-SearchBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: GoogleOther
+Disallow: /
+
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: Perplexity-User
+Disallow: /
+
+User-agent: cohere-ai
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Diffbot
+Disallow: /
+
+User-agent: Omgilibot
+Disallow: /
+
+User-agent: Omgili
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: meta-externalagent
+Disallow: /
+
+User-agent: Meta-ExternalFetcher
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: YouBot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+User-agent: TimpiBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
 
 Sitemap: https://tere.co.nz/sitemap.xml
