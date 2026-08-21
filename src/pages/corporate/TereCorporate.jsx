@@ -385,16 +385,14 @@ export default function TereCorporate() {
       {/* DEPLOYMENT FRAMES — 4 pill-style rows, not a card grid */}
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '5rem 1.5rem 3rem' }}>
         <SectionEyebrow>Deployment shapes</SectionEyebrow>
-        <SectionHeading>Same clinical engine, different frames.</SectionHeading>
+        <SectionHeading>Two ways to run it today.</SectionHeading>
         <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
-          One platform underneath. Different fronts, commercial models, and regulatory frameworks configured per deployment.
+          Direct to patients under our own brand, or integrated into your practice or organisation.
         </p>
 
         {[
           { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients. The live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
-          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20Integration' },
-          { icon: 'shield',  title: 'US enterprise partnerships',       desc: 'Positioned for employer and insurer partnerships in the United States. Not yet open to the public.', status: 'preparing' },
-          { icon: 'users',   title: 'Australia rural + remote',         desc: 'Planned for rural and remote communities. Entity formation and clinical registration in progress.', status: 'preparing' },
+          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20demo%20Integration' },
         ].map((row, i) => (
           <div key={row.title} className="corp-deploy-row" style={{
             display: 'flex', alignItems: 'center', gap: '1.25rem',
