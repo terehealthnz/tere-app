@@ -60,7 +60,7 @@ const REPORT = {
     observation: '15/08/2026 09:10',
     generated:   '15/08/2026 09:47',
   },
-  orderedBy: 'Dr M. Patel, Nelson',
+  orderedBy: 'Dr M. Patel, Blenheim',
   observations: [
     { name: 'Haemoglobin',            value: '91',    units: 'g/L',       ref: '130–175', flag: 'L' },
     { name: 'PCV',                    value: '0.29',  units: 'L/L',       ref: '0.40–0.52', flag: 'L' },

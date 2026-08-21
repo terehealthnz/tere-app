@@ -87,7 +87,7 @@ const SectionHeading = ({ children, style }) => (
 // Bento cell — the base tile in the feature grid. Variable size + optional
 // image + optional dark background.
 const Bento = ({ span = 1, dark, image, imageAlt, children, style }) => (
-  <div style={{
+  <div className="bento-span" style={{
     gridColumn: `span ${span}`,
     background: dark ? NAVY : 'white',
     color: dark ? 'white' : NAVY,
@@ -141,11 +141,41 @@ export default function TereCorporate() {
   return (
     <div style={{
       minHeight: '100dvh', background: CREAM, fontFamily: FF, color: NAVY,
-      // Progressive enhancement — subtle noise texture on cream for warmth.
+      // Progressive enhancement, subtle noise texture on cream for warmth.
       backgroundImage: 'radial-gradient(circle at 30% 20%, rgba(11,110,118,.04) 0, transparent 40%), radial-gradient(circle at 70% 80%, rgba(13,43,69,.03) 0, transparent 40%)',
     }}>
+      {/* Responsive overrides. Corp page is one component, so a scoped
+          style block is simpler than a Tailwind-style refactor. */}
+      <style>{`
+        @media (max-width: 900px) {
+          .corp-hero, .corp-dark, .corp-contact { grid-template-columns: 1fr !important; gap: 2rem !important; }
+          .corp-bento { grid-template-columns: repeat(2, 1fr) !important; }
+          .corp-bento > .bento-span { grid-column: span 2 !important; }
+          .corp-hero-img-wrap { min-height: 320px !important; }
+          .corp-hero h1 { font-size: clamp(1.8rem, 8vw, 2.4rem) !important; }
+          .corp-dark h2, .corp-contact h2 { font-size: clamp(1.6rem, 7vw, 2rem) !important; }
+        }
+        @media (max-width: 560px) {
+          .corp-bento { grid-template-columns: 1fr !important; }
+          .corp-metric-strip { justify-content: flex-start !important; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+          .corp-metric-strip > span { flex-shrink: 0; }
+          .corp-deploy-row { flex-wrap: wrap !important; }
+          .corp-deploy-link { margin-left: 56px; margin-top: 4px; }
+        }
+      `}</style>
 
-      {/* Slim top-of-page brand bar — no nav, no CTAs. Just presence. */}
+      {/* Patient redirect banner — always visible at the top. Anyone who
+          lands here searching for a doctor gets a one-click path to book
+          on the actual patient site. */}
+      <a href="https://terehealth.co.nz" style={{
+        display: 'block', background: TEAL, color: 'white', textDecoration: 'none',
+        padding: '10px 16px', textAlign: 'center',
+        fontSize: '.82rem', fontWeight: 600, letterSpacing: '.01em',
+      }}>
+        Looking for a doctor? Book a consultation at terehealth.co.nz&nbsp;&rarr;
+      </a>
+
+      {/* Slim brand bar. No nav, no CTAs. Just presence. */}
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '1.5rem 1.5rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '.6rem' }}>
           <span style={{ fontFamily: SERIF, fontStyle: 'italic', color: NAVY, fontSize: '1.5rem', fontWeight: 700 }}>Tere</span>
@@ -158,7 +188,7 @@ export default function TereCorporate() {
 
       {/* HERO — asymmetric bento. Copy left, product screenshot right. */}
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '4rem 1.5rem 3.5rem' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1fr)', gap: '3rem', alignItems: 'center' }}>
+        <div className="corp-hero" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.05fr) minmax(0, 1fr)', gap: '3rem', alignItems: 'center' }}>
           <div>
             <Tag tone="green">
               <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: 99, background: '#059669' }} /> Live in NZ
@@ -168,17 +198,17 @@ export default function TereCorporate() {
               fontWeight: 600, lineHeight: 1.02, margin: '1.25rem 0 1.25rem',
               color: NAVY, letterSpacing: '-.02em',
             }}>
-              Telemedicine that reaches every patient —{' '}
+              Telemedicine that reaches every patient,{' '}
               <span style={{ color: TEAL, fontStyle: 'italic' }}>in their own language.</span>
             </h1>
             <p style={{
               fontSize: '1.075rem', color: '#4B5563', lineHeight: 1.55,
               margin: '0 0 1.75rem', maxWidth: 540,
             }}>
-              Live subtitle translation across eight languages, plus written translation for Te Reo Māori, Samoan, Arabic and Hindi. Vitals estimated from the patient's phone — no wearable needed. Built in NZ, available for your practice to integrate.
+              Live subtitle translation across eight languages, plus written translation for Te Reo Māori, Samoan, Arabic and Hindi. Vitals estimated from the patient's phone. No wearable needed. Built in NZ, available to integrate.
             </p>
             <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
-              <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
+              <a href="mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20Tere%20platform&body=Hi%20Tere%20team%2C%0A%0AI'd%20like%20to%20book%20a%2020-minute%20call%20to%20discuss%20how%20the%20platform%20could%20fit%20our%20practice.%0A%0APractice%2FPHO%3A%0AName%3A%0ARole%3A%0APreferred%20time%3A%0A%0AThanks." style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: NAVY, color: 'white', textDecoration: 'none',
                 padding: '13px 22px', borderRadius: 12, fontWeight: 700, fontSize: '.9rem',
@@ -198,7 +228,7 @@ export default function TereCorporate() {
 
           {/* Hero screenshot — live consult with translation, our headline
               differentiator. Speaks to language + inclusion at first glance. */}
-          <div style={{ position: 'relative', minHeight: 420 }}>
+          <div className="corp-hero-img-wrap" style={{ position: 'relative', minHeight: 420 }}>
             <div style={{
               position: 'absolute', top: 20, left: 40, right: 0, bottom: 0,
               background: TEAL_L, borderRadius: 20, transform: 'rotate(2deg)',
@@ -225,7 +255,7 @@ export default function TereCorporate() {
 
       {/* Thin metric strip — quiet proof under the hero */}
       <div style={{ borderTop: '1px solid rgba(13,43,69,.08)', borderBottom: '1px solid rgba(13,43,69,.08)', background: 'rgba(255,255,255,.4)' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem 2rem', alignItems: 'center', justifyContent: 'center', color: '#4B5563', fontSize: '.78rem', fontWeight: 600 }}>
+        <div className="corp-metric-strip" style={{ maxWidth: 1180, margin: '0 auto', padding: '1rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: '.5rem 2rem', alignItems: 'center', justifyContent: 'center', color: '#4B5563', fontSize: '.78rem', fontWeight: 600 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HDC registered</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HIPAA + BAA-covered</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon path={I.check} size={14} color={TEAL} /> HPI directory connected</span>
@@ -237,18 +267,18 @@ export default function TereCorporate() {
       {/* BENTO — what we've built. Variable-size tiles, one large with the inbox screenshot. */}
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '5rem 1.5rem 3rem' }}>
         <SectionEyebrow>What we've built</SectionEyebrow>
-        <SectionHeading>Everything a rural telemedicine service needs — component by component.</SectionHeading>
+        <SectionHeading>Everything a rural telemedicine service needs, component by component.</SectionHeading>
         <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
           Each of these runs in production today, serving NZ patients. License the pieces that fit your workflow, or run the full platform under your brand.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
+        <div className="corp-bento" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '1rem' }}>
           {/* Row 1 — VITALS featured (large tile with phone mockup),
               LANGUAGE alongside as a strong second differentiator */}
           <Bento span={4} image="/corporate/vitals-capture.png" imageAlt="Patient using their phone to capture vitals — heart rate, oxygen saturation, and respiratory rate in real time">
             <BentoTitle icon="scan">Vitals from a phone camera</BentoTitle>
             <BentoBody>
-              Patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in about thirty seconds. No wearable, no peripheral — nothing for rural patients to buy or set up.
+              Patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in about thirty seconds. No wearable, no peripheral. Nothing for rural patients to buy or set up.
             </BentoBody>
           </Bento>
 
@@ -294,7 +324,7 @@ export default function TereCorporate() {
 
           <Bento span={2}>
             <BentoTitle icon="activity">Clinical notes</BentoTitle>
-            <BentoBody>AI-assisted note drafts from the consultation, ready for the clinician to review and sign. Never trained on patient data.</BentoBody>
+            <BentoBody>AI-assisted note drafts from the consultation, ready for the clinician to review and sign.</BentoBody>
           </Bento>
         </div>
       </div>
@@ -302,7 +332,7 @@ export default function TereCorporate() {
       {/* DARK FULL-BLEED — signature IP + demo video */}
       <div id="demo" style={{ background: NAVY, color: 'white', padding: '5rem 0 5rem' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: '3rem', alignItems: 'center' }}>
+          <div className="corp-dark" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1.4fr)', gap: '3rem', alignItems: 'center' }}>
             <div>
               <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TEAL_L, marginBottom: '.9rem' }}>
                 Signature IP
@@ -342,7 +372,7 @@ export default function TereCorporate() {
                 </video>
               </div>
               <div style={{ marginTop: '.85rem', fontSize: '.8rem', color: 'rgba(255,255,255,.6)', textAlign: 'center' }}>
-                A full patient consultation, end to end — under two minutes.
+                A full patient consultation, end to end, in under two minutes.
               </div>
             </div>
           </div>
@@ -354,16 +384,16 @@ export default function TereCorporate() {
         <SectionEyebrow>Deployment shapes</SectionEyebrow>
         <SectionHeading>Same clinical engine, different frames.</SectionHeading>
         <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
-          One platform underneath — different fronts, commercial models, and regulatory frameworks configured per deployment.
+          One platform underneath. Different fronts, commercial models, and regulatory frameworks configured per deployment.
         </p>
 
         {[
-          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients — the live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
-          { icon: 'network', title: 'GP practice / PHO integration',   desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20—%20Practice%20integration' },
+          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients. The live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
+          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:hello@terehealth.co.nz?subject=Book%20a%20call%20Integration' },
           { icon: 'shield',  title: 'US enterprise partnerships',       desc: 'Positioned for employer and insurer partnerships in the United States. Not yet open to the public.', status: 'preparing' },
           { icon: 'users',   title: 'Australia rural + remote',         desc: 'Planned for rural and remote communities. Entity formation and clinical registration in progress.', status: 'preparing' },
         ].map((row, i) => (
-          <div key={row.title} style={{
+          <div key={row.title} className="corp-deploy-row" style={{
             display: 'flex', alignItems: 'center', gap: '1.25rem',
             background: 'white', border: '1px solid #E2E8F0', borderRadius: 16,
             padding: '1.25rem 1.5rem', marginBottom: '.75rem',
@@ -386,7 +416,7 @@ export default function TereCorporate() {
               <div style={{ color: '#4B5563', fontSize: '.875rem', lineHeight: 1.55 }}>{row.desc}</div>
             </div>
             {row.link && (
-              <a href={row.link} style={{
+              <a href={row.link} className="corp-deploy-link" style={{
                 color: TEAL, fontSize: '.85rem', fontWeight: 700,
                 textDecoration: 'none', flexShrink: 0,
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -418,18 +448,18 @@ export default function TereCorporate() {
 
       {/* CONTACT — full-bleed navy */}
       <div style={{ background: NAVY, color: 'white', padding: '4.5rem 0' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '2.5rem', alignItems: 'center' }}>
+        <div className="corp-contact" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '2.5rem', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '.72rem', fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TEAL_L, marginBottom: '.9rem' }}>
               Let's talk
             </div>
             <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(2rem, 3.6vw, 2.9rem)', fontWeight: 600, lineHeight: 1.05, margin: '0 0 1.25rem', letterSpacing: '-.01em' }}>
-              Bring rural-grade telehealth into&nbsp;your practice.
+              Bring rural grade telehealth into&nbsp;your practice.
             </h2>
             <p style={{ color: 'rgba(255,255,255,.75)', fontSize: '1rem', margin: '0 0 1.75rem', maxWidth: 520, lineHeight: 1.55 }}>
-              Whether you're evaluating a full white-label deployment or want to plug a single component (rPPG, HL7 receive, prescribing) into what you already run — we'd like to hear how it might fit.
+              Whether you're evaluating a full white label deployment or want to plug a single component (vitals, lab receive, prescribing) into what you already run, we'd like to hear how it might fit.
             </p>
-            <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20—%20practice%20integration" style={{
+            <a href="mailto:hello@terehealth.co.nz?subject=Tere%20platform%20practice%20integration" style={{
               display: 'inline-flex', alignItems: 'center', gap: 10,
               background: 'white', color: NAVY, textDecoration: 'none',
               padding: '14px 24px', borderRadius: 12, fontWeight: 700, fontSize: '.95rem',
@@ -440,7 +470,7 @@ export default function TereCorporate() {
           <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(212,238,240,.15)', borderRadius: 16, padding: '1.75rem 2rem' }}>
             <div style={{ fontSize: '.7rem', color: TEAL_L, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: '.5rem' }}>Tere Health Ltd</div>
             <div style={{ fontSize: '.95rem', color: 'white', fontWeight: 600, lineHeight: 1.6 }}>
-              Nelson, New Zealand<br/>
+              Marlborough, New Zealand<br/>
               NZ-registered clinical software company<br/>
               Operating <a href="https://terehealth.co.nz" style={{ color: TEAL_L, fontWeight: 600, textDecoration: 'none' }}>terehealth.co.nz</a>
             </div>
