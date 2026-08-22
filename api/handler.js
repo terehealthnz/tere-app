@@ -104,10 +104,29 @@ function checkRateLimit(key, maxReqs, windowMs) {
 }
 
 // ── Auth failure tracking (for alert emails) ──────────────────────────────────
+//
+// Two layers of failure tracking:
+//   1. In-memory (per-instance) — fires an immediate email at ≥10 fails/hour.
+//      Fast, but state is per-lambda and resets on cold start.
+//   2. Persistent — every failure is written to security_events. The nightly
+//      /api/cron-security-anomalies job aggregates across all instances and
+//      alerts on brute-force patterns the in-memory layer missed.
 const AUTH_FAILURES = { count: 0, windowStart: Date.now(), alertSent: false }
 const AUTH_FAIL_WINDOW_MS = 60 * 60 * 1000 // 1 hour
 
-async function trackAuthFailure(ip) {
+async function trackAuthFailure(ip, userAgent) {
+  // Layer 2: persist every failure. Fire-and-forget.
+  try {
+    const { recordSecurityEvent } = await import('./_security-events.js')
+    recordSecurityEvent({
+      event_type: 'auth_failure',
+      severity: 'info',
+      ip,
+      user_agent: userAgent,
+    })
+  } catch {}
+
+  // Layer 1: in-memory immediate-alert threshold.
   const now = Date.now()
   if (now - AUTH_FAILURES.windowStart > AUTH_FAIL_WINDOW_MS) {
     AUTH_FAILURES.count = 0
@@ -127,6 +146,17 @@ async function trackAuthFailure(ip) {
         subject: '[ALERT] 10+ failed auth attempts in the last hour',
         text: `Security alert: ${AUTH_FAILURES.count} failed provider auth attempts from IPs including ${ip} in the last hour. Please review access logs.`,
       })
+      // Also mark the burst in security_events so the nightly summary
+      // records that the immediate email was already sent (dedupe cue).
+      try {
+        const { recordSecurityEvent } = await import('./_security-events.js')
+        recordSecurityEvent({
+          event_type: 'auth_failure_burst',
+          severity: 'alert',
+          ip,
+          metadata: { count_in_window: AUTH_FAILURES.count, window_ms: AUTH_FAIL_WINDOW_MS },
+        })
+      } catch {}
     } catch {}
   }
 }
@@ -205,6 +235,7 @@ const ROUTES = {
   'provider-list':             () => import('./_provider-list.js'),
   'provider-licenses':         () => import('./_provider-licenses.js'),
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
+  'cron-security-anomalies':   () => import('./_cron-security-anomalies.js'),
   'hl7-inbound':               () => import('./_hl7-inbound.js'),
   'hl7-file':                  () => import('./_hl7-file.js'),
   'provider-inbox':            () => import('./_provider-inbox.js'),
@@ -364,7 +395,7 @@ export default async function handler(req, res) {
       logRequest(ip, route, statusCode)
       // Track provider auth failures
       if (route === 'provider-auth' && statusCode === 401) {
-        trackAuthFailure(ip)
+        trackAuthFailure(ip, req.headers['user-agent'])
       }
       return originalJson(body)
     }

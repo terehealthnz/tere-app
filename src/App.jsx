@@ -116,6 +116,7 @@ const Complaints          = lazy(() => import('./pages/Complaints'))
 const Watch               = lazy(() => import('./pages/Watch'))
 const Waitlist            = lazy(() => import('./pages/Waitlist'))
 import BetaBanner from './components/BetaBanner'
+import SessionIdleGuard from './components/clinician/SessionIdleGuard'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
@@ -206,6 +207,7 @@ export default function App() {
   return (
     <ChunkErrorBoundary>
     <BetaBanner />
+    <SessionIdleGuard />
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
