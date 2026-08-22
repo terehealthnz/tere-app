@@ -25,12 +25,19 @@ function admin() {
 }
 
 export default async function handler(req, res) {
-  // Cron auth (matches other _cron-*.js endpoints).
-  const isVercelCron = !!req.headers['x-vercel-cron']
-  const secretQ = req.query?.secret || null
-  const secretH = req.headers['authorization']?.replace(/^Bearer\s+/i, '') || null
-  const supplied = secretQ || secretH
-  if (!isVercelCron && (!supplied || supplied !== process.env.CRON_SECRET)) {
+  // Cron auth — matches _cron-unlock-reminders.js. Vercel's scheduler
+  // auto-attaches `Authorization: Bearer $CRON_SECRET` on scheduled runs
+  // (as long as CRON_SECRET is set as an env var). Same auth path for
+  // manual triggering — either via Vercel dashboard's "Run" button (which
+  // uses the same Bearer flow), or `?secret=<value>` for CLI curl tests.
+  //
+  // Deliberately does NOT trust `x-vercel-cron` header alone — that header
+  // is set by Vercel's scheduler but not stripped from external requests,
+  // so a request with a spoofed header would otherwise bypass auth.
+  const secret = req.query?.secret
+    || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+    || null
+  if (!secret || secret !== process.env.CRON_SECRET) {
     return res.status(404).json({ error: 'Not found' })
   }
 
