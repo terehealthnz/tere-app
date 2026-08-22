@@ -51,9 +51,18 @@ async function emailProvider(providerRow, expiredCodes) {
 
 export default async function handler(req, res) {
   // Vercel Cron GET only; anyone else gets 404 posture.
+  //
+  // Auth: `Authorization: Bearer $CRON_SECRET` — Vercel's scheduler
+  // auto-attaches this when CRON_SECRET is set. `?secret=` also
+  // accepted for manual triggering. Deliberately does NOT trust the
+  // `x-vercel-cron` header alone — that header is set by Vercel's
+  // scheduler but not stripped from external requests, so it's
+  // spoofable. Matches _cron-unlock-reminders.js.
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-  const cronHeader = req.headers['x-vercel-cron']
-  if (!cronHeader && process.env.NODE_ENV === 'production') {
+  const supplied = req.query?.secret
+    || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+    || null
+  if (!supplied || supplied !== process.env.CRON_SECRET) {
     return res.status(404).end()
   }
 

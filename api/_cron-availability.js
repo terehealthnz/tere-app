@@ -68,6 +68,19 @@ async function computeNextAvailable(supabase, schedules, fromDate) {
 }
 
 export default async function handler(req, res) {
+  // Auth: `Authorization: Bearer $CRON_SECRET` — Vercel's scheduler
+  // auto-attaches this when CRON_SECRET is set. `?secret=` also
+  // accepted for manual triggering. Previously this endpoint had no
+  // auth at all — anyone hitting /api/cron-availability could trigger
+  // it, and the trigger fans out push notifications to providers, so a
+  // spam vector. Matches _cron-unlock-reminders.js.
+  const supplied = req.query?.secret
+    || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+    || null
+  if (!supplied || supplied !== process.env.CRON_SECRET) {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
   try {
     const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     const nzt = getNZT()
