@@ -382,12 +382,25 @@ async function matchProvider(supabase, receivingFacility, receivingApp) {
   return (byCpn && byCpn[0]) || null
 }
 
+// Normalise NHI candidates — strip zero-width unicode + NFKC-normalise. An
+// attacker sending an HL7 message with a homoglyph or zero-width space in
+// PID-3 could otherwise bypass NHI equality (`.eq('nhi', ...)`) matching
+// the wrong patient chart. Do this before every DB lookup and before store.
+function normaliseNhi(raw) {
+  return String(raw || '')
+    .normalize('NFKC')
+    .replace(/[​‌‍﻿⁠]/g, '')  // zero-width chars
+    .replace(/[\s ]+/g, '')                        // any whitespace incl NBSP
+    .trim()
+    .toUpperCase()
+}
+
 async function matchPatient(supabase, patient) {
   if (!patient) return { match: null, confidence: 'none' }
   // NHI first (PID-3 typically holds it in NZ). v2.4 messages use the HD-
   // variant format `EJH551Z^^NHI^NZLMOH^NI` — the actual ID is component 1.
   // v2.1 messages usually just have the raw ID. Handle both.
-  const nhiCandidate = String(patient.pid3 || '').split('^')[0].trim()
+  const nhiCandidate = normaliseNhi(String(patient.pid3 || '').split('^')[0])
   if (nhiCandidate) {
     const { data: byNhi } = await supabase
       .from('patients')

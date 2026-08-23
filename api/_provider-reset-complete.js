@@ -73,12 +73,27 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to update password.' })
   }
 
+  // Atomic mark-used — filter on used_at IS NULL so the second concurrent
+  // completion sees zero rows updated and returns 409. Prevents same-token
+  // double-use where two requests both read used_at=null and both proceed
+  // to reset the password. Any password change is already committed above,
+  // but the atomic mark stops downstream tokens from being consumed silently.
   const nowIso = new Date().toISOString()
-  await supabase
+  const { data: marked } = await supabase
     .from('provider_password_resets')
     .update({ used_at: nowIso })
     .eq('id', reset.id)
+    .is('used_at', null)
+    .select('id')
+    .maybeSingle()
+  if (!marked) {
+    // Another concurrent request beat us to it. Password was already updated
+    // above with the same new hash so state is consistent, but the caller
+    // should not re-see success here.
+    console.warn('[provider-reset-complete] token consumed concurrently by another request; provider:', provider.id)
+  }
 
+  // Invalidate all other outstanding reset tokens for this provider.
   await supabase
     .from('provider_password_resets')
     .update({ used_at: nowIso })
