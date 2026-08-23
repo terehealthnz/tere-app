@@ -52,7 +52,7 @@ export async function requireProvider(req) {
     const email = userRes.user.email.toLowerCase()
     const { data: provider, error: pErr } = await supabase
       .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, patient_access_from')
+      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
       .ilike('email', email)
       .maybeSingle()
     if (pErr) { const e = new Error('Provider lookup failed: ' + pErr.message); e.status = 500; throw e }
@@ -66,7 +66,7 @@ export async function requireProvider(req) {
   if (providerId) {
     const { data: provider, error: pErr } = await supabase
       .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, patient_access_from')
+      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
       .eq('id', String(providerId))
       .maybeSingle()
     if (pErr) { const e = new Error('Provider lookup failed: ' + pErr.message); e.status = 500; throw e }

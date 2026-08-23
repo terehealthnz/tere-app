@@ -56,12 +56,24 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data: consult, error: getErr } = await supabase
     .from('consultations')
-    .select('id, status, call_attempts, no_answer_count, last_seen_at, patient_id, patient_phone')
+    .select('id, status, call_attempts, no_answer_count, last_seen_at, patient_id, patient_phone, provider_id')
     .eq('id', id)
     .eq('is_practice', practice)
     .maybeSingle()
   if (getErr) return res.status(500).json({ error: getErr.message })
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // Ownership check — provider can action their own consult, admins and
+  // supervisors can action any (covering shift, escalation). Unclaimed
+  // consults (provider_id null) are queue items any provider may pick up
+  // by calling — this matches how the queue actually works. Blocks
+  // provider A from mutating provider B's consult state (no-show spam,
+  // completion tampering).
+  const isPrivileged = auth.provider.is_admin || auth.provider.is_supervisor
+  const owns = consult.provider_id === auth.provider.id || consult.provider_id == null
+  if (!isPrivileged && !owns) {
+    return res.status(403).json({ error: 'Not authorised for this consultation.' })
+  }
 
   const now = new Date().toISOString()
   let patch = {}

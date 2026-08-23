@@ -82,6 +82,11 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'pms-data',
   // HL7 inbox filing (assign message to patient chart)
   'hl7-file',
+  // Provider-only payment capture. Requires provider auth + ownership check
+  // (see api/_capture-payment.js). Cancel-payment stays anon because the
+  // patient can abandon during triage — it has its own consult-existence
+  // check to prevent random paymentIntentId spam.
+  'capture-payment',
   // Provider practice-mode sandbox seed / reset
   'practice-seed', 'practice-reset',
   // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)

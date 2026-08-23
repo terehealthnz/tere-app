@@ -3,12 +3,18 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { providerDisplayName } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 
+// Device-remember TTL shortened from 30 days → 7 days (pen test 2026-08-23
+// L-2). The tere_device blob stores provider role flags, which are XSS-
+// exfil targets. Shorter TTL reduces the window a stolen device / hijacked
+// browser can auto-restore an authenticated session.
+const DEVICE_REMEMBER_MS = 7 * 86400000
+
 function getSaved() {
   try {
     const s = localStorage.getItem('tere_device')
     if (!s) return null
     const d = JSON.parse(s)
-    if (!d.savedAt || Date.now() - d.savedAt > 30 * 86400000) { localStorage.removeItem('tere_device'); return null }
+    if (!d.savedAt || Date.now() - d.savedAt > DEVICE_REMEMBER_MS) { localStorage.removeItem('tere_device'); return null }
     return d
   } catch { return null }
 }

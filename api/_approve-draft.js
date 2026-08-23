@@ -31,6 +31,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
 
+  // ── Role gate ─────────────────────────────────────────────────────────
+  //
+  // approve-draft is in AUTH_REQUIRED_ROUTES so guardProvider has run at
+  // the router. Additionally verify the caller is a supervisor (or admin)
+  // AND that supervisorId in the body matches the authenticated provider —
+  // no approving on someone else's behalf.
+  //
+  // Prior to this, any authenticated provider (including a fresh onboarding
+  // provider) could approve any prescription / referral / ACC claim in the
+  // system by supplying an arbitrary supervisorId. This is a hard block on
+  // that path.
+  const { guardProvider } = await import('./_auth.js')
+  const auth = await guardProvider(req, res)
+  if (!auth) return
+  if (!auth.provider.is_supervisor && !auth.provider.is_admin) {
+    return res.status(403).json({ error: 'Supervisor or admin role required to approve drafts.' })
+  }
+  if (supervisorId !== auth.provider.id) {
+    return res.status(403).json({ error: 'Cannot approve on behalf of another provider.' })
+  }
+
   const supabase = supabaseAdmin()
   const now = new Date().toISOString()
 

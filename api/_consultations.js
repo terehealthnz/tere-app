@@ -79,6 +79,33 @@ export default async function handler(req, res) {
   // Practice-mode / onboarding-gate scope for all consultation reads/writes.
   const { practice } = resolveDataMode(auth.provider, req)
 
+  // Billing-only role — user has is_billing_admin but no clinical role
+  // (not admin, supervisor, or provider). Their view of consultations
+  // must have clinical notes / narrative fields redacted so they see
+  // billing metadata only (task 119 established billing_admin sub-role;
+  // the redaction path wasn't wired then — pen test 2026-08-23 caught it).
+  const isBillingOnly = auth.provider.is_billing_admin && !auth.provider.is_admin
+    && !auth.provider.is_supervisor && !auth.provider.is_provider
+  const CLINICAL_FIELDS_TO_REDACT = [
+    'notes_draft', 'notes_final', 'clinical_notes', 'chief_complaint',
+    'transcript', 'summary', 'mdm_summary', 'plan_summary',
+    'diagnosis', 'diagnosis_code', 'icd10_code',
+    'async_response',
+  ]
+  function redactClinical(row) {
+    if (!row || !isBillingOnly) return row
+    const clean = { ...row }
+    for (const k of CLINICAL_FIELDS_TO_REDACT) {
+      if (k in clean) clean[k] = null
+    }
+    clean.__redacted_for = 'billing_admin'
+    return clean
+  }
+  function redactList(rows) {
+    if (!isBillingOnly || !Array.isArray(rows)) return rows
+    return rows.map(redactClinical)
+  }
+
   const supabase = admin()
 
   if (req.method === 'GET') {
@@ -88,7 +115,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('consultations').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
       if (error) return res.status(500).json({ error: error.message })
       if (!data) return res.status(404).json({ error: 'Consultation not found' })
-      return res.status(200).json({ consultation: data })
+      return res.status(200).json({ consultation: redactClinical(data) })
     }
 
     if (patientId) {
@@ -100,7 +127,7 @@ export default async function handler(req, res) {
         .order('created_at', { ascending: false })
         .limit(20)
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     if (filter === 'active' || filter === 'queue') {
@@ -111,7 +138,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Admin queue: consultations where the note has been finalised, a GP
@@ -127,7 +154,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     if (filter === 'waitlist') {
@@ -138,7 +165,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // ── Supervisor / admin approval + review filters ──────────────────────────
@@ -181,7 +208,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Recent consults (all statuses) — analytics panel.
@@ -196,7 +223,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false }).limit(limit)
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Consults with a payment_intent but not yet complete — billing follow-up panel.
@@ -209,7 +236,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Rated consults — ratings panel.
@@ -221,7 +248,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('rated_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Recalls waiting for follow-up. recall_date / recall_completed / recall_note
@@ -241,7 +268,7 @@ export default async function handler(req, res) {
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Message-type consults in queue (async workload panel).
@@ -254,7 +281,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Provider's own completed consults in a date range (ProviderEarnings).
@@ -273,7 +300,7 @@ export default async function handler(req, res) {
       q = q.order('created_at', { ascending: false })
       const { data, error } = await q
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Research-consented complete consults (AdminApp research panel).
@@ -287,7 +314,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // ACC provider conversions that were subsequently flagged (admin safety review).
@@ -311,7 +338,7 @@ export default async function handler(req, res) {
           console.warn('[acc_converted_flagged] query error, returning []:', error.message)
           return res.status(200).json({ consultations: [], warning: error.message })
         }
-        return res.status(200).json({ consultations: data || [] })
+        return res.status(200).json({ consultations: redactList(data || []) })
       } catch (e) {
         console.warn('[acc_converted_flagged] threw, returning []:', e.message)
         return res.status(200).json({ consultations: [], warning: e.message })
@@ -351,7 +378,7 @@ export default async function handler(req, res) {
         .gte('created_at', String(since))
         .order('created_at', { ascending: false })
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Notes work: consults that finished the video but need clinical note completion.
@@ -367,7 +394,7 @@ export default async function handler(req, res) {
         .order('created_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Notes work: consults that are fully closed out (for the dashboard history).
@@ -383,7 +410,7 @@ export default async function handler(req, res) {
         .order('notes_finalised_at', { ascending: false })
         .limit(limit)
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     // Employer usage report: consults billed against a given employer within a
@@ -396,7 +423,7 @@ export default async function handler(req, res) {
       if (since) q = q.gte('created_at', String(since))
       const { data, error } = await q
       if (error) return res.status(500).json({ error: error.message })
-      return res.status(200).json({ consultations: data || [] })
+      return res.status(200).json({ consultations: redactList(data || []) })
     }
 
     return res.status(400).json({ error: 'Provide id, patientId, or filter=active|waitlist|acc_pending|acc_pending_count|notes_flagged|notes_flagged_count|complete_count|complete_today|complete_since|pending_notes|completed_notes|by_employer' })
@@ -562,6 +589,29 @@ export default async function handler(req, res) {
     }
     patch.updated_at = new Date().toISOString()
 
+    // Ownership check — the assigned provider on the consult can PATCH it,
+    // admins and supervisors can PATCH any consult. Unclaimed consults
+    // (provider_id null) are queue items any provider may pick up. Blocks
+    // provider A from tampering with provider B's clinical notes / diagnosis.
+    // Pure billing_admin (no clinical role) cannot PATCH anything.
+    const isPrivileged = auth.provider.is_admin || auth.provider.is_supervisor
+    const isBillingOnly = auth.provider.is_billing_admin && !auth.provider.is_admin
+      && !auth.provider.is_supervisor && !auth.provider.is_provider
+    if (isBillingOnly) {
+      return res.status(403).json({ error: 'Billing role cannot modify clinical records.' })
+    }
+    if (!isPrivileged) {
+      const { data: pre } = await supabase
+        .from('consultations')
+        .select('provider_id')
+        .eq('id', id)
+        .eq('is_practice', practice)
+        .maybeSingle()
+      if (!pre) return res.status(404).json({ error: 'Consultation not found' })
+      const owns = pre.provider_id === auth.provider.id || pre.provider_id == null
+      if (!owns) return res.status(403).json({ error: 'Not authorised for this consultation.' })
+    }
+
     const { data, error } = await supabase
       .from('consultations')
       .update(patch)
@@ -570,7 +620,7 @@ export default async function handler(req, res) {
       .select()
       .maybeSingle()
     if (error) return res.status(500).json({ error: error.message })
-    return res.status(200).json({ consultation: data })
+    return res.status(200).json({ consultation: redactClinical(data) })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

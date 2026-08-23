@@ -55,7 +55,13 @@ export default async function handler(req, res) {
       amount,
       currency: 'nzd',
       capture_method: isReceipt ? 'automatic' : 'manual',
-      metadata: { consultationId, accEligible, consultationType: type },
+      // Stripe metadata: consultationId retained for webhook lookup (needed
+      // to reconcile paymentIntent → consult on the receive side). accEligible
+      // dropped — PHI-adjacent signal (identifies work-injury / ACC claims)
+      // and Stripe stores/exports metadata to their dashboard + retention
+      // pipeline. Pen test 2026-08-23 M-7. consultationType kept because
+      // it's a non-PHI product SKU indicator.
+      metadata: { consultationId, consultationType: type },
       description: isReceipt
         ? `Tere Health — insurance receipt (${label})`
         : `Tere Health — ${type} consultation ${isAcc ? `ACC co-payment (${label})` : `(${label})`}`,

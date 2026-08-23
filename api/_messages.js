@@ -45,7 +45,11 @@ async function broadcastNewMessage(consultation_id, message) {
           topic: `chat-${consultation_id}`,
           event: 'new_message',
           payload: { message },
-          private: false,
+          // private:true — restricts subscriber authorization to Supabase
+          // realtime channel-scoped tokens. Prior value `false` allowed any
+          // authenticated Supabase client to subscribe and receive chat
+          // payloads system-wide. Pen test 2026-08-23 finding C-2.
+          private: true,
         }],
       }),
     })
