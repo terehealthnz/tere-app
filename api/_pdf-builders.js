@@ -4,10 +4,48 @@ import path from 'node:path'
 
 // Fetch a signature image URL into a Buffer for pdfkit's `doc.image()` API.
 // Returns null on any failure so callers can fall back to a signature line.
+//
+// SSRF hardening: the signature_url comes from providers.signature_url in
+// the DB. A provider (or attacker with access to a provider account) could
+// set that URL to something like http://169.254.169.254/latest/meta-data/…
+// (AWS metadata) or a private-network address, and the server would fetch
+// it during PDF generation. Restrict to https + Supabase Storage host or
+// our own tere.co.nz / terehealth.co.nz assets. Blocks internal-network
+// probes. Non-fatal — falls back to no signature on any rejection.
+function isSafeSignatureUrl(url) {
+  let u
+  try { u = new URL(String(url)) } catch { return false }
+  if (u.protocol !== 'https:') return false
+  const host = u.hostname.toLowerCase()
+  // Block localhost + private IPv4 ranges + AWS/GCP metadata.
+  if (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0') return false
+  if (host === '169.254.169.254' || host === 'metadata.google.internal') return false
+  if (/^(10\.|127\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)/.test(host)) return false
+  // Allowlist: Supabase Storage domain + our own hosts.
+  const supabaseHost = (process.env.VITE_SUPABASE_URL || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase()
+  const allowed = new Set([
+    supabaseHost,
+    'terehealth.co.nz',
+    'tere.co.nz',
+    'terecare.com',
+  ].filter(Boolean))
+  // Also allow any *.supabase.co for storage buckets on other envs.
+  if (host.endsWith('.supabase.co')) return true
+  return allowed.has(host)
+}
+
 async function fetchSignatureBuffer(url) {
   if (!url) return null
+  if (!isSafeSignatureUrl(url)) {
+    console.warn('[pdf-builders] rejected signature URL (SSRF guard):', String(url).slice(0, 120))
+    return null
+  }
   try {
-    const r = await fetch(url)
+    const r = await fetch(url, {
+      // Short timeout so a hung fetch can't stall PDF generation.
+      signal: AbortSignal.timeout(5000),
+      redirect: 'error',
+    })
     if (!r.ok) return null
     const arr = await r.arrayBuffer()
     return Buffer.from(arr)

@@ -152,7 +152,7 @@ export default async function handler(req, res) {
         to: pharmacyFax,
         pdf: pdfBuffer,
         filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`,
-        subject: `Prescription for ${patientName} — Tere Health`,
+        subject: (await import('./_email-safety.js')).sanitizeSubject(`Prescription for ${patientName} — Tere Health`),
         tag: consultationId ? `consult:${consultationId}` : undefined,
       })
       if (!faxResult.ok) deliveryErrors.push(`Pharmacy fax failed (${faxResult.provider}): ${faxResult.error}`)
@@ -173,7 +173,7 @@ export default async function handler(req, res) {
         from: `${fromName} <hello@terehealth.co.nz>`,
         replyTo,
         to: pharmacyEmail,
-        subject: `Prescription for ${patientName} — Tere Health`,
+        subject: (await import('./_email-safety.js')).sanitizeSubject(`Prescription for ${patientName} — Tere Health`),
         html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}<br>Contact: ${replyTo}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>${signatureExempt ? '<p style="font-size:12px;color:#0B6E76;border-left:3px solid #0B6E76;padding-left:10px;margin-top:16px"><em>This prescription meets the requirement of the Director-General of Health\'s authorisation of August 2024 for prescriptions not signed personally by a prescriber with their usual signature.</em></p>' : ''}`,
         attachments: [{ filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })

