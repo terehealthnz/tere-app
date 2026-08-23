@@ -59,12 +59,8 @@ export default async function handler(req, res) {
   // scheduler but not stripped from external requests, so it's
   // spoofable. Matches _cron-unlock-reminders.js.
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-  const supplied = req.query?.secret
-    || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
-    || null
-  if (!supplied || supplied !== process.env.CRON_SECRET) {
-    return res.status(404).end()
-  }
+  const { verifyCronSecret } = await import('./_cron-auth.js')
+  if (!verifyCronSecret(req)) return res.status(404).end()
 
   const supabase = admin()
   const today = new Date().toISOString().slice(0, 10)

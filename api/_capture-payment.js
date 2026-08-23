@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   // Verify consult exists AND the caller is entitled to capture on it.
   const { data: consult, error: cErr } = await supabase
     .from('consultations')
-    .select('id, provider_id, payment_intent_id')
+    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd')
     .eq('id', consultationId)
     .maybeSingle()
   if (cErr) {
@@ -43,6 +43,18 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Internal error' })
   }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // Refuse if the consult is in a non-capturable state — no_show or cancelled
+  // consults should not have their hold captured (blocks the race where
+  // encounter-action flips status while capture is in flight).
+  if (consult.status === 'no_show' || consult.status === 'cancelled') {
+    return res.status(409).json({ error: `Payment cannot be captured on a ${consult.status} consultation.` })
+  }
+  // Idempotency guard — if payment_amount_nzd is already set, capture
+  // has already run. Return the existing amount instead of double-billing.
+  if (consult.payment_amount_nzd != null) {
+    return res.status(200).json({ status: 'already_captured', amount_nzd: consult.payment_amount_nzd })
+  }
 
   // Ownership: consult must be assigned to caller, unclaimed, or the caller
   // must be admin/supervisor. Admin/supervisor need to be able to capture
@@ -61,8 +73,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Idempotency key = paymentIntentId — Stripe returns the same result
+    // for repeated calls with the same key rather than double-capturing.
     const captureOpts = amount_cents ? { amount_to_capture: amount_cents } : undefined
-    const intent = await getStripe().paymentIntents.capture(paymentIntentId, captureOpts)
+    const intent = await getStripe().paymentIntents.capture(
+      paymentIntentId,
+      captureOpts,
+      { idempotencyKey: `capture:${paymentIntentId}` },
+    )
 
     if (intent.amount_received > 0) {
       try {

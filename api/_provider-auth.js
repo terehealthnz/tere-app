@@ -33,17 +33,36 @@ async function readLockout(supabase, providerId) {
   }
 }
 
-// Record one failed attempt. Upserts the row and — once MAX_FAILS is
-// hit — sets locked_until and resets the counter.
+// Record one failed attempt. Uses the atomic Postgres RPC introduced in
+// supabase/2026-08-23_pentest_p2_security_fixes.sql — the prior code
+// read failed_count then upserted, which was race-vulnerable:
+// N concurrent bad-PIN attempts all read 0, all wrote 1, lockout never
+// triggered. The RPC does an atomic increment via ON CONFLICT DO UPDATE
+// and returns the resulting lockout state in a single round-trip.
 async function recordFailure(supabase, providerId) {
-  const cur = await readLockout(supabase, providerId)
-  const nextCount = cur.failed + 1
-  const shouldLock = nextCount >= MAX_FAILS
-  const patch = shouldLock
-    ? { provider_id: providerId, failed_count: 0, locked_until: new Date(Date.now() + LOCKOUT_MS).toISOString(), updated_at: new Date().toISOString() }
-    : { provider_id: providerId, failed_count: nextCount,             locked_until: null,                                             updated_at: new Date().toISOString() }
-  await supabase.from('provider_login_attempts').upsert(patch, { onConflict: 'provider_id' })
-  return { shouldLock, remaining: Math.max(0, MAX_FAILS - nextCount) }
+  const { data, error } = await supabase.rpc('provider_login_record_failure', {
+    p_provider_id: providerId,
+    p_max_fails:   MAX_FAILS,
+    p_lockout_ms:  LOCKOUT_MS,
+  })
+  if (error) {
+    // If the RPC is missing (migration not applied) fall back to the
+    // old best-effort read-then-upsert so auth doesn't hard-break.
+    console.error('[provider-auth] recordFailure RPC failed, falling back:', error.message)
+    const cur = await readLockout(supabase, providerId)
+    const nextCount = cur.failed + 1
+    const shouldLock = nextCount >= MAX_FAILS
+    const patch = shouldLock
+      ? { provider_id: providerId, failed_count: 0, locked_until: new Date(Date.now() + LOCKOUT_MS).toISOString(), updated_at: new Date().toISOString() }
+      : { provider_id: providerId, failed_count: nextCount,             locked_until: null,                                             updated_at: new Date().toISOString() }
+    await supabase.from('provider_login_attempts').upsert(patch, { onConflict: 'provider_id' })
+    return { shouldLock, remaining: Math.max(0, MAX_FAILS - nextCount) }
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  return {
+    shouldLock: !!row?.should_lock,
+    remaining:  row?.remaining ?? 0,
+  }
 }
 
 // Wipe attempts on successful login.

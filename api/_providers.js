@@ -254,8 +254,13 @@ export default async function handler(req, res) {
       if (fetchErr) return res.status(500).json({ error: fetchErr.message })
       if (!target)  return res.status(404).json({ error: 'Provider not found' })
       if (!target.email) return res.status(400).json({ error: 'Provider has no email address on file' })
-      const newPin = String(Math.floor(100000 + Math.random() * 900000))
-      const pin_hash = await bcrypt.hash(newPin, 10)
+      // crypto.randomInt gives uniform distribution across the range and
+      // uses OS entropy (not Math.random which is predictable). bcrypt
+      // cost 12 matches _provider-reset-complete.js — was 10 here which
+      // is ~4x cheaper for offline attacks against a leaked hash.
+      const crypto = await import('crypto')
+      const newPin = String(crypto.randomInt(100000, 1000000))
+      const pin_hash = await bcrypt.hash(newPin, 12)
       const { error: updErr } = await supabase
         .from('providers')
         .update({ pin_hash, must_change_password: true })
@@ -331,12 +336,17 @@ export default async function handler(req, res) {
     const pin = rawPin.trim()
     let finalPin = pin
     if (!finalPin) {
-      finalPin = String(Math.floor(100000 + Math.random() * 900000))
+      // crypto.randomInt for cryptographically-strong PIN generation
+      // (Math.random is predictable and defeats the lockout defence).
+      const crypto = await import('crypto')
+      finalPin = String(crypto.randomInt(100000, 1000000))
     }
     if (!/^\d{4,8}$/.test(finalPin)) {
       return res.status(400).json({ error: 'PIN must be 4–8 digits' })
     }
-    const pin_hash = await bcrypt.hash(finalPin, 10)
+    // bcrypt cost 12 matches _provider-reset-complete.js. Cost 10 was
+    // ~4x faster to crack offline against a leaked hash.
+    const pin_hash = await bcrypt.hash(finalPin, 12)
 
     // Build row using column allowlist. is_provider defaults true; is_active true.
     const CREATE_ALLOWLIST = new Set([

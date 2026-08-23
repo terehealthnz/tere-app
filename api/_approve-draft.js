@@ -178,14 +178,21 @@ export default async function handler(req, res) {
       }
     }
 
-    await supabase.from('prescriptions').update({
+    // Atomic status transition — only mutate rows still in 'pending'. Blocks
+    // double-approval races (two supervisors clicking Approve simultaneously,
+    // or a page refresh mid-flight). The .select().maybeSingle() confirms
+    // exactly one row was updated; if zero, another approval already fired.
+    const { data: approved } = await supabase.from('prescriptions').update({
       approval_status: 'approved',
       approved_by: supervisorId,
       approved_at: now,
       delivery_status: 'sent',
       ...(action === 'modify' ? modifications : {}),
       modification_log: [...(rx.modification_log || []), logEntry],
-    }).eq('id', id)
+    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
+    if (!approved) {
+      return res.status(409).json({ error: 'Prescription is no longer pending — may have already been approved or rejected.' })
+    }
 
     return res.json({ ok: true, pdfBase64 })
   }
@@ -285,7 +292,8 @@ export default async function handler(req, res) {
       }
     }
 
-    await supabase.from('radiology_referrals').update({
+    // Atomic status transition — see prescription block for rationale.
+    const { data: approvedRef } = await supabase.from('radiology_referrals').update({
       approval_status: 'approved',
       approved_by: supervisorId,
       approved_at: now,
@@ -293,7 +301,10 @@ export default async function handler(req, res) {
       delivery_status: 'sent',
       ...(action === 'modify' ? modifications : {}),
       modification_log: [...(ref.modification_log || []), logEntry],
-    }).eq('id', id)
+    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
+    if (!approvedRef) {
+      return res.status(409).json({ error: 'Referral is no longer pending — may have already been approved or rejected.' })
+    }
 
     return res.json({ ok: true, pdfBase64 })
   }

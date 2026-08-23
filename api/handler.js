@@ -319,7 +319,19 @@ const ROUTES = {
 export default async function handler(req, res) {
   const segments = req.query.route
   const route = Array.isArray(segments) ? segments[0] || segments.join('/') : segments
-  const ip = (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim()
+  // Client IP resolution — Cloudflare fronts the app on all three zones,
+  // so prefer `cf-connecting-ip` (single, trusted, added by Cloudflare
+  // after they see the true TCP peer). Fall back to XFF; when using XFF,
+  // take the LAST entry, not the first: proxies append and clients can
+  // spoof the leading value to bypass per-IP rate limits.
+  const cfIp = req.headers['cf-connecting-ip'] || req.headers['true-client-ip'] || null
+  const xff = String(req.headers['x-forwarded-for'] || '')
+  const ip = (
+    (typeof cfIp === 'string' && cfIp) ||
+    (xff && xff.split(',').map(s => s.trim()).filter(Boolean).slice(-1)[0]) ||
+    req.socket?.remoteAddress ||
+    'unknown'
+  )
 
   setSecurityHeaders(res)
 

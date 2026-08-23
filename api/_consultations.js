@@ -612,6 +612,27 @@ export default async function handler(req, res) {
       if (!owns) return res.status(403).json({ error: 'Not authorised for this consultation.' })
     }
 
+    // Atomic claim guard — when the patch attempts to SET provider_id
+    // (i.e. a provider claiming an unclaimed queue item), only allow the
+    // UPDATE if the row is still unclaimed. Prevents two providers both
+    // reading provider_id=null then both writing their own id — race
+    // where the last-write-wins and the losing provider silently thinks
+    // they claimed it.
+    if (!isPrivileged && 'provider_id' in patch && patch.provider_id === auth.provider.id) {
+      const { data: claimed } = await supabase
+        .from('consultations')
+        .update(patch)
+        .eq('id', id)
+        .eq('is_practice', practice)
+        .or(`provider_id.is.null,provider_id.eq.${auth.provider.id}`)
+        .select()
+        .maybeSingle()
+      if (!claimed) {
+        return res.status(409).json({ error: 'Consultation already claimed by another provider.' })
+      }
+      return res.status(200).json({ consultation: claimed })
+    }
+
     const { data, error } = await supabase
       .from('consultations')
       .update(patch)

@@ -41,8 +41,8 @@ function bearerToken(req) {
 }
 
 export default async function handler(req, res) {
-  const secret = req.query?.secret || bearerToken(req)
-  if (secret !== process.env.CRON_SECRET) return res.status(401).json({ error: 'unauthorised' })
+  const { verifyCronSecret } = await import('./_cron-auth.js')
+  if (!verifyCronSecret(req)) return res.status(401).json({ error: 'unauthorised' })
 
   const supabase = admin()
   const nowMs = Date.now()
