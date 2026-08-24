@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.24.0",
+    "@aws-sdk/client-sesv2": "^3.1117.0",
     "@aws-sdk/client-sns": "^3.1090.0",
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",

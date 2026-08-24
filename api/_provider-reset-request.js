@@ -5,7 +5,8 @@
 //
 // Generates a 256-bit random token, stores SHA-256(token) in
 // provider_password_resets with a 30-minute expiry, and emails the
-// plaintext token as a reset link via Resend.
+// plaintext token as a reset link via the shared _email-client helper
+// (Resend or SES depending on EMAIL_PROVIDER env var).
 //
 // Always returns 200 with a generic success message — never leaks
 // whether the email exists (email-enumeration defence).
@@ -16,7 +17,6 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes, createHash } from 'node:crypto'
-import { Resend } from 'resend'
 
 const TOKEN_TTL_MINUTES = 30
 const MAX_REQUESTS_PER_HOUR = 3
@@ -93,10 +93,10 @@ export default async function handler(req, res) {
   const resetUrl = `${origin}/clinician/reset-password?token=${encodeURIComponent(token)}`
   const firstName = provider.first_name || 'there'
 
-  if (process.env.RESEND_API_KEY) {
+  {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      const { sendEmail } = await import('./_email-client.js')
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: [provider.email],
@@ -127,10 +127,8 @@ export default async function handler(req, res) {
         text: `Kia ora ${firstName},\n\nA password reset was requested for your Tere Health clinician account. Set a new password (valid for ${TOKEN_TTL_MINUTES} minutes, single-use):\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email — your current password will keep working.\n\nTere Health\nterehealth.co.nz`,
       })
     } catch (e) {
-      console.error('[provider-reset-request] Resend error:', e.message)
+      console.error('[provider-reset-request] email send error:', e.message)
     }
-  } else {
-    console.warn('[provider-reset-request] RESEND_API_KEY not set — reset link not emailed')
   }
 
   try {
