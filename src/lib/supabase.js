@@ -118,6 +118,7 @@ export async function createConsultation(data) {
     patient_dob:                  data.dob || null,
     patient_phone:                validatePhone(data.phone),
     patient_email:                validateEmail(data.email),
+    patient_address:              sanitizeString(data.address),
     patient_location:             sanitizeString(data.location),
     chief_complaint:              sanitizeString(data.complaint),
     pharmacy:                     data.pharmacy || null,

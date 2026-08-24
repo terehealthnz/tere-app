@@ -109,7 +109,8 @@ const STEPS = [
   { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
-  { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'complaint' },
+  { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
+  { id:'address', message:"What's your home address? Include street, town, and postcode.", field:'patient_address', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   // Returning-patient shortcut: show what's on file, ask if anything has changed.
@@ -499,6 +500,7 @@ export default function AITriage() {
             patient_dob_raw: patient.date_of_birth,
             patient_phone: patient.phone || '',
             patient_email: patient.email || '',
+            patient_address: patient.address || '',
             patient_nhi: patient.nhi || '',
             pharmacy: patient.pharmacy_name || '',
             gp_name: patient.gp_name || '',
@@ -712,6 +714,7 @@ export default function AITriage() {
         nhi: data.patient_nhi||'',
         phone: data.patient_phone,
         email: data.patient_email||'',
+        address: data.patient_address||'',
         location: data.patient_location,
         complaint: data.chief_complaint,
         pharmacy: data.pharmacy||'',
@@ -781,6 +784,7 @@ export default function AITriage() {
             date_of_birth: parseDate(data.patient_dob_raw),
             phone: data.patient_phone || null,
             email: data.patient_email || null,
+            address: data.patient_address || null,
             nhi: data.patient_nhi || null,
             pharmacy_name: data.pharmacy || null,
             pharmacy_id: sessionStorage.getItem('pending_pharmacy_id') || null,
@@ -811,6 +815,7 @@ export default function AITriage() {
           }
           if (data.patient_phone) updates.phone = data.patient_phone
           if (data.patient_email) updates.email = data.patient_email
+          if (data.patient_address) updates.address = data.patient_address
           if (data.patient_nhi) updates.nhi = data.patient_nhi
           if (data.pharmacy) updates.pharmacy_name = data.pharmacy
           const pendingPharmacyId = sessionStorage.getItem('pending_pharmacy_id')

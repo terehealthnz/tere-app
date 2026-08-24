@@ -28,7 +28,7 @@ function admin() {
 // data that the triage flow would normally collect anyway.
 const PATIENT_ANON_ALLOWLIST = new Set([
   'first_name', 'last_name', 'date_of_birth',
-  'phone', 'email', 'nhi',
+  'phone', 'email', 'address', 'nhi',
   'pharmacy_name', 'pharmacy_id',
   'gp_name', 'gp_clinic', 'gp_email',
   'medical_history', 'current_medications', 'allergies',
