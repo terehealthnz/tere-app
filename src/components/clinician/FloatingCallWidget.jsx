@@ -197,14 +197,23 @@ export default function FloatingCallWidget({
                 </div>
               )}
               <button
-                onClick={() => setFullscreen(false)}
-                title="Shrink to widget (Esc)"
+                onClick={() => { setFullscreen(false); setMinimized(true) }}
+                title="Minimize to circle (Esc)"
                 style={{
-                  background: 'rgba(255,255,255,.1)', border: 'none', color: 'white',
+                  background: 'rgba(255,255,255,.15)', border: '1px solid rgba(255,255,255,.25)', color: 'white',
                   padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
                   fontFamily: 'inherit', fontSize: '.875rem', fontWeight: 600,
                 }}
-              >⤡ Shrink</button>
+              >— Minimize</button>
+              <button
+                onClick={() => setFullscreen(false)}
+                title="Back to widget"
+                style={{
+                  background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.15)', color: 'white',
+                  padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: '.875rem', fontWeight: 600,
+                }}
+              >⤡ Widget</button>
             </div>
           </div>
 
@@ -304,7 +313,16 @@ export default function FloatingCallWidget({
             )}
 
             <button
-              onClick={action.onClick || undefined}
+              onClick={() => {
+                // Exit fullscreen synchronously BEFORE handing off to the
+                // parent's end-call callback. Parent's handler is often async
+                // (writing status → DB, waiting for LiveKit disconnect) and
+                // during that window the fullscreen overlay was staying up
+                // over the notes screen — provider had no way back. Set the
+                // local UI state first so the overlay drops immediately.
+                setFullscreen(false)
+                if (action.onClick) action.onClick()
+              }}
               disabled={action.disabled || !action.onClick}
               title={action.disabled && !action.onClick ? 'Give the patient a chance to join' : undefined}
               style={{
