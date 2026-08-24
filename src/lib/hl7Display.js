@@ -190,29 +190,21 @@ export function parseHl7Display(raw, parsedSummary) {
     const notesText = (parsedSummary.notes || [])
       .map(n => decodeHl7Escapes(n))
       .join('\n')
-    // Defensive date resolution (Tony Cruice, case #1058382):
-    // parsed_summary is authoritative because it was computed at ingest
-    // from THIS child's OBR (correct for batched fan-out). But if the
-    // stored generatedDate is null — either because ingest ran before
-    // the OBR-22 preference was fixed, or because THIS child's OBR-22
-    // was blank — try re-parsing OBR-22 from raw and fall through to
-    // MSH-7 as a last resort. Prevents "Generated date" simply
-    // disappearing on legacy rows.
-    let generatedResolved = o.generatedDate
-    if (!generatedResolved && raw) {
-      const rawSegs = String(raw).replace(/\r\n?/g, '\n').split('\n').filter(Boolean)
-      const firstObr = rawSegs.find(s => s.startsWith('OBR|'))
-      const firstMsh = rawSegs.find(s => s.startsWith('MSH|'))
-      const obrFields = firstObr ? firstObr.split('|') : []
-      const mshFields = firstMsh ? firstMsh.split('|') : []
-      generatedResolved = obrFields[22] || mshFields[6] || null
-    }
+    // Generated date uses the stored per-battery value from
+    // parsed_summary — computed at ingest from THIS child's OBR-22 (or
+    // MSH-7 fallback if THIS OBR-22 was blank). Do NOT re-parse from raw
+    // here: raw_message contains the full batched envelope, and finding
+    // "the first OBR" in the raw would pick the header battery — which
+    // per Medical-Objects (Tony Cruice, 2026-08-24) is semantically
+    // wrong. Each OBR/OBX battery is a separate reporting instance and
+    // inheriting another battery's timestamp misrepresents when this
+    // specific report was generated.
     return {
       obr4_1, obr4_2,
       obr4Label: obr4_2 || obr4_1 || obr4Raw,
       corrected: !!o.corrected,
       dates: {
-        generated:   formatHl7Datetime(generatedResolved),
+        generated:   formatHl7Datetime(o.generatedDate),
         requested:   formatHl7Datetime(o.requestedDate),
         observation: formatHl7Datetime(o.observationDate),
       },
