@@ -43,10 +43,11 @@ import { PROMPT_SAFETY_PREAMBLE, wrapUserInput } from './_prompt-safety.js'
 // versa) means the /call page opens the mic to AWS Transcribe and then
 // bounces every translate request with a 400 — which is exactly the Dutch
 // bug we hit in prod on 2026-07-09.
-const SUBTITLE_WHITELIST = new Set(['en','zh','ja','ko','de','nl','fr','es','pt','it','ar','hi','mi','sm'])
+const SUBTITLE_WHITELIST = new Set(['en','zh','yue','ja','ko','de','nl','fr','es','pt','it','ar','hi','mi','sm'])
 
 const LANG_NAMES = {
-  en: 'English', zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean',
+  en: 'English', zh: 'Chinese (Simplified)', yue: 'Cantonese (Traditional, 粵語)',
+  ja: 'Japanese', ko: 'Korean',
   de: 'German', nl: 'Dutch', fr: 'French', es: 'Spanish',
   pt: 'Portuguese (Brazilian)', it: 'Italian',
   ar: 'Arabic', hi: 'Hindi',

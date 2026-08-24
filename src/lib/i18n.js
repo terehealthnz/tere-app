@@ -11,6 +11,13 @@ export const LANGUAGES = [
     customFlag: 'MaoriFlagIcon',
     note: 'He rereke ētahi kupu hauora — Some medical terms remain in English' },
   { code: 'zh', name: 'Chinese',  nativeName: '中文',       flag: '🇨🇳', rtl: false, subtitleSupport: 'excellent' },
+  // Cantonese (粵語) — Traditional Chinese written UI + zh-HK live subtitles
+  // via AWS Transcribe. Distinct from Mandarin (zh) because AWS's Hong Kong
+  // model is tuned for Cantonese phonology. Written text follows Standard
+  // Written Chinese in Traditional characters (what HK schools + hospitals
+  // use); colloquial Cantonese (口語, e.g. 咩/嗰/嘅) is intentionally NOT used
+  // because clinical UI must read as formal patient-information copy.
+  { code: 'yue', name: 'Cantonese', nativeName: '粵語',      flag: '🇭🇰', rtl: false, subtitleSupport: 'excellent' },
   { code: 'ja', name: 'Japanese', nativeName: '日本語',     flag: '🇯🇵', rtl: false, subtitleSupport: 'excellent' },
   { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'de', name: 'German',   nativeName: 'Deutsch',    flag: '🇩🇪', rtl: false, subtitleSupport: 'excellent' },
@@ -52,6 +59,7 @@ const T = {
     mi: "Kia ora! Ko Tere ahau, tō āwhina hauora. He aha tō ingoa katoa?", // TODO cert
     sm: "Talofa! O a'u o Tere, o lau fesoasoani soifua maloloina. O ai lou igoa atoa?", // TODO cert
     zh: "你好！我是Tere，您的健康助手。请问您的全名是什么？",
+    yue: "你好！我是Tere，您的健康助手。請問您的全名是什麼？",
     ja: "こんにちは！私はTere、あなたの健康アシスタントです。お名前（フルネーム）を教えてください。",
     ko: "안녕하세요! 저는 Tere, 당신의 건강 어시스턴트입니다. 성함이 어떻게 되십니까?",
     de: "Hallo! Ich bin Tere, Ihr Gesundheitsassistent. Wie ist Ihr vollständiger Name?",
@@ -66,6 +74,7 @@ const T = {
     mi: "Ka taea e koe te tāpiri i tō ingoa katoa?", // TODO cert
     sm: "E mafai ona e tusia lou igoa atoa?", // TODO cert
     zh: "请您输入全名？",
+    yue: "請您輸入全名？",
     ja: "フルネームを入力してください。",
     ko: "성함을 전부 입력해 주세요.",
     de: "Können Sie Ihren vollständigen Namen eingeben?",
@@ -81,6 +90,7 @@ const T = {
     mi: "Ā, tō rā whānau, ${firstName}? (hei tauira, 14 Poutū-te-rangi 1986)", // TODO cert
     sm: "Ma le aso na e fanau ai, ${firstName}? (fa'ata'ita'iga, 14 Mati 1986)", // TODO cert
     zh: "${firstName}，您的出生日期是什么？（例如：1986年3月14日）",
+    yue: "${firstName}，您的出生日期是什麼？（例如：1986年3月14日）",
     ja: "${firstName}さん、生年月日を教えてください。（例：1986年3月14日）",
     ko: "${firstName}님, 생년월일이 어떻게 되십니까? (예: 1986년 3월 14일)",
     de: "Und Ihr Geburtsdatum, ${firstName}? (z.B. 14. März 1986)",
@@ -95,6 +105,7 @@ const T = {
     mi: "Ka taea e koe te tuku mai tō rā whānau? (hei tauira, 14 Poutū-te-rangi 1986)", // TODO cert
     sm: "E mafai ona e tuu mai lou aso fanau? (fa'ata'ita'iga, 14 Mati 1986)", // TODO cert
     zh: "请告诉我您的出生日期？（例如：1986年3月14日）",
+    yue: "請告訴我您的出生日期？（例如：1986年3月14日）",
     ja: "生年月日を教えてください。（例：1986年3月14日）",
     ko: "생년월일을 알려주시겠습니까? (예: 1986년 3월 14일)",
     de: "Können Sie mir Ihr Geburtsdatum nennen? (z.B. 14. März 1986)",
@@ -110,6 +121,7 @@ const T = {
     mi: "He aha tō nama waea pūkoro?", // TODO cert
     sm: "O le a lou numera telefoni feavea'i?", // TODO cert
     zh: "您的手机号码是什么？",
+    yue: "您的手機號碼是什麼？",
     ja: "携帯電話番号を教えてください。",
     ko: "휴대폰 번호가 어떻게 되십니까?",
     de: "Wie ist Ihre Handynummer?",
@@ -124,6 +136,7 @@ const T = {
     mi: "Ka taea e koe te tāpiri i tō nama waea pūkoro?", // TODO cert
     sm: "E mafai ona e tusia lou numera telefoni feavea'i?", // TODO cert
     zh: "请输入您的手机号码。",
+    yue: "請輸入您的手機號碼。",
     ja: "携帯電話番号を入力してください。",
     ko: "휴대폰 번호를 입력해 주세요.",
     de: "Können Sie Ihre Handynummer eingeben?",
@@ -139,6 +152,7 @@ const T = {
     mi: "He aha tō īmēra? Ka tukua e mātou tō whakarāpopoto tirohanga ki reira.", // TODO cert
     sm: "O le a lau imeli? Matou te lafo atu i ai le aotelega o lau asiasiga.", // TODO cert
     zh: "您的电子邮件地址是什么？我们将把会诊摘要发送到那里。",
+    yue: "您的電子郵件地址是什麼？我們將把會診摘要發送到那裏。",
     ja: "メールアドレスを教えてください。診察の要約をそちらに送ります。",
     ko: "이메일 주소가 어떻게 되십니까? 상담 요약을 그곳으로 보내드리겠습니다.",
     de: "Wie ist Ihre E-Mail-Adresse? Wir senden Ihnen die Zusammenfassung dorthin.",
@@ -153,6 +167,7 @@ const T = {
     mi: "Ka taea e koe te tirotiro anō i taua wāhitau īmēra?", // TODO cert
     sm: "E mafai ona e toe siaki lena tuatusi imeli?", // TODO cert
     zh: "请再次检查您的电子邮件地址。",
+    yue: "請再次檢查您的電子郵件地址。",
     ja: "メールアドレスをご確認ください。",
     ko: "이메일 주소를 다시 확인해 주세요.",
     de: "Können Sie diese E-Mail-Adresse nochmals überprüfen?",
@@ -168,6 +183,7 @@ const T = {
     mi: "Kei te mōhio koe ki tō nama NHI? Kei runga i tō Kāri Ratonga Hapori, i tētahi reta hōhipera rānei — pēnei i te ABC1234.", // TODO cert
     sm: "E te iloa lou numera NHI? O lo'o i luga o lau Kata Auaunaga Fa'alenu'u po'o so'o se tusi mai le falema'i — e foliga mai o le ABC1234.", // TODO cert
     zh: "您知道您的NHI编号吗？它在您的社区服务卡或医院信件上，格式如ABC1234。",
+    yue: "您知道您的NHI編號嗎？它在您的社區服務卡或醫院信件上，格式如ABC1234。",
     ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。",
     ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234).",
     de: "Kennen Sie Ihre NHI-Nummer? Sie steht auf Ihrer Community Services Card oder einem Krankenhausbrief — sieht aus wie ABC1234.",
@@ -183,6 +199,7 @@ const T = {
     mi: "He aha tō whare rongoā e pai ai koe? (hei tauira, Havelock Pharmacy)", // TODO cert
     sm: "O le a le fale talavai e sili ona e mana'o ai? (fa'ata'ita'iga, Havelock Pharmacy)", // TODO cert
     zh: "您首选的药店是哪家？（例如：Havelock Pharmacy）",
+    yue: "您首選的藥店是哪家？（例如：Havelock Pharmacy）",
     ja: "お好みの薬局はどこですか？（例：Havelock Pharmacy）",
     ko: "선호하시는 약국이 어디입니까? (예: Havelock Pharmacy)",
     de: "Was ist Ihre bevorzugte Apotheke? (z.B. Havelock Pharmacy)",
@@ -198,6 +215,7 @@ const T = {
     mi: "He aha tō raruraru i tēnei rā? Kōrero mai — me pēhea te roa o tēnei raruraru.",
     sm: "O le a le mafua'aga o lou sau i le aso? Ta'u mai le mea o lo'o tupu — atoa ma le umi o lona tupu mai.", // TODO cert
     zh: "今天是什么原因来就诊？请告诉我发生了什么——包括已经持续多久了。",
+    yue: "今天是什麼原因來就診？請告訴我發生了什麼——包括已經持續多久了。",
     ja: "本日はどのようなことでお越しですか？症状がいつ頃から続いているかも含めて教えてください。",
     ko: "오늘 오신 이유가 무엇입니까? 얼마나 됐는지 포함해서 무슨 일인지 말씀해 주세요.",
     de: "Was führt Sie heute zu uns? Erzählen Sie mir, was los ist — und wie lange das schon so ist.",
@@ -212,6 +230,7 @@ const T = {
     mi: "Ka taea e koe te kōrero mai anō?", // TODO cert
     sm: "E mafai ona e ta'u mai i sisi atu?", // TODO cert
     zh: "您能告诉我多一点吗？",
+    yue: "您能告訴我多一點嗎？",
     ja: "もう少し詳しく教えてもらえますか？",
     ko: "조금 더 말씀해 주시겠습니까?",
     de: "Können Sie mir etwas mehr erzählen?",
@@ -227,6 +246,7 @@ const T = {
     mi: "He hītori hauora e whai pānga ana? Mate o mua, tapahi hauora — ki te kore, mea mai 'kāhore'.", // TODO cert
     sm: "E i ai ni mea taua i lou tala fa'asolopito o le soifua maloloina? Ma'i muamua, ta'otoga — fai mai 'leai' pe afai leai.", // TODO cert
     zh: "有什么相关的病史吗？过去的病症、手术——没有的话请说「无」。",
+    yue: "有什麼相關的病史嗎？過去的病症、手術——沒有的話請説「無」。",
     ja: "関連する病歴はありますか？過去の病気、手術など。なければ「なし」と入力してください。",
     ko: "관련 병력이 있으십니까? 과거 질병, 수술 등 — 없으시면 '없음'이라고 하세요.",
     de: "Gibt es relevante Krankengeschichte? Frühere Erkrankungen, Operationen — sagen Sie 'keine' wenn nicht.",
@@ -242,6 +262,7 @@ const T = {
     mi: "E kai ana koe i ētahi rongoā?",
     sm: "E te inuina ni fualaau i taimi uma?", // TODO cert
     zh: "您有定期服药吗？",
+    yue: "您有定期服藥嗎？",
     ja: "定期的に服用している薬はありますか？",
     ko: "정기적으로 복용하는 약이 있습니까?",
     de: "Nehmen Sie regelmäßig Medikamente?",
@@ -257,6 +278,7 @@ const T = {
     mi: "He mate huka/hukarere ōu? He rongoā, kai, aha rānei?",
     sm: "E i ai ni au allergy — fualaau, mea'ai, so'o se mea?", // TODO cert
     zh: "有过敏症吗——药物、食物或其他任何东西？",
+    yue: "有過敏症嗎——藥物、食物或其他任何東西？",
     ja: "アレルギーはありますか？薬、食べ物、その他何でも。",
     ko: "알레르기가 있습니까? 약물, 음식, 그 외 무엇이든요.",
     de: "Haben Sie Allergien — Medikamente, Lebensmittel, irgendetwas?",
@@ -272,6 +294,7 @@ const T = {
     mi: "He whara, he mate rānei tō haerenga? Ka taea pea e ACC ō utu maimoatanga.", // TODO cert
     sm: "Pe fa'atatau lau asiasiga i se fa'alavelave po'o se manu'a? E mafai e le ACC ona totogi au tau togafitiga.", // TODO cert
     zh: "您的就诊是否与事故或受伤有关？ACC 可能承担您的治疗费用。",
+    yue: "您的就診是否與事故或受傷有關？ACC 可能承擔您的治療費用。",
     ja: "今回の受診は事故または怪我に関連していますか？ACC が治療費をカバーする可能性があります。",
     ko: "이번 방문이 사고나 부상과 관련이 있습니까? ACC가 치료비를 부담할 수 있습니다.",
     de: "Steht Ihr Besuch im Zusammenhang mit einem Unfall oder einer Verletzung? ACC übernimmt möglicherweise Ihre Behandlungskosten.",
@@ -287,6 +310,7 @@ const T = {
     mi: "He tākuta whānau tō? Ki te pēnā, ko wai tōna ingoa?", // TODO cert
     sm: "E i ai sau foma'i masani po'o le foma'i o le aiga? Afai ioe, o ai le igoa?", // TODO cert
     zh: "您有固定的家庭医生（GP）吗？如有，请告诉我他/她的名字。",
+    yue: "您有固定的家庭醫生（GP）嗎？如有，請告訴我他/她的名字。",
     ja: "かかりつけの医師（GP）はいますか？いる場合、お名前を教えてください。",
     ko: "정기적으로 진료받는 GP나 가정의가 있습니까? 있다면 이름이 무엇입니까?",
     de: "Haben Sie einen festen Hausarzt (GP)? Wenn ja, wie heißt er/sie?",
@@ -302,6 +326,7 @@ const T = {
     mi: "He aha te ingoa o tā rātou hōhipera, whare tākuta rānei?", // TODO cert
     sm: "O le a le igoa o la latou falema'i po'o le kilinika?", // TODO cert
     zh: "他们的诊所或医疗机构叫什么名字？",
+    yue: "他們的診所或醫療機構叫什麼名字？",
     ja: "そのクリニックまたは医院の名前は何ですか？",
     ko: "그 진료소나 병원의 이름은 무엇입니까?",
     de: "Wie heißt die Praxis oder Klinik?",
@@ -317,6 +342,7 @@ const T = {
     mi: "I kitea a {gpName} i {gpClinic} — he tika tērā? Ka tukua atu he tārua o ō tuhinga ki a rātou.", // TODO cert
     sm: "Ua maua {gpName} i {gpClinic} — e sa'o le lea? O le a matou lafo atu se kopi o au fa'amaumauga.", // TODO cert
     zh: "找到了 {gpName} 在 {gpClinic} — 对吗？我们会自动将您的记录副本发送给他们。",
+    yue: "找到了 {gpName} 在 {gpClinic} — 對嗎？我們會自動將您的記錄副本發送給他們。",
     ja: "{gpClinic} の {gpName} 先生ですね — 合っていますか？診療記録のコピーを自動的にお送りします。",
     ko: "{gpClinic}의 {gpName}을(를) 찾았습니다 — 맞습니까? 진료 기록 사본을 자동으로 보내드립니다.",
     de: "{gpName} in {gpClinic} gefunden — stimmt das? Wir senden eine Kopie Ihrer Notizen automatisch dorthin.",
@@ -332,6 +358,7 @@ const T = {
     mi: "Kei te momi paipa, kei te whakamahi tupeka rānei koe?", // TODO cert
     sm: "O e ulaula pe fa'aaogaina le tapaa i le taimi nei?", // TODO cert
     zh: "您目前吸烟或使用烟草吗？",
+    yue: "您目前吸煙或使用煙草嗎？",
     ja: "現在、タバコを吸ったり、タバコ製品を使用したりしていますか？",
     ko: "현재 담배를 피우거나 담배 제품을 사용하십니까?",
     de: "Rauchen Sie derzeit oder konsumieren Sie Tabak?",
@@ -347,6 +374,7 @@ const T = {
     mi: "E hia te nui i tō whakaaro?", // TODO cert
     sm: "E fia lau manatu?", // TODO cert
     zh: "您觉得大约多少？",
+    yue: "您覺得大約多少？",
     ja: "だいたいどれくらいですか？",
     ko: "얼마나 되십니까?",
     de: "Wie viel wäre das ungefähr?",
@@ -362,6 +390,7 @@ const T = {
     mi: "Kei te inu waipiro koe?", // TODO cert
     sm: "E te inu 'ava malosi?", // TODO cert
     zh: "您喝酒吗？",
+    yue: "您喝酒嗎？",
     ja: "お酒を飲みますか？",
     ko: "술을 마십니까?",
     de: "Trinken Sie Alkohol?",
@@ -377,6 +406,7 @@ const T = {
     mi: "E hia te nui ia wiki?", // TODO cert
     sm: "E fia i le vaiaso?", // TODO cert
     zh: "每周大约多少？",
+    yue: "每週大約多少？",
     ja: "週にだいたいどれくらいですか？",
     ko: "일주일에 대략 얼마나 되십니까?",
     de: "Wie viel ungefähr pro Woche?",
@@ -391,6 +421,7 @@ const T = {
     en: "Skip →",
     mi: "Tukua →", sm: "Preterisi →",
     zh: "跳过 →", ja: "スキップ →", ko: "건너뛰기 →",
+    yue: "跳過 →", ja: "スキップ →", ko: "건너뛰기 →",
     de: "Überspringen →", nl: "Overslaan →", fr: "Passer →", es: "Omitir →",
     ar: "تخطي ←", hi: "छोड़ें →",
   },
@@ -400,6 +431,7 @@ const T = {
     mi: "← Whakakore i te whakautu whakamutunga", // TODO cert
     sm: "← Fa'aleaogaina le tali mulimuli", // TODO cert
     zh: "← 撤销上一个回答", ja: "← 前の回答を取り消す", ko: "← 마지막 답변 취소",
+    yue: "← 撤銷上一個回答", ja: "← 前の回答を取り消す", ko: "← 마지막 답변 취소",
     de: "← Letzte Antwort rückgängig machen", nl: "← Laatste antwoord ongedaan maken", fr: "← Annuler la dernière réponse",
     es: "← Deshacer última respuesta",
     ar: "→ التراجع عن الإجابة الأخيرة", hi: "← अंतिम उत्तर पूर्ववत करें",
@@ -410,6 +442,7 @@ const T = {
     mi: "He āhua ACC pea tērā — ka taea e koe te whakamārama mai me pēhea i pā ai? He aha tāu i mahi ai, i hea?", // TODO cert
     sm: "E foliga mai o se talosaga ACC lena — e mafai ona e fa'amatala pe na fa'apefea ona tupu? O le a le mea sa e faia, ma o fea?", // TODO cert
     zh: "这听起来可能是ACC索赔——您能描述一下具体是如何发生的吗？您当时在做什么，在哪里？",
+    yue: "這聽起來可能是ACC索賠——您能描述一下具體是如何發生的嗎？您當時在做什麼，在哪裏？",
     ja: "ACCの請求になる可能性がありますね。どのように起きたか詳しく教えてください。何をしていて、どこにいましたか？",
     ko: "ACC 청구가 될 수 있을 것 같습니다 — 어떻게 일어났는지 정확히 설명해 주시겠습니까? 무엇을 하고 있었고 어디에 있었습니까?",
     de: "Das könnte ein ACC-Anspruch sein — können Sie genau beschreiben, wie es passiert ist? Was haben Sie gemacht und wo?",
@@ -424,6 +457,7 @@ const T = {
     mi: "Ka taea e koe te whakamārama me pēhea i pā ai?", // TODO cert
     sm: "E mafai ona e fa'amatala pe na fa'apefea ona tupu?", // TODO cert
     zh: "您能描述一下是怎么发生的吗？",
+    yue: "您能描述一下是怎麼發生的嗎？",
     ja: "どのように起きたか教えてください。",
     ko: "어떻게 일어났는지 설명해 주시겠습니까?",
     de: "Können Sie beschreiben, wie es passiert ist?",
@@ -439,6 +473,7 @@ const T = {
     mi: "Nō nāhea tēnei i pā ai? (hei tauira: i tēnei rā, inanahi, 3 rā ki muri)", // TODO cert
     sm: "O anafea na tupu ai? (fa'ata'ita'iga: aso nei, ananafi, 3 aso talu ai)", // TODO cert
     zh: "这是什么时候发生的？（例如：今天、昨天、3天前）",
+    yue: "這是什麼時候發生的？（例如：今天、昨天、3天前）",
     ja: "いつ起きましたか？（例：今日、昨日、3日前）",
     ko: "언제 일어났습니까? (예: 오늘, 어제, 3일 전)",
     de: "Wann ist es passiert? (z.B. heute, gestern, vor 3 Tagen)",
@@ -454,6 +489,7 @@ const T = {
     mi: "Ko wai tō kaituku mahi?", // TODO cert
     sm: "O ai le kamupani e te faigaluega ai?", // TODO cert
     zh: "您的雇主是谁？",
+    yue: "您的僱主是誰？",
     ja: "雇用主はどなたですか？",
     ko: "고용주가 누구입니까?",
     de: "Wer ist Ihr Arbeitgeber?",
@@ -469,6 +505,7 @@ const T = {
     mi: "Ka taea e koe te tango whakaahua o te wāhi mate? Pāwhiritia te tohu kāmera — he tino āwhina tērā mō te rata. Me tāpiri rānei 'tukua'.", // TODO cert
     sm: "E mafai ona e pu'e se ata o le vaega e tiga? O'omi le tama'i ata o le meapu'e ata — e fesoasoani tele i le foma'i. Pe tusia 'preterisi'.", // TODO cert
     zh: "您能拍一张患处的照片吗？点击相机图标——对医生很有帮助。或者输入「跳过」。",
+    yue: "您能拍一張患處的照片嗎？點擊相機圖標——對醫生很有幫助。或者輸入「跳過」。",
     ja: "患部の写真を撮ってもらえますか？カメラアイコンをタップしてください — 医師の診断にとても役立ちます。スキップと入力してもOKです。",
     ko: "영향을 받은 부위의 사진을 찍어 주시겠습니까? 카메라 아이콘을 탭하세요 — 의사에게 매우 도움이 됩니다. 또는 '건너뛰기'를 입력하세요.",
     de: "Können Sie ein Foto des betroffenen Bereichs machen? Tippen Sie auf das Kamerasymbol — das hilft dem Arzt wirklich. Oder geben Sie 'weiter' ein.",
@@ -484,6 +521,7 @@ const T = {
     mi: "Kotahi anō mea — kei te whakaae koe kia tuhia tō tirohanga e te AI? Ka mukua te rīpene i muri tonu.", // TODO cert
     sm: "Toe tasi le mea — e te malie e tusia lau asiasiga e le AI? E soloi ese le pu'ega ina ua uma.", // TODO cert
     zh: "最后一个问题——您是否同意对您的会诊进行AI转录？录音会在之后立即删除。",
+    yue: "最後一個問題——您是否同意對您的會診進行AI轉錄？錄音會在之後立即刪除。",
     ja: "最後です — 診察のAI文字起こしに同意しますか？録音はすぐに削除されます。",
     ko: "마지막으로 — 상담을 AI로 녹취하는 것에 동의하십니까? 녹음은 바로 삭제됩니다.",
     de: "Letzte Frage — stimmen Sie der KI-Transkription Ihrer Konsultation zu? Die Aufnahme wird danach sofort gelöscht.",
@@ -500,6 +538,7 @@ const T = {
     mi: "Ka pai! Kua whiwhi au i ngā mea katoa — kei te whakarite ināianei...", // TODO cert
     sm: "Manaia! Ua ou maua mea uma sa manaomia — o lo'o fa'atulaga nei oe...", // TODO cert
     zh: "太好了！我已经获得了所需的一切——正在为您设置……",
+    yue: "太好了！我已經獲得了所需的一切——正在為您設置……",
     ja: "完璧です！必要なものがすべて揃いました — 今すぐ設定します...",
     ko: "완벽합니다! 필요한 모든 것을 갖췄습니다 — 지금 설정 중입니다...",
     de: "Super! Ich habe alles, was ich brauche — richte Sie jetzt ein...",
@@ -514,6 +553,7 @@ const T = {
     mi: "Nau mai anō, ${firstName}! Kua whiwhi au i ō kōrero — me whakatika tāua.", // TODO cert
     sm: "Talofa mai fo'i, ${firstName}! Ua ou maua au fa'amatalaga — ta fai lena mea nei.", // TODO cert
     zh: "欢迎回来，${firstName}！我已经有您的信息了——让我们来解决您的问题。",
+    yue: "歡迎回來，${firstName}！我已經有您的信息了——讓我們來解決您的問題。",
     ja: "おかえりなさい、${firstName}さん！詳細を確認しました — すぐに対応します。",
     ko: "다시 오셨군요, ${firstName}님! 정보를 확인했습니다 — 바로 도와드리겠습니다.",
     de: "Willkommen zurück, ${firstName}! Ich habe Ihre Daten — lassen Sie uns das klären.",
@@ -528,6 +568,7 @@ const T = {
     mi: "Ngā mihi! Ka taea e te rata te tiro atu ki ērā.", // TODO cert
     sm: "Fa'afetai! O le a mafai e le foma'i ona va'ai i na mea.", // TODO cert
     zh: "谢谢！医生将能看到这些照片。",
+    yue: "謝謝！醫生將能看到這些照片。",
     ja: "ありがとうございます！医師が確認できます。",
     ko: "감사합니다! 의사가 확인할 수 있습니다.",
     de: "Danke! Der Arzt wird das sehen können.",
@@ -542,6 +583,7 @@ const T = {
     mi: " Kia mōhio mai koe, kāore tō mātou rata e wātea ana ināianei — engari haere tonu, whakakīa ō kōrero ā, ka pupuri mātou i tō tūranga ki mua o te rārangi. Ka whiwhi koe i tētahi īmēra ina wātea mai ia.", // TODO cert
     sm: " Ia e iloa, e le'o avanoa la matou foma'i i le taimi nei — ae fa'aauau pea ma tusi au fa'amatalaga ma o le a matou taofia lou nofoaga i luma o le lisi. E te maua se imeli i le taimi lava e avanoa ai.", // TODO cert
     zh: " 请注意，我们的医生目前不可用——请继续填写您的信息，我们将为您保留排队前位。医生一旦有空，您将收到电子邮件通知。",
+    yue: " 請注意，我們的醫生目前不可用——請繼續填寫您的信息，我們將為您保留排隊前位。醫生一旦有空，您將收到電子郵件通知。",
     ja: " なお、現在担当医が対応できない状況ですが、詳細を入力していただければ順番待ちリストの先頭にお名前を確保します。担当医が対応可能になり次第、メールでお知らせします。",
     ko: " 참고로, 현재 의사가 없습니다 — 하지만 정보를 입력하시면 대기열 앞자리를 보장해 드립니다. 의사가 가능해지는 즉시 이메일로 알려드리겠습니다.",
     de: " Zu Ihrer Information: Unser Arzt ist gerade nicht verfügbar — füllen Sie einfach Ihre Daten aus, und wir halten Ihnen einen Platz am Anfang der Warteschlange frei. Sie erhalten eine E-Mail, sobald er verfügbar ist.",
@@ -556,6 +598,7 @@ const T = {
     mi: "Ka taea e koe te whakamātau anō?", // TODO cert
     sm: "E mafai ona e toe taumafai?", // TODO cert
     zh: "您能再试一次吗？",
+    yue: "您能再試一次嗎？",
     ja: "もう一度お試しください。",
     ko: "다시 시도해 주세요.",
     de: "Können Sie das nochmals versuchen?",
@@ -582,6 +625,7 @@ const T = {
     mi: 'Waea atu ki te 111 ināianei',
     sm: 'Vala\'au le 111 i le taimi nei', // TODO cert
     zh: '立即拨打111',
+    yue: '立即撥打111',
     ja: '今すぐ111に電話',
     ko: '지금 111에 전화',
     de: 'Jetzt 111 anrufen',
@@ -596,6 +640,7 @@ const T = {
     mi: 'Me hui atu koe ki te whare hauora ināianei tonu. Waea atu ki te 111 ināianei.', // TODO cert
     sm: 'O ou fa\'ailoga e mana\'omia le va\'aiga fa\'afuase\'i. Fa\'amolemole vala\'au le 111 i le taimi nei.', // TODO cert
     zh: '您的症状需要立即急救护理。请立即拨打111。',
+    yue: '您的症狀需要立即急救護理。請立即撥打111。',
     ja: 'あなたの症状は緊急医療処置が必要です。今すぐ111に電話してください。',
     ko: '귀하의 증상에는 즉각적인 응급 치료가 필요합니다. 지금 바로 111에 전화하세요.',
     de: 'Ihre Symptome erfordern sofortige Notfallversorgung. Bitte rufen Sie jetzt 111 an.',
@@ -610,6 +655,7 @@ const T = {
     mi: 'He hē tēnei — hoki atu', // TODO cert
     sm: 'O se mea sese lena — toe fo\'i i tua', // TODO cert
     zh: '这是个错误——返回',
+    yue: '這是個錯誤——返回',
     ja: '間違えました — 戻る',
     ko: '잘못 입력했습니다 — 돌아가기',
     de: 'Das war ein Fehler — zurück',
@@ -624,6 +670,7 @@ const T = {
     mi: 'Kāore he take kia noho koe kotahi ki tēnei', // TODO cert
     sm: 'E le tatau ona e feagai ma lenei mea na o oe', // TODO cert
     zh: '您不必独自面对这一切',
+    yue: '您不必獨自面對這一切',
     ja: '一人で抱え込まないでください',
     ko: '혼자 감당하지 않아도 됩니다',
     de: 'Sie müssen das nicht alleine bewältigen',
@@ -638,6 +685,7 @@ const T = {
     mi: 'He tino nui tō e rongo ana. Tēnā, whakapā atu ki tētahi ka taea te āwhina i a koe ināianei tonu.', // TODO cert
     sm: 'O lou lagona e taua. Fa\'amolemole feso\'ota\'i ma se tasi e mafai ona fesoasoani moni i lenei taimi.', // TODO cert
     zh: '您的感受很重要。请立即联系能真正帮助您的人。',
+    yue: '您的感受很重要。請立即聯繫能真正幫助您的人。',
     ja: 'あなたの気持ちは大切です。今すぐ本当に助けてくれる人に連絡してください。',
     ko: '당신이 느끼는 것이 중요합니다. 지금 당장 정말로 도움을 줄 수 있는 사람에게 연락하세요.',
     de: 'Was Sie fühlen, ist wichtig. Bitte wenden Sie sich jetzt an jemanden, der wirklich helfen kann.',
@@ -652,6 +700,7 @@ const T = {
     mi: 'Mēnā kei roto koe i te tino kino, waea atu ki te 111',
     sm: 'A fai o lo\'o e i ai i se tulaga lamatia fa\'afuase\'i, vala\'au le 111', // TODO cert
     zh: '如果您面临立即危险，请拨打111',
+    yue: '如果您面臨立即危險，請撥打111',
     ja: 'すぐに危険な状況にある場合は111に電話してください',
     ko: '즉각적인 위험에 처해 있다면 111에 전화하세요',
     de: 'Wenn Sie in unmittelbarer Gefahr sind, rufen Sie 111 an',
@@ -666,6 +715,7 @@ const T = {
     mi: 'He āwhina kei te wātea', // TODO cert
     sm: 'O lo\'o avanoa le fesoasoani', // TODO cert
     zh: '帮助就在眼前',
+    yue: '幫助就在眼前',
     ja: 'サポートを受けられます',
     ko: '도움을 받을 수 있습니다',
     de: 'Hilfe ist verfügbar',
@@ -680,6 +730,7 @@ const T = {
     mi: 'He māia te whakapā atu. He kore utu ēnei ratonga, he muna, ā, kua rite ki te āwhina.', // TODO cert
     sm: 'E mana\'omia le lototetele e feso\'ota\'i ai. O nei auaunaga e leai se totogi, e fa\'alilolilo, ma sauni e fesoasoani.', // TODO cert
     zh: '寻求帮助需要勇气。这些服务免费、保密，随时准备好帮助您。',
+    yue: '尋求幫助需要勇氣。這些服務免費、保密，隨時準備好幫助您。',
     ja: '助けを求めることには勇気が必要です。これらのサービスは無料で、秘密が守られ、いつでもサポートします。',
     ko: '도움을 요청하는 것은 용기가 필요합니다. 이 서비스들은 무료이고 비밀이 보장되며 도움을 줄 준비가 되어 있습니다.',
     de: 'Sich Hilfe zu holen braucht Mut. Diese Dienste sind kostenlos, vertraulich und bereit zu helfen.',
@@ -696,6 +747,7 @@ const T = {
     mi: 'Ka whakaratohia ngā whakamāoritanga hei āwhina noa. Mō ngā kōrero hauora uaua, e tūtohutia ana kia whakamahia tētahi kaiwhakamāori mātanga.', // TODO cert
     sm: 'O fa\'aliliuga ua na\'o le fesoasoani. Mo talanoaga fa\'afoma\'i faigata, e fa\'amaonia le fa\'aaogaina o se fa\'aliliu upu fa\'apolofesa.', // TODO cert
     zh: '翻译仅作参考。对于复杂的医疗讨论，建议使用专业口译员。',
+    yue: '翻譯僅作參考。對於複雜的醫療討論，建議使用專業口譯員。',
     ja: '翻訳はサポートとして提供されています。複雑な医療相談には専門の通訳者をお勧めします。',
     ko: '번역은 보조 용도로만 제공됩니다. 복잡한 의료 상담의 경우 전문 통역사가 권장됩니다.',
     de: 'Übersetzungen dienen nur als Unterstützung. Für komplexe medizinische Gespräche wird ein professioneller Dolmetscher empfohlen.',
@@ -754,6 +806,7 @@ const T = {
     mi: 'I mua i tā tāua tīmatanga', // TODO cert
     sm: 'A\'o le\'i amata', // TODO cert
     zh: '开始之前',
+    yue: '開始之前',
     ja: '始める前に',
     ko: '시작하기 전에',
     de: 'Bevor wir beginnen',
@@ -768,6 +821,7 @@ const T = {
     mi: 'Ngā mea ka taea, ngā mea kāore e taea e Tere Health te tuku hei rongoā', // TODO cert
     sm: 'O mea e mafai ma le mafai e Tere Health ona tuu atu ni fualaau', // TODO cert
     zh: 'Tere Health 能开和不能开的处方',
+    yue: 'Tere Health 能開和不能開的處方',
     ja: 'Tere Health が処方できるものとできないもの',
     ko: 'Tere Health가 처방할 수 있는 것과 없는 것',
     de: 'Was Tere Health verschreiben kann und was nicht',
@@ -782,6 +836,7 @@ const T = {
     mi: 'Ka taea e ngā rata o Tere Health te tuku i te maha o ngā rongoā noa mā te telehealth. Heoi anō, e whakatakoto ana te ture o Aotearoa i ngā herenga mō ētahi rongoā whakahaere me ngā rongoā me tirotiro e te mātanga. Tēnā, pānuihia me whakaae ki ngā mea e whai ake nei i mua i te haere tonu.', // TODO cert
     sm: 'E mafai e foma\'i o Tere Health ona tu\'uina atu le tele o fualaau masani e ala i le telehealth. Peita\'i, e i ai tulafono a Niu Sila e fa\'atapula\'a ai nisi fualaau fa\'atonutonuina ma fualaau e mana\'omia ai le va\'ava\'aiga a se foma\'i fa\'apitoa. Fa\'amolemole faitau ma fa\'amaonia mea nei a\'o le\'i fa\'aauau.', // TODO cert
     zh: 'Tere Health 的医生可以通过远程医疗开具许多常见药物。但是，新西兰法律对某些受管制药物和需要专科监督的药物有限制。请在继续之前阅读并确认以下内容。',
+    yue: 'Tere Health 的醫生可以通過遠程醫療開具許多常見藥物。但是，新西蘭法律對某些受管制藥物和需要專科監督的藥物有限制。請在繼續之前閲讀並確認以下內容。',
     ja: 'Tere Healthの医師はテレヘルスを通じて多くの一般的な薬を処方できます。ただし、ニュージーランドの法律により、一部の規制薬物および専門家の監督を必要とする薬物には制限があります。続ける前に以下をお読みになり、確認してください。',
     ko: 'Tere Health 의사들은 원격 진료를 통해 많은 일반 의약품을 처방할 수 있습니다. 그러나 뉴질랜드 법률은 특정 규제 약물 및 전문가 감독이 필요한 약물에 제한을 두고 있습니다. 계속하기 전에 다음 내용을 읽고 확인해 주세요.',
     de: 'Tere-Health-Ärzte können viele gängige Medikamente über Telemedizin verschreiben. Das neuseeländische Recht setzt jedoch bestimmten Betäubungsmitteln und Medikamenten, die eine fachärztliche Überwachung erfordern, Grenzen. Bitte lesen und bestätigen Sie Folgendes, bevor Sie fortfahren.',
@@ -796,6 +851,7 @@ const T = {
     mi: 'Kei te mārama ahau kāore e taea e Tere Health te tuku i ngā rongoā whakahaere (opioids, benzodiazepines, stimulants) me ngā werohanga GLP-1 mō te ngaronga taumaha (Ozempic/Wegovy) mā te telehealth, ā, ka haere ahau ki tōku GP, ki tētahi mātanga rānei mō ēnei mea.', // TODO cert
     sm: 'Ou te malamalama e le mafai e Tere Health ona tuu atu fualaau fa\'atonutonuina (opioids, benzodiazepines, fualaau fa\'ao\'e) po\'o tui GLP-1 mo le fa\'aitiitia o le mamafa (Ozempic/Wegovy) e ala i le telehealth, ma o le a ou va\'ai i lo\'u GP po\'o se foma\'i fa\'apitoa mo nei mea.', // TODO cert
     zh: '我理解 Tere Health 不能通过远程医疗开具管制药物（阿片类药物、苯二氮䓬类药物、兴奋剂）或 GLP-1 减重注射剂（Ozempic/Wegovy），如需这些药物，我将去看全科医生或专科医生。',
+    yue: '我理解 Tere Health 不能通過遠程醫療開具管制藥物（阿片類藥物、苯二氮䓬類藥物、興奮劑）或 GLP-1 減重注射劑（Ozempic/Wegovy），如需這些藥物，我將去看全科醫生或專科醫生。',
     ja: 'Tere Healthはテレヘルスを通じて規制薬物（オピオイド、ベンゾジアゼピン、覚醒剤）やGLP-1体重減少注射（Ozempic/Wegovy）を処方できないことを理解しており、これらが必要な場合はかかりつけ医または専門医を受診します。',
     ko: 'Tere Health는 원격 진료를 통해 규제 약물(오피오이드, 벤조디아제핀, 자극제) 또는 GLP-1 체중 감량 주사(Ozempic/Wegovy)를 처방할 수 없으며, 이러한 약물이 필요한 경우 GP나 전문의를 방문하겠음을 이해합니다.',
     de: 'Ich verstehe, dass Tere Health über Telemedizin keine Betäubungsmittel (Opioide, Benzodiazepine, Stimulanzien) oder GLP-1-Gewichtsabnahmespritzen (Ozempic/Wegovy) verschreiben kann und ich für diese Medikamente meinen Hausarzt oder einen Spezialisten aufsuchen werde.',
@@ -810,6 +866,7 @@ const T = {
     mi: 'Kei te mārama ahau — haere tonu', // TODO cert
     sm: 'Ua ou malamalama — fa\'aauau', // TODO cert
     zh: '我理解——继续',
+    yue: '我理解——繼續',
     ja: '理解しました——続ける',
     ko: '이해했습니다 — 계속',
     de: 'Ich verstehe — weiter',
@@ -824,6 +881,7 @@ const T = {
     mi: 'Kua mārama mai ki ahau. Kia mōhio mai koe — kāore e taea te tuku i ngā rongoā whakahaere (pēnei i te opioids, benzodiazepines, i ngā werohanga GLP-1 pēnei i te Ozempic) mā te telehealth. Ka kōrero tō rata mō ngā kōwhiringa e wātea ana mō koe i tēnei rā.', // TODO cert
     sm: 'Ua ou fa\'ailoaina lena mea. Ia e iloa — o fualaau fa\'atonutonuina (e pei o opioids, benzodiazepines, po\'o tui GLP-1 e pei o Ozempic) e le mafai ona tuu atu e ala i le telehealth. O le a talanoaina e lou foma\'i ni filifiliga e avanoa mo oe i le aso nei.', // TODO cert
     zh: '我注意到了。请您知悉——管制药物（如阿片类药物、苯二氮䓬类药物或 Ozempic 等 GLP-1 注射剂）无法通过远程医疗开具处方。您的医生将与您讨论今天可用的选择。',
+    yue: '我注意到了。請您知悉——管制藥物（如阿片類藥物、苯二氮䓬類藥物或 Ozempic 等 GLP-1 注射劑）無法通過遠程醫療開具處方。您的醫生將與您討論今天可用的選擇。',
     ja: '承知しました。ご参考までに——オピオイド、ベンゾジアゼピン、OzempicなどのGLP-1注射といった規制薬物はテレヘルスでは処方できません。本日どのような選択肢があるかについて、担当医が説明します。',
     ko: '알겠습니다. 참고로 — 오피오이드, 벤조디아제핀, Ozempic과 같은 GLP-1 주사 등 규제 약물은 원격 진료를 통해 처방받을 수 없습니다. 의사가 오늘 이용 가능한 옵션에 대해 논의해 드릴 것입니다.',
     de: 'Ich habe das zur Kenntnis genommen. Nur zur Information — kontrollierte Medikamente (wie Opioide, Benzodiazepine oder GLP-1-Spritzen wie Ozempic) können nicht über Telemedizin verschrieben werden. Ihr Arzt wird mit Ihnen besprechen, welche Optionen heute für Sie verfügbar sind.',
@@ -858,6 +916,7 @@ const T = {
     mi: 'Whakaatu i ngā hauraro', // TODO cert
     sm: 'Fa\'aali fa\'aliliuga', // TODO cert
     zh: '显示字幕', ja: '字幕を表示', ko: '자막 표시',
+    yue: '顯示字幕', ja: '字幕を表示', ko: '자막 표시',
     de: 'Untertitel anzeigen', nl: 'Ondertitels tonen',
     fr: 'Afficher les sous-titres', es: 'Mostrar subtítulos',
     ar: 'إظهار الترجمة', hi: 'सबटाइटल दिखाएँ',
@@ -867,6 +926,7 @@ const T = {
     mi: 'Kāore koe e mārama?', // TODO cert
     sm: 'E te le malamalama?', // TODO cert
     zh: '听不懂？', ja: 'わからない？', ko: '이해가 안 되세요?',
+    yue: '聽不懂？', ja: 'わからない？', ko: '이해가 안 되세요?',
     de: 'Nicht verstehen?', nl: 'Niet verstaan?',
     fr: 'Vous ne comprenez pas ?', es: '¿No entiende?',
     ar: 'لا تفهم؟', hi: 'समझ नहीं आ रहा?',
@@ -875,6 +935,7 @@ const T = {
     en: 'Hide',
     mi: 'Huna', sm: 'Nātia',
     zh: '隐藏', ja: '非表示', ko: '숨기기',
+    yue: '隱藏', ja: '非表示', ko: '숨기기',
     de: 'Ausblenden', nl: 'Verbergen',
     fr: 'Masquer', es: 'Ocultar',
     ar: 'إخفاء', hi: 'छिपाएँ',
@@ -883,12 +944,14 @@ const T = {
   btn_skip:     {
     en: 'Skip', mi: 'Tukua', sm: 'Preterisi', // TODO cert (mi/sm)
     zh: '跳过', ja: 'スキップ', ko: '건너뛰기',
+    yue: '跳過', ja: 'スキップ', ko: '건너뛰기',
     de: 'Überspringen', nl: 'Overslaan', fr: 'Passer', es: 'Omitir',
     ar: 'تخطي', hi: 'छोड़ें',
   },
   btn_send:     {
     en: 'Send', mi: 'Tuku', sm: 'Auina atu', // TODO cert (mi/sm)
     zh: '发送', ja: '送信', ko: '보내기',
+    yue: '發送', ja: '送信', ko: '보내기',
     de: 'Senden', nl: 'Versturen', fr: 'Envoyer', es: 'Enviar',
     ar: 'إرسال', hi: 'भेजें',
   },
@@ -909,6 +972,7 @@ const T = {
     mi: 'Hei tūroro e whakamahi ana i a Tere Health, ka whai koe i ēnei mōtika i raro i te Waehere Mōtika a te Kaikōmihana Hauora, Hauātanga o Aotearoa:', // TODO cert
     sm: 'I le avea ai o se ma\'i o lo\'o fa\'aogaina Tere Health, e i ai ou aia tatau nei i lalo o le Tulafono a le Komesina o le Soifua Maloloina ma le Fa\'aletonu o Niu Sila:', // TODO cert
     zh: '作为使用 Tere Health 的患者，您根据新西兰健康和残疾专员权利守则享有以下权利：',
+    yue: '作為使用 Tere Health 的患者，您根據新西蘭健康和殘疾專員權利守則享有以下權利：',
     ja: 'Tere Healthを利用する患者として、ニュージーランドの健康・障害委員会権利規範に基づき、以下の権利があります：',
     ko: 'Tere Health를 이용하는 환자로서, 뉴질랜드 건강 및 장애 커미셔너 권리 강령에 따라 다음과 같은 권리가 있습니다:',
     de: 'Als Patient, der Tere Health nutzt, haben Sie folgende Rechte gemäß dem NZ Health and Disability Commissioner Code of Rights:',
@@ -929,6 +993,7 @@ const T = {
     mi: 'Ka tukatukahia ō kōrero hauora (tae atu ki te tuhinga tirohanga, te take matua me ngā tuhinga) e Anthropic Claude, ka tukua mā AWS Bedrock i raro i tētahi Kirimana Whakahoahoa Pakihi (BAA) me AWS e whakarato ana i ngā ārai HIPAA. Ka arotakengia, ka whakaotia ngā tuhinga i hangaia e te AI e tētahi mātanga hauora kua rēhita ki Aotearoa. E kore ō kōrero e whakamahia ki te whakangungu tauira AI.', // TODO cert
     sm: 'O ou fa\'amatalaga fa\'afoma\'i (e aofia ai le tusiga o le asiasiga, mafua\'aga o le sau ma tusi manatu) e fa\'agaioia e Anthropic Claude, fa\'atino atu e ala i le AWS Bedrock i lalo o se Maliliega Fa\'apisinisi Fa\'aletagata (BAA) ma le AWS lea e tuu atu ai puipuiga tulaga HIPAA. O tusi manatu na faia e le AI e iloilo ma fa\'amaonia e se foma\'i o Niu Sila. O ou fa\'amatalaga e le\'i fa\'aogaina lava mo le a\'oa\'oina o fa\'ata\'ita\'iga AI.', // TODO cert
     zh: '您的临床信息（包括会诊转录、主诉和笔记）由 Anthropic Claude 处理，通过 AWS Bedrock 提供服务，AWS 已签署业务伙伴协议（BAA），提供 HIPAA 级别的保护。AI 生成的笔记由新西兰注册的临床医生审查并最终确认。您的信息绝不会用于训练 AI 模型。',
+    yue: '您的臨牀信息（包括會診轉錄、主訴和筆記）由 Anthropic Claude 處理，通過 AWS Bedrock 提供服務，AWS 已簽署業務夥伴協議（BAA），提供 HIPAA 級別的保護。AI 生成的筆記由新西蘭註冊的臨牀醫生審查並最終確認。您的信息絕不會用於訓練 AI 模型。',
     ja: 'あなたの臨床情報（診察記録、主訴、メモを含む）は、AWSと締結したビジネスアソシエート契約（BAA）に基づきHIPAAレベルの保護措置が提供されるAWS Bedrock経由で、Anthropic Claudeによって処理されます。AI生成のメモは、ニュージーランド登録の臨床医によりレビューおよび最終化されます。あなたの情報はAIモデルの訓練に使用されることはありません。',
     ko: '귀하의 임상 정보(상담 기록, 주요 증상 및 노트 포함)는 Anthropic Claude에 의해 처리되며, AWS와 체결된 비즈니스 어소시에이트 계약(BAA)에 따라 HIPAA 수준의 보호가 제공되는 AWS Bedrock을 통해 전달됩니다. AI 생성 노트는 뉴질랜드 등록 임상의에 의해 검토 및 최종화됩니다. 귀하의 정보는 AI 모델 학습에 절대 사용되지 않습니다.',
     de: 'Ihre klinischen Informationen (einschließlich Konsultationstranskript, Hauptbeschwerde und Notizen) werden von Anthropic Claude verarbeitet, bereitgestellt über AWS Bedrock unter einer geschlossenen Business Associate Agreement (BAA) mit AWS, die HIPAA-Niveau-Schutzmaßnahmen bietet. Von KI generierte Notizen werden von einem in Neuseeland registrierten Kliniker überprüft und finalisiert. Ihre Informationen werden nie zur Schulung von KI-Modellen verwendet.',
@@ -946,6 +1011,7 @@ const T = {
     mi: 'Ka taea e ngā kaiwhakarato o Tere Health te tuku i te maha o ngā rongoā mō ngā mate ohorere. Heoi anō, kāore mātou e taea te tuku i ngā rongoā e whai ake nei mā te telehealth:', // TODO cert
     sm: 'E mafai e le au foma\'i o Tere Health ona tuu atu le tele o fualaau mo tulaga fa\'afuase\'i. Peita\'i, e le mafai ona matou tuu atu e ala i le telehealth:', // TODO cert
     zh: 'Tere Health 的医生可以为急性病症开具许多药物。但我们无法通过远程医疗开具以下药物：',
+    yue: 'Tere Health 的醫生可以為急性病症開具許多藥物。但我們無法通過遠程醫療開具以下藥物：',
     ja: 'Tere Healthの医師は急性症状に対する多くの薬を処方できます。ただし、テレヘルスでは以下の薬は処方できません：',
     ko: 'Tere Health 의사들은 급성 질환에 대한 많은 약을 처방할 수 있습니다. 그러나 원격 진료를 통해서는 다음을 처방할 수 없습니다:',
     de: 'Tere-Health-Ärzte können viele Medikamente für akute Erkrankungen verschreiben. Wir können jedoch nicht per Telemedizin verschreiben:',
@@ -960,6 +1026,7 @@ const T = {
     mi: 'Mō ēnei rongoā tēnā koa whakapā atu ki tō GP, haere rānei ki tētahi hōkinga tirohanga kanohi.', // TODO cert
     sm: 'Mo nei fualaau fa\'amolemole feso\'ota\'i ma lou GP masani po\'o asiasi i se falema\'i tino.', // TODO cert
     zh: '如需这些药物，请联系您的常规全科医生或前往面对面诊所就诊。',
+    yue: '如需這些藥物，請聯繫您的常規全科醫生或前往面對面診所就診。',
     ja: 'これらの薬については、通常のかかりつけ医に連絡するか、対面クリニックを受診してください。',
     ko: '이러한 약이 필요하시면 정기적인 GP에게 연락하거나 대면 클리닉을 방문해 주세요.',
     de: 'Für diese Medikamente wenden Sie sich bitte an Ihren regulären Hausarzt oder besuchen Sie eine Klinik persönlich.',
@@ -978,6 +1045,7 @@ const T = {
     mi: 'E hiahia ana koe ki te whakaae kia whakauruhia ō raraunga kāore i te whakatinana (kāore he ingoa, kāore he whakapā, kāore he NHI) hei tautoko i te rangahau hauora tuawhenua o Aotearoa? Ka āwhina tēnei ki te whakapai ake i te hauora mō ngā hapori tuawhenua puta noa i Aotearoa.', // TODO cert
     sm: 'E te malie e faia ni sao mai au fa\'amatalaga e le\'i fa\'ailoaina (leai se igoa, leai ni fa\'amatalaga fa\'afeso\'ota\'i, leai se NHI) i su\'esu\'ega o le soifua maloloina i nu\'u maotua o Niu Sila? E fesoasoani lenei mea e fa\'aleleia le tausiga o le soifua maloloina mo nu\'u maotua i Aotearoa.', // TODO cert
     zh: '您是否愿意让您的去标识化数据（无姓名、无联系方式、无 NHI）为新西兰农村健康研究做出贡献？这有助于改善新西兰农村社区的医疗保健。',
+    yue: '您是否願意讓您的去標識化數據（無姓名、無聯繫方式、無 NHI）為新西蘭農村健康研究做出貢獻？這有助於改善新西蘭農村社區的醫療保健。',
     ja: '匿名化されたデータ（名前、連絡先、NHIなし）をニュージーランドの地方医療研究に貢献させることに同意されますか？これは、アオテアロア（NZ）全土の地方コミュニティの医療改善に役立ちます。',
     ko: '귀하의 비식별화된 데이터(이름, 연락처, NHI 없음)를 뉴질랜드 농촌 건강 연구에 기여하도록 하시겠습니까? 이는 아오테아로아 전역의 농촌 지역사회 의료 개선에 도움이 됩니다.',
     de: 'Wären Sie bereit, dass Ihre anonymisierten Daten (kein Name, keine Kontaktdaten, keine NHI) zur ländlichen Gesundheitsforschung in Neuseeland beitragen? Dies hilft, die Gesundheitsversorgung für ländliche Gemeinden in ganz Aotearoa zu verbessern.',
@@ -994,6 +1062,7 @@ const T = {
     mi: 'Kāore tō whiringa e pā ki tō tiaki hauora. Ka taea e koe te unu i tō whakaae i te wā e hiahia ana koe mā te whakapā atu ki', // TODO cert
     sm: 'O lau fa\'ai\'uga e le a\'afia ai lou tausiga. E mafai ona e toe aveese lau malie i so\'o se taimi e ala i le feso\'ota\'i atu i', // TODO cert
     zh: '您的决定不会影响您的医疗服务。您可以随时通过联系以下方式撤回同意：',
+    yue: '您的決定不會影響您的醫療服務。您可以隨時通過聯繫以下方式撤回同意：',
     ja: 'あなたの決定はケアに影響しません。次にご連絡いただくことで、いつでも同意を撤回できます：',
     ko: '귀하의 결정은 진료에 영향을 미치지 않습니다. 다음 연락처로 언제든지 동의를 철회할 수 있습니다:',
     de: 'Ihre Entscheidung beeinflusst nicht Ihre Versorgung. Sie können Ihre Einwilligung jederzeit widerrufen, indem Sie kontaktieren',
@@ -1010,6 +1079,7 @@ const T = {
     mi: 'Mō ngā tohu ora tika, ka whakamahia pea e Tere tō kāmera i te wā o te tirohanga. Kāore he ataata e hopukina ana — ka whakamahia noa ngā ine tae kua whakaingoakorehia hei whakatau i te tere manawa me te hāora toto.', // TODO cert
     sm: 'Mo tulaga sa\'o o le tino, atonu e fa\'aaoga e Tere lau meapu\'e ata i le taimi o le asiasiga. E leai se ata na pu\'eina — na\'o fua o lanu e le\'i fa\'ailoaina e fa\'aogaina e fa\'atatau ai le saoasaoa o le fatu ma le okesene o le toto.', // TODO cert
     zh: '为了准确测量生命体征，Tere 可能会在会诊期间使用您的相机。不会录制视频——仅使用匿名颜色测量来估计心率和血氧。',
+    yue: '為了準確測量生命體徵，Tere 可能會在會診期間使用您的相機。不會錄製視頻——僅使用匿名顏色測量來估計心率和血氧。',
     ja: '正確なバイタル測定のため、Tereは診察中にカメラを使用することがあります。動画は記録されず、匿名化された色測定のみを使用して心拍数と血中酸素を推定します。',
     ko: '정확한 활력징후를 위해, Tere는 상담 중 카메라를 사용할 수 있습니다. 비디오는 녹화되지 않으며 — 익명화된 색상 측정값만 사용하여 심박수와 혈중 산소를 추정합니다.',
     de: 'Für genaue Vitalwerte kann Tere während der Konsultation Ihre Kamera verwenden. Es wird kein Video aufgezeichnet — nur anonymisierte Farbmessungen werden verwendet, um Herzfrequenz und Blutsauerstoff zu schätzen.',
@@ -1030,6 +1100,7 @@ const T = {
     mi: 'Ki te kōwhiria e koe he reo tērā atu i te reo Ingarihi, ka taea e mātou te whakaatu i ngā hauraro whakamāoritia e te AI i tō tirohanga ataata. Kia mōhio mai koe:', // TODO cert
     sm: 'Afai e te filifilia se gagana e ese mai le Igilisi, e mafai ona matou fa\'aali fa\'aliliuga fa\'alelemafaufau ola i lau asiasiga vitio. Fa\'amolemole malamalama:', // TODO cert
     zh: '如果您选择了非英语语言，我们可以在您的视频会诊期间显示 AI 翻译的字幕。请注意：',
+    yue: '如果您選擇了非英語語言，我們可以在您的視頻會診期間顯示 AI 翻譯的字幕。請注意：',
     ja: '英語以外の言語を選択された場合、ビデオ診察中に AI 翻訳の字幕を表示できます。以下をご理解ください：',
     ko: '영어 이외의 언어를 선택하신 경우, 화상 상담 중 AI 번역 자막을 표시할 수 있습니다. 다음을 이해해 주세요:',
     de: 'Wenn Sie eine andere Sprache als Englisch gewählt haben, können wir während Ihrer Videokonsultation KI-übersetzte Untertitel anzeigen. Bitte beachten Sie:',
@@ -1046,6 +1117,7 @@ const T = {
     mi: 'Tirohia ngā pouaka rua e hiahiatia ana ki runga hei haere tonu', // TODO cert
     sm: 'Fa\'ailoga pusa e lua e mana\'omia i luga e fa\'aauau ai', // TODO cert
     zh: '请勾选上面两个必需的复选框以继续',
+    yue: '請勾選上面兩個必需的複選框以繼續',
     ja: '続けるには、上記の必須ボックスを両方チェックしてください',
     ko: '계속하려면 위의 두 필수 상자에 모두 체크하세요',
     de: 'Kreuzen Sie die beiden erforderlichen Kästchen oben an, um fortzufahren',
@@ -1065,6 +1137,7 @@ const T = {
     en: 'Where are you right now?',
     es: '¿Dónde se encuentra ahora mismo?',
     zh: '您现在身处何地？',
+    yue: '您現在身處何地？',
     ja: '現在、どちらにいらっしゃいますか？',
     ko: '지금 어디에 계신가요?',
     de: 'Wo befinden Sie sich gerade?',
@@ -1077,6 +1150,7 @@ const T = {
     en: 'Our physicians can only see patients in states where they are licensed. We need to know your physical location at the time of your visit — not where you live.',
     es: 'Nuestros médicos solo pueden atender a pacientes en los estados donde están autorizados. Necesitamos conocer su ubicación física en el momento de la consulta, no dónde reside.',
     zh: '我们的医生只能为其执照所在州的患者提供诊疗。我们需要了解您就诊时的实际所在地——而非您的居住地。',
+    yue: '我們的醫生只能為其執照所在州的患者提供診療。我們需要了解您就診時的實際所在地——而非您的居住地。',
     ja: '当院の医師は、免許を保有している州に所在する患者さまのみ診療できます。ご自宅の所在地ではなく、診察時にご自身がいる場所をお知らせください。',
     ko: '저희 의사는 면허가 있는 주의 환자만 진료할 수 있습니다. 거주지가 아닌, 진료를 받으실 때 실제로 계신 위치를 알려주셔야 합니다.',
     de: 'Unsere Ärztinnen und Ärzte dürfen Patienten nur in den Bundesstaaten behandeln, in denen sie zugelassen sind. Bitte geben Sie an, wo Sie sich zum Zeitpunkt der Sprechstunde tatsächlich befinden — nicht Ihren Wohnort.',
@@ -1089,6 +1163,7 @@ const T = {
     en: 'Your state',
     es: 'Su estado',
     zh: '您所在的州',
+    yue: '您所在的州',
     ja: 'お住まいの州',
     ko: '주 (State)',
     de: 'Ihr Bundesstaat',
@@ -1101,6 +1176,7 @@ const T = {
     en: '· detecting…',
     es: '· detectando…',
     zh: '· 检测中…',
+    yue: '· 檢測中…',
     ja: '· 検出中…',
     ko: '· 감지 중…',
     de: '· Erkennung läuft…',
@@ -1113,6 +1189,7 @@ const T = {
     en: '— Select your state —',
     es: '— Seleccione su estado —',
     zh: '— 请选择您所在的州 —',
+    yue: '— 請選擇您所在的州 —',
     ja: '— 州を選択してください —',
     ko: '— 주를 선택하세요 —',
     de: '— Bundesstaat auswählen —',
@@ -1125,6 +1202,7 @@ const T = {
     en: '✓ We detected ${stateName} from your connection. Please confirm this is where you actually are.',
     es: '✓ Detectamos ${stateName} a partir de su conexión. Confirme, por favor, que realmente se encuentra allí.',
     zh: '✓ 我们根据您的网络连接检测到您位于${stateName}。请确认这是您目前的实际所在地。',
+    yue: '✓ 我們根據您的網絡連接檢測到您位於${stateName}。請確認這是您目前的實際所在地。',
     ja: '✓ ご利用の接続から${stateName}と判定しました。実際にその場所にいらっしゃるかご確認ください。',
     ko: '✓ 접속 정보에서 ${stateName}을(를) 감지했습니다. 실제로 그곳에 계신지 확인해 주세요.',
     de: '✓ Anhand Ihrer Verbindung haben wir ${stateName} erkannt. Bitte bestätigen Sie, dass Sie sich tatsächlich dort befinden.',
@@ -1137,6 +1215,7 @@ const T = {
     en: "I'm physically in ",
     es: 'Me encuentro físicamente en ',
     zh: '我现在实际身处',
+    yue: '我現在實際身處',
     ja: '私は現在、実際に',
     ko: '저는 지금 실제로 ',
     de: 'Ich befinde mich physisch in ',
@@ -1149,6 +1228,7 @@ const T = {
     en: ' right now.',
     es: ' en este momento.',
     zh: '。',
+    yue: '。',
     ja: 'にいます。',
     ko: '에 있습니다.',
     de: ' — genau jetzt.',
@@ -1161,6 +1241,7 @@ const T = {
     en: 'the state selected above',
     es: 'el estado seleccionado arriba',
     zh: '上方选择的州',
+    yue: '上方選擇的州',
     ja: '上記で選択した州',
     ko: '위에서 선택한 주',
     de: 'dem oben ausgewählten Bundesstaat',
@@ -1173,6 +1254,7 @@ const T = {
     en: 'Continue  →',
     es: 'Continuar  →',
     zh: '继续  →',
+    yue: '繼續  →',
     ja: '続ける  →',
     ko: '계속하기  →',
     de: 'Weiter  →',
@@ -1187,6 +1269,7 @@ const T = {
     en: 'Care is available in ',
     es: 'Atención disponible en ',
     zh: '我们在',
+    yue: '我們在',
     ja: '当院は',
     ko: '저희는 ',
     de: 'Behandlung verfügbar in ',
@@ -1199,6 +1282,7 @@ const T = {
     en: '. One quick step before we ask about your visit.',
     es: '. Un paso rápido antes de preguntarle sobre su consulta.',
     zh: '为您诊疗。在询问您的就诊详情前，还有一个简短步骤。',
+    yue: '為您診療。在詢問您的就診詳情前，還有一個簡短步驟。',
     ja: 'で診察が可能です。ご相談内容を伺う前に、簡単なご確認をお願いします。',
     ko: '에서 진료를 제공할 수 있습니다. 진료 내용을 여쭙기 전에 간단한 절차가 하나 있습니다.',
     de: ' behandeln. Eine kurze Frage, bevor wir zu Ihrem Anliegen kommen.',
@@ -1211,6 +1295,7 @@ const T = {
     en: 'Your privacy under HIPAA.',
     es: 'Su privacidad bajo la HIPAA.',
     zh: '您在 HIPAA 下的隐私权。',
+    yue: '您在 HIPAA 下的隱私權。',
     ja: 'HIPAAに基づくあなたのプライバシー。',
     ko: 'HIPAA에 따른 귀하의 개인정보 보호.',
     de: 'Ihre Privatsphäre gemäß HIPAA.',
@@ -1223,6 +1308,7 @@ const T = {
     en: 'Before we collect any health information, please review how we use and protect it.',
     es: 'Antes de recopilar cualquier información de salud, revise cómo la usamos y la protegemos.',
     zh: '在收集任何健康信息之前，请查看我们如何使用和保护这些信息。',
+    yue: '在收集任何健康信息之前，請查看我們如何使用和保護這些信息。',
     ja: '健康情報を収集する前に、当院がどのように利用・保護するかをご確認ください。',
     ko: '건강 정보를 수집하기 전에, 저희가 이를 어떻게 사용하고 보호하는지 확인해 주세요.',
     de: 'Bevor wir Gesundheitsdaten erheben, informieren Sie sich bitte darüber, wie wir sie nutzen und schützen.',
@@ -1235,6 +1321,7 @@ const T = {
     en: 'Your health info is used only for your care, payment, and our internal quality processes.',
     es: 'Su información de salud se utiliza únicamente para su atención, el pago y nuestros procesos internos de calidad.',
     zh: '您的健康信息仅用于您的治疗、付款以及我们的内部质量管理流程。',
+    yue: '您的健康信息僅用於您的治療、付款以及我們的內部質量管理流程。',
     ja: '健康情報は診療、支払い、および当院内部の品質管理のためにのみ使用されます。',
     ko: '귀하의 건강 정보는 진료, 결제, 그리고 저희 내부 품질 관리 목적으로만 사용됩니다.',
     de: 'Ihre Gesundheitsdaten werden ausschließlich für Ihre Behandlung, die Abrechnung und unsere internen Qualitätsprozesse verwendet.',
@@ -1247,6 +1334,7 @@ const T = {
     en: 'Stored encrypted on AWS under a Business Associate Agreement — not shared with employers, insurers, or advertisers.',
     es: 'Se almacena cifrada en AWS bajo un Acuerdo de Asociado Comercial (BAA), y no se comparte con empleadores, aseguradoras ni anunciantes.',
     zh: '在 AWS 上以加密方式存储，并受《业务伙伴协议》（BAA）约束——不会与雇主、保险公司或广告商共享。',
+    yue: '在 AWS 上以加密方式存儲，並受《業務夥伴協議》（BAA）約束——不會與僱主、保險公司或廣告商共享。',
     ja: 'AWS上でビジネスアソシエイト契約(BAA)のもと暗号化して保管され、雇用主・保険会社・広告主とは共有されません。',
     ko: 'AWS에 비즈니스 제휴 계약(BAA) 하에 암호화되어 저장되며, 고용주·보험사·광고주와 공유되지 않습니다.',
     de: 'Verschlüsselt bei AWS im Rahmen eines Business Associate Agreement gespeichert — nicht an Arbeitgeber, Versicherer oder Werbetreibende weitergegeben.',
@@ -1259,6 +1347,7 @@ const T = {
     en: 'Never sold. Never used for marketing without your permission.',
     es: 'Nunca se vende. Nunca se utiliza con fines de marketing sin su permiso.',
     zh: '绝不出售。未经您的同意，绝不用于营销用途。',
+    yue: '絕不出售。未經您的同意，絕不用於營銷用途。',
     ja: '販売することは一切ありません。ご本人の許可なくマーケティング目的で使用することもありません。',
     ko: '결코 판매되지 않습니다. 귀하의 동의 없이 마케팅에 사용되지 않습니다.',
     de: 'Niemals verkauft. Niemals ohne Ihre Zustimmung für Marketing genutzt.',
@@ -1271,6 +1360,7 @@ const T = {
     en: 'You have the right to access your records, request amendments, and file complaints (with us or with HHS Office for Civil Rights).',
     es: 'Tiene derecho a acceder a sus registros, solicitar modificaciones y presentar quejas (ante nosotros o ante la Oficina de Derechos Civiles del HHS).',
     zh: '您有权查阅个人记录、申请更正，并向我们或美国卫生与公众服务部民权办公室（HHS OCR）提出投诉。',
+    yue: '您有權查閲個人記錄、申請更正，並向我們或美國衞生與公眾服務部民權辦公室（HHS OCR）提出投訴。',
     ja: 'ご自身の記録の閲覧、修正の請求、および苦情の申し立て（当院、または米国HHS公民権局宛て）を行う権利があります。',
     ko: '귀하는 본인의 기록에 접근하고, 수정 요청을 하며, 저희 또는 미국 보건복지부 민권국(HHS OCR)에 이의를 제기할 권리가 있습니다.',
     de: 'Sie haben das Recht, Ihre Unterlagen einzusehen, Berichtigungen zu verlangen und Beschwerden einzureichen (bei uns oder beim HHS Office for Civil Rights).',
@@ -1283,6 +1373,7 @@ const T = {
     en: "We'll notify you within 60 days if a breach of your data ever occurred.",
     es: 'Le notificaremos en un plazo de 60 días si alguna vez se produce una violación de sus datos.',
     zh: '如果您的数据发生任何泄露事件，我们将在 60 天内通知您。',
+    yue: '如果您的數據發生任何泄露事件，我們將在 60 天內通知您。',
     ja: '万一データ漏えいが発生した場合は、60日以内にお知らせします。',
     ko: '귀하의 데이터가 유출된 경우, 60일 이내에 알려드립니다.',
     de: 'Sollte es zu einer Verletzung Ihrer Daten kommen, benachrichtigen wir Sie innerhalb von 60 Tagen.',
@@ -1295,6 +1386,7 @@ const T = {
     en: 'For the full details: ',
     es: 'Para todos los detalles: ',
     zh: '如需了解完整详情：',
+    yue: '如需瞭解完整詳情：',
     ja: '詳細については：',
     ko: '전체 내용을 확인하시려면: ',
     de: 'Für alle Einzelheiten: ',
@@ -1307,6 +1399,7 @@ const T = {
     en: 'Read our full Notice of Privacy Practices →',
     es: 'Lea nuestro Aviso completo de Prácticas de Privacidad →',
     zh: '阅读我们完整的《隐私实践声明》→',
+    yue: '閲讀我們完整的《隱私實踐聲明》→',
     ja: 'プライバシー慣行に関する通知の全文を読む →',
     ko: '전체 개인정보 보호 관행 고지서 읽기 →',
     de: 'Vollständige Datenschutzerklärung (Notice of Privacy Practices) lesen →',
@@ -1319,6 +1412,7 @@ const T = {
     en: "I acknowledge I've received and reviewed Tere Care's Notice of Privacy Practices.",
     es: 'Confirmo que he recibido y revisado el Aviso de Prácticas de Privacidad de Tere Care.',
     zh: '我确认已收到并阅读了 Tere Care 的《隐私实践声明》。',
+    yue: '我確認已收到並閲讀了 Tere Care 的《隱私實踐聲明》。',
     ja: 'Tere Careのプライバシー慣行に関する通知を受領し、確認したことを認めます。',
     ko: 'Tere Care의 개인정보 보호 관행 고지서를 수령하고 검토하였음을 확인합니다.',
     de: 'Ich bestätige, die Datenschutzerklärung (Notice of Privacy Practices) von Tere Care erhalten und gelesen zu haben.',
@@ -1331,6 +1425,7 @@ const T = {
     en: 'Wrong state? ',
     es: '¿Estado incorrecto? ',
     zh: '州选错了？',
+    yue: '州選錯了？',
     ja: '州が違いますか？',
     ko: '주가 잘못되었나요? ',
     de: 'Falscher Bundesstaat? ',
@@ -1343,6 +1438,7 @@ const T = {
     en: 'Change your state',
     es: 'Cambiar de estado',
     zh: '更改所在州',
+    yue: '更改所在州',
     ja: '州を変更する',
     ko: '주 변경하기',
     de: 'Bundesstaat ändern',
@@ -1357,6 +1453,7 @@ const T = {
     en: 'Care is available in ',
     es: 'Atención disponible en ',
     zh: '我们在',
+    yue: '我們在',
     ja: '当院は',
     ko: '저희는 ',
     de: 'Behandlung verfügbar in ',
@@ -1369,6 +1466,7 @@ const T = {
     en: '.',
     es: '.',
     zh: '为您诊疗。',
+    yue: '為您診療。',
     ja: 'で診察が可能です。',
     ko: '에서 진료해 드릴 수 있습니다.',
     de: ' behandeln.',
@@ -1381,6 +1479,7 @@ const T = {
     en: 'Beta',
     es: 'Beta',
     zh: '测试版',
+    yue: '測試版',
     ja: 'ベータ版',
     ko: '베타',
     de: 'Beta',
@@ -1393,6 +1492,7 @@ const T = {
     en: 'Tell us a bit about you.',
     es: 'Cuéntenos un poco sobre usted.',
     zh: '请简单介绍一下您自己。',
+    yue: '請簡單介紹一下您自己。',
     ja: 'あなたのことを少しお聞かせください。',
     ko: '본인에 대해 조금 알려주세요.',
     de: 'Erzählen Sie uns kurz etwas über sich.',
@@ -1405,6 +1505,7 @@ const T = {
     en: "We're in early launch — a licensed physician will reach out personally to book your visit within one business day. No payment required to submit this form.",
     es: 'Estamos en fase inicial: un médico autorizado se pondrá en contacto con usted personalmente para agendar su consulta en un plazo de un día hábil. No se requiere pago para enviar este formulario.',
     zh: '我们正处于早期启动阶段——一位持照医生将在一个工作日内亲自联系您，为您安排就诊。提交此表单无需付款。',
+    yue: '我們正處於早期啓動階段——一位持照醫生將在一個工作日內親自聯繫您，為您安排就診。提交此表單無需付款。',
     ja: '当院はローンチ初期の段階です。1営業日以内に、有資格の医師が直接ご連絡し、診察のご予約を承ります。このフォームの送信に費用はかかりません。',
     ko: '저희는 서비스 초기 단계입니다. 면허를 소지한 의사가 영업일 기준 1일 이내에 직접 연락드려 진료 예약을 잡아드립니다. 이 양식을 제출하는 데 결제는 필요하지 않습니다.',
     de: 'Wir sind in der frühen Startphase — eine approbierte Ärztin oder ein approbierter Arzt meldet sich innerhalb eines Werktags persönlich, um Ihren Termin zu vereinbaren. Für das Absenden dieses Formulars ist keine Zahlung erforderlich.',
@@ -1417,6 +1518,7 @@ const T = {
     en: 'Full name',
     es: 'Nombre completo',
     zh: '姓名',
+    yue: '姓名',
     ja: '氏名（フルネーム）',
     ko: '성함',
     de: 'Vollständiger Name',
@@ -1429,6 +1531,7 @@ const T = {
     en: 'Email',
     es: 'Correo electrónico',
     zh: '电子邮件',
+    yue: '電子郵件',
     ja: 'メールアドレス',
     ko: '이메일',
     de: 'E-Mail',
@@ -1441,6 +1544,7 @@ const T = {
     en: 'Mobile',
     es: 'Móvil',
     zh: '手机号码',
+    yue: '手機號碼',
     ja: '携帯電話番号',
     ko: '휴대폰',
     de: 'Mobilnummer',
@@ -1453,6 +1557,7 @@ const T = {
     en: '(optional but faster)',
     es: '(opcional, pero más rápido)',
     zh: '（可选，但更快）',
+    yue: '（可選，但更快）',
     ja: '（任意ですが、より迅速にご対応できます）',
     ko: '(선택 사항이나 더 빠릅니다)',
     de: '(optional, aber schneller)',
@@ -1465,6 +1570,7 @@ const T = {
     en: "What's going on?",
     es: '¿Qué le sucede?',
     zh: '您有什么不适？',
+    yue: '您有什麼不適？',
     ja: 'どのような症状ですか？',
     ko: '어떤 증상이 있으신가요?',
     de: 'Was ist das Anliegen?',
@@ -1477,6 +1583,7 @@ const T = {
     en: "Brief description of what you're experiencing (UTI symptoms, cold, minor injury, prescription refill, etc.)",
     es: 'Breve descripción de lo que le está sucediendo (síntomas de infección urinaria, resfriado, lesión leve, renovación de receta, etc.)',
     zh: '简要描述您的症状（例如：尿路感染症状、感冒、轻微外伤、处方续药等）',
+    yue: '簡要描述您的症狀（例如：尿路感染症狀、感冒、輕微外傷、處方續藥等）',
     ja: '現在の症状を簡潔にご記入ください（例：尿路感染症の症状、風邪、軽度のけが、処方箋のリフィルなど）',
     ko: '현재 겪고 계신 증상을 간단히 적어주세요 (예: 요로 감염 증상, 감기, 경미한 부상, 처방전 재발급 등)',
     de: 'Kurze Beschreibung Ihrer Beschwerden (z. B. Harnwegsinfekt-Symptome, Erkältung, kleinere Verletzung, Rezept-Nachbestellung usw.)',
@@ -1489,6 +1596,7 @@ const T = {
     en: 'Sorry — something went wrong submitting your details. Please try again or email hello@terecare.com directly.',
     es: 'Lo sentimos: hubo un problema al enviar sus datos. Vuelva a intentarlo o escríbanos directamente a hello@terecare.com.',
     zh: '抱歉——提交您的信息时出现问题。请重试，或直接发送邮件至 hello@terecare.com。',
+    yue: '抱歉——提交您的信息時出現問題。請重試，或直接發送郵件至 hello@terecare.com。',
     ja: '申し訳ありません。ご入力内容の送信中に問題が発生しました。もう一度お試しいただくか、hello@terecare.com まで直接メールでご連絡ください。',
     ko: '죄송합니다. 정보를 제출하는 중 문제가 발생했습니다. 다시 시도하시거나 hello@terecare.com 으로 직접 이메일을 보내주세요.',
     de: 'Entschuldigung — beim Absenden Ihrer Angaben ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut oder schreiben Sie direkt an hello@terecare.com.',
@@ -1501,6 +1609,7 @@ const T = {
     en: 'Sending…',
     es: 'Enviando…',
     zh: '发送中…',
+    yue: '發送中…',
     ja: '送信中…',
     ko: '보내는 중…',
     de: 'Wird gesendet…',
@@ -1513,6 +1622,7 @@ const T = {
     en: 'Send my details →',
     es: 'Enviar mis datos →',
     zh: '发送我的信息 →',
+    yue: '發送我的信息 →',
     ja: '入力内容を送信 →',
     ko: '내 정보 보내기 →',
     de: 'Meine Angaben senden →',
@@ -1525,6 +1635,7 @@ const T = {
     en: 'Not for emergencies.',
     es: 'No es para emergencias.',
     zh: '本服务不适用于紧急情况。',
+    yue: '本服務不適用於緊急情況。',
     ja: '緊急時にはご利用いただけません。',
     ko: '응급 상황에는 사용하실 수 없습니다.',
     de: 'Nicht für Notfälle geeignet.',
@@ -1537,6 +1648,7 @@ const T = {
     en: ' If you have chest pain, breathing difficulty, severe bleeding, or any life-threatening symptom, call ',
     es: ' Si presenta dolor en el pecho, dificultad para respirar, hemorragia grave o cualquier síntoma que ponga en riesgo su vida, llame al ',
     zh: ' 如果您出现胸痛、呼吸困难、大出血或任何危及生命的症状，请拨打 ',
+    yue: ' 如果您出現胸痛、呼吸困難、大出血或任何危及生命的症狀，請撥打 ',
     ja: ' 胸の痛み、呼吸困難、大量出血など、生命に関わる症状がある場合は、',
     ko: ' 흉통, 호흡 곤란, 심한 출혈 또는 생명을 위협하는 증상이 있으시면 ',
     de: ' Bei Brustschmerzen, Atemnot, starken Blutungen oder anderen lebensbedrohlichen Symptomen rufen Sie ',
@@ -1549,6 +1661,7 @@ const T = {
     en: ' or go to your nearest ER.',
     es: ' o acuda a la sala de urgencias más cercana.',
     zh: '，或立即前往最近的急诊室。',
+    yue: '，或立即前往最近的急診室。',
     ja: 'に電話するか、最寄りの救急外来（ER）へお越しください。',
     ko: '(으)로 전화하시거나 가장 가까운 응급실(ER)로 가시기 바랍니다.',
     de: ' an oder begeben Sie sich in die nächstgelegene Notaufnahme.',
@@ -1563,6 +1676,7 @@ const T = {
     en: 'Not yet licensed in ${stateName}.',
     es: 'Aún no tenemos licencia en ${stateName}.',
     zh: '尚未在${stateName}获得执业许可。',
+    yue: '尚未在${stateName}獲得執業許可。',
     ja: '${stateName}ではまだ免許を取得していません。',
     ko: '아직 ${stateName}에서 면허를 취득하지 않았습니다.',
     de: 'Wir sind in ${stateName} noch nicht zugelassen.',
@@ -1575,6 +1689,7 @@ const T = {
     en: " We can only see patients in states where our physicians are actively licensed. We're expanding — leave your details and we'll email you the moment we're live in your state.",
     es: ' Solo podemos atender a pacientes en los estados donde nuestros médicos están autorizados de forma activa. Estamos expandiéndonos: déjenos sus datos y le enviaremos un correo en cuanto estemos disponibles en su estado.',
     zh: ' 我们只能为医生持有有效执照的州的患者提供服务。我们正在扩展中——请留下您的信息，一旦我们在您的州上线，我们会立即发送邮件通知您。',
+    yue: ' 我們只能為醫生持有有效執照的州的患者提供服務。我們正在擴展中——請留下您的信息，一旦我們在您的州上線，我們會立即發送郵件通知您。',
     ja: ' 当院は、医師が現在免許を保有している州の患者さまのみ診察が可能です。対応地域を拡大中ですので、ご連絡先をお知らせいただければ、あなたの州でサービス開始した際にすぐメールでお知らせします。',
     ko: ' 저희는 의사가 현재 유효한 면허를 보유한 주에 계신 환자만 진료할 수 있습니다. 서비스 지역을 확대하고 있으니, 정보를 남겨주시면 해당 주에서 서비스가 시작되는 즉시 이메일로 알려드리겠습니다.',
     de: ' Wir können Patienten nur in Bundesstaaten behandeln, in denen unsere Ärztinnen und Ärzte aktiv zugelassen sind. Wir bauen weiter aus — hinterlassen Sie Ihre Daten, und wir informieren Sie per E-Mail, sobald wir in Ihrem Bundesstaat verfügbar sind.',
@@ -1587,6 +1702,7 @@ const T = {
     en: 'Join the waitlist.',
     es: 'Únase a la lista de espera.',
     zh: '加入候补名单。',
+    yue: '加入候補名單。',
     ja: 'ウェイトリストにご登録ください。',
     ko: '대기자 명단에 등록하세요.',
     de: 'Auf die Warteliste setzen lassen.',
@@ -1599,6 +1715,7 @@ const T = {
     en: "Two fields — no obligation. We'll only email you when Tere Care launches in ${stateName}.",
     es: 'Dos campos, sin compromiso. Le enviaremos un correo únicamente cuando Tere Care esté disponible en ${stateName}.',
     zh: '仅需填写两项——不承担任何义务。我们只会在 Tere Care 在${stateName}上线时发送邮件通知您。',
+    yue: '僅需填寫兩項——不承擔任何義務。我們只會在 Tere Care 在${stateName}上線時發送郵件通知您。',
     ja: '入力は2項目のみ、いかなる義務も生じません。Tere Careが${stateName}でサービスを開始した際にのみメールでお知らせします。',
     ko: '입력 항목은 두 개뿐이며 어떤 의무도 없습니다. Tere Care가 ${stateName}에서 서비스를 시작할 때에만 이메일을 보내드립니다.',
     de: 'Zwei Felder — unverbindlich. Wir schreiben Sie nur an, wenn Tere Care in ${stateName} verfügbar ist.',
@@ -1611,6 +1728,7 @@ const T = {
     en: 'Name',
     es: 'Nombre',
     zh: '姓名',
+    yue: '姓名',
     ja: 'お名前',
     ko: '이름',
     de: 'Name',
@@ -1623,6 +1741,7 @@ const T = {
     en: 'Sorry — something went wrong. Please try again or email hello@terecare.com directly.',
     es: 'Lo sentimos: algo salió mal. Vuelva a intentarlo o escríbanos directamente a hello@terecare.com.',
     zh: '抱歉——出现了问题。请重试，或直接发送邮件至 hello@terecare.com。',
+    yue: '抱歉——出現了問題。請重試，或直接發送郵件至 hello@terecare.com。',
     ja: '申し訳ありません。問題が発生しました。もう一度お試しいただくか、hello@terecare.com まで直接メールでご連絡ください。',
     ko: '죄송합니다. 문제가 발생했습니다. 다시 시도하시거나 hello@terecare.com 으로 직접 이메일을 보내주세요.',
     de: 'Entschuldigung — etwas ist schiefgelaufen. Bitte versuchen Sie es erneut oder schreiben Sie direkt an hello@terecare.com.',
@@ -1635,6 +1754,7 @@ const T = {
     en: 'Add me to the waitlist →',
     es: 'Añadirme a la lista de espera →',
     zh: '将我加入候补名单 →',
+    yue: '將我加入候補名單 →',
     ja: 'ウェイトリストに追加する →',
     ko: '대기자 명단에 등록하기 →',
     de: 'Auf die Warteliste setzen →',
@@ -1649,6 +1769,7 @@ const T = {
     en: "Thanks — we've got it.",
     es: 'Gracias — hemos recibido su solicitud.',
     zh: '谢谢——我们已收到您的信息。',
+    yue: '謝謝——我們已收到您的信息。',
     ja: 'ありがとうございます。ご入力を受け付けました。',
     ko: '감사합니다. 정보를 확인했습니다.',
     de: 'Danke — wir haben Ihre Angaben erhalten.',
@@ -1661,6 +1782,7 @@ const T = {
     en: "You're on the list.",
     es: 'Está en la lista.',
     zh: '您已加入候补名单。',
+    yue: '您已加入候補名單。',
     ja: 'ウェイトリストにご登録いただきました。',
     ko: '대기자 명단에 등록되셨습니다.',
     de: 'Sie stehen auf der Warteliste.',
@@ -1673,6 +1795,7 @@ const T = {
     en: 'A licensed physician will reach out within one business day to schedule your visit. Check your email — you may get a confirmation from hello@terecare.com.',
     es: 'Un médico autorizado se pondrá en contacto con usted en un plazo de un día hábil para agendar su consulta. Revise su correo electrónico — es posible que reciba una confirmación desde hello@terecare.com.',
     zh: '一位持照医生将在一个工作日内与您联系，安排您的就诊。请查看您的电子邮件——您可能会收到来自 hello@terecare.com 的确认信。',
+    yue: '一位持照醫生將在一個工作日內與您聯繫，安排您的就診。請查看您的電子郵件——您可能會收到來自 hello@terecare.com 的確認信。',
     ja: '1営業日以内に、有資格の医師が診察のご予約のためにご連絡いたします。hello@terecare.com から確認メールが届く場合がありますので、メールをご確認ください。',
     ko: '영업일 기준 1일 이내에 면허를 소지한 의사가 진료 예약을 위해 연락드립니다. 이메일을 확인해 주세요 — hello@terecare.com 에서 확인 메일이 발송될 수 있습니다.',
     de: 'Innerhalb eines Werktags meldet sich eine approbierte Ärztin oder ein approbierter Arzt bei Ihnen, um den Termin zu vereinbaren. Prüfen Sie Ihr E-Mail-Postfach — Sie erhalten möglicherweise eine Bestätigung von hello@terecare.com.',
@@ -1685,6 +1808,7 @@ const T = {
     en: "We'll email you the moment Tere Care goes live in your state. No spam, no follow-up unless you want it.",
     es: 'Le enviaremos un correo en cuanto Tere Care esté disponible en su estado. Sin spam ni seguimientos, salvo que usted lo desee.',
     zh: '一旦 Tere Care 在您所在的州上线，我们会立即通过邮件通知您。不会发送垃圾邮件，除非您愿意，否则不会再有后续联络。',
+    yue: '一旦 Tere Care 在您所在的州上線，我們會立即通過郵件通知您。不會發送垃圾郵件，除非您願意，否則不會再有後續聯絡。',
     ja: 'Tere Careがあなたの州でサービスを開始した瞬間にメールでお知らせします。スパムを送ることはなく、ご希望がない限りその後のご連絡もいたしません。',
     ko: 'Tere Care가 귀하의 주에서 서비스를 시작하는 즉시 이메일로 알려드립니다. 스팸을 보내지 않으며, 원하지 않으시면 추가 연락도 드리지 않습니다.',
     de: 'Wir informieren Sie per E-Mail, sobald Tere Care in Ihrem Bundesstaat verfügbar ist. Kein Spam und keine weitere Kontaktaufnahme — es sei denn, Sie wünschen es.',
@@ -1697,6 +1821,7 @@ const T = {
     en: 'Back to home',
     es: 'Volver al inicio',
     zh: '返回首页',
+    yue: '返回首頁',
     ja: 'ホームに戻る',
     ko: '홈으로 돌아가기',
     de: 'Zurück zur Startseite',
@@ -1716,6 +1841,7 @@ const T = {
     mi: 'Kei te tirotiro i tō wāhi…', // TODO cert
     sm: 'O lo\'o siaki lou nofoaga…', // TODO cert
     zh: '正在检查您的位置…', ja: '位置情報を確認中…', ko: '위치를 확인 중입니다…',
+    yue: '正在檢查您的位置…', ja: '位置情報を確認中…', ko: '위치를 확인 중입니다…',
     de: 'Standort wird überprüft…', nl: 'Locatie wordt gecontroleerd…',
     fr: 'Vérification de votre emplacement…', es: 'Comprobando su ubicación…',
     ar: 'جارٍ التحقق من موقعك…', hi: 'आपका स्थान जांचा जा रहा है…',
@@ -1724,6 +1850,7 @@ const T = {
     en: 'One moment.',
     mi: 'Tatari koa.', sm: 'Fa\'atali mo se taimi.', // TODO cert
     zh: '请稍候。', ja: '少々お待ちください。', ko: '잠시만요.',
+    yue: '請稍候。', ja: '少々お待ちください。', ko: '잠시만요.',
     de: 'Einen Moment bitte.', nl: 'Een moment.',
     fr: 'Un instant.', es: 'Un momento.',
     ar: 'لحظة من فضلك.', hi: 'एक क्षण।',
@@ -1732,6 +1859,7 @@ const T = {
     en: 'Available in New Zealand only',
     mi: 'Ka whiwhi anake i Aotearoa', sm: 'Avanoa i Niu Sila lava', // TODO cert
     zh: '仅在新西兰境内提供服务', ja: 'ニュージーランド国内のみ利用可能',
+    yue: '僅在新西蘭境內提供服務', ja: 'ニュージーランド國內のみ利用可能',
     ko: '뉴질랜드에서만 이용 가능',
     de: 'Nur in Neuseeland verfügbar', nl: 'Alleen beschikbaar in Nieuw-Zeeland',
     fr: 'Disponible uniquement en Nouvelle-Zélande',
@@ -1743,6 +1871,7 @@ const T = {
     mi: 'Ka taea anake e Tere Health te kite i ngā tūroro kei Aotearoa i te wā o te uiuinga. Kua rēhitatia ō mātou tākuta i raro i te ture o Aotearoa (MCNZ), ā, ko tō mātou kaupare he tiaki mō Aotearoa anake.', // TODO cert
     sm: 'E mafai lava e Tere Health ona vaai i ma\'i o loo i totonu o Aotearoa Niu Sila i le taimi o le talanoaga. O o matou fomai ua resitalaina i tulafono a Niu Sila (MCNZ) ma o le matou puipuiga e na o le tausiga i Niu Sila.', // TODO cert
     zh: 'Tere Health 仅可为在会诊时身处新西兰境内的患者提供服务。我们的医生依照新西兰法律（MCNZ）注册，我们的责任保险仅涵盖在新西兰境内的医疗服务。',
+    yue: 'Tere Health 僅可為在會診時身處新西蘭境內的患者提供服務。我們的醫生依照新西蘭法律（MCNZ）註冊，我們的責任保險僅涵蓋在新西蘭境內的醫療服務。',
     ja: 'Tere Healthは、診察時にニュージーランド国内にいる患者様のみを対応いたします。医師はニュージーランド法（MCNZ）に基づき登録されており、賠償責任保険はニュージーランド国内での診療に限定されます。',
     ko: 'Tere Health는 진료 시점에 뉴질랜드에 계신 환자분만 진료할 수 있습니다. 저희 의료진은 뉴질랜드 법(MCNZ)에 따라 등록되어 있으며, 배상책임 보험은 뉴질랜드 내 진료에 한정됩니다.',
     de: 'Tere Health kann nur Patienten behandeln, die sich zum Zeitpunkt der Konsultation physisch in Aotearoa Neuseeland befinden. Unsere Ärzte sind nach neuseeländischem Recht (MCNZ) registriert und unsere Haftpflichtversicherung ist auf die Versorgung in Neuseeland beschränkt.',
@@ -1757,6 +1886,7 @@ const T = {
     mi: 'E kite ana mātou i tō hononga i ${country}. Mēnā kei te whakamahi koe i te VPN, tēnā monokia ka whakamātau anō.', // TODO cert
     sm: 'O lo\'o matou vaai i lau feso\'ota\'iga i ${country}. Afai o e fa\'aogaina se VPN, fa\'amolemole tape ma toe fa\'ata\'ita\'i.', // TODO cert
     zh: '我们检测到您的连接位于 ${country}。如果您正在使用 VPN 或将流量转发至海外的企业网络，请将其停用后重试。',
+    yue: '我們檢測到您的連接位於 ${country}。如果您正在使用 VPN 或將流量轉發至海外的企業網絡，請將其停用後重試。',
     ja: '接続元は ${country} と表示されています。VPN や海外経由の社内ネットワークをご利用の場合は、無効にしてから再度お試しください。',
     ko: '연결 위치가 ${country}로 확인됩니다. VPN 또는 해외로 트래픽을 라우팅하는 회사 네트워크를 사용 중이라면 해제한 뒤 다시 시도해 주세요.',
     de: 'Ihre Verbindung erscheint als ${country}. Wenn Sie ein VPN oder ein Unternehmensnetzwerk verwenden, das den Datenverkehr ins Ausland leitet, deaktivieren Sie es bitte und versuchen Sie es erneut.',
@@ -1770,6 +1900,7 @@ const T = {
     en: "I'm in NZ — retry",
     mi: 'Kei Aotearoa au — ngana anō', sm: 'Ou te i Niu Sila — toe fa\'ata\'ita\'i', // TODO cert
     zh: '我在新西兰 — 重试', ja: 'ニュージーランドにいます — 再試行',
+    yue: '我在新西蘭 — 重試', ja: 'ニュージーランドにいます — 再試行',
     ko: '뉴질랜드에 있어요 — 다시 시도',
     de: 'Ich bin in NZ — erneut versuchen', nl: 'Ik ben in NZ — opnieuw proberen',
     fr: 'Je suis en NZ — réessayer', es: 'Estoy en NZ — reintentar',
@@ -1779,6 +1910,7 @@ const T = {
     en: 'Close',
     mi: 'Katia', sm: 'Tapuni', // TODO cert
     zh: '关闭', ja: '閉じる', ko: '닫기',
+    yue: '關閉', ja: '閉じる', ko: '닫기',
     de: 'Schließen', nl: 'Sluiten', fr: 'Fermer', es: 'Cerrar',
     ar: 'إغلاق', hi: 'बंद करें',
   },
@@ -1786,6 +1918,7 @@ const T = {
     en: "Confirm you're in New Zealand",
     mi: 'Whakaū kei Aotearoa koe', sm: 'Fa\'amaonia o lo\'o e i Niu Sila', // TODO cert
     zh: '请确认您在新西兰境内', ja: 'ニュージーランドにいることを確認してください',
+    yue: '請確認您在新西蘭境內', ja: 'ニュージーランドにいることを確認してください',
     ko: '뉴질랜드에 계신지 확인해 주세요',
     de: 'Bestätigen Sie, dass Sie in Neuseeland sind',
     nl: 'Bevestig dat u zich in Nieuw-Zeeland bevindt',
@@ -1798,6 +1931,7 @@ const T = {
     mi: 'Ka taea anake e ō mātou tākuta te kite i ngā tūroro kei Aotearoa i te wā o te uiuinga. Tēnā whakaū i raro i mua i tā tāua tīmatanga.', // TODO cert
     sm: 'E mafai lava e o matou fomai ona vaai i ma\'i o loo i totonu o Niu Sila i le taimi o le talanoaga. Fa\'amolemole fa\'amaonia i lalo a\'o le\'i amata.', // TODO cert
     zh: '我们的医生只能为在会诊时身处新西兰境内的患者提供服务。请在下方确认后再开始。',
+    yue: '我們的醫生只能為在會診時身處新西蘭境內的患者提供服務。請在下方確認後再開始。',
     ja: '当院の医師は、診察時にニュージーランド国内にいる患者様のみを診察できます。開始前に以下にご確認ください。',
     ko: '저희 의료진은 진료 시점에 뉴질랜드에 계신 환자분만 진료할 수 있습니다. 시작하기 전에 아래에서 확인해 주세요.',
     de: 'Unsere Ärzte können nur Patienten behandeln, die sich zum Zeitpunkt der Konsultation physisch in Neuseeland befinden. Bitte bestätigen Sie dies unten, bevor wir beginnen.',
@@ -1811,6 +1945,7 @@ const T = {
     en: 'I am physically located in New Zealand right now.',
     mi: 'Kei Aotearoa ahau i tēnei wā tonu.', sm: 'O lo\'o ou i totonu o Niu Sila i le taimi lenei.', // TODO cert
     zh: '我目前正身处新西兰境内。', ja: '私は現在、ニュージーランド国内にいます。',
+    yue: '我目前正身處新西蘭境內。', ja: '私は現在、ニュージーランド國內にいます。',
     ko: '저는 지금 뉴질랜드에 있습니다.',
     de: 'Ich befinde mich derzeit physisch in Neuseeland.',
     nl: 'Ik bevind me op dit moment fysiek in Nieuw-Zeeland.',
@@ -1823,6 +1958,7 @@ const T = {
     mi: 'Kei te mārama ahau kāore e taea e ahau te kitea e tētahi kaimahi hauora o Tere Health mēnā kei tāwāhi ahau, ā, he take nui te tuku kōrero teka i konei.', // TODO cert
     sm: 'Ou te malamalama e le mafai ona vaai a\'u e se foma\'i o Tere Health pe a ou i fafo, ma o le tuuina atu o fa\'amatalaga sese iinei o se mea taua tele.', // TODO cert
     zh: '我理解如果我身处海外，Tere Health 的医生将无法为我诊治，并且在此提供虚假信息属于严重事项。',
+    yue: '我理解如果我身處海外，Tere Health 的醫生將無法為我診治，並且在此提供虛假信息屬於嚴重事項。',
     ja: '海外にいる場合、Tere Healthの医師の診察を受けられないこと、およびここで虚偽の情報を提供することは重大な事案であることを理解しています。',
     ko: '해외에 있는 경우 Tere Health 임상의로부터 진료를 받을 수 없으며, 여기에 허위 정보를 제공하는 것은 중대한 사안임을 이해합니다.',
     de: 'Ich verstehe, dass ich von einem Tere Health-Kliniker nicht behandelt werden kann, wenn ich mich im Ausland befinde, und dass falsche Angaben hier eine ernste Angelegenheit sind.',
@@ -1836,6 +1972,7 @@ const T = {
     en: 'Continue →',
     mi: 'Haere tonu →', sm: 'Fa\'aauau →', // TODO cert
     zh: '继续 →', ja: '続ける →', ko: '계속 →',
+    yue: '繼續 →', ja: '続ける →', ko: '계속 →',
     de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →',
     ar: 'متابعة →', hi: 'जारी रखें →',
   },
@@ -1844,6 +1981,7 @@ const T = {
     mi: '(Ko tō hononga e āhua ana kei ${country}. Kua tohua tēnei mā te kaimahi hauora.)', // TODO cert
     sm: '(O lau feso\'ota\'iga e foliga mai o lo\'o i ${country}. Ua matou fa\'ailoga lenei mo le foma\'i.)', // TODO cert
     zh: '（您的连接似乎位于 ${country}。我们已标记提示医生。）',
+    yue: '（您的連接似乎位於 ${country}。我們已標記提示醫生。）',
     ja: '（お客様の接続元は ${country} と表示されています。医師に注意喚起としてフラグを立てました。）',
     ko: '(연결 위치가 ${country}로 확인됩니다. 임상의를 위해 표시해 두었습니다.)',
     de: '(Ihre Verbindung scheint sich in ${country} zu befinden. Wir haben dies für den Kliniker markiert.)',

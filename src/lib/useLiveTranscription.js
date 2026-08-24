@@ -38,6 +38,7 @@ const AWS_LANG_MAP = {
   ja:  'ja-JP',
   ko:  'ko-KR',
   zh:  'zh-CN',
+  yue: 'zh-HK',   // AWS Transcribe zh-HK is Cantonese-tuned (HK Chinese)
   // Explicitly unmapped — treated as "unsupported" by isSupported() below:
   // mi, sm, ar, hi
 }
