@@ -1,4 +1,5 @@
 import Stripe from 'stripe'
+import { detectNzAddress } from '../src/lib/nzAddress.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
@@ -39,8 +40,42 @@ export default async function handler(req, res) {
     // settles. Not ACC-billable (a receipt isn't a health service).
     receipt: { private: 1000, acc: 1000, international: 1000 },
   }
-  const isIntl = req.body?.isInternational === true
+  // Authoritative NZ-vs-international decision. Client sends isInternational
+  // based on the billing-country dropdown, but a patient could pick 'NZ'
+  // while their home address is Sydney → we'd otherwise silently apply
+  // the local rate. Cross-check against consultations.patient_address:
+  //   - address clearly NZ  → force NZ rate (ignore client isInternational=true)
+  //   - address clearly non-NZ → force international rate (ignore client=false)
+  //   - address ambiguous / missing → trust client's dropdown selection
+  // ACC eligibility still applies where relevant (tourists injured in NZ
+  // are ACC-covered at the standard rate — that's flagged at triage).
+  let isIntl = req.body?.isInternational === true
+  let priceOverrideReason = null
+  if (consultationId) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const sb = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY,
+      )
+      const { data: consult } = await sb.from('consultations')
+        .select('patient_address').eq('id', consultationId).maybeSingle()
+      const detected = detectNzAddress(consult?.patient_address || '')
+      if (detected.nz === true && isIntl) {
+        isIntl = false
+        priceOverrideReason = `address-nz:${detected.reason}${detected.hit ? ':' + detected.hit : ''}`
+      } else if (detected.nz === false && !isIntl && !isAcc) {
+        isIntl = true
+        priceOverrideReason = `address-foreign:${detected.reason}${detected.hit ? ':' + detected.hit : ''}`
+      }
+    } catch (e) {
+      console.error('[create-payment-intent] address-check failed (non-fatal):', e?.message || e)
+    }
+  }
   const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
+  if (priceOverrideReason) {
+    console.log(`[create-payment-intent] price override applied: ${priceOverrideReason}, final tier=${tier}, consult=${consultationId}`)
+  }
   const baseAmount = (PRICES[type] || PRICES.consult)[tier]
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
   const amount = baseAmount - discountCents

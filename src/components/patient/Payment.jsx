@@ -4,6 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
 import { patientUpdateConsultation } from '../../lib/supabase'
+import { detectNzAddress } from '../../lib/nzAddress'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -73,8 +74,25 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
 
   // Billing country drives the pricing tier. Anything other than 'NZ' means
   // international rate. We persist to sessionStorage so back/forward keeps
-  // the selection.
-  const [billingCountry, setBillingCountry] = useState(() => sessionStorage.getItem('billing_country') || 'NZ')
+  // the selection. Initial value is derived from the home address the
+  // patient typed in triage — see src/lib/nzAddress.js. Detection is
+  // three-way (nz / non-nz / ambiguous):
+  //   nz=true  → default 'NZ'
+  //   nz=false → default 'OTHER' (patient can pick their actual country)
+  //   nz=null  → default 'NZ' (existing behaviour; harmless when the address
+  //             is genuinely NZ but ambiguous, and the server-side check in
+  //             _create-payment-intent.js will re-verify anyway)
+  // If billing_country is already in sessionStorage (patient hit back and
+  // returned), we keep that selection so their override sticks.
+  const [billingCountry, setBillingCountry] = useState(() => {
+    const stored = sessionStorage.getItem('billing_country')
+    if (stored) return stored
+    const address = sessionStorage.getItem('patient_address') || ''
+    const detected = detectNzAddress(address)
+    if (detected.nz === true) return 'NZ'
+    if (detected.nz === false) return 'OTHER'
+    return 'NZ'
+  })
   useEffect(() => { sessionStorage.setItem('billing_country', billingCountry) }, [billingCountry])
   const isInternational = billingCountry !== 'NZ'
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video

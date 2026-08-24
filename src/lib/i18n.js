@@ -178,6 +178,37 @@ const T = {
     hi: "कृपया उस ईमेल पते को दोबारा जांचें।",
   },
 
+  address: {
+    en: "What's your home address? Include street, town, and postcode.",
+    mi: "He aha tō wāhi noho? Whakauruhia te tiriti, tāone, me te waehere-poutāpeta.", // TODO cert
+    sm: "O le a lou tuatusi i le fale? Aofia ai le auala, aai, ma le numera poutufa.", // TODO cert
+    zh: "您的家庭住址是什么？请包含街道、城镇和邮政编码。",
+    yue: "您的家庭住址是什麼？請包含街道、城鎮及郵政編碼。",
+    ja: "ご自宅の住所を教えてください。（番地、市町村、郵便番号を含めて）",
+    ko: "자택 주소를 알려주세요. (도로명, 시/군, 우편번호 포함)",
+    de: "Wie lautet Ihre Wohnadresse? Straße, Ort und Postleitzahl bitte.",
+    nl: "Wat is uw thuisadres? Inclusief straat, plaats en postcode.",
+    fr: "Quelle est votre adresse personnelle ? Incluez la rue, la ville et le code postal.",
+    es: "¿Cuál es su dirección de casa? Incluya calle, ciudad y código postal.",
+    ar: "ما هو عنوان منزلك؟ يشمل الشارع والمدينة والرمز البريدي.",
+    hi: "आपका घर का पता क्या है? कृपया सड़क, शहर और पिनकोड शामिल करें।",
+  },
+  address_error: {
+    en: "Can you type your home address?",
+    mi: "Ka taea e koe te tāpiri i tō wāhi noho?", // TODO cert
+    sm: "E mafai ona e tusia lou tuatusi?", // TODO cert
+    zh: "请输入您的家庭住址？",
+    yue: "請輸入您的家庭住址？",
+    ja: "ご自宅の住所を入力してください。",
+    ko: "자택 주소를 입력해 주세요.",
+    de: "Können Sie Ihre Wohnadresse eingeben?",
+    nl: "Kunt u uw thuisadres intypen?",
+    fr: "Pouvez-vous entrer votre adresse personnelle ?",
+    es: "¿Puede escribir su dirección de casa?",
+    ar: "هل يمكنك كتابة عنوان منزلك؟",
+    hi: "कृपया अपना घर का पता लिखें।",
+  },
+
   nhi: {
     en: "Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.",
     mi: "Kei te mōhio koe ki tō nama NHI? Kei runga i tō Kāri Ratonga Hapori, i tētahi reta hōhipera rānei — pēnei i te ABC1234.", // TODO cert

@@ -862,6 +862,10 @@ export default function AITriage() {
       sessionStorage.setItem('triage_returning', data.returning ? 'true' : 'false')
       sessionStorage.setItem('patientEmail', data.patient_email||'')
       sessionStorage.setItem('triage_email', data.patient_email||'')
+      // patient_address feeds Payment.jsx's NZ-vs-international pre-select
+      // (see src/lib/nzAddress.js). Store even if empty so a Payment page
+      // read never returns undefined.
+      sessionStorage.setItem('patient_address', data.patient_address || '')
       sessionStorage.setItem('triage_first_name', nameParts[0]||'')
       sessionStorage.setItem('patientName', [nameParts[0]||'', nameParts.slice(1).join(' ')].filter(Boolean).join(' '))
       sessionStorage.setItem('patient_language', lang)
