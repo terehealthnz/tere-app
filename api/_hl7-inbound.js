@@ -230,6 +230,20 @@ function component(seg, fieldIndex, componentIndex, parsed) {
   return v.split(parsed.separators.componentSep)[componentIndex - 1] || ''
 }
 
+// Walk all OBR segments in message order and return the first non-empty
+// value of the given field index. Used for OBR-22 (generated date) where
+// batched senders may populate the field only on the header OBR of the
+// batch — see `generatedDate` comment in extractSummary for rationale.
+function firstNonEmptyObrField(parsed, fieldIndex) {
+  if (!parsed?.segments) return ''
+  for (const s of parsed.segments) {
+    if (s.name !== 'OBR') continue
+    const v = field(s, fieldIndex)
+    if (v && String(v).trim()) return v
+  }
+  return ''
+}
+
 function parseHl7Datetime(s) {
   // HL7: YYYYMMDDHHMMSS[+/-ZZZZ]. Truncate at valid length.
   if (!s) return null
@@ -344,7 +358,18 @@ function extractSummary(parsed, group) {
       // so subcomponent 4 (component index) is the requested start date/time.
       requestedDate:   parseHl7Datetime(component(obr, 27, 4, parsed)) || parseHl7Datetime(field(obr, 6)),
       observationDate: parseHl7Datetime(field(obr, 7)),
-      generatedDate:   parseHl7Datetime(field(obr, 22)) || parseHl7Datetime(field(msh, 7)),
+      // Generated date preference (Tony Cruice, case #1058382):
+      //   1. This OBR's OBR-22 (results report / status change date)
+      //   2. First OBR-22 in the whole message — some senders populate
+      //      OBR-22 only on the header OBR of a batch; subsequent per-
+      //      report OBRs inherit implicitly. Prevents the batch children
+      //      from silently falling through to MSH-7 (send time) when the
+      //      report-generated timestamp is on OBR #1.
+      //   3. MSH-7 (message send time) as final fallback.
+      generatedDate:
+        parseHl7Datetime(field(obr, 22))
+        || parseHl7Datetime(firstNonEmptyObrField(parsed, 22))
+        || parseHl7Datetime(field(msh, 7)),
       // OBR-25 Result Status: 'C' = Corrected. Downstream UI highlights.
       resultStatus: field(obr, 25),
       corrected: (field(obr, 25) || '').trim().toUpperCase() === 'C',
