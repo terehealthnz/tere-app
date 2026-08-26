@@ -334,14 +334,20 @@ export default async function handler(req, res) {
 
   setSecurityHeaders(res)
 
-  // Parse JSON bodies manually (bodyParser is disabled globally to allow raw audio/multipart streams)
+  // Parse JSON bodies manually (bodyParser is disabled globally to allow raw audio/multipart streams).
+  // Also preserve the raw request bytes on req.rawBody so webhook endpoints
+  // (ACC, Stripe, etc.) can verify HMAC signatures against the exact bytes
+  // the sender signed. JSON.stringify(req.body) is NOT byte-identical to the
+  // sender's payload (key ordering, whitespace, escaping all differ) so it
+  // cannot be substituted. Pen-test P2 deferred item #316.
   const ct = req.headers['content-type'] || ''
   if (req.method !== 'GET' && !ct.startsWith('multipart/form-data') && !ct.startsWith('audio/')) {
-    req.body = await new Promise((resolve, reject) => {
+    const parsed = await new Promise((resolve, reject) => {
       const chunks = []
       req.on('data', c => chunks.push(c))
       req.on('end', () => {
         const raw = Buffer.concat(chunks).toString('utf-8')
+        req.rawBody = raw
         if (!raw) return resolve({})
         if (ct.includes('application/json')) {
           try { resolve(JSON.parse(raw)) } catch { resolve({}) }
@@ -351,6 +357,7 @@ export default async function handler(req, res) {
       })
       req.on('error', reject)
     })
+    req.body = parsed
   }
 
   // ── Auth ────────────────────────────────────────────────────────────────────

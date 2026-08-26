@@ -43,10 +43,14 @@ export default async function handler(req, res) {
     return res.status(503).json({ error: 'Webhook not configured' })
   }
 
-  // handler.js delivers req.body already JSON-parsed. Reconstruct the raw
-  // string for signature verification. ACC's canonical JSON round-trips
-  // cleanly through JSON.stringify.
-  const rawBody = typeof req.body === 'string' ? req.body : JSON.stringify(req.body)
+  // Use the raw request bytes captured by handler.js on req.rawBody.
+  // JSON.stringify(req.body) is NOT byte-identical to the sender's payload
+  // (key ordering, whitespace, escaped characters all differ) so it cannot
+  // substitute for the raw bytes when verifying an HMAC signature.
+  // Pen-test P2 deferred item #316. Fall back to JSON.stringify only if
+  // rawBody is somehow missing (e.g. non-JSON POST body already stringified).
+  const rawBody = req.rawBody
+    || (typeof req.body === 'string' ? req.body : JSON.stringify(req.body))
 
   const signatureOk = verifyAccSignature({
     signature: req.headers['x-acc-signature'],
