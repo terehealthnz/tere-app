@@ -113,6 +113,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing fax_id or media_url' })
   }
 
+  // Defence-in-depth: only ever fetch media_url from Telnyx's own hosts.
+  // Ed25519 signature verification above already means only Telnyx can
+  // craft a valid payload, but if that verification is ever bypassed
+  // (bug, disabled during debugging, key leak), a rogue media_url could
+  // reach internal endpoints and would receive our TELNYX_API_KEY as
+  // Bearer auth on the fetch — cloud-metadata SSRF or key exfil.
+  // Pen-test #314-A2.
+  try {
+    const u = new URL(mediaUrl)
+    if (u.protocol !== 'https:' ||
+        !(u.hostname === 'api.telnyx.com' || u.hostname.endsWith('.telnyx.com'))) {
+      console.warn('[telnyx-inbound-fax] rejected non-Telnyx media_url:', u.origin)
+      return res.status(400).json({ error: 'media_url must point to api.telnyx.com' })
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid media_url' })
+  }
+
   const supabase = admin()
 
   // Idempotency — if we've seen this fax_id before, bail early.

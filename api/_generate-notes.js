@@ -284,7 +284,21 @@ For each clinical field include a confidence rating based on the clarity and com
   // null (transcript too thin), the keyword rules take over as a safety
   // net. If BOTH return nothing usable, the merger returns Z00.0 as the
   // "general medical examination" placeholder.
-  const icd10 = (extracted.diagnosis_code && extracted.diagnosis_description)
+  // Validate the AI-returned ICD-10 code against the ICD-10-AM shape
+  // (^[A-TV-Z]\d{2}(\.\d{1,4})?$) before trusting it. Pen-test #312-B5:
+  // without this, a prompt-injection payload like
+  // `"diagnosis_code": "Z51.5"` (palliative care) could land verbatim in
+  // the chart. Provider sign-off is the ultimate backstop but rejecting
+  // obviously-malformed codes at ingest is cheap defence in depth.
+  const ICD10_AM_RE = /^[A-TV-Z]\d{2}(\.\d{1,4})?$/
+  const extractedCodeValid = typeof extracted.diagnosis_code === 'string'
+    && ICD10_AM_RE.test(extracted.diagnosis_code)
+    && typeof extracted.diagnosis_description === 'string'
+    && extracted.diagnosis_description.length <= 200
+  if (extracted.diagnosis_code && !extractedCodeValid) {
+    console.warn('[generate-notes] rejected malformed diagnosis_code:', extracted.diagnosis_code)
+  }
+  const icd10 = extractedCodeValid
     ? { code: extracted.diagnosis_code, description: extracted.diagnosis_description }
     : suggestIcd10(triage.chiefComplaint, triage.accInjuryDescription, transcript)
   const planAdditions = Array.isArray(extracted.plan_additions)

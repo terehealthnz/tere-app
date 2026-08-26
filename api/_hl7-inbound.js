@@ -37,7 +37,18 @@ const TERE_HPI_O = 'G11238-E'
 function msh6IsOurOrg(receivingFacility) {
   if (!receivingFacility) return false
   const s = String(receivingFacility).toUpperCase().replace(/\s+/g, '')
-  return s === TERE_HPI_O || s.includes(`(${TERE_HPI_O})`) || s.endsWith(TERE_HPI_O)
+  // Match only:
+  //   exact HPI-O                                    G11238-E
+  //   parenthesised HPI-O at end of MSH-6 name       DEMOTEREHEALTH(G11238-E)
+  //   any of the above with an "-<region>" suffix    G11238-E-NZ
+  // Pen-test #315-F2: previous endsWith(TERE_HPI_O) accepted any string
+  // ending in the HPI-O, e.g. EVILG11238-E, which combined with a spoofed
+  // PID could auto-file an attacker-controlled message to a real patient's
+  // chart. mTLS + bridge secret gate is the primary defence but this
+  // widens the blast radius if either leaks.
+  if (s === TERE_HPI_O) return true
+  if (s.endsWith(`(${TERE_HPI_O})`)) return true
+  return false
 }
 
 // ─── HL7 v2 parser ──────────────────────────────────────────────────────────
