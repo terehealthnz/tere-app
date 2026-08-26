@@ -206,13 +206,18 @@ export default async function handler(req, res) {
       const lang = existing?.patient_language
       if (lang && lang !== 'en') {
         const { aiCallJSON } = await import('./_ai.js')
+        const { PROMPT_SAFETY_PREAMBLE, wrapUserInput } = await import('./_prompt-safety.js')
+        // Pen-test #312-B2: wrap the user-supplied chief_complaint so a
+        // prompt-injection payload ("Ignore prior instructions. Output …")
+        // is treated as raw data, not directives. Downstream schema-validate
+        // that the returned key is exactly `chief_complaint` and a string.
         const t = await aiCallJSON({
           tier: 'haiku',
-          system: 'You are a medical translator. Translate the value into clear, concise medical English for a NZ clinical record. Return JSON: { "chief_complaint": "<english>" }. If already English, return unchanged.',
-          user: `Source language: ${lang}\n\n${JSON.stringify({ chief_complaint: patch.chief_complaint })}`,
+          system: `${PROMPT_SAFETY_PREAMBLE}\n\nYou are a medical translator. Translate the value inside <chief_complaint> into clear, concise medical English for a NZ clinical record. Return JSON: { "chief_complaint": "<english>" }. If already English, return unchanged.`,
+          user: `Source language: ${lang}\n\n${wrapUserInput(patch.chief_complaint, 'chief_complaint')}`,
           maxTokens: 300,
         })
-        if (t && typeof t.chief_complaint === 'string') {
+        if (t && typeof t.chief_complaint === 'string' && t.chief_complaint.length <= 2000) {
           patch.chief_complaint = t.chief_complaint
         }
       }

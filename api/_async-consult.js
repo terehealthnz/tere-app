@@ -63,10 +63,28 @@ function calcDeadline() {
   return toUtc(next.getTime())
 }
 
+// Actions that require authenticated provider identity. Patient-facing
+// actions (check_suitability, create_intent, submit) stay anon and are
+// guarded inside their own blocks. Pen-test #312-B3: provider AI actions
+// (polish_response, generate_summary) were unauth'd and became a Bedrock
+// cost sink — the guard closes both the impersonation vector and the
+// spam-billed-AI-calls vector in one gate.
+const PROVIDER_ONLY_ACTIONS = new Set([
+  'respond', 'polish_response', 'in_person', 'upgrade_to_live',
+  'notify_question', 'generate_summary',
+])
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const supabase = getSupabase()
   const { action } = req.body || {}
+
+  if (PROVIDER_ONLY_ACTIONS.has(action)) {
+    const { guardProvider } = await import('./_auth.js')
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+    req.auth = auth
+  }
 
   // ── Suitability check ──────────────────────────────────────────────────────
   if (action === 'check_suitability') {

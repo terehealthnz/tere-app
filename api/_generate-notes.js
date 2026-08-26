@@ -101,15 +101,20 @@ export default async function handler(req, res) {
     )
     if (Object.keys(nonEmpty).length > 0) {
       try {
+        // Pen-test #312-B2: wrap fields + include preamble so a prompt-
+        // injection payload in patient-supplied triage text can't rewrite
+        // downstream note-generation instructions.
+        const { PROMPT_SAFETY_PREAMBLE, wrapFields } = await import('./_prompt-safety.js')
         const translated = await aiCallJSON({
           tier: 'haiku',
-          system: 'You are a medical translator. Translate each provided field into clear, concise medical English. Preserve clinical accuracy. Return JSON with the same keys. If a value is already in English, return it unchanged.',
-          user: `Source language: ${patientLanguage}\n\nTranslate each of these triage fields into English and return JSON with the same keys:\n\n${JSON.stringify(nonEmpty, null, 2)}`,
+          system: `${PROMPT_SAFETY_PREAMBLE}\n\nYou are a medical translator. Translate the value inside each XML tag into clear, concise medical English. Preserve clinical accuracy. Return JSON with the same keys as the XML tag names. If a value is already in English, return it unchanged.`,
+          user: `Source language: ${patientLanguage}\n\nTranslate each tagged field to English:\n\n${wrapFields(nonEmpty)}`,
           maxTokens: 800,
         })
         if (translated && typeof translated === 'object') {
           for (const k of Object.keys(nonEmpty)) {
-            if (translated[k] && typeof translated[k] === 'string') triage[k] = translated[k]
+            const v = translated[k]
+            if (typeof v === 'string' && v.length <= 4000) triage[k] = v
           }
           console.log('[generate-notes] translated triage fields:', Object.keys(nonEmpty).join(', '), 'from', patientLanguage)
         }
