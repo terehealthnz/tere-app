@@ -10,6 +10,7 @@
 // friendly notice. Reviewer identity comes from req.auth.provider (guardProvider).
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -46,9 +47,7 @@ function modalityLabel(investigation) {
 async function sendResend({ to, subject, html, text }) {
   const key = process.env.RESEND_API_KEY
   if (!key || !to) return { sent: false, skipped: 'no_key_or_recipient' }
-  const { Resend } = await import('resend')
-  const resend = new Resend(key)
-  await resend.emails.send({
+  await sendEmail({
     from: 'Tere Health <hello@terehealth.co.nz>',
     replyTo: 'terehealthnz@gmail.com',
     to: [to],

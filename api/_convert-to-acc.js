@@ -1,3 +1,5 @@
+import { sendEmail } from './_email-client.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -85,13 +87,11 @@ export default async function handler(req, res) {
 
   // 5. Notifications
   try {
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
     const patientName = `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim()
     const shortId = consultationId.slice(0, 8).toUpperCase()
 
     // Admin notification
-    await resend.emails.send({
+    await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: 'terehealthnz@gmail.com',
@@ -121,7 +121,7 @@ export default async function handler(req, res) {
 
     // Patient notification
     if (consult.patient_email) {
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: consult.patient_email,

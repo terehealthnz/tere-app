@@ -13,6 +13,7 @@
 // twice doesn't error; we just insert both rows and dedup at notify time.
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -51,10 +52,8 @@ export default async function handler(req, res) {
   // Confirmation email — best-effort, non-fatal.
   if (process.env.RESEND_API_KEY) {
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const displayName = firstName ? String(firstName).trim() : 'there'
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: [cleanEmail],

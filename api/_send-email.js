@@ -1,5 +1,6 @@
 // api/send-email.js — patient post-consultation summary email + waitlist open notification
 import { aiCall, isConfigured } from './_ai.js'
+import { sendEmail } from './_email-client.js'
 
 // Fires the FREE plain HTML payment receipt email for a completed consult.
 // Idempotent via consultations.basic_receipt_sent_at — safe to call from
@@ -42,9 +43,7 @@ export async function sendBasicReceipt(consultationId) {
 
   if (process.env.RESEND_API_KEY) {
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: [row.patient_email],

@@ -16,6 +16,7 @@
 // Anon-friendly (no auth). Rate-limited by handler.js general 400/15min per IP.
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -60,11 +61,9 @@ export default async function handler(req, res) {
   // isn't set on the AU Vercel project yet (early days).
   if (process.env.RESEND_API_KEY) {
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
       const displayName = firstName ? String(firstName).trim() : 'there'
       const stateLine = cleanState ? ` in ${cleanState}` : ''
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health Australia <hello@tere.co.nz>',
         replyTo: 'hello@tere.co.nz',
         to: [cleanEmail],

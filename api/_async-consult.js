@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { aiCall, isConfigured } from './_ai.js'
 import { sendBasicReceipt } from './_send-email.js'
+import { sendEmail } from './_email-client.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
@@ -227,9 +228,7 @@ export default async function handler(req, res) {
       const accClaimText = isAcc ? `\nACC CLAIM: Your ACC claim has been lodged. Your $25 message fee is your co-payment.${accClaimRef ? ` Claim ref: ${accClaimRef}` : ''}` : ''
 
       try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
+        await sendEmail({
           from: 'Tere Health <hello@terehealth.co.nz>',
           replyTo: 'terehealthnz@gmail.com',
           to: [consult.patient_email],
@@ -379,9 +378,7 @@ ${draft}`
         ? '🚨 <strong>If you are feeling very unwell, call 111 or go directly to your nearest Emergency Department now.</strong>'
         : '⚠️ <strong>If your condition worsens before you can see your GP — call 111 or go to your nearest Emergency Department.</strong>'
       try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
+        await sendEmail({
           from: 'Tere Health <hello@terehealth.co.nz>',
           replyTo: 'terehealthnz@gmail.com',
           to: [consult.patient_email],
@@ -454,9 +451,7 @@ ${draft}`
       const dateStr = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
       const messageHtml = message ? `<div style="background:#F0F9FA;border-left:4px solid #0B6E76;border-radius:4px;padding:16px 18px;margin:0 0 20px;font-size:14px;line-height:1.7;color:#1A2A33">${message.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</div>` : ''
       try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
+        await sendEmail({
           from: 'Tere Health <hello@terehealth.co.nz>',
           replyTo: 'terehealthnz@gmail.com',
           to: [consult.patient_email],
@@ -515,9 +510,7 @@ ${draft}`
 
     if (consult.patient_email) {
       try {
-        const { Resend } = await import('resend')
-        const resend = new Resend(process.env.RESEND_API_KEY)
-        await resend.emails.send({
+        await sendEmail({
           from: 'Tere Health <hello@terehealth.co.nz>',
           replyTo: 'terehealthnz@gmail.com',
           to: [consult.patient_email],

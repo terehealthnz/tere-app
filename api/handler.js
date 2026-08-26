@@ -142,9 +142,8 @@ async function trackAuthFailure(ip, userAgent) {
   if (AUTH_FAILURES.count >= 10 && !AUTH_FAILURES.alertSent) {
     AUTH_FAILURES.alertSent = true
     try {
-      const { Resend } = await import('resend')
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      const { sendEmail } = await import('./_email-client.js')
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: 'terehealthnz@gmail.com',

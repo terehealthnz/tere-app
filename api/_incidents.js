@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 const HIGH_SEVERITIES = new Set(['high', 'critical'])
 
 async function alertAdmin(incident) {
   try {
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    await resend.emails.send({
+    await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: ['terehealthnz@gmail.com'],

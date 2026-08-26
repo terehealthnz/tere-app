@@ -9,6 +9,7 @@
 //   verifying the cron is wired up).
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 // ── Thresholds ──────────────────────────────────────────────────────────
 const PHI_VIEWS_PER_HOUR_THRESHOLD = 50   // provider viewing >50 patients/hour → flag
@@ -182,9 +183,7 @@ export default async function handler(req, res) {
   `
 
   try {
-    const { Resend } = await import('resend')
-    const resend = new Resend(process.env.RESEND_API_KEY)
-    await resend.emails.send({
+    await sendEmail({
       from: 'Tere Security <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: 'terehealthnz@gmail.com',
