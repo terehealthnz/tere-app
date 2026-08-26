@@ -376,28 +376,52 @@ export default async function handler(req, res) {
 
     // Per-email rate limit — prevents an attacker from spamming intakes
     // targeting a real user's inbox with autoresponder emails.
-    const sinceIso = new Date(Date.now() - EMAIL_RATE_LIMIT_HOURS * 3600000).toISOString()
-    const { count: recentCount, error: countErr } = await supabase
-      .from('patient_support_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('patient_email', payload.patient_email)
-      .gte('created_at', sinceIso)
-    if (countErr) {
-      console.error('[patient-support] rate-limit lookup:', countErr.message)
-    } else if ((recentCount || 0) >= EMAIL_RATE_LIMIT_COUNT) {
+    //
+    // Pen-test P2 #F4: previously this was a SELECT count → INSERT pair,
+    // a classic TOCTOU that let N concurrent submits for the same email
+    // all read count < 3 and all insert. Now delegated to an atomic
+    // Postgres RPC that takes an xact-scoped advisory lock keyed on the
+    // email hash before counting and inserting. See migration
+    // 2026-08-26_patient_support_rate_limit_atomic.sql.
+    const { data: rpc, error: rpcErr } = await supabase.rpc(
+      'patient_support_insert_rate_limited',
+      {
+        p_category:        payload.category,
+        p_message:         payload.message,
+        p_patient_name:    payload.patient_name || null,
+        p_patient_email:   payload.patient_email,
+        p_patient_phone:   payload.patient_phone || null,
+        p_consultation_id: payload.consultation_id || null,
+        p_source:          payload.source || null,
+        p_max_per_window:  EMAIL_RATE_LIMIT_COUNT,
+        p_window_hours:    EMAIL_RATE_LIMIT_HOURS,
+      }
+    )
+    if (rpcErr) {
+      console.error('[patient-support] rpc insert failed:', rpcErr.message)
+      return res.status(500).json({ error: 'Server error' })
+    }
+    const rpcRow = Array.isArray(rpc) ? rpc[0] : rpc
+    if (rpcRow?.rate_limited) {
       return res.status(429).json({
         error: `too many submissions from this email — please wait before submitting again`,
       })
     }
-
-    payload.status = 'new'
+    const newId = rpcRow?.id
+    if (!newId) {
+      console.error('[patient-support] rpc returned no id:', rpcRow)
+      return res.status(500).json({ error: 'Server error' })
+    }
 
     const { data, error } = await supabase
       .from('patient_support_requests')
-      .insert(payload)
       .select('*')
+      .eq('id', newId)
       .maybeSingle()
-    if (error) { console.error('[patient-support] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    if (error || !data) {
+      console.error('[patient-support] post-insert reload failed:', error?.message)
+      return res.status(500).json({ error: 'Server error' })
+    }
 
     // Route the ticket: provider Messages tab, new queue consult, or admin inbox.
     let routing = { routing_status: 'admin_inbox' }
