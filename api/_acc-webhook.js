@@ -64,10 +64,42 @@ export default async function handler(req, res) {
   }
 
   const parsed = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body) } catch { return {} } })() : (req.body || {})
-  const { claimNumber, status, paymentAmount, paymentDate, reason, patientName, invoiceNumber } = parsed
+  const { claimNumber, status, paymentAmount, paymentDate, reason, patientName, invoiceNumber, eventId } = parsed
   if (!claimNumber || !status) return res.status(400).json({ error: 'claimNumber and status required' })
 
   const supabase = supabaseAdmin()
+
+  // Idempotency guard (pen-test #313-C2). ACC's retry policy fires the same
+  // event up to 3× on transient timeouts. Without a dedup guard, every retry
+  // re-runs the UPDATE (overwriting paid_at/amount_paid) and re-sends the
+  // admin decline email. Insert into processed_webhook_events; if the
+  // (source, event_id) pair already exists we NOOP and return the ack ACC
+  // wants (200) without touching acc_claims or emailing again.
+  //
+  // If ACC doesn't include an eventId, fall back to a synthetic key from
+  // (claim + status + timestamp-truncated-to-minute) so accidental double-
+  // click at the ACC portal is still deduped even without an explicit id.
+  const dedupKey = eventId
+    || `${claimNumber}:${status}:${new Date().toISOString().slice(0, 16)}`
+  const { error: dedupErr } = await supabase
+    .from('processed_webhook_events')
+    .insert({
+      source: 'acc',
+      event_id: dedupKey,
+      metadata: { claim_number: claimNumber, status, has_native_event_id: !!eventId },
+    })
+  if (dedupErr) {
+    if (dedupErr.code === '23505') {
+      // Duplicate — already processed. Return 200 so ACC stops retrying.
+      console.log('[acc-webhook] duplicate event ignored:', dedupKey)
+      return res.status(200).json({ ok: true, duplicate: true })
+    }
+    // If the dedup table isn't present yet (migration not applied) fall
+    // through and process the event — same behaviour as before this fix.
+    // Comment out this fallback once 2026-08-26_webhook_event_dedup.sql
+    // has landed in prod for a week.
+    console.warn('[acc-webhook] dedup insert failed (proceeding):', dedupErr.message)
+  }
 
   try {
     if (status === 'paid') {

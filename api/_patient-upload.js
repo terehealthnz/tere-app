@@ -45,6 +45,32 @@ function safeSlug(s) {
     .slice(0, 80) || 'upload'
 }
 
+// Return the canonical MIME type detected from the first bytes of the buffer,
+// or null if the file is not one of the allowed types. Copy of the pattern
+// used by api/_patient-documents.js. Pen-test #311-B1: never trust the
+// client-declared mimeType.
+function detectMagicByteContentType(buf) {
+  if (!buf || buf.length < 4) return null
+  const b = buf
+  // PDF: %PDF-
+  if (b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return 'application/pdf'
+  // PNG: 89 50 4E 47
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png'
+  // JPEG: FF D8 FF
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg'
+  // WEBP: RIFF....WEBP
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+      && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp'
+  // HEIC/HEIF: bytes 4-11 spell "ftypheic" / "ftypheix" / "ftyphevc" / "ftypmif1" / "ftypmsf1"
+  if (b.length >= 12 && b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+    const brand = b.slice(8, 12).toString('ascii')
+    if (['heic','heix','hevc','mif1','msf1','heim','heis','hevm','hevs'].includes(brand)) {
+      return 'image/heic'
+    }
+  }
+  return null
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -84,9 +110,26 @@ export default async function handler(req, res) {
     return res.status(413).json({ error: `File too large (${buf.length} bytes, patient max ${MAX_BYTES})` })
   }
 
+  // Magic-byte sniff to prevent client-declared-MIME abuse (pen-test #311-B1).
+  // Without this, a patient with a valid X-Patient-Token could upload an HTML
+  // or SVG payload labelled `text/html` / `image/svg+xml`, which Supabase
+  // Storage would then serve back with that content-type when a provider
+  // opens the file — stored-XSS in the provider chart. Restrict to the same
+  // allowlist as _patient-documents.js (PDF, PNG, JPEG, WEBP, HEIC).
+  const detectedContentType = detectMagicByteContentType(buf)
+  if (!detectedContentType) {
+    return res.status(415).json({
+      error: 'Unsupported file type. Allowed: PDF, PNG, JPEG, WEBP, HEIC.',
+    })
+  }
+  // If the client sent a MIME hint, warn on mismatch (server prefers detected).
+  if (mimeType && mimeType !== detectedContentType) {
+    console.warn('[patient-upload] MIME mismatch: client sent', mimeType, 'detected', detectedContentType, '— using detected')
+  }
+
   const key = `${consult.patient_id}/patient-${Date.now()}-${safeSlug(fileName)}`
   const { error: upErr } = await supabase.storage.from(BUCKET).upload(key, buf, {
-    contentType: mimeType || 'application/octet-stream',
+    contentType: detectedContentType,   // never trust client-declared MIME
     upsert: false,
   })
   if (upErr) { console.error('[patient-upload] Upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
