@@ -1,17 +1,36 @@
 import { createClient } from '@supabase/supabase-js'
+import { resolvePatientAuth } from './_patient-token.js'
 
 function getSupabase() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 }
 
+// Pen-test M-5 phase 2: gate every request that names a specific consultation
+// behind the patient session token. Requests without a consultation_id (e.g.
+// provider look-ups by email/nhi, or flag-id-scoped PATCH/DELETE) skip the
+// check since there's no per-consult surface to guard.
+async function guardConsultToken(req, res, cid) {
+  if (!cid) return true // nothing to guard
+  const auth = await resolvePatientAuth(req, { legacyConsultId: cid })
+  if (auth.error) { res.status(auth.status).json({ error: auth.error }); return false }
+  if (auth.consultationId !== cid) {
+    res.status(403).json({ error: 'Token does not match consultation' })
+    return false
+  }
+  return true
+}
+
 export default async function handler(req, res) {
   const supabase = getSupabase()
 
-  // GET — load active flags for a patient (by email or NHI)
+  // GET — load active flags for a patient (by email or NHI). If a
+  // consultation_id is supplied, enforce patient token scope against it.
   if (req.method === 'GET') {
-    const { email, nhi, patient_nhi } = req.query
+    const { email, nhi, patient_nhi, consultation_id } = req.query
     const nhiVal = nhi || patient_nhi
     if (!email && !nhiVal) return res.status(400).json({ error: 'email or nhi required' })
+
+    if (!(await guardConsultToken(req, res, consultation_id))) return
 
     let q = supabase.from('patient_flags').select('*').eq('active', true).order('created_at', { ascending: false })
     if (email) q = q.eq('patient_email', email.toLowerCase().trim())
@@ -37,6 +56,8 @@ export default async function handler(req, res) {
     if (!noteText) return res.status(400).json({ error: 'note required' })
     if (!patient_email && !patient_nhi) return res.status(400).json({ error: 'patient_email or patient_nhi required' })
 
+    if (!(await guardConsultToken(req, res, consultation_id))) return
+
     const nameVal = patient_name
       || `${patient_first_name || ''} ${patient_last_name || ''}`.trim()
       || null
@@ -58,10 +79,13 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, flag: data })
   }
 
-  // PATCH — resolve a flag
+  // PATCH — resolve a flag. Body may include consultation_id to scope; if
+  // present, enforce token match. Absent → no per-consult surface to guard.
   if (req.method === 'PATCH') {
-    const { id, action, resolved_by } = req.body
+    const { id, action, resolved_by, consultation_id } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
+
+    if (!(await guardConsultToken(req, res, consultation_id))) return
 
     if (action === 'resolve') {
       const { error } = await supabase.from('patient_flags').update({
@@ -78,8 +102,9 @@ export default async function handler(req, res) {
 
   // DELETE — legacy soft-delete (kept for backwards compat)
   if (req.method === 'DELETE') {
-    const { id } = req.body
+    const { id, consultation_id } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
+    if (!(await guardConsultToken(req, res, consultation_id))) return
     await supabase.from('patient_flags').update({ active: false }).eq('id', id)
     return res.status(200).json({ ok: true })
   }

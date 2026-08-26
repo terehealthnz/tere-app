@@ -20,6 +20,7 @@
 //      the provider files section.
 
 import { createClient } from '@supabase/supabase-js'
+import { resolvePatientAuth } from './_patient-token.js'
 
 const BUCKET   = 'patient-documents'
 const MAX_BYTES = 10 * 1024 * 1024
@@ -50,6 +51,14 @@ export default async function handler(req, res) {
   const { consultationId, title, description, fileName, mimeType, fileBase64 } = req.body || {}
   if (!consultationId || !title || !fileName || !fileBase64) {
     return res.status(400).json({ error: 'consultationId, title, fileName, fileBase64 required' })
+  }
+
+  // Pen-test M-5 phase 2: require the patient session token so a scraper
+  // can't upload a document to any consultation by guessing an id.
+  const auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+  if (auth.consultationId !== consultationId) {
+    return res.status(403).json({ error: 'Token does not match consultation' })
   }
 
   const supabase = admin()

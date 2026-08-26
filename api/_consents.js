@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { resolvePatientAuth } from './_patient-token.js'
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -6,6 +7,19 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { consultation_id, consent_type, granted, patient_name } = req.body
     if (!consent_type) return res.status(400).json({ error: 'consent_type required' })
+
+    // Pen-test M-5 phase 2: if a consultation_id is present, enforce the
+    // patient session token against it. Pre-triage consents (no consult yet)
+    // legitimately arrive without a consultation_id — there's nothing to
+    // guard, so we skip the token check for those.
+    if (consultation_id) {
+      const auth = await resolvePatientAuth(req, { legacyConsultId: consultation_id })
+      if (auth.error) return res.status(auth.status).json({ error: auth.error })
+      if (auth.consultationId !== consultation_id) {
+        return res.status(403).json({ error: 'Token does not match consultation' })
+      }
+    }
+
     const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
     const { error } = await supabase.from('consents').insert({
       consultation_id: consultation_id || null,
@@ -21,6 +35,14 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { consultation_id } = req.query
     if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
+
+    // GET always names a specific consult — always enforce.
+    const auth = await resolvePatientAuth(req, { legacyConsultId: consultation_id })
+    if (auth.error) return res.status(auth.status).json({ error: auth.error })
+    if (auth.consultationId !== consultation_id) {
+      return res.status(403).json({ error: 'Token does not match consultation' })
+    }
+
     const { data, error } = await supabase.from('consents')
       .select('*').eq('consultation_id', consultation_id).order('created_at')
     if (error) { console.error('[consents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }

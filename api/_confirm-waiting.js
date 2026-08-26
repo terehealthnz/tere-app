@@ -1,7 +1,18 @@
+import { resolvePatientAuth } from './_patient-token.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const { consultationId } = req.body
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+  // Pen-test M-5 phase 2: verify the patient session token before promoting
+  // this consult out of waitlisted → waiting. Prevents a scraper who guessed
+  // a consult id from jumping the queue on someone else's session.
+  const auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+  if (auth.consultationId !== consultationId) {
+    return res.status(403).json({ error: 'Token does not match consultation' })
+  }
 
   try {
     const { createClient } = await import('@supabase/supabase-js')

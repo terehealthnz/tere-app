@@ -18,6 +18,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { sendEmail } from './_email-client.js'
+import { resolvePatientAuth } from './_patient-token.js'
 
 function admin() {
   return createClient(
@@ -346,6 +347,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'valid patient_email is required so we can reply' })
     }
     payload.patient_email = String(payload.patient_email).trim().toLowerCase()
+
+    // Pen-test M-5 phase 2: if the ticket is associated with a specific
+    // consultation, the caller must hold that consult's patient session
+    // token — otherwise anyone could file follow-up tickets against
+    // someone else's consult and trigger provider routing (Messages tab
+    // insert, new async consult in queue) on their behalf. General
+    // support tickets with no consultation_id are unaffected.
+    if (payload.consultation_id) {
+      const auth = await resolvePatientAuth(req, { legacyConsultId: payload.consultation_id })
+      if (auth.error) return res.status(auth.status).json({ error: auth.error })
+      if (auth.consultationId !== payload.consultation_id) {
+        return res.status(403).json({ error: 'Token does not match consultation' })
+      }
+    }
 
     // US (terecare) intake requires HIPAA acknowledgment. Server-side check
     // so a DevTools-modified client can't skip the notice + still submit PHI.
