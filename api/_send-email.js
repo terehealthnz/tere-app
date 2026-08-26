@@ -18,6 +18,21 @@ export async function sendBasicReceipt(consultationId) {
   if (row.basic_receipt_sent_at) return { sent: false, skipped: 'already_sent' }
   if (!row.patient_email) return { sent: false, skipped: 'no_email' }
 
+  // Atomic claim on the flag BEFORE building + sending the email. Pen-test
+  // #309-F5: two concurrent callers (ProviderNotes save + NotesCompletion
+  // sign-off + async-consult) both read basic_receipt_sent_at = null and
+  // both send. The row read above is now confirmed unsent, but that check
+  // is not atomic with the send. Flip the flag with `.is('basic_receipt_
+  // sent_at', null)` and only proceed if we won the flip. Loser silently
+  // returns "already sent" — same UX as the original guard.
+  const { data: claimed } = await supabase.from('consultations')
+    .update({ basic_receipt_sent_at: new Date().toISOString() })
+    .eq('id', consultationId)
+    .is('basic_receipt_sent_at', null)
+    .select('id')
+    .maybeSingle()
+  if (!claimed) return { sent: false, skipped: 'already_sent' }
+
   // Best-effort last-4 lookup — non-fatal if it fails.
   let cardLast4 = null
   let cardBrand = null
@@ -80,11 +95,11 @@ export async function sendBasicReceipt(consultationId) {
     }
   }
 
-  // Mark as sent — critical for idempotency. Do this LAST so a Resend
-  // failure re-runs on the next call rather than silently dropping.
-  await supabase.from('consultations')
-    .update({ basic_receipt_sent_at: new Date().toISOString() })
-    .eq('id', consultationId)
+  // Flag already claimed atomically at the top — nothing to do here.
+  // Note: if the Resend send fails, we've already marked the row as sent.
+  // Trade-off: prefer occasional missing receipt over duplicate receipts;
+  // in the missing case a provider can manually re-send by nulling the
+  // flag. Duplicate receipts confuse patients and re-charge nothing.
   return { sent: true }
 }
 

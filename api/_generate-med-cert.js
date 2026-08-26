@@ -1,4 +1,6 @@
 // api/_generate-med-cert.js — Generate and email a medical certificate
+import { escapeHtml, sanitizeSubject } from './_email-safety.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -43,6 +45,23 @@ export default async function handler(req, res) {
   const capacityLabel = workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'
   const capacityColor = workCapacity === 'unfit' ? '#DC2626' : '#D97706'
 
+  // Escape every field that gets interpolated into HTML. Patient names,
+  // diagnosis text, employer, restrictions are patient-supplied or provider-
+  // typed and were previously bare-interpolated → HTML/JS injection into
+  // the emailed certificate. Pen-test #314-A3.
+  const e = {
+    patientName:   escapeHtml(patientName || 'Patient'),
+    patientDob:    escapeHtml(patientDob),
+    patientNhi:    escapeHtml(patientNhi),
+    employer:      escapeHtml(employer),
+    diagnosis:     escapeHtml(diagnosis),
+    restrictions:  escapeHtml(restrictions),
+    modifiedHours: escapeHtml(modifiedHours),
+    modifiedDays:  escapeHtml(modifiedDays),
+    providerName:  escapeHtml(providerName || 'Tere clinician'),
+    providerReg:   escapeHtml(providerReg),
+  }
+
   // Accept the provider signature only if it looks like a small PNG data URL.
   // Anything larger than ~200 KB or that doesn't parse gets dropped and we
   // fall through to the printed-name-only footer.
@@ -76,16 +95,16 @@ export default async function handler(req, res) {
 
 <div class="cert-title">
   <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#0B6E76;font-weight:700;margin-bottom:4px">Medical Certificate</div>
-  <div style="font-size:22px;font-family:Georgia,serif;font-weight:700;color:#0D2B45">${patientName}</div>
+  <div style="font-size:22px;font-family:Georgia,serif;font-weight:700;color:#0D2B45">${e.patientName}</div>
 </div>
 
 <div class="body">
   <div style="margin-bottom:20px">
     <div class="row"><span class="row-label">Date of consultation</span><span class="row-value">${dateStr}</span></div>
-    <div class="row"><span class="row-label">Date of birth</span><span class="row-value">${patientDob || '—'}</span></div>
-    <div class="row"><span class="row-label">NHI number</span><span class="row-value">${patientNhi || '—'}</span></div>
-    <div class="row"><span class="row-label">Employer</span><span class="row-value">${employer || '—'}</span></div>
-    <div class="row"><span class="row-label">Diagnosis</span><span class="row-value">${diagnosis || '—'}</span></div>
+    <div class="row"><span class="row-label">Date of birth</span><span class="row-value">${e.patientDob || '—'}</span></div>
+    <div class="row"><span class="row-label">NHI number</span><span class="row-value">${e.patientNhi || '—'}</span></div>
+    <div class="row"><span class="row-label">Employer</span><span class="row-value">${e.employer || '—'}</span></div>
+    <div class="row"><span class="row-label">Diagnosis</span><span class="row-value">${e.diagnosis || '—'}</span></div>
   </div>
 
   <div class="capacity-box" style="background:${workCapacity === 'unfit' ? '#FEF2F2' : '#FFFBEB'};border:2px solid ${capacityColor};color:${capacityColor}">
@@ -95,8 +114,8 @@ export default async function handler(req, res) {
   <div style="margin-bottom:16px">
     <div class="row"><span class="row-label">From</span><span class="row-value">${certFromStr}</span></div>
     <div class="row"><span class="row-label">To</span><span class="row-value">${certToStr}</span></div>
-    ${workCapacity === 'modified' && modifiedHours && modifiedDays ? `<div class="row"><span class="row-label">Hours / days</span><span class="row-value">${modifiedHours} hours/day · ${modifiedDays} days/week</span></div>` : ''}
-    ${restrictions ? `<div class="row"><span class="row-label">Restrictions</span><span class="row-value">${restrictions}</span></div>` : ''}
+    ${workCapacity === 'modified' && modifiedHours && modifiedDays ? `<div class="row"><span class="row-label">Hours / days</span><span class="row-value">${e.modifiedHours} hours/day · ${e.modifiedDays} days/week</span></div>` : ''}
+    ${restrictions ? `<div class="row"><span class="row-label">Restrictions</span><span class="row-value">${e.restrictions}</span></div>` : ''}
     ${reviewDateStr ? `<div class="row"><span class="row-label">Review date</span><span class="row-value">${reviewDateStr}</span></div>` : ''}
   </div>
 
@@ -107,8 +126,8 @@ export default async function handler(req, res) {
 
   <div style="margin-top:20px;border-top:1px solid #E2E8F0;padding-top:16px">
     ${signatureBlock}
-    <div style="font-size:14px;font-weight:700;color:#0D2B45;margin-top:${sigOk ? '4px' : '0'}">${providerName}</div>
-    ${providerReg ? `<div style="font-size:12px;color:#6B7280">${providerReg}</div>` : ''}
+    <div style="font-size:14px;font-weight:700;color:#0D2B45;margin-top:${sigOk ? '4px' : '0'}">${e.providerName}</div>
+    ${providerReg ? `<div style="font-size:12px;color:#6B7280">${e.providerReg}</div>` : ''}
     <div style="font-size:12px;color:#6B7280">Tere Health · terehealthnz@gmail.com</div>
     <div style="font-size:12px;color:#6B7280">Issued: ${dateStr}</div>
   </div>
@@ -126,7 +145,7 @@ export default async function handler(req, res) {
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: patientEmail,
-      subject: `Medical Certificate — ${patientName} — ${dateStr}`,
+      subject: sanitizeSubject(`Medical Certificate — ${patientName || 'Patient'} — ${dateStr}`),
       html,
     })
     if (!emailRes.ok) {

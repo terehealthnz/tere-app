@@ -20,13 +20,39 @@ export default async function handler(req, res) {
     if (action === 'acknowledge') {
       const { id, provider_id, provider_name } = req.body
       if (!id) return res.status(400).json({ error: 'id required' })
-      const { data: current } = await supabase.from('handover_notes').select('acknowledged_by').eq('id', id).single()
-      const acks = Array.isArray(current?.acknowledged_by) ? current.acknowledged_by : []
-      if (!acks.find(a => a.provider_id === provider_id)) {
-        acks.push({ provider_id, provider_name, at: new Date().toISOString() })
-        await supabase.from('handover_notes').update({ acknowledged_by: acks }).eq('id', id)
+      // Optimistic-concurrency retry loop. Pen-test #309-F6: bare
+      // read-modify-write on the acknowledged_by jsonb array meant two
+      // providers acking simultaneously would each read the same base
+      // array, push their own entry, and one write would silently drop
+      // the other. Compare-and-swap on updated_at retries on conflict.
+      // Low-severity (lost audit entry, not exploitable for privilege
+      // elevation) but cheap to fix.
+      const MAX_ATTEMPTS = 5
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const { data: current } = await supabase.from('handover_notes')
+          .select('acknowledged_by, updated_at').eq('id', id).maybeSingle()
+        if (!current) return res.status(404).json({ error: 'Handover note not found' })
+        const acks = Array.isArray(current.acknowledged_by) ? current.acknowledged_by : []
+        if (acks.find(a => a.provider_id === provider_id)) {
+          // Already acked by this provider — noop success.
+          return res.status(200).json({ ok: true })
+        }
+        const nextAcks = [...acks, { provider_id, provider_name, at: new Date().toISOString() }]
+        const nextUpdatedAt = new Date().toISOString()
+        const { data: updated } = await supabase.from('handover_notes')
+          .update({ acknowledged_by: nextAcks, updated_at: nextUpdatedAt })
+          .eq('id', id)
+          .eq('updated_at', current.updated_at)   // compare-and-swap
+          .select('id')
+          .maybeSingle()
+        if (updated) return res.status(200).json({ ok: true })
+        // Someone else won the write — re-read and try again.
       }
-      return res.status(200).json({ ok: true })
+      // Exhausted retries — heavy contention. Log so we notice; return 200
+      // so the UI doesn't error (the ack request is retryable idempotently
+      // from the client's next poll anyway).
+      console.warn('[handover] ack retry exhausted for note', id, 'provider', provider_id)
+      return res.status(200).json({ ok: true, contention: true })
     }
 
     if (action === 'archive') {
