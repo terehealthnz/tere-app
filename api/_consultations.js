@@ -17,6 +17,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { resolveDataMode } from './_provider-access-gate.js'
+import { getClientIp } from './_client-ip.js'
 
 function admin() {
   return createClient(
@@ -529,7 +530,7 @@ export default async function handler(req, res) {
           resource_id:    resultConsult.id,
           patient_ref:    pt.nhi || pt.id,
           metadata:       { encounter_type, reason: String(reason).trim().slice(0, 500), waiver_reason: waiver_reason || null, notify_patient: !!notify_patient },
-          ip:            (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+          ip:            getClientIp(req),
           user_agent:     req.headers['user-agent'] || null,
         })
       } catch { /* audit failures never block */ }

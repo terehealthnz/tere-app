@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { resolvePatientAuth } from './_patient-token.js'
+import { getClientIp } from './_client-ip.js'
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+    const ip = getClientIp(req)
     const { error } = await supabase.from('consents').insert({
       consultation_id: consultation_id || null,
       consent_type,

@@ -1,5 +1,6 @@
 // Audit log — write events and read recent activity
 import { createClient } from '@supabase/supabase-js'
+import { getClientIp } from './_client-ip.js'
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -12,7 +13,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const { event_type, provider_id, provider_name, consultation_id, patient_ref, metadata } = req.body
     if (!event_type) return res.status(400).json({ error: 'Missing event_type' })
-    const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+    const ip = getClientIp(req)
     const { error } = await supabase.from('audit_logs').insert({
       event_type, provider_id, provider_name, consultation_id, patient_ref, metadata, ip
     })

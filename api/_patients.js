@@ -13,6 +13,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { resolveDataMode } from './_provider-access-gate.js'
+import { getClientIp } from './_client-ip.js'
 
 function admin() {
   return createClient(
@@ -89,7 +90,7 @@ async function auditPatientAccess(supabase, auth, req, event_type, patient_ref, 
       resource_id:   patient_ref ? String(patient_ref).slice(0, 100) : null,
       patient_ref:   patient_ref ? String(patient_ref).slice(0, 100) : null,
       metadata:      extra || null,
-      ip:            (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+      ip:            getClientIp(req),
       user_agent:    req.headers['user-agent'] || null,
     })
   } catch { /* audit failures never block the primary action */ }

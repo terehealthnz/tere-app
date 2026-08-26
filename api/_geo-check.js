@@ -12,14 +12,13 @@
 // polite front-door; the attestation turns bypass into patient fraud.
 
 import crypto from 'node:crypto'
+import { getClientIp } from './_client-ip.js'
 
 const ALLOWED_COUNTRY = 'NZ'
 
 function clientIp(req) {
-  const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-  if (fwd) return fwd
-  const raw = req.socket?.remoteAddress || ''
-  return raw.replace(/^::ffff:/, '')
+  const ip = getClientIp(req) || ''
+  return ip.replace(/^::ffff:/, '')
 }
 
 function hashIp(ip) {

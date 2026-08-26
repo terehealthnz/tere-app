@@ -12,6 +12,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { createHash } from 'node:crypto'
 import bcrypt from 'bcryptjs'
+import { getClientIp } from './_client-ip.js'
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{12,}$/
 
@@ -100,7 +101,7 @@ export default async function handler(req, res) {
     .eq('provider_id', provider.id)
     .is('used_at', null)
 
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+  const ip = getClientIp(req)
   try {
     await supabase.from('audit_logs').insert({
       event_type: 'provider_password_reset_completed',

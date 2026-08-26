@@ -28,6 +28,7 @@
 
 import { guardProvider } from './_auth.js'
 import { createClient } from '@supabase/supabase-js'
+import { getClientIp } from './_client-ip.js'
 
 // Every HPI lookup is written to audit_logs so we can reconstruct which
 // admin queried which practitioner/facility, when, and from what IP.
@@ -53,7 +54,7 @@ async function auditHpi(auth, req, action, resource_type, resource_id, result) {
         correlation_id:  result?.request_headers?.['X-Correlation-Id'] || null,
         duration_ms:     result?.duration_ms ?? null,
       },
-      ip:         (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null,
+      ip:         getClientIp(req),
       user_agent: req.headers['user-agent'] || null,
     })
   } catch { /* audit failures never block the primary action */ }

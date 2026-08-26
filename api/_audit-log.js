@@ -11,6 +11,7 @@
 // the PhiRevealGate component the moment an admin reveals clinical detail.
 
 import { createClient } from '@supabase/supabase-js'
+import { getClientIp } from './_client-ip.js'
 
 function admin() {
   return createClient(
@@ -60,7 +61,7 @@ export default async function handler(req, res) {
     ? `${provider.first_name || ''} ${provider.last_name || ''}`.trim()
     : null
   const provider_role = roleSnapshot(provider)
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+  const ip = getClientIp(req)
   const user_agent = req.headers['user-agent'] || null
 
   const supabase = admin()

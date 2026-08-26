@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes, createHash } from 'node:crypto'
+import { getClientIp } from './_client-ip.js'
 
 const TOKEN_TTL_MINUTES = 30
 const MAX_REQUESTS_PER_HOUR = 3
@@ -73,7 +74,7 @@ export default async function handler(req, res) {
   const tokenHash = sha256(token)
   const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000).toISOString()
 
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+  const ip = getClientIp(req)
   const ua = req.headers['user-agent'] || null
 
   const { error: insertErr } = await supabase.from('provider_password_resets').insert({
