@@ -90,7 +90,11 @@ export default async function handler(req, res) {
   }
 
   const origin = siteOrigin(req)
-  const resetUrl = `${origin}/clinician/reset-password?token=${encodeURIComponent(token)}`
+  // Token in URL fragment (#token=), NOT query string. Browsers never send
+  // fragments to servers, so the token stays out of Vercel/Cloudflare access
+  // logs and out of any Referer header the reset page might emit. Pen-test
+  // H-5 fix (2026-08-26).
+  const resetUrl = `${origin}/clinician/reset-password#token=${encodeURIComponent(token)}`
   const firstName = provider.first_name || 'there'
 
   {

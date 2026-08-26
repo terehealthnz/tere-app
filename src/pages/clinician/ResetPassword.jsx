@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 
 const RULES = [
@@ -10,10 +10,27 @@ const RULES = [
   { label: 'Special character',       test: v => /[^A-Za-z\d]/.test(v) },
 ]
 
+// Read reset token from URL fragment (#token=) — never sent to servers, never
+// captured in access logs, never included in Referer headers. Falls back to
+// the old ?token= query string for the 30-minute window during rollout when
+// in-flight emails may still carry the legacy format. Pen-test H-5 fix.
+function readTokenFromUrl() {
+  if (typeof window === 'undefined') return ''
+  // Prefer fragment
+  const hash = window.location.hash || ''
+  const hashMatch = hash.match(/(?:^#|&)token=([^&]+)/)
+  if (hashMatch) return decodeURIComponent(hashMatch[1])
+  // Legacy: query string (only for tokens sent before the H-5 rollout)
+  const qs = new URLSearchParams(window.location.search)
+  return qs.get('token') || ''
+}
+
 export default function ResetPassword() {
   const navigate = useNavigate()
-  const [params] = useSearchParams()
-  const token = params.get('token') || ''
+  // useState initializer runs once, before any render — token is captured
+  // and then we wipe it from the URL below so it never sits visible in the
+  // address bar longer than needed.
+  const [token] = useState(readTokenFromUrl)
 
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -22,6 +39,13 @@ export default function ResetPassword() {
   const [done, setDone] = useState(false)
 
   useEffect(() => {
+    // Strip the token from the visible URL as soon as we've captured it.
+    // Uses replaceState so the token doesn't survive in browser history
+    // (back button, forward button, tab restore).
+    if (token && typeof window !== 'undefined') {
+      const cleanUrl = window.location.pathname
+      window.history.replaceState(null, '', cleanUrl)
+    }
     if (!token) setError('This reset link is missing its token. Request a new one.')
   }, [token])
 
