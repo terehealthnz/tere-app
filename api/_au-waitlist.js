@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from './_email-client.js'
+import { getClientIp } from './_client-ip.js'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -36,7 +37,7 @@ export default async function handler(req, res) {
     ? String(state).toUpperCase()
     : null
 
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || null
+  const ip = getClientIp(req)
   const ua = req.headers['user-agent'] || null
 
   const supabase = admin()

@@ -339,12 +339,31 @@ export default async function handler(req, res) {
   // the sender signed. JSON.stringify(req.body) is NOT byte-identical to the
   // sender's payload (key ordering, whitespace, escaping all differ) so it
   // cannot be substituted. Pen-test P2 deferred item #316.
+  //
+  // Body-size cap (pen-test #315-F11). Most routes expect small payloads;
+  // patient-upload / patient-documents pass their own base64-encoded files
+  // which the endpoint caps separately. Streaming abort at 4 MB defeats
+  // memory-DoS via a huge JSON body pointed at e.g. /api/waitlist-signup.
+  const BODY_MAX_BYTES = 4 * 1024 * 1024
   const ct = req.headers['content-type'] || ''
   if (req.method !== 'GET' && !ct.startsWith('multipart/form-data') && !ct.startsWith('audio/')) {
     const parsed = await new Promise((resolve, reject) => {
       const chunks = []
-      req.on('data', c => chunks.push(c))
+      let total = 0
+      let over = false
+      req.on('data', c => {
+        if (over) return
+        total += c.length
+        if (total > BODY_MAX_BYTES) {
+          over = true
+          req.destroy()
+          reject(new Error('BODY_TOO_LARGE'))
+          return
+        }
+        chunks.push(c)
+      })
       req.on('end', () => {
+        if (over) return
         const raw = Buffer.concat(chunks).toString('utf-8')
         req.rawBody = raw
         if (!raw) return resolve({})
@@ -355,7 +374,14 @@ export default async function handler(req, res) {
         }
       })
       req.on('error', reject)
+    }).catch(err => {
+      if (err?.message === 'BODY_TOO_LARGE') {
+        res.status(413).json({ error: 'Request body exceeds 4MB limit' })
+        return null
+      }
+      throw err
     })
+    if (parsed === null) return  // 413 already sent
     req.body = parsed
   }
 

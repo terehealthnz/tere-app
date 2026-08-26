@@ -64,12 +64,21 @@ export function totpAt(secretBase32, counter) {
 
 // Verify a user-entered code against the current time window plus one
 // step either side (to allow for small clock drift).
+// Uses crypto.timingSafeEqual for the compare — pen-test #310-A3 flagged
+// the previous `===` string compare as timing-leaky. For 6-digit codes
+// the timing leak is negligible (< 1µs on Node) and the login lockout
+// (6 fails / 15 min) already caps guessing, but timing-safe compare is
+// correct hygiene for authentication material.
 export function verifyTotp(secretBase32, code) {
   const cleaned = String(code || '').replace(/\s+/g, '')
   if (!/^\d{6}$/.test(cleaned)) return false
+  const codeBuf = Buffer.from(cleaned, 'utf8')
   const now = Math.floor(Date.now() / 1000 / 30)
   for (const delta of [-1, 0, 1]) {
-    if (totpAt(secretBase32, now + delta) === cleaned) return true
+    const expected = totpAt(secretBase32, now + delta)
+    const expectedBuf = Buffer.from(expected, 'utf8')
+    if (expectedBuf.length === codeBuf.length &&
+        crypto.timingSafeEqual(expectedBuf, codeBuf)) return true
   }
   return false
 }

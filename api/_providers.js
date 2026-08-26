@@ -11,6 +11,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'node:crypto'
 import { sendEmail } from './_email-client.js'
 import { guardProvider } from './_auth.js'
 
@@ -299,7 +300,12 @@ export default async function handler(req, res) {
       if (!buf.subarray(0, 8).equals(PNG_MAGIC)) {
         return res.status(400).json({ error: 'Payload is not a valid PNG' })
       }
-      const path = `sig-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`
+      // Cryptographic random for storage key. Pen-test #310-A6: previously
+      // Math.random().toString(36).slice(2, 8) — a 6-char base36 suffix
+      // (~2^31 space) that combined with a guessable Date.now() lets an
+      // attacker enumerate other providers' signature PNGs from the
+      // public bucket.
+      const path = `sig-${Date.now()}-${randomBytes(8).toString('hex')}.png`
       const { error: upErr } = await supabase.storage.from('signatures').upload(path, buf, {
         contentType: 'image/png', cacheControl: '3600', upsert: false,
       })
