@@ -16,6 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -159,33 +160,25 @@ async function notifyApplicationSubmitted(supabase, application) {
 
   // Fire both emails. Log any failure but do not throw.
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: application.email,
-        to: ['terehealthnz@gmail.com'],
-        subject: `New applicant: ${fullName} · ${roleLine}`,
-        html: internalHtml,
-        text: internalText,
-      }),
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: application.email,
+      to: ['terehealthnz@gmail.com'],
+      subject: `New applicant: ${fullName} · ${roleLine}`,
+      html: internalHtml,
+      text: internalText,
     })
   } catch (e) { console.error('[job-applications] internal alert failed:', e.message) }
 
   if (application.email) {
     try {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: 'Tere Health <hello@terehealth.co.nz>',
-          replyTo: 'terehealthnz@gmail.com',
-          to: [application.email],
-          subject: `We've received your application — Tere Health`,
-          html: autoresponderHtml,
-          text: autoresponderText,
-        }),
+      await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [application.email],
+        subject: `We've received your application — Tere Health`,
+        html: autoresponderHtml,
+        text: autoresponderText,
       })
     } catch (e) { console.error('[job-applications] autoresponder failed:', e.message) }
   }

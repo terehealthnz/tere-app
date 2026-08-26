@@ -121,20 +121,16 @@ export default async function handler(req, res) {
 </body></html>`
 
   try {
-    const emailRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: patientEmail,
-        subject: `Medical Certificate — ${patientName} — ${dateStr}`,
-        html,
-      }),
+    const { sendEmail } = await import('./_email-client.js')
+    const emailRes = await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: patientEmail,
+      subject: `Medical Certificate — ${patientName} — ${dateStr}`,
+      html,
     })
     if (!emailRes.ok) {
-      const err = await emailRes.text()
-      return res.status(500).json({ error: err })
+      return res.status(500).json({ error: emailRes.error || 'email send failed' })
     }
 
     // Update medical_certificate_issued in Supabase

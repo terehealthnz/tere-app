@@ -1,6 +1,7 @@
 // Appointments CRUD — booking, confirmation, cancellation
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { sendEmail } from './_email-client.js'
 
 const TZ = 'Pacific/Auckland'
 const SLOT_MINUTES = 15
@@ -215,22 +216,18 @@ export default async function handler(req, res) {
           const { data: prov } = await supabase.from('providers').select('first_name,last_name').eq('id', provider_id).single()
           if (prov) providerName = `Dr ${prov.first_name} ${prov.last_name}`
         }
-        fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.RESEND_API_KEY}` },
-          body: JSON.stringify({
-            from: 'Tere Health <hello@terehealth.co.nz>',
-            replyTo: 'terehealthnz@gmail.com',
-            to: patient_email,
-            subject: `Appointment confirmed — ${slotStr}`,
-            html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
+        sendEmail({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: patient_email,
+          subject: `Appointment confirmed — ${slotStr}`,
+          html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
 <p>Kia ora ${patient_first_name},</p>
 <p>Your appointment with <strong>${providerName}</strong> on <strong>${slotStr}</strong> is confirmed. Your <strong>$15 reservation fee</strong> has been charged.</p>
 <p>On the day of your appointment, your full consultation fee will be charged separately ($65 video / $45 phone).</p>
 <p>Free cancellation until <strong>${cancelDeadline}</strong>. To cancel, please call us.</p>
 <p style="margin-top:1.5rem">Ngā mihi,<br><strong>Tere Health</strong></p>
 </div>`,
-          })
         }).catch(() => {})
       }
 

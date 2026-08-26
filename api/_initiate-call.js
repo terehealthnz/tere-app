@@ -1,6 +1,7 @@
 import { AccessToken, SipClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { sendEmail } from './_email-client.js'
 
 // Normalise a phone number to E.164. Respects an explicit '+' prefix (the
 // caller already supplied a country code — trust them, including AU +61 and
@@ -112,17 +113,13 @@ export default async function handler(req, res) {
 
     const text = `Kia ora ${firstName},\n\n${providerLabel} is ready for your consultation.\n\nJoin here: ${callJoinUrl}${consultType === 'phone' ? '\n\nIf you have trouble connecting, we may also try calling your phone.' : ''}\n\nIn an emergency, call 111.\n\nTere Health`
 
-    fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: [consult.patient_email],
-        subject,
-        html,
-        text,
-      }),
+    sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: [consult.patient_email],
+      subject,
+      html,
+      text,
     }).catch(e => console.error('[initiate-call] email failed:', e.message))
   }
 

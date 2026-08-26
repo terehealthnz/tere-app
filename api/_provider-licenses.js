@@ -16,6 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -48,16 +49,12 @@ async function notifyProvider(supabase, providerRow, subject, htmlBody, textBody
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey || !providerRow?.email) return
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        to: [providerRow.email],
-        subject,
-        html: htmlBody,
-        text: textBody,
-      }),
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      to: [providerRow.email],
+      subject,
+      html: htmlBody,
+      text: textBody,
     })
   } catch (e) { console.error('[provider-licenses] notify email failed:', e.message) }
 

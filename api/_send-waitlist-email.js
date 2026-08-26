@@ -51,28 +51,23 @@ export default async function handler(req, res) {
 </html>`
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: [patientEmail],
-        subject: "You're on the Tere Health waitlist",
-        html,
-        text: `Kia ora ${firstName},\n\nYou're on the Tere Health waitlist. The clinic is currently closed but your details are saved.\n\nWhen we open, you'll receive a text and email with a link to complete your consultation. You'll have 15 minutes to respond.\n\n${chiefComplaint ? `Your complaint: ${chiefComplaint}\n\n` : ''}If your condition worsens, seek immediate care. Emergency? Call 111.\n\nTere Health\nterehealth.co.nz`,
-      }),
+    const { sendEmail } = await import('./_email-client.js')
+    const result = await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: [patientEmail],
+      subject: "You're on the Tere Health waitlist",
+      html,
+      text: `Kia ora ${firstName},\n\nYou're on the Tere Health waitlist. The clinic is currently closed but your details are saved.\n\nWhen we open, you'll receive a text and email with a link to complete your consultation. You'll have 15 minutes to respond.\n\n${chiefComplaint ? `Your complaint: ${chiefComplaint}\n\n` : ''}If your condition worsens, seek immediate care. Emergency? Call 111.\n\nTere Health\nterehealth.co.nz`,
     })
+    console.log('[send-waitlist-email] send result:', JSON.stringify(result))
 
-    const data = await response.json()
-    console.log('[send-waitlist-email] Resend response:', JSON.stringify(data))
-
-    if (!response.ok) {
-      console.error('[send-waitlist-email] Resend error:', data)
-      return res.status(200).json({ sent: false, error: data })
+    if (!result.ok) {
+      console.error('[send-waitlist-email] send error:', result.error)
+      return res.status(200).json({ sent: false, error: result.error })
     }
 
-    return res.status(200).json({ sent: true, id: data.id })
+    return res.status(200).json({ sent: true, id: result.id })
   } catch (e) {
     console.error('[send-waitlist-email] Fetch error:', e.message)
     return res.status(200).json({ sent: false, error: e.message })

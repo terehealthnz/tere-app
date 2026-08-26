@@ -8,23 +8,18 @@
 // Auth: CRON_SECRET as ?secret= or Authorization: Bearer <CRON_SECRET>.
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail as sendEmailProvider } from './_email-client.js'
 
-// Inline email helper — send-email.js is a request handler, not a shared
-// library, so we call the Resend HTTP API directly. Keeps the cron
-// self-contained.
+// Inline email helper — routes through the provider-agnostic
+// _email-client.js (Resend or SES depending on EMAIL_PROVIDER). Retains
+// throw-on-failure semantics so the caller's try/catch still marks the
+// row as skipped rather than swallowing errors silently.
 async function sendEmail({ to, subject, html, text }) {
   const key = process.env.RESEND_API_KEY
   if (!key) throw new Error('RESEND_API_KEY not set')
   const from = process.env.RESEND_FROM || 'Tere Health <hello@terehealth.co.nz>'
-  const r = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, subject, html, text }),
-  })
-  if (!r.ok) {
-    const body = await r.text().catch(() => '')
-    throw new Error(`Resend ${r.status}: ${body}`)
-  }
+  const r = await sendEmailProvider({ from, to, subject, html, text })
+  if (!r.ok) throw new Error(`Email send failed: ${r.error || 'unknown'}`)
 }
 
 function admin() {

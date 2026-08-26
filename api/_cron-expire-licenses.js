@@ -4,6 +4,7 @@
 // provider. Also emails the provider so they know to renew.
 
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -35,16 +36,12 @@ async function emailProvider(providerRow, expiredCodes) {
   const html = `<p>Your Tere Health state license(s) for <strong>${list}</strong> expired today and have been automatically removed from your active list.</p>
 <p>Please renew and re-submit at <a href="${process.env.VITE_APP_URL || 'https://terehealth.co.nz'}/clinician/state-licenses">/clinician/state-licenses</a>.</p>`
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        to: [providerRow.email],
-        subject: `Your ${list} license${expiredCodes.length > 1 ? 's' : ''} expired`,
-        html,
-        text: `Your Tere Health state license(s) for ${list} expired today and have been removed from your active list.\n\nRenew at ${process.env.VITE_APP_URL || 'https://terehealth.co.nz'}/clinician/state-licenses`,
-      }),
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      to: [providerRow.email],
+      subject: `Your ${list} license${expiredCodes.length > 1 ? 's' : ''} expired`,
+      html,
+      text: `Your Tere Health state license(s) for ${list} expired today and have been removed from your active list.\n\nRenew at ${process.env.VITE_APP_URL || 'https://terehealth.co.nz'}/clinician/state-licenses`,
     })
   } catch (e) { console.error('[cron-expire-licenses] email failed:', e.message) }
 }

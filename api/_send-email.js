@@ -114,17 +114,13 @@ export default async function handler(req, res) {
     const resumeUrl = resumeId ? `${appUrl}/resume/${resumeId}` : `${appUrl}/triage`
     if (resendKey && to) {
       try {
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-          body: JSON.stringify({
-            from: 'Tere Health <hello@terehealth.co.nz>',
-            replyTo: 'terehealthnz@gmail.com',
-            to: [to],
-            subject: 'Tere Health is now open — claim your spot',
-            html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff"><div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div><div style="padding:24px 28px"><p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p><p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">The Tere Health clinic is now open. Click below to complete your payment and join the queue. <strong>You have 15 minutes.</strong></p><div style="text-align:center;margin:28px 0"><a href="${resumeUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">Claim my spot →</a></div><div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:24px">⚠️ <strong>In an emergency, call 111.</strong></div></div><div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div></body></html>`,
-            text: `Kia ora ${firstName},\n\nThe Tere Health clinic is now open. Claim your spot (15 minutes):\n${resumeUrl}\n\nIn an emergency, call 111.\n\nTere Health`,
-          }),
+        await sendEmail({
+          from: 'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to: [to],
+          subject: 'Tere Health is now open — claim your spot',
+          html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff"><div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div><div style="padding:24px 28px"><p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p><p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">The Tere Health clinic is now open. Click below to complete your payment and join the queue. <strong>You have 15 minutes.</strong></p><div style="text-align:center;margin:28px 0"><a href="${resumeUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">Claim my spot →</a></div><div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:24px">⚠️ <strong>In an emergency, call 111.</strong></div></div><div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div></body></html>`,
+          text: `Kia ora ${firstName},\n\nThe Tere Health clinic is now open. Claim your spot (15 minutes):\n${resumeUrl}\n\nIn an emergency, call 111.\n\nTere Health`,
         })
       } catch (e) { console.error('Resend error:', e) }
     }
@@ -241,17 +237,13 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
 
   if (resendKey && to) {
     try {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: 'Tere Health <hello@terehealth.co.nz>',
-          replyTo: 'terehealthnz@gmail.com',
-          to: [to],
-          subject: `Your Tere Health consultation summary — ${dateStr}`,
-          html,
-          text: `Kia ora ${firstName},\n\n${summaryText}\n\nIn an emergency, call 111.\n\nTere Health\nterehealth.co.nz`,
-        }),
+      await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [to],
+        subject: `Your Tere Health consultation summary — ${dateStr}`,
+        html,
+        text: `Kia ora ${firstName},\n\n${summaryText}\n\nIn an emergency, call 111.\n\nTere Health\nterehealth.co.nz`,
       })
     } catch (e) { console.error('Resend error:', e) }
   }

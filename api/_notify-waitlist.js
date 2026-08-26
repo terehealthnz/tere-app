@@ -6,6 +6,7 @@ export default async function handler(req, res) {
 
   try {
     const { createClient } = await import('@supabase/supabase-js')
+    const { sendEmail } = await import('./_email-client.js')
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -64,17 +65,13 @@ export default async function handler(req, res) {
 </body></html>`
 
         try {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-            body: JSON.stringify({
-              from: 'Tere Health <hello@terehealth.co.nz>',
-              replyTo: 'terehealthnz@gmail.com',
-              to: [c.patient_email],
-              subject: `Tere Health is now open — claim your spot`,
-              html,
-              text: `Kia ora ${firstName},\n\nThe Tere Health clinic is now open. Click here to claim your spot (15 minutes to complete payment):\n\n${resumeUrl}\n\nIn an emergency, call 111.\n\nTere Health`,
-            }),
+          await sendEmail({
+            from: 'Tere Health <hello@terehealth.co.nz>',
+            replyTo: 'terehealthnz@gmail.com',
+            to: [c.patient_email],
+            subject: `Tere Health is now open — claim your spot`,
+            html,
+            text: `Kia ora ${firstName},\n\nThe Tere Health clinic is now open. Click here to claim your spot (15 minutes to complete payment):\n\n${resumeUrl}\n\nIn an emergency, call 111.\n\nTere Health`,
           })
         } catch (e) { console.error('Resend error for', c.patient_email, e) }
       }

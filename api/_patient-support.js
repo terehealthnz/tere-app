@@ -17,6 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { sendEmail } from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -157,32 +158,24 @@ async function sendNotifications(row) {
   const autoText = `Kia ora ${firstName},\n\nThank you for reaching out. We have received your message and one of our team will reply within 1 business day.\n\nIf you have any additional information you would like to share, feel free to reply to this email.\n\nIn an emergency, call 111 or visit your nearest emergency department — do not wait for a reply from us.\n\nNgā mihi,\nThe Tere Health team\nterehealth.co.nz`
 
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: row.patient_email,
-        to: ['terehealthnz@gmail.com'],
-        subject: `[Patient Support: ${label}] ${row.patient_name || row.patient_email}`,
-        html: internalHtml,
-        text: internalText,
-      }),
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: row.patient_email,
+      to: ['terehealthnz@gmail.com'],
+      subject: `[Patient Support: ${label}] ${row.patient_name || row.patient_email}`,
+      html: internalHtml,
+      text: internalText,
     })
   } catch (e) { console.error('[patient-support] internal alert failed:', e.message) }
 
   try {
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: [row.patient_email],
-        subject: `We've received your message — Tere Health`,
-        html: autoHtml,
-        text: autoText,
-      }),
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: [row.patient_email],
+      subject: `We've received your message — Tere Health`,
+      html: autoHtml,
+      text: autoText,
     })
   } catch (e) { console.error('[patient-support] autoresponder failed:', e.message) }
 }
@@ -603,17 +596,13 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
 </body></html>`
 
     try {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: 'Tere Health <hello@terehealth.co.nz>',
-          replyTo: 'terehealthnz@gmail.com',
-          to: [row.patient_email],
-          subject: `Re: your Tere Health support request`,
-          html,
-          text: `Kia ora ${firstName},\n\n${bodyText}\n\nIf you need anything else, just reply to this email.\n\nIn an emergency, call 111 immediately.\n\nNgā mihi,\n${authorName}\nTere Health`,
-        }),
+      await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [row.patient_email],
+        subject: `Re: your Tere Health support request`,
+        html,
+        text: `Kia ora ${firstName},\n\n${bodyText}\n\nIf you need anything else, just reply to this email.\n\nIn an emergency, call 111 immediately.\n\nNgā mihi,\n${authorName}\nTere Health`,
       })
     } catch (e) {
       return res.status(502).json({ error: 'Email send failed: ' + e.message })

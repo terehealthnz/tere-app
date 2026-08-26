@@ -10,6 +10,7 @@
 // historical reasons but are not read here.
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { sendEmail } from './_email-client.js'
 
 const FALLBACK_RATE = 25.00   // used only if a provider row has null base_rate
 
@@ -298,16 +299,12 @@ export default async function handler(req, res) {
   </div>
 </body></html>`
 
-      const r = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${resendKey}` },
-        body: JSON.stringify({
-          from: 'Tere Health <hello@terehealth.co.nz>',
-          replyTo: 'terehealthnz@gmail.com',
-          to: [s.provider_email],
-          subject: `Your Tere Health earnings — ${periodStr}`,
-          html,
-        }),
+      const r = await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [s.provider_email],
+        subject: `Your Tere Health earnings — ${periodStr}`,
+        html,
       })
       if (!r.ok) return res.status(500).json({ error: 'Email send failed' })
       return res.status(200).json({ ok: true })

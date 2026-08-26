@@ -122,20 +122,16 @@ export default async function handler(req, res) {
 </body></html>`
 
   try {
-    const emailRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${resendKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: gpEmail,
-        subject: `Telehealth Consultation Summary — ${patientName}${patientNhi ? ' ' + patientNhi : ''} — ${date}`,
-        html,
-      }),
+    const { sendEmail } = await import('./_email-client.js')
+    const emailRes = await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: gpEmail,
+      subject: `Telehealth Consultation Summary — ${patientName}${patientNhi ? ' ' + patientNhi : ''} — ${date}`,
+      html,
     })
     if (!emailRes.ok) {
-      const err = await emailRes.text()
-      return res.status(500).json({ error: err })
+      return res.status(500).json({ error: emailRes.error || 'email send failed' })
     }
 
     // Update gp_letter_sent_at and gp_email on consultation via Supabase REST

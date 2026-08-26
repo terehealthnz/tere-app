@@ -1,6 +1,7 @@
 // Bookings API — scheduled appointments with reservation fee
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
+import { sendEmail as sendEmailProvider } from './_email-client.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 const TZ = 'Pacific/Auckland'
@@ -80,11 +81,8 @@ async function getSlotsForDate(supabase, dateStr) {
 
 async function sendEmail(to, subject, html) {
   if (!RESEND_KEY || !to) return
-  await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', Authorization:`Bearer ${RESEND_KEY}` },
-    body: JSON.stringify({ from: FROM, replyTo: 'terehealthnz@gmail.com', to, subject, html }),
-  }).catch(() => {})
+  await sendEmailProvider({ from: FROM, replyTo: 'terehealthnz@gmail.com', to, subject, html })
+    .catch(() => {})
 }
 
 async function sendSMS(to, message) {
