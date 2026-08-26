@@ -787,6 +787,72 @@ export default async function handler(req, res) {
     }))
   }
 
+  // MSH-9 message-type whitelist (pen-test P2 deferred #317). Only accept the
+  // types we actually handle. Anything else — unexpected transaction types,
+  // typos, someone probing — gets AR with the reason so a legitimate sender
+  // gets diagnostic feedback and an attacker gets no useful telemetry.
+  //
+  // Allowed families:
+  //   ORU^R01   unsolicited observation results (lab, imaging, GP-letter)
+  //   MDM^T02/T04/T06/T08/T11  medical document management (some senders
+  //                            use MDM for GP letters instead of ORU)
+  //   ACK is already handled earlier as an incoming ack to one of OUR sends.
+  const ALLOWED_MSG_TYPES = new Set([
+    'ORU^R01',
+    'MDM^T02', 'MDM^T04', 'MDM^T06', 'MDM^T08', 'MDM^T11',
+  ])
+  if (!ALLOWED_MSG_TYPES.has(firstSummary.messageType)) {
+    console.warn('[hl7-inbound] rejected unsupported message type:', firstSummary.messageType, 'from', firstSummary.sendingFacility)
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+    return res.status(200).send(buildAck({
+      inbound: parsed,
+      msaCode: 'AR',
+      errorText: `Message type not accepted (MSH-9=${firstSummary.messageType})`,
+    }))
+  }
+
+  // MSH-7 timestamp replay window (pen-test P2 deferred #317). Reject
+  // messages whose send timestamp is >7 days in the past (stale — likely
+  // replay of a previously-captured message) or >5 min in the future
+  // (clock skew or forged timestamp). The mTLS proxy + bridge-secret gate
+  // upstream already means only holders of MO's client cert can reach this
+  // handler, so the practical exposure is low — but the fail-closed window
+  // makes replay attacks and clock-skew shenanigans easier to detect and
+  // impossible to leverage even if the upstream gate is compromised.
+  //
+  // MSH-10 (control ID) UPSERT on (msh_10_control_id, batch_position, env,
+  // msh_4_sending_facility) further blocks re-ingestion of the exact same
+  // message even within the accept window.
+  const mshDatetimeIso = parseHl7Datetime(field(msh, 7))
+  if (mshDatetimeIso) {
+    // parseHl7Datetime returns a naive wall-clock string (no timezone). Treat
+    // as UTC for the window check — HL7 unqualified datetimes are sender-
+    // local, and we don't know the sender's TZ, so UTC is the neutral
+    // reference. Legitimate senders are within 12 hours of UTC either way,
+    // so a 7-day window swallows any per-region TZ skew comfortably.
+    const mshMs = new Date(mshDatetimeIso + 'Z').getTime()
+    const nowMs = Date.now()
+    const ageMs = nowMs - mshMs
+    if (ageMs > 7 * 24 * 3600 * 1000) {
+      console.warn('[hl7-inbound] rejected stale message: MSH-7 is', Math.round(ageMs / (24 * 3600 * 1000)), 'days old', 'from', firstSummary.sendingFacility)
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      return res.status(200).send(buildAck({
+        inbound: parsed,
+        msaCode: 'AR',
+        errorText: 'Message timestamp too old (MSH-7)',
+      }))
+    }
+    if (ageMs < -5 * 60 * 1000) {
+      console.warn('[hl7-inbound] rejected future-dated message: MSH-7 is', Math.round(-ageMs / 60000), 'minutes in future', 'from', firstSummary.sendingFacility)
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      return res.status(200).send(buildAck({
+        inbound: parsed,
+        msaCode: 'AR',
+        errorText: 'Message timestamp too far in future (MSH-7)',
+      }))
+    }
+  }
+
   // Per-report insert loop. Each patient in the batch gets its own row keyed
   // by (msh_10_control_id, batch_position, env, msh_4_sending_facility).
   const rawMessage = raw.slice(0, MAX_BODY_BYTES)
