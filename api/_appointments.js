@@ -169,7 +169,10 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required fields' })
       }
 
-      // Check slot is still available
+      // Check slot is still available (best-effort — the authoritative guard is
+      // the partial unique index appointments_no_double_book_idx which catches
+      // the concurrent-race case the read-then-insert below cannot. See
+      // supabase/2026-08-26_appointment_no_double_book.sql — pen-test #318).
       const { count } = await supabase.from('appointments')
         .select('*', { count:'exact', head:true })
         .eq('slot_start', slot_start)
@@ -182,7 +185,16 @@ export default async function handler(req, res) {
         patient_dob, patient_nhi, provider_id, slot_start, slot_end,
         reason, status: 'pending',
       }).select().single()
-      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      if (error) {
+        // Partial unique index violation = another concurrent booking claimed
+        // this slot in the microseconds between our count check and insert.
+        // Surface as 409 (same UX as the pre-check) so the client re-fetches
+        // and shows the next available slot instead of a generic 500.
+        if (error.code === '23505' && (error.message || '').includes('appointments_no_double_book_idx')) {
+          return res.status(409).json({ error: 'Slot already booked' })
+        }
+        console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' })
+      }
 
       // Save reservation payment intent ID (requires migration: see supabase/reservation-fee-migration.sql)
       if (data?.id && reservation_payment_intent_id) {

@@ -42,11 +42,39 @@ export default async function handler(req, res) {
   const { action, code } = req.body || {}
 
   if (action === 'enroll') {
+    // Pen-test #318: re-enrolling MUST require the current MFA code if the
+    // provider already has MFA enabled. Otherwise an attacker with a stolen
+    // session (PIN-only bypass, session cookie theft) can call enroll to
+    // silently replace the victim's TOTP secret AND flip mfa_enabled=false
+    // — a soft MFA-off primitive that leaves no evidence in audit_logs
+    // beyond a bare "enrolled" record.
+    const { data: existing, error: eErr } = await supabase.from('providers')
+      .select('mfa_enabled, mfa_secret_encoded').eq('id', providerId).maybeSingle()
+    if (eErr) { console.error('[provider-mfa] eErr failed:', eErr); return res.status(500).json({ error: 'Server error' }) }
+    if (existing?.mfa_enabled && existing?.mfa_secret_encoded) {
+      if (!code) {
+        return res.status(400).json({ error: 'Current MFA code required to re-enroll' })
+      }
+      if (!verifyTotp(existing.mfa_secret_encoded, code)) {
+        return res.status(400).json({ error: 'Current MFA code did not match' })
+      }
+    }
     const secret = generateSecret()
     const { error } = await supabase.from('providers')
       .update({ mfa_secret_encoded: secret, mfa_enabled: false })
       .eq('id', providerId)
     if (error) { console.error('[provider-mfa] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    // Audit the re-enroll — an attacker who does have the current code would
+    // still leave this trail, which paired with the failed-auth alerting
+    // cron gives us a signal to investigate.
+    try {
+      await supabase.from('audit_logs').insert({
+        event_type: existing?.mfa_enabled ? 'provider_mfa.reenrolled' : 'provider_mfa.enroll_started',
+        provider_id: providerId,
+        provider_name: auth.email || null,
+        metadata: { target_type: 'provider', target_id: providerId, actor_email: auth.email || null },
+      })
+    } catch (e) { console.warn('[provider-mfa] audit-log write failed:', e.message) }
     const label = auth.provider?.email || auth.provider?.display_name || providerId
     return res.status(200).json({
       secretBase32: secret,
