@@ -125,7 +125,7 @@ export default async function handler(req, res) {
         nhi,
         is_practice: true,
       }).select('id').single()
-      if (error) { results.push({ ok: false, error: error.message }); continue }
+      if (error) { console.error('[practice-seed] patient insert failed:', error); results.push({ ok: false, error: 'patient insert failed' }); continue }
       patientId = pat?.id
     }
 

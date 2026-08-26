@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       console.log('[generate-notes] loaded consultationId', body.consultationId, '— transcript length:', body.transcript.length)
     } catch (e) {
       console.error('[generate-notes] DB fetch error:', e.message)
-      return res.status(500).json({ error: e.message })
+      return res.status(500).json({ error: 'Server error' })
     }
   }
 

@@ -110,7 +110,7 @@ export default async function handler(req, res) {
       .select('*')
       .eq('consultation_id', consultation_id)
       .order('created_at')
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ messages: data || [] })
   }
 
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
     detected_language: langDefault,
     is_practice: !!consult.is_practice,
   }).select().maybeSingle()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
   // Fire-and-forget broadcast to the chat channel so live subscribers see it.
   // Failures are logged but don't block the write — the client polls / re-fetches

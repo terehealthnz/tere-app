@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     .select('id, status, patient_id, patient_first_name')
     .eq('id', consultationId)
     .maybeSingle()
-  if (cErr) return res.status(500).json({ error: cErr.message })
+  if (cErr) { console.error('[patient-upload] cErr failed:', cErr); return res.status(500).json({ error: 'Server error' }) }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
   if (!consult.patient_id) return res.status(409).json({ error: 'Consultation has no linked patient record — cannot attach upload' })
   if (!ACTIVE_STATUSES.has(consult.status)) {
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     contentType: mimeType || 'application/octet-stream',
     upsert: false,
   })
-  if (upErr) return res.status(500).json({ error: `Upload failed: ${upErr.message}` })
+  if (upErr) { console.error('[patient-upload] Upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
 
   const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(key)
   const fileUrl = pub?.publicUrl
@@ -99,7 +99,8 @@ export default async function handler(req, res) {
   }).select().single()
   if (error) {
     await supabase.storage.from(BUCKET).remove([key]).catch(() => {})
-    return res.status(500).json({ error: error.message })
+    console.error('[patient-upload] error failed:', error)
+    return res.status(500).json({ error: 'Server error' })
   }
 
   // Notify provider — SMS/in-app not implemented in this MVP; the doc

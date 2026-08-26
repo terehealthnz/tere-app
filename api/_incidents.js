@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       provider_id, provider_name, consultation_id,
     }).select().single()
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[incidents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Alert admin for high/critical
     if (HIGH_SEVERITIES.has(severity)) {
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
     if (status) q = q.eq('status', status)
     if (severity) q = q.eq('severity', severity)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[incidents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ incidents: data || [] })
   }
 
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
     const { id, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('incidents').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[incidents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

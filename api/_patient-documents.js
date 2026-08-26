@@ -90,7 +90,7 @@ export default async function handler(req, res) {
       .eq('patient_id', patientId)
       .eq('is_practice', practice)
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-documents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     // Replace stored public URLs with fresh signed URLs. Bucket is now
     // private (pen test P2 finding) — any leaked historical URL is dead;
     // active viewers get a 15-min link that requires the signature.
@@ -142,7 +142,7 @@ export default async function handler(req, res) {
       contentType: storedContentType,
       upsert: false,
     })
-    if (upErr) return res.status(500).json({ error: `Upload failed: ${upErr.message}` })
+    if (upErr) { console.error('[patient-documents] Upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
 
     // We now issue signed URLs on GET (bucket is private). Store the
     // public-URL shape for backwards compatibility with old rows — the
@@ -166,7 +166,8 @@ export default async function handler(req, res) {
     if (error) {
       // Row insert failed after storage succeeded — clean up the orphan file.
       await supabase.storage.from(BUCKET).remove([key]).catch(() => {})
-      return res.status(500).json({ error: error.message })
+      console.error('[patient-documents] error failed:', error)
+      return res.status(500).json({ error: 'Server error' })
     }
     return res.status(200).json({ document: data })
   }
@@ -176,7 +177,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id query param required' })
     const { data: row, error: getErr } = await supabase
       .from('patient_documents').select('id, file_url').eq('id', id).eq('is_practice', practice).maybeSingle()
-    if (getErr) return res.status(500).json({ error: getErr.message })
+    if (getErr) { console.error('[patient-documents] getErr failed:', getErr); return res.status(500).json({ error: 'Server error' }) }
     if (!row) return res.status(404).json({ error: 'Document not found' })
 
     // Extract the storage key from the public URL — everything after /BUCKET/.
@@ -187,7 +188,7 @@ export default async function handler(req, res) {
     }
     if (key) await supabase.storage.from(BUCKET).remove([key]).catch(() => {})
     const { error: delErr } = await supabase.from('patient_documents').delete().eq('id', id).eq('is_practice', practice)
-    if (delErr) return res.status(500).json({ error: delErr.message })
+    if (delErr) { console.error('[patient-documents] delErr failed:', delErr); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

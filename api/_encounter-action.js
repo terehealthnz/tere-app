@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     .eq('id', id)
     .eq('is_practice', practice)
     .maybeSingle()
-  if (getErr) return res.status(500).json({ error: getErr.message })
+  if (getErr) { console.error('[encounter-action] getErr failed:', getErr); return res.status(500).json({ error: 'Server error' }) }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
 
   // Ownership check — provider can action their own consult, admins and
@@ -148,7 +148,7 @@ export default async function handler(req, res) {
     .eq('is_practice', practice)
     .select('id, status, call_attempts, no_answer_count, encounter_completed_at, last_attempt_at, no_show_at')
     .maybeSingle()
-  if (updErr) return res.status(500).json({ error: updErr.message })
+  if (updErr) { console.error('[encounter-action] updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
 
   // Audit log — one row per button press. Best-effort; a logging failure
   // does not roll back the state transition.

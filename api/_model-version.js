@@ -35,6 +35,6 @@ export default async function handler(req, res) {
     bp_mean:            p.bp_mean,
     bp_std:             p.bp_std,
   })
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[model-version] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   return res.status(200).json({ ok: true })
 }

@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     // "N employees" badge.
     if (counts === '1') {
       const { data, error } = await supabase.from('employer_employees').select('employer_id')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[employer-employees] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       const map = {}
       for (const r of (data || [])) map[r.employer_id] = (map[r.employer_id] || 0) + 1
       return res.status(200).json({ counts: map })
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     let q = supabase.from('employer_employees').select('*').order('last_name')
     if (employerId) q = q.eq('employer_id', String(employerId))
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employer-employees] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employees: data || [] })
   }
 
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     })).filter(r => r.employer_id && r.first_name && r.last_name)
     if (clean.length === 0) return res.status(400).json({ error: 'No valid rows (need employer_id + first_name + last_name)' })
     const { data, error } = await supabase.from('employer_employees').insert(clean).select()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employer-employees] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employees: data || [], inserted: clean.length })
   }
 
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
     const { error } = await supabase.from('employer_employees').delete().eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employer-employees] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

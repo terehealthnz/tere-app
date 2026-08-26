@@ -706,8 +706,9 @@ export default async function handler(req, res) {
   try {
     body = await readRawBody(req)
   } catch (e) {
+    console.error('[hl7-inbound] read body failed:', e)
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
+    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Body read failed\r`)
   }
   const raw = body.text
   const rawBuf = body.buf
@@ -720,8 +721,9 @@ export default async function handler(req, res) {
   try {
     parsed = parseMessage(raw, rawBuf)
   } catch (e) {
+    console.error('[hl7-inbound] parse failed:', e)
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|${e.message}\r`)
+    return res.status(200).send(`MSH|^~\\&|Tere Health|G11238-E|UNKNOWN|UNKNOWN|20250101000000||ACK|00000000|P|2.4\rMSA|AR|UNKNOWN|Parse failed\r`)
   }
 
   // If it's an incoming ACK to one of OUR sends, accept quietly with HTTP 200

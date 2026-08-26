@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     const { error } = await supabase.from('providers')
       .update({ mfa_secret_encoded: secret, mfa_enabled: false })
       .eq('id', providerId)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-mfa] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     const label = auth.provider?.email || auth.provider?.display_name || providerId
     return res.status(200).json({
       secretBase32: secret,
@@ -58,14 +58,14 @@ export default async function handler(req, res) {
     if (!code) return res.status(400).json({ error: 'code required' })
     const { data: p, error: gErr } = await supabase.from('providers')
       .select('mfa_secret_encoded').eq('id', providerId).maybeSingle()
-    if (gErr) return res.status(500).json({ error: gErr.message })
+    if (gErr) { console.error('[provider-mfa] gErr failed:', gErr); return res.status(500).json({ error: 'Server error' }) }
     if (!p?.mfa_secret_encoded) return res.status(409).json({ error: 'No enrollment in progress' })
     if (!verifyTotp(p.mfa_secret_encoded, code)) {
       return res.status(400).json({ error: 'Code did not match. Check your authenticator app clock and try the next code.' })
     }
     const { error: uErr } = await supabase.from('providers')
       .update({ mfa_enabled: true }).eq('id', providerId)
-    if (uErr) return res.status(500).json({ error: uErr.message })
+    if (uErr) { console.error('[provider-mfa] uErr failed:', uErr); return res.status(500).json({ error: 'Server error' }) }
     // Audit
     try {
       await supabase.from('audit_logs').insert({
@@ -82,14 +82,14 @@ export default async function handler(req, res) {
     if (!code) return res.status(400).json({ error: 'code required to disable' })
     const { data: p, error: gErr } = await supabase.from('providers')
       .select('mfa_secret_encoded, mfa_enabled').eq('id', providerId).maybeSingle()
-    if (gErr) return res.status(500).json({ error: gErr.message })
+    if (gErr) { console.error('[provider-mfa] gErr failed:', gErr); return res.status(500).json({ error: 'Server error' }) }
     if (!p?.mfa_enabled || !p?.mfa_secret_encoded) return res.status(409).json({ error: 'MFA is not enabled' })
     if (!verifyTotp(p.mfa_secret_encoded, code)) {
       return res.status(400).json({ error: 'Code did not match' })
     }
     const { error: uErr } = await supabase.from('providers')
       .update({ mfa_secret_encoded: null, mfa_enabled: false }).eq('id', providerId)
-    if (uErr) return res.status(500).json({ error: uErr.message })
+    if (uErr) { console.error('[provider-mfa] uErr failed:', uErr); return res.status(500).json({ error: 'Server error' }) }
     try {
       await supabase.from('audit_logs').insert({
         event_type: 'provider_mfa.disabled',

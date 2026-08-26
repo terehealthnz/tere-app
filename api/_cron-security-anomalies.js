@@ -110,7 +110,7 @@ export default async function handler(req, res) {
     anomalies.lockouts = locked || []
   } catch (e) {
     console.error('[cron-security-anomalies] query failed:', e?.message || e)
-    return res.status(500).json({ error: e?.message || 'Query failed' })
+    return res.status(500).json({ error: 'Query failed' })
   }
 
   const anyAnomalies =
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
     })
   } catch (e) {
     console.error('[cron-security-anomalies] email failed:', e?.message || e)
-    return res.status(500).json({ ok: false, emailError: e?.message })
+    return res.status(500).json({ ok: false, emailError: 'Email send failed' })
   }
 
   return res.json({ ok: true, sent: true, anomalies: {

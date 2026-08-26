@@ -112,7 +112,7 @@ export default async function handler(req, res) {
     const { data, error } = await supabase.storage
       .from(LICENSE_BUCKET)
       .createSignedUploadUrl(path)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-licenses] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ path, token: data.token, signedUrl: data.signedUrl, bucket: LICENSE_BUCKET })
   }
 
@@ -123,7 +123,7 @@ export default async function handler(req, res) {
       .select('*')
       .eq('provider_id', provider.id)
       .order('state_code', { ascending: true })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-licenses] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ licenses: withSignedDocUrls(supabase, data || []) })
   }
 
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
     if (!statusFilter || statusFilter === 'pending_review') q = q.eq('status', 'pending_review')
     else if (statusFilter !== 'all')                        q = q.eq('status', statusFilter)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-licenses] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     const signed = await withSignedDocUrls(supabase, data || [])
     return res.status(200).json({ licenses: signed })
   }
@@ -176,7 +176,8 @@ export default async function handler(req, res) {
       if (error.code === '23505') {
         return res.status(409).json({ error: `You already have a ${code} license entry — edit it instead of re-adding.` })
       }
-      return res.status(500).json({ error: error.message })
+      console.error('[provider-licenses] error failed:', error)
+      return res.status(500).json({ error: 'Server error' })
     }
 
     // Ping all admins so someone knows to review.
@@ -220,7 +221,7 @@ export default async function handler(req, res) {
       .eq('id', id)
       .select('*, providers!provider_state_licenses_provider_id_fkey(id, email, first_name, last_name)')
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-licenses] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (!row)  return res.status(404).json({ error: 'not found' })
 
     // On approve: refresh the cached array on the providers row.
@@ -253,7 +254,7 @@ export default async function handler(req, res) {
       .select('id, provider_id, state_code, status')
       .eq('id', id)
       .maybeSingle()
-    if (fetchErr) return res.status(500).json({ error: fetchErr.message })
+    if (fetchErr) { console.error('[provider-licenses] fetchErr failed:', fetchErr); return res.status(500).json({ error: 'Server error' }) }
     if (!row)     return res.status(404).json({ error: 'not found' })
     if (row.provider_id !== provider.id && !isAdmin) {
       return res.status(403).json({ error: 'not yours' })
@@ -262,7 +263,7 @@ export default async function handler(req, res) {
       .from('provider_state_licenses')
       .delete()
       .eq('id', id)
-    if (delErr) return res.status(500).json({ error: delErr.message })
+    if (delErr) { console.error('[provider-licenses] delErr failed:', delErr); return res.status(500).json({ error: 'Server error' }) }
     // If the deleted row was active, refresh the cached array.
     if (row.status === 'active') {
       await refreshLicensedStatesArray(supabase, row.provider_id)

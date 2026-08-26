@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     if (!wantCount) q = q.order('created_at')
 
     const { data, count: countVal, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[radiology-referrals] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (wantCount) return res.status(200).json({ count: countVal || 0 })
     return res.status(200).json({ referrals: data || [] })
   }
@@ -106,6 +106,6 @@ export default async function handler(req, res) {
     .update(patch)
     .eq('id', id)
     .eq('is_practice', practice)
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[radiology-referrals] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   return res.status(200).json({ ok: true })
 }

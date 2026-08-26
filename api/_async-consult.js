@@ -101,7 +101,8 @@ export default async function handler(req, res) {
       })
       return res.status(200).json({ clientSecret: pi.client_secret })
     } catch (e) {
-      return res.status(500).json({ error: e.message })
+      console.error('[async-consult] payment intent create failed:', e)
+      return res.status(500).json({ error: 'Server error' })
     }
   }
 
@@ -135,7 +136,7 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }).eq('id', consultationId)
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Notify admin
     fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/push-notify`, {
@@ -202,7 +203,7 @@ export default async function handler(req, res) {
 
     const { error } = await supabase.from('consultations').update(updateData).eq('id', consultationId)
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Capture the authorised payment now that provider has responded
     if (consult.payment_intent_id) {
@@ -358,7 +359,7 @@ ${draft}`
       completed_at: now,
       updated_at: now,
     }).eq('id', consultationId)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Cancel payment — no charge for in-person referral
     if (consult.payment_intent_id) {
@@ -440,7 +441,7 @@ ${draft}`
       status: 'waiting',
       updated_at: new Date().toISOString(),
     }).eq('id', consultationId)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     const typeLabel = consultationType === 'phone' ? 'phone call' : 'video call'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'

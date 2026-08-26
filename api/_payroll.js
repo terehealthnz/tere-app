@@ -182,7 +182,7 @@ export default async function handler(req, res) {
       }))
       const { error } = await supabase.from('payroll_periods')
         .upsert(upserts, { onConflict: 'provider_id,period_start' })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true, count: upserts.length })
     }
 
@@ -190,7 +190,7 @@ export default async function handler(req, res) {
       const { period_id } = req.body
       const { error } = await supabase.from('payroll_periods').update({ status: 'approved' })
         .eq('id', period_id).eq('status', 'draft')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 
@@ -198,7 +198,7 @@ export default async function handler(req, res) {
       const { period_start, period_end } = req.body
       const { error } = await supabase.from('payroll_periods').update({ status: 'approved' })
         .eq('period_start', period_start).eq('period_end', period_end).eq('status', 'draft')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 
@@ -207,7 +207,7 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('payroll_periods')
         .update({ status: 'paid', paid_at: new Date().toISOString() })
         .eq('id', period_id).eq('status', 'approved')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 
@@ -216,7 +216,7 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('payroll_periods')
         .update({ status: 'paid', paid_at: new Date().toISOString() })
         .eq('period_start', period_start).eq('period_end', period_end).eq('status', 'approved')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 

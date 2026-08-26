@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     .select('id, provider_id, state_code, providers!provider_state_licenses_provider_id_fkey(id, email, first_name, last_name)')
     .eq('status', 'active')
     .lt('expires_at', today)
-  if (findErr) return res.status(500).json({ error: findErr.message })
+  if (findErr) { console.error('[cron-expire-licenses] findErr failed:', findErr); return res.status(500).json({ error: 'Server error' }) }
 
   if (!expired || !expired.length) {
     return res.status(200).json({ ok: true, expired: 0 })
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     .from('provider_state_licenses')
     .update({ status: 'expired', updated_at: new Date().toISOString() })
     .in('id', ids)
-  if (upErr) return res.status(500).json({ error: upErr.message })
+  if (upErr) { console.error('[cron-expire-licenses] upErr failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
 
   // Group by provider so we refresh + email once per provider.
   const byProvider = new Map()

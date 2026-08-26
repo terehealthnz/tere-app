@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const { data, error } = await supabase.from('feature_flags').select('*').order('key')
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ flags: data || [] })
   }
 
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       .upsert(row, { onConflict: 'key' })
       .select()
       .single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ flag: data })
   }
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     const { key } = req.query || {}
     if (!key) return res.status(400).json({ error: 'key query param required' })
     const { error } = await supabase.from('feature_flags').delete().eq('key', String(key))
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

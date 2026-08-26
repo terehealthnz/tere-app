@@ -193,7 +193,7 @@ export default async function handler(req, res) {
         ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
         : '*'
       const { data, error } = await supabase.from('providers').select(cols).eq('id', id).maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data)  return res.status(404).json({ error: 'Provider not found' })
       return res.status(200).json({ provider: data })
     }
@@ -204,7 +204,7 @@ export default async function handler(req, res) {
         .select('id, first_name, last_name, credential, specialty, color, is_active, is_provider, is_admin, is_supervisor, is_billing_admin, can_prescribe, can_refer, can_acc, prescriber_number, cpn')
         .eq('is_active', true)
         .order('first_name')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ providers: data || [] })
     }
 
@@ -219,7 +219,7 @@ export default async function handler(req, res) {
         .from('providers')
         .select('*')
         .order('first_name')
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ providers: data || [] })
     }
 
@@ -228,7 +228,7 @@ export default async function handler(req, res) {
       .from('providers')
       .select('id, first_name, last_name, credential, specialty, color, is_active, is_admin, is_provider, provider_type, supervisor_id, supervision_plan_url')
       .order('first_name')
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ providers: data || [] })
   }
 
@@ -249,7 +249,7 @@ export default async function handler(req, res) {
         .select('id, first_name, last_name, email')
         .eq('id', id)
         .maybeSingle()
-      if (fetchErr) return res.status(500).json({ error: fetchErr.message })
+      if (fetchErr) { console.error('[providers] fetchErr failed:', fetchErr); return res.status(500).json({ error: 'Server error' }) }
       if (!target)  return res.status(404).json({ error: 'Provider not found' })
       if (!target.email) return res.status(400).json({ error: 'Provider has no email address on file' })
       // crypto.randomInt gives uniform distribution across the range and
@@ -263,7 +263,7 @@ export default async function handler(req, res) {
         .from('providers')
         .update({ pin_hash, must_change_password: true })
         .eq('id', id)
-      if (updErr) return res.status(500).json({ error: updErr.message })
+      if (updErr) { console.error('[providers] updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
       sendProviderWelcomeEmail(target, newPin)  // fire-and-forget
       return res.status(200).json({
         ok: true,
@@ -303,7 +303,7 @@ export default async function handler(req, res) {
       const { error: upErr } = await supabase.storage.from('signatures').upload(path, buf, {
         contentType: 'image/png', cacheControl: '3600', upsert: false,
       })
-      if (upErr) return res.status(500).json({ error: `Upload failed: ${upErr.message}` })
+      if (upErr) { console.error('[providers] Upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
       const { data: { publicUrl } } = supabase.storage.from('signatures').getPublicUrl(path)
       return res.status(200).json({ url: publicUrl })
     }
@@ -374,7 +374,7 @@ export default async function handler(req, res) {
       .insert(row)
       .select('id, first_name, last_name, email, credential, specialty, color, is_active, is_admin, is_provider, is_supervisor, can_prescribe, can_refer, can_acc, prescriber_number, cpn, mcnz_registration_number')
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Notify RHCNZ (Holly) of the new provider so their referrer registry
     // stays in sync. Best-effort — doesn't affect the response.
@@ -435,7 +435,7 @@ export default async function handler(req, res) {
       .eq('id', id)
       .select()
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Notify RHCNZ (Holly) if the MCNZ number was just filled in or updated —
     // this is the field they actually need for their referrer registry.
@@ -485,7 +485,7 @@ export default async function handler(req, res) {
       .eq('id', id)
       .select('id, first_name, last_name, email')
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (!deleted) return res.status(404).json({ error: 'Provider not found' })
 
     // Fire-and-forget signature cleanup. The URL is of the form
@@ -500,7 +500,8 @@ export default async function handler(req, res) {
       if (idx >= 0) {
         const path = existing.signature_url.slice(idx + marker.length)
         const { error: rmErr } = await supabase.storage.from('signatures').remove([path])
-        signatureCleanup = rmErr ? `failed: ${rmErr.message}` : `deleted (${path})`
+        if (rmErr) console.error('[providers] signature remove failed:', rmErr)
+        signatureCleanup = rmErr ? 'failed' : `deleted (${path})`
       } else {
         signatureCleanup = 'skipped (unrecognised URL shape)'
       }

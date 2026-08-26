@@ -122,6 +122,6 @@ export default async function handler(req, res) {
     })
   } catch (err) {
     console.error('[make-call] LiveKit SIP createSipParticipant failed:', err)
-    return res.status(502).json({ error: err.message || 'LiveKit SIP dial failed' })
+    return res.status(502).json({ error: 'LiveKit SIP dial failed' })
   }
 }

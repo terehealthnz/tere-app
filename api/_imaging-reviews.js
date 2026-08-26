@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   }
 
   const { data, error } = await q
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[imaging-reviews] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
   // Fetch chief_complaint per consultation in one round trip so the panel can
   // show it without a separate client-side call.

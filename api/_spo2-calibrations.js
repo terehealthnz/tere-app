@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[spo2-calibrations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ calibration: data || null })
   }
 
@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const { error } = await supabase.from('spo2_calibrations').insert({
       slope, intercept, n, rmse: typeof rmse === 'number' ? rmse : null,
     })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[spo2-calibrations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

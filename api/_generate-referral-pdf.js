@@ -102,7 +102,8 @@ export default async function handler(req, res) {
       }).select('id').single()
       referralId = data?.id
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to save draft: ' + e.message })
+      console.error('[generate-referral-pdf] Failed to save draft:', e)
+      return res.status(500).json({ error: 'Failed to save draft' })
     }
 
     await notifySupervisors(
@@ -153,7 +154,8 @@ export default async function handler(req, res) {
   try {
     pdfBuffer = await buildReferralPdf(pdfData)
   } catch (e) {
-    return res.status(500).json({ error: 'PDF generation failed', detail: e.message })
+    console.error('[generate-referral-pdf] PDF generation failed:', e)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
   const pdfBase64 = pdfBuffer.toString('base64')
@@ -176,7 +178,7 @@ export default async function handler(req, res) {
                <p style="color:#6B7280;font-size:12px">Tere Health Limited · HPI-O G11238-E · terehealth.co.nz</p>`,
         attachments: [{ filename: `referral-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
-    } catch (e) { deliveryErrors.push(`Facility email failed: ${e.message}`) }
+    } catch (e) { console.error('[generate-referral-pdf] facility email failed:', e); deliveryErrors.push('Facility email failed') }
   }
 
   if (patientEmail && process.env.RESEND_API_KEY) {
@@ -189,7 +191,7 @@ export default async function handler(req, res) {
         html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${finalFacilityName || 'the imaging centre'}</strong>.</p>${rhcnzRegion ? `<p>${rhcnzRegion.brand} (${rhcnzRegion.region}) will contact you to book the appointment.</p>` : ''}<p>Urgency: ${finalUrgency || 'Routine'}</p><p>Tere Health Team</p>`,
         attachments: [{ filename: 'referral.pdf', content: pdfBase64 }],
       })
-    } catch (e) { deliveryErrors.push(`Patient email failed: ${e.message}`) }
+    } catch (e) { console.error('[generate-referral-pdf] patient email failed:', e); deliveryErrors.push('Patient email failed') }
   }
 
   try {
@@ -201,7 +203,7 @@ export default async function handler(req, res) {
       delivery_status: deliveryErrors.length ? 'error' : 'sent',
       delivery_error: deliveryErrors.join('; ') || null,
     })
-  } catch (e) { deliveryErrors.push(`DB save failed: ${e.message}`) }
+  } catch (e) { console.error('[generate-referral-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
 
   res.json({ ok: true, referralId, pdfBase64, deliveryErrors: deliveryErrors.length ? deliveryErrors : undefined })
 }

@@ -46,6 +46,6 @@ export default async function handler(req, res) {
     res.status(200).json({ text })
   } catch (e) {
     console.error('[transcribe]', e.message)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

@@ -419,7 +419,7 @@ export default async function handler(req, res) {
   } catch (e) {
     logRequest(ip, route, 500, e.message)
     console.error(`[${route}]`, e)
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: 'Server error' })
   }
 }
 

@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     const { data: signed, error: sErr } = await supabase.storage
       .from(BUCKET)
       .createSignedUrl(a.storage_path, 300)
-    if (sErr) return res.status(500).json({ error: sErr.message })
+    if (sErr) { console.error('[provider-inbox] sErr failed:', sErr); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ signedUrl: signed.signedUrl, content_type: a.content_type, filename: a.filename })
   }
 
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
       .eq('is_practice', practice)
       .maybeSingle()
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-inbox] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (!data)  return res.status(404).json({ error: 'not found' })
     if (!isAdmin && data.matched_provider_id !== provider.id) {
       return res.status(403).json({ error: 'not yours' })
@@ -103,7 +103,7 @@ export default async function handler(req, res) {
       .is('superseded_by_id', null)
       .order('received_at', { ascending: false })
       .limit(100)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-inbox] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ messages: data || [] })
   }
 
@@ -117,7 +117,7 @@ export default async function handler(req, res) {
       .is('archived_at', null)
       .order('received_at', { ascending: false })
       .limit(500)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-inbox] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ messages: data || [] })
   }
 
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
       .is('archived_at', null)
       .order('received_at', { ascending: false })
       .limit(200)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-inbox] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     const unread = (data || []).filter(m => !m.read_by_provider_at).length
     return res.status(200).json({ messages: data || [], unread })
   }
@@ -168,7 +168,7 @@ export default async function handler(req, res) {
       .update(patch)
       .eq('id', id)
       .eq('is_practice', practice)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[provider-inbox] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

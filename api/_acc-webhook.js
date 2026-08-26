@@ -117,6 +117,6 @@ export default async function handler(req, res) {
     res.json({ ok: true })
   } catch (e) {
     console.error('acc-webhook error:', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

@@ -132,7 +132,7 @@ export default async function handler(req, res) {
       reviewed_at: nowIso,
     })
     .eq('id', reviewId)
-  if (updErr) return res.status(500).json({ error: updErr.message })
+  if (updErr) { console.error('[imaging-review] updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
 
   // Send outbound patient email (Resend). Never SMS — SMS is transactional-only.
   const patientEmail = review.referral?.patient_email
@@ -163,7 +163,7 @@ export default async function handler(req, res) {
     } catch (e) {
       // Non-fatal: the review row is already saved, so the reviewer can retry.
       console.error('[imaging-review] Resend error:', e.message)
-      return res.status(200).json({ ok: true, emailError: e.message })
+      return res.status(200).json({ ok: true, emailError: 'Email send failed' })
     }
   }
 

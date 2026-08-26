@@ -40,7 +40,7 @@ export default async function handler(req, res) {
       .select('pharmacy_id, dispensary_email, phone, hpi_id')
       .eq('pharmacy_id', singleId)
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[pharmacy-contacts] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
     return res.status(200).json({ contact: data || null })
   }
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     .select('pharmacy_id')
     .not('dispensary_email', 'is', null)
     .limit(5000)
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[pharmacy-contacts] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   const ids = (data || []).map(r => r.pharmacy_id).filter(Boolean)
   res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   return res.status(200).json({ ids })

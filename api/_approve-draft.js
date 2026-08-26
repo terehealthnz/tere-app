@@ -135,7 +135,8 @@ export default async function handler(req, res) {
         signatureExempt,
       })
     } catch (e) {
-      return res.status(500).json({ error: 'PDF generation failed: ' + e.message })
+      console.error('[approve-draft] PDF generation failed:', e)
+      return res.status(500).json({ error: 'PDF generation failed' })
     }
 
     const pdfBase64 = pdfBuffer.toString('base64')
@@ -252,7 +253,8 @@ export default async function handler(req, res) {
         facilityPhone: data.facility_phone,
       })
     } catch (e) {
-      return res.status(500).json({ error: 'PDF generation failed: ' + e.message })
+      console.error('[approve-draft] PDF generation failed:', e)
+      return res.status(500).json({ error: 'PDF generation failed' })
     }
 
     const pdfBase64 = pdfBuffer.toString('base64')

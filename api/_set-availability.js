@@ -26,7 +26,7 @@ export default async function handler(req, res) {
 
   if (error) {
     console.error('[set-availability]', error)
-    return res.status(500).json({ error: error.message })
+    return res.status(500).json({ error: 'Server error' })
   }
 
   res.json({ ok: true, isOpen })

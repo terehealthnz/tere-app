@@ -41,14 +41,14 @@ export default async function handler(req, res) {
       breach_datetime: breach_datetime || new Date().toISOString(),
       reported_by,
     }).select().single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[breach] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     alertAdmin(data)
     return res.status(200).json({ ok: true, breach: data })
   }
 
   if (req.method === 'GET') {
     const { data, error } = await supabase.from('breach_log').select('*').order('created_at', { ascending: false }).limit(50)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[breach] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ breaches: data || [] })
   }
 
@@ -56,7 +56,7 @@ export default async function handler(req, res) {
     const { id, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('breach_log').update(updates).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[breach] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

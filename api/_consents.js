@@ -14,7 +14,7 @@ export default async function handler(req, res) {
       patient_name: patient_name || null,
       ip_address: ip,
     })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[consents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
     const { data, error } = await supabase.from('consents')
       .select('*').eq('consultation_id', consultation_id).order('created_at')
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[consents] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ consents: data || [] })
   }
 

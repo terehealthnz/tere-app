@@ -87,7 +87,7 @@ export default async function handler(req, res) {
       if (provider_id) q = q.eq('provider_id', provider_id)
       q = q.limit(parseInt(lim) || 50)
       const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ appointments: data || [] })
     }
 
@@ -155,7 +155,8 @@ export default async function handler(req, res) {
         })
         return res.status(200).json({ clientSecret: paymentIntent.client_secret })
       } catch (e) {
-        return res.status(500).json({ error: e.message })
+        console.error('[appointments] reservation intent create failed:', e)
+        return res.status(500).json({ error: 'Server error' })
       }
     }
 
@@ -181,7 +182,7 @@ export default async function handler(req, res) {
         patient_dob, patient_nhi, provider_id, slot_start, slot_end,
         reason, status: 'pending',
       }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
       // Save reservation payment intent ID (requires migration: see supabase/reservation-fee-migration.sql)
       if (data?.id && reservation_payment_intent_id) {
@@ -250,7 +251,7 @@ export default async function handler(req, res) {
       const statusMap = { confirm:'confirmed', cancel:'cancelled', complete:'completed', no_show:'no_show' }
       const { error } = await supabase.from('appointments')
         .update({ status: statusMap[action] }).eq('id', appointment_id)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
       // SMS patient on confirmation
       if (action === 'confirm') {
@@ -275,14 +276,14 @@ export default async function handler(req, res) {
       const { provider_id, name, drug, dose, directions, quantity, repeats } = req.body
       const { data, error } = await supabase.from('prescription_templates')
         .insert({ provider_id, name, drug, dose, directions, quantity, repeats }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true, template: data })
     }
 
     if (action === 'delete_template') {
       const { template_id } = req.body
       const { error } = await supabase.from('prescription_templates').delete().eq('id', template_id)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 

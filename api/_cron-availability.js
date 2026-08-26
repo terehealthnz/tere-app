@@ -200,7 +200,7 @@ export default async function handler(req, res) {
     return res.json({ ok: true, changed, isOpen: shouldBeOpen, nzt: `${nzt.date} ${nzt.time}`, nextAvail })
   } catch (e) {
     console.error('cron-availability:', e.message)
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: 'Server error' })
   }
 }
 

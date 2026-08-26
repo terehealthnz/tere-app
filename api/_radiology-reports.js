@@ -35,7 +35,7 @@ export default async function handler(req, res) {
         .eq('id', id)
         .eq('is_practice', practice)
         .maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[radiology-reports] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Not found' })
 
       // Sign a short-lived viewer URL for the PDF.
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     if (status) q = q.eq('status', status)
     if (patientId) q = q.eq('patient_id', patientId)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[radiology-reports] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ reports: data || [] })
   }
 
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
       .select()
       .single()
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[radiology-reports] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     try {
       await supabase.from('audit_logs').insert({

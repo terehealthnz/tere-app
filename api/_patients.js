@@ -129,7 +129,7 @@ export default async function handler(req, res) {
     let updateQ = supabase.from('patients').update(patch).eq('id', id)
     if (!isAnonFlow) updateQ = updateQ.eq('is_practice', practice)
     const { error } = await updateQ
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patients] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -138,7 +138,7 @@ export default async function handler(req, res) {
 
     if (id) {
       const { data, error } = await supabase.from('patients').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[patients] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Patient not found' })
       await auditPatientAccess(supabase, auth, req, 'patient_lookup', data.nhi || data.id, { by: 'id' })
       return res.status(200).json({ patient: data })
@@ -159,7 +159,7 @@ export default async function handler(req, res) {
         .ilike('nhi', nhi)
         .eq('is_practice', practice)
         .maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[patients] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       let last_consultation_id = null
       if (data?.id) {
         const { data: lastConsult } = await supabase
@@ -190,7 +190,7 @@ export default async function handler(req, res) {
       q = q.or(`first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,nhi.ilike.%${s}%`)
     }
     const { data, error, count } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patients] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     // Audit the search itself — one row per query, not per result — with the
     // search term in metadata so an audit can reconstruct what was hunted for.
     // Bulk directory browsing (no search term) isn't audited to avoid noise.
@@ -233,7 +233,7 @@ export default async function handler(req, res) {
         .insert(patch)
         .select()
         .single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[patients] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ patient: data })
     }
 
@@ -253,20 +253,20 @@ export default async function handler(req, res) {
       if (sRes.error || !sRes.data) return res.status(404).json({ error: 'Secondary patient not found' })
 
       const consultUpdate = await supabase.from('consultations').update({ patient_id: primaryId }).eq('patient_id', secondaryId).eq('is_practice', practice)
-      if (consultUpdate.error) return res.status(500).json({ error: consultUpdate.error.message })
+      if (consultUpdate.error) { console.error('[patients] consultUpdate.error failed:', consultUpdate.error); return res.status(500).json({ error: 'Server error' }) }
 
       const consentUpdate = await supabase.from('consents').update({ consultation_id: primaryId }).eq('consultation_id', secondaryId)
-      if (consentUpdate.error) return res.status(500).json({ error: consentUpdate.error.message })
+      if (consentUpdate.error) { console.error('[patients] consentUpdate.error failed:', consentUpdate.error); return res.status(500).json({ error: 'Server error' }) }
 
       const total = (pRes.data.total_consultations || 0) + (sRes.data.total_consultations || 0)
       const pUpdate = await supabase.from('patients')
         .update({ total_consultations: total, updated_at: new Date().toISOString() })
         .eq('id', primaryId)
         .eq('is_practice', practice)
-      if (pUpdate.error) return res.status(500).json({ error: pUpdate.error.message })
+      if (pUpdate.error) { console.error('[patients] pUpdate.error failed:', pUpdate.error); return res.status(500).json({ error: 'Server error' }) }
 
       const del = await supabase.from('patients').delete().eq('id', secondaryId).eq('is_practice', practice)
-      if (del.error) return res.status(500).json({ error: del.error.message })
+      if (del.error) { console.error('[patients] del.error failed:', del.error); return res.status(500).json({ error: 'Server error' }) }
 
       return res.status(200).json({ ok: true, primaryId, mergedFrom: secondaryId, total })
     }

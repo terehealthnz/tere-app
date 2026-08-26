@@ -205,7 +205,7 @@ export default async function handler(req, res) {
       .insert(payload)
       .select('*')
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     // Fire notifications without awaiting — applicant sees fast 200 even if email is slow.
     notifyApplicationSubmitted(supabase, data).catch(e =>
       console.error('[job-applications] notify error:', e.message)
@@ -225,7 +225,7 @@ export default async function handler(req, res) {
         supabase.from('application_notes').select('*').eq('application_id', id).order('created_at', { ascending: false }),
         supabase.from('onboarding_steps').select('*').eq('application_id', id).order('sort_order'),
       ])
-      if (appErr) return res.status(500).json({ error: appErr.message })
+      if (appErr) { console.error('[job-applications] appErr failed:', appErr); return res.status(500).json({ error: 'Server error' }) }
       if (!app) return res.status(404).json({ error: 'Application not found' })
       return res.status(200).json({ application: app, notes: notes || [], onboarding: steps || [] })
     }
@@ -242,7 +242,7 @@ export default async function handler(req, res) {
       q = q.eq('status', status)
     }
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ applications: data || [] })
   }
 
@@ -261,7 +261,7 @@ export default async function handler(req, res) {
       author_name,
       note: note.trim(),
     })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -282,7 +282,7 @@ export default async function handler(req, res) {
     if (notes !== undefined) patch.notes = notes || null
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
     const { error } = await supabase.from('onboarding_steps').update(patch).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -304,7 +304,7 @@ export default async function handler(req, res) {
     patch.updated_at = new Date().toISOString()
 
     const { error } = await supabase.from('job_applications').update(patch).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     if (patch.status === 'hired') {
       await seedOnboardingIfNeeded(supabase, id)
@@ -315,7 +315,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('job_applications').delete().eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

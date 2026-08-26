@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     else       q = q.eq('patient_nhi', nhiVal)
 
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ flags: data || [] })
   }
 
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       active:           true,
     }).select().single()
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true, flag: data })
   }
 
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         resolved_at: new Date().toISOString(),
         resolved_by: resolved_by || null,
       }).eq('id', id)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[patient-flags] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 

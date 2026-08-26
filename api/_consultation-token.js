@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
 
     const { error } = await supabase.from('consultation_tokens').insert({ consultation_id, token, expires_at })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[consultation-token] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     return res.status(200).json({ token, expires_at })
   }

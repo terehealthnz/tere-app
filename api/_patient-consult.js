@@ -132,7 +132,7 @@ export default async function handler(req, res) {
   // consult, the client asks us to delete the stale row. Restricted to rows
   // still in status='pre_triage' so a scraper can't delete real consults.
   if (req.method === 'DELETE') {
-    const auth = await resolvePatientAuth(req)
+    const auth = await resolvePatientAuth(req, { legacyConsultId: id })
     if (auth.error) return res.status(auth.status).json({ error: auth.error })
     if (auth.consultationId !== id) {
       return res.status(403).json({ error: 'Token does not match consultation' })
@@ -152,7 +152,7 @@ export default async function handler(req, res) {
   // Authenticate the patient session: token (preferred) or legacy consult_id
   // fallback during rollout. On mismatch (token → different consult than the
   // one in the URL), reject 403 so a caller can't set { id: any } + token X.
-  const auth = await resolvePatientAuth(req)
+  const auth = await resolvePatientAuth(req, { legacyConsultId: id })
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   if (auth.consultationId !== id) {
     return res.status(403).json({ error: 'Token does not match consultation' })

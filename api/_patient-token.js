@@ -66,10 +66,13 @@ function extractLegacyConsultId(req) {
  * @param {object} [opts]
  * @param {boolean} [opts.allowLegacyConsultId=true] — accept raw consultation_id
  *   if no token is present (backwards compat during rollout).
+ * @param {string} [opts.legacyConsultId] — explicit legacy ID (e.g. read from
+ *   an endpoint-specific URL param like ?id=). Preferred over the generic
+ *   body/query scan because URL param names vary per endpoint.
  * @returns {{ consultationId: string, consult: object } | { error: string, status: number }}
  */
 export async function resolvePatientAuth(req, opts = {}) {
-  const { allowLegacyConsultId = true } = opts
+  const { allowLegacyConsultId = true, legacyConsultId } = opts
   const supabase = admin()
 
   const token = extractToken(req)
@@ -90,7 +93,7 @@ export async function resolvePatientAuth(req, opts = {}) {
   }
 
   if (allowLegacyConsultId) {
-    const legacyId = extractLegacyConsultId(req)
+    const legacyId = legacyConsultId || extractLegacyConsultId(req)
     if (legacyId) {
       const { data: consult, error } = await supabase
         .from('consultations')

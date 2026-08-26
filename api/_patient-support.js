@@ -382,7 +382,7 @@ export default async function handler(req, res) {
       .insert(payload)
       .select('*')
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-support] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Route the ticket: provider Messages tab, new queue consult, or admin inbox.
     let routing = { routing_status: 'admin_inbox' }
@@ -457,7 +457,7 @@ export default async function handler(req, res) {
       // chief_complaint prefix ("Follow-up from support ticket: …") and the
       // support ticket row (patient_support_requests.routed_consultation_id).
       }).select('id').maybeSingle()
-      if (cErr) return res.status(500).json({ error: 'Failed to create consult: ' + cErr.message })
+      if (cErr) { console.error('[patient-support] Failed to create consult:', cErr); return res.status(500).json({ error: 'Failed to create consult' }) }
       newConsultId = nc?.id || null
     }
 
@@ -557,7 +557,7 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
       return res.status(200).json({ draft: text })
     } catch (e) {
       console.error('suggest_reply error:', e)
-      return res.status(500).json({ error: 'Draft generation failed: ' + e.message })
+      return res.status(500).json({ error: 'Draft generation failed' })
     }
   }
 
@@ -605,7 +605,8 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
         text: `Kia ora ${firstName},\n\n${bodyText}\n\nIf you need anything else, just reply to this email.\n\nIn an emergency, call 111 immediately.\n\nNgā mihi,\n${authorName}\nTere Health`,
       })
     } catch (e) {
-      return res.status(502).json({ error: 'Email send failed: ' + e.message })
+      console.error('[patient-support] Email send failed:', e)
+      return res.status(502).json({ error: 'Email send failed' })
     }
 
     // Record the reply in admin_notes + auto-advance to in_progress if new
@@ -628,7 +629,7 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
     if (id) {
       const { data, error } = await supabase
         .from('patient_support_requests').select('*').eq('id', id).maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[patient-support] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Ticket not found' })
       return res.status(200).json({ ticket: data })
     }
@@ -642,7 +643,7 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
       q = q.eq('status', status)
     }
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-support] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ tickets: data || [] })
   }
 
@@ -663,7 +664,7 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
     }
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
     const { error } = await supabase.from('patient_support_requests').update(patch).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-support] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

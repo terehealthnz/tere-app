@@ -39,7 +39,7 @@ export default async function handler(req, res) {
       .from('job_listings')
       .select('*')
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-listings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ listings: data || [] })
   }
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       .insert(payload)
       .select()
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-listings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ listing: data })
   }
 
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
       .from('job_listings')
       .update(patch)
       .eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-listings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
       .from('job_listings')
       .delete()
       .eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[job-listings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

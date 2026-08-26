@@ -135,7 +135,8 @@ ${wrapUserInput(String(text).slice(0, 500), 'source_utterance')}`
     // Strip surrounding quotes if the model wrapped its output.
     translated = translated.replace(/^["'`]+|["'`]+$/g, '').trim()
   } catch (e) {
-    return res.status(502).json({ error: 'Translation failed', detail: e.message, retryable: true })
+    console.error('[live-translate] Translation failed:', e)
+    return res.status(502).json({ error: 'Translation failed', retryable: true })
   }
   const elapsed_ms = Date.now() - t0
 

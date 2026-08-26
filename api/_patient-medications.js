@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     const { data, error } = await supabase
       .from('patient_medications').select('*').eq('patient_id', patientId).eq('is_practice', practice)
       .order('is_active', { ascending: false }).order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-medications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ medications: data || [] })
   }
 
@@ -50,7 +50,7 @@ export default async function handler(req, res) {
                   created_by: auth.provider?.id || null,
                   created_by_name: auth.provider?.display_name || auth.email || null }
     const { data, error } = await supabase.from('patient_medications').insert(row).select().single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-medications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ medication: data })
   }
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No allowed columns in patch' })
     patch.updated_at = new Date().toISOString()
     const { data, error } = await supabase.from('patient_medications').update(patch).eq('id', id).eq('is_practice', practice).select().single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-medications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ medication: data })
   }
 
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
     const { error } = await supabase.from('patient_medications').delete().eq('id', id).eq('is_practice', practice)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-medications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

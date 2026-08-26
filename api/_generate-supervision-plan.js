@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const { data: rmo, error: rmoErr } = await supabase.from('providers')
     .select('id, first_name, last_name, email, mcnz_registration_number, scope_of_practice, pgy_level, supervision_start_date, supervisor_id, provider_type')
     .eq('id', rmoId).maybeSingle()
-  if (rmoErr) return res.status(500).json({ error: rmoErr.message })
+  if (rmoErr) { console.error('[generate-supervision-plan] rmoErr failed:', rmoErr); return res.status(500).json({ error: 'Server error' }) }
   if (!rmo) return res.status(404).json({ error: 'RMO not found' })
   if (rmo.provider_type !== 'rmo') {
     return res.status(400).json({ error: 'Provider is not an RMO — supervision plan does not apply' })
@@ -79,7 +79,8 @@ export default async function handler(req, res) {
       },
     })
   } catch (e) {
-    return res.status(500).json({ error: 'PDF build failed: ' + e.message })
+    console.error('[generate-supervision-plan] PDF build failed:', e)
+    return res.status(500).json({ error: 'PDF build failed' })
   }
 
   // Ensure the bucket exists (idempotent — Supabase returns 409 if it exists).
@@ -91,14 +92,14 @@ export default async function handler(req, res) {
   const path = `${rmoId}.pdf`
   const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET)
     .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: true, cacheControl: '0' })
-  if (upErr) return res.status(500).json({ error: 'Upload failed: ' + upErr.message })
+  if (upErr) { console.error('[generate-supervision-plan] Upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
 
   // Signed URL for admin download (7 day validity, generous — this only ever
   // sits in the AddProviderModal banner for a moment before the admin
   // saves/emails it, but sometimes tabs get left open).
   const { data: signed, error: signErr } = await supabase.storage.from(STORAGE_BUCKET)
     .createSignedUrl(path, 60 * 60 * 24 * 7)
-  if (signErr) return res.status(500).json({ error: 'Sign failed: ' + signErr.message })
+  if (signErr) { console.error('[generate-supervision-plan] Sign failed:', signErr); return res.status(500).json({ error: 'Sign failed' }) }
 
   // Persist the storage path on the provider row (not the signed URL — that
   // expires; the path is stable and can be re-signed on demand).

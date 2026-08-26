@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   for (const t of CHILD_TABLES) {
     const { count, error } = await supabase.from(t).delete({ count: 'exact' })
       .eq('is_practice', true)
-    if (error) { deletions[t] = { error: error.message } }
+    if (error) { console.error(`[practice-reset] delete ${t} failed:`, error); deletions[t] = { error: 'delete failed' } }
     else { deletions[t] = { deleted: count } }
   }
   const { count: consCount } = await supabase.from('consultations').delete({ count: 'exact' })

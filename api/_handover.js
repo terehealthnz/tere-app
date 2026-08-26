@@ -13,7 +13,7 @@ export default async function handler(req, res) {
         provider_id, provider_name, note_text,
         shift_date: new Date().toISOString().slice(0, 10),
       }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[handover] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true, note: data })
     }
 
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
       .eq('archived', false)
       .gte('shift_date', yesterday)
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[handover] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ notes: data || [] })
   }
 

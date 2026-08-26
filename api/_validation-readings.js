@@ -44,7 +44,7 @@ export default async function handler(req, res) {
       const { count, error } = await supabase
         .from('validation_readings')
         .select('*', { count: 'exact', head: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ count: count || 0 })
     }
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
         .not('raw_rppg_signal', 'is', null)
         .not('manual_systolic', 'is', null)
         .not('manual_diastolic', 'is', null)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ readings: data || [] })
     }
 
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         .select('tere_spo2, manual_spo2')
         .not('tere_spo2', 'is', null)
         .not('manual_spo2', 'is', null)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ pairs: data || [] })
     }
 
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     let q = supabase.from('validation_readings').select('*').order('recorded_at', { ascending: false })
     if (subjectId) q = q.eq('subject_id', subjectId)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ readings: data || [] })
   }
 
@@ -99,7 +99,7 @@ export default async function handler(req, res) {
           .eq('subject_id', d.subjectId)
           .limit(1)
           .maybeSingle()
-        if (dupErr) return res.status(500).json({ error: dupErr.message })
+        if (dupErr) { console.error('[validation-readings] dupErr failed:', dupErr); return res.status(500).json({ error: 'Server error' }) }
         if (existing) {
           return res.status(409).json({
             error: 'This person has already submitted a reading. One reading per person — thanks for helping!',
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
       .insert(payload)
       .select()
       .single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ reading })
   }
 
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Nothing to update — patch body is empty' })
     }
     const { error } = await supabase.from('validation_readings').update(patch).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

@@ -158,7 +158,7 @@ export default async function handler(req, res) {
       if (provider_id) q = q.eq('provider_id', provider_id)
       q = q.limit(parseInt(lim) || 100)
       const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ bookings: data || [] })
     }
 
@@ -172,7 +172,7 @@ export default async function handler(req, res) {
         .limit(10)
       if (provider_id) q = q.eq('provider_id', provider_id)
       const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ bookings: data || [] })
     }
 
@@ -205,7 +205,7 @@ export default async function handler(req, res) {
           description: 'Tere Health — appointment reservation fee',
         })
         return res.status(200).json({ clientSecret: pi.client_secret })
-      } catch (e) { return res.status(500).json({ error: e.message }) }
+      } catch (e) { console.error('[bookings] reservation intent create failed:', e); return res.status(500).json({ error: 'Server error' }) }
     }
 
     // Create booking (after Stripe payment confirmed)
@@ -245,7 +245,7 @@ export default async function handler(req, res) {
         reason: reason || null, reservation_fee_payment_intent_id: reservation_fee_payment_intent_id || null,
         reservation_fee_paid: !!reservation_fee_payment_intent_id, status: 'confirmed',
       }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
       const displayDate = nzDisplay(appointment_date, appointment_time)
       const cancelDeadline = new Date(new Date(`${appointment_date}T${appointment_time}:00+13:00`).getTime() - 24*60*60*1000)
@@ -341,7 +341,7 @@ ${refunded ? '<p>Your <strong>$15 reservation fee has been refunded</strong> and
         reminder_24h_sent: false, reminder_1h_sent: false,
         reschedule_of: id, created_at: new Date().toISOString(),
       }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
       if (original.patient_email) {
         const displayDate = nzDisplay(new_date, new_time)
@@ -387,7 +387,7 @@ ${refunded ? '<p>Your <strong>$15 reservation fee has been refunded</strong> and
       if (!id) return res.status(400).json({ error: 'Missing id' })
       const { error } = await supabase.from('bookings')
         .update({ status: action === 'mark_complete' ? 'completed' : 'no_show' }).eq('id', id)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 

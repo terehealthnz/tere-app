@@ -140,10 +140,10 @@ export default async function handler(req, res) {
       console.log(JSON.stringify({ ts: new Date().toISOString(), type: 'sms_skipped', to: normalised.slice(-4), sms_type: type }))
       return res.status(200).json({ ok: true, skipped: true, reason: 'No SMS provider configured' })
     }
-    if (!result.ok) return res.status(502).json({ error: result.error, provider: result.provider })
+    if (!result.ok) { console.error('[sms] provider send failed:', result.provider, result.error); return res.status(502).json({ error: 'SMS send failed', provider: result.provider }) }
     return res.status(200).json({ ok: true, id: result.id, provider: result.provider })
   } catch (e) {
     console.error('[sms]', e)
-    return res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: 'Server error' })
   }
 }

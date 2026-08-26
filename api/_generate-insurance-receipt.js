@@ -41,7 +41,8 @@ export default async function handler(req, res) {
   try {
     intent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge.payment_method_details'] })
   } catch (e) {
-    return res.status(400).json({ error: 'Payment could not be verified: ' + e.message })
+    console.error('[generate-insurance-receipt] Stripe PI retrieve failed:', e.message)
+    return res.status(400).json({ error: 'Payment could not be verified' })
   }
   if (intent.status !== 'succeeded') {
     return res.status(402).json({ error: 'Payment has not settled yet — try again in a moment.' })
@@ -107,8 +108,8 @@ export default async function handler(req, res) {
       },
     })
   } catch (e) {
-    console.error('[generate-insurance-receipt] PDF build failed:', e.message)
-    return res.status(500).json({ error: 'Receipt generation failed: ' + e.message })
+    console.error('[generate-insurance-receipt] PDF build failed:', e)
+    return res.status(500).json({ error: 'Receipt generation failed' })
   }
 
   // 4) Email delivery — via Resend, attach the PDF as base64.
@@ -150,8 +151,8 @@ export default async function handler(req, res) {
       attachments: [{ filename, content: pdfBuffer.toString('base64') }],
     })
   } catch (e) {
-    console.error('[generate-insurance-receipt] Email delivery failed:', e.message)
-    return res.status(500).json({ error: 'Could not email receipt: ' + e.message })
+    console.error('[generate-insurance-receipt] Email delivery failed:', e)
+    return res.status(500).json({ error: 'Could not email receipt' })
   }
 
   // 5) Mark the consult so the UI can flip its CTA to "sent to your email".

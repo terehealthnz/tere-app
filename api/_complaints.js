@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       status: status || 'open',
     }).select().single()
 
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[complaints] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Notify complaints inbox
     notifyComplaintsInbox(data)
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     let q = supabase.from('complaints').select('*').order('created_at', { ascending: false }).limit(parseInt(limit))
     if (status) q = q.eq('status', status)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[complaints] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ complaints: data || [] })
   }
 
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('complaints')
       .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[complaints] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         platform:    platform || 'web',
         updated_at:  new Date().toISOString(),
       }, { onConflict: 'user_id,platform' })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[push-subscribe] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.json({ ok: true })
     }
 
@@ -55,6 +55,6 @@ export default async function handler(req, res) {
     res.json({ ok: true })
   } catch (e) {
     console.error('push-subscribe error:', e.message)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

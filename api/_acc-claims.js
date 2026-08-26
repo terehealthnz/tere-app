@@ -118,7 +118,7 @@ export default async function handler(req, res) {
     if (provider_id) q = q.eq('provider_id', provider_id)
     if (status) q = q.eq('status', status)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[acc-claims] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ claims: data || [] })
   }
 
@@ -239,7 +239,7 @@ export default async function handler(req, res) {
         providerName: pName, providerHpi: hpiNumber,
       })
     } catch (e) {
-      invoiceOutcome = { error: e.message }
+      invoiceOutcome = { error: 'invoice send failed' }
       console.error('acc-claims: emailAccInvoice failed:', e.message)
     }
 
@@ -255,6 +255,6 @@ export default async function handler(req, res) {
     })
   } catch (e) {
     console.error('acc-claims error:', e)
-    res.status(500).json({ ok: false, error: e.message })
+    res.status(500).json({ ok: false, error: 'Server error' })
   }
 }

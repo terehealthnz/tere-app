@@ -33,6 +33,6 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, promoted: true })
   } catch (e) {
     console.error('[confirm-waiting]', e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

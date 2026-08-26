@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     .lte('patient_access_from', in36h)
     .is('patient_access_unlock_email_sent_at', null)
 
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[cron-unlock-reminders] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
   const results = []
   for (const p of (providers || [])) {
@@ -82,7 +82,8 @@ export default async function handler(req, res) {
         .eq('id', p.id)
       results.push({ id: p.id, ok: true })
     } catch (e) {
-      results.push({ id: p.id, ok: false, error: e.message })
+      console.error('[cron-unlock-reminders] failed for provider', p.id, e)
+      results.push({ id: p.id, ok: false, error: 'unlock reminder failed' })
     }
   }
 

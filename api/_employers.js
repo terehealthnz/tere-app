@@ -42,7 +42,7 @@ export default async function handler(req, res) {
     let q = supabase.from('employers').select('*').order('company_name')
     if (!includeInactive) q = q.eq('is_active', true)
     const { data, error } = await q
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employers: data || [] })
   }
 
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     }
     payload.is_active = payload.is_active !== false  // default true
     const { data, error } = await supabase.from('employers').insert(payload).select().single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employer: data })
   }
 
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     }
     patch.updated_at = new Date().toISOString()
     const { data, error } = await supabase.from('employers').update(patch).eq('id', id).select().maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employer: data })
   }
 

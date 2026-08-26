@@ -28,6 +28,6 @@ export default async function handler(req, res) {
     .from('consultations')
     .update({ last_seen_at: new Date().toISOString() })
     .eq('id', id)
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[patient-heartbeat] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   return res.status(200).json({ ok: true })
 }

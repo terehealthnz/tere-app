@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       event_type, provider_id, provider_name, consultation_id, patient_ref, metadata, ip
     })
     if (error && missingTable(error)) return res.status(200).json({ ok: true, skipped: 'audit_logs table missing' })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[audit] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     if (consultation_id) q = q.eq('consultation_id', consultation_id)
     const { data, error } = await q
     if (error && missingTable(error)) return res.status(200).json({ logs: [] })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[audit] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ logs: data || [] })
   }
 

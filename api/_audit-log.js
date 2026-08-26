@@ -84,6 +84,6 @@ export default async function handler(req, res) {
   if (error && (error.message?.includes('does not exist') || error.message?.includes('schema cache'))) {
     return res.status(200).json({ ok: true, skipped: 'audit_logs table missing' })
   }
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[audit-log] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   return res.status(200).json({ ok: true })
 }

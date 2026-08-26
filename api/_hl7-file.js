@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     .eq('id', messageId)
     .eq('is_practice', practice)
     .maybeSingle()
-  if (msgErr) return res.status(500).json({ error: msgErr.message })
+  if (msgErr) { console.error('[hl7-file] msgErr failed:', msgErr); return res.status(500).json({ error: 'Server error' }) }
   if (!msg)   return res.status(404).json({ error: 'HL7 message not found' })
 
   if (unfile) {
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
       })
       .eq('id', messageId)
       .eq('is_practice', practice)
-    if (updErr) return res.status(500).json({ error: updErr.message })
+    if (updErr) { console.error('[hl7-file] updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
 
     await supabase.from('audit_log').insert({
       actor_provider_id: providerId,
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     .eq('id', patientId)
     .eq('is_practice', practice)
     .maybeSingle()
-  if (patErr)   return res.status(500).json({ error: patErr.message })
+  if (patErr)   { console.error('[hl7-file] patErr failed:', patErr); return res.status(500).json({ error: 'Server error' }) }
   if (!patient) return res.status(404).json({ error: 'Patient not found' })
 
   const { error: updErr } = await supabase
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
     })
     .eq('id', messageId)
     .eq('is_practice', practice)
-  if (updErr) return res.status(500).json({ error: updErr.message })
+  if (updErr) { console.error('[hl7-file] updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
 
   await supabase.from('audit_log').insert({
     actor_provider_id: providerId,

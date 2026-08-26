@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     })
     .eq('id', consultationId)
 
-  if (updateErr) return res.status(500).json({ error: updateErr.message })
+  if (updateErr) { console.error('[initiate-call] updateErr failed:', updateErr); return res.status(500).json({ error: 'Server error' }) }
 
   // Payment is captured at note completion (not at call start) to allow method flexibility
 
@@ -211,7 +211,7 @@ export default async function handler(req, res) {
         phoneBridge = { ok: true, sipCallId: participant.sipCallId, participantId: participant.participantId }
       } catch (e) {
         console.error('[initiate-call] SIP dial failed:', e.message)
-        phoneBridge = { ok: false, error: e.message || 'SIP dial failed' }
+        phoneBridge = { ok: false, error: 'SIP dial failed' }
       }
     }
   }

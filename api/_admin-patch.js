@@ -33,7 +33,7 @@ export default async function handler(req, res) {
   } catch {}
 
   const { data, error } = await supabase.from(table).update(patch).eq('id', id).select()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[admin-patch] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
   // Audit trail. Fire-and-forget — a logging failure never rolls back the
   // update itself. Uses the same audit_logs table as clinical PHI access.

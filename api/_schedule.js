@@ -109,7 +109,7 @@ export default async function handler(req, res) {
         }))
       if (inserts.length) {
         const { error } = await supabase.from('provider_schedules').insert(inserts)
-        if (error) return res.status(500).json({ error: error.message })
+        if (error) { console.error('[schedule] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       }
       return res.json({ ok: true })
     }
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
         shift_type:  shift_type || 'available',
         notes:       notes || null,
       }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[schedule] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.json({ ok: true, shift: row })
     }
 
@@ -136,7 +136,7 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('provider_shifts').update({
         is_offered: true, offered_to: offeredTo, offer_status: 'pending',
       }).eq('id', shiftId)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[schedule] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       // Push notify the recipient
       try {
         const { data: shift } = await supabase.from('provider_shifts').select('*, providers!provider_id(first_name,last_name)').eq('id', shiftId).single()
@@ -170,7 +170,7 @@ export default async function handler(req, res) {
         updates.offered_to = null
       }
       const { error } = await supabase.from('provider_shifts').update(updates).eq('id', shiftId)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[schedule] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.json({ ok: true })
     }
 
@@ -190,7 +190,7 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id required' })
     const table = type === 'recurring' ? 'provider_schedules' : 'provider_shifts'
     const { error } = await supabase.from(table).delete().eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[schedule] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.json({ ok: true })
   }
 

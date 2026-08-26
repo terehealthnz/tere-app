@@ -387,6 +387,7 @@ export default async function handler(req, res) {
 
     return res.status(400).json({ error: 'Invalid action' })
   } catch (e) {
-    return res.status(500).json({ error: e.message || 'HPI proxy error' })
+    console.error('[hpi] HPI proxy error:', e)
+    return res.status(500).json({ error: 'HPI proxy error' })
   }
 }

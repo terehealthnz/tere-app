@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     const since = new Date(Date.now() - parseInt(days) * 86400000).toISOString()
     const { data, error } = await supabase.from('analytics_events')
       .select('event_name').gte('created_at', since)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[analytics-events] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     const counts = {}
     for (const e of VALID_EVENTS) counts[e] = 0
     for (const row of (data || [])) {

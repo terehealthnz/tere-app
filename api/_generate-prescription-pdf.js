@@ -77,7 +77,8 @@ export default async function handler(req, res) {
       }).select('id').single()
       prescriptionId = data?.id
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to save draft: ' + e.message })
+      console.error('[generate-prescription-pdf] Failed to save draft:', e)
+      return res.status(500).json({ error: 'Failed to save draft' })
     }
 
     // Email all supervisors
@@ -128,7 +129,8 @@ export default async function handler(req, res) {
   try {
     pdfBuffer = await buildPrescriptionPdf(pdfData)
   } catch (e) {
-    return res.status(500).json({ error: 'PDF generation failed', detail: e.message })
+    console.error('[generate-prescription-pdf] PDF generation failed:', e)
+    return res.status(500).json({ error: 'PDF generation failed' })
   }
 
   const pdfBase64 = pdfBuffer.toString('base64')
@@ -154,8 +156,8 @@ export default async function handler(req, res) {
         subject: (await import('./_email-safety.js')).sanitizeSubject(`Prescription for ${patientName} — Tere Health`),
         tag: consultationId ? `consult:${consultationId}` : undefined,
       })
-      if (!faxResult.ok) deliveryErrors.push(`Pharmacy fax failed (${faxResult.provider}): ${faxResult.error}`)
-    } catch (e) { deliveryErrors.push(`Pharmacy fax exception: ${e.message}`) }
+      if (!faxResult.ok) { console.error('[generate-prescription-pdf] fax failed:', faxResult.provider, faxResult.error); deliveryErrors.push(`Pharmacy fax failed (${faxResult.provider})`) }
+    } catch (e) { console.error('[generate-prescription-pdf] fax exception:', e); deliveryErrors.push('Pharmacy fax exception') }
   }
 
   if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
@@ -175,7 +177,7 @@ export default async function handler(req, res) {
         html: `<p>Please find attached a prescription for <strong>${patientName}</strong> from Tere Health.</p><p>Prescriber: ${providerName}<br>Prescriber No: ${prescriberNumber || '—'}<br>Contact: ${replyTo}</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}<br>Quantity: ${quantity}, Repeats: ${repeats || 0}</p>${signatureExempt ? '<p style="font-size:12px;color:#0B6E76;border-left:3px solid #0B6E76;padding-left:10px;margin-top:16px"><em>This prescription meets the requirement of the Director-General of Health\'s authorisation of August 2024 for prescriptions not signed personally by a prescriber with their usual signature.</em></p>' : ''}`,
         attachments: [{ filename: `prescription-${patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
-    } catch (e) { deliveryErrors.push(`Pharmacy email failed: ${e.message}`) }
+    } catch (e) { console.error('[generate-prescription-pdf] pharmacy email failed:', e); deliveryErrors.push('Pharmacy email failed') }
   }
 
   // Crowd-source the contact details we just used so the next prescription to
@@ -206,7 +208,7 @@ export default async function handler(req, res) {
         html: `<p>Hi ${patientName},</p><p>Your prescription has been sent to <strong>${pharmacyName || 'your pharmacy'}</strong>. A copy is attached.</p><p>Medication: <strong>${drug}</strong><br>Directions: ${directions}</p><p>Tere Health Team</p>`,
         attachments: [{ filename: 'prescription.pdf', content: pdfBase64 }],
       })
-    } catch (e) { deliveryErrors.push(`Patient email failed: ${e.message}`) }
+    } catch (e) { console.error('[generate-prescription-pdf] patient email failed:', e); deliveryErrors.push('Patient email failed') }
   }
 
   let prescriptionId = null
@@ -237,7 +239,7 @@ export default async function handler(req, res) {
       delivery_error: deliveryErrors.join('; ') || null,
     }).select('id').single()
     prescriptionId = data?.id
-  } catch (e) { deliveryErrors.push(`DB save failed: ${e.message}`) }
+  } catch (e) { console.error('[generate-prescription-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
 
   res.json({ ok: true, prescriptionId, pdfBase64, deliveryErrors: deliveryErrors.length ? deliveryErrors : undefined })
 }

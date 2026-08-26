@@ -55,7 +55,7 @@ export async function requireProvider(req) {
       .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
       .ilike('email', email)
       .maybeSingle()
-    if (pErr) { const e = new Error('Provider lookup failed: ' + pErr.message); e.status = 500; throw e }
+    if (pErr) { console.error('[auth] provider lookup (jwt) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
     if (!provider) { const e = new Error('No provider account linked to this email'); e.status = 403; throw e }
     if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
     return { userId: userRes.user.id, email, provider }
@@ -69,7 +69,7 @@ export async function requireProvider(req) {
       .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
       .eq('id', String(providerId))
       .maybeSingle()
-    if (pErr) { const e = new Error('Provider lookup failed: ' + pErr.message); e.status = 500; throw e }
+    if (pErr) { console.error('[auth] provider lookup (session) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
     if (!provider) { const e = new Error('Provider not found'); e.status = 403; throw e }
     if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
     return { userId: null, email: provider.email, provider }

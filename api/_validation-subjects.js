@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       supabase.from('validation_subjects').select('*'),
       supabase.from('validation_readings').select('subject_id, recorded_at').order('recorded_at', { ascending: false }),
     ])
-    if (e1) return res.status(500).json({ error: e1.message })
+    if (e1) { console.error('[validation-subjects] e1 failed:', e1); return res.status(500).json({ error: 'Server error' }) }
     if (e2) console.warn('[validation-subjects] readings enrichment failed:', e2.message)
 
     const lastScanMap = {}
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       has_diabetes:            p.hasDiabetes || 'unknown',
       has_regular_medications: p.hasRegularMedications || false,
     }).select().single()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[validation-subjects] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ subject })
   }
 

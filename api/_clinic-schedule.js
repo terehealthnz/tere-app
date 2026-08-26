@@ -41,7 +41,7 @@ export default async function handler(req, res) {
         .from('schedule')
         .update({ slots })
         .eq('id', 1)
-      if (error) return res.status(500).json({ error: `schedule: ${error.message}` })
+      if (error) { console.error('[clinic-schedule] schedule:', error); return res.status(500).json({ error: 'schedule' }) }
       results.push('slots')
     }
     if (typeof use_schedule === 'boolean') {
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
         .from('availability')
         .update({ use_schedule })
         .eq('id', 1)
-      if (error) return res.status(500).json({ error: `availability: ${error.message}` })
+      if (error) { console.error('[clinic-schedule] availability:', error); return res.status(500).json({ error: 'availability' }) }
       results.push('use_schedule')
     }
     if (results.length === 0) {

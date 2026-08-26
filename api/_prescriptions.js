@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
   if (id) {
     const { data, error } = await supabase.from('prescriptions').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (!data)  return res.status(404).json({ error: 'Prescription not found' })
     return res.status(200).json({ prescription: data })
   }
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       .select('id', { count: 'exact', head: true })
       .eq('approval_status', 'pending_approval')
       .eq('is_practice', practice)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ count: count || 0 })
   }
 
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
       .eq('approval_status', 'pending_approval')
       .eq('is_practice', practice)
       .order('created_at', { ascending: true })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ prescriptions: data || [] })
   }
 
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
       .gte('created_at', sinceIso)
       .eq('is_practice', practice)
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ prescriptions: data || [] })
   }
 
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
       .eq('is_practice', practice)
       .order('created_at', { ascending: false })
       .limit(lim)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ prescriptions: data || [] })
   }
 
@@ -112,7 +112,7 @@ export default async function handler(req, res) {
       .eq('consultation_id', consultationId)
       .eq('is_practice', practice)
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ prescriptions: data || [] })
   }
 
@@ -125,7 +125,7 @@ export default async function handler(req, res) {
       .select('id')
       .eq('patient_id', patientId)
       .eq('is_practice', practice)
-    if (cErr) return res.status(500).json({ error: cErr.message })
+    if (cErr) { console.error('[prescriptions] cErr failed:', cErr); return res.status(500).json({ error: 'Server error' }) }
     const ids = (consults || []).map(c => c.id)
     if (ids.length === 0) return res.status(200).json({ prescriptions: [] })
     const { data, error } = await supabase
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
       .in('consultation_id', ids)
       .eq('is_practice', practice)
       .order('created_at', { ascending: false })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[prescriptions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ prescriptions: data || [] })
   }
 

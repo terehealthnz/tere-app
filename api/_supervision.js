@@ -51,7 +51,7 @@ export default async function handler(req, res) {
         .select('id, display_name, first_name, last_name, provider_type, supervision_start_date')
         .eq('supervisor_id', selfId)
         .order('display_name', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[supervision] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ rmos: data || [] })
     }
     if (action === 'reviews') {
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         .eq('rmo_id', rmoId)
         .order('meeting_date', { ascending: false })
         .limit(200)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[supervision] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ reviews: data || [] })
     }
     return res.status(400).json({ error: 'unknown action' })
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
           cases_reviewed, concerns_raised, actions_agreed,
           created_by: selfId,
         }).select().single()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[supervision] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ review: data })
     }
 
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
       }
       const { error } = await supabase
         .from('providers').update({ supervision_scope }).eq('id', rmoId)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[supervision] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 

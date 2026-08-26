@@ -113,7 +113,7 @@ export default async function handler(req, res) {
 
     if (id) {
       const { data, error } = await supabase.from('consultations').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Consultation not found' })
       return res.status(200).json({ consultation: redactClinical(data) })
     }
@@ -126,7 +126,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(20)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
         .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
         .is('gp_letter_sent_at', null)
         .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -164,7 +164,7 @@ export default async function handler(req, res) {
         .eq('status', 'waitlisted')
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -207,7 +207,7 @@ export default async function handler(req, res) {
         .eq('notes_flagged', true)
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -222,7 +222,7 @@ export default async function handler(req, res) {
         .from('consultations').select(cols)
         .eq('is_practice', practice)
         .order('created_at', { ascending: false }).limit(limit)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -235,7 +235,7 @@ export default async function handler(req, res) {
         .neq('status', 'complete')
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -247,7 +247,7 @@ export default async function handler(req, res) {
         .not('rating', 'is', null)
         .eq('is_practice', practice)
         .order('rated_at', { ascending: false })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -267,7 +267,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(limit)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -280,7 +280,7 @@ export default async function handler(req, res) {
         .in('status', ['waiting', 'in_progress'])
         .eq('is_practice', practice)
         .order('created_at', { ascending: true })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -299,7 +299,7 @@ export default async function handler(req, res) {
       if (end)   q = q.lte('created_at', String(end))
       q = q.order('created_at', { ascending: false })
       const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -313,7 +313,7 @@ export default async function handler(req, res) {
         .eq('status', 'complete')
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -336,12 +336,12 @@ export default async function handler(req, res) {
           .limit(limit)
         if (error) {
           console.warn('[acc_converted_flagged] query error, returning []:', error.message)
-          return res.status(200).json({ consultations: [], warning: error.message })
+          return res.status(200).json({ consultations: [], warning: 'query failed' })
         }
         return res.status(200).json({ consultations: redactList(data || []) })
       } catch (e) {
         console.warn('[acc_converted_flagged] threw, returning []:', e.message)
-        return res.status(200).json({ consultations: [], warning: e.message })
+        return res.status(200).json({ consultations: [], warning: 'query threw' })
       }
     }
 
@@ -351,7 +351,7 @@ export default async function handler(req, res) {
         .select('id', { count: 'exact', head: true })
         .eq('notes_flagged', true)
         .eq('is_practice', practice)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ count: count || 0 })
     }
 
@@ -361,7 +361,7 @@ export default async function handler(req, res) {
         .select('id', { count: 'exact', head: true })
         .eq('status', 'complete')
         .eq('is_practice', practice)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ count: count || 0 })
     }
 
@@ -377,7 +377,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .gte('created_at', String(since))
         .order('created_at', { ascending: false })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -393,7 +393,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
         .limit(limit)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -409,7 +409,7 @@ export default async function handler(req, res) {
         .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: false })
         .limit(limit)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -422,7 +422,7 @@ export default async function handler(req, res) {
       let q = supabase.from('consultations').select(cols).eq('employer_id', String(employerId)).eq('is_practice', practice)
       if (since) q = q.gte('created_at', String(since))
       const { data, error } = await q
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
@@ -439,7 +439,7 @@ export default async function handler(req, res) {
         .update({ status: 'waiting', updated_at: new Date().toISOString() })
         .eq('status', 'waitlisted')
         .eq('is_practice', practice)
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 
@@ -490,7 +490,7 @@ export default async function handler(req, res) {
           .eq('is_practice', practice)
           .select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi')
           .single()
-        if (uErr) return res.status(500).json({ error: uErr.message })
+        if (uErr) { console.error('[consultations] uErr failed:', uErr); return res.status(500).json({ error: 'Server error' }) }
         resultConsult = updated
       } else {
         // waiver — fresh consult row with fee_waived=true, admin_initiated=true.
@@ -513,7 +513,7 @@ export default async function handler(req, res) {
           payment_amount:     0,
           is_practice:        practice,
         }).select('id, patient_id, patient_first_name, patient_email, patient_phone, patient_nhi').single()
-        if (cErr) return res.status(500).json({ error: cErr.message })
+        if (cErr) { console.error('[consultations] cErr failed:', cErr); return res.status(500).json({ error: 'Server error' }) }
         resultConsult = created
       }
 
@@ -640,7 +640,7 @@ export default async function handler(req, res) {
       .eq('is_practice', practice)
       .select()
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ consultation: redactClinical(data) })
   }
 

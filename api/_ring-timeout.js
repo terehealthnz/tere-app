@@ -49,7 +49,7 @@ export default async function handler(req, res) {
     provider_id: null,
     provider_display_name: null,
   }).eq('id', consultationId)
-  if (upErr) return res.status(500).json({ error: upErr.message })
+  if (upErr) { console.error('[ring-timeout] upErr failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
 
   return res.status(200).json({ ok: true, cooldown_until: cooldownUntil })
 }

@@ -64,12 +64,12 @@ export default async function handler(req, res) {
 
     if (!result.ok) {
       console.error('[send-waitlist-email] send error:', result.error)
-      return res.status(200).json({ sent: false, error: result.error })
+      return res.status(200).json({ sent: false, error: 'Email send failed' })
     }
 
     return res.status(200).json({ sent: true, id: result.id })
   } catch (e) {
     console.error('[send-waitlist-email] Fetch error:', e.message)
-    return res.status(200).json({ sent: false, error: e.message })
+    return res.status(200).json({ sent: false, error: 'Email send failed' })
   }
 }

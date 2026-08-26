@@ -165,6 +165,7 @@ export default async function handler(req, res) {
     })
     return res.status(200).json({ url, region, expires_in: 300 })
   } catch (e) {
-    return res.status(500).json({ error: 'Failed to pre-sign Transcribe URL', detail: e.message })
+    console.error('[transcribe-token] Failed to pre-sign Transcribe URL:', e)
+    return res.status(500).json({ error: 'Failed to pre-sign Transcribe URL' })
   }
 }

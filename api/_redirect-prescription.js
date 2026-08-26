@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   const { data: rx, error: rxErr } = await supabase
     .from('prescriptions').select('*').eq('id', prescriptionId).maybeSingle()
-  if (rxErr) return res.status(500).json({ error: rxErr.message })
+  if (rxErr) { console.error('[redirect-prescription] rxErr failed:', rxErr); return res.status(500).json({ error: 'Server error' }) }
   if (!rx) return res.status(404).json({ error: 'Prescription not found' })
 
   // Snapshot the original pharmacy for audit trail.
@@ -96,7 +96,8 @@ export default async function handler(req, res) {
   try {
     pdfBuffer = await buildPrescriptionPdf(pdfData)
   } catch (e) {
-    return res.status(500).json({ error: 'PDF rebuild failed', detail: e.message })
+    console.error('[redirect-prescription] PDF rebuild failed:', e)
+    return res.status(500).json({ error: 'PDF rebuild failed' })
   }
 
   const deliveryErrors = []
@@ -115,8 +116,8 @@ export default async function handler(req, res) {
         subject: `Redirected prescription for ${rx.patient_name} — Tere Health`,
         tag: `redirect:${prescriptionId}`,
       })
-      if (!faxResult.ok) deliveryErrors.push(`Fax to new pharmacy failed (${faxResult.provider}): ${faxResult.error}`)
-    } catch (e) { deliveryErrors.push(`Fax exception: ${e.message}`) }
+      if (!faxResult.ok) { console.error('[redirect-prescription] fax failed:', faxResult.provider, faxResult.error); deliveryErrors.push(`Fax to new pharmacy failed (${faxResult.provider})`) }
+    } catch (e) { console.error('[redirect-prescription] fax exception:', e); deliveryErrors.push('Fax delivery failed') }
   }
 
   if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
@@ -134,7 +135,7 @@ export default async function handler(req, res) {
         html: `<p>Please find attached a prescription for <strong>${rx.patient_name}</strong> — this script was previously sent to <em>${originalSnapshot.pharmacy_name || 'another pharmacy'}</em> and has been redirected to you at the patient's request.</p><p>Prescriber: ${rx.provider_name}<br>Prescriber No: ${rx.prescriber_number || '—'}<br>Contact: ${replyTo}</p><p>Medication: <strong>${rx.drug}</strong><br>Directions: ${rx.directions}<br>Quantity: ${rx.quantity}, Repeats: ${rx.repeats || 0}</p>${signatureExempt ? '<p style="font-size:12px;color:#0B6E76;border-left:3px solid #0B6E76;padding-left:10px;margin-top:16px"><em>This prescription meets the requirement of the Director-General of Health\'s authorisation of August 2024 for prescriptions not signed personally by a prescriber with their usual signature.</em></p>' : ''}`,
         attachments: [{ filename: `prescription-${(rx.patient_name || 'patient').replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
       })
-    } catch (e) { deliveryErrors.push(`Email to new pharmacy failed: ${e.message}`) }
+    } catch (e) { console.error('[redirect-prescription] email exception:', e); deliveryErrors.push('Email to new pharmacy failed') }
   }
 
   // Persist the update.
@@ -150,7 +151,7 @@ export default async function handler(req, res) {
     redirected_from_pharmacy: originalSnapshot,
     redirected_by_provider_id: auth.provider?.id || null,
   }).eq('id', prescriptionId)
-  if (upErr) return res.status(500).json({ error: 'Update failed: ' + upErr.message })
+  if (upErr) { console.error('[redirect-prescription] Update failed:', upErr); return res.status(500).json({ error: 'Update failed' }) }
 
   // Crowd-source pharmacy contacts (matches _generate-prescription-pdf pattern).
   if (pharmacyId && (pharmacyFax || pharmacyEmail || pharmacyPhone || pharmacyHpiId)) {
@@ -170,7 +171,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     ok: true,
-    faxResult,
+    faxResult: faxResult ? { ok: faxResult.ok, provider: faxResult.provider, providerId: faxResult.providerId, status: faxResult.status } : null,
     deliveryErrors,
     previousPharmacy: originalSnapshot.pharmacy_name,
     newPharmacy: pharmacyName,

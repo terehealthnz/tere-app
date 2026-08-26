@@ -83,6 +83,6 @@ export default async function handler(req, res) {
     res.status(200).json({ sent })
   } catch(e) {
     console.error(e)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

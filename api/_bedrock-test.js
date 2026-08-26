@@ -25,10 +25,11 @@ async function testTier(tier) {
       latencyMs: Date.now() - t0,
     }
   } catch (e) {
+    console.error(`[bedrock-test:${tier}] call failed:`, e)
     return {
       tier,
       ok: false,
-      error: e.message || String(e),
+      error: 'call failed',
       status: e.status,
       model,
       latencyMs: Date.now() - t0,
@@ -40,9 +41,10 @@ export default async function handler(req, res) {
   const region = process.env.AWS_REGION || 'ap-southeast-2'
 
   if (!isConfigured()) {
+    console.error('[bedrock-test] AWS credentials not configured')
     return res.status(500).json({
       ok: false,
-      error: 'AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY not set',
+      error: 'AWS credentials not configured',
       region,
     })
   }

@@ -103,7 +103,8 @@ export default async function handler(req, res) {
       const result = await sendBasicReceipt(consultationId)
       return res.status(200).json(result)
     } catch (e) {
-      return res.status(500).json({ error: e.message })
+      console.error('[send-email] basic receipt failed:', e)
+      return res.status(500).json({ error: 'Server error' })
     }
   }
 

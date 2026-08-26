@@ -135,6 +135,6 @@ export default async function handler(req, res) {
     res.json({ ok: true, sent })
   } catch (e) {
     console.error('push-notify error:', e.message)
-    res.status(500).json({ error: e.message })
+    res.status(500).json({ error: 'Server error' })
   }
 }

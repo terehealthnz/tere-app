@@ -135,7 +135,7 @@ export default async function handler(req, res) {
       .select('id, participant_a, participant_b, created_at, updated_at')
       .or(`participant_a.eq.${me.id},participant_b.eq.${me.id}`)
       .order('updated_at', { ascending: false })
-    if (tErr) return res.status(500).json({ error: tErr.message })
+    if (tErr) { console.error('[team-messages] tErr failed:', tErr); return res.status(500).json({ error: 'Server error' }) }
     if (!threads?.length) return res.status(200).json({ threads: [] })
 
     // Fetch counterpart identities in one round-trip.
@@ -230,7 +230,7 @@ export default async function handler(req, res) {
       .eq('dm_thread_id', threadId)
       .order('created_at', { ascending: false })
       .limit(200)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     const { data: readRow } = await supabase
       .from('team_dm_reads').select('last_read_at').eq('provider_id', me.id).eq('dm_thread_id', threadId).maybeSingle()
     const lastRead = readRow?.last_read_at || '1970-01-01T00:00:00Z'
@@ -249,7 +249,7 @@ export default async function handler(req, res) {
       .is('dm_thread_id', null)
       .order('created_at', { ascending: false })
       .limit(200)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     const { data: readRow } = await supabase
       .from('team_reads').select('last_read_at').eq('provider_id', me.id).maybeSingle()
@@ -298,13 +298,13 @@ export default async function handler(req, res) {
       const { error } = await supabase
         .from('team_dm_reads')
         .upsert({ provider_id: me.id, dm_thread_id: threadId, last_read_at: new Date().toISOString() })
-      if (error) return res.status(500).json({ error: error.message })
+      if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
     const { error } = await supabase
       .from('team_reads')
       .upsert({ provider_id: me.id, last_read_at: new Date().toISOString() })
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
@@ -335,7 +335,7 @@ export default async function handler(req, res) {
       patient_name: patient_name || null,
       dm_thread_id: dm_thread_id || null,
     }).select().maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     // Bump author's own read stamp so their own message isn't unread.
     if (dm_thread_id) {
@@ -360,7 +360,7 @@ export default async function handler(req, res) {
 
     const { data: existing, error: gErr } = await supabase
       .from('team_messages').select('author_id, dm_thread_id').eq('id', id).maybeSingle()
-    if (gErr) return res.status(500).json({ error: gErr.message })
+    if (gErr) { console.error('[team-messages] gErr failed:', gErr); return res.status(500).json({ error: 'Server error' }) }
     if (!existing) return res.status(404).json({ error: 'Not found' })
     if (existing.author_id !== me.id) return res.status(403).json({ error: 'Only the author can edit' })
 
@@ -371,7 +371,7 @@ export default async function handler(req, res) {
       .eq('id', id)
       .select()
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ message: updated })
   }
 
@@ -382,7 +382,7 @@ export default async function handler(req, res) {
 
     const { data: existing, error: gErr } = await supabase
       .from('team_messages').select('author_id').eq('id', id).maybeSingle()
-    if (gErr) return res.status(500).json({ error: gErr.message })
+    if (gErr) { console.error('[team-messages] gErr failed:', gErr); return res.status(500).json({ error: 'Server error' }) }
     if (!existing) return res.status(404).json({ error: 'Not found' })
     if (existing.author_id !== me.id && !me.is_admin) {
       return res.status(403).json({ error: 'Only the author or an admin can delete' })
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
       .from('team_messages')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[team-messages] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
