@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import crypto from 'node:crypto'
 import { buildReferralPdf } from './_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
@@ -21,10 +21,9 @@ async function notifySupervisors(supabase, subject, html) {
     .eq('is_active', true)
     .not('email', 'is', null)
   if (!supervisors?.length) return
-  const resend = new Resend(resendKey)
   for (const sup of supervisors) {
     try {
-      await resend.emails.send({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to: sup.email, subject, html })
+      await sendEmail({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to: sup.email, subject, html })
     } catch {}
   }
 }
@@ -164,8 +163,7 @@ export default async function handler(req, res) {
 
   if (finalFacilityEmail && process.env.RESEND_API_KEY) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: finalFacilityEmail,
@@ -183,8 +181,7 @@ export default async function handler(req, res) {
 
   if (patientEmail && process.env.RESEND_API_KEY) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,

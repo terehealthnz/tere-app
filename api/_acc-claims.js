@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import { buildAccInvoicePdf } from './_pdf-builders.js'
 
 const ACC_BASE_URL = process.env.ACC_SANDBOX === 'false'
@@ -86,9 +86,8 @@ async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents,
     dateOfService:   consult.completed_at || consult.created_at,
   })
   const pdfBase64 = pdfBuffer.toString('base64')
-  const resend = new Resend(process.env.RESEND_API_KEY)
   const invoiceRef = `Invoice ${claimNumber} — ${patientName}`
-  await resend.emails.send({
+  await sendEmail({
     from:    'Tere Health <hello@terehealth.co.nz>',
     replyTo: 'terehealthnz@gmail.com',
     to:      'providerinvoices@acc.co.nz',

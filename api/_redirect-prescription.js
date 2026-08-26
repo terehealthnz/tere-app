@@ -9,7 +9,7 @@
 // Provider auth via guardProvider. Only providers can redirect scripts.
 
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 import { guardProvider } from './_auth.js'
@@ -122,12 +122,11 @@ export default async function handler(req, res) {
   if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
     try {
       const pdfBase64 = pdfBuffer.toString('base64')
-      const resend = new Resend(process.env.RESEND_API_KEY)
       // Same DG Aug 2024 identification requirement as the initial send —
       // From-name carries the prescriber, reply-to routes to their mailbox.
       const fromName = `Dr ${rx.provider_name || 'Prescriber'} via Tere Health`.replace(/"/g, "'")
       const replyTo = providerEmail || 'terehealthnz@gmail.com'
-      await resend.emails.send({
+      await sendEmail({
         from: `${fromName} <hello@terehealth.co.nz>`,
         replyTo,
         to: pharmacyEmail,

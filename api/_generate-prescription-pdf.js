@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt, classifyDrug } from './_drug-classifications.js'
 
@@ -20,10 +20,9 @@ async function notifySupervisors(supabase, subject, html) {
     .eq('is_active', true)
     .not('email', 'is', null)
   if (!supervisors?.length) return
-  const resend = new Resend(resendKey)
   for (const sup of supervisors) {
     try {
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: sup.email,
@@ -161,7 +160,6 @@ export default async function handler(req, res) {
 
   if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
       // From-name identifies the individual prescriber alongside the facility
       // per DG Aug 2024 requirement ("secure email that identifies the
       // prescriber and the healthcare facility"). Reply-to routes pharmacy
@@ -169,7 +167,7 @@ export default async function handler(req, res) {
       // backup when the provider row has no email on file.
       const fromName = `Dr ${providerName} via Tere Health`.replace(/"/g, "'")
       const replyTo = providerEmail || 'terehealthnz@gmail.com'
-      await resend.emails.send({
+      await sendEmail({
         from: `${fromName} <hello@terehealth.co.nz>`,
         replyTo,
         to: pharmacyEmail,
@@ -200,8 +198,7 @@ export default async function handler(req, res) {
 
   if (patientEmail && process.env.RESEND_API_KEY) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY)
-      await resend.emails.send({
+      await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,

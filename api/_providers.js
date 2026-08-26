@@ -11,7 +11,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import { guardProvider } from './_auth.js'
 
 // Auto-notification recipient for new-provider onboarding.
@@ -42,7 +42,6 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
   if (!resendKey) return
   if (!provider?.is_provider) return   // admin-only rows don't need to be shared
   try {
-    const resend = new Resend(resendKey)
     const nameRaw = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ')
     const mcnzRaw = provider.mcnz_registration_number || '(pending — will follow up)'
     const cpnRaw  = provider.cpn || '(not yet issued)'
@@ -50,7 +49,7 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
     const mcnz = escapeHtml(mcnzRaw)
     const cpn  = escapeHtml(cpnRaw)
     const verb = changeType === 'new' ? 'has been onboarded at' : 'MCNZ number updated for'
-    await resend.emails.send({
+    await sendEmail({
       from:    'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to:      RHCNZ_ONBOARDING_NOTIFICATION_EMAIL,
@@ -82,12 +81,11 @@ async function sendProviderWelcomeEmail(provider, initialPin) {
   if (!provider?.email) return  // no address on file — admin will share PIN out-of-band
   if (!initialPin) return       // shouldn't happen — insert path always sets one
   try {
-    const resend = new Resend(resendKey)
     const firstName = escapeHtml(provider.first_name || 'there')
     const email     = escapeHtml(provider.email)
     const pin       = escapeHtml(initialPin)
     const loginUrl  = 'https://terehealth.co.nz/clinician'
-    await resend.emails.send({
+    await sendEmail({
       from:    'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to:      provider.email,

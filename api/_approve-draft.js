@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail as sendEmailViaProvider } from './_email-client.js'
 import { buildPrescriptionPdf, buildReferralPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 
@@ -12,8 +12,7 @@ function supabaseAdmin() {
 
 async function sendEmail(to, subject, html, attachments) {
   if (!process.env.RESEND_API_KEY || !to) return
-  const resend = new Resend(process.env.RESEND_API_KEY)
-  await resend.emails.send({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to, subject, html, attachments })
+  await sendEmailViaProvider({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to, subject, html, attachments })
 }
 
 export default async function handler(req, res) {

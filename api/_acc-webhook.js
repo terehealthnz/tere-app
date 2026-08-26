@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail } from './_email-client.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 function supabaseAdmin() {
@@ -94,8 +94,7 @@ export default async function handler(req, res) {
       // Notify admin
       if (process.env.RESEND_API_KEY) {
         try {
-          const resend = new Resend(process.env.RESEND_API_KEY)
-          await resend.emails.send({
+          await sendEmail({
             from: 'Tere Health <hello@terehealth.co.nz>',
             to:   ['terehealthnz@gmail.com'],
             subject: `ACC claim declined — ${claimNumber}`,
