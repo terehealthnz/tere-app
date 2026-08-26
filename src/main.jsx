@@ -11,6 +11,17 @@ import { loadFlags } from './lib/featureFlags'
 // back to their default (off).
 loadFlags().catch(() => {})
 
+// Register the service worker. Moved out of index.html inline <script>
+// so we can strip 'unsafe-inline' from the CSP script-src (pen-test H-3).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then(reg => reg.update())
+      .catch(() => {})
+  })
+}
+
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
