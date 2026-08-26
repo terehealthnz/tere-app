@@ -142,6 +142,24 @@ export default async function handler(req, res) {
     const pdfBase64 = pdfBuffer.toString('base64')
     const filename = `prescription-${data.patient_name.replace(/ /g, '-')}.pdf`
 
+    // Atomic status transition FIRST — only mutate rows still in 'pending'.
+    // Blocks double-approval races (two supervisors clicking Approve
+    // simultaneously, or a page refresh mid-flight). Pen-test #309-F3:
+    // if emails send BEFORE the atomic guard, both racers dispatch the
+    // prescription to the pharmacy → real double-dispensing risk. Send
+    // emails only after we've confirmed we won the flip.
+    const { data: approved } = await supabase.from('prescriptions').update({
+      approval_status: 'approved',
+      approved_by: supervisorId,
+      approved_at: now,
+      delivery_status: 'sent',
+      ...(action === 'modify' ? modifications : {}),
+      modification_log: [...(rx.modification_log || []), logEntry],
+    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
+    if (!approved) {
+      return res.status(409).json({ error: 'Prescription is no longer pending — may have already been approved or rejected.' })
+    }
+
     // Email pharmacy
     if (data.pharmacy_email) {
       try {
@@ -176,22 +194,6 @@ export default async function handler(req, res) {
           `<p>Hi ${drafter.first_name},</p><p>Your prescription draft for <strong>${rx.patient_name}</strong> — <strong>${rx.drug}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong> and sent to ${data.pharmacy_name || 'the pharmacy'}.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
         )
       }
-    }
-
-    // Atomic status transition — only mutate rows still in 'pending'. Blocks
-    // double-approval races (two supervisors clicking Approve simultaneously,
-    // or a page refresh mid-flight). The .select().maybeSingle() confirms
-    // exactly one row was updated; if zero, another approval already fired.
-    const { data: approved } = await supabase.from('prescriptions').update({
-      approval_status: 'approved',
-      approved_by: supervisorId,
-      approved_at: now,
-      delivery_status: 'sent',
-      ...(action === 'modify' ? modifications : {}),
-      modification_log: [...(rx.modification_log || []), logEntry],
-    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
-    if (!approved) {
-      return res.status(409).json({ error: 'Prescription is no longer pending — may have already been approved or rejected.' })
     }
 
     return res.json({ ok: true, pdfBase64 })
@@ -260,6 +262,22 @@ export default async function handler(req, res) {
     const pdfBase64 = pdfBuffer.toString('base64')
     const filename = `referral-${data.patient_name.replace(/ /g, '-')}.pdf`
 
+    // Atomic status transition FIRST — send emails only after we win the
+    // flip. See prescription block above for full rationale. Pen-test #309-F3
+    // (double-dispatch to imaging clinic if two supervisors race).
+    const { data: approvedRef } = await supabase.from('radiology_referrals').update({
+      approval_status: 'approved',
+      approved_by: supervisorId,
+      approved_at: now,
+      referral_status: 'pending',
+      delivery_status: 'sent',
+      ...(action === 'modify' ? modifications : {}),
+      modification_log: [...(ref.modification_log || []), logEntry],
+    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
+    if (!approvedRef) {
+      return res.status(409).json({ error: 'Referral is no longer pending — may have already been approved or rejected.' })
+    }
+
     if (data.facility_email) {
       try {
         await sendEmail(
@@ -291,20 +309,6 @@ export default async function handler(req, res) {
           `<p>Hi ${drafter.first_name},</p><p>Your referral for <strong>${ref.patient_name}</strong> — <strong>${ref.investigation}</strong> has been ${action === 'modify' ? 'modified and ' : ''}approved by <strong>${supervisorName}</strong>.</p><p style="color:#6B7280;font-size:12px">Tere Health · terehealth.co.nz</p>`
         )
       }
-    }
-
-    // Atomic status transition — see prescription block for rationale.
-    const { data: approvedRef } = await supabase.from('radiology_referrals').update({
-      approval_status: 'approved',
-      approved_by: supervisorId,
-      approved_at: now,
-      referral_status: 'pending',
-      delivery_status: 'sent',
-      ...(action === 'modify' ? modifications : {}),
-      modification_log: [...(ref.modification_log || []), logEntry],
-    }).eq('id', id).in('approval_status', ['pending', null]).select('id').maybeSingle()
-    if (!approvedRef) {
-      return res.status(409).json({ error: 'Referral is no longer pending — may have already been approved or rejected.' })
     }
 
     return res.json({ ok: true, pdfBase64 })
