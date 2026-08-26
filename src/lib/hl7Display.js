@@ -41,17 +41,21 @@ export function applyHl7EmphasisTags(escapedHtml) {
 
 // HL7 datetime → dd/mm/yyyy [hh:mm]. Matches the Trinity Windows convention
 // Tony showed in his screenshots so our render lines up alongside theirs.
-// Also accepts ISO strings (the server already stores parsed_summary dates
-// as ISO via parseHl7Datetime in _hl7-inbound.js).
+// Accepts:
+//   - Naive ISO-like: "2017-11-18T06:19:00" (what parseHl7Datetime now emits)
+//   - ISO with Z:     "2017-11-18T06:19:00Z" (legacy stored rows — treat the
+//                     Z as a spurious suffix, HL7 datetimes without an offset
+//                     are wall-clock at the sender, not UTC)
+//   - Raw HL7:        "201711180619"
+// In all three cases we read the calendar components literally — no Date
+// round-trip — so display never tz-shifts. Fixes MO case #1058382 round-5.
 export function formatHl7Datetime(s) {
   if (!s) return null
   const str = String(s)
-  // ISO 8601 (e.g. 2026-08-19T14:00:00Z) — parse via Date.
-  if (/^\d{4}-\d{2}-\d{2}T/.test(str)) {
-    const d = new Date(str)
-    if (isNaN(d)) return null
-    const pad = n => String(n).padStart(2, '0')
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/)
+  if (iso) {
+    const [, y, mo, d, hr, mi] = iso
+    return `${d}/${mo}/${y} ${hr}:${mi}`
   }
   const clean = str.replace(/[^\d]/g, '').slice(0, 14)
   if (clean.length < 8) return null

@@ -232,6 +232,11 @@ function component(seg, fieldIndex, componentIndex, parsed) {
 
 function parseHl7Datetime(s) {
   // HL7: YYYYMMDDHHMMSS[+/-ZZZZ]. Truncate at valid length.
+  // Unqualified HL7 datetimes are wall-clock at the sender (see HL7 v2.x DTM
+  // rules and Medical-Objects case #1058382 round-5). We preserve the wall
+  // clock as a naive ISO-like string — no Z, no offset — so downstream
+  // rendering shows the exact date/time the sender wrote, regardless of the
+  // viewer's browser timezone or the serverless region's UTC clock.
   if (!s) return null
   const clean = String(s).replace(/\D/g, '').slice(0, 14)
   if (clean.length < 8) return null
@@ -241,9 +246,9 @@ function parseHl7Datetime(s) {
   const hr = clean.slice(8, 10) || '00'
   const mi = clean.slice(10, 12) || '00'
   const se = clean.slice(12, 14) || '00'
-  const iso = `${yr}-${mo}-${dy}T${hr}:${mi}:${se}Z`
-  const d = new Date(iso)
-  return isNaN(d.getTime()) ? null : d.toISOString()
+  const naive = `${yr}-${mo}-${dy}T${hr}:${mi}:${se}`
+  const test = new Date(`${naive}Z`)
+  return isNaN(test.getTime()) ? null : naive
 }
 
 function parseHl7Date(s) {

@@ -227,9 +227,17 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
   )
   // OBX rows to render in the results table: hide the FT/TX + ED pair for LIT
   // messages (they're rendered separately below as the report body).
-  const obxTableRows = display.isLit
+  const nonLitObx = display.isLit
     ? display.obxRows.filter(o => o.valueType !== 'FT' && o.valueType !== 'TX' && o.valueType !== 'ED')
     : display.obxRows
+  // Split FT / TX out of the tabular OBX view so they render as full-width
+  // monospace blocks with just the OBX-5 body — no Test/Value/Units/Ref/Flag
+  // columns. Matches the Trinity Windows convention Tony Cruice pointed to
+  // 2026-08-26 (Mid-Stream Urine report example, case #1058382 round-5).
+  // The tabular columns are for atomic results (NM/ST/CE); FT is preformatted
+  // narrative that squashes badly in a table cell.
+  const ftBlocks   = nonLitObx.filter(o => o.valueType === 'FT' || o.valueType === 'TX')
+  const obxTableRows = nonLitObx.filter(o => o.valueType !== 'FT' && o.valueType !== 'TX')
 
   return (
     <div style={{ padding: embedded ? '.5rem 0 1rem' : '1.25rem 1.5rem 3rem', background: embedded ? 'transparent' : '#F7F5F0', minHeight: embedded ? 'auto' : '100dvh', fontFamily: FF }}>
@@ -325,6 +333,25 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
           </pre>
         </div>
       )}
+
+      {ftBlocks.map((o, i) => {
+        // Prefer the OBR service label as the section title (matches Trinity
+        // Windows). Fall back to the OBX identifier if the FT row is its own
+        // distinct sub-report within a multi-battery ORU.
+        const obxLabel = o.identLabel || o.identifier
+        const showObxLabel = obxLabel && obxLabel !== (display.obr4Label || '')
+        return (
+          <div key={`ft-${i}`} style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.6rem' }}>
+              {display.obr4Label || 'Report'}
+              {showObxLabel && <span style={{ marginLeft: 8, color: '#6B7280', fontWeight: 400 }}>· {obxLabel}</span>}
+            </div>
+            <pre style={{ fontFamily: MONO, fontSize: '.85rem', color: '#111827', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+              {renderHl7Text(o.value)}
+            </pre>
+          </div>
+        )
+      })}
 
       {obxTableRows.length > 0 && (
         <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
