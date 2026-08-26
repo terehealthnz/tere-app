@@ -178,7 +178,16 @@ export async function createConsultation(data) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.error || `createConsultation HTTP ${res.status}`)
   }
-  const { consultation } = await res.json()
+  const body = await res.json()
+  const consultation = body.consultation
+  // Stash the server-minted patient session token. apiFetch attaches this
+  // as X-Patient-Token on every subsequent /api/ call so server endpoints
+  // can authenticate patient writes without trusting a raw consultation_id
+  // in the body. Pen-test M-4/M-5.
+  const token = body.patient_access_token || consultation?.patient_access_token
+  if (token && typeof sessionStorage !== 'undefined') {
+    try { sessionStorage.setItem('patient_access_token', token) } catch {}
+  }
   return consultation
 }
 

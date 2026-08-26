@@ -3,22 +3,27 @@
 // the patient flow (VitalsCapture, AITriage, WaitingRoom, Rate, HDCConsent,
 // ConsentPage, PrescribingLimits, ConsultationType).
 //
-// Security model:
+// Security model (pen-test M-4/M-5, 2026-08-26):
 // - No JWT — patient isn't authenticated as a provider.
-// - No hard token — the consultation_id itself is the auth (same posture as
-//   the existing anon UPDATE policy; this endpoint is a defence-in-depth
-//   layer, not a fundamentally stronger primitive yet).
+// - Server-minted patient_access_token authenticates every write. Client
+//   passes it as X-Patient-Token header (auto-injected by apiFetch from
+//   sessionStorage). Token is scoped to a single consultation and expires
+//   24 h after creation. See api/_patient-token.js + supabase migration
+//   2026-08-26_patient_access_token.sql.
+// - resolvePatientAuth() exchanges token → consultation_id at the endpoint
+//   boundary. If the URL/body's id doesn't match the token's consult, we
+//   reject 403 so a caller can't set { id: any-consult-id, patient_token: X }.
+// - Legacy fallback: if no token is present but a raw consultation_id is,
+//   we accept it and log a warning so we can measure when it's safe to
+//   remove the fallback (see api/_patient-token.js).
 // - Narrow column allowlist rejects any field a patient shouldn't be able to
 //   touch (id, patient_*, notes_*, diagnosis, provider_id, transcript, etc).
 // - Status transitions restricted to a small safe set ('cancelled',
-//   'vitals_complete') so a scraper with a consultation_id can't force a
-//   row into 'complete' or similar states that skip provider workflow.
-//
-// Once the consultation_tokens table is wired into consult creation and every
-// patient page passes a token, this endpoint tightens up to require the token
-// match — see task follow-up. For now, this alone lets us drop anon UPDATE.
+//   'vitals_complete') so a scraper can't force a row into 'complete' or
+//   similar states that skip provider workflow.
 
 import { createClient } from '@supabase/supabase-js'
+import { resolvePatientAuth } from './_patient-token.js'
 
 function admin() {
   return createClient(
@@ -118,7 +123,7 @@ export default async function handler(req, res) {
       .select(PATIENT_VIEW_COLUMNS)
       .eq('id', id)
       .maybeSingle()
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     if (!data)  return res.status(404).json({ error: 'Consultation not found' })
     return res.status(200).json({ consultation: data })
   }
@@ -127,17 +132,31 @@ export default async function handler(req, res) {
   // consult, the client asks us to delete the stale row. Restricted to rows
   // still in status='pre_triage' so a scraper can't delete real consults.
   if (req.method === 'DELETE') {
+    const auth = await resolvePatientAuth(req)
+    if (auth.error) return res.status(auth.status).json({ error: auth.error })
+    if (auth.consultationId !== id) {
+      return res.status(403).json({ error: 'Token does not match consultation' })
+    }
     const supabase = admin()
     const { error } = await supabase
       .from('consultations')
       .delete()
       .eq('id', id)
       .eq('status', 'pre_triage')
-    if (error) return res.status(500).json({ error: error.message })
+    if (error) { console.error('[patient-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
   if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' })
+
+  // Authenticate the patient session: token (preferred) or legacy consult_id
+  // fallback during rollout. On mismatch (token → different consult than the
+  // one in the URL), reject 403 so a caller can't set { id: any } + token X.
+  const auth = await resolvePatientAuth(req)
+  if (auth.error) return res.status(auth.status).json({ error: auth.error })
+  if (auth.consultationId !== id) {
+    return res.status(403).json({ error: 'Token does not match consultation' })
+  }
 
   const raw = req.body || {}
   const patch = {}
@@ -210,7 +229,7 @@ export default async function handler(req, res) {
     .eq('id', id)
     .select()
     .maybeSingle()
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) { console.error('[patient-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   if (!data)  return res.status(404).json({ error: 'Consultation not found' })
 
   // If the patient changed pharmacy on this consult, propagate to their

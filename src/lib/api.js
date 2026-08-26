@@ -47,6 +47,19 @@ export async function apiFetch(path, options = {}) {
     } catch {}
   }
 
+  // Patient session token — automatically attached to every /api/ call
+  // when the browser is in a patient session. Server endpoints exchange
+  // this token → consultation_id via resolvePatientAuth() rather than
+  // trusting a raw consultation_id in the body. Pen-test M-4/M-5 fix.
+  // Set at /api/create-consultation response time (see supabase.js
+  // createConsultation) and cleared at post-consult /done navigation.
+  if (!headers['x-patient-token'] && typeof sessionStorage !== 'undefined') {
+    try {
+      const t = sessionStorage.getItem('patient_access_token')
+      if (t) headers['x-patient-token'] = t
+    } catch {}
+  }
+
   const res = await fetch(path, { ...options, headers })
   return res
 }

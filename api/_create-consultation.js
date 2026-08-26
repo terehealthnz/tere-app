@@ -16,6 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { aiCallJSON } from './_ai.js'
+import { mintAndAttachToken } from './_patient-token.js'
 
 // Free-text triage fields we want stored in English so the provider chart,
 // note generation, ACC/GP letters, and downstream audit trail all read in
@@ -188,11 +189,21 @@ export default async function handler(req, res) {
             code: 'DUPLICATE_OPEN_CONSULT',
           })
         }
-        return res.status(500).json({ error: retry.error.message })
+        console.error('[create-consultation] retry.error failed:', retry.error)
+        return res.status(500).json({ error: 'Server error' })
       }
-      return res.status(200).json({ consultation: retry.data })
+      const retryToken = await mintAndAttachToken(supabase, retry.data.id)
+      return res.status(200).json({ consultation: { ...retry.data, patient_access_token: retryToken }, patient_access_token: retryToken })
     }
-    return res.status(500).json({ error: error.message })
+    console.error('[create-consultation] error failed:', error)
+    return res.status(500).json({ error: 'Server error' })
   }
-  return res.status(200).json({ consultation: data })
+  // Mint the patient session token — required on every subsequent write from
+  // the patient client. Pen-test M-5. Returned both at the top level and
+  // nested on the consultation object for caller convenience.
+  const patientToken = await mintAndAttachToken(supabase, data.id)
+  return res.status(200).json({
+    consultation: { ...data, patient_access_token: patientToken },
+    patient_access_token: patientToken,
+  })
 }
