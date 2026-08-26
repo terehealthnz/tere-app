@@ -1,30 +1,52 @@
 import { createClient } from '@supabase/supabase-js'
-import { randomBytes } from 'crypto'
+import { randomBytes, createHash } from 'crypto'
+
+function sha256Hex(s) {
+  return createHash('sha256').update(String(s || '')).digest('hex')
+}
 
 export default async function handler(req, res) {
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
 
   if (req.method === 'POST') {
-    // Generate a token for a consultation
+    // Generate a token for a consultation. Store SHA-256 hash; return
+    // plaintext once so the caller can construct the /my-consultation/:token
+    // link. Same pattern as password-reset tokens. Pen-test A1 fix.
     const { consultation_id } = req.body
     if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
 
     const token = randomBytes(32).toString('hex')
+    const tokenHash = sha256Hex(token)
     const expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
 
-    const { error } = await supabase.from('consultation_tokens').insert({ consultation_id, token, expires_at })
+    const { error } = await supabase.from('consultation_tokens').insert({
+      consultation_id,
+      token,     // transition — remove after plaintext column drop in follow-up migration
+      token_hash: tokenHash,
+      expires_at,
+    })
     if (error) { console.error('[consultation-token] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
     return res.status(200).json({ token, expires_at })
   }
 
   if (req.method === 'GET') {
-    // Validate a token and return consultation summary (no clinical notes)
+    // Validate a token by hash. Fallback to plaintext during the migration
+    // transition window (defensive — the backfill in
+    // 2026-08-26_hash_bearer_tokens.sql should have populated token_hash
+    // for every existing row).
     const { token } = req.query
     if (!token) return res.status(400).json({ error: 'token required' })
 
-    const { data: tokenRow, error: tokenErr } = await supabase.from('consultation_tokens')
-      .select('*').eq('token', token).single()
+    const tokenHash = sha256Hex(token)
+    let { data: tokenRow, error: tokenErr } = await supabase.from('consultation_tokens')
+      .select('*').eq('token_hash', tokenHash).maybeSingle()
+    if (!tokenRow && !tokenErr?.message?.includes('does not exist')) {
+      const legacy = await supabase.from('consultation_tokens')
+        .select('*').eq('token', token).maybeSingle()
+      tokenRow = legacy.data
+      tokenErr = legacy.error
+    }
 
     if (tokenErr || !tokenRow) return res.status(404).json({ error: 'Invalid or expired link' })
     if (new Date(tokenRow.expires_at) < new Date()) return res.status(410).json({ error: 'This link has expired' })

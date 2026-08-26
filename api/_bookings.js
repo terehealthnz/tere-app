@@ -226,7 +226,10 @@ export default async function handler(req, res) {
         } catch (e) { return res.status(402).json({ error: 'Could not verify payment' }) }
       }
 
-      // Check slot still available
+      // Check slot still available (best-effort — the authoritative guard is
+      // the partial unique index bookings_no_double_book_idx which catches
+      // concurrent races the read-then-insert below cannot. See
+      // supabase/2026-08-26_appointment_no_double_book.sql — pen-test #309-F2).
       const { count } = await supabase.from('bookings')
         .select('*', { count: 'exact', head: true })
         .eq('appointment_date', appointment_date)
@@ -245,7 +248,15 @@ export default async function handler(req, res) {
         reason: reason || null, reservation_fee_payment_intent_id: reservation_fee_payment_intent_id || null,
         reservation_fee_paid: !!reservation_fee_payment_intent_id, status: 'confirmed',
       }).select().single()
-      if (error) { console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      if (error) {
+        // Partial unique index violation = concurrent booking claimed this
+        // slot in the microseconds between our count check and insert.
+        // Surface as 409 (same UX as the pre-check).
+        if (error.code === '23505' && (error.message || '').includes('bookings_no_double_book_idx')) {
+          return res.status(409).json({ error: 'Slot no longer available — please choose another time' })
+        }
+        console.error('[bookings] error failed:', error); return res.status(500).json({ error: 'Server error' })
+      }
 
       const displayDate = nzDisplay(appointment_date, appointment_time)
       const cancelDeadline = new Date(new Date(`${appointment_date}T${appointment_time}:00+13:00`).getTime() - 24*60*60*1000)

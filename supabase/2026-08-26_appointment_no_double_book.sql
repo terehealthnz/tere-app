@@ -19,3 +19,15 @@ COMMENT ON INDEX appointments_no_double_book_idx IS
    Read-then-insert check in _appointments.js is racy — the DB-level partial
    unique index is the authoritative guard. Filter WHERE status <> cancelled
    so a re-book of a previously cancelled slot is allowed.';
+
+-- Same race also exists on the bookings table (patient-facing /booking flow
+-- at api/_bookings.js action=create around line 229-247). Same fix pattern
+-- with the appropriate columns.
+CREATE UNIQUE INDEX IF NOT EXISTS bookings_no_double_book_idx
+  ON bookings (provider_id, appointment_date, appointment_time)
+  WHERE status <> 'cancelled';
+
+COMMENT ON INDEX bookings_no_double_book_idx IS
+  'Prevents two concurrent patients from claiming the same booking slot.
+   _bookings.js has the same read-then-insert pattern as _appointments.js
+   — DB-level partial unique index is the authoritative guard.';

@@ -20,9 +20,13 @@
 // drop the allowLegacyConsultId flag.
 
 import { createClient } from '@supabase/supabase-js'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, createHash } from 'node:crypto'
 
 const TOKEN_TTL_HOURS = 24
+
+function sha256Hex(s) {
+  return createHash('sha256').update(String(s || '')).digest('hex')
+}
 
 function admin() {
   return createClient(
@@ -77,11 +81,27 @@ export async function resolvePatientAuth(req, opts = {}) {
 
   const token = extractToken(req)
   if (token) {
-    const { data: consult, error } = await supabase
+    // Compare against the SHA-256 hash column. Falls back to the plaintext
+    // column for the transition window during migration
+    // 2026-08-26_hash_bearer_tokens.sql. Once the plaintext column is
+    // dropped in the follow-up migration, remove the fallback.
+    const tokenHash = sha256Hex(token)
+    let { data: consult, error } = await supabase
       .from('consultations')
-      .select('id, status, patient_access_token, created_at')
-      .eq('patient_access_token', token)
+      .select('id, status, patient_access_token_hash, created_at')
+      .eq('patient_access_token_hash', tokenHash)
       .maybeSingle()
+    if ((error || !consult) && !error?.message?.includes('does not exist')) {
+      // Column exists but no match on hash — try legacy plaintext lookup
+      // in case a token was minted pre-migration and hasn't been re-issued.
+      const legacy = await supabase
+        .from('consultations')
+        .select('id, status, patient_access_token, patient_access_token_hash, created_at')
+        .eq('patient_access_token', token)
+        .maybeSingle()
+      consult = legacy.data
+      error = legacy.error
+    }
     if (error || !consult) {
       return { error: 'Invalid patient session', status: 401 }
     }
@@ -119,14 +139,28 @@ export async function resolvePatientAuth(req, opts = {}) {
 }
 
 /**
- * Mint a token, write it to the consultation row, return it. Called by
- * /api/create-consultation right after INSERT.
+ * Mint a token, write its SHA-256 hash to the consultation row, return
+ * the plaintext token to the caller (which returns it once to the client).
+ * Called by /api/create-consultation right after INSERT.
+ *
+ * The plaintext token exists only in this response and in the patient's
+ * sessionStorage. DB stores hash only. Same rationale as password reset
+ * tokens (see _provider-reset-request.js).
+ *
+ * During the transition window we also write the plaintext column so
+ * pre-migration endpoint code that still reads plaintext keeps working.
+ * Once the follow-up migration drops the plaintext column, remove the
+ * `patient_access_token: token` field from this update.
  */
 export async function mintAndAttachToken(supabase, consultationId) {
   const token = generatePatientAccessToken()
+  const tokenHash = sha256Hex(token)
   const { error } = await supabase
     .from('consultations')
-    .update({ patient_access_token: token })
+    .update({
+      patient_access_token_hash: tokenHash,
+      patient_access_token: token,   // transition — remove after plaintext column drop
+    })
     .eq('id', consultationId)
   if (error) {
     console.error('[patient-token] mint failed:', error.message)
