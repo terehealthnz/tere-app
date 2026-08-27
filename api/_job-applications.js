@@ -46,6 +46,35 @@ function admin() {
   )
 }
 
+// Extract the storage key from a stored cv_url like
+// https://xxx.supabase.co/storage/v1/object/{public|sign}/cvs/<key>
+// Returns null if the string doesn't look like a `cvs` bucket URL — the
+// caller then leaves the field alone (e.g. it might already be a signed
+// URL from an earlier read, or an external URL from a data import).
+function extractCvStorageKey(url) {
+  if (!url || typeof url !== 'string') return null
+  const marker = '/cvs/'
+  const idx = url.indexOf(marker)
+  if (idx < 0) return null
+  return url.slice(idx + marker.length).split('?')[0]
+}
+
+// Re-sign a public-shape cv_url with a short-lived signed URL. Works
+// whether the `cvs` bucket is currently public or private (Supabase
+// createSignedUrl on a public bucket returns a valid signed link too).
+// TTL is deliberately short — admins open CVs during active review,
+// not for later record-keeping. Pen-test #322 (2026-08-27).
+const CV_SIGNED_URL_TTL_SECONDS = 15 * 60
+async function signCvUrl(supabase, cvUrl) {
+  const key = extractCvStorageKey(cvUrl)
+  if (!key) return cvUrl
+  try {
+    const { data, error } = await supabase.storage.from('cvs').createSignedUrl(key, CV_SIGNED_URL_TTL_SECONDS)
+    if (error || !data?.signedUrl) return cvUrl
+    return data.signedUrl
+  } catch { return cvUrl }
+}
+
 const APPLY_ALLOWLIST = new Set([
   'first_name', 'last_name', 'email', 'phone', 'cover_note',
   'cv_url', 'cv_filename', 'job_listing_id', 'source',
@@ -247,6 +276,9 @@ export default async function handler(req, res) {
       ])
       if (appErr) { console.error('[job-applications] appErr failed:', appErr); return res.status(500).json({ error: 'Server error' }) }
       if (!app) return res.status(404).json({ error: 'Application not found' })
+      // Re-sign cv_url so admin viewers get a working link whether the bucket
+      // is currently public or private (pen-test #322).
+      if (app.cv_url) app.cv_url = await signCvUrl(supabase, app.cv_url)
       return res.status(200).json({ application: app, notes: notes || [], onboarding: steps || [] })
     }
 
@@ -263,7 +295,13 @@ export default async function handler(req, res) {
     }
     const { data, error } = await q
     if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
-    return res.status(200).json({ applications: data || [] })
+    // Batch-sign every cv_url. Small applicant lists so per-row signing is
+    // fine; if the list ever grows to hundreds we can defer to on-open.
+    const rows = data || []
+    await Promise.all(rows.map(async r => {
+      if (r.cv_url) r.cv_url = await signCvUrl(supabase, r.cv_url)
+    }))
+    return res.status(200).json({ applications: rows })
   }
 
   // Note append.
