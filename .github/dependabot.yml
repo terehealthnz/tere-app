@@ -1,0 +1,52 @@
+# Dependabot — auto-open PRs for dependency updates.
+#
+# Weekly cadence keeps noise manageable while still catching CVE fixes
+# within days. Security updates go out immediately regardless of the
+# weekly cadence (Dependabot's default).
+#
+# Grouping strategy:
+#   - Dev deps are grouped so we get one PR/week for tooling churn
+#     rather than a stream of small ones
+#   - Production runtime deps stay individual so we can review each
+#     bump against the actual attack surface
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Pacific/Auckland
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      dev-tools:
+        dependency-type: development
+        patterns:
+          - "vite*"
+          - "@vitejs/*"
+          - "@playwright/*"
+          - "playwright*"
+          - "vercel"
+    # Ignore major-version bumps on the framework-y bits until we have
+    # bandwidth to test them (react-router v6→v7, react 18→19, etc).
+    # Security updates aren't affected by this — Dependabot always opens
+    # a PR for a CVE fix regardless of the ignore list.
+    ignore:
+      - dependency-name: "react-router-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - github-actions
