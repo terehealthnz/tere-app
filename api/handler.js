@@ -91,11 +91,13 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'practice-seed', 'practice-reset',
   // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)
   'hpi',
+  // Windcave money-movement — only providers/admin may capture or refund
+  'windcave-complete', 'windcave-refund',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
-const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment'])
+const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query', 'windcave-complete', 'windcave-refund'])
 
 function checkRateLimit(key, maxReqs, windowMs) {
   const now = Date.now()
@@ -206,6 +208,11 @@ const ROUTES = {
   'cancel-payment':            () => import('./_cancel-payment.js'),
   'capture-payment':           () => import('./_capture-payment.js'),
   'create-payment-intent':     () => import('./_create-payment-intent.js'),
+  'windcave-create-session':   () => import('./_windcave-create-session.js'),
+  'windcave-query':            () => import('./_windcave-query.js'),
+  'windcave-complete':         () => import('./_windcave-complete.js'),
+  'windcave-refund':           () => import('./_windcave-refund.js'),
+  'windcave-fprn':             () => import('./_windcave-fprn.js'),
   'create-room':               () => import('./_create-room.js'),
   'employer-check':            () => import('./_employer-check.js'),
   'generate-med-cert':         () => import('./_generate-med-cert.js'),
