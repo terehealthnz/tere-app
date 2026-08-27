@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     if (!r.ok) {
       const err = await r.text()
       console.error('[transcribe] Deepgram error:', err)
-      return res.status(500).json({ error: `Deepgram error: ${err}` })
+      return res.status(502).json({ error: 'Transcription unavailable' })
     }
 
     const data = await r.json()

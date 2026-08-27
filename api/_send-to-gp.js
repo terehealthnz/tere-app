@@ -131,7 +131,8 @@ export default async function handler(req, res) {
       html,
     })
     if (!emailRes.ok) {
-      return res.status(500).json({ error: emailRes.error || 'email send failed' })
+      console.error('[send-to-gp] email send failed:', emailRes.error)
+      return res.status(502).json({ error: 'Email delivery failed' })
     }
 
     // Update gp_letter_sent_at and gp_email on consultation via Supabase REST

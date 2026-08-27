@@ -149,7 +149,8 @@ export default async function handler(req, res) {
       html,
     })
     if (!emailRes.ok) {
-      return res.status(500).json({ error: emailRes.error || 'email send failed' })
+      console.error('[generate-med-cert] email send failed:', emailRes.error)
+      return res.status(502).json({ error: 'Email delivery failed' })
     }
 
     // Update medical_certificate_issued in Supabase
