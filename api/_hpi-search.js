@@ -151,8 +151,12 @@ export default async function handler(req, res) {
     }
   }
 
-  const locationType = type === 'radiology' ? 'RADDX' : 'PHARM'
-  const mockData = type === 'radiology' ? MOCK_RADIOLOGY : MOCK_PHARMACIES
+  const locationType = type === 'radiology' ? 'RADDX'
+                     : type === 'gp_clinic' ? 'GP'
+                     : 'PHARM'
+  const mockData = type === 'radiology' ? MOCK_RADIOLOGY
+                 : type === 'gp_clinic' ? []
+                 : MOCK_PHARMACIES
 
   const token = await getHpiToken()
 
@@ -172,7 +176,11 @@ export default async function handler(req, res) {
     const base = HPI_BASE_URL.replace(/\/+$/, '')
     const url = `${base}/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
     const hpiRes = await globalThis.fetch(url, {
-      headers: hpiHeaders(token, type === 'radiology' ? 'tere-referral' : 'tere-prescribe'),
+      headers: hpiHeaders(token,
+        type === 'radiology' ? 'tere-referral'
+        : type === 'gp_clinic' ? 'tere-triage'
+        : 'tere-prescribe'
+      ),
     })
 
     if (!hpiRes.ok) {

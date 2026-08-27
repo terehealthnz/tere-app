@@ -127,7 +127,7 @@ const STEPS = [
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
   { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', type:'gp_picker', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
-  { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'tobacco' },
+  { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', type:'gp_clinic_picker', validate:()=>true, next:'tobacco' },
   { id:'tobacco', message:"Do you currently smoke or use tobacco?", field:'tobacco_use_raw', type:'yesno', validate:()=>true, next:'tobacco_amount' },
   { id:'tobacco_amount', message:"How much would you say?", field:'tobacco_amount', type:'choices', choices:['Occasional (social smoker)','1–10 per day','10–20 per day','20+ per day'], validate:()=>true, next:'alcohol' },
   { id:'alcohol', message:"Do you drink alcohol?", field:'alcohol_use_raw', type:'yesno', validate:()=>true, next:'alcohol_amount' },
@@ -955,6 +955,15 @@ export default function AITriage() {
   const [gpQuery, setGpQuery] = useState('')
   const [gpResults, setGpResults] = useState([])
   const [gpLoading, setGpLoading] = useState(false)
+
+  // ── GP clinic picker — debounced HPI Location search (type=gp_clinic)
+  // Fallback when the Practitioner search didn't find the patient's GP
+  // by name. Fires POST /api/hpi-search { type: 'gp_clinic' } which
+  // maps server-side to GET /Location?name={q}&type=GP&status=active.
+  const [gpClinicQuery, setGpClinicQuery] = useState('')
+  const [gpClinicResults, setGpClinicResults] = useState([])
+  const [gpClinicLoading, setGpClinicLoading] = useState(false)
+
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
   // Geolocation-based nearest-3 shortcut. Client-side only — user's coords
   // are never sent to a Tere server.
@@ -1076,6 +1085,39 @@ export default function AITriage() {
     handleSendValue(gp?.name || '')
     setGpQuery('')
     setGpResults([])
+  }
+
+  // Debounced HPI Location search for the GP clinic picker.
+  useEffect(() => {
+    const q = gpClinicQuery.trim()
+    if (q.length < 2) { setGpClinicResults([]); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setGpClinicLoading(true)
+      try {
+        const res = await apiFetch('/api/hpi-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, type: 'gp_clinic' }),
+        })
+        const { results } = await res.json()
+        if (!cancelled) setGpClinicResults(Array.isArray(results) ? results.slice(0, 6) : [])
+      } catch {
+        if (!cancelled) setGpClinicResults([])
+      } finally {
+        if (!cancelled) setGpClinicLoading(false)
+      }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [gpClinicQuery])
+
+  function selectGpClinic(clinic) {
+    // Route the label through the standard step handler so the flow
+    // advances normally (gp_clinic → tobacco).
+    const label = clinic?.name || ''
+    handleSendValue(label)
+    setGpClinicQuery('')
+    setGpClinicResults([])
   }
 
   if (emergency === 'physical') return (
@@ -1373,7 +1415,44 @@ export default function AITriage() {
         </div>
       )}
 
-      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && !tereTyping && (
+      {step?.type==='gp_clinic_picker' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <div style={{position:'relative',marginBottom:6}}>
+            <div style={{display:'flex',gap:6}}>
+              <input
+                value={gpClinicQuery}
+                onChange={e => setGpClinicQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery(''); setGpClinicResults([]) } }}
+                placeholder="Clinic name (e.g. Springlands Medical)"
+                autoFocus
+                style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
+              />
+              <button
+                onClick={() => { if (gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery(''); setGpClinicResults([]) } }}
+                disabled={!gpClinicQuery.trim()}
+                style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:gpClinicQuery.trim()?1:.5}}>
+                {gpClinicLoading ? '…' : t('btn_send', lang)}
+              </button>
+            </div>
+            {gpClinicResults.length > 0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+                {gpClinicResults.map((c, idx) => (
+                  <button key={c.hpiId || idx} onClick={() => selectGpClinic(c)}
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<gpClinicResults.length-1?'1px solid #F3F4F6':'none'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{c.name}</div>
+                    {c.address && (
+                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{c.address}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
