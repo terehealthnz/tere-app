@@ -2039,7 +2039,14 @@ export function t(id, lang = 'en', vars = {}) {
   const entry = T[id]
   if (!entry) return id
   const str = entry[lang] || entry.en || id
-  return Object.entries(vars).reduce((s, [k, v]) => s.replace(`\${${k}}`, v ?? ''), str)
+  // Substitute {key} or ${key} — some entries (dob_question) use $-prefixed
+  // while others (gp_confirm, nhi_confirm) use bare braces. Regex uses /g so
+  // multiple occurrences all get replaced (Japanese/Korean/Hindi variants of
+  // gp_confirm reference {gpName} + {gpClinic} in either order).
+  return Object.entries(vars).reduce((s, [k, v]) => {
+    const val = String(v ?? '')
+    return s.replace(new RegExp('\\$?\\{' + k + '\\}', 'g'), val)
+  }, str)
 }
 
 /**
