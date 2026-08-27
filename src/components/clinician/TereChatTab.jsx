@@ -71,6 +71,22 @@ export default function TereChatTab({ onRead }) {
   const [showNewDm, setShowNewDm] = useState(false)
   const [newDmFilter, setNewDmFilter] = useState('')
 
+  // Mobile sidebar collapse — hides the sidebar behind a hamburger toggle on
+  // narrow viewports so the message pane isn't squeezed into ~80px on phones.
+  // Follow-up to task #270. Threshold 640px matches the app's existing
+  // "small screen" cutoff (see other components).
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  )
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = e => { setIsMobile(e.matches); if (!e.matches) setSidebarOpen(false) }
+    mq.addEventListener?.('change', onChange) ?? mq.addListener(onChange)
+    return () => { mq.removeEventListener?.('change', onChange) ?? mq.removeListener(onChange) }
+  }, [])
+
   const listRef = useRef(null)
   const textareaRef = useRef(null)
 
@@ -247,11 +263,38 @@ export default function TereChatTab({ onRead }) {
     <div style={{ display: 'flex', height: '100%', minHeight: '60vh', fontFamily: FF, background: 'white' }}>
 
       {/* ─── Sidebar ───────────────────────────────────────────────────── */}
-      <aside style={{ width: SIDEBAR_WIDTH, borderRight: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-        <div style={{ padding: '1rem 1rem .5rem', fontWeight: 700, color: NAVY, fontSize: '.95rem' }}>💬 Tere Chat</div>
+      {/* On mobile the sidebar becomes a slide-over. When open, we also render
+          a translucent scrim behind it so tapping outside closes. */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)}
+             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 100 }} />
+      )}
+      <aside style={{
+        width: SIDEBAR_WIDTH,
+        borderRight: '1px solid #E2E8F0',
+        background: '#F8FAFC',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        flexShrink: 0,
+        ...(isMobile ? {
+          position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 101,
+          transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform .2s ease',
+          boxShadow: sidebarOpen ? '2px 0 12px rgba(0,0,0,.15)' : 'none',
+        } : {}),
+      }}>
+        <div style={{ padding: '1rem 1rem .5rem', fontWeight: 700, color: NAVY, fontSize: '.95rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>💬 Tere Chat</span>
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(false)}
+              aria-label="Close chat sidebar"
+              style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '1.25rem', padding: '0 4px', lineHeight: 1 }}>×</button>
+          )}
+        </div>
 
         <div style={sectionLabelStyle}>Channels</div>
-        <button onClick={() => setSelected(CHANNEL)} style={sidebarRowStyle(!isDm)}>
+        <button onClick={() => { setSelected(CHANNEL); if (isMobile) setSidebarOpen(false) }} style={sidebarRowStyle(!isDm)}>
           <span style={{ flex: 1, textAlign: 'left' }}># General</span>
           {channelUnread > 0 && <UnreadBadge n={channelUnread} />}
         </button>
@@ -273,7 +316,7 @@ export default function TereChatTab({ onRead }) {
             const unread = t.unread_count || 0
             return (
               <button key={t.id}
-                onClick={() => setSelected({ kind: 'dm', id: t.id, counterpart: t.counterpart })}
+                onClick={() => { setSelected({ kind: 'dm', id: t.id, counterpart: t.counterpart }); if (isMobile) setSidebarOpen(false) }}
                 style={sidebarRowStyle(active)}>
                 <span style={{ width: 20, height: 20, borderRadius: '50%', background: t.counterpart.color || TEAL, color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.6rem', fontWeight: 700, flexShrink: 0 }}>
                   {(t.counterpart.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('')}
@@ -294,12 +337,20 @@ export default function TereChatTab({ onRead }) {
 
         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid #E2E8F0', background: 'white' }}>
           <div style={{ fontWeight: 700, color: NAVY, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)}
+                aria-label="Open chat sidebar"
+                style={{ background: 'none', border: 'none', color: NAVY, cursor: 'pointer', fontSize: '1.25rem', padding: '0 6px 0 0', lineHeight: 1 }}>☰</button>
+            )}
             {isDm && (
               <span style={{ width: 24, height: 24, borderRadius: '50%', background: selected.counterpart.color || TEAL, color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 700 }}>
                 {(selected.counterpart.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('')}
               </span>
             )}
             <span>{headerTitle}</span>
+            {isMobile && (channelUnread + dmThreads.reduce((n, t) => n + (t.unread_count || 0), 0)) > 0 && !sidebarOpen && (
+              <UnreadBadge n={channelUnread + dmThreads.reduce((n, t) => n + (t.unread_count || 0), 0)} />
+            )}
           </div>
           <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 2 }}>
             {isDm
