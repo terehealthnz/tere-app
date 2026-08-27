@@ -24,6 +24,15 @@
 -- public-URL shape; the signCvUrl resolver extracts the storage key and
 -- works with both bucket states, so no data cleanup is required either
 -- way.
+--
+-- STATE ON 2026-08-27: bucket.public was ALREADY flipped to false via
+-- the storage admin API (supabase.storage.updateBucket) immediately
+-- after the resolver deployed. The public-URL fetch returns 400,
+-- signed URLs return 200. So the first statement below is idempotent /
+-- no-op today; kept for reproducibility if the bucket ever gets
+-- re-created. The DROP POLICY on storage.objects still needs to run
+-- to fully clean up (the policy is dead code now that public=false
+-- but leaving orphan policies muddles future audits).
 
 UPDATE storage.buckets SET public = false WHERE id = 'cvs';
 
