@@ -32,6 +32,17 @@ function defaultDest(isAdmin) {
   return '/clinician/dashboard'
 }
 
+// Only accept `?redirect=` values that stay on this origin. Rejects
+// `//evil.com` (protocol-relative), `/\evil.com` (backslash trick),
+// `https://…`, and anything that doesn't start with a single `/`.
+// Pen-test 2026-08-27: open-redirect at clinician login gate.
+function safeRedirect(raw) {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  if (raw[0] !== '/') return null
+  if (raw[1] === '/' || raw[1] === '\\') return null
+  return raw
+}
+
 export default function ClinicianLogin() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -57,7 +68,7 @@ export default function ClinicianLogin() {
     restoreDevice(savedDevice)
     localStorage.setItem('tere_portal', savedDevice?.providerIsAdmin === 'true' ? 'admin' : 'provider')
     const params = new URLSearchParams(location.search)
-    navigate(params.get('redirect') || defaultDest(savedDevice?.providerIsAdmin === 'true'))
+    navigate(safeRedirect(params.get('redirect')) || defaultDest(savedDevice?.providerIsAdmin === 'true'))
   }
 
   useEffect(() => {
@@ -135,7 +146,7 @@ export default function ClinicianLogin() {
           return
         }
         const params = new URLSearchParams(location.search)
-        navigate(params.get('redirect') || defaultDest(p.is_admin))
+        navigate(safeRedirect(params.get('redirect')) || defaultDest(p.is_admin))
       }
     } catch {
       setError('Connection error. Please try again.')
@@ -182,7 +193,7 @@ export default function ClinicianLogin() {
   if (showSavePrompt) {
     const params = new URLSearchParams(location.search)
     const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
-    const dest = params.get('redirect') || defaultDest(isAdmin)
+    const dest = safeRedirect(params.get('redirect')) || defaultDest(isAdmin)
     return (
       <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
         <div style={{width:'100%',maxWidth:360,padding:'1.5rem',textAlign:'center'}}>

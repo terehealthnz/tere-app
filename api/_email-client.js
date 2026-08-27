@@ -180,10 +180,10 @@ function buildRawMime({ from, to, cc, bcc, replyTo, subject, html, text, attachm
   const CRLF = '\r\n'
 
   const headers = [
-    `From: ${from}`,
-    `To: ${to.join(', ')}`,
-    ...(cc.length  ? [`Cc: ${cc.join(', ')}`] : []),
-    ...(replyTo    ? [`Reply-To: ${replyTo}`] : []),
+    `From: ${sanitizeAddrHeader(from)}`,
+    `To: ${to.map(sanitizeAddrHeader).join(', ')}`,
+    ...(cc.length  ? [`Cc: ${cc.map(sanitizeAddrHeader).join(', ')}`] : []),
+    ...(replyTo    ? [`Reply-To: ${sanitizeAddrHeader(replyTo)}`] : []),
     `Subject: ${encodeMimeHeader(subject)}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`,
@@ -213,19 +213,38 @@ function buildRawMime({ from, to, cc, bcc, replyTo, subject, html, text, attachm
   // Attachments
   for (const att of attachments) {
     const contentType = att.contentType || guessContentType(att.filename)
+    // Sanitise filename: strip anything that could break the MIME header
+    // (CR/LF, quotes, control chars). Attachment filenames are often
+    // built from user-provided data (patient names, drug names) so the
+    // boundary defence goes here rather than at every caller.
+    const safeName = sanitizeMimeFilename(att.filename)
     const b64 = Buffer.isBuffer(att.content)
       ? att.content.toString('base64')
       : String(att.content)   // caller already passed base64 (common Resend pattern)
     parts.push(`--${boundaryMixed}`)
-    parts.push(`Content-Type: ${contentType}; name="${att.filename}"`)
+    parts.push(`Content-Type: ${contentType}; name="${safeName}"`)
     parts.push('Content-Transfer-Encoding: base64')
-    parts.push(`Content-Disposition: attachment; filename="${att.filename}"`)
+    parts.push(`Content-Disposition: attachment; filename="${safeName}"`)
     parts.push('')
     parts.push(chunkBase64(b64))
   }
   parts.push(`--${boundaryMixed}--`)
 
   return headers.join(CRLF) + CRLF + CRLF + parts.join(CRLF)
+}
+
+// Strip anything that could break out of the filename="..." field into
+// a new MIME header (CR, LF, quotes, backslashes, other control chars).
+// Falls back to 'attachment.bin' if the sanitised result is empty.
+function sanitizeMimeFilename(name) {
+  const s = String(name || '')
+    .replace(/[\r\n\0]/g, '')       // header injection
+    .replace(/["\\]/g, '_')          // break out of quoted string
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\x00-\x1F\x7F]/g, '_') // other control chars
+    .slice(0, 200)                   // sanity cap
+    .trim()
+  return s || 'attachment.bin'
 }
 
 function mimeBoundary(tag) {
@@ -240,9 +259,19 @@ function chunkBase64(s) {
 function encodeMimeHeader(s) {
   // Encode non-ASCII subjects per RFC 2047 (=?UTF-8?B?...?=). ASCII-only
   // subjects pass through unchanged.
-  const str = String(s || '')
+  // Strip CR/LF/NUL first — a CRLF anywhere in a header would let a caller
+  // inject arbitrary MIME headers ("BCC: attacker@…") into the built raw
+  // message. Belt-and-braces alongside the caller-side sanitizeSubject.
+  const str = String(s || '').replace(/[\r\n\0]/g, '')
   if (/^[\x20-\x7E]*$/.test(str)) return str
   return `=?UTF-8?B?${Buffer.from(str, 'utf8').toString('base64')}?=`
+}
+
+// Strip CR/LF from addr headers (From/To/Cc/Reply-To). All callers today
+// pass hardcoded addresses, but the raw MIME builder is used by any future
+// endpoint that plugs in dynamic email addresses.
+function sanitizeAddrHeader(s) {
+  return String(s || '').replace(/[\r\n\0]/g, '')
 }
 
 function guessContentType(filename) {
