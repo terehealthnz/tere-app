@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendEmail as sendEmailViaProvider , hasEmailProvider} from './_email-client.js'
 import { buildPrescriptionPdf, buildReferralPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -159,6 +160,19 @@ export default async function handler(req, res) {
     if (!approved) {
       return res.status(409).json({ error: 'Prescription is no longer pending — may have already been approved or rejected.' })
     }
+
+    // Audit the clinical sign-off (successful CAS flip → we own this event).
+    writeAuditEvent(req, req.auth, {
+      event_type:      `prescription.${action === 'modify' ? 'modified_and_approved' : 'approved'}`,
+      consultation_id: data.consultation_id || null,
+      resource_type:   'prescription',
+      resource_id:     id,
+      metadata: {
+        drug: data.drug, drafted_by: data.drafted_by_name,
+        supervisor_id: supervisorId, supervisor_name: supervisorName,
+        modification: action === 'modify' ? modifications : undefined,
+      },
+    })
 
     // Email pharmacy
     if (data.pharmacy_email) {

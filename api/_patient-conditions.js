@@ -4,6 +4,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { resolveDataMode } from './_provider-access-gate.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 const ALLOWLIST = new Set([
   'condition', 'icd10_code', 'status', 'onset_date', 'resolved_date', 'notes',
@@ -49,6 +50,11 @@ export default async function handler(req, res) {
                   created_by_name: auth.provider?.display_name || auth.email || null }
     const { data, error } = await supabase.from('patient_conditions').insert(row).select().single()
     if (error) { console.error('[patient-conditions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    writeAuditEvent(req, auth, {
+      event_type: 'patient.condition.added',
+      resource_type: 'patient_condition', resource_id: data?.id,
+      metadata: { patient_id: body.patientId, condition: body.condition, practice },
+    })
     return res.status(200).json({ condition: data })
   }
 
@@ -60,6 +66,11 @@ export default async function handler(req, res) {
     patch.updated_at = new Date().toISOString()
     const { data, error } = await supabase.from('patient_conditions').update(patch).eq('id', id).eq('is_practice', practice).select().single()
     if (error) { console.error('[patient-conditions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    writeAuditEvent(req, auth, {
+      event_type: 'patient.condition.updated',
+      resource_type: 'patient_condition', resource_id: id,
+      metadata: { patient_id: data?.patient_id, fields: Object.keys(patch), practice },
+    })
     return res.status(200).json({ condition: data })
   }
 
@@ -68,6 +79,11 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id query param required' })
     const { error } = await supabase.from('patient_conditions').delete().eq('id', id).eq('is_practice', practice)
     if (error) { console.error('[patient-conditions] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    writeAuditEvent(req, auth, {
+      event_type: 'patient.condition.deleted',
+      resource_type: 'patient_condition', resource_id: id,
+      metadata: { practice },
+    })
     return res.status(200).json({ ok: true })
   }
 

@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -17,6 +18,16 @@ export default async function handler(req, res) {
   await supabase.from('consultations')
     .update({ status: 'dismissed', updated_at: new Date().toISOString() })
     .eq('id', consultationId)
+
+  // handler.js enforces guardProvider on this route (dismiss-patient is in
+  // AUTH_REQUIRED_ROUTES) and attaches auth to req.auth.
+  writeAuditEvent(req, req.auth, {
+    event_type:      'consultation.patient_dismissed',
+    consultation_id: consultationId,
+    resource_type:   'consultation',
+    resource_id:     consultationId,
+    metadata:        { patient_email: patientEmail || null, refunded: Boolean(paymentIntentId) },
+  })
 
   // Release Stripe hold (fire-and-forget)
   if (paymentIntentId) {
