@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt, classifyDrug } from './_drug-classifications.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -240,6 +241,20 @@ export default async function handler(req, res) {
     }).select('id').single()
     prescriptionId = data?.id
   } catch (e) { console.error('[generate-prescription-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
+
+  // Audit the issued prescription — this is the medico-legal moment. Captures
+  // who issued what to whom via which channel, with any delivery failures.
+  writeAuditEvent(req, req.auth, {
+    event_type:      'prescription.issued',
+    consultation_id: consultationId || null,
+    resource_type:   'prescription',
+    resource_id:     prescriptionId,
+    metadata: {
+      drug, pharmacy_name: pharmacyName, delivery_channel: channel,
+      delivery_status: deliveryErrors.length ? 'error' : 'sent',
+      delivery_errors: deliveryErrors.length ? deliveryErrors : undefined,
+    },
+  })
 
   res.json({ ok: true, prescriptionId, pdfBase64, deliveryErrors: deliveryErrors.length ? deliveryErrors : undefined })
 }

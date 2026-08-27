@@ -1,4 +1,7 @@
 // api/send-to-gp.js — Send finalised note PDF to GP via Resend
+import { hasEmailProvider } from './_email-client.js'
+import { writeAuditEvent } from './_audit-write.js'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -145,6 +148,14 @@ export default async function handler(req, res) {
         body: JSON.stringify({ gp_letter_sent_at: new Date().toISOString(), gp_email: gpEmail }),
       })
     }
+
+    writeAuditEvent(req, req.auth, {
+      event_type:      'gp_letter.sent',
+      consultation_id: consultationId,
+      resource_type:   'consultation',
+      resource_id:     consultationId,
+      metadata: { gp_name: gpName || null, gp_email: gpEmail },
+    })
 
     res.json({ ok: true })
   } catch (e) {

@@ -1,5 +1,6 @@
 // api/_generate-med-cert.js — Generate and email a medical certificate
 import { escapeHtml, sanitizeSubject } from './_email-safety.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -163,6 +164,16 @@ export default async function handler(req, res) {
         body: JSON.stringify({ medical_certificate_issued: true }),
       })
     }
+
+    writeAuditEvent(req, req.auth, {
+      event_type:      'medical_certificate.issued',
+      consultation_id: consultationId || null,
+      resource_type:   'medical_certificate',
+      metadata: {
+        work_capacity: workCapacity, cert_from: certFrom, cert_to: certTo,
+        employer:      employer || null,
+      },
+    })
 
     res.json({ ok: true })
   } catch (e) {

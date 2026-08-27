@@ -3,6 +3,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import crypto from 'node:crypto'
 import { buildReferralPdf } from './_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -204,6 +205,22 @@ export default async function handler(req, res) {
       delivery_error: deliveryErrors.join('; ') || null,
     })
   } catch (e) { console.error('[generate-referral-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
+
+  writeAuditEvent(req, req.auth, {
+    event_type:      'referral.issued',
+    consultation_id: commonRow?.consultation_id || null,
+    resource_type:   'radiology_referral',
+    resource_id:     referralId,
+    metadata: {
+      investigation:   commonRow?.investigation || null,
+      body_part:       commonRow?.body_part || null,
+      urgency:         commonRow?.urgency || null,
+      facility_name:   commonRow?.facility_name || null,
+      rhcnz_region_id: commonRow?.rhcnz_region_id || null,
+      delivery_status: deliveryErrors.length ? 'error' : 'sent',
+      delivery_errors: deliveryErrors.length ? deliveryErrors : undefined,
+    },
+  })
 
   res.json({ ok: true, referralId, pdfBase64, deliveryErrors: deliveryErrors.length ? deliveryErrors : undefined })
 }

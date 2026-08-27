@@ -13,6 +13,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 import { guardProvider } from './_auth.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 function admin() {
   return createClient(
@@ -168,6 +169,18 @@ export default async function handler(req, res) {
       }, { onConflict: 'pharmacy_id' })
     } catch {}
   }
+
+  writeAuditEvent(req, auth, {
+    event_type:      'prescription.redirected',
+    resource_type:   'prescription',
+    resource_id:     prescriptionId,
+    metadata: {
+      from_pharmacy:   originalSnapshot.pharmacy_name,
+      to_pharmacy:     pharmacyName,
+      delivery_channel: channel,
+      delivery_errors: deliveryErrors.length ? deliveryErrors : undefined,
+    },
+  })
 
   return res.status(200).json({
     ok: true,
