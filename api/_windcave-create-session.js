@@ -132,7 +132,7 @@ export default async function handler(req, res) {
     sessionData = await sessionRes.json()
   } catch (e) {
     console.error('[windcave] session create network error:', e.message)
-    return res.status(502).json({ error: 'Windcave unreachable: ' + e.message })
+    return res.status(502).json({ error: 'Payment service unavailable. Please try again.' })
   }
 
   if (!sessionRes.ok) {

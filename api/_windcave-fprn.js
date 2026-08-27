@@ -106,7 +106,7 @@ export default async function handler(req, res) {
     }
   } catch (e) {
     console.error('[windcave-fprn] query error:', e.message)
-    return res.status(200).json({ ok: true, warning: 'session query error', error: e.message })
+    return res.status(200).json({ ok: true, warning: 'session query error' })
   }
 
   const consultationId = sessionData.merchantReference

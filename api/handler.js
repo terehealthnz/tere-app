@@ -169,25 +169,26 @@ async function trackAuthFailure(ip, userAgent) {
 
 // ── Security headers ──────────────────────────────────────────────────────────
 //
-// CSP script-src:
-//   Dev  → includes 'unsafe-eval' (Vite's dev-server HMR needs it)
-//   Prod → drops 'unsafe-eval' so an XSS-injected script can't eval()
-//          arbitrary strings back to code execution
+// These headers land on /api/* responses. The SPA HTML shell has its OWN CSP
+// set in vercel.json (which already omits 'unsafe-inline' for script-src +
+// script-src-elem — pen-test H-3 is closed at that layer). Since API
+// responses are JSON (never rendered as HTML by the browser), script-src
+// here is defence-in-depth — a stray HTML error page would be blocked from
+// executing any script at all.
 function setSecurityHeaders(res) {
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'strict-origin')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
   res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
-  const isProd = process.env.VERCEL_ENV === 'production' || process.env.NODE_ENV === 'production'
-  const scriptSrc = isProd
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
   res.setHeader(
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      scriptSrc,
+      // API responses are JSON. No scripts should ever execute from them —
+      // 'none' is the tightest possible value and matches the pen-test
+      // H-3 recommendation for endpoints that never render HTML.
+      "script-src 'none'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",
