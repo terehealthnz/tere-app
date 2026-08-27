@@ -197,6 +197,12 @@ function getStepMessage(step, lang, data) {
   if (step.id === 'dob_lookup') {
     return t('dob_question', lang, { firstName: data?.patient_name?.split(' ')[0] || '' })
   }
+  if (step.id === 'gp_confirm') {
+    return t('gp_confirm', lang, {
+      gpName:   data?.gp_name   || '',
+      gpClinic: data?.gp_clinic || '',
+    })
+  }
   const msg = t(step.id, lang)
   // If i18n returned the key unchanged, fall back to the hard-coded English string
   if (msg === step.id) {
@@ -1353,7 +1359,7 @@ export default function AITriage() {
               </button>
             </div>
             {pharmacyResults.length > 0 && (
-              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+              <div style={{position:'absolute',bottom:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginBottom:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 -4px 12px rgba(0,0,0,.1)'}}>
                 {pharmacyResults.map((p, idx) => (
                   <button key={p.id || idx} onClick={() => selectPharmacy(p)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<pharmacyResults.length-1?'1px solid #F3F4F6':'none'}}
@@ -1394,7 +1400,7 @@ export default function AITriage() {
               </button>
             </div>
             {gpResults.length > 0 && (
-              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+              <div style={{position:'absolute',bottom:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginBottom:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 -4px 12px rgba(0,0,0,.1)'}}>
                 {gpResults.map((g, idx) => (
                   <button key={g.hpiId || idx} onClick={() => selectGp(g)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<gpResults.length-1?'1px solid #F3F4F6':'none'}}
@@ -1435,7 +1441,7 @@ export default function AITriage() {
               </button>
             </div>
             {gpClinicResults.length > 0 && (
-              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+              <div style={{position:'absolute',bottom:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginBottom:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 -4px 12px rgba(0,0,0,.1)'}}>
                 {gpClinicResults.map((c, idx) => (
                   <button key={c.hpiId || idx} onClick={() => selectGpClinic(c)}
                     style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<gpClinicResults.length-1?'1px solid #F3F4F6':'none'}}
