@@ -31,8 +31,8 @@ export default async function handler(req, res) {
 
   if (!consultationId || !patientEmail) return res.status(400).json({ error: 'consultationId and patientEmail required' })
 
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return res.status(500).json({ error: 'Resend not configured' })
+  const canEmail = hasEmailProvider()
+  if (!canEmail) return res.status(500).json({ error: 'Resend not configured' })
 
   const dateStr = consultationDate
     ? new Date(consultationDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })

@@ -16,7 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -46,8 +46,8 @@ async function ensureBucket(supabase) {
 }
 
 async function notifyProvider(supabase, providerRow, subject, htmlBody, textBody) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey || !providerRow?.email) return
+  const canEmail = hasEmailProvider()
+  if (!canEmail || !providerRow?.email) return
   try {
     await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',

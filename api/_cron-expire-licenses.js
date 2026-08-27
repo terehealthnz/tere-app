@@ -4,7 +4,7 @@
 // provider. Also emails the provider so they know to renew.
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -30,8 +30,8 @@ async function refreshLicensedStatesArray(supabase, providerId) {
 }
 
 async function emailProvider(providerRow, expiredCodes) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey || !providerRow?.email || !expiredCodes.length) return
+  const canEmail = hasEmailProvider()
+  if (!canEmail || !providerRow?.email || !expiredCodes.length) return
   const list = expiredCodes.join(', ')
   const html = `<p>Your Tere Health state license(s) for <strong>${list}</strong> expired today and have been automatically removed from your active list.</p>
 <p>Please renew and re-submit at <a href="${process.env.VITE_APP_URL || 'https://terehealth.co.nz'}/clinician/state-licenses">/clinician/state-licenses</a>.</p>`

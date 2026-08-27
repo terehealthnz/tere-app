@@ -10,7 +10,7 @@
 // historical reasons but are not read here.
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 const FALLBACK_RATE = 25.00   // used only if a provider row has null base_rate
 
@@ -263,8 +263,8 @@ export default async function handler(req, res) {
 
     if (action === 'send_email') {
       const { provider_id, period_start, period_end } = req.body
-      const resendKey = process.env.RESEND_API_KEY
-      if (!resendKey) return res.status(400).json({ error: 'Email not configured' })
+      const canEmail = hasEmailProvider()
+      if (!canEmail) return res.status(400).json({ error: 'Email not configured' })
 
       const summaries = await buildSummaries(supabase, period_start, period_end)
       const s = summaries.find(x => x.provider_id === provider_id)

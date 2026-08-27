@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import crypto from 'node:crypto'
 import { buildReferralPdf } from './_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
@@ -12,8 +12,8 @@ function supabaseAdmin() {
 }
 
 async function notifySupervisors(supabase, subject, html) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return
+  const canEmail = hasEmailProvider()
+  if (!canEmail) return
   const { data: supervisors } = await supabase
     .from('providers')
     .select('email, first_name, last_name')
@@ -163,7 +163,7 @@ export default async function handler(req, res) {
   const subjectPrefix = rhcnzRegion ? 'URGENT — Tere Health eReferral' : 'Radiology Referral — Tere Health'
   const emailSubject  = `${subjectPrefix} — ${patientName} (${finalUrgency || 'Routine'})`
 
-  if (finalFacilityEmail && process.env.RESEND_API_KEY) {
+  if (finalFacilityEmail && hasEmailProvider()) {
     try {
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
@@ -181,7 +181,7 @@ export default async function handler(req, res) {
     } catch (e) { console.error('[generate-referral-pdf] facility email failed:', e); deliveryErrors.push('Facility email failed') }
   }
 
-  if (patientEmail && process.env.RESEND_API_KEY) {
+  if (patientEmail && hasEmailProvider()) {
     try {
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',

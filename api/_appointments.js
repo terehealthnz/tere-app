@@ -1,7 +1,7 @@
 // Appointments CRUD — booking, confirmation, cancellation
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 const TZ = 'Pacific/Auckland'
 const SLOT_MINUTES = 15
@@ -223,7 +223,7 @@ export default async function handler(req, res) {
       }
 
       // Confirmation email to patient
-      if (patient_email && process.env.RESEND_API_KEY) {
+      if (patient_email && hasEmailProvider()) {
         let providerName = 'your provider'
         if (provider_id) {
           const { data: prov } = await supabase.from('providers').select('first_name,last_name').eq('id', provider_id).single()

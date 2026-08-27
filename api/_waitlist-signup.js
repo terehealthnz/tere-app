@@ -13,7 +13,7 @@
 // twice doesn't error; we just insert both rows and dedup at notify time.
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { getClientIp } from './_client-ip.js'
 
 function admin() {
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   }
 
   // Confirmation email — best-effort, non-fatal.
-  if (process.env.RESEND_API_KEY) {
+  if (hasEmailProvider()) {
     try {
       const displayName = firstName ? String(firstName).trim() : 'there'
       await sendEmail({

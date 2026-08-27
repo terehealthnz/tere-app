@@ -12,7 +12,7 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'node:crypto'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { guardProvider } from './_auth.js'
 
 // Auto-notification recipient for new-provider onboarding.
@@ -39,8 +39,8 @@ function escapeHtml(s) {
 // number so RHCNZ can keep their referrer registry current. Best-effort:
 // failures logged but never break the provider create/update flow.
 async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return
+  const canEmail = hasEmailProvider()
+  if (!canEmail) return
   if (!provider?.is_provider) return   // admin-only rows don't need to be shared
   try {
     const nameRaw = [provider.first_name, provider.last_name, provider.credential].filter(Boolean).join(' ')
@@ -77,8 +77,8 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
 // the provider hasn't given us their address yet. Best-effort — logs on
 // failure but never breaks the create call.
 async function sendProviderWelcomeEmail(provider, initialPin) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return
+  const canEmail = hasEmailProvider()
+  if (!canEmail) return
   if (!provider?.email) return  // no address on file — admin will share PIN out-of-band
   if (!initialPin) return       // shouldn't happen — insert path always sets one
   try {

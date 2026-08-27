@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildAccInvoicePdf } from './_pdf-builders.js'
 
 const ACC_BASE_URL = process.env.ACC_SANDBOX === 'false'
@@ -73,7 +73,7 @@ function generateSimulatedClaimNumber() {
 // cc'd so we keep a copy of every invoice we submit.
 async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi }) {
   if (process.env.ACC_AUTOSEND_INVOICES !== 'true') return { skipped: 'ACC_AUTOSEND_INVOICES not enabled' }
-  if (!process.env.RESEND_API_KEY) return { skipped: 'RESEND_API_KEY missing' }
+  if (!hasEmailProvider()) return { skipped: 'RESEND_API_KEY missing' }
   const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
   const pdfBuffer = await buildAccInvoicePdf({
     patientName,

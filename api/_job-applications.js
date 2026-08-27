@@ -36,7 +36,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'node:crypto'
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { guardProvider } from './_auth.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 function admin() {
   return createClient(
@@ -82,8 +82,8 @@ async function seedOnboardingIfNeeded(supabase, applicationId) {
 // ── Notifications on new application ────────────────────────────────────────
 // Fire-and-forget. Failures are logged but never block the applicant's 200.
 async function notifyApplicationSubmitted(supabase, application) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
+  const canEmail = hasEmailProvider()
+  if (!canEmail) {
     console.warn('[job-applications] RESEND_API_KEY missing — skipping notifications')
     return
   }

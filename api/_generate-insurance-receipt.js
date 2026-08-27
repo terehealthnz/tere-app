@@ -16,7 +16,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildInsuranceReceiptPdf } from './_pdf-builders.js'
 
 function admin() {
@@ -119,7 +119,7 @@ export default async function handler(req, res) {
   const patientFirst = consult.patient_first_name || 'there'
   const filename = `tere-insurance-receipt-${receiptId}.pdf`
   try {
-    if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not configured')
+    if (!hasEmailProvider()) throw new Error('RESEND_API_KEY not configured')
     await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',

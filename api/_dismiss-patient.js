@@ -1,5 +1,5 @@
 import Stripe from 'stripe'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -27,8 +27,8 @@ export default async function handler(req, res) {
   }
 
   // Email patient (fire-and-forget)
-  const resendKey = process.env.RESEND_API_KEY
-  if (resendKey && patientEmail) {
+  const canEmail = hasEmailProvider()
+  if (canEmail && patientEmail) {
     const firstName = (patientName || '').split(' ')[0] || 'there'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
     sendEmail({

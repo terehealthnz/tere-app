@@ -9,7 +9,7 @@
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -46,8 +46,8 @@ export default async function handler(req, res) {
   }
 
   // Email patient — we tried twice, no charge
-  const resendKey = process.env.RESEND_API_KEY
-  if (resendKey && consult.patient_email) {
+  const canEmail = hasEmailProvider()
+  if (canEmail && consult.patient_email) {
     const firstName = (consult.patient_first_name || 'there')
     const appUrl = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
     sendEmail({

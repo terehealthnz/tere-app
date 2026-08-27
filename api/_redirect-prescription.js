@@ -9,7 +9,7 @@
 // Provider auth via guardProvider. Only providers can redirect scripts.
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 import { guardProvider } from './_auth.js'
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
     } catch (e) { console.error('[redirect-prescription] fax exception:', e); deliveryErrors.push('Fax delivery failed') }
   }
 
-  if (wantsEmail && pharmacyEmail && process.env.RESEND_API_KEY) {
+  if (wantsEmail && pharmacyEmail && hasEmailProvider()) {
     try {
       const pdfBase64 = pdfBuffer.toString('base64')
       // Same DG Aug 2024 identification requirement as the initial send —

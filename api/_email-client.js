@@ -48,6 +48,23 @@ function currentProvider() {
 }
 
 /**
+ * True when the currently-configured provider has the credentials it
+ * needs to send. Replaces per-endpoint `RESEND_API_KEY` guards, which
+ * silently drop mail when EMAIL_PROVIDER=ses (SES cutover path).
+ * Callers that need to short-circuit before doing expensive work
+ * (e.g. PDF generation) should use this instead.
+ */
+export function hasEmailProvider() {
+  if (currentProvider() === 'ses') {
+    // SES uses the ambient AWS credential chain (AWS_ACCESS_KEY_ID +
+    // AWS_SECRET_ACCESS_KEY, same as Bedrock + SNS). AWS_REGION has a
+    // default in the client so it's not required.
+    return Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY)
+  }
+  return Boolean(process.env.RESEND_API_KEY)
+}
+
+/**
  * Send an outbound email via the currently-configured provider.
  *
  * @param {object} p

@@ -1,8 +1,8 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) return res.status(200).json({ sent: 0, error: 'No Resend key' })
+  const canEmail = hasEmailProvider()
+  if (!canEmail) return res.status(200).json({ sent: 0, error: 'No Resend key' })
 
   try {
     const { createClient } = await import('@supabase/supabase-js')
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     if (!waitlisted?.length) return res.status(200).json({ sent: 0 })
 
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
-    const resendKey = process.env.RESEND_API_KEY
+    const canEmail = hasEmailProvider()
     let sent = 0
 
     for (const c of waitlisted) {
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         .eq('id', c.id)
 
       // Send email notification
-      if (resendKey && c.patient_email) {
+      if (canEmail && c.patient_email) {
         const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">

@@ -1,7 +1,7 @@
 // Bookings API — scheduled appointments with reservation fee
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { sendEmail as sendEmailProvider } from './_email-client.js'
+import { sendEmail as sendEmailProvider , hasEmailProvider} from './_email-client.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 const TZ = 'Pacific/Auckland'
@@ -9,7 +9,7 @@ const SLOT_MIN = 20
 const BUFFER_MIN = 20
 const WALK_IN_RATIO = 0.30
 const APP_URL = process.env.VITE_APP_URL || 'https://tere.co.nz'
-const RESEND_KEY = process.env.RESEND_API_KEY
+const canEmail = hasEmailProvider()
 const FROM = 'Tere Health <hello@terehealth.co.nz>'
 
 function getNZDate(d = new Date()) {
@@ -80,7 +80,7 @@ async function getSlotsForDate(supabase, dateStr) {
 }
 
 async function sendEmail(to, subject, html) {
-  if (!RESEND_KEY || !to) return
+  if (!canEmail || !to) return
   await sendEmailProvider({ from: FROM, replyTo: 'terehealthnz@gmail.com', to, subject, html })
     .catch(() => {})
 }

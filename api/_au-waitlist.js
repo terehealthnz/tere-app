@@ -16,7 +16,7 @@
 // Anon-friendly (no auth). Rate-limited by handler.js general 400/15min per IP.
 
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { getClientIp } from './_client-ip.js'
 
 function admin() {
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
 
   // Confirmation email — best-effort, non-fatal. Skipped if RESEND_API_KEY
   // isn't set on the AU Vercel project yet (early days).
-  if (process.env.RESEND_API_KEY) {
+  if (hasEmailProvider()) {
     try {
       const displayName = firstName ? String(firstName).trim() : 'there'
       const stateLine = cleanState ? ` in ${cleanState}` : ''

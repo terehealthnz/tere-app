@@ -17,7 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { resolvePatientAuth } from './_patient-token.js'
 
 function admin() {
@@ -79,8 +79,8 @@ const FOLLOW_UP_WINDOW_DAYS = 7
 const CLINICAL_CATEGORIES = new Set(['prescription', 'follow_up'])
 
 async function sendNotifications(row) {
-  const resendKey = process.env.RESEND_API_KEY
-  if (!resendKey) {
+  const canEmail = hasEmailProvider()
+  if (!canEmail) {
     console.warn('[patient-support] RESEND_API_KEY missing — skipping notifications')
     return
   }
@@ -610,8 +610,8 @@ Draft the reply body. Never draft a reply that promises a refund, a specific cli
       .from('patient_support_requests').select('*').eq('id', id).maybeSingle()
     if (fetchErr || !row) return res.status(404).json({ error: 'Ticket not found' })
 
-    const resendKey = process.env.RESEND_API_KEY
-    if (!resendKey) return res.status(500).json({ error: 'Email not configured' })
+    const canEmail = hasEmailProvider()
+    if (!canEmail) return res.status(500).json({ error: 'Email not configured' })
 
     const provider = auth.provider || {}
     const authorName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'Tere Health'

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 function supabaseAdmin() {
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
         .eq('acc_claim_number', claimNumber)
 
       // Notify admin
-      if (process.env.RESEND_API_KEY) {
+      if (hasEmailProvider()) {
         try {
           await sendEmail({
             from: 'Tere Health <hello@terehealth.co.nz>',

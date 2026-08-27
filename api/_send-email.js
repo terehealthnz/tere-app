@@ -1,6 +1,6 @@
 // api/send-email.js — patient post-consultation summary email + waitlist open notification
 import { aiCall, isConfigured } from './_ai.js'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 // Fires the FREE plain HTML payment receipt email for a completed consult.
 // Idempotent via consultations.basic_receipt_sent_at — safe to call from
@@ -56,7 +56,7 @@ export async function sendBasicReceipt(consultationId) {
     : 'Card'
   const providerName = row.provider_display_name || 'Tere clinician'
 
-  if (process.env.RESEND_API_KEY) {
+  if (hasEmailProvider()) {
     try {
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
@@ -106,7 +106,7 @@ export async function sendBasicReceipt(consultationId) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
   const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId, isBasicReceipt } = req.body
-  const resendKey = process.env.RESEND_API_KEY
+  const canEmail = hasEmailProvider()
 
   // Basic receipt — the FREE plain HTML receipt auto-sent when the provider
   // signs off the consult. Idempotent via consultations.basic_receipt_sent_at.
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
     const firstName = (name || '').split(' ')[0] || 'there'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
     const resumeUrl = resumeId ? `${appUrl}/resume/${resumeId}` : `${appUrl}/triage`
-    if (resendKey && to) {
+    if (canEmail && to) {
       try {
         await sendEmail({
           from: 'Tere Health <hello@terehealth.co.nz>',
@@ -251,7 +251,7 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
 </body>
 </html>`
 
-  if (resendKey && to) {
+  if (canEmail && to) {
     try {
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',

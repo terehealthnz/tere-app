@@ -1,7 +1,7 @@
 import { AccessToken, SipClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
-import { sendEmail } from './_email-client.js'
+import { sendEmail , hasEmailProvider} from './_email-client.js'
 
 // Normalise a phone number to E.164. Respects an explicit '+' prefix (the
 // caller already supplied a country code — trust them, including AU +61 and
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   // Payment is captured at note completion (not at call start) to allow method flexibility
 
   // Email patient — your doctor is ready
-  const resendKey = process.env.RESEND_API_KEY
+  const canEmail = hasEmailProvider()
   const appUrl = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
   const firstName = consult.patient_first_name || 'there'
   // Patient-facing wording: always "your provider" — keeps copy neutral so it
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
   // different browser/device (empty sessionStorage) can still join their call.
   const callJoinUrl = `${appUrl}/call?consultation=${consultationId}`
 
-  if (resendKey && consult.patient_email) {
+  if (canEmail && consult.patient_email) {
     const subject = `${providerLabel} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
