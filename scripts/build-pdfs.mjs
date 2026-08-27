@@ -117,6 +117,12 @@ const DOCS_MAP = {
     title: 'Declaration of Conformity — Tere Vitals',
     badges: ['WAND 260729-WAND-786DQ9', 'Class IIa', 'GMDN 57960'],
   },
+  'software-licence-agreement': {
+    src: 'legal/software-licence-agreement-template.md',
+    out: 'Tere_Health_Software_Licence_Agreement_TEMPLATE.pdf',
+    title: 'Software Licence Agreement — Template',
+    badges: ['DRAFT — Not execution-ready', 'NZ jurisdiction', 'Requires counsel review'],
+  },
 }
 
 const CSS = `
