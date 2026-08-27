@@ -219,6 +219,7 @@ const ROUTES = {
   'transcribe-token':          () => import('./_transcribe-token.js'),
   'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
+  'nhi-lookup':                () => import('./_nhi-lookup.js'),
   'hpi':                       () => import('./_hpi.js'),
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),

@@ -368,6 +368,13 @@ const T = {
     hi: "उनके क्लिनिक या अभ्यास का नाम क्या है?",
   },
 
+  nhi_confirm: {
+    en: "Found {nhiDisplayName}, born {nhiDisplayDob} — is that you?",
+  },
+  nhi_retry: {
+    en: "That NHI number doesn't seem to match your name and date of birth. Would you like to try again or skip?",
+  },
+
   gp_confirm: {
     en: "Found {gpName} at {gpClinic} — is that right? We'll send them a copy of your notes automatically.",
     mi: "I kitea a {gpName} i {gpClinic} — he tika tērā? Ka tukua atu he tārua o ō tuhinga ki a rātou.", // TODO cert

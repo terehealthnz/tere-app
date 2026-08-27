@@ -124,6 +124,8 @@ const STEPS = [
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
+  { id:'nhi_confirm', message:(d)=>`Found ${d.nhi_display_name || 'a match'}, born ${d.nhi_display_dob || d.patient_dob_raw || ''} — is that you?`, field:'nhi_confirm_raw', type:'yesno', validate:()=>true, next:'pharmacy' },
+  { id:'nhi_retry', message:"That NHI number doesn't seem to match your name and date of birth. Would you like to try again or skip?", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
   { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', type:'gp_picker', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
@@ -201,6 +203,12 @@ function getStepMessage(step, lang, data) {
     return t('gp_confirm', lang, {
       gpName:   data?.gp_name   || '',
       gpClinic: data?.gp_clinic || '',
+    })
+  }
+  if (step.id === 'nhi_confirm') {
+    return t('nhi_confirm', lang, {
+      nhiDisplayName: data?.nhi_display_name || data?.patient_name || '',
+      nhiDisplayDob:  data?.nhi_display_dob  || data?.patient_dob_raw || '',
     })
   }
   const msg = t(step.id, lang)
@@ -595,6 +603,89 @@ export default function AITriage() {
     if (step.id === 'acc_employer') {
       setData(newData)
       advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
+      return
+    }
+
+    // NHI — optional HNZ NHI Patient lookup (behind NHI_API_ENABLED flag).
+    // When the flag is off (today), the endpoint returns { enabled: false }
+    // and we fall straight through to the pharmacy step — same behaviour
+    // as before. When on, we validate NHI format client-side and then hit
+    // /api/nhi-lookup which does the FHIR call server-side and compares
+    // the returned name/DOB against what the patient typed earlier.
+    if (step.id === 'nhi') {
+      if (!processed) {
+        advanceToStep('pharmacy', newData)
+        return
+      }
+      const { validateNhi } = await import('../../lib/nhiValidate')
+      const v = validateNhi(processed)
+      if (!v.ok) {
+        // Bad format — accept as-is (soft-fail) so we don't block a patient
+        // who's typed a legacy number the checksum doesn't fit.
+        advanceToStep('pharmacy', newData)
+        return
+      }
+      setTereTyping(true)
+      try {
+        const res = await apiFetch('/api/nhi-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nhi:         v.nhi,
+            patientName: newData.patient_name,
+            patientDob:  newData.patient_dob_raw,
+          }),
+        })
+        const body = await res.json().catch(() => ({}))
+        setTereTyping(false)
+        // Stub: endpoint disabled → trust patient input, advance.
+        if (body.enabled === false) {
+          advanceToStep('pharmacy', newData)
+          return
+        }
+        if (body.matched) {
+          const withDisplay = {
+            ...newData,
+            nhi_display_name: body.display?.name || newData.patient_name,
+            nhi_display_dob:  body.display?.dob  || newData.patient_dob_raw,
+          }
+          setData(withDisplay)
+          advanceToStep('nhi_confirm', withDisplay)
+          return
+        }
+        // Mismatch / not_found / deceased — ask patient to retry or skip.
+        advanceToStep('nhi_retry', newData)
+        return
+      } catch {
+        setTereTyping(false)
+        // Any lookup failure → don't block the patient.
+        advanceToStep('pharmacy', newData)
+        return
+      }
+    }
+
+    // NHI confirm — user said yes/no to "Found X, born Y — is that you?"
+    if (step.id === 'nhi_confirm') {
+      if (processed === 'yes') {
+        advanceToStep('pharmacy', newData)
+      } else {
+        // "no" → drop the (evidently wrong) NHI and go retry.
+        const cleared = { ...newData, patient_nhi: '', nhi_display_name: '', nhi_display_dob: '' }
+        setData(cleared)
+        advanceToStep('nhi', cleared)
+      }
+      return
+    }
+
+    // NHI retry — "Try again" jumps back to nhi; "Skip" advances.
+    if (step.id === 'nhi_retry') {
+      if (String(processed || '').toLowerCase().includes('try')) {
+        const cleared = { ...newData, patient_nhi: '' }
+        setData(cleared)
+        advanceToStep('nhi', cleared)
+      } else {
+        advanceToStep('pharmacy', newData)
+      }
       return
     }
 
