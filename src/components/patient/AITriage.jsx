@@ -125,7 +125,7 @@ const STEPS = [
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:()=>true, next:'gp_name' },
-  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
+  { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', type:'gp_picker', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
   { id:'gp_clinic', message:"What's the name of their clinic or practice?", field:'gp_clinic', validate:()=>true, next:'tobacco' },
   { id:'tobacco', message:"Do you currently smoke or use tobacco?", field:'tobacco_use_raw', type:'yesno', validate:()=>true, next:'tobacco_amount' },
@@ -598,6 +598,24 @@ export default function AITriage() {
         advanceToStep('tobacco', newData)
         return
       }
+      // Fast path: user picked from the HPI dropdown — use the pre-selected
+      // fields and skip the re-fetch. See selectGp() below.
+      const pending = sessionStorage.getItem('pending_gp_selection')
+      if (pending) {
+        sessionStorage.removeItem('pending_gp_selection')
+        try {
+          const sel = JSON.parse(pending)
+          const updatedData = {
+            ...newData,
+            gp_name:   sel.name   || newData.gp_name,
+            gp_clinic: sel.clinic || '',
+            gp_email:  sel.email  || '',
+          }
+          setData(updatedData)
+          advanceToStep('gp_confirm', updatedData)
+          return
+        } catch {}
+      }
       setTereTyping(true)
       try {
         const res = await apiFetch('/api/hpi-search', {
@@ -928,6 +946,15 @@ export default function AITriage() {
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [pharmacyResults, setPharmacyResults] = useState([])
   const [pharmacyLoading, setPharmacyLoading] = useState(false)
+
+  // ── GP picker — debounced HPI Practitioner search (type=gp) ─────────
+  // Mirrors the pharmacy picker UX so the patient can see multiple HPI
+  // matches and pick one, instead of the old auto-select-first-result
+  // behaviour. Fires POST /api/hpi-search { type: 'gp' } which calls
+  // HPI /Practitioner?name={q}&active=true&_count=5 under the hood.
+  const [gpQuery, setGpQuery] = useState('')
+  const [gpResults, setGpResults] = useState([])
+  const [gpLoading, setGpLoading] = useState(false)
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
   // Geolocation-based nearest-3 shortcut. Client-side only — user's coords
   // are never sent to a Tere server.
@@ -1011,6 +1038,44 @@ export default function AITriage() {
     handleSendValue(label)
     setPharmacyQuery('')
     setPharmacyResults([])
+  }
+
+  // Debounced HPI Practitioner search for the GP picker.
+  useEffect(() => {
+    const q = gpQuery.trim()
+    if (q.length < 2) { setGpResults([]); return }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setGpLoading(true)
+      try {
+        const res = await apiFetch('/api/hpi-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q, type: 'gp' }),
+        })
+        const { results } = await res.json()
+        if (!cancelled) setGpResults(Array.isArray(results) ? results.slice(0, 6) : [])
+      } catch {
+        if (!cancelled) setGpResults([])
+      } finally {
+        if (!cancelled) setGpLoading(false)
+      }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [gpQuery])
+
+  function selectGp(gp) {
+    // Stash the picked HPI response so the gp_name handler skips the
+    // HPI re-fetch and uses these exact fields.
+    sessionStorage.setItem('pending_gp_selection', JSON.stringify({
+      name:   gp?.name   || '',
+      clinic: gp?.clinic || '',
+      email:  gp?.email  || '',
+      hpiId:  gp?.hpiId  || '',
+    }))
+    handleSendValue(gp?.name || '')
+    setGpQuery('')
+    setGpResults([])
   }
 
   if (emergency === 'physical') return (
@@ -1267,7 +1332,48 @@ export default function AITriage() {
         </div>
       )}
 
-      {step?.skippable && step?.type !== 'pharmacy' && !tereTyping && (
+      {step?.type==='gp_picker' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <div style={{position:'relative',marginBottom:6}}>
+            <div style={{display:'flex',gap:6}}>
+              <input
+                value={gpQuery}
+                onChange={e => setGpQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && gpQuery.trim()) { handleSendValue(gpQuery.trim()); setGpQuery(''); setGpResults([]) } }}
+                placeholder="GP name (e.g. Herling)"
+                autoFocus
+                style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
+              />
+              <button
+                onClick={() => { if (gpQuery.trim()) { handleSendValue(gpQuery.trim()); setGpQuery(''); setGpResults([]) } }}
+                disabled={!gpQuery.trim()}
+                style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:gpQuery.trim()?1:.5}}>
+                {gpLoading ? '…' : t('btn_send', lang)}
+              </button>
+            </div>
+            {gpResults.length > 0 && (
+              <div style={{position:'absolute',top:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:10,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.1)'}}>
+                {gpResults.map((g, idx) => (
+                  <button key={g.hpiId || idx} onClick={() => selectGp(g)}
+                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<gpResults.length-1?'1px solid #F3F4F6':'none'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{g.name}</div>
+                    {(g.clinic || g.email) && (
+                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[g.clinic, g.email].filter(Boolean).join(' · ')}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={() => handleSendValue('skip')}
+            style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',borderRadius:10,padding:'9px',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            {t('btn_skip_arrow', lang)}
+          </button>
+        </div>
+      )}
+
+      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
