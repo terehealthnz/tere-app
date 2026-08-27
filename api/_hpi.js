@@ -389,6 +389,13 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid action' })
   } catch (e) {
     console.error('[hpi] HPI proxy error:', e)
+    // Diagnostic surface when HPI_DIAG_ENABLED — surfaces the real error
+    // message + stack so we can debug FHIR-call failures without hunting
+    // through Vercel logs. Stays gated so prod (with diag off) still returns
+    // the generic message.
+    if (process.env.HPI_DIAG_ENABLED === 'true') {
+      return res.status(500).json({ error: 'HPI proxy error', diag: { message: String(e?.message || e), stack: String(e?.stack || '').split('\n').slice(0, 4).join('\n') } })
+    }
     return res.status(500).json({ error: 'HPI proxy error' })
   }
 }
