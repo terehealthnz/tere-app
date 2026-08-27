@@ -464,8 +464,15 @@ Director-General of Health under the Medicines Act 1981 and Medicines
     Class **IIa**, Status Active. Intended use: adjunct to
     telehealth triage for adults 18 years and older; non-diagnostic;
     non-continuous; explicitly excludes paediatric, neonatal, and
-    non-invasive blood pressure. Manufacturer / sponsor: Tere Health
-    Limited.
+    non-invasive blood pressure. **Ongoing accuracy validation:**
+    formal accuracy validation of the rPPG estimator is being
+    conducted by the Licensor through the VitalsValidate observational
+    study (HDEC out-of-scope confirmation received 2026-08-03; study
+    conduct aligned with NEAC 2019 National Ethical Standards).
+    Until validation is complete and published, the estimator's
+    outputs must be treated as adjunctive to, and not a substitute
+    for, an Authorised User's own clinical assessment as set out in
+    clause 12. Manufacturer / sponsor: Tere Health Limited.
 
 (b) **Tere Drug Interaction and Allergy Cross-check** — alerts a
     prescriber to potential drug-drug interactions and drug-allergy
