@@ -111,6 +111,9 @@ const PrivacyPolicy       = lazy(() => import('./pages/PrivacyPolicy'))
 const Terms               = lazy(() => import('./pages/Terms'))
 const Careers             = lazy(() => import('./pages/Careers'))
 const CareersApply         = lazy(() => import('./pages/CareersApply'))
+const InterviewJoin        = lazy(() => import('./pages/InterviewJoin'))
+const InterviewEnded       = lazy(() => import('./pages/InterviewEnded'))
+const InterviewerRoom      = lazy(() => import('./pages/InterviewerRoom'))
 const Rate                = lazy(() => import('./pages/Rate'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
 const Watch               = lazy(() => import('./pages/Watch'))
@@ -263,6 +266,9 @@ export default function App() {
         <Route path="/careers"                element={<Careers />} />
         <Route path="/careers/apply"          element={<CareersApply />} />
         <Route path="/careers/apply/:slug"    element={<CareersApply />} />
+        <Route path="/interview/:token"       element={<InterviewJoin />} />
+        <Route path="/interview-ended"        element={<InterviewEnded />} />
+        <Route path="/interview-room"         element={<InterviewerRoom />} />
         <Route path="/employers"              element={<Employers />} />
         <Route path="/rate/:id"               element={<Rate />} />
         <Route path="/privacy"                element={<PrivacyPolicy />} />

@@ -2636,16 +2636,67 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   const [saving, setSaving] = React.useState(false)
   const [noteText, setNoteText] = React.useState('')
 
+  // Interview state
+  const [interviews, setInterviews] = React.useState([])
+  const [showSchedule, setShowSchedule] = React.useState(false)
+  const [scheduleAt, setScheduleAt] = React.useState('')
+  const [interviewMsg, setInterviewMsg] = React.useState('')
+
   async function load() {
     setLoading(true)
     try {
-      const { getJobApplication } = await import('../../lib/supabase')
-      const d = await getJobApplication(id)
+      const { getJobApplication, listInterviews } = await import('../../lib/supabase')
+      const [d, ivs] = await Promise.all([getJobApplication(id), listInterviews(id)])
       setData(d)
+      setInterviews(ivs || [])
     } catch { setData(null) }
     setLoading(false)
   }
   React.useEffect(() => { load() }, [id])
+
+  async function handleSchedule({ instant }) {
+    setSaving(true); setInterviewMsg('')
+    try {
+      const { scheduleInterview } = await import('../../lib/supabase')
+      const scheduledAt = instant ? null : new Date(scheduleAt).toISOString()
+      const body = await scheduleInterview(id, { scheduledAt, mode: instant ? 'instant' : 'scheduled' })
+      setInterviewMsg(instant
+        ? `Instant link sent to applicant. Copy: ${body.joinUrl}`
+        : `Invite emailed. Link: ${body.joinUrl}`)
+      setShowSchedule(false)
+      setScheduleAt('')
+      await load()
+      onChanged?.()
+    } catch (e) {
+      setInterviewMsg('Error: ' + (e.message || 'scheduling failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleJoinInterview(interviewId) {
+    setSaving(true)
+    try {
+      const { startInterview } = await import('../../lib/supabase')
+      const { token, serverUrl, roomName } = await startInterview(interviewId)
+      if (!token) {
+        alert('LiveKit not configured in this env — cannot join video.')
+        return
+      }
+      // Open interview in a new tab so admin panel stays open for notes.
+      const url = `/interview-room?token=${encodeURIComponent(token)}&serverUrl=${encodeURIComponent(serverUrl)}&room=${encodeURIComponent(roomName)}&interviewId=${encodeURIComponent(interviewId)}`
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      alert('Could not start interview: ' + (e.message || 'unknown'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleInterviewOutcome(interviewId, status) {
+    setSaving(true)
+    try {
+      const { updateInterview } = await import('../../lib/supabase')
+      await updateInterview(interviewId, { status })
+      await load()
+    } finally { setSaving(false) }
+  }
 
   async function setStatus(next) {
     setSaving(true)
@@ -2754,6 +2805,87 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                   <div style={{ marginTop: '.5rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, whiteSpace: 'pre-wrap' }}>{app.cover_note}</div>
                 )}
               </div>
+            </div>
+
+            <div style={section}>
+              <span style={label}>Video interviews ({interviews.length})</span>
+              <div style={{ display: 'flex', gap: 6, marginBottom: '.75rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => handleSchedule({ instant: true })}
+                  disabled={saving}
+                  style={{ ...btn('primary'), background: '#0B6E76' }}>
+                  ⚡ Send instant link
+                </button>
+                <button
+                  onClick={() => setShowSchedule(v => !v)}
+                  disabled={saving}
+                  style={btn()}>
+                  📅 Schedule interview
+                </button>
+              </div>
+              {showSchedule && (
+                <div style={{ background: '#F0F9FA', border: '1px solid #C7EAEC', borderRadius: 8, padding: '.75rem', marginBottom: '.75rem' }}>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>When (NZ time)</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduleAt}
+                    onChange={e => setScheduleAt(e.target.value)}
+                    style={{ display: 'block', width: '100%', marginTop: 6, marginBottom: 8, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => handleSchedule({ instant: false })}
+                      disabled={!scheduleAt || saving}
+                      style={{ ...btn('primary'), opacity: scheduleAt ? 1 : .5 }}>
+                      Send invite email
+                    </button>
+                    <button onClick={() => { setShowSchedule(false); setScheduleAt('') }} style={btn()}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              {interviewMsg && (
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#065F46', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: '.5rem', wordBreak: 'break-all' }}>
+                  {interviewMsg}
+                </div>
+              )}
+              {interviews.length === 0 ? (
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No interviews scheduled yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {interviews.map(iv => {
+                    const isJoinable = ['scheduled', 'instant', 'in_progress'].includes(iv.status)
+                    const isEnded    = ['completed', 'cancelled', 'no_show'].includes(iv.status)
+                    return (
+                      <div key={iv.id} style={{ background: isEnded ? '#F8FAFC' : '#FFF', border: `1px solid ${isEnded ? '#E2E8F0' : '#0B6E76'}`, borderRadius: 6, padding: '.625rem .75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <div style={{ fontSize: '.875rem' }}>
+                            <span style={{ fontWeight: 600, color: '#0D2B45' }}>
+                              {iv.scheduled_at
+                                ? new Date(iv.scheduled_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' })
+                                : 'Instant'}
+                            </span>
+                            <span style={{ marginLeft: 8, fontSize: '.7rem', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>{iv.status.replace('_', ' ')}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {isJoinable && (
+                              <button onClick={() => handleJoinInterview(iv.id)} disabled={saving} style={{ ...btn('primary'), padding: '4px 10px', fontSize: '.75rem' }}>Join</button>
+                            )}
+                            {isJoinable && (
+                              <button onClick={() => handleInterviewOutcome(iv.id, 'completed')} disabled={saving} title="Mark completed" style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>✓</button>
+                            )}
+                            {isJoinable && (
+                              <button onClick={() => handleInterviewOutcome(iv.id, 'no_show')} disabled={saving} title="No-show" style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>✗</button>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4, wordBreak: 'break-all' }}>
+                          Applicant link: <a href={`/interview/${iv.applicant_join_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/interview/{String(iv.applicant_join_token).slice(0, 12)}…</a>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             <div style={section}>

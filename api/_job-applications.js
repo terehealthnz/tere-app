@@ -13,8 +13,28 @@
 //
 // POST ?action=note  { note }   → provider-auth append internal note
 // PATCH ?action=step&id=<step>  → provider-auth toggle onboarding step done
+//
+// Interview actions (video interviews inside the platform, no Zoom):
+// POST  ?action=schedule_interview&id=<application_id>
+//                                → creates a job_interviews row, generates a
+//                                   LiveKit room + applicant join token, emails
+//                                   the applicant a join link. Body:
+//                                     { scheduledAt?: ISO string,
+//                                       mode: 'scheduled' | 'instant' }
+//                                   Response: { interview: {...}, joinUrl }
+// GET   ?action=interviews&id=<application_id>
+//                                → list interviews for an application
+// PATCH ?action=interview&id=<interview_id>
+//                                → update notes/status. Body:
+//                                   { status?, notes? }
+// POST  ?action=start_interview&id=<interview_id>
+//                                → interviewer joins: marks status=in_progress
+//                                  and mints a LiveKit token for the interviewer.
+//                                  Response: { token, serverUrl, roomName }
 
 import { createClient } from '@supabase/supabase-js'
+import { randomBytes } from 'node:crypto'
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { guardProvider } from './_auth.js'
 import { sendEmail } from './_email-client.js'
 
@@ -263,6 +283,185 @@ export default async function handler(req, res) {
     })
     if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
+  }
+
+  // ─── Interview actions ──────────────────────────────────────────────
+  //
+  // Video interviews inside the platform. Reuses the LiveKit stack that
+  // powers patient consults. Room name is a short random key; applicant
+  // gets a URL-safe token they use to join without an account.
+
+  const LK_URL    = process.env.LIVEKIT_URL
+  const LK_KEY    = process.env.LIVEKIT_API_KEY
+  const LK_SECRET = process.env.LIVEKIT_API_SECRET
+
+  async function createInterviewRoom(roomKey) {
+    if (!LK_URL || !LK_KEY || !LK_SECRET) return  // dev fallback — no-op
+    try {
+      const httpUrl = LK_URL.replace(/^wss?:\/\//, 'https://')
+      const svc = new RoomServiceClient(httpUrl, LK_KEY, LK_SECRET)
+      await svc.createRoom({
+        name: roomKey,
+        emptyTimeout: 900,          // 15 min empty → auto-delete
+        maxParticipants: 4,          // interviewer + applicant + 2 headroom
+      })
+    } catch (e) {
+      // Room already exists is fine.
+      console.log('[interview] createRoom:', e.message)
+    }
+  }
+
+  async function mintInterviewJoinToken(roomKey, identity, ttlSeconds = 7200) {
+    if (!LK_URL || !LK_KEY || !LK_SECRET) return { token: null, serverUrl: null }
+    const at = new AccessToken(LK_KEY, LK_SECRET, { identity, ttl: ttlSeconds })
+    at.addGrant({
+      roomJoin: true,
+      room: roomKey,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    })
+    return { token: await at.toJwt(), serverUrl: LK_URL }
+  }
+
+  // Schedule (or immediately create) an interview.
+  if (req.method === 'POST' && action === 'schedule_interview') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { scheduledAt, mode } = req.body || {}
+    const isInstant = mode === 'instant' || !scheduledAt
+    const provider = auth.provider || {}
+
+    const { data: app, error: appErr } = await supabase
+      .from('job_applications')
+      .select('id, first_name, last_name, email')
+      .eq('id', id)
+      .maybeSingle()
+    if (appErr || !app) return res.status(404).json({ error: 'Application not found' })
+
+    const roomKey  = 'iv-' + randomBytes(6).toString('hex')       // e.g. iv-a1b2c3d4e5f6
+    const joinTok  = randomBytes(24).toString('base64url')        // ~32 URL-safe chars
+
+    const { data: iv, error: ivErr } = await supabase
+      .from('job_interviews')
+      .insert({
+        application_id:         id,
+        interviewer_provider_id: provider.id || null,
+        room_key:               roomKey,
+        applicant_join_token:   joinTok,
+        scheduled_at:           isInstant ? null : scheduledAt,
+        status:                 isInstant ? 'instant' : 'scheduled',
+        created_by_provider_id: provider.id || null,
+      })
+      .select('*')
+      .maybeSingle()
+    if (ivErr) { console.error('[interview] insert failed:', ivErr); return res.status(500).json({ error: 'Server error' }) }
+
+    // Best-effort: pre-create room so the first joiner isn't waiting on it.
+    createInterviewRoom(roomKey).catch(() => {})
+
+    // Also flip the application status to 'interview' unless already past it.
+    supabase.from('job_applications')
+      .update({ status: 'interview' })
+      .eq('id', id)
+      .in('status', ['new', 'reviewing'])
+      .then(() => {}, () => {})
+
+    // Email the applicant.
+    const siteOrigin = process.env.PUBLIC_SITE_ORIGIN
+      || (req.headers['x-forwarded-proto'] && req.headers['x-forwarded-host']
+          ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
+          : 'https://terehealth.co.nz')
+    const joinUrl = `${siteOrigin}/interview/${joinTok}`
+    const firstName = app.first_name || 'there'
+    const whenLine = isInstant
+      ? 'Your interviewer is ready now — the link below joins you straight to the video room.'
+      : `Scheduled for <strong>${new Date(scheduledAt).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'full', timeStyle: 'short' })}</strong> (NZ time).`
+
+    try {
+      await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to: [app.email],
+        subject: 'Your Tere Health interview',
+        html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+  <div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div>
+  <div style="padding:24px 28px">
+    <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat.</p>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 20px">${whenLine}</p>
+    <div style="text-align:center;margin:28px 0"><a href="${joinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Join interview →</a></div>
+    <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
+    <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${joinUrl}</p>
+    <div style="background:#F0F9FA;border-radius:8px;padding:12px 16px;font-size:13px;color:#0D2B45">
+      <strong>Before you join:</strong> use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.
+    </div>
+    <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>
+  </div>
+  <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div>
+</body></html>`,
+        text: `Kia ora ${firstName},\n\nThanks for applying to Tere Health. We'd love to have a chat.\n\n${whenLine.replace(/<[^>]+>/g, '')}\n\nJoin your interview: ${joinUrl}\n\nBefore you join: use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.\n\nNgā mihi,\nThe Tere Health team\nterehealth.co.nz`,
+      })
+    } catch (e) {
+      console.error('[interview] email send failed:', e.message)
+      // Don't fail the request — admin can copy the joinUrl from the response
+      // and message the applicant manually.
+    }
+
+    return res.status(200).json({ interview: iv, joinUrl })
+  }
+
+  // List interviews for an application.
+  if (req.method === 'GET' && action === 'interviews') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data, error } = await supabase
+      .from('job_interviews')
+      .select('*')
+      .eq('application_id', id)
+      .order('created_at', { ascending: false })
+    if (error) { console.error('[interview] list failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ interviews: data || [] })
+  }
+
+  // Update interview notes / status (used to record outcome).
+  if (req.method === 'PATCH' && action === 'interview') {
+    if (!id) return res.status(400).json({ error: 'id (interview_id) required' })
+    const { status, notes } = req.body || {}
+    const patch = {}
+    const ALLOWED = new Set(['scheduled', 'instant', 'in_progress', 'completed', 'cancelled', 'no_show'])
+    if (status !== undefined) {
+      if (!ALLOWED.has(status)) return res.status(400).json({ error: `invalid status "${status}"` })
+      patch.status = status
+      if (status === 'completed' || status === 'no_show' || status === 'cancelled') {
+        patch.ended_at = new Date().toISOString()
+      }
+    }
+    if (notes !== undefined) patch.notes = String(notes || '')
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
+    const { error } = await supabase.from('job_interviews').update(patch).eq('id', id)
+    if (error) { console.error('[interview] patch failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  // Interviewer joins — mint LiveKit token + mark in_progress.
+  if (req.method === 'POST' && action === 'start_interview') {
+    if (!id) return res.status(400).json({ error: 'id (interview_id) required' })
+    const { data: iv, error: ivErr } = await supabase
+      .from('job_interviews').select('*').eq('id', id).maybeSingle()
+    if (ivErr || !iv) return res.status(404).json({ error: 'Interview not found' })
+
+    await createInterviewRoom(iv.room_key)
+    const provider = auth.provider || {}
+    const identity = `interviewer-${provider.id || 'unknown'}-${Date.now()}`
+    const { token, serverUrl } = await mintInterviewJoinToken(iv.room_key, identity)
+
+    // Mark started (idempotent: only overwrite if not already ended).
+    await supabase.from('job_interviews')
+      .update({ status: 'in_progress', started_at: iv.started_at || new Date().toISOString() })
+      .eq('id', id)
+      .is('ended_at', null)
+
+    return res.status(200).json({ token, serverUrl, roomName: iv.room_key })
   }
 
   // Onboarding step toggle.

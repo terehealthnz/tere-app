@@ -311,6 +311,7 @@ const ROUTES = {
   'patients':                  () => import('./_patients.js'),
   'spo2-calibrations':         () => import('./_spo2-calibrations.js'),
   'job-applications':          () => import('./_job-applications.js'),
+  'interview-join':            () => import('./_interview-join.js'),
   'patient-support':           () => import('./_patient-support.js'),
   'provider-notifications':    () => import('./_provider-notifications.js'),
 }

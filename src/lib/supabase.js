@@ -1007,6 +1007,45 @@ export async function updateOnboardingStep(stepId, patch) {
   return res.ok
 }
 
+// ── Video interviews ─────────────────────────────────────────────────
+// Backed by job_interviews table + LiveKit rooms. Applicant joins
+// anonymously via /interview/:token (a URL token from the email invite);
+// interviewer joins from admin via startInterview → LiveKit access token.
+
+export async function listInterviews(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=interviews&id=${encodeURIComponent(applicationId)}`)
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.interviews || []
+}
+
+export async function scheduleInterview(applicationId, { scheduledAt, mode } = {}) {
+  const res = await apiFetch(`/api/job-applications?action=schedule_interview&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ scheduledAt, mode: mode || (scheduledAt ? 'scheduled' : 'instant') }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Interview scheduling failed')
+  return await res.json()
+}
+
+export async function updateInterview(interviewId, patch) {
+  const res = await apiFetch(`/api/job-applications?action=interview&id=${encodeURIComponent(interviewId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  return res.ok
+}
+
+// Interviewer joins — returns { token, serverUrl, roomName } for LiveKit.
+export async function startInterview(interviewId) {
+  const res = await apiFetch(`/api/job-applications?action=start_interview&id=${encodeURIComponent(interviewId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error('Could not start interview')
+  return await res.json()
+}
+
 export async function uploadCvFile(file, applicantEmail) {
   // Direct-to-storage upload with the anon client. Bucket policy allows anon
   // INSERT into the `cvs` bucket; PDF/DOCX only, 5MB limit enforced server-side.
