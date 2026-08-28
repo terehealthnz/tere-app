@@ -2354,13 +2354,15 @@ function CareersPanel() {
   })
   return (
     <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button onClick={() => setSubTab('listings')}   style={tabBtn(subTab === 'listings')}>📋 Job listings</button>
         <button onClick={() => setSubTab('applicants')} style={tabBtn(subTab === 'applicants')}>👤 Applicants</button>
+        <button onClick={() => setSubTab('interviews')} style={tabBtn(subTab === 'interviews')}>📹 Interviews</button>
         <button onClick={() => setSubTab('templates')}  style={tabBtn(subTab === 'templates')}>✍️ Offer templates</button>
       </div>
       {subTab === 'listings'   && <JobListingsSection />}
       {subTab === 'applicants' && <ApplicantsSection />}
+      {subTab === 'interviews' && <InterviewsQueueSection />}
       {subTab === 'templates'  && <OfferTemplatesSection />}
     </div>
   )
@@ -2781,6 +2783,167 @@ function OfferTemplatesSection() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Interviews queue ──────────────────────────────────────────────────
+// Cross-applicant upcoming list. One row per interview in scheduled /
+// instant / proposed / in_progress state. Sorted by scheduled_at (earliest
+// first, proposed rows without a time float to the bottom).
+
+function InterviewsQueueSection() {
+  const [interviews, setInterviews] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+  const [openApplicantId, setOpenApplicantId] = React.useState(null)
+  const [msg, setMsg] = React.useState('')
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { listAllInterviews } = await import('../../lib/supabase')
+      setInterviews(await listAllInterviews())
+    } catch { setInterviews([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+
+  async function handleJoin(interviewId) {
+    setSaving(true); setMsg('')
+    try {
+      const { startInterview } = await import('../../lib/supabase')
+      const { token, serverUrl, roomName } = await startInterview(interviewId)
+      if (!token) { setMsg('LiveKit not configured in this environment.'); return }
+      const url = `/interview-room?token=${encodeURIComponent(token)}&serverUrl=${encodeURIComponent(serverUrl)}&room=${encodeURIComponent(roomName)}&interviewId=${encodeURIComponent(interviewId)}`
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      setMsg('Could not start: ' + (e.message || 'unknown'))
+    } finally { setSaving(false) }
+  }
+
+  const card    = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const btnGo   = { background: '#0B6E76', color: 'white', border: 'none', padding: '7px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.82rem', fontWeight: 700, fontFamily: 'inherit' }
+  const btnAlt  = { background: 'white', color: '#0D2B45', border: '1px solid #E2E8F0', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.78rem', fontWeight: 700, fontFamily: 'inherit' }
+
+  const fmtWhen = (iso) => iso
+    ? new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    : null
+
+  const now = Date.now()
+  const rows = interviews.map(iv => ({
+    ...iv,
+    _startsInMin: iv.scheduled_at ? Math.round((new Date(iv.scheduled_at).getTime() - now) / 60_000) : null,
+  }))
+  const scheduledRows = rows.filter(r => r.status !== 'proposed')
+  const proposedRows  = rows.filter(r => r.status === 'proposed')
+
+  return (
+    <div>
+      <div style={card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0D2B45' }}>Upcoming interviews</div>
+            <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: 2 }}>
+              Everything currently scheduled, instant, in-progress, or awaiting applicant slot pick.
+            </div>
+          </div>
+          <button onClick={load} disabled={loading || saving} style={btnAlt}>{loading ? 'Loading…' : '↻ Refresh'}</button>
+        </div>
+        {msg && <div style={{ background: '#FEF9F1', border: '1px solid #FDE1B9', color: '#92400E', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: 10 }}>{msg}</div>}
+
+        {loading ? (
+          <div style={{ color: '#9CA3AF', fontSize: '.9rem' }}>Loading…</div>
+        ) : interviews.length === 0 ? (
+          <div style={{ color: '#9CA3AF', fontSize: '.9rem', fontStyle: 'italic' }}>No upcoming interviews.</div>
+        ) : (
+          <>
+            {scheduledRows.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {scheduledRows.map(iv => {
+                  const app       = iv.application || {}
+                  const role      = app.job_listing?.title || 'Speculative application'
+                  const applicant = [app.first_name, app.last_name].filter(Boolean).join(' ') || 'Applicant'
+                  const isNow     = iv.status === 'instant' || iv.status === 'in_progress' ||
+                                    (iv._startsInMin !== null && iv._startsInMin >= -15 && iv._startsInMin <= 15)
+                  const border    = isNow ? '2px solid #0B6E76' : '1px solid #E2E8F0'
+                  const bg        = isNow ? '#F0F9FA' : 'white'
+                  return (
+                    <div key={iv.id} style={{ background: bg, border, borderRadius: 8, padding: '.85rem 1rem', display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, color: '#0D2B45', fontSize: '.95rem' }}>{applicant}</span>
+                          <span style={{ color: '#6B7280', fontSize: '.85rem' }}>· {role}</span>
+                          <span style={{ fontSize: '.68rem', textTransform: 'uppercase', fontWeight: 700, color: iv.status === 'in_progress' ? '#065F46' : (iv.status === 'instant' ? '#B45309' : '#0B6E76') }}>
+                            {iv.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <div style={{ color: '#374151', fontSize: '.85rem', marginTop: 4 }}>
+                          {iv.scheduled_at ? (
+                            <>
+                              <strong>{fmtWhen(iv.scheduled_at)}</strong> (NZ)
+                              {iv._startsInMin !== null && (
+                                <span style={{ color: iv._startsInMin < 0 ? '#DC2626' : '#6B7280', marginLeft: 8, fontSize: '.78rem' }}>
+                                  {iv._startsInMin === 0 ? 'now' :
+                                    iv._startsInMin > 0 ? `in ${iv._startsInMin < 60 ? `${iv._startsInMin} min` : `${Math.round(iv._startsInMin / 60)}h`}` :
+                                    `${Math.abs(iv._startsInMin)} min ago`}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span style={{ color: '#B45309' }}>Instant / not scheduled</span>
+                          )}
+                          <span style={{ color: '#9CA3AF', marginLeft: 10, fontSize: '.78rem' }}>· {iv.duration_minutes || 30} min</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => handleJoin(iv.id)} disabled={saving} style={btnGo}>Join</button>
+                        {app.id && (
+                          <button onClick={() => setOpenApplicantId(app.id)} disabled={saving} style={btnAlt}>Open applicant</button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {proposedRows.length > 0 && (
+              <div style={{ marginTop: scheduledRows.length > 0 ? 20 : 0 }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#B45309', marginBottom: 8, letterSpacing: '.05em' }}>
+                  Awaiting applicant slot pick ({proposedRows.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {proposedRows.map(iv => {
+                    const app       = iv.application || {}
+                    const role      = app.job_listing?.title || 'Speculative application'
+                    const applicant = [app.first_name, app.last_name].filter(Boolean).join(' ') || 'Applicant'
+                    const proposed  = Array.isArray(iv.proposed_slots) ? iv.proposed_slots : []
+                    return (
+                      <div key={iv.id} style={{ background: 'white', border: '1px solid #FDE1B9', borderRadius: 8, padding: '.7rem .9rem', display: 'flex', gap: 10, alignItems: 'center' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, color: '#0D2B45', fontSize: '.9rem' }}>
+                            {applicant} <span style={{ color: '#6B7280', fontWeight: 400 }}>· {role}</span>
+                          </div>
+                          <div style={{ fontSize: '.75rem', color: '#B45309', marginTop: 2 }}>
+                            {proposed.length} slot{proposed.length === 1 ? '' : 's'} proposed · sent {new Date(iv.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                          </div>
+                        </div>
+                        {app.id && (
+                          <button onClick={() => setOpenApplicantId(app.id)} disabled={saving} style={btnAlt}>Open applicant</button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+      {openApplicantId && (
+        <ApplicantDetail id={openApplicantId} onClose={() => setOpenApplicantId(null)} onChanged={load} />
+      )}
     </div>
   )
 }

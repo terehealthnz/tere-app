@@ -1019,6 +1019,14 @@ export async function listInterviews(applicationId) {
   return body.interviews || []
 }
 
+// Cross-applicant queue view — powers Careers → Interviews tab.
+export async function listAllInterviews() {
+  const res = await apiFetch('/api/job-applications?action=all_interviews')
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.interviews || []
+}
+
 export async function scheduleInterview(applicationId, { scheduledAt, mode, proposedSlots, durationMinutes } = {}) {
   const payload = {}
   if (Array.isArray(proposedSlots) && proposedSlots.length > 0) {

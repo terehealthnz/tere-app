@@ -1122,6 +1122,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ interviews: data || [] })
   }
 
+  // Cross-applicant upcoming queue view. Powers the Careers → Interviews tab.
+  // Returns rows in scheduled/instant/proposed/in_progress status with the
+  // parent application + listing joined for display. Ordered by upcoming-ness:
+  // rows with a concrete scheduled_at first (chronological), then proposed
+  // rows waiting on applicant pick.
+  if (req.method === 'GET' && action === 'all_interviews') {
+    const { data, error } = await supabase
+      .from('job_interviews')
+      .select(`
+        id, room_key, applicant_join_token, status, scheduled_at, proposed_slots,
+        duration_minutes, interviewer_provider_id, created_at,
+        application:job_applications(id, first_name, last_name, email,
+          job_listing:job_listings(id, title))
+      `)
+      .in('status', ['scheduled', 'instant', 'proposed', 'in_progress'])
+      .order('scheduled_at', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+      .limit(200)
+    if (error) { console.error('[interview] all_interviews failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ interviews: data || [] })
+  }
+
   // Update interview notes / status (used to record outcome).
   if (req.method === 'PATCH' && action === 'interview') {
     if (!id) return res.status(400).json({ error: 'id (interview_id) required' })
