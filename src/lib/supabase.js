@@ -1146,6 +1146,40 @@ export async function cancelOnboarding(applicationId) {
   return res.ok
 }
 
+// ── Offer templates ────────────────────────────────────────────────────
+export async function listOfferTemplates() {
+  const res = await apiFetch('/api/job-applications?action=offer_templates')
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.templates || []
+}
+
+export async function createOfferTemplate({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder } = {}) {
+  const res = await apiFetch('/api/job-applications?action=create_offer_template', {
+    method: 'POST',
+    body: JSON.stringify({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Template create failed')
+  return await res.json()
+}
+
+export async function updateOfferTemplate(templateId, patch = {}) {
+  const res = await apiFetch(`/api/job-applications?action=update_offer_template&id=${encodeURIComponent(templateId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Template update failed')
+  return await res.json()
+}
+
+export async function deleteOfferTemplate(templateId) {
+  const res = await apiFetch(`/api/job-applications?action=delete_offer_template&id=${encodeURIComponent(templateId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return res.ok
+}
+
 export async function updateInterview(interviewId, patch) {
   const res = await apiFetch(`/api/job-applications?action=interview&id=${encodeURIComponent(interviewId)}`, {
     method: 'PATCH',

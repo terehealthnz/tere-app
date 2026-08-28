@@ -1751,5 +1751,78 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
+  // ── Offer templates ────────────────────────────────────────────────────
+  //
+  // GET   ?action=offer_templates                      → any authed provider (used by Create Offer picker)
+  // POST  ?action=create_offer_template                → admin only
+  // PATCH ?action=update_offer_template&id=<uuid>      → admin only
+  // POST  ?action=delete_offer_template&id=<uuid>      → admin only (soft: is_active=false)
+
+  if (req.method === 'GET' && action === 'offer_templates') {
+    const { data, error } = await supabase
+      .from('offer_templates')
+      .select('id, name, role_title_default, compensation_default, contract_terms, is_active, sort_order')
+      .eq('is_active', true)
+      .order('sort_order', { ascending: true })
+      .order('name', { ascending: true })
+    if (error) { console.error('[offer_templates] list failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ templates: data || [] })
+  }
+
+  if (req.method === 'POST' && action === 'create_offer_template') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    const b = req.body || {}
+    const name  = String(b.name || '').trim()
+    const role  = String(b.roleTitleDefault || '').trim()
+    const comp  = String(b.compensationDefault || '').trim()
+    const terms = String(b.contractTerms || '').trim()
+    if (name.length < 2 || name.length > 120)  return res.status(400).json({ error: 'name 2-120 chars required' })
+    if (role.length < 2 || role.length > 200)  return res.status(400).json({ error: 'roleTitleDefault 2-200 chars required' })
+    if (comp.length < 2 || comp.length > 200)  return res.status(400).json({ error: 'compensationDefault 2-200 chars required' })
+    if (terms.length < 20 || terms.length > 20_000) return res.status(400).json({ error: 'contractTerms 20-20000 chars required' })
+
+    const { data, error } = await supabase
+      .from('offer_templates')
+      .insert({
+        name,
+        role_title_default:     role,
+        compensation_default:   comp,
+        contract_terms:         terms,
+        sort_order:             Number.isInteger(b.sortOrder) ? b.sortOrder : 0,
+        created_by_provider_id: auth.provider?.id || null,
+      })
+      .select('*')
+      .maybeSingle()
+    if (error) { console.error('[offer_templates] insert failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ template: data })
+  }
+
+  if (req.method === 'PATCH' && action === 'update_offer_template') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    if (!id) return res.status(400).json({ error: 'id required' })
+    const b = req.body || {}
+    const patch = {}
+    if (typeof b.name === 'string')                  patch.name = b.name.trim().slice(0, 120)
+    if (typeof b.roleTitleDefault === 'string')      patch.role_title_default = b.roleTitleDefault.trim().slice(0, 200)
+    if (typeof b.compensationDefault === 'string')   patch.compensation_default = b.compensationDefault.trim().slice(0, 200)
+    if (typeof b.contractTerms === 'string')         patch.contract_terms = b.contractTerms.trim().slice(0, 20_000)
+    if (typeof b.isActive === 'boolean')             patch.is_active = b.isActive
+    if (Number.isInteger(b.sortOrder))               patch.sort_order = b.sortOrder
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
+
+    const { error } = await supabase.from('offer_templates').update(patch).eq('id', id)
+    if (error) { console.error('[offer_templates] update failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  if (req.method === 'POST' && action === 'delete_offer_template') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    if (!id) return res.status(400).json({ error: 'id required' })
+    // Soft-delete — preserves historical offers that referenced the template's text.
+    const { error } = await supabase.from('offer_templates').update({ is_active: false }).eq('id', id)
+    if (error) { console.error('[offer_templates] delete failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
   return res.status(405).json({ error: 'Method not allowed' })
 }

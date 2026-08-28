@@ -2357,8 +2357,11 @@ function CareersPanel() {
       <div style={{ display: 'flex', gap: 6, marginBottom: '1rem' }}>
         <button onClick={() => setSubTab('listings')}   style={tabBtn(subTab === 'listings')}>📋 Job listings</button>
         <button onClick={() => setSubTab('applicants')} style={tabBtn(subTab === 'applicants')}>👤 Applicants</button>
+        <button onClick={() => setSubTab('templates')}  style={tabBtn(subTab === 'templates')}>✍️ Offer templates</button>
       </div>
-      {subTab === 'listings' ? <JobListingsSection /> : <ApplicantsSection />}
+      {subTab === 'listings'   && <JobListingsSection />}
+      {subTab === 'applicants' && <ApplicantsSection />}
+      {subTab === 'templates'  && <OfferTemplatesSection />}
     </div>
   )
 }
@@ -2626,6 +2629,162 @@ function StatusPill({ status }) {
   )
 }
 
+// ── Offer templates ────────────────────────────────────────────────────
+
+function OfferTemplatesSection() {
+  const [templates, setTemplates] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [editing, setEditing] = React.useState(null)   // null | 'new' | <id>
+  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0 })
+  const [msg, setMsg] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { listOfferTemplates } = await import('../../lib/supabase')
+      setTemplates(await listOfferTemplates())
+    } catch { setTemplates([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+
+  function startNew() {
+    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10 })
+    setEditing('new'); setMsg('')
+  }
+  function startEdit(t) {
+    setForm({
+      name: t.name,
+      roleTitleDefault: t.role_title_default,
+      compensationDefault: t.compensation_default,
+      contractTerms: t.contract_terms,
+      sortOrder: t.sort_order,
+    })
+    setEditing(t.id); setMsg('')
+  }
+  function cancel() { setEditing(null); setMsg('') }
+
+  async function save() {
+    setSaving(true); setMsg('')
+    try {
+      const { createOfferTemplate, updateOfferTemplate } = await import('../../lib/supabase')
+      if (editing === 'new') {
+        await createOfferTemplate(form)
+        setMsg('Template created.')
+      } else {
+        await updateOfferTemplate(editing, form)
+        setMsg('Template updated.')
+      }
+      setEditing(null)
+      await load()
+    } catch (e) { setMsg('Error: ' + (e.message || 'save failed')) }
+    finally { setSaving(false) }
+  }
+
+  async function remove(t) {
+    if (!confirm(`Deactivate template "${t.name}"? Existing offers keep their terms — this just hides it from the picker.`)) return
+    setSaving(true); setMsg('')
+    try {
+      const { deleteOfferTemplate } = await import('../../lib/supabase')
+      await deleteOfferTemplate(t.id)
+      await load()
+    } finally { setSaving(false) }
+  }
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const label = { display: 'block', fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }
+  const input = { display: 'block', width: '100%', boxSizing: 'border-box', border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '8px 10px', fontSize: '.9rem', fontFamily: 'inherit', marginBottom: 12 }
+  const btn = (v) => {
+    const m = {
+      primary: { background: '#0B6E76', color: 'white' },
+      ghost:   { background: 'white', color: '#6B7280', border: '1px solid #E2E8F0' },
+      danger:  { background: '#FEE2E2', color: '#DC2626' },
+    }
+    return { ...(m[v] || m.primary), border: v === 'ghost' ? '1px solid #E2E8F0' : 'none', padding: '7px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.82rem', fontWeight: 700, fontFamily: 'inherit' }
+  }
+
+  return (
+    <div>
+      <div style={card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0D2B45' }}>Offer templates</div>
+            <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: 2 }}>
+              Reusable role + comp + terms presets. Admin picks one when creating an offer; fields can still be edited before sending.
+            </div>
+          </div>
+          {editing !== 'new' && (
+            <button onClick={startNew} disabled={saving} style={btn('primary')}>+ New template</button>
+          )}
+        </div>
+        {msg && (
+          <div style={{ background: '#F0F9FA', border: '1px solid #C7EAEC', color: '#0B6E76', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: 10 }}>{msg}</div>
+        )}
+
+        {editing && (
+          <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '1rem', marginBottom: 12 }}>
+            <label style={label}>Template name (admin-only label)</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder='e.g. "NP — contractor"' style={input} disabled={saving} />
+            <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={label}>Default role title</label>
+                <input value={form.roleTitleDefault} onChange={e => setForm(f => ({ ...f, roleTitleDefault: e.target.value }))} placeholder='e.g. "Nurse Practitioner"' style={input} disabled={saving} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={label}>Default compensation</label>
+                <input value={form.compensationDefault} onChange={e => setForm(f => ({ ...f, compensationDefault: e.target.value }))} placeholder='e.g. "$130/hr contractor"' style={input} disabled={saving} />
+              </div>
+              <div style={{ flex: '0 0 90px' }}>
+                <label style={label}>Sort order</label>
+                <input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: Number(e.target.value) || 0 }))} style={input} disabled={saving} />
+              </div>
+            </div>
+            <label style={label}>Contract terms (renders in the offer PDF verbatim)</label>
+            <textarea rows={10} value={form.contractTerms} onChange={e => setForm(f => ({ ...f, contractTerms: e.target.value }))}
+              placeholder="Hours, scope, notice period, confidentiality, IP, DR clause…"
+              style={{ ...input, lineHeight: 1.55, resize: 'vertical' }} disabled={saving} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={save} disabled={saving || form.name.trim().length < 2} style={btn('primary')}>
+                {saving ? 'Saving…' : (editing === 'new' ? 'Create template' : 'Save changes')}
+              </button>
+              <button onClick={cancel} style={btn('ghost')}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div style={{ color: '#9CA3AF', fontSize: '.9rem' }}>Loading…</div>
+        ) : templates.length === 0 ? (
+          <div style={{ color: '#9CA3AF', fontSize: '.9rem', fontStyle: 'italic' }}>No templates yet — click "+ New template" to add your first.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {templates.map(t => (
+              <div key={t.id} style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.75rem 1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, color: '#0D2B45', fontSize: '.95rem' }}>{t.name}</div>
+                    <div style={{ color: '#6B7280', fontSize: '.8rem', marginTop: 2 }}>
+                      {t.role_title_default} · {t.compensation_default}
+                    </div>
+                    <div style={{ color: '#9CA3AF', fontSize: '.72rem', marginTop: 6, whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
+                      {t.contract_terms.length > 200 ? t.contract_terms.slice(0, 200) + '…' : t.contract_terms}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => startEdit(t)} disabled={saving} style={{ ...btn('ghost'), padding: '5px 12px', fontSize: '.75rem' }}>Edit</button>
+                    <button onClick={() => remove(t)} disabled={saving} style={{ ...btn('danger'), padding: '5px 12px', fontSize: '.75rem' }}>Deactivate</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ApplicantsSection() {
   const [applicants, setApplicants] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -2737,8 +2896,10 @@ function ApplicantDetail({ id, onClose, onChanged }) {
 
   // Offer state
   const [offers, setOffers] = React.useState([])
+  const [offerTemplates, setOfferTemplates] = React.useState([])
   const [showCreateOffer, setShowCreateOffer] = React.useState(false)
   const [offerForm, setOfferForm] = React.useState({ roleTitle: '', compensation: '', startDate: '', contractTerms: '' })
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState('')
   const [offerMsg, setOfferMsg] = React.useState('')
   const [countersignId, setCountersignId] = React.useState(null)
   const [countersignName, setCountersignName] = React.useState('')
@@ -2758,15 +2919,16 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   async function load() {
     setLoading(true)
     try {
-      const { getJobApplication, listInterviews, listOffers, listReferences, getOnboardingIntake } = await import('../../lib/supabase')
-      const [d, ivs, ofs, refs, ink] = await Promise.all([
-        getJobApplication(id), listInterviews(id), listOffers(id), listReferences(id), getOnboardingIntake(id),
+      const { getJobApplication, listInterviews, listOffers, listReferences, getOnboardingIntake, listOfferTemplates } = await import('../../lib/supabase')
+      const [d, ivs, ofs, refs, ink, tpls] = await Promise.all([
+        getJobApplication(id), listInterviews(id), listOffers(id), listReferences(id), getOnboardingIntake(id), listOfferTemplates(),
       ])
       setData(d)
       setInterviews(ivs || [])
       setOffers(ofs || [])
       setReferences(refs || [])
       setIntake(ink)
+      setOfferTemplates(tpls || [])
       setRevealed({ ird_number: null, bank_account: null })
     } catch { setData(null) }
     setLoading(false)
@@ -2854,6 +3016,7 @@ function ApplicantDetail({ id, onClose, onChanged }) {
       setOfferMsg(`Offer emailed to applicant. Sign link: ${body.signUrl}`)
       setShowCreateOffer(false)
       setOfferForm({ roleTitle: '', compensation: '', startDate: '', contractTerms: '' })
+      setSelectedTemplateId('')
       await load()
       onChanged?.()
     } catch (e) {
@@ -3297,6 +3460,35 @@ function ApplicantDetail({ id, onClose, onChanged }) {
               </div>
               {showCreateOffer && (
                 <div style={{ background: '#FEF9F1', border: '1px solid #FDE1B9', borderRadius: 8, padding: '.85rem', marginBottom: '.75rem' }}>
+                  {offerTemplates.length > 0 && (
+                    <div style={{ marginBottom: 12, background: 'white', border: '1px dashed #FDE1B9', borderRadius: 6, padding: '.5rem .625rem' }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Start from a template</label>
+                      <select
+                        value={selectedTemplateId}
+                        onChange={e => {
+                          const tid = e.target.value
+                          setSelectedTemplateId(tid)
+                          if (!tid) return  // "None" — leave fields alone
+                          const t = offerTemplates.find(x => x.id === tid)
+                          if (!t) return
+                          setOfferForm(f => ({
+                            ...f,
+                            roleTitle:     t.role_title_default,
+                            compensation:  t.compensation_default,
+                            contractTerms: t.contract_terms,
+                          }))
+                        }}
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', background: 'white', boxSizing: 'border-box' }}>
+                        <option value="">— None / write from scratch —</option>
+                        {offerTemplates.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                      <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4 }}>
+                        Templates prefill the fields below — tweak anything before sending.
+                      </div>
+                    </div>
+                  )}
                   <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Role title</label>
                   <input
                     value={offerForm.roleTitle}
@@ -4443,7 +4635,8 @@ function AdminBody() {
             { id:'overview',     label:'📊 Overview' },
             { id:'operations',   label:'🩺 Operations' },
             { id:'finance',      label:'💰 Finance & Payroll' },
-            { id:'team',         label:'👥 Team & Careers' },
+            { id:'team',         label:'👥 Team' },
+            { id:'careers',      label:'💼 Careers' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
             { id:'employers',    label:'🏢 Employers' },
@@ -4508,7 +4701,9 @@ function AdminBody() {
             case 'finance':
               return <><AnalyticsPanel /><FailedPayments /><AdminPayroll embedded /></>
             case 'team':
-              return <><ProvidersPanel /><CareersPanel /></>
+              return <ProvidersPanel />
+            case 'careers':
+              return <CareersPanel />
             case 'quality':
               return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
