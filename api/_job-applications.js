@@ -165,6 +165,75 @@ async function sendInterviewConfirmationEmail({ to, name, joinUrl, scheduledAt, 
   })
 }
 
+// Shared: create a job_references row + email the referee. Used by both
+// admin-typed request_reference AND applicant-driven submit_applicant_referees.
+// Never throws — a bad email is logged and the row still lands so admin sees
+// the pending state and can resend manually.
+async function createRefereeInviteAndEmail(supabase, {
+  applicationId,
+  createdByProviderId,
+  name,
+  email,
+  phone,
+  relationship,
+  source,                // 'admin_typed' | 'applicant_intake'
+  candidateName,
+  roleTitle,
+  siteOrigin,
+}) {
+  const requestToken = randomBytes(24).toString('base64url')
+  const { data: ref, error } = await supabase
+    .from('job_references')
+    .insert({
+      application_id:         applicationId,
+      created_by_provider_id: createdByProviderId || null,
+      referee_name:           name,
+      referee_email:          email,
+      referee_phone:          phone || null,
+      referee_relationship:   relationship || null,
+      request_token:          requestToken,
+      source:                 source || 'admin_typed',
+      status:                 'pending',
+    })
+    .select('*')
+    .maybeSingle()
+  if (error) throw error
+
+  const respondUrl = `${siteOrigin}/reference/respond/${requestToken}`
+  try {
+    const firstName = (name || '').split(' ')[0] || 'there'
+    await sendEmail({
+      from:    'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to:      [email],
+      subject: `Reference request for ${candidateName} — Tere Health`,
+      html: emailShell(`
+        <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+          <strong>${candidateName}</strong> has applied for <strong>${roleTitle}</strong> at Tere Health and listed you as a referee.
+          We'd be grateful if you could take five minutes to answer a few short questions about them.
+        </p>
+        ${relationship ? `<p style="font-size:13px;color:#6B7280;margin:0 0 16px"><em>Noted relationship: ${relationship}</em></p>` : ''}
+        <div style="text-align:center;margin:28px 0"><a href="${respondUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Give a reference →</a></div>
+        <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or paste this link into your browser:</p>
+        <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${respondUrl}</p>
+        <p style="font-size:13px;color:#6B7280;line-height:1.6">Your response is confidential and shared only with the Tere Health hiring team. If you'd rather not give a reference, you can safely ignore this email or reply directly.</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+      text: [
+        `Kia ora ${firstName},`, '',
+        `${candidateName} has applied for ${roleTitle} at Tere Health and listed you as a referee.`,
+        "Would you take five minutes to answer a few short questions?", '',
+        `Give a reference: ${respondUrl}`, '',
+        "Your response is confidential. If you'd rather not, ignore this email or reply.",
+        '', 'Ngā mihi,', 'The Tere Health team',
+      ].join('\n'),
+    })
+  } catch (e) {
+    console.error('[reference] send request email failed:', e.message)
+  }
+  return { reference: ref, respondUrl }
+}
+
 async function seedOnboardingIfNeeded(supabase, applicationId) {
   const { count } = await supabase.from('onboarding_steps')
     .select('id', { count: 'exact', head: true })
@@ -642,6 +711,158 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ ok: true })
+  }
+
+  // ── Anon applicant referee intake ──────────────────────────────────────
+  //
+  // GET  ?action=applicant_reference_intake&token=<t>
+  //         → returns applicant's own name + role + min/max referees so the
+  //           collection page can render.
+  //
+  // POST ?action=submit_applicant_referees
+  //         Body: { token, referees: [{ name, email, phone?, relationship? }, ...] }
+  //         → validates 2-max referees, marks intake status='submitted', then
+  //           for each referee creates a job_references row + immediately
+  //           fires the referee-request email. Fully automated from this point.
+
+  if (req.method === 'GET' && action === 'applicant_reference_intake') {
+    const supabase = admin()
+    const token = String(req.query?.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+
+    const { data: intake } = await supabase
+      .from('applicant_reference_intakes')
+      .select('id, application_id, status, min_referees, max_referees, submitted_at')
+      .eq('request_token', token)
+      .maybeSingle()
+    if (!intake) return res.status(404).json({ error: 'Referee request not found' })
+    if (intake.status !== 'pending') {
+      return res.status(200).json({ terminal: true, status: intake.status, submitted_at: intake.submitted_at })
+    }
+
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, job_listing_id')
+      .eq('id', intake.application_id)
+      .maybeSingle()
+    let roleTitle = null
+    if (app?.job_listing_id) {
+      const { data: listing } = await supabase.from('job_listings').select('title').eq('id', app.job_listing_id).maybeSingle()
+      roleTitle = listing?.title || null
+    }
+    return res.status(200).json({
+      intake: {
+        min_referees: intake.min_referees,
+        max_referees: intake.max_referees,
+      },
+      applicant: {
+        first_name: app?.first_name,
+        last_name:  app?.last_name,
+        role:       roleTitle,
+      },
+    })
+  }
+
+  if (req.method === 'POST' && action === 'submit_applicant_referees') {
+    const supabase = admin()
+    const b = req.body || {}
+    const token = String(b.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+    const referees = Array.isArray(b.referees) ? b.referees : []
+
+    const { data: intake } = await supabase
+      .from('applicant_reference_intakes')
+      .select('id, application_id, status, min_referees, max_referees')
+      .eq('request_token', token)
+      .maybeSingle()
+    if (!intake) return res.status(404).json({ error: 'Referee request not found' })
+    if (intake.status !== 'pending') {
+      return res.status(409).json({ error: 'This request has already been submitted or was cancelled.', status: intake.status })
+    }
+
+    // Trim + normalise + validate
+    const cleaned = referees.map(r => ({
+      name:         String(r?.name         || '').trim().slice(0, 120),
+      email:        String(r?.email        || '').trim().toLowerCase().slice(0, 200),
+      phone:        String(r?.phone        || '').trim().slice(0, 40),
+      relationship: String(r?.relationship || '').trim().slice(0, 200),
+    })).filter(r => r.name || r.email)
+    if (cleaned.length < intake.min_referees) {
+      return res.status(400).json({ error: `Please provide at least ${intake.min_referees} referees.` })
+    }
+    if (cleaned.length > intake.max_referees) {
+      return res.status(400).json({ error: `You can list up to ${intake.max_referees} referees.` })
+    }
+    for (const r of cleaned) {
+      if (r.name.length < 2) return res.status(400).json({ error: 'Each referee needs a name.' })
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) return res.status(400).json({ error: `"${r.name}" needs a valid email.` })
+    }
+
+    // Load application + role for the referee email templates.
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, job_listing_id')
+      .eq('id', intake.application_id)
+      .maybeSingle()
+    const candidateName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'a candidate'
+    let roleTitle = 'a role at Tere Health'
+    if (app?.job_listing_id) {
+      const { data: listing } = await supabase.from('job_listings').select('title').eq('id', app.job_listing_id).maybeSingle()
+      if (listing?.title) roleTitle = listing.title
+    }
+
+    // CAS: only advance from pending → submitted.
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
+    const ua = String(req.headers['user-agent'] || '').slice(0, 400)
+    const { data: updated, error: upErr } = await supabase
+      .from('applicant_reference_intakes')
+      .update({
+        status:               'submitted',
+        submitted_at:         new Date().toISOString(),
+        submitted_ip:         ip,
+        submitted_user_agent: ua,
+      })
+      .eq('id', intake.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+    if (upErr) { console.error('[applicant-referees] update failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!updated) return res.status(409).json({ error: 'This request has already been submitted — refresh and try again.' })
+
+    // Fire each referee email in parallel via the shared helper. Never throws
+    // per-referee — a bad email logs but the row is still there so admin can
+    // resend if needed.
+    const siteOrigin = getSiteOriginFor(req)
+    const results = await Promise.allSettled(cleaned.map(r => createRefereeInviteAndEmail(supabase, {
+      applicationId:       intake.application_id,
+      createdByProviderId: null,       // applicant-driven, no admin owner
+      name:                r.name,
+      email:               r.email,
+      phone:               r.phone,
+      relationship:        r.relationship,
+      source:              'applicant_intake',
+      candidateName,
+      roleTitle,
+      siteOrigin,
+    })))
+    const failed = results.filter(x => x.status === 'rejected').length
+    if (failed > 0) console.error(`[applicant-referees] ${failed}/${cleaned.length} inserts failed`)
+
+    // Notify internal team.
+    try {
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      ['terehealthnz@gmail.com'],
+        subject: `Referees provided by ${candidateName} — emails sent`,
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px"><strong>${candidateName}</strong> has submitted their referees.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151">${cleaned.length} referee request email${cleaned.length === 1 ? '' : 's'} sent automatically. Track responses in the References section of their applicant panel.</p>`),
+        text: `${candidateName} submitted ${cleaned.length} referees. Referee emails sent automatically. Track in Admin.`,
+      })
+    } catch (e) { console.error('[applicant-referees] internal notify failed:', e.message) }
+
+    return res.status(200).json({ ok: true, refereesEmailed: cleaned.length - failed, refereesFailed: failed })
   }
 
   // ── Anon onboarding intake ─────────────────────────────────────────────
@@ -1509,61 +1730,22 @@ export default async function handler(req, res) {
       if (listing?.title) roleTitle = listing.title
     }
 
-    const requestToken = randomBytes(24).toString('base64url')
-    const { data: ref, error: rErr } = await supabase
-      .from('job_references')
-      .insert({
-        application_id:         id,
-        created_by_provider_id: auth.provider?.id || null,
-        referee_name:           name,
-        referee_email:          email,
-        referee_phone:          phone || null,
-        referee_relationship:   rel || null,
-        request_token:          requestToken,
-        status:                 'pending',
-      })
-      .select('*')
-      .maybeSingle()
-    if (rErr) { console.error('[reference] insert failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
-
     const candidateName = [app.first_name, app.last_name].filter(Boolean).join(' ') || 'a candidate'
-    const siteOrigin    = getSiteOriginFor(req)
-    const respondUrl    = `${siteOrigin}/reference/respond/${requestToken}`
-
     try {
-      const firstName = name.split(' ')[0] || 'there'
-      await sendEmail({
-        from:    'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to:      [email],
-        subject: `Reference request for ${candidateName} — Tere Health`,
-        html: emailShell(`
-          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
-            <strong>${candidateName}</strong> has applied for <strong>${roleTitle}</strong> at Tere Health and listed you as a referee.
-            We'd be grateful if you could take five minutes to answer a few short questions about them.
-          </p>
-          ${rel ? `<p style="font-size:13px;color:#6B7280;margin:0 0 16px"><em>Noted relationship: ${rel}</em></p>` : ''}
-          <div style="text-align:center;margin:28px 0"><a href="${respondUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Give a reference →</a></div>
-          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or paste this link into your browser:</p>
-          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${respondUrl}</p>
-          <p style="font-size:13px;color:#6B7280;line-height:1.6">Your response is confidential and shared only with the Tere Health hiring team. If you'd rather not give a reference, you can safely ignore this email or reply directly.</p>
-          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
-        text: [
-          `Kia ora ${firstName},`, '',
-          `${candidateName} has applied for ${roleTitle} at Tere Health and listed you as a referee.`,
-          "Would you take five minutes to answer a few short questions?", '',
-          `Give a reference: ${respondUrl}`, '',
-          "Your response is confidential. If you'd rather not, ignore this email or reply.",
-          '', 'Ngā mihi,', 'The Tere Health team',
-        ].join('\n'),
+      const { reference, respondUrl } = await createRefereeInviteAndEmail(supabase, {
+        applicationId:       id,
+        createdByProviderId: auth.provider?.id || null,
+        name, email, phone, relationship: rel,
+        source:              'admin_typed',
+        candidateName,
+        roleTitle,
+        siteOrigin:          getSiteOriginFor(req),
       })
+      return res.status(200).json({ reference, respondUrl })
     } catch (e) {
-      console.error('[reference] send request email failed:', e.message)
-      // Don't fail the request — admin sees the URL in the response.
+      console.error('[reference] insert failed:', e)
+      return res.status(500).json({ error: 'Server error' })
     }
-
-    return res.status(200).json({ reference: ref, respondUrl })
   }
 
   if (req.method === 'GET' && action === 'references') {
@@ -1584,6 +1766,123 @@ export default async function handler(req, res) {
       .eq('id', id)
       .eq('status', 'pending')
     if (error) { console.error('[reference] cancel failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Authed applicant referee intake ────────────────────────────────────
+  //
+  // POST ?action=request_referees_from_applicant&id=<applicationId>
+  //         → create the intake row (or return existing), email applicant
+  //           with a link to fill in their referees.
+  //
+  // GET  ?action=applicant_reference_intake_admin&id=<applicationId>
+  //         → admin view of intake status (pending / submitted / cancelled).
+  //
+  // POST ?action=cancel_applicant_reference_intake&id=<applicationId>
+  //         → mark cancelled; applicant link shows terminal state.
+
+  if (req.method === 'POST' && action === 'request_referees_from_applicant') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data: app, error: aErr } = await supabase
+      .from('job_applications')
+      .select('id, first_name, last_name, email, job_listing_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (aErr || !app) return res.status(404).json({ error: 'Application not found' })
+    if (!app.email) return res.status(400).json({ error: 'Applicant has no email on file' })
+
+    // Idempotent — reuse existing if we've already asked once.
+    const { data: existing } = await supabase
+      .from('applicant_reference_intakes')
+      .select('*')
+      .eq('application_id', id)
+      .maybeSingle()
+
+    let intake = existing
+    if (!intake) {
+      const requestToken = randomBytes(24).toString('base64url')
+      const { data: created, error: cErr } = await supabase
+        .from('applicant_reference_intakes')
+        .insert({
+          application_id:           id,
+          requested_by_provider_id: auth.provider?.id || null,
+          request_token:            requestToken,
+          status:                   'pending',
+        })
+        .select('*')
+        .maybeSingle()
+      if (cErr) { console.error('[applicant-referees] create failed:', cErr); return res.status(500).json({ error: 'Server error' }) }
+      intake = created
+    } else if (intake.status === 'cancelled') {
+      // Reactivate a previously-cancelled request in place.
+      await supabase.from('applicant_reference_intakes').update({
+        status: 'pending', requested_at: new Date().toISOString(),
+      }).eq('id', intake.id)
+      intake.status = 'pending'
+    }
+
+    const siteOrigin = getSiteOriginFor(req)
+    const provideUrl = `${siteOrigin}/references/provide/${intake.request_token}`
+
+    try {
+      const firstName = app.first_name || 'there'
+      let roleTitle = 'a role at Tere Health'
+      if (app.job_listing_id) {
+        const { data: listing } = await supabase.from('job_listings').select('title').eq('id', app.job_listing_id).maybeSingle()
+        if (listing?.title) roleTitle = listing.title
+      }
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      [app.email],
+        subject: `Tere Health — please provide your referees`,
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+            Thanks for your interview  To move forward with your application for <strong>${roleTitle}</strong>, we need contact details for ${intake.min_referees}${intake.max_referees > intake.min_referees ? '–' + intake.max_referees : ''} referees.
+          </p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+            Enter each referee's name, email and phone below. We'll email them directly with a short 5-minute reference form — you don't need to contact them yourself.
+          </p>
+          <div style="text-align:center;margin:28px 0"><a href="${provideUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Add my referees →</a></div>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or paste this link into your browser:</p>
+          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${provideUrl}</p>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6">Please let your referees know we'll be in touch so the email doesn't land in spam. Ngā mihi.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">The Tere Health team</p>`),
+        text: [
+          `Kia ora ${firstName},`, '',
+          `Thanks for your interview. To move forward with your application for ${roleTitle}, we need contact details for ${intake.min_referees}–${intake.max_referees} referees.`, '',
+          "Enter each referee's name, email and phone at the link below — we'll email them directly.",
+          '',
+          `Add referees: ${provideUrl}`, '',
+          "Let them know so the email doesn't land in spam.",
+          '', 'Ngā mihi,', 'The Tere Health team',
+        ].join('\n'),
+      })
+    } catch (e) {
+      console.error('[applicant-referees] request email failed:', e.message)
+    }
+
+    return res.status(200).json({ intake, provideUrl })
+  }
+
+  if (req.method === 'GET' && action === 'applicant_reference_intake_admin') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data: intake } = await supabase
+      .from('applicant_reference_intakes')
+      .select('id, application_id, status, min_referees, max_referees, request_token, requested_at, submitted_at')
+      .eq('application_id', id)
+      .maybeSingle()
+    return res.status(200).json({ intake: intake || null })
+  }
+
+  if (req.method === 'POST' && action === 'cancel_applicant_reference_intake') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { error } = await supabase.from('applicant_reference_intakes')
+      .update({ status: 'cancelled' })
+      .eq('application_id', id)
+      .eq('status', 'pending')
+    if (error) { console.error('[applicant-referees] cancel failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 

@@ -116,6 +116,7 @@ const InterviewJoin        = lazy(() => import('./pages/InterviewJoin'))
 const InterviewPickTime    = lazy(() => import('./pages/InterviewPickTime'))
 const OfferSign            = lazy(() => import('./pages/OfferSign'))
 const ReferenceRespond     = lazy(() => import('./pages/ReferenceRespond'))
+const ProvideReferees      = lazy(() => import('./pages/ProvideReferees'))
 const OnboardingSetup      = lazy(() => import('./pages/OnboardingSetup'))
 const InterviewEnded       = lazy(() => import('./pages/InterviewEnded'))
 const InterviewerRoom      = lazy(() => import('./pages/InterviewerRoom'))
@@ -281,6 +282,7 @@ export default function App() {
         <Route path="/interview/:token"       element={<InterviewJoin />} />
         <Route path="/offer/sign/:token"      element={<OfferSign />} />
         <Route path="/reference/respond/:token" element={<ReferenceRespond />} />
+        <Route path="/references/provide/:token" element={<ProvideReferees />} />
         <Route path="/onboarding/setup/:token" element={<OnboardingSetup />} />
         <Route path="/interview-ended"        element={<InterviewEnded />} />
         <Route path="/interview-room"         element={<InterviewerRoom />} />

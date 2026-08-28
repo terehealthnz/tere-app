@@ -3073,6 +3073,7 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   const [refereeForm, setRefereeForm] = React.useState({ refereeName: '', refereeEmail: '', refereePhone: '', refereeRelationship: '' })
   const [referenceMsg, setReferenceMsg] = React.useState('')
   const [expandedReferenceId, setExpandedReferenceId] = React.useState(null)
+  const [applicantIntake, setApplicantIntake] = React.useState(null)  // applicant-driven referee intake
 
   // Onboarding intake state
   const [intake, setIntake] = React.useState(null)
@@ -3082,9 +3083,9 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   async function load() {
     setLoading(true)
     try {
-      const { getJobApplication, listInterviews, listOffers, listReferences, getOnboardingIntake, listOfferTemplates } = await import('../../lib/supabase')
-      const [d, ivs, ofs, refs, ink, tpls] = await Promise.all([
-        getJobApplication(id), listInterviews(id), listOffers(id), listReferences(id), getOnboardingIntake(id), listOfferTemplates(),
+      const { getJobApplication, listInterviews, listOffers, listReferences, getOnboardingIntake, listOfferTemplates, getApplicantReferenceIntake } = await import('../../lib/supabase')
+      const [d, ivs, ofs, refs, ink, tpls, aInk] = await Promise.all([
+        getJobApplication(id), listInterviews(id), listOffers(id), listReferences(id), getOnboardingIntake(id), listOfferTemplates(), getApplicantReferenceIntake(id),
       ])
       setData(d)
       setInterviews(ivs || [])
@@ -3092,6 +3093,7 @@ function ApplicantDetail({ id, onClose, onChanged }) {
       setReferences(refs || [])
       setIntake(ink)
       setOfferTemplates(tpls || [])
+      setApplicantIntake(aInk)
       setRevealed({ ird_number: null, bank_account: null })
     } catch { setData(null) }
     setLoading(false)
@@ -3248,6 +3250,31 @@ function ApplicantDetail({ id, onClose, onChanged }) {
       await load()
     } catch (e) {
       setReferenceMsg('Error: ' + (e.message || 'request failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleAskApplicantForReferees() {
+    if (applicantIntake && applicantIntake.status === 'pending') {
+      if (!confirm('An email has already been sent to the applicant. Send another?')) return
+    }
+    setSaving(true); setReferenceMsg('')
+    try {
+      const { requestRefereesFromApplicant } = await import('../../lib/supabase')
+      const body = await requestRefereesFromApplicant(id)
+      setReferenceMsg(`Emailed applicant. They can fill in referees at: ${body.provideUrl}`)
+      await load()
+    } catch (e) {
+      setReferenceMsg('Error: ' + (e.message || 'send failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleCancelApplicantIntake() {
+    if (!confirm('Cancel the request? Applicant\'s link will show as cancelled if they open it.')) return
+    setSaving(true)
+    try {
+      const { cancelApplicantReferenceIntake } = await import('../../lib/supabase')
+      await cancelApplicantReferenceIntake(id)
+      await load()
     } finally { setSaving(false) }
   }
 
@@ -3780,12 +3807,35 @@ function ApplicantDetail({ id, onClose, onChanged }) {
 
             <div style={section}>
               <span style={label}>References ({references.filter(r => r.status === 'responded').length}/{references.length})</span>
+
+              {/* Applicant-driven referee intake — the "ask applicant to enter
+                  their referees" fully-automated flow. */}
+              {applicantIntake && applicantIntake.status === 'pending' && (
+                <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 6, padding: '.6rem .75rem', marginBottom: '.75rem', fontSize: '.82rem' }}>
+                  📧 Referee request sent to applicant on {new Date(applicantIntake.requested_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} — awaiting their submission.
+                  <button onClick={handleCancelApplicantIntake} disabled={saving} style={{ background: 'none', border: 'none', color: '#1E40AF', textDecoration: 'underline', cursor: 'pointer', marginLeft: 8, fontSize: '.78rem' }}>Cancel</button>
+                </div>
+              )}
+              {applicantIntake && applicantIntake.status === 'submitted' && (
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#065F46', borderRadius: 6, padding: '.6rem .75rem', marginBottom: '.75rem', fontSize: '.82rem' }}>
+                  ✓ Applicant submitted referees {new Date(applicantIntake.submitted_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} — referee emails sent automatically.
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 6, marginBottom: '.75rem', flexWrap: 'wrap' }}>
+                {(!applicantIntake || applicantIntake.status === 'cancelled' || applicantIntake.status === 'submitted') && (
+                  <button
+                    onClick={handleAskApplicantForReferees}
+                    disabled={saving}
+                    style={{ ...btn('primary'), background: '#1E40AF' }}>
+                    📧 {applicantIntake?.status === 'submitted' ? 'Re-ask applicant' : 'Ask applicant for referees'}
+                  </button>
+                )}
                 <button
                   onClick={() => { setShowAddReference(v => !v); setReferenceMsg('') }}
                   disabled={saving}
                   style={{ ...btn('primary'), background: '#7C3AED' }}>
-                  ✉️ {showAddReference ? 'Cancel' : 'Request a reference'}
+                  ✉️ {showAddReference ? 'Cancel' : 'Add referee manually'}
                 </button>
               </div>
               {showAddReference && (

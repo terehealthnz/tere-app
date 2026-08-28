@@ -1112,6 +1112,32 @@ export async function cancelReference(referenceId) {
   return res.ok
 }
 
+// Applicant-driven referee intake — admin clicks a button, applicant gets
+// emailed, fills in 2-3 referees, referee emails fire automatically.
+export async function requestRefereesFromApplicant(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=request_referees_from_applicant&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Request failed')
+  return await res.json()
+}
+
+export async function getApplicantReferenceIntake(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=applicant_reference_intake_admin&id=${encodeURIComponent(applicationId)}`)
+  if (!res.ok) return null
+  const body = await res.json()
+  return body.intake || null
+}
+
+export async function cancelApplicantReferenceIntake(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=cancel_applicant_reference_intake&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return res.ok
+}
+
 // ── Onboarding intake (admin side) ─────────────────────────────────────
 export async function createOnboardingIntake(applicationId) {
   const res = await apiFetch(`/api/job-applications?action=create_onboarding_intake&id=${encodeURIComponent(applicationId)}`, {
