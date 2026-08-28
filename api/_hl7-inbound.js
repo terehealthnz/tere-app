@@ -817,15 +817,27 @@ export default async function handler(req, res) {
   // gets diagnostic feedback and an attacker gets no useful telemetry.
   //
   // Allowed families:
-  //   ORU^R01   unsolicited observation results (lab, imaging, GP-letter)
+  //   ORU[^R01]   unsolicited observation results (lab, imaging, GP-letter)
   //   MDM^T02/T04/T06/T08/T11  medical document management (some senders
   //                            use MDM for GP letters instead of ORU)
   //   ACK is already handled earlier as an incoming ack to one of OUR sends.
+  //
+  // MSH-9 shape by HL7 version:
+  //   v2.1:   just the message code e.g. "ORU"          (no trigger event)
+  //   v2.2:   code + trigger event e.g. "ORU^R01"
+  //   v2.3+:  code^event^structure e.g. "ORU^R01^ORU_R01"
+  // Medical-Objects prod (case #1058382, 2026-08-28) sends v2.1 with bare
+  // "ORU" in MSH-9 — accept that too.
   const ALLOWED_MSG_TYPES = new Set([
-    'ORU^R01',
-    'MDM^T02', 'MDM^T04', 'MDM^T06', 'MDM^T08', 'MDM^T11',
+    'ORU', 'ORU^R01',
+    'MDM', 'MDM^T02', 'MDM^T04', 'MDM^T06', 'MDM^T08', 'MDM^T11',
   ])
-  if (!ALLOWED_MSG_TYPES.has(firstSummary.messageType)) {
+  // Match on the base code + optional trigger event only. MSH-9 may include
+  // a third structure component (v2.5+) which we accept as long as the first
+  // two components are on the whitelist.
+  const msg = firstSummary.messageType || ''
+  const msgKey = msg.split('^').slice(0, 2).join('^')  // "ORU^R01^ORU_R01" → "ORU^R01"
+  if (!ALLOWED_MSG_TYPES.has(msgKey)) {
     console.warn('[hl7-inbound] rejected unsupported message type:', firstSummary.messageType, 'from', firstSummary.sendingFacility)
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
     return res.status(200).send(buildAck({
