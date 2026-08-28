@@ -27,27 +27,40 @@ function admin() {
 const ATTACHMENT_BUCKET = 'hl7-attachments'
 const MAX_BODY_BYTES = 6 * 1024 * 1024   // 6MB — conformance requires 5MB
 
-// Tere Health's HPI-O. Test/prod use the same identifier — Medical-Objects
+// Tere Health's HPI-O. Test/prod use the same HPI-O — Medical-Objects
 // routes internally by HPI-O and treats us as one organisational receiver.
 // Known MSH-6 variants Capricorn Cloud sends in the test network:
 //   "DEMO Tere Heal (G11238-E)"   (truncated 20-char)
 //   "DEMO Tere Health (G11238-E)"
 //   "G11238-E"                    (raw)
+//
+// Prod (Tony Cruice, 2026-08-27, case #1058382) issued an MO HD identifier
+// alongside the HPI-O:
+//   Tere Health Limited^02F49964-CBAB-4908-831E-F32A998D8CE4^GUID
+// If MO sends the HD identifier in MSH-6 (unclear whether they will), we
+// also accept its GUID component. We match on the exact GUID only — the
+// name component ("Tere Health Limited") is soft and MO may truncate or
+// reformat it.
 const TERE_HPI_O = 'G11238-E'
+const TERE_MO_HD_GUID = '02F49964-CBAB-4908-831E-F32A998D8CE4'
 function msh6IsOurOrg(receivingFacility) {
   if (!receivingFacility) return false
   const s = String(receivingFacility).toUpperCase().replace(/\s+/g, '')
-  // Match only:
+  // Match:
   //   exact HPI-O                                    G11238-E
   //   parenthesised HPI-O at end of MSH-6 name       DEMOTEREHEALTH(G11238-E)
+  //   MO HD identifier with our prod GUID            TEREHEALTHLIMITED^02F49964-...^GUID
   //   any of the above with an "-<region>" suffix    G11238-E-NZ
   // Pen-test #315-F2: previous endsWith(TERE_HPI_O) accepted any string
   // ending in the HPI-O, e.g. EVILG11238-E, which combined with a spoofed
   // PID could auto-file an attacker-controlled message to a real patient's
   // chart. mTLS + bridge secret gate is the primary defence but this
-  // widens the blast radius if either leaks.
+  // widens the blast radius if either leaks. Same reasoning applies to
+  // the MO HD GUID check below — require the ^GUID suffix so an attacker
+  // can't just embed the raw guid in a longer identifier.
   if (s === TERE_HPI_O) return true
   if (s.endsWith(`(${TERE_HPI_O})`)) return true
+  if (s.includes(`^${TERE_MO_HD_GUID}^GUID`)) return true
   return false
 }
 
