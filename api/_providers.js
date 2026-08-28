@@ -239,6 +239,80 @@ export default async function handler(req, res) {
     // out-of-band handoff if the email bounces. Sets must_change_password=true
     // so the provider is forced to change the PIN on their next login (matches
     // the original create-provider flow).
+    // Sandbox training status — computes progress on the fly from actual
+    // resource writes. Provider training_completed_at is set the first time
+    // all four tasks are done. Admin still gates real patient access via
+    // patient_access_from separately.
+    //
+    // Tasks tallied:
+    //   take_consult    — any consultations row for this provider where
+    //                     is_practice=true AND status advanced past 'queued'
+    //   write_rx        — any prescriptions row is_practice=true, prescriber=self
+    //   complete_note   — any consultations row is_practice=true, status='completed'
+    //   send_referral   — any radiology_referrals row is_practice=true, provider=self
+    if (req.query?.action === 'training_status') {
+      const selfId = auth.provider?.id
+      const targetId = String(req.body?.provider_id || req.query?.provider_id || selfId || '')
+      if (!targetId) return res.status(400).json({ error: 'provider_id required' })
+      // Only self OR admin can view.
+      if (targetId !== selfId && !auth.provider?.is_admin) {
+        return res.status(403).json({ error: 'Not allowed' })
+      }
+
+      const [{ data: provider }, tookRes, rxRes, completeRes, referralRes] = await Promise.all([
+        supabase.from('providers').select('id, training_completed_at').eq('id', targetId).maybeSingle(),
+        supabase.from('consultations').select('id', { count: 'exact', head: true })
+          .eq('provider_id', targetId).eq('is_practice', true)
+          .in('status', ['in_progress', 'notes_pending', 'completed']),
+        supabase.from('prescriptions').select('id', { count: 'exact', head: true })
+          .eq('prescribed_by', targetId).eq('is_practice', true),
+        supabase.from('consultations').select('id', { count: 'exact', head: true })
+          .eq('provider_id', targetId).eq('is_practice', true).eq('status', 'completed'),
+        supabase.from('radiology_referrals').select('id', { count: 'exact', head: true })
+          .eq('provider_id', targetId).eq('is_practice', true),
+      ])
+      if (!provider) return res.status(404).json({ error: 'Provider not found' })
+
+      const tasks = {
+        take_consult:  (tookRes.count      || 0) > 0,
+        write_rx:      (rxRes.count        || 0) > 0,
+        complete_note: (completeRes.count  || 0) > 0,
+        send_referral: (referralRes.count  || 0) > 0,
+      }
+      const allDone = Object.values(tasks).every(Boolean)
+
+      // First-time transition: stamp training_completed_at + notify admin.
+      let training_completed_at = provider.training_completed_at
+      if (allDone && !training_completed_at) {
+        training_completed_at = new Date().toISOString()
+        await supabase.from('providers').update({ training_completed_at }).eq('id', targetId)
+        // Notify admin — best-effort.
+        try {
+          const { data: prov2 } = await supabase.from('providers').select('first_name, last_name, email').eq('id', targetId).maybeSingle()
+          const { sendEmail, hasEmailProvider } = await import('./_email-client.js')
+          if (hasEmailProvider() && prov2) {
+            const name = [prov2.first_name, prov2.last_name].filter(Boolean).join(' ') || 'a new provider'
+            await sendEmail({
+              from:    'Tere Health <hello@terehealth.co.nz>',
+              replyTo: 'terehealthnz@gmail.com',
+              to:      ['terehealthnz@gmail.com'],
+              subject: `Training complete — ${name} ready for patient access`,
+              html: `<p><strong>${name}</strong> has finished all four sandbox training tasks.</p>
+                     <p>They're ready — set their <code>patient_access_from</code> to today in Admin to unlock the real patient queue.</p>`,
+              text:  `${name} finished all four training tasks. Set patient_access_from=today in Admin to unlock real patients.`,
+            })
+          }
+        } catch (e) { console.error('[training_status] notify failed:', e.message) }
+      }
+
+      return res.status(200).json({
+        provider_id: targetId,
+        tasks,
+        completed: allDone,
+        training_completed_at,
+      })
+    }
+
     if (req.query?.action === 'resend_welcome') {
       if (!auth.provider?.is_admin) {
         return res.status(403).json({ error: 'Admin role required' })
