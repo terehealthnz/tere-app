@@ -847,38 +847,40 @@ export default async function handler(req, res) {
     }))
   }
 
-  // MSH-7 timestamp replay window (pen-test P2 deferred #317). Reject
-  // messages whose send timestamp is >7 days in the past (stale — likely
-  // replay of a previously-captured message) or >5 min in the future
-  // (clock skew or forged timestamp). The mTLS proxy + bridge-secret gate
-  // upstream already means only holders of MO's client cert can reach this
-  // handler, so the practical exposure is low — but the fail-closed window
-  // makes replay attacks and clock-skew shenanigans easier to detect and
-  // impossible to leverage even if the upstream gate is compromised.
+  // MSH-7 future-clock check (pen-test P2 deferred #317, softened 2026-08-28
+  // after Tony Cruice at MO test-fixture with MSH-7=20171116 was rejected).
+  // Reject messages dated >15 min in the future (clock skew or forged
+  // timestamp). We deliberately DO NOT reject past-dated messages any more:
   //
-  // MSH-10 (control ID) UPSERT on (msh_10_control_id, batch_position, env,
-  // msh_4_sending_facility) further blocks re-ingestion of the exact same
-  // message even within the accept window.
+  //   1. MO's canned test fixtures preserve their original observation
+  //      timestamps (dates from 2017-2023) so QA harnesses can validate date
+  //      handling across time. A past-date reject was breaking legitimate
+  //      test traffic.
+  //   2. Real-world sources routinely backfill: an EMR migrating a decade of
+  //      lab results, a lab redelivering after a queue backlog, a manual
+  //      correction of a mistakenly withheld report. All valid past-dated
+  //      sends we should accept.
+  //   3. The replay defence the past-date check was meant to provide is
+  //      already covered by the MSH-10 unique index on
+  //      (msh_10_control_id, batch_position, env, msh_4_sending_facility) —
+  //      an attacker replaying a captured message wire-for-wire gets a
+  //      duplicate-key insert failure. If they modify content, they can
+  //      just as easily modify the timestamp to be current.
+  //
+  // Future-clock check retained because it catches genuine sender clock skew
+  // (surface a data-quality problem early) and forged forward-dated messages
+  // that some downstream systems mishandle.
   const mshDatetimeIso = parseHl7Datetime(field(msh, 7))
   if (mshDatetimeIso) {
     // parseHl7Datetime returns a naive wall-clock string (no timezone). Treat
     // as UTC for the window check — HL7 unqualified datetimes are sender-
     // local, and we don't know the sender's TZ, so UTC is the neutral
-    // reference. Legitimate senders are within 12 hours of UTC either way,
-    // so a 7-day window swallows any per-region TZ skew comfortably.
+    // reference. 15-min window swallows most sender clock skew comfortably.
     const mshMs = new Date(mshDatetimeIso + 'Z').getTime()
     const nowMs = Date.now()
     const ageMs = nowMs - mshMs
-    if (ageMs > 7 * 24 * 3600 * 1000) {
-      console.warn('[hl7-inbound] rejected stale message: MSH-7 is', Math.round(ageMs / (24 * 3600 * 1000)), 'days old', 'from', firstSummary.sendingFacility)
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-      return res.status(200).send(buildAck({
-        inbound: parsed,
-        msaCode: 'AR',
-        errorText: 'Message timestamp too old (MSH-7)',
-      }))
-    }
-    if (ageMs < -5 * 60 * 1000) {
+    // Past-date reject intentionally removed — see block comment above.
+    if (ageMs < -15 * 60 * 1000) {
       console.warn('[hl7-inbound] rejected future-dated message: MSH-7 is', Math.round(-ageMs / 60000), 'minutes in future', 'from', firstSummary.sendingFacility)
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
       return res.status(200).send(buildAck({
