@@ -38,8 +38,17 @@ export default {
     // request.cf.tlsClientAuth is populated only when the Zone has mTLS
     // configured for this hostname (Cloudflare Zero Trust > Client
     // Certificates > "Hosts required to use mTLS" includes this hostname).
+    //
+    // Cloudflare's field value convention (verified via live tail 2026-08-28):
+    //   certPresented: '1' if a client cert was presented, '0' otherwise
+    //   certVerified:  'SUCCESS' | 'FAILED:<reason>' | 'NONE'
+    //   certRevoked:   '1' | '0'
+    // Prior version of this check compared certPresented to 'SUCCESS' which
+    // never matched (that's a certVerified value, not certPresented), causing
+    // every real MO test message to bounce with 401. Rejected Tony's first
+    // prod test 2026-08-28 14:06 NZ — that's how we found the bug.
     const auth = request.cf?.tlsClientAuth
-    if (!auth || auth.certPresented !== 'SUCCESS') {
+    if (!auth || auth.certPresented !== '1') {
       log(rid, 'no_client_cert', {
         presented: auth?.certPresented ?? 'null',
         verified: auth?.certVerified ?? 'null',
@@ -52,6 +61,10 @@ export default {
         revoked: auth.certRevoked,
       })
       return new Response('client certificate not trusted', { status: 401 })
+    }
+    if (auth.certRevoked === '1') {
+      log(rid, 'cert_revoked', { serial: auth.certSerial })
+      return new Response('client certificate revoked', { status: 401 })
     }
 
     // Extract CN from the RFC 2253 subject DN. Example:
