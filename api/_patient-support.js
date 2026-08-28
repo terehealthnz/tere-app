@@ -355,7 +355,11 @@ export default async function handler(req, res) {
     // insert, new async consult in queue) on their behalf. General
     // support tickets with no consultation_id are unaffected.
     if (payload.consultation_id) {
-      const auth = await resolvePatientAuth(req, { legacyConsultId: payload.consultation_id })
+      // Patient support form is a multi-entry-point flow; a patient may
+      // reach it from an unrelated page and manually reference a consult
+      // by ID they still have in email. Keep legacy fallback ON for the
+      // 7-day rollout window (pen-test M-4/M-5).
+      const auth = await resolvePatientAuth(req, { legacyConsultId: payload.consultation_id, allowLegacyConsultId: true })
       if (auth.error) return res.status(auth.status).json({ error: auth.error })
       if (auth.consultationId !== payload.consultation_id) {
         return res.status(403).json({ error: 'Token does not match consultation' })

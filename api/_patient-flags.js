@@ -11,7 +11,11 @@ function getSupabase() {
 // check since there's no per-consult surface to guard.
 async function guardConsultToken(req, res, cid) {
   if (!cid) return true // nothing to guard
-  const auth = await resolvePatientAuth(req, { legacyConsultId: cid })
+  // patient-flags is provider-authed at the router (AUTH_REQUIRED_ROUTES) —
+  // patients never call it directly today. Keep legacy fallback ON so
+  // provider requests (which don't carry X-Patient-Token) still resolve
+  // the consult by id (pen-test M-4/M-5 rollout).
+  const auth = await resolvePatientAuth(req, { legacyConsultId: cid, allowLegacyConsultId: true })
   if (auth.error) { res.status(auth.status).json({ error: auth.error }); return false }
   if (auth.consultationId !== cid) {
     res.status(403).json({ error: 'Token does not match consultation' })

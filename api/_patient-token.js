@@ -68,15 +68,19 @@ function extractLegacyConsultId(req) {
  *
  * @param {object} req
  * @param {object} [opts]
- * @param {boolean} [opts.allowLegacyConsultId=true] — accept raw consultation_id
- *   if no token is present (backwards compat during rollout).
+ * @param {boolean} [opts.allowLegacyConsultId=false] — accept raw consultation_id
+ *   if no token is present. Default flipped to false 2026-08-27 (pen-test
+ *   M-4/M-5). Endpoints that legitimately fire before create-consultation
+ *   or from multi-entry-point flows (consents, patient-support, patient-flags)
+ *   must opt-in explicitly with `allowLegacyConsultId: true`.
  * @param {string} [opts.legacyConsultId] — explicit legacy ID (e.g. read from
  *   an endpoint-specific URL param like ?id=). Preferred over the generic
- *   body/query scan because URL param names vary per endpoint.
+ *   body/query scan because URL param names vary per endpoint. Ignored
+ *   unless allowLegacyConsultId is true.
  * @returns {{ consultationId: string, consult: object } | { error: string, status: number }}
  */
 export async function resolvePatientAuth(req, opts = {}) {
-  const { allowLegacyConsultId = true, legacyConsultId } = opts
+  const { allowLegacyConsultId = false, legacyConsultId } = opts
   const supabase = admin()
 
   const token = extractToken(req)
