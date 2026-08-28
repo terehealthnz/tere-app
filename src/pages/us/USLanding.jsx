@@ -210,16 +210,8 @@ function StartWidget() {
   )
 }
 
-const stackWidgetOnMobile = `
-@media (max-width: 480px) {
-  .tere-start-widget-row {
-    grid-template-columns: 1fr !important;
-  }
-  .tere-start-widget-row > a {
-    padding: 1rem 1.5rem !important;
-  }
-}
-`
+// `.tere-start-widget-row` responsive layout lives in src/index.css now
+// (CSP H-3 pen-test — no more inline <style> blocks).
 
 function Hero() {
   return (
@@ -762,8 +754,7 @@ function Footer() {
 export default function USLanding() {
   return (
     <div style={{ background: C.cream, minHeight: '100vh' }}>
-      <style>{stackWidgetOnMobile}</style>
-      <Nav />
+<Nav />
       <Hero />
       <ValueProps />
       <HowItWorks />

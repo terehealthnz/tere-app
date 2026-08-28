@@ -189,7 +189,8 @@ function setSecurityHeaders(res) {
       // 'none' is the tightest possible value and matches the pen-test
       // H-3 recommendation for endpoints that never render HTML.
       "script-src 'none'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' https://fonts.googleapis.com",
+      "style-src-attr 'unsafe-inline'",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob:",
       "connect-src 'self' https://*.supabase.co wss://*.livekit.cloud https://api.daily.co https://cdn.jsdelivr.net https://storage.googleapis.com https://ipapi.co",

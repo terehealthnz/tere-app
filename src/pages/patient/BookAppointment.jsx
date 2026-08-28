@@ -233,8 +233,7 @@ export default function BookAppointment() {
                     {step > i + 1 ? '✓' : i + 1}
                   </div>
                   <span className="step-label" style={{ fontSize: '.75rem', fontWeight: 600, color: step === i + 1 ? '#0D2B45' : '#9CA3AF', whiteSpace: 'nowrap' }}>{s}</span>
-                  <style>{`.step-label { display: block } @media (max-width: 400px) { .step-label { display: none } }`}</style>
-                </div>
+</div>
                 {i < 3 && <div style={{ flex: 1, height: 1, background: '#E2E8F0' }} />}
               </React.Fragment>
             ))}

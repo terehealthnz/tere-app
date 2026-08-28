@@ -175,9 +175,6 @@ export default function TriageReview() {
 
       </div>
 
-      <style>{`
-        @keyframes glow { 0%,100%{opacity:.6} 50%{opacity:1} }
-      `}</style>
-    </div>
+</div>
   )
 }

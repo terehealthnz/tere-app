@@ -146,25 +146,7 @@ export default function TereCorporate() {
     }}>
       {/* Responsive overrides. Corp page is one component, so a scoped
           style block is simpler than a Tailwind-style refactor. */}
-      <style>{`
-        @media (max-width: 900px) {
-          .corp-hero, .corp-dark, .corp-contact { grid-template-columns: 1fr !important; gap: 2rem !important; }
-          .corp-bento { grid-template-columns: repeat(2, 1fr) !important; }
-          .corp-bento > .bento-span { grid-column: span 2 !important; }
-          .corp-hero-img-wrap { min-height: 320px !important; }
-          .corp-hero h1 { font-size: clamp(1.8rem, 8vw, 2.4rem) !important; }
-          .corp-dark h2, .corp-contact h2 { font-size: clamp(1.6rem, 7vw, 2rem) !important; }
-        }
-        @media (max-width: 560px) {
-          .corp-bento { grid-template-columns: 1fr !important; }
-          .corp-metric-strip { justify-content: flex-start !important; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-          .corp-metric-strip > span { flex-shrink: 0; }
-          .corp-deploy-row { flex-wrap: wrap !important; }
-          .corp-deploy-link { margin-left: 56px; margin-top: 4px; }
-        }
-      `}</style>
-
-      {/* Patient redirect banner — always visible at the top. Anyone who
+{/* Patient redirect banner — always visible at the top. Anyone who
           lands here searching for a doctor gets a one-click path to book
           on the actual patient site. */}
       <a href="https://terehealth.co.nz" style={{

@@ -894,7 +894,6 @@ export default function ConsultView() {
         )}
       </Modal>
 
-      <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}} @keyframes spin{to{transform:rotate(360deg)}} @keyframes pulse-ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.5);opacity:0}}`}</style>
-    </div>
+</div>
   )
 }

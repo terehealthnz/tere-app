@@ -120,8 +120,7 @@ function VitalsScan() {
           ))}
         </div>
       </div>
-      <style>{`@keyframes ping{75%,100%{transform:scale(1.4);opacity:0}}`}</style>
-    </div>
+</div>
   )
 }
 
@@ -187,8 +186,7 @@ function WaitingScreen() {
           Waiting for Dr Herling…
         </div>
       </div>
-      <style>{`@keyframes ping{75%,100%{transform:scale(1.5);opacity:0}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 }
 

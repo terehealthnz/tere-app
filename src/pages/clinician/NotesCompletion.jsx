@@ -523,8 +523,7 @@ export default function NotesCompletion() {
   if (loading) return (
     <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
       <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   return (
@@ -536,8 +535,7 @@ export default function NotesCompletion() {
           <div style={{ width:44, height:44, border:'4px solid rgba(255,255,255,.2)', borderTopColor:'#D4EEF0', borderRadius:'50%', animation:'spin .8s linear infinite' }} />
           <div style={{ color:'white', fontSize:'1.1rem', fontWeight:700 }}>Tere Scribe generating notes…</div>
           <div style={{ color:'rgba(255,255,255,.5)', fontSize:'.875rem', textAlign:'center', maxWidth:300 }}>Analysing transcript and triage data<br />~20 seconds</div>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </div>
+</div>
       )}
 
       {/* Top bar */}
@@ -936,7 +934,6 @@ export default function NotesCompletion() {
         )}
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 }

@@ -202,3 +202,62 @@ textarea { resize: vertical; min-height: 80px; }
 /* ── Flex row — wraps and constrains on small screens ── */
 .flex-row { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; max-width: 100%; }
 
+/* ── Global keyframes ─────────────────────────────────────────────────
+   Consolidated from per-component <style> blocks so we can drop
+   `unsafe-inline` from CSP style-src (pen-test H-3, 2026-08-27). Every
+   component that used `animation: 'name …'` references one of these.
+   Add new keyframes here; never inline them in JSX. */
+@keyframes blink       { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+/* scale 2.4 accommodates the WaitingRoom welcome ring (was the widest
+   ring in the app); ConsultView's smaller scribe-indicator ring reads
+   fine at the larger scale. */
+@keyframes pulse-ring  { 0% { transform: scale(1);   opacity: .5 } 100% { transform: scale(2.4); opacity: 0 } }
+@keyframes bounce      { 0%,80%,100% { transform: translateY(0) } 40% { transform: translateY(-6px) } }
+@keyframes ping        { 75%,100% { transform: scale(1.5); opacity: 0 } }
+@keyframes glow        { 0%,100% { opacity: .6 } 50% { opacity: 1 } }
+@keyframes pulse       { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+@keyframes fadeUp      { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+@keyframes checkIn     { 0% { transform: scale(.6); opacity: 0 } 70% { transform: scale(1.1); opacity: 1 } 100% { transform: scale(1); opacity: 1 } }
+/* Kiwi mascot (TereIntro + Waitlisted use different amplitudes but same shape). */
+@keyframes bob         { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-5px) } }
+@keyframes tail        { 0%,100% { transform: rotate(-10deg) } 50% { transform: rotate(10deg) } }
+@keyframes kiwiEyeBlink{ 0%,90%,100% { transform: scaleY(1) } 95% { transform: scaleY(.1) } }
+@keyframes kiwiBob     { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+@keyframes kiwiBlink   { 0%,88%,100% { transform: scaleY(1) } 93% { transform: scaleY(.08) } }
+@keyframes kiwiTail    { 0%,100% { transform: rotate(-10deg) } 50% { transform: rotate(10deg) } }
+@keyframes dotPulse    { 0%,100% { opacity: .4 } 50% { opacity: 1 } }
+@keyframes waitlistPulse { 0% { transform: scale(.85); opacity: .55 } 100% { transform: scale(1.55); opacity: 0 } }
+
+/* ── Component-scoped CSS lifted from per-component <style> blocks ── */
+
+/* PatientCall — hide LiveKit screen-share slot inside the patient's tile
+   because we don't offer screen sharing in the patient app. */
+.tere-patient-lk [data-lk-source="screen_share"] { display: none !important; }
+
+/* BookAppointment — step labels visible on desktop, hidden on tiny screens. */
+.step-label { display: block; }
+@media (max-width: 400px) { .step-label { display: none; } }
+
+/* Corporate page responsive layout. */
+@media (max-width: 900px) {
+  .corp-hero, .corp-dark, .corp-contact { grid-template-columns: 1fr !important; gap: 2rem !important; }
+  .corp-bento { grid-template-columns: repeat(2, 1fr) !important; }
+  .corp-bento > .bento-span { grid-column: span 2 !important; }
+  .corp-hero-img-wrap { min-height: 320px !important; }
+  .corp-hero h1 { font-size: clamp(1.8rem, 8vw, 2.4rem) !important; }
+  .corp-dark h2, .corp-contact h2 { font-size: clamp(1.6rem, 7vw, 2rem) !important; }
+}
+@media (max-width: 560px) {
+  .corp-bento { grid-template-columns: 1fr !important; }
+  .corp-metric-strip { justify-content: flex-start !important; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  .corp-metric-strip > span { flex-shrink: 0; }
+  .corp-deploy-row { flex-wrap: wrap !important; }
+  .corp-deploy-link { margin-left: 56px; margin-top: 4px; }
+}
+
+/* USLanding — stack the two big CTA buttons on narrow screens. */
+@media (max-width: 480px) {
+  .tere-start-widget-row { grid-template-columns: 1fr !important; }
+  .tere-start-widget-row > a { padding: 1rem 1.5rem !important; }
+}
+

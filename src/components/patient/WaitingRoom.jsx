@@ -318,23 +318,7 @@ export default function WaitingRoom() {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      <style>{`
-        @keyframes checkIn {
-          0%   { transform: scale(0.6); opacity: 0; }
-          70%  { transform: scale(1.1); opacity: 1; }
-          100% { transform: scale(1);   opacity: 1; }
-        }
-        @keyframes fadeUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse-ring {
-          0%   { transform: scale(1);   opacity: .4; }
-          100% { transform: scale(2.4); opacity: 0; }
-        }
-      `}</style>
-
-      {/* Header */}
+{/* Header */}
       <div style={{ padding: '1.25rem 1.5rem', paddingTop: 'calc(1.25rem + env(safe-area-inset-top, 0px))' }}>
         <div style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: 'rgba(212,238,240,.8)', fontSize: '1.3rem' }}>Tere</div>
       </div>

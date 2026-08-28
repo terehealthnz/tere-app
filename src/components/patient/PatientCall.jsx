@@ -206,8 +206,7 @@ export default function PatientCall() {
       <div style={{ marginTop:'2rem', fontSize:'.8125rem', color:'rgba(255,255,255,.4)' }}>
         Emergency? <a href="tel:111" style={{ color:'white', fontWeight:700 }}>Call 111</a>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   if (gate === 'loading') return (
@@ -216,8 +215,7 @@ export default function PatientCall() {
         <div style={{ width:36, height:36, border:'3px solid var(--teal, #0B6E76)', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 1rem' }}/>
         <div>Checking your appointment…</div>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   if (error) return (
@@ -237,8 +235,7 @@ export default function PatientCall() {
         <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
         <div>Connecting to {isPhone ? 'call' : 'video call'}…</div>
       </div>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   return (
@@ -261,8 +258,7 @@ export default function PatientCall() {
           <VideoConference/>. LiveKit doesn't expose a prop to disable
           individual controls on the bundled VideoConference component,
           so we target the button by its data-lk-source attribute. */}
-      <style>{`.tere-patient-lk [data-lk-source="screen_share"] { display: none !important; }`}</style>
-      <LiveKitRoom
+<LiveKitRoom
         token={token}
         serverUrl={serverUrl}
         // Camera off by default for audio-first consults; VideoConference's

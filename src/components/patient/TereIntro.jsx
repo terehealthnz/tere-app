@@ -118,7 +118,7 @@ export default function TereIntro({ onStart }) {
             <ellipse cx="35" cy="32" rx="16" ry="14" fill="#7C5C30"/>
             <path d="M35 32 Q55 28 58 34 Q55 38 35 36Z" fill="#C4A05A" style={{ transformOrigin:'35px 34px', animation:'tail 1.8s 1s infinite ease-in-out' }}/>
             <circle cx="42" cy="28" r="3.5" fill="white"/>
-            <circle cx="43" cy="28" r="2" fill="#1a1a1a" style={{ transformOrigin:'43px 28px', animation:'blink 3s 1.5s infinite' }}/>
+            <circle cx="43" cy="28" r="2" fill="#1a1a1a" style={{ transformOrigin:'43px 28px', animation:'kiwiEyeBlink 3s 1.5s infinite' }}/>
             <circle cx="44" cy="27" r=".7" fill="white"/>
             <ellipse cx="20" cy="52" rx="8" ry="12" fill="#5A3E1A" transform="rotate(-10,20,52)"/>
             <path d="M54 62 Q62 55 64 68 Q58 68 54 62Z" fill="#5A3E1A" style={{ transformOrigin:'54px 64px', animation:'tail 2s .5s infinite ease-in-out' }}/>
@@ -168,8 +168,8 @@ export default function TereIntro({ onStart }) {
             <rect x="20" y="18" width="30" height="8" fill="#374151"/>
             <ellipse cx="28" cy="32" rx="3" ry="3.5" fill="white"/>
             <ellipse cx="42" cy="32" rx="3" ry="3.5" fill="white"/>
-            <circle cx="29" cy="33" r="2" fill="#1a1a1a" style={{ transformOrigin:'29px 33px', animation:'blink 4s 2s infinite' }}/>
-            <circle cx="43" cy="33" r="2" fill="#1a1a1a" style={{ transformOrigin:'43px 33px', animation:'blink 4s 2s infinite' }}/>
+            <circle cx="29" cy="33" r="2" fill="#1a1a1a" style={{ transformOrigin:'29px 33px', animation:'kiwiEyeBlink 4s 2s infinite' }}/>
+            <circle cx="43" cy="33" r="2" fill="#1a1a1a" style={{ transformOrigin:'43px 33px', animation:'kiwiEyeBlink 4s 2s infinite' }}/>
             <circle cx="29.5" cy="32.5" r=".6" fill="white"/>
             <circle cx="43.5" cy="32.5" r=".6" fill="white"/>
             <path d="M28 40 Q35 46 42 40" fill="none" stroke="#C9956A" strokeWidth="1.5" strokeLinecap="round"/>
@@ -261,12 +261,7 @@ export default function TereIntro({ onStart }) {
         Marlborough Sounds, New Zealand · terehealth.co.nz
       </div>
 
-      <style>{`
-        @keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-5px)} }
-        @keyframes blink { 0%,90%,100%{transform:scaleY(1)} 95%{transform:scaleY(.1)} }
-        @keyframes tail { 0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(10deg)} }
-      `}</style>
-      {geoOpen && (
+{geoOpen && (
         <GeoGateModal
           onAccept={onGeoAccept}
           onCancel={() => setGeoOpen(false)}

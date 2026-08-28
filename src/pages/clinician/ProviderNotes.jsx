@@ -861,8 +861,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   if (loading) return wrapPopup(
     <div style={{ height: popupMode ? '100%' : '100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
       <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   if (!consult) return wrapPopup(
@@ -922,8 +921,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
               </div>
             ))}
           </div>
-          <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}`}</style>
-        </div>
+</div>
       )}
 
       {/* Finalise result overlay */}
@@ -972,8 +970,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           <div style={{ width:44, height:44, border:'4px solid rgba(255,255,255,.2)', borderTopColor:'#D4EEF0', borderRadius:'50%', animation:'spin .8s linear infinite' }} />
           <div style={{ color:'white', fontSize:'1.125rem', fontWeight:700 }}>Tere Scribe generating notes…</div>
           <div style={{ color:'rgba(255,255,255,.5)', fontSize:'.875rem', textAlign:'center', maxWidth:320 }}>Analysing transcript and triage data<br />This takes about 20 seconds</div>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </div>
+</div>
       )}
 
       {/* Top bar */}
@@ -1512,9 +1509,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
 
       </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-
-      {/* ── Escalation bottom sheet ─────────────────────────────────────────────── */}
+{/* ── Escalation bottom sheet ─────────────────────────────────────────────── */}
       {escalate && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:200, display:'flex', alignItems:'flex-end' }}
           onClick={e => { if (e.target === e.currentTarget) { setEscalate(null); setEscalateNote('') } }}>

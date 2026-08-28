@@ -57,8 +57,7 @@ export default function InterviewJoin() {
       <div style={S.centered}>
         <div style={{ width: 36, height: 36, border: '3px solid var(--teal, #0B6E76)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
         <div style={{ color: '#6B7280' }}>Opening your interview…</div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
+</div>
     )
   }
 

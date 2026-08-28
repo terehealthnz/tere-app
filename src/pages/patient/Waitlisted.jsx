@@ -239,13 +239,6 @@ export default function Waitlisted() {
 
       </div>
 
-      <style>{`
-        @keyframes kiwiBob   { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-        @keyframes kiwiBlink { 0%,88%,100%{transform:scaleY(1)} 93%{transform:scaleY(.08)} }
-        @keyframes kiwiTail  { 0%,100%{transform:rotate(-10deg)} 50%{transform:rotate(10deg)} }
-        @keyframes pulse     { 0%{transform:scale(.85);opacity:.55} 100%{transform:scale(1.55);opacity:0} }
-        @keyframes dotPulse  { 0%,100%{opacity:.4} 50%{opacity:1} }
-      `}</style>
-    </div>
+</div>
   )
 }

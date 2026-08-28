@@ -19,12 +19,40 @@ from pathlib import Path
 
 from docx import Document
 from docx.oxml.ns import qn
-from docx.shared import RGBColor
+from docx.shared import RGBColor, Inches
 
 HOME = Path.home()
 TEMPLATE = HOME / 'Downloads' / 'HPI_Compliance.docx'
 OUT = HOME / 'Downloads' / 'Tere_HPI_Compliance_Filled.docx'
 EVIDENCE_JSON = HOME / 'Downloads' / 'hpi-compliance-pack.json'
+
+# Screenshots for Noel's 2026-08-26 resubmission ask — expects
+# UI screenshots per approved-scope test scenario. Files must exist
+# at these paths before running the script. Any missing file logs
+# a warning and is skipped (docx still generates).
+SCREENSHOT_PATHS = {
+    'practitioner': HOME / 'Downloads' / 'hpi-screenshot-practitioner.png',
+    'location-gp':    HOME / 'Downloads' / 'hpi-screenshot-location-gp.png',
+    'location-pharm': HOME / 'Downloads' / 'hpi-screenshot-location-pharm.png',
+    'location-raddx': HOME / 'Downloads' / 'hpi-screenshot-location-raddx.png',
+}
+
+# Which scenario IDs get which screenshot appended. Each entry is a
+# list of (screenshot_key, caption) tuples inserted after the text
+# answer in the scenario's right-hand cell.
+SCENARIO_SCREENSHOTS = {
+    'HPI-P-Get-2': [
+        ('practitioner', 'Admin HPI Practitioner lookup — CPN input + HPI response displayed'),
+    ],
+    'HPI-P-Search-1': [
+        ('practitioner', 'Admin HPI Practitioner lookup — same UI accepts name search'),
+    ],
+    'HPI-L-Search-6-type': [
+        ('location-gp',    'Patient triage — GP-clinic search (type=gp)'),
+        ('location-pharm', 'Clinician prescribe modal — pharmacy search (type=PHARM)'),
+        ('location-raddx', 'Clinician referral modal — radiology search (type=RADDX)'),
+    ],
+}
 
 TERE = {
     'Organisation': 'Tere Health Limited',
@@ -186,10 +214,15 @@ def add_answer_after(p, answer_text: str, color=RGBColor(0x0B, 0x6E, 0x76)):
     return inserted
 
 
-def write_answer_to_cell(cell, answer_text):
+def write_answer_to_cell(cell, answer_text, screenshots=None):
     """Write our answer text into a table cell, replacing existing empty
     paragraphs. Preserves the cell's first paragraph as the container (so
-    style survives)."""
+    style survives).
+
+    If screenshots is a list of (SCREENSHOT_PATHS key, caption) tuples, each
+    screenshot is appended as a new paragraph with the image + caption
+    below the answer text. Missing files log a warning and are skipped.
+    """
     # Clear existing text runs from the first paragraph but keep the paragraph
     if cell.paragraphs:
         first = cell.paragraphs[0]
@@ -206,6 +239,26 @@ def write_answer_to_cell(cell, answer_text):
         run = p.add_run(answer_text)
         run.bold = True
         run.font.color.rgb = RGBColor(0x0B, 0x6E, 0x76)
+
+    if screenshots:
+        for key, caption in screenshots:
+            img_path = SCREENSHOT_PATHS.get(key)
+            if not img_path or not img_path.exists():
+                print(f'[warn] screenshot missing: {img_path} (key={key})', file=sys.stderr)
+                # Still add a placeholder caption so the reviewer knows to
+                # expect an image here.
+                p_missing = cell.add_paragraph()
+                r_missing = p_missing.add_run(f'[SCREENSHOT PENDING — {caption}]')
+                r_missing.italic = True
+                r_missing.font.color.rgb = RGBColor(0x99, 0x2E, 0x2E)
+                continue
+            p_img = cell.add_paragraph()
+            r_img = p_img.add_run()
+            r_img.add_picture(str(img_path), width=Inches(5.5))
+            p_cap = cell.add_paragraph()
+            r_cap = p_cap.add_run(f'Fig: {caption}')
+            r_cap.italic = True
+            r_cap.font.color.rgb = RGBColor(0x37, 0x41, 0x51)
 
 
 def fill_header(doc):
@@ -307,7 +360,8 @@ def fill_security_and_scenarios(doc):
             # and address' so we don't split on space.
             ref_id = after.split('(')[0].strip()
             if ref_id in SCENARIO_RESULTS and ref_id not in inserted_refs:
-                write_answer_to_cell(row.cells[1], SCENARIO_RESULTS[ref_id])
+                screenshots = SCENARIO_SCREENSHOTS.get(ref_id)
+                write_answer_to_cell(row.cells[1], SCENARIO_RESULTS[ref_id], screenshots=screenshots)
                 inserted_refs.add(ref_id)
 
     missing_refs = set(SCENARIO_RESULTS) - inserted_refs

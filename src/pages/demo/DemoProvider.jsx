@@ -164,8 +164,7 @@ function ConsultScreen({ phase }) {
             </div>
           )}
         </div>
-        <style>{`@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}`}</style>
-      </div>
+</div>
     </div>
   )
 }

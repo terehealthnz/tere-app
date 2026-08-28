@@ -548,8 +548,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     return (
       <div style={{ height:'100dvh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F0F2F5' }}>
         <div style={{ width:36, height:36, border:'3px solid #D4EEF0', borderTopColor:TEAL, borderRadius:'50%', animation:'spin .8s linear infinite' }} />
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </div>
+</div>
     )
   }
 
@@ -1077,12 +1076,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
       {/* Bottom control bar removed — Notes / Subtitles now live in the
           chart-side action row; End call lives inside FloatingCallWidget. */}
 
-      <style>{`
-        @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-        @keyframes pulse-ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.5);opacity:0}}
-      `}</style>
-    </div>
+</div>
   )
 
   // ── PRE-CALL VIEW ─────────────────────────────────────────────────────────────
@@ -1314,7 +1308,6 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         )
       })()}
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 }

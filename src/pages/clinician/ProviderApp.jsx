@@ -808,8 +808,7 @@ function PMSTab({ navigate }) {
     <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'4rem', gap:12, fontFamily:FF, color:'#9CA3AF' }}>
       <div style={{ width:20,height:20,border:'2px solid #D4EEF0',borderTopColor:TEAL,borderRadius:'50%',animation:'spin .8s linear infinite' }} />
       Loading…
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+</div>
   )
 
   const subTabs = [
