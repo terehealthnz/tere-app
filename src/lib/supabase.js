@@ -1019,13 +1019,131 @@ export async function listInterviews(applicationId) {
   return body.interviews || []
 }
 
-export async function scheduleInterview(applicationId, { scheduledAt, mode } = {}) {
+export async function scheduleInterview(applicationId, { scheduledAt, mode, proposedSlots, durationMinutes } = {}) {
+  const payload = {}
+  if (Array.isArray(proposedSlots) && proposedSlots.length > 0) {
+    // Slot-picker flow — server sets status='proposed' + emails picker link.
+    payload.proposedSlots = proposedSlots
+    if (durationMinutes) payload.durationMinutes = durationMinutes
+  } else {
+    payload.scheduledAt = scheduledAt
+    payload.mode = mode || (scheduledAt ? 'scheduled' : 'instant')
+    if (durationMinutes) payload.durationMinutes = durationMinutes
+  }
   const res = await apiFetch(`/api/job-applications?action=schedule_interview&id=${encodeURIComponent(applicationId)}`, {
     method: 'POST',
-    body: JSON.stringify({ scheduledAt, mode: mode || (scheduledAt ? 'scheduled' : 'instant') }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Interview scheduling failed')
   return await res.json()
+}
+
+// ── Job offers ──────────────────────────────────────────────────────────
+export async function listOffers(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=offers&id=${encodeURIComponent(applicationId)}`)
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.offers || []
+}
+
+export async function createOffer(applicationId, { roleTitle, compensation, startDate, contractTerms } = {}) {
+  const res = await apiFetch(`/api/job-applications?action=create_offer&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ roleTitle, compensation, startDate, contractTerms }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Offer create failed')
+  return await res.json()
+}
+
+export async function countersignOffer(offerId, { signerName } = {}) {
+  const res = await apiFetch(`/api/job-applications?action=countersign_offer&id=${encodeURIComponent(offerId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ signerName }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Countersign failed')
+  return await res.json()
+}
+
+export async function cancelOffer(offerId) {
+  const res = await apiFetch(`/api/job-applications?action=cancel_offer&id=${encodeURIComponent(offerId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return res.ok
+}
+
+export async function getOfferPdfUrl(offerId) {
+  const res = await apiFetch(`/api/job-applications?action=offer_pdf&id=${encodeURIComponent(offerId)}`)
+  if (!res.ok) return null
+  const body = await res.json()
+  return body.signedUrl || null
+}
+
+// ── References ─────────────────────────────────────────────────────────
+export async function listReferences(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=references&id=${encodeURIComponent(applicationId)}`)
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.references || []
+}
+
+export async function requestReference(applicationId, { refereeName, refereeEmail, refereePhone, refereeRelationship } = {}) {
+  const res = await apiFetch(`/api/job-applications?action=request_reference&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ refereeName, refereeEmail, refereePhone, refereeRelationship }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Reference request failed')
+  return await res.json()
+}
+
+export async function cancelReference(referenceId) {
+  const res = await apiFetch(`/api/job-applications?action=cancel_reference&id=${encodeURIComponent(referenceId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return res.ok
+}
+
+// ── Onboarding intake (admin side) ─────────────────────────────────────
+export async function createOnboardingIntake(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=create_onboarding_intake&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Onboarding intake create failed')
+  return await res.json()
+}
+
+export async function getOnboardingIntake(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=onboarding_intake&id=${encodeURIComponent(applicationId)}`)
+  if (!res.ok) return null
+  const body = await res.json()
+  return body.intake || null
+}
+
+export async function revealOnboardingSecret(intakeId, field) {
+  const res = await apiFetch(`/api/job-applications?action=reveal_onboarding_secret&id=${encodeURIComponent(intakeId)}`, {
+    method: 'POST',
+    body: JSON.stringify({ field }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Reveal failed')
+  const body = await res.json()
+  return body.value
+}
+
+export async function getOnboardingFileUrl(intakeId, kind) {
+  const res = await apiFetch(`/api/job-applications?action=onboarding_file&id=${encodeURIComponent(intakeId)}&kind=${encodeURIComponent(kind)}`)
+  if (!res.ok) return null
+  const body = await res.json()
+  return body.signedUrl || null
+}
+
+export async function cancelOnboarding(applicationId) {
+  const res = await apiFetch(`/api/job-applications?action=cancel_onboarding&id=${encodeURIComponent(applicationId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  return res.ok
 }
 
 export async function updateInterview(interviewId, patch) {

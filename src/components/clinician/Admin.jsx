@@ -2514,16 +2514,108 @@ function JobListingsSection() {
 
 // ── Applicants ────────────────────────────────────────────────────────────────
 
-const APPLICANT_STATUSES = [
-  { key: 'new',        label: 'New',        color: '#1D4ED8', bg: '#EFF6FF' },
-  { key: 'reviewing',  label: 'Reviewing',  color: '#7C3AED', bg: '#F5F3FF' },
-  { key: 'interview',  label: 'Interview',  color: '#0B6E76', bg: '#F0FDFA' },
-  { key: 'offer',      label: 'Offer',      color: '#D97706', bg: '#FEF3C7' },
-  { key: 'hired',      label: 'Hired',      color: '#065F46', bg: '#D1FAE5' },
-  { key: 'rejected',   label: 'Rejected',   color: '#991B1B', bg: '#FEE2E2' },
-  { key: 'withdrawn',  label: 'Withdrawn',  color: '#6B7280', bg: '#F3F4F6' },
+// Forward-progression stages — admin advances the applicant through these.
+const APPLICANT_PIPELINE = [
+  { key: 'new',        label: 'New Applicant',   color: '#1D4ED8', bg: '#EFF6FF' },
+  { key: 'reviewing',  label: 'Reviewing',       color: '#7C3AED', bg: '#F5F3FF' },
+  { key: 'interview',  label: 'Interview Sent',  color: '#0B6E76', bg: '#F0FDFA' },
+  { key: 'offer',      label: 'Offer',           color: '#D97706', bg: '#FEF3C7' },
 ]
+// Terminal outcomes — shown as notification pills, not stage buttons.
+const APPLICANT_OUTCOMES = [
+  { key: 'hired',      label: 'Hired',       color: '#065F46', bg: '#D1FAE5' },
+  { key: 'rejected',   label: 'Rejected',    color: '#991B1B', bg: '#FEE2E2' },
+  { key: 'withdrawn',  label: 'Withdrawn',   color: '#6B7280', bg: '#F3F4F6' },
+]
+const APPLICANT_STATUSES = [...APPLICANT_PIPELINE, ...APPLICANT_OUTCOMES]
 const STATUS_BY_KEY = Object.fromEntries(APPLICANT_STATUSES.map(s => [s.key, s]))
+const OUTCOME_KEYS  = new Set(APPLICANT_OUTCOMES.map(o => o.key))
+
+// Reference response value → human label.
+const REHIRE_LABEL = {
+  yes: 'Yes, without hesitation',
+  with_reservation: 'Yes, with reservation',
+  no: 'No',
+  unable_to_say: 'Rather not say',
+}
+const OVERALL_LABEL = {
+  strong: 'Strongly recommend',
+  positive: 'Recommend',
+  neutral: 'Neutral',
+  negative: 'Do not recommend',
+}
+
+function ReferenceRow({ k, v, strong, multiline }) {
+  if (!v) return null
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+      <div style={{ flex: '0 0 100px', fontSize: '.72rem', color: '#065F46', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', paddingTop: 2 }}>{k}</div>
+      <div style={{ flex: 1, color: '#0D2B45', fontSize: '.87rem', fontWeight: strong ? 700 : 400, whiteSpace: multiline ? 'pre-wrap' : 'normal' }}>{v}</div>
+    </div>
+  )
+}
+
+// Onboarding intake helpers.
+function IntakeProgress({ intake }) {
+  const items = [
+    { n: 1, label: 'Personal',    done: !!intake.section_1_completed_at },
+    { n: 2, label: 'Payroll',     done: !!intake.section_2_completed_at },
+    { n: 3, label: 'Credentials', done: !!intake.section_3_completed_at },
+    { n: 4, label: 'Signature',   done: !!intake.section_4_completed_at },
+  ]
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {items.map(it => (
+        <div key={it.n} style={{
+          padding: '5px 10px', borderRadius: 4,
+          border: `1px solid ${it.done ? '#065F46' : '#E2E8F0'}`,
+          background: it.done ? '#F0FDF4' : '#F8FAFC',
+          color: it.done ? '#065F46' : '#6B7280',
+          fontSize: '.72rem', fontWeight: 700,
+        }}>
+          {it.done ? '✓' : it.n}. {it.label}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function IntakeKV({ k, v, multiline }) {
+  if (!v) return null
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 6, alignItems: 'flex-start' }}>
+      <div style={{ flex: '0 0 130px', fontSize: '.7rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', paddingTop: 2 }}>{k}</div>
+      <div style={{ flex: 1, color: '#0D2B45', fontSize: '.84rem', whiteSpace: multiline ? 'pre-wrap' : 'normal' }}>{v}</div>
+    </div>
+  )
+}
+
+function IntakeSecret({ k, mask, value, onReveal, onHide, disabled }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, marginBottom: 6, alignItems: 'center' }}>
+      <div style={{ flex: '0 0 130px', fontSize: '.7rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>{k}</div>
+      <div style={{ flex: 1, color: '#0D2B45', fontSize: '.84rem', fontFamily: value ? 'ui-monospace, Menlo, monospace' : 'inherit' }}>
+        {value || mask || '—'}
+      </div>
+      {mask && !value && (
+        <button
+          onClick={onReveal}
+          disabled={disabled}
+          style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: '.7rem', fontWeight: 700, fontFamily: 'inherit' }}
+          title="Decrypt + log a reveal audit entry">
+          Reveal
+        </button>
+      )}
+      {value && (
+        <button
+          onClick={onHide}
+          style={{ background: 'none', border: '1px solid #E2E8F0', color: '#6B7280', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: '.7rem', fontWeight: 700, fontFamily: 'inherit' }}>
+          Hide
+        </button>
+      )}
+    </div>
+  )
+}
 
 function StatusPill({ status }) {
   const s = STATUS_BY_KEY[status] || { label: status, color: '#6B7280', bg: '#F3F4F6' }
@@ -2639,16 +2731,43 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   // Interview state
   const [interviews, setInterviews] = React.useState([])
   const [showSchedule, setShowSchedule] = React.useState(false)
-  const [scheduleAt, setScheduleAt] = React.useState('')
+  const [scheduleSlots, setScheduleSlots] = React.useState([''])  // datetime-local strings
+  const [scheduleDuration, setScheduleDuration] = React.useState(30)
   const [interviewMsg, setInterviewMsg] = React.useState('')
+
+  // Offer state
+  const [offers, setOffers] = React.useState([])
+  const [showCreateOffer, setShowCreateOffer] = React.useState(false)
+  const [offerForm, setOfferForm] = React.useState({ roleTitle: '', compensation: '', startDate: '', contractTerms: '' })
+  const [offerMsg, setOfferMsg] = React.useState('')
+  const [countersignId, setCountersignId] = React.useState(null)
+  const [countersignName, setCountersignName] = React.useState('')
+
+  // Reference state
+  const [references, setReferences] = React.useState([])
+  const [showAddReference, setShowAddReference] = React.useState(false)
+  const [refereeForm, setRefereeForm] = React.useState({ refereeName: '', refereeEmail: '', refereePhone: '', refereeRelationship: '' })
+  const [referenceMsg, setReferenceMsg] = React.useState('')
+  const [expandedReferenceId, setExpandedReferenceId] = React.useState(null)
+
+  // Onboarding intake state
+  const [intake, setIntake] = React.useState(null)
+  const [intakeMsg, setIntakeMsg] = React.useState('')
+  const [revealed, setRevealed] = React.useState({ ird_number: null, bank_account: null })
 
   async function load() {
     setLoading(true)
     try {
-      const { getJobApplication, listInterviews } = await import('../../lib/supabase')
-      const [d, ivs] = await Promise.all([getJobApplication(id), listInterviews(id)])
+      const { getJobApplication, listInterviews, listOffers, listReferences, getOnboardingIntake } = await import('../../lib/supabase')
+      const [d, ivs, ofs, refs, ink] = await Promise.all([
+        getJobApplication(id), listInterviews(id), listOffers(id), listReferences(id), getOnboardingIntake(id),
+      ])
       setData(d)
       setInterviews(ivs || [])
+      setOffers(ofs || [])
+      setReferences(refs || [])
+      setIntake(ink)
+      setRevealed({ ird_number: null, bank_account: null })
     } catch { setData(null) }
     setLoading(false)
   }
@@ -2658,13 +2777,32 @@ function ApplicantDetail({ id, onClose, onChanged }) {
     setSaving(true); setInterviewMsg('')
     try {
       const { scheduleInterview } = await import('../../lib/supabase')
-      const scheduledAt = instant ? null : new Date(scheduleAt).toISOString()
-      const body = await scheduleInterview(id, { scheduledAt, mode: instant ? 'instant' : 'scheduled' })
-      setInterviewMsg(instant
-        ? `Instant link sent to applicant. Copy: ${body.joinUrl}`
-        : `Invite emailed. Link: ${body.joinUrl}`)
+      let body
+      if (instant) {
+        body = await scheduleInterview(id, { scheduledAt: null, mode: 'instant' })
+        setInterviewMsg(`Instant link sent to applicant. Copy: ${body.joinUrl}`)
+      } else {
+        // Filter to non-empty datetimes and convert to ISO. If exactly one,
+        // send as single scheduledAt. If 2+, use picker flow.
+        const iso = scheduleSlots
+          .map(s => (s || '').trim())
+          .filter(Boolean)
+          .map(s => new Date(s).toISOString())
+        if (iso.length === 0) {
+          setInterviewMsg('Add at least one time slot before sending.')
+          setSaving(false); return
+        }
+        if (iso.length === 1) {
+          body = await scheduleInterview(id, { scheduledAt: iso[0], mode: 'scheduled', durationMinutes: scheduleDuration })
+          setInterviewMsg(`Invite emailed. Link: ${body.joinUrl}`)
+        } else {
+          body = await scheduleInterview(id, { proposedSlots: iso, durationMinutes: scheduleDuration })
+          setInterviewMsg(`Slot-picker invite emailed (${iso.length} options). Picker: ${body.pickerUrl || body.joinUrl}`)
+        }
+      }
       setShowSchedule(false)
-      setScheduleAt('')
+      setScheduleSlots([''])
+      setScheduleDuration(30)
       await load()
       onChanged?.()
     } catch (e) {
@@ -2696,6 +2834,141 @@ function ApplicantDetail({ id, onClose, onChanged }) {
       await updateInterview(interviewId, { status })
       await load()
     } finally { setSaving(false) }
+  }
+
+  async function handleCreateOffer() {
+    const { roleTitle, compensation, startDate, contractTerms } = offerForm
+    if (roleTitle.trim().length < 2 || compensation.trim().length < 2 || contractTerms.trim().length < 20) {
+      setOfferMsg('Fill in role, compensation, and terms (at least a short paragraph).')
+      return
+    }
+    setSaving(true); setOfferMsg('')
+    try {
+      const { createOffer } = await import('../../lib/supabase')
+      const body = await createOffer(id, {
+        roleTitle: roleTitle.trim(),
+        compensation: compensation.trim(),
+        startDate: startDate || null,
+        contractTerms: contractTerms.trim(),
+      })
+      setOfferMsg(`Offer emailed to applicant. Sign link: ${body.signUrl}`)
+      setShowCreateOffer(false)
+      setOfferForm({ roleTitle: '', compensation: '', startDate: '', contractTerms: '' })
+      await load()
+      onChanged?.()
+    } catch (e) {
+      setOfferMsg('Error: ' + (e.message || 'offer create failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleCountersign(offerId) {
+    if (countersignName.trim().length < 2) {
+      setOfferMsg('Type your full name to countersign.')
+      return
+    }
+    setSaving(true); setOfferMsg('')
+    try {
+      const { countersignOffer } = await import('../../lib/supabase')
+      await countersignOffer(offerId, { signerName: countersignName.trim() })
+      setOfferMsg('Offer countersigned. Final PDF is on its way to the applicant.')
+      setCountersignId(null)
+      setCountersignName('')
+      await load()
+      onChanged?.()
+    } catch (e) {
+      setOfferMsg('Error: ' + (e.message || 'countersign failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleCancelOffer(offerId) {
+    if (!confirm('Cancel this offer? The applicant will still be able to see the letter is withdrawn if they open the link.')) return
+    setSaving(true); setOfferMsg('')
+    try {
+      const { cancelOffer } = await import('../../lib/supabase')
+      await cancelOffer(offerId)
+      await load()
+    } finally { setSaving(false) }
+  }
+
+  async function handleOpenOfferPdf(offerId) {
+    try {
+      const { getOfferPdfUrl } = await import('../../lib/supabase')
+      const url = await getOfferPdfUrl(offerId)
+      if (!url) { alert('PDF not available yet.'); return }
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      alert('Could not open PDF: ' + (e.message || 'unknown'))
+    }
+  }
+
+  async function handleRequestReference() {
+    const { refereeName, refereeEmail } = refereeForm
+    if (refereeName.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(refereeEmail.trim())) {
+      setReferenceMsg('Referee name and a valid email are required.')
+      return
+    }
+    setSaving(true); setReferenceMsg('')
+    try {
+      const { requestReference } = await import('../../lib/supabase')
+      const body = await requestReference(id, {
+        refereeName:         refereeForm.refereeName.trim(),
+        refereeEmail:        refereeForm.refereeEmail.trim().toLowerCase(),
+        refereePhone:        refereeForm.refereePhone.trim(),
+        refereeRelationship: refereeForm.refereeRelationship.trim(),
+      })
+      setReferenceMsg(`Reference request emailed. Link: ${body.respondUrl}`)
+      setShowAddReference(false)
+      setRefereeForm({ refereeName: '', refereeEmail: '', refereePhone: '', refereeRelationship: '' })
+      await load()
+    } catch (e) {
+      setReferenceMsg('Error: ' + (e.message || 'request failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleCancelReference(referenceId) {
+    if (!confirm('Cancel this reference request? The referee\'s link will show a cancelled state if they open it.')) return
+    setSaving(true); setReferenceMsg('')
+    try {
+      const { cancelReference } = await import('../../lib/supabase')
+      await cancelReference(referenceId)
+      await load()
+    } finally { setSaving(false) }
+  }
+
+  async function handleSendOnboarding() {
+    setSaving(true); setIntakeMsg('')
+    try {
+      const { createOnboardingIntake } = await import('../../lib/supabase')
+      const body = await createOnboardingIntake(id)
+      setIntakeMsg(`Onboarding link emailed. URL: ${body.setupUrl}`)
+      await load()
+    } catch (e) {
+      setIntakeMsg('Error: ' + (e.message || 'send failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleRevealSecret(field) {
+    if (!intake?.id) return
+    setSaving(true); setIntakeMsg('')
+    try {
+      const { revealOnboardingSecret } = await import('../../lib/supabase')
+      const value = await revealOnboardingSecret(intake.id, field)
+      setRevealed(r => ({ ...r, [field]: value }))
+    } catch (e) {
+      setIntakeMsg('Error: ' + (e.message || 'reveal failed'))
+    } finally { setSaving(false) }
+  }
+
+  async function handleOpenOnboardingFile(kind) {
+    if (!intake?.id) return
+    try {
+      const { getOnboardingFileUrl } = await import('../../lib/supabase')
+      const url = await getOnboardingFileUrl(intake.id, kind)
+      if (!url) { alert('File not uploaded yet.'); return }
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      alert('Could not open: ' + (e.message || 'unknown'))
+    }
   }
 
   async function setStatus(next) {
@@ -2774,18 +3047,92 @@ function ApplicantDetail({ id, onClose, onChanged }) {
         {app && (
           <>
             <div style={section}>
-              <span style={label}>Status</span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {APPLICANT_STATUSES.map(s => (
-                  <button key={s.key} onClick={() => setStatus(s.key)} disabled={saving} style={{
-                    ...btn('ghost'),
-                    background: app.status === s.key ? s.bg : '#F8FAFC',
-                    color: app.status === s.key ? s.color : '#6B7280',
-                    borderColor: app.status === s.key ? s.color : '#E2E8F0',
-                    padding: '6px 12px',
-                  }}>{s.label}</button>
-                ))}
-              </div>
+              <span style={label}>Pipeline stage</span>
+              {(() => {
+                const isOutcome = OUTCOME_KEYS.has(app.status)
+                const outcome   = isOutcome ? STATUS_BY_KEY[app.status] : null
+                return (
+                  <>
+                    {/* Forward-progression pipeline — click to advance the applicant. */}
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {APPLICANT_PIPELINE.map((s, i) => {
+                        const active = app.status === s.key
+                        return (
+                          <React.Fragment key={s.key}>
+                            <button
+                              onClick={() => setStatus(s.key)}
+                              disabled={saving || isOutcome}
+                              title={isOutcome ? 'Outcome recorded — reopen from below to change stage' : `Set to ${s.label}`}
+                              style={{
+                                border: `1.5px solid ${active ? s.color : '#E2E8F0'}`,
+                                background: active ? s.bg : (isOutcome ? '#F8FAFC' : 'white'),
+                                color: active ? s.color : (isOutcome ? '#9CA3AF' : '#6B7280'),
+                                padding: '7px 14px',
+                                borderRadius: 99,
+                                fontSize: '.8125rem',
+                                fontWeight: 700,
+                                cursor: (saving || isOutcome) ? 'not-allowed' : 'pointer',
+                                opacity: isOutcome ? .55 : 1,
+                                fontFamily: 'inherit',
+                              }}>
+                              {s.label}
+                            </button>
+                            {i < APPLICANT_PIPELINE.length - 1 && (
+                              <span style={{ color: '#CBD5E1', fontSize: '.9rem' }}>›</span>
+                            )}
+                          </React.Fragment>
+                        )
+                      })}
+                    </div>
+
+                    {/* Outcome row — non-clickable pill when set, buttons to mark when open. */}
+                    <div style={{ marginTop: '1rem' }}>
+                      <span style={label}>Outcome</span>
+                      {outcome ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{
+                            background: outcome.bg, color: outcome.color,
+                            padding: '6px 14px', borderRadius: 99,
+                            fontSize: '.8125rem', fontWeight: 700,
+                            border: `1px solid ${outcome.color}22`,
+                          }}>
+                            {outcome.label}
+                          </span>
+                          <button
+                            onClick={() => setStatus('reviewing')}
+                            disabled={saving}
+                            style={{ ...btn('ghost'), padding: '5px 12px', fontSize: '.75rem' }}
+                            title="Reopen — moves back to Reviewing so the pipeline is editable">
+                            Reopen
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {APPLICANT_OUTCOMES.map(o => (
+                            <button
+                              key={o.key}
+                              onClick={() => setStatus(o.key)}
+                              disabled={saving}
+                              style={{
+                                border: '1.5px solid #E2E8F0',
+                                background: 'white',
+                                color: o.color,
+                                padding: '6px 12px',
+                                borderRadius: 6,
+                                fontSize: '.75rem',
+                                fontWeight: 700,
+                                cursor: saving ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit',
+                              }}>
+                              Mark {o.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
               <div style={{ marginTop: '.75rem', display: 'flex', gap: 6 }}>
                 <button onClick={toggleArchive} disabled={saving} style={btn('ghost')}>
                   {app.archived ? 'Unarchive' : 'Archive'}
@@ -2825,21 +3172,59 @@ function ApplicantDetail({ id, onClose, onChanged }) {
               </div>
               {showSchedule && (
                 <div style={{ background: '#F0F9FA', border: '1px solid #C7EAEC', borderRadius: 8, padding: '.75rem', marginBottom: '.75rem' }}>
-                  <label style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>When (NZ time)</label>
-                  <input
-                    type="datetime-local"
-                    value={scheduleAt}
-                    onChange={e => setScheduleAt(e.target.value)}
-                    style={{ display: 'block', width: '100%', marginTop: 6, marginBottom: 8, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem' }}
-                  />
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>
+                    Propose {scheduleSlots.filter(Boolean).length > 1 ? `${scheduleSlots.filter(Boolean).length} times` : 'a time'} (NZ time)
+                  </label>
+                  <div style={{ fontSize: '.72rem', color: '#6B7280', marginTop: 2, marginBottom: 6 }}>
+                    Add 2+ times to let the applicant pick from your availability. One time sends a straight confirmation.
+                  </div>
+                  {scheduleSlots.map((val, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+                      <input
+                        type="datetime-local"
+                        value={val}
+                        onChange={e => setScheduleSlots(prev => prev.map((v, i) => i === idx ? e.target.value : v))}
+                        style={{ flex: 1, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem' }}
+                      />
+                      {scheduleSlots.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setScheduleSlots(prev => prev.filter((_, i) => i !== idx))}
+                          style={{ ...btn('ghost'), padding: '4px 10px' }}
+                          title="Remove this time">
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleSlots(prev => [...prev, ''])}
+                      style={{ ...btn('ghost'), padding: '5px 12px', fontSize: '.75rem' }}>
+                      + Add another time
+                    </button>
+                    <label style={{ fontSize: '.72rem', color: '#6B7280', marginLeft: 'auto' }}>
+                      Duration:{' '}
+                      <select
+                        value={scheduleDuration}
+                        onChange={e => setScheduleDuration(Number(e.target.value))}
+                        style={{ border: '1px solid #E2E8F0', borderRadius: 4, padding: '2px 6px', fontSize: '.75rem' }}>
+                        <option value={15}>15 min</option>
+                        <option value={30}>30 min</option>
+                        <option value={45}>45 min</option>
+                        <option value={60}>60 min</option>
+                      </select>
+                    </label>
+                  </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => handleSchedule({ instant: false })}
-                      disabled={!scheduleAt || saving}
-                      style={{ ...btn('primary'), opacity: scheduleAt ? 1 : .5 }}>
+                      disabled={scheduleSlots.filter(Boolean).length === 0 || saving}
+                      style={{ ...btn('primary'), opacity: scheduleSlots.filter(Boolean).length > 0 ? 1 : .5 }}>
                       Send invite email
                     </button>
-                    <button onClick={() => { setShowSchedule(false); setScheduleAt('') }} style={btn()}>Cancel</button>
+                    <button onClick={() => { setShowSchedule(false); setScheduleSlots(['']); setScheduleDuration(30) }} style={btn()}>Cancel</button>
                   </div>
                 </div>
               )}
@@ -2855,16 +3240,17 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                   {interviews.map(iv => {
                     const isJoinable = ['scheduled', 'instant', 'in_progress'].includes(iv.status)
                     const isEnded    = ['completed', 'cancelled', 'no_show'].includes(iv.status)
+                    const isProposed = iv.status === 'proposed'
+                    const proposed   = Array.isArray(iv.proposed_slots) ? iv.proposed_slots : []
+                    const whenLabel  = iv.scheduled_at
+                      ? new Date(iv.scheduled_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' })
+                      : (isProposed ? `${proposed.length} time${proposed.length === 1 ? '' : 's'} proposed` : 'Instant')
                     return (
-                      <div key={iv.id} style={{ background: isEnded ? '#F8FAFC' : '#FFF', border: `1px solid ${isEnded ? '#E2E8F0' : '#0B6E76'}`, borderRadius: 6, padding: '.625rem .75rem' }}>
+                      <div key={iv.id} style={{ background: isEnded ? '#F8FAFC' : '#FFF', border: `1px solid ${isEnded ? '#E2E8F0' : (isProposed ? '#F59E0B' : '#0B6E76')}`, borderRadius: 6, padding: '.625rem .75rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
                           <div style={{ fontSize: '.875rem' }}>
-                            <span style={{ fontWeight: 600, color: '#0D2B45' }}>
-                              {iv.scheduled_at
-                                ? new Date(iv.scheduled_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium', timeStyle: 'short' })
-                                : 'Instant'}
-                            </span>
-                            <span style={{ marginLeft: 8, fontSize: '.7rem', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>{iv.status.replace('_', ' ')}</span>
+                            <span style={{ fontWeight: 600, color: '#0D2B45' }}>{whenLabel}</span>
+                            <span style={{ marginLeft: 8, fontSize: '.7rem', color: isProposed ? '#B45309' : '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>{iv.status.replace('_', ' ')}</span>
                           </div>
                           <div style={{ display: 'flex', gap: 4 }}>
                             {isJoinable && (
@@ -2876,14 +3262,364 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                             {isJoinable && (
                               <button onClick={() => handleInterviewOutcome(iv.id, 'no_show')} disabled={saving} title="No-show" style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>✗</button>
                             )}
+                            {isProposed && (
+                              <button onClick={() => handleInterviewOutcome(iv.id, 'cancelled')} disabled={saving} title="Cancel this invite" style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>Cancel</button>
+                            )}
                           </div>
                         </div>
+                        {isProposed && proposed.length > 0 && (
+                          <div style={{ fontSize: '.72rem', color: '#6B7280', marginTop: 4 }}>
+                            Proposed: {proposed.map(s => new Date(s).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })).join(' · ')}
+                          </div>
+                        )}
                         <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4, wordBreak: 'break-all' }}>
-                          Applicant link: <a href={`/interview/${iv.applicant_join_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/interview/{String(iv.applicant_join_token).slice(0, 12)}…</a>
+                          {isProposed
+                            ? <>Picker link: <a href={`/interview/pick/${iv.applicant_join_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/interview/pick/{String(iv.applicant_join_token).slice(0, 12)}…</a></>
+                            : <>Applicant link: <a href={`/interview/${iv.applicant_join_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/interview/{String(iv.applicant_join_token).slice(0, 12)}…</a></>
+                          }
                         </div>
                       </div>
                     )
                   })}
+                </div>
+              )}
+            </div>
+
+            <div style={section}>
+              <span style={label}>Letter of offer ({offers.length})</span>
+              <div style={{ display: 'flex', gap: 6, marginBottom: '.75rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => { setShowCreateOffer(v => !v); setOfferMsg('') }}
+                  disabled={saving}
+                  style={{ ...btn('primary'), background: '#D97706' }}>
+                  ✍️ {showCreateOffer ? 'Cancel' : 'Create offer'}
+                </button>
+              </div>
+              {showCreateOffer && (
+                <div style={{ background: '#FEF9F1', border: '1px solid #FDE1B9', borderRadius: 8, padding: '.85rem', marginBottom: '.75rem' }}>
+                  <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Role title</label>
+                  <input
+                    value={offerForm.roleTitle}
+                    onChange={e => setOfferForm(f => ({ ...f, roleTitle: e.target.value }))}
+                    placeholder="e.g. Nurse Practitioner"
+                    style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 10, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <div style={{ flex: 2 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Compensation</label>
+                      <input
+                        value={offerForm.compensation}
+                        onChange={e => setOfferForm(f => ({ ...f, compensation: e.target.value }))}
+                        placeholder="e.g. $130/hr contractor"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Start date (opt.)</label>
+                      <input
+                        type="date"
+                        value={offerForm.startDate}
+                        onChange={e => setOfferForm(f => ({ ...f, startDate: e.target.value }))}
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Terms of engagement</label>
+                  <textarea
+                    value={offerForm.contractTerms}
+                    onChange={e => setOfferForm(f => ({ ...f, contractTerms: e.target.value }))}
+                    placeholder="Full text of the offer letter — hours, scope, notice period, confidentiality, etc. Renders verbatim in the PDF."
+                    rows={10}
+                    style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 10, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '10px 12px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box', lineHeight: 1.5, resize: 'vertical' }}
+                  />
+                  <button
+                    onClick={handleCreateOffer}
+                    disabled={saving}
+                    style={{ ...btn('primary'), background: '#D97706' }}>
+                    Send offer to applicant
+                  </button>
+                </div>
+              )}
+              {offerMsg && (
+                <div style={{ background: '#FEF9F1', border: '1px solid #FDE1B9', color: '#92400E', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: '.5rem', wordBreak: 'break-all' }}>
+                  {offerMsg}
+                </div>
+              )}
+              {offers.length === 0 ? (
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No offer sent yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {offers.map(of => {
+                    const isSent          = of.status === 'sent'
+                    const isApplicantSigned = of.status === 'applicant_signed'
+                    const isDone          = of.status === 'countersigned'
+                    const isCancelled     = of.status === 'cancelled'
+                    const borderColor     = isDone ? '#065F46' : (isApplicantSigned ? '#B45309' : (isCancelled ? '#E2E8F0' : '#D97706'))
+                    const statusLabel     = isDone ? 'FULLY SIGNED' : (isApplicantSigned ? 'AWAITING COUNTERSIGN' : (isCancelled ? 'CANCELLED' : 'AWAITING APPLICANT SIGNATURE'))
+                    const statusColor     = isDone ? '#065F46' : (isApplicantSigned ? '#B45309' : (isCancelled ? '#6B7280' : '#D97706'))
+                    return (
+                      <div key={of.id} style={{ background: isCancelled ? '#F8FAFC' : '#FFF', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '.625rem .75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <div style={{ fontSize: '.875rem' }}>
+                            <span style={{ fontWeight: 700, color: '#0D2B45' }}>{of.role_title}</span>
+                            <span style={{ marginLeft: 8, fontSize: '.68rem', color: statusColor, textTransform: 'uppercase', fontWeight: 700 }}>{statusLabel}</span>
+                            <div style={{ color: '#6B7280', fontSize: '.75rem', marginTop: 2 }}>
+                              {of.compensation}{of.start_date ? ` · start ${new Date(of.start_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {isDone && (
+                              <button onClick={() => handleOpenOfferPdf(of.id)} disabled={saving} style={{ ...btn('primary'), padding: '4px 10px', fontSize: '.75rem' }}>PDF</button>
+                            )}
+                            {isApplicantSigned && (
+                              <button onClick={() => setCountersignId(of.id)} disabled={saving} style={{ ...btn('primary'), padding: '4px 10px', fontSize: '.75rem', background: '#065F46' }}>Countersign</button>
+                            )}
+                            {(isSent || isApplicantSigned) && (
+                              <button onClick={() => handleCancelOffer(of.id)} disabled={saving} style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>Cancel</button>
+                            )}
+                          </div>
+                        </div>
+                        {countersignId === of.id && (
+                          <div style={{ marginTop: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '.6rem .75rem' }}>
+                            <label style={{ fontSize: '.7rem', color: '#065F46', fontWeight: 700, textTransform: 'uppercase' }}>Your full name (countersigning for Tere Health)</label>
+                            <input
+                              value={countersignName}
+                              onChange={e => setCountersignName(e.target.value)}
+                              placeholder="e.g. Dr Patrick Herling"
+                              style={{ display: 'block', width: '100%', marginTop: 6, marginBottom: 8, border: '1.5px solid #BBF7D0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                            />
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button
+                                onClick={() => handleCountersign(of.id)}
+                                disabled={saving || countersignName.trim().length < 2}
+                                style={{ ...btn('primary'), background: '#065F46' }}>
+                                Confirm countersign
+                              </button>
+                              <button
+                                onClick={() => { setCountersignId(null); setCountersignName('') }}
+                                style={btn()}>
+                                Cancel
+                              </button>
+                            </div>
+                            <div style={{ fontSize: '.7rem', color: '#065F46', marginTop: 6 }}>
+                              Your typed name + your saved signature image will be added to the final PDF.
+                            </div>
+                          </div>
+                        )}
+                        <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4 }}>
+                          Sent {new Date(of.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                          {of.applicant_signed_at && ` · Applicant signed ${new Date(of.applicant_signed_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} (${of.applicant_signed_name})`}
+                          {of.countersigned_at && ` · Countersigned ${new Date(of.countersigned_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} (${of.countersigned_name})`}
+                        </div>
+                        {isSent && (
+                          <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4, wordBreak: 'break-all' }}>
+                            Sign link: <a href={`/offer/sign/${of.applicant_sign_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/offer/sign/{String(of.applicant_sign_token).slice(0, 12)}…</a>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={section}>
+              <span style={label}>References ({references.filter(r => r.status === 'responded').length}/{references.length})</span>
+              <div style={{ display: 'flex', gap: 6, marginBottom: '.75rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => { setShowAddReference(v => !v); setReferenceMsg('') }}
+                  disabled={saving}
+                  style={{ ...btn('primary'), background: '#7C3AED' }}>
+                  ✉️ {showAddReference ? 'Cancel' : 'Request a reference'}
+                </button>
+              </div>
+              {showAddReference && (
+                <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 8, padding: '.85rem', marginBottom: '.75rem' }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Referee name</label>
+                      <input
+                        value={refereeForm.refereeName}
+                        onChange={e => setRefereeForm(f => ({ ...f, refereeName: e.target.value }))}
+                        placeholder="e.g. Dr Sarah Wilson"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Email</label>
+                      <input
+                        type="email"
+                        value={refereeForm.refereeEmail}
+                        onChange={e => setRefereeForm(f => ({ ...f, refereeEmail: e.target.value }))}
+                        placeholder="sarah@example.com"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Phone (opt.)</label>
+                      <input
+                        value={refereeForm.refereePhone}
+                        onChange={e => setRefereeForm(f => ({ ...f, refereePhone: e.target.value }))}
+                        placeholder="+64…"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div style={{ flex: 2 }}>
+                      <label style={{ fontSize: '.72rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Relationship (as told to us)</label>
+                      <input
+                        value={refereeForm.refereeRelationship}
+                        onChange={e => setRefereeForm(f => ({ ...f, refereeRelationship: e.target.value }))}
+                        placeholder="e.g. Direct supervisor at Waikato ED"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleRequestReference}
+                    disabled={saving}
+                    style={{ ...btn('primary'), background: '#7C3AED' }}>
+                    Send request
+                  </button>
+                </div>
+              )}
+              {referenceMsg && (
+                <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', color: '#5B21B6', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: '.5rem', wordBreak: 'break-all' }}>
+                  {referenceMsg}
+                </div>
+              )}
+              {references.length === 0 ? (
+                <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No references requested yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {references.map(r => {
+                    const isPending   = r.status === 'pending'
+                    const isResponded = r.status === 'responded'
+                    const isCancelled = r.status === 'cancelled'
+                    const borderColor = isResponded ? '#065F46' : (isPending ? '#7C3AED' : '#E2E8F0')
+                    const statusLabel = isResponded ? 'RESPONDED' : (isPending ? 'AWAITING RESPONSE' : 'CANCELLED')
+                    const statusColor = isResponded ? '#065F46' : (isPending ? '#7C3AED' : '#6B7280')
+                    const expanded    = isResponded && expandedReferenceId === r.id
+                    return (
+                      <div key={r.id} style={{ background: isCancelled ? '#F8FAFC' : '#FFF', border: `1px solid ${borderColor}`, borderRadius: 6, padding: '.625rem .75rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                          <div style={{ fontSize: '.875rem', flex: 1 }}>
+                            <span style={{ fontWeight: 700, color: '#0D2B45' }}>{r.referee_name}</span>
+                            <span style={{ marginLeft: 8, fontSize: '.68rem', color: statusColor, textTransform: 'uppercase', fontWeight: 700 }}>{statusLabel}</span>
+                            <div style={{ color: '#6B7280', fontSize: '.75rem', marginTop: 2 }}>
+                              {r.referee_email}{r.referee_relationship ? ` · ${r.referee_relationship}` : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                            {isResponded && (
+                              <button onClick={() => setExpandedReferenceId(expanded ? null : r.id)} disabled={saving} style={{ ...btn('primary'), padding: '4px 10px', fontSize: '.75rem', background: '#065F46' }}>
+                                {expanded ? 'Hide' : 'View'}
+                              </button>
+                            )}
+                            {isPending && (
+                              <button onClick={() => handleCancelReference(r.id)} disabled={saving} style={{ ...btn(), padding: '4px 8px', fontSize: '.75rem' }}>Cancel</button>
+                            )}
+                          </div>
+                        </div>
+                        {expanded && (
+                          <div style={{ marginTop: 10, background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6, padding: '.75rem .9rem', fontSize: '.85rem', color: '#0D2B45', lineHeight: 1.55 }}>
+                            <ReferenceRow k="Relationship" v={r.confirmed_relationship} />
+                            <ReferenceRow k="Dates" v={r.confirmed_dates} />
+                            <ReferenceRow k="Would rehire" v={REHIRE_LABEL[r.would_rehire] || r.would_rehire} strong />
+                            <ReferenceRow k="Strengths" v={r.strengths} multiline />
+                            <ReferenceRow k="Concerns" v={r.concerns} multiline />
+                            <ReferenceRow k="Overall" v={OVERALL_LABEL[r.overall_recommendation] || r.overall_recommendation} strong />
+                            <ReferenceRow k="Comments" v={r.additional_comments} multiline />
+                          </div>
+                        )}
+                        <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4 }}>
+                          Sent {new Date(r.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}
+                          {r.responded_at && ` · Responded ${new Date(r.responded_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })}`}
+                        </div>
+                        {isPending && (
+                          <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 4, wordBreak: 'break-all' }}>
+                            Respond link: <a href={`/reference/respond/${r.request_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/reference/respond/{String(r.request_token).slice(0, 12)}…</a>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={section}>
+              <span style={label}>Onboarding intake</span>
+              {!intake ? (
+                <div>
+                  <div style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: 10 }}>
+                    Sends the applicant a token'd link to fill four short sections (personal, payroll, credentials, signature). Send this once the offer is signed.
+                  </div>
+                  <button
+                    onClick={handleSendOnboarding}
+                    disabled={saving}
+                    style={{ ...btn('primary'), background: '#0B6E76' }}>
+                    ✉️ Send onboarding setup
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <IntakeProgress intake={intake} />
+                  {intake.status === 'complete' && (
+                    <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', color: '#065F46', padding: '.6rem .75rem', borderRadius: 6, fontSize: '.82rem', marginTop: 10 }}>
+                      ✓ All four sections in. Review below and create their provider account when ready.
+                    </div>
+                  )}
+                  {intake.completed_at && (
+                    <>
+                      <div style={{ marginTop: 12, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '.75rem .9rem' }}>
+                        <IntakeKV k="Preferred name"  v={intake.preferred_name} />
+                        <IntakeKV k="DOB"             v={intake.date_of_birth} />
+                        <IntakeKV k="Address"         v={intake.home_address} multiline />
+                        <IntakeKV k="Mobile"          v={intake.mobile} />
+                        <IntakeKV k="Emergency"       v={[intake.emergency_contact_name, intake.emergency_contact_relationship, intake.emergency_contact_phone].filter(Boolean).join(' · ')} />
+                        <IntakeKV k="KiwiSaver"       v={intake.kiwisaver_rate === 'opt_out' ? 'Opt out' : `${intake.kiwisaver_rate}%`} />
+                        <IntakeSecret
+                          k="IRD number"
+                          mask={intake.ird_number_mask}
+                          value={revealed.ird_number}
+                          onReveal={() => handleRevealSecret('ird_number')}
+                          onHide={() => setRevealed(r => ({ ...r, ird_number: null }))}
+                          disabled={saving}
+                        />
+                        <IntakeSecret
+                          k="Bank account"
+                          mask={intake.bank_account_mask}
+                          value={revealed.bank_account}
+                          onReveal={() => handleRevealSecret('bank_account')}
+                          onHide={() => setRevealed(r => ({ ...r, bank_account: null }))}
+                          disabled={saving}
+                        />
+                        <IntakeKV k="MCNZ #"          v={intake.mcnz_registration_number} />
+                        <IntakeKV k="APC expiry"      v={intake.apc_expiry_date} />
+                        <IntakeKV k="HPI-CPN"         v={intake.hpi_cpn} />
+                        <IntakeKV k="Prescriber #"    v={intake.prescriber_number} />
+                        <IntakeKV k="Scope"           v={intake.scope_of_practice} />
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                        {intake.apc_storage_key && (
+                          <button onClick={() => handleOpenOnboardingFile('apc')} disabled={saving} style={{ ...btn(), padding: '5px 12px', fontSize: '.78rem' }}>Open APC PDF</button>
+                        )}
+                        {intake.signature_storage_key && (
+                          <button onClick={() => handleOpenOnboardingFile('signature')} disabled={saving} style={{ ...btn(), padding: '5px 12px', fontSize: '.78rem' }}>Open signature</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: 8, wordBreak: 'break-all' }}>
+                    Setup link: <a href={`/onboarding/setup/${intake.setup_token}`} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>/onboarding/setup/{String(intake.setup_token || '').slice(0, 12)}…</a>
+                  </div>
+                </div>
+              )}
+              {intakeMsg && (
+                <div style={{ background: '#F0F9FA', border: '1px solid #C7EAEC', color: '#0B6E76', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginTop: 8, wordBreak: 'break-all' }}>
+                  {intakeMsg}
                 </div>
               )}
             </div>

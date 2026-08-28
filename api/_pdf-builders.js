@@ -917,3 +917,146 @@ export async function buildSupervisionPlanPdf(data) {
     doc.end()
   })
 }
+
+// Job-offer letter — dual-signed PDF. Renders offer terms, applicant
+// signature block, and Tere countersign block. Applicant signature comes
+// from a canvas PNG data URL (no fetch); Tere signer's signature comes
+// from providers.signature_url (routed through fetchSignatureBuffer, so
+// the SSRF allowlist applies).
+//
+// Called at countersign time — before that the offer PDF doesn't exist yet.
+export async function buildOfferPdf(data) {
+  const {
+    application = {},
+    offer       = {},
+    tereSigner  = {},   // { first_name, last_name, title, signature_url }
+  } = data
+
+  const tereSigBuf = await fetchSignatureBuffer(tereSigner.signature_url)
+
+  // Applicant signature: PNG data URL from canvas. Guard against oversized
+  // or non-PNG payloads (a big or malformed buffer will kill pdfkit).
+  let applicantSigBuf = null
+  const png = offer.applicant_signed_png
+  if (png && typeof png === 'string' && png.startsWith('data:image/png;base64,')) {
+    try {
+      const raw = png.slice('data:image/png;base64,'.length)
+      const buf = Buffer.from(raw, 'base64')
+      if (buf.byteLength > 0 && buf.byteLength < 300_000) applicantSigBuf = buf
+    } catch { /* leave null */ }
+  }
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end',  () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const M = 50
+    let y = M
+
+    // Header band
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('TERE HEALTH', M, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', M, 46)
+    y = 90
+
+    // Title + date
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('Letter of Offer', M, y)
+    y += 24
+    const issued = offer.created_at ? new Date(offer.created_at) : new Date()
+    doc.fillColor('#666').font('Helvetica').fontSize(10)
+      .text(`Issued ${issued.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}`, M, y)
+    y += 22
+
+    // Addressee
+    const fullName = [application.first_name, application.last_name].filter(Boolean).join(' ') || 'Applicant'
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(11)
+      .text(`Kia ora ${fullName},`, M, y)
+    y = doc.y + 8
+
+    doc.text(
+      'On behalf of Tere Health Limited, I am pleased to offer you the following position with our team. Please read the terms carefully. If you accept, add your electronic signature below and we will countersign to complete the agreement.',
+      M, y, { width: W - M * 2, lineGap: 3 })
+    y = doc.y + 14
+
+    // Terms box
+    doc.rect(M, y, W - M * 2, 96).fill('#F0F9FA').fillColor('#0D2B45')
+    doc.font('Helvetica-Bold').fontSize(10).text('Role', M + 12, y + 10)
+    doc.font('Helvetica').fontSize(10.5).fillColor('#1A2A33').text(offer.role_title || '', M + 100, y + 10, { width: W - M * 2 - 110 })
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Compensation', M + 12, y + 34)
+    doc.font('Helvetica').fontSize(10.5).fillColor('#1A2A33').text(offer.compensation || '', M + 100, y + 34, { width: W - M * 2 - 110 })
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Start date', M + 12, y + 58)
+    const startTxt = offer.start_date
+      ? new Date(offer.start_date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      : 'To be agreed'
+    doc.font('Helvetica').fontSize(10.5).fillColor('#1A2A33').text(startTxt, M + 100, y + 58, { width: W - M * 2 - 110 })
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Employer', M + 12, y + 78)
+    doc.font('Helvetica').fontSize(10.5).fillColor('#1A2A33').text('Tere Health Limited', M + 100, y + 78, { width: W - M * 2 - 110 })
+    y += 110
+
+    // Terms body
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text('Terms of engagement', M, y)
+    y += 18
+    doc.moveTo(M, y - 2).lineTo(W - M, y - 2).strokeColor('#0B6E76').lineWidth(1).stroke()
+    y += 4
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
+      .text(offer.contract_terms || '', M, y, { width: W - M * 2, lineGap: 3 })
+    y = doc.y + 20
+
+    // Signature blocks — page-break if we're low.
+    if (y > 620) { doc.addPage(); y = M }
+
+    function signatureBlock(role, name, when, sigBuf) {
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(11).text(role, M, y)
+      y += 14
+      const sigLineY = y + 42
+      // If we have a signature image, place it above the line.
+      if (sigBuf) {
+        try { doc.image(sigBuf, M, y + 4, { fit: [220, 40] }) } catch { /* bad image, skip */ }
+      }
+      // Signature line
+      doc.moveTo(M, sigLineY).lineTo(M + 260, sigLineY).strokeColor('#0D2B45').lineWidth(0.6).stroke()
+      doc.moveTo(M + 300, sigLineY).lineTo(M + 480, sigLineY).strokeColor('#0D2B45').lineWidth(0.6).stroke()
+      doc.font('Helvetica').fontSize(8).fillColor('#666')
+      doc.text('Signature', M, sigLineY + 4)
+      doc.text('Date', M + 300, sigLineY + 4)
+      if (name) {
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#1A2A33')
+          .text(name, M, sigLineY - 14)
+      }
+      if (when) {
+        doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+          .text(new Date(when).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }), M + 342, sigLineY - 14)
+      }
+      y = sigLineY + 24
+    }
+
+    signatureBlock(
+      'Signed by the candidate',
+      offer.applicant_signed_name || fullName,
+      offer.applicant_signed_at,
+      applicantSigBuf,
+    )
+    if (y > 700) { doc.addPage(); y = M }
+    const tereName = [tereSigner.first_name, tereSigner.last_name].filter(Boolean).join(' ').trim()
+    signatureBlock(
+      `Countersigned for Tere Health Limited${tereSigner.title ? ' — ' + tereSigner.title : ''}`,
+      offer.countersigned_name || tereName || 'Tere Health',
+      offer.countersigned_at,
+      tereSigBuf,
+    )
+
+    // Footer
+    y += 8
+    if (y > 780) { doc.addPage(); y = M }
+    doc.fillColor('#666').font('Helvetica-Oblique').fontSize(8.5)
+      .text('This letter of offer is executed electronically. Both parties retain a copy. Please contact hello@terehealth.co.nz with any questions.',
+        M, y, { width: W - M * 2, align: 'center' })
+
+    doc.end()
+  })
+}
+

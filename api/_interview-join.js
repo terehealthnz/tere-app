@@ -39,7 +39,7 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data: iv, error: ivErr } = await supabase
     .from('job_interviews')
-    .select('id, application_id, room_key, status, scheduled_at, applicant_join_token')
+    .select('id, application_id, room_key, status, scheduled_at, proposed_slots, duration_minutes, applicant_join_token')
     .eq('applicant_join_token', cleanToken)
     .maybeSingle()
 
@@ -48,9 +48,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server error' })
   }
   if (!iv) return res.status(404).json({ error: 'Interview not found' })
-  if (!JOINABLE_STATUS.has(iv.status)) {
-    return res.status(410).json({ error: 'This interview has ended.', status: iv.status })
-  }
 
   // Pull the applicant's name for display + LiveKit identity.
   const { data: app } = await supabase
@@ -59,6 +56,22 @@ export default async function handler(req, res) {
     .eq('id', iv.application_id)
     .maybeSingle()
   const displayName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'
+
+  // Slot-picker flow: interview created with proposed_slots and status='proposed'
+  // means the applicant hasn't chosen a time yet. Return the slots so the picker
+  // page can render, and defer LiveKit token minting until after they pick.
+  if (iv.status === 'proposed') {
+    return res.status(200).json({
+      needsSlotPick:   true,
+      proposedSlots:   Array.isArray(iv.proposed_slots) ? iv.proposed_slots : [],
+      durationMinutes: iv.duration_minutes || 30,
+      displayName,
+    })
+  }
+
+  if (!JOINABLE_STATUS.has(iv.status)) {
+    return res.status(410).json({ error: 'This interview has ended.', status: iv.status })
+  }
 
   // Dev fallback — if LiveKit env not set, still return interview metadata
   // so the applicant page can render its pre-join screen for smoke-testing.

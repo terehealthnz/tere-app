@@ -268,6 +268,7 @@ const ROUTES = {
   'verify-acc':                () => import('./_verify-acc.js'),
   'schedule':                  () => import('./_schedule.js'),
   'cron-availability':         () => import('./_cron-availability.js'),
+  'cron-interview-reminders':  () => import('./_cron-interview-reminders.js'),
   'payroll':                   () => import('./_payroll.js'),
   'sms':                       () => import('./_sms.js'),
   'appointments':              () => import('./_appointments.js'),

@@ -37,6 +37,9 @@ import { randomBytes } from 'node:crypto'
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { guardProvider } from './_auth.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
+import { buildInterviewIcs } from './_ics.js'
+import { buildOfferPdf } from './_pdf-builders.js'
+import { encryptForStorage, decryptFromStorage, maskForSummary } from './_onboarding-crypto.js'
 
 function admin() {
   return createClient(
@@ -96,6 +99,71 @@ const DEFAULT_ONBOARDING = [
   { step_key: 'first_shift',      label: 'First live shift scheduled' },
   { step_key: 'welcome_pack',     label: 'Welcome email sent (culture doc, key contacts)' },
 ]
+
+// ── Module-scope interview email helpers (used by anon pick_slot + authed
+// schedule_interview) ───────────────────────────────────────────────────
+
+function getSiteOriginFor(req) {
+  return process.env.PUBLIC_SITE_ORIGIN
+    || (req?.headers?.['x-forwarded-proto'] && req?.headers?.['x-forwarded-host']
+        ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
+        : 'https://terehealth.co.nz')
+}
+
+function fmtNz(iso) {
+  return new Date(iso).toLocaleString('en-NZ', {
+    timeZone: 'Pacific/Auckland', dateStyle: 'full', timeStyle: 'short',
+  })
+}
+
+function emailShell(bodyHtml) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
+  <div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div>
+  <div style="padding:24px 28px">${bodyHtml}</div>
+  <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div>
+</body></html>`
+}
+
+async function sendInterviewConfirmationEmail({ to, name, joinUrl, scheduledAt, durationMin, interviewId, subject, intro }) {
+  const ics = buildInterviewIcs({
+    uid:            `interview-${interviewId}@terehealth.co.nz`,
+    start:          new Date(scheduledAt),
+    durationMin,
+    summary:        'Tere Health interview',
+    description:    `Join link: ${joinUrl}\n\nUse a laptop/desktop with camera + microphone. Chrome, Safari, and Edge all work.`,
+    location:       joinUrl,
+    organiserEmail: 'hello@terehealth.co.nz',
+    organiserName:  'Tere Health',
+  })
+  const firstName = (name || '').split(' ')[0] || 'there'
+  await sendEmail({
+    from: 'Tere Health <hello@terehealth.co.nz>',
+    replyTo: 'terehealthnz@gmail.com',
+    to: [to],
+    subject,
+    html: emailShell(`
+      <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+      <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">${intro}</p>
+      <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 20px">Confirmed for <strong>${fmtNz(scheduledAt)}</strong> (NZ time).</p>
+      <div style="text-align:center;margin:28px 0"><a href="${joinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Join interview →</a></div>
+      <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">A calendar invite is attached — open it once and the event lands in Google Calendar / Outlook / iOS Calendar automatically.</p>
+      <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:12px 0 24px">${joinUrl}</p>
+      <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+    text: [
+      `Kia ora ${firstName},`, '', intro,
+      `Confirmed for ${fmtNz(scheduledAt)} (NZ time).`, '',
+      `Join: ${joinUrl}`, '',
+      'A calendar invite is attached.', '',
+      'Ngā mihi,', 'The Tere Health team',
+    ].join('\n'),
+    attachments: [{
+      filename:    'tere-health-interview.ics',
+      contentType: 'text/calendar; charset=utf-8; method=REQUEST',
+      content:     Buffer.from(ics, 'utf8'),
+    }],
+  })
+}
 
 async function seedOnboardingIfNeeded(supabase, applicationId) {
   const { count } = await supabase.from('onboarding_steps')
@@ -262,6 +330,549 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, id: data?.id })
   }
 
+  // Anon applicant flow — pick a slot from the proposed_slots list.
+  // Token-authed (applicant_join_token), no provider login required.
+  if (req.method === 'POST' && action === 'pick_slot') {
+    const supabase = admin()
+    const { token, slot } = req.body || {}
+    const cleanToken = String(token || '').trim()
+    const cleanSlot  = String(slot || '').trim()
+    if (!cleanToken || cleanToken.length < 20) return res.status(400).json({ error: 'invalid token' })
+    if (!cleanSlot) return res.status(400).json({ error: 'slot required' })
+
+    const { data: iv, error: ivErr } = await supabase
+      .from('job_interviews')
+      .select('id, application_id, room_key, status, proposed_slots, scheduled_at, duration_minutes, interviewer_provider_id')
+      .eq('applicant_join_token', cleanToken)
+      .maybeSingle()
+    if (ivErr || !iv) return res.status(404).json({ error: 'Interview not found' })
+    if (iv.status !== 'proposed') return res.status(409).json({ error: 'This interview is not awaiting a slot pick.', status: iv.status })
+
+    const proposed = Array.isArray(iv.proposed_slots) ? iv.proposed_slots : []
+    if (!proposed.includes(cleanSlot)) {
+      return res.status(400).json({ error: 'Selected slot is not on the proposed list.' })
+    }
+
+    // CAS: only advance from status=proposed → scheduled if still proposed.
+    const { data: updated, error: upErr } = await supabase
+      .from('job_interviews')
+      .update({ scheduled_at: cleanSlot, status: 'scheduled' })
+      .eq('id', iv.id)
+      .eq('status', 'proposed')
+      .select('id, scheduled_at, duration_minutes')
+      .maybeSingle()
+    if (upErr) { console.error('[interview] pick_slot update failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!updated) return res.status(409).json({ error: 'Slot pick lost race — refresh and try again.' })
+
+    // Look up applicant + interviewer for confirmation emails.
+    const [{ data: app }, { data: interviewer }] = await Promise.all([
+      supabase.from('job_applications').select('first_name, last_name, email').eq('id', iv.application_id).maybeSingle(),
+      iv.interviewer_provider_id
+        ? supabase.from('providers').select('first_name, last_name, email').eq('id', iv.interviewer_provider_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ])
+
+    const siteOrigin = getSiteOriginFor(req)
+    const joinUrl = `${siteOrigin}/interview/${cleanToken}`
+    try {
+      const p = []
+      if (app?.email) p.push(sendInterviewConfirmationEmail({
+        to: app.email,
+        name: [app.first_name, app.last_name].filter(Boolean).join(' '),
+        joinUrl,
+        scheduledAt: updated.scheduled_at,
+        durationMin: updated.duration_minutes || 30,
+        interviewId: iv.id,
+        subject: 'Confirmed: your Tere Health interview',
+        intro:   "Thanks for picking a time — you're booked in. Calendar invite attached.",
+      }))
+      if (interviewer?.email) p.push(sendInterviewConfirmationEmail({
+        to: interviewer.email,
+        name: [interviewer.first_name, interviewer.last_name].filter(Boolean).join(' '),
+        joinUrl,
+        scheduledAt: updated.scheduled_at,
+        durationMin: updated.duration_minutes || 30,
+        interviewId: iv.id,
+        subject: `Interview booked: ${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'}`,
+        intro:   `${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'The applicant'} picked a time from the slots you sent. Calendar invite attached.`,
+      }))
+      await Promise.allSettled(p)
+    } catch (e) {
+      console.error('[interview] pick_slot email failed:', e.message)
+    }
+
+    return res.status(200).json({ ok: true, scheduledAt: updated.scheduled_at, joinUrl })
+  }
+
+  // ── Anon offer flow ────────────────────────────────────────────────────
+  //
+  // GET  ?action=offer&token=<t>   → return offer + application details for
+  //                                   the sign page. Only returns rows in
+  //                                   status='sent' — signed / cancelled
+  //                                   rows respond 410 so the page can show
+  //                                   an "already signed" / "cancelled" state.
+  // POST ?action=sign_offer        → applicant submits typed name + optional
+  //                                   canvas PNG signature; server records
+  //                                   ip/ua/timestamp, flips status, and
+  //                                   emails the interviewer to countersign.
+
+  if (req.method === 'GET' && action === 'offer') {
+    const supabase = admin()
+    const token = String(req.query?.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .select('id, application_id, role_title, compensation, start_date, contract_terms, status, applicant_signed_at, countersigned_at, created_at')
+      .eq('applicant_sign_token', token)
+      .maybeSingle()
+    if (oErr) { console.error('[offer] get failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!offer) return res.status(404).json({ error: 'Offer not found' })
+
+    // Not showable to applicant if already signed or cancelled — return
+    // a lightweight body so the page can render the right terminal state.
+    if (offer.status !== 'sent') {
+      return res.status(200).json({
+        offer: {
+          status: offer.status,
+          role_title: offer.role_title,
+          applicant_signed_at: offer.applicant_signed_at,
+          countersigned_at:    offer.countersigned_at,
+        },
+        terminal: true,
+      })
+    }
+
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, email')
+      .eq('id', offer.application_id)
+      .maybeSingle()
+    return res.status(200).json({
+      offer,
+      applicant: app ? { first_name: app.first_name, last_name: app.last_name, email: app.email } : null,
+    })
+  }
+
+  if (req.method === 'POST' && action === 'sign_offer') {
+    const supabase = admin()
+    const { token, typedName, signaturePng } = req.body || {}
+    const cleanToken = String(token || '').trim()
+    const cleanName  = String(typedName || '').trim()
+    if (!cleanToken || cleanToken.length < 20) return res.status(400).json({ error: 'invalid token' })
+    if (cleanName.length < 2 || cleanName.length > 120) {
+      return res.status(400).json({ error: 'Please enter your full name.' })
+    }
+
+    // Cap the signature PNG at ~250 KB. Small canvas produces ~10-30 KB.
+    let png = null
+    if (typeof signaturePng === 'string' && signaturePng.startsWith('data:image/png;base64,')) {
+      if (signaturePng.length > 350_000) return res.status(400).json({ error: 'Signature image too large.' })
+      png = signaturePng
+    }
+
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .select('id, application_id, status')
+      .eq('applicant_sign_token', cleanToken)
+      .maybeSingle()
+    if (oErr) { console.error('[offer] sign lookup failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!offer) return res.status(404).json({ error: 'Offer not found' })
+    if (offer.status !== 'sent') {
+      return res.status(409).json({ error: 'This offer is no longer awaiting your signature.', status: offer.status })
+    }
+
+    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
+    const ua = String(req.headers['user-agent'] || '').slice(0, 400)
+
+    // CAS: only advance if still 'sent'.
+    const { data: updated, error: upErr } = await supabase
+      .from('job_offers')
+      .update({
+        status:                      'applicant_signed',
+        applicant_signed_name:       cleanName,
+        applicant_signed_png:        png,
+        applicant_signed_ip:         ip,
+        applicant_signed_user_agent: ua,
+        applicant_signed_at:         new Date().toISOString(),
+      })
+      .eq('id', offer.id)
+      .eq('status', 'sent')
+      .select('id, application_id, applicant_signed_at')
+      .maybeSingle()
+    if (upErr) { console.error('[offer] sign update failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!updated) return res.status(409).json({ error: 'Offer state changed — please refresh.' })
+
+    // Nudge the internal team to countersign. Best-effort; doesn't block the applicant's 200.
+    try {
+      const { data: app } = await supabase
+        .from('job_applications')
+        .select('first_name, last_name, email')
+        .eq('id', updated.application_id)
+        .maybeSingle()
+      const applicantName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'the applicant'
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      ['terehealthnz@gmail.com'],
+        subject: `Offer signed by ${applicantName} — needs countersign`,
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px"><strong>${applicantName}</strong> has signed their offer letter.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151">Open the applicant panel in Admin to countersign and finalise the PDF.</p>`),
+        text: `${applicantName} signed their offer. Countersign in Admin to finalise the PDF.`,
+      })
+    } catch (e) {
+      console.error('[offer] notify countersign email failed:', e.message)
+    }
+
+    return res.status(200).json({ ok: true, signedAt: updated.applicant_signed_at })
+  }
+
+  // ── Anon reference flow ────────────────────────────────────────────────
+  //
+  // GET  ?action=reference&token=<t>   → return referee context + candidate
+  //                                       name + role so the form page can
+  //                                       render "You've been asked to give
+  //                                       a reference for Jane Cook applying
+  //                                       for Nurse Practitioner at Tere."
+  // POST ?action=submit_reference      → referee submits structured answers.
+
+  if (req.method === 'GET' && action === 'reference') {
+    const supabase = admin()
+    const token = String(req.query?.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+
+    const { data: ref, error: rErr } = await supabase
+      .from('job_references')
+      .select('id, application_id, referee_name, referee_relationship, status, responded_at')
+      .eq('request_token', token)
+      .maybeSingle()
+    if (rErr) { console.error('[reference] get failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!ref) return res.status(404).json({ error: 'Reference not found' })
+
+    if (ref.status !== 'pending') {
+      return res.status(200).json({
+        reference: { status: ref.status, referee_name: ref.referee_name, responded_at: ref.responded_at },
+        terminal: true,
+      })
+    }
+
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, job_listing_id')
+      .eq('id', ref.application_id)
+      .maybeSingle()
+    let listing = null
+    if (app?.job_listing_id) {
+      const { data } = await supabase
+        .from('job_listings')
+        .select('title')
+        .eq('id', app.job_listing_id)
+        .maybeSingle()
+      listing = data
+    }
+    return res.status(200).json({
+      reference: ref,
+      candidate: {
+        first_name: app?.first_name,
+        last_name:  app?.last_name,
+        role:       listing?.title || null,
+      },
+    })
+  }
+
+  if (req.method === 'POST' && action === 'submit_reference') {
+    const supabase = admin()
+    const b = req.body || {}
+    const token = String(b.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+
+    const REHIRE   = new Set(['yes', 'with_reservation', 'no', 'unable_to_say'])
+    const OVERALL  = new Set(['strong', 'positive', 'neutral', 'negative'])
+    const clean = (v, cap) => String(v || '').trim().slice(0, cap)
+    const wouldRehire  = String(b.wouldRehire  || '').trim()
+    const overallRec   = String(b.overallRecommendation || '').trim()
+    if (!REHIRE.has(wouldRehire))    return res.status(400).json({ error: 'wouldRehire required' })
+    if (!OVERALL.has(overallRec))    return res.status(400).json({ error: 'overallRecommendation required' })
+
+    const patch = {
+      status:                  'responded',
+      responded_at:            new Date().toISOString(),
+      responded_ip:            String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64),
+      responded_user_agent:    String(req.headers['user-agent'] || '').slice(0, 400),
+      confirmed_relationship:  clean(b.confirmedRelationship, 400),
+      confirmed_dates:         clean(b.confirmedDates, 200),
+      would_rehire:            wouldRehire,
+      strengths:               clean(b.strengths, 4000),
+      concerns:                clean(b.concerns, 4000),
+      overall_recommendation:  overallRec,
+      additional_comments:     clean(b.additionalComments, 4000),
+    }
+
+    const { data: updated, error: upErr } = await supabase
+      .from('job_references')
+      .update(patch)
+      .eq('request_token', token)
+      .eq('status', 'pending')
+      .select('id, application_id, referee_name')
+      .maybeSingle()
+    if (upErr) { console.error('[reference] submit failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!updated) return res.status(409).json({ error: 'This reference has already been submitted or was cancelled.' })
+
+    // Notify the internal team. Best-effort — doesn't block the referee's 200.
+    try {
+      const { data: app } = await supabase
+        .from('job_applications')
+        .select('first_name, last_name')
+        .eq('id', updated.application_id)
+        .maybeSingle()
+      const candidateName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'the candidate'
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      ['terehealthnz@gmail.com'],
+        subject: `Reference in from ${updated.referee_name} for ${candidateName}`,
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px"><strong>${updated.referee_name}</strong> has submitted a reference for <strong>${candidateName}</strong>.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151">Open the applicant panel to review.</p>`),
+        text: `${updated.referee_name} submitted a reference for ${candidateName}. Review in Admin.`,
+      })
+    } catch (e) {
+      console.error('[reference] notify email failed:', e.message)
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Anon onboarding intake ─────────────────────────────────────────────
+  //
+  // GET  ?action=onboarding&token=<t>
+  //         → returns section completion state + non-secret prefill values.
+  //           Tax + bank fields are NEVER returned decrypted here — the
+  //           applicant fills them once and can't re-view them (they should
+  //           save/remember their own IRD + bank details).
+  //
+  // POST ?action=save_onboarding_section
+  //         Body: { token, section: 1|2|3|4, data: { …fields… }, apcPngBase64?,
+  //                 apcFilename?, signaturePngBase64? }
+  //         → validates + persists that section, stamps its completed_at.
+  //           When all four sections have a completed_at, status flips to
+  //           'complete', completed_at is set, and admin gets notified.
+
+  if (req.method === 'GET' && action === 'onboarding') {
+    const supabase = admin()
+    const token = String(req.query?.token || '').trim()
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+
+    const { data: row, error: rErr } = await supabase
+      .from('job_onboarding_intake')
+      .select('id, application_id, status, preferred_name, date_of_birth, home_address, mobile, emergency_contact_name, emergency_contact_relationship, emergency_contact_phone, kiwisaver_rate, mcnz_registration_number, apc_expiry_date, apc_storage_key, hpi_cpn, prescriber_number, scope_of_practice, signature_storage_key, section_1_completed_at, section_2_completed_at, section_3_completed_at, section_4_completed_at, completed_at')
+      .eq('setup_token', token)
+      .maybeSingle()
+    if (rErr) { console.error('[onboarding] get failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!row) return res.status(404).json({ error: 'Onboarding not found' })
+
+    if (row.status === 'cancelled') {
+      return res.status(200).json({ terminal: true, status: 'cancelled' })
+    }
+
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, email')
+      .eq('id', row.application_id)
+      .maybeSingle()
+
+    // Never leak the encrypted-at-rest fields even in decrypted form here.
+    // Applicant confirms what they typed via the section-2 completed timestamp.
+    return res.status(200).json({
+      intake: {
+        id: row.id,
+        status: row.status,
+        completed_at: row.completed_at,
+        section_1: {
+          completed_at: row.section_1_completed_at,
+          preferred_name: row.preferred_name,
+          date_of_birth: row.date_of_birth,
+          home_address: row.home_address,
+          mobile: row.mobile,
+          emergency_contact_name: row.emergency_contact_name,
+          emergency_contact_relationship: row.emergency_contact_relationship,
+          emergency_contact_phone: row.emergency_contact_phone,
+        },
+        section_2: {
+          completed_at: row.section_2_completed_at,
+          kiwisaver_rate: row.kiwisaver_rate,   // low-sensitivity, safe to prefill
+        },
+        section_3: {
+          completed_at: row.section_3_completed_at,
+          mcnz_registration_number: row.mcnz_registration_number,
+          apc_expiry_date: row.apc_expiry_date,
+          apc_uploaded: !!row.apc_storage_key,
+          hpi_cpn: row.hpi_cpn,
+          prescriber_number: row.prescriber_number,
+          scope_of_practice: row.scope_of_practice,
+        },
+        section_4: {
+          completed_at: row.section_4_completed_at,
+          signature_uploaded: !!row.signature_storage_key,
+        },
+      },
+      applicant: app ? { first_name: app.first_name, last_name: app.last_name } : null,
+    })
+  }
+
+  if (req.method === 'POST' && action === 'save_onboarding_section') {
+    const supabase = admin()
+    const b = req.body || {}
+    const token   = String(b.token || '').trim()
+    const section = Number(b.section)
+    if (!token || token.length < 20) return res.status(400).json({ error: 'invalid token' })
+    if (![1, 2, 3, 4].includes(section)) return res.status(400).json({ error: 'section must be 1|2|3|4' })
+    const data = b.data || {}
+
+    const { data: row, error: rErr } = await supabase
+      .from('job_onboarding_intake')
+      .select('id, application_id, status, section_1_completed_at, section_2_completed_at, section_3_completed_at, section_4_completed_at')
+      .eq('setup_token', token)
+      .maybeSingle()
+    if (rErr) { console.error('[onboarding] save lookup failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!row) return res.status(404).json({ error: 'Onboarding not found' })
+    if (['cancelled', 'processed'].includes(row.status)) {
+      return res.status(409).json({ error: `Onboarding is ${row.status} — no further edits accepted.` })
+    }
+
+    const clean = (v, cap) => {
+      const s = String(v == null ? '' : v).trim()
+      return s.length > cap ? s.slice(0, cap) : s
+    }
+    const isoDate = (v) => {
+      const s = String(v || '').trim()
+      if (!s) return null
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+      return s
+    }
+    const now = new Date().toISOString()
+    const patch = { status: 'in_progress' }
+
+    if (section === 1) {
+      if (clean(data.preferred_name, 200).length < 1)   return res.status(400).json({ error: 'preferred_name required' })
+      if (clean(data.mobile, 40).length < 6)            return res.status(400).json({ error: 'mobile required' })
+      if (clean(data.home_address, 400).length < 4)     return res.status(400).json({ error: 'home_address required' })
+      if (clean(data.emergency_contact_name, 200).length < 1) return res.status(400).json({ error: 'emergency contact name required' })
+      if (clean(data.emergency_contact_phone, 40).length < 6) return res.status(400).json({ error: 'emergency contact phone required' })
+      Object.assign(patch, {
+        preferred_name:                 clean(data.preferred_name, 200),
+        date_of_birth:                  isoDate(data.date_of_birth),
+        home_address:                   clean(data.home_address, 400),
+        mobile:                         clean(data.mobile, 40),
+        emergency_contact_name:         clean(data.emergency_contact_name, 200),
+        emergency_contact_relationship: clean(data.emergency_contact_relationship, 120),
+        emergency_contact_phone:        clean(data.emergency_contact_phone, 40),
+        section_1_completed_at:         now,
+      })
+    }
+
+    if (section === 2) {
+      const ird  = clean(data.ird_number, 20)
+      const bank = clean(data.bank_account, 40)
+      const ks   = clean(data.kiwisaver_rate, 10)
+      if (ird.length < 8)   return res.status(400).json({ error: 'IRD number required (8-9 digits)' })
+      if (bank.length < 15) return res.status(400).json({ error: 'bank account required (NZ 16-17 digit format)' })
+      if (!['3','4','6','8','10','opt_out'].includes(ks)) return res.status(400).json({ error: 'kiwisaver_rate must be 3|4|6|8|10|opt_out' })
+      Object.assign(patch, {
+        ird_number_enc:         encryptForStorage(ird),
+        bank_account_enc:       encryptForStorage(bank),
+        kiwisaver_rate:         ks,
+        section_2_completed_at: now,
+      })
+    }
+
+    if (section === 3) {
+      const mcnz = clean(data.mcnz_registration_number, 30)
+      if (mcnz.length < 3)  return res.status(400).json({ error: 'MCNZ registration number required' })
+      if (!isoDate(data.apc_expiry_date)) return res.status(400).json({ error: 'APC expiry date required (YYYY-MM-DD)' })
+      Object.assign(patch, {
+        mcnz_registration_number: mcnz,
+        apc_expiry_date:          isoDate(data.apc_expiry_date),
+        hpi_cpn:                  clean(data.hpi_cpn, 30),
+        prescriber_number:        clean(data.prescriber_number, 20),
+        scope_of_practice:        clean(data.scope_of_practice, 200),
+        section_3_completed_at:   now,
+      })
+
+      // Optional APC PDF upload — small file so accepting base64 is fine.
+      if (typeof b.apcPngBase64 === 'string' && b.apcPngBase64.startsWith('data:application/pdf;base64,')) {
+        if (b.apcPngBase64.length > 6_000_000) return res.status(400).json({ error: 'APC PDF too large (max ~4 MB)' })
+        const raw = b.apcPngBase64.slice('data:application/pdf;base64,'.length)
+        const buf = Buffer.from(raw, 'base64')
+        const key = `${row.id}-apc.pdf`
+        const { error: upErr } = await supabase.storage.from('onboarding')
+          .upload(key, buf, { contentType: 'application/pdf', upsert: true, cacheControl: '0' })
+        if (upErr) { console.error('[onboarding] APC upload failed:', upErr); return res.status(500).json({ error: 'APC upload failed' }) }
+        patch.apc_storage_key = key
+      }
+    }
+
+    if (section === 4) {
+      if (typeof b.signaturePngBase64 !== 'string' || !b.signaturePngBase64.startsWith('data:image/png;base64,')) {
+        return res.status(400).json({ error: 'signature PNG required' })
+      }
+      if (b.signaturePngBase64.length > 350_000) return res.status(400).json({ error: 'Signature image too large' })
+      const raw = b.signaturePngBase64.slice('data:image/png;base64,'.length)
+      const buf = Buffer.from(raw, 'base64')
+      const key = `${row.id}-sig.png`
+      const { error: upErr } = await supabase.storage.from('onboarding')
+        .upload(key, buf, { contentType: 'image/png', upsert: true, cacheControl: '0' })
+      if (upErr) { console.error('[onboarding] sig upload failed:', upErr); return res.status(500).json({ error: 'Signature upload failed' }) }
+      patch.signature_storage_key = key
+      patch.section_4_completed_at = now
+    }
+
+    // Compute whether all four sections are done AFTER this write.
+    const oldFlags = [row.section_1_completed_at, row.section_2_completed_at, row.section_3_completed_at, row.section_4_completed_at]
+    const flags = oldFlags.map((v, i) => (i + 1 === section) ? now : v)
+    const wasComplete = row.status === 'complete' || row.status === 'processed'
+    const nowComplete = flags.every(Boolean)
+    if (nowComplete && !wasComplete) {
+      patch.status = 'complete'
+      patch.completed_at = now
+    }
+
+    const { data: updated, error: upErr2 } = await supabase
+      .from('job_onboarding_intake')
+      .update(patch)
+      .eq('id', row.id)
+      .select('id, application_id, status, completed_at')
+      .maybeSingle()
+    if (upErr2) { console.error('[onboarding] update failed:', upErr2); return res.status(500).json({ error: 'Server error' }) }
+
+    // Only fire the notification on the first transition to complete.
+    if (nowComplete && !wasComplete) {
+      try {
+        const { data: app } = await supabase
+          .from('job_applications')
+          .select('first_name, last_name')
+          .eq('id', updated.application_id)
+          .maybeSingle()
+        const candidateName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'a new hire'
+        await sendEmail({
+          from:    'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to:      ['terehealthnz@gmail.com'],
+          subject: `Onboarding intake complete — ${candidateName}`,
+          html: emailShell(`
+            <p style="font-size:15px;margin:0 0 16px"><strong>${candidateName}</strong> has finished all four onboarding sections.</p>
+            <p style="font-size:15px;line-height:1.7;color:#374151">Open the applicant panel in Admin to review and create their provider account.</p>`),
+          text: `${candidateName} finished onboarding intake — review + create provider in Admin.`,
+        })
+      } catch (e) {
+        console.error('[onboarding] complete notify email failed:', e.message)
+      }
+    }
+
+    return res.status(200).json({ ok: true, status: updated?.status, completed_at: updated?.completed_at })
+  }
+
   // Everything below requires provider auth.
   const auth = await guardProvider(req, res)
   if (!auth) return
@@ -362,12 +973,87 @@ export default async function handler(req, res) {
     return { token: await at.toJwt(), serverUrl: LK_URL }
   }
 
+  // Invite email that either (a) joins straight to the video room (instant /
+  // pre-scheduled), or (b) links to a picker page so the applicant chooses
+  // from N proposed slots. Uses module-scope helpers (emailShell, fmtNz).
+  async function sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots }) {
+    const firstName = app.first_name || 'there'
+    let bodyMain
+    if (proposedSlots?.length) {
+      const listHtml = proposedSlots.map(s => `<li>${fmtNz(s)}</li>`).join('')
+      bodyMain = `
+        <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat — please pick a time that suits from the options below.</p>
+        <ul style="font-size:14px;color:#374151;line-height:1.8;margin:0 0 20px;padding-left:20px">${listHtml}</ul>
+        <div style="text-align:center;margin:28px 0"><a href="${pickerUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Pick a time →</a></div>
+        <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
+        <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${pickerUrl}</p>`
+    } else {
+      const whenLine = isInstant
+        ? 'Your interviewer is ready now — the link below joins you straight to the video room.'
+        : `Scheduled for <strong>${fmtNz(scheduledAt)}</strong> (NZ time).`
+      bodyMain = `
+        <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat.</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 20px">${whenLine}</p>
+        <div style="text-align:center;margin:28px 0"><a href="${joinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Join interview →</a></div>
+        <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
+        <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${joinUrl}</p>`
+    }
+    const html = emailShell(bodyMain + `
+        <div style="background:#F0F9FA;border-radius:8px;padding:12px 16px;font-size:13px;color:#0D2B45">
+          <strong>Before you join:</strong> use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.
+        </div>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`)
+
+    const textLines = proposedSlots?.length
+      ? [
+          `Kia ora ${firstName},`, '',
+          "Thanks for applying to Tere Health. Please pick a time that suits:",
+          ...proposedSlots.map(s => `  • ${fmtNz(s)}`), '',
+          `Pick a time: ${pickerUrl}`, '',
+        ]
+      : [
+          `Kia ora ${firstName},`, '',
+          "Thanks for applying to Tere Health. We'd love to have a chat.",
+          isInstant
+            ? 'Your interviewer is ready now.'
+            : `Scheduled for ${fmtNz(scheduledAt)} (NZ time).`, '',
+          `Join your interview: ${joinUrl}`, '',
+        ]
+    textLines.push(
+      "Before you join: use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.",
+      '', 'Ngā mihi,', 'The Tere Health team', 'terehealth.co.nz',
+    )
+
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: [app.email],
+      subject: proposedSlots?.length ? 'Pick a time for your Tere Health interview' : 'Your Tere Health interview',
+      html,
+      text: textLines.join('\n'),
+    })
+  }
+
   // Schedule (or immediately create) an interview.
+  //
+  // Body shape:
+  //   { mode: 'instant' }                              → send join link now
+  //   { scheduledAt: <ISO> }                           → single confirmed time
+  //   { proposedSlots: [<ISO>, <ISO>, ...] }           → picker flow: applicant
+  //                                                       picks one via /interview/pick/:token
+  //   { durationMinutes: <int> }                       → default 30, used for .ics
   if (req.method === 'POST' && action === 'schedule_interview') {
     if (!id) return res.status(400).json({ error: 'id (application_id) required' })
-    const { scheduledAt, mode } = req.body || {}
-    const isInstant = mode === 'instant' || !scheduledAt
-    const provider = auth.provider || {}
+    const { scheduledAt, mode, proposedSlots, durationMinutes } = req.body || {}
+    const validSlots = Array.isArray(proposedSlots)
+      ? proposedSlots.filter(s => typeof s === 'string' && !isNaN(new Date(s).getTime()))
+      : []
+    const isPicker  = validSlots.length > 0
+    const isInstant = !isPicker && (mode === 'instant' || !scheduledAt)
+    const duration  = Math.max(15, Math.min(240, Number(durationMinutes) || 30))
+    const provider  = auth.provider || {}
 
     const { data: app, error: appErr } = await supabase
       .from('job_applications')
@@ -386,8 +1072,10 @@ export default async function handler(req, res) {
         interviewer_provider_id: provider.id || null,
         room_key:               roomKey,
         applicant_join_token:   joinTok,
-        scheduled_at:           isInstant ? null : scheduledAt,
-        status:                 isInstant ? 'instant' : 'scheduled',
+        scheduled_at:           isPicker ? null : (isInstant ? null : scheduledAt),
+        proposed_slots:         isPicker ? validSlots : null,
+        duration_minutes:       duration,
+        status:                 isPicker ? 'proposed' : (isInstant ? 'instant' : 'scheduled'),
         created_by_provider_id: provider.id || null,
       })
       .select('*')
@@ -404,49 +1092,22 @@ export default async function handler(req, res) {
       .in('status', ['new', 'reviewing'])
       .then(() => {}, () => {})
 
-    // Email the applicant.
-    const siteOrigin = process.env.PUBLIC_SITE_ORIGIN
-      || (req.headers['x-forwarded-proto'] && req.headers['x-forwarded-host']
-          ? `${req.headers['x-forwarded-proto']}://${req.headers['x-forwarded-host']}`
-          : 'https://terehealth.co.nz')
-    const joinUrl = `${siteOrigin}/interview/${joinTok}`
-    const firstName = app.first_name || 'there'
-    const whenLine = isInstant
-      ? 'Your interviewer is ready now — the link below joins you straight to the video room.'
-      : `Scheduled for <strong>${new Date(scheduledAt).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'full', timeStyle: 'short' })}</strong> (NZ time).`
-
+    const siteOrigin = getSiteOriginFor(req)
+    const joinUrl   = `${siteOrigin}/interview/${joinTok}`
+    const pickerUrl = `${siteOrigin}/interview/pick/${joinTok}`
     try {
-      await sendEmail({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: [app.email],
-        subject: 'Your Tere Health interview',
-        html: `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
-  <div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div>
-  <div style="padding:24px 28px">
-    <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat.</p>
-    <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 20px">${whenLine}</p>
-    <div style="text-align:center;margin:28px 0"><a href="${joinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Join interview →</a></div>
-    <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
-    <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${joinUrl}</p>
-    <div style="background:#F0F9FA;border-radius:8px;padding:12px 16px;font-size:13px;color:#0D2B45">
-      <strong>Before you join:</strong> use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.
-    </div>
-    <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>
-  </div>
-  <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div>
-</body></html>`,
-        text: `Kia ora ${firstName},\n\nThanks for applying to Tere Health. We'd love to have a chat.\n\n${whenLine.replace(/<[^>]+>/g, '')}\n\nJoin your interview: ${joinUrl}\n\nBefore you join: use a laptop or desktop if you can. You'll need a working camera + microphone. Chrome, Safari, and Edge all work.\n\nNgā mihi,\nThe Tere Health team\nterehealth.co.nz`,
-      })
+      await sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots: isPicker ? validSlots : null })
     } catch (e) {
-      console.error('[interview] email send failed:', e.message)
-      // Don't fail the request — admin can copy the joinUrl from the response
+      console.error('[interview] invite email send failed:', e.message)
+      // Don't fail the request — admin can copy the URL from the response
       // and message the applicant manually.
     }
 
-    return res.status(200).json({ interview: iv, joinUrl })
+    return res.status(200).json({
+      interview: iv,
+      joinUrl,
+      ...(isPicker ? { pickerUrl } : {}),
+    })
   }
 
   // List interviews for an application.
@@ -553,6 +1214,540 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id required' })
     const { error } = await supabase.from('job_applications').delete().eq('id', id)
     if (error) { console.error('[job-applications] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Authed offer flow ──────────────────────────────────────────────────
+  //
+  // POST  ?action=create_offer&id=<applicationId>
+  //         Body: { roleTitle, compensation, startDate?, contractTerms }
+  //         → creates a job_offers row (status='sent'), flips application
+  //           status to 'offer', emails applicant a sign link.
+  //
+  // POST  ?action=countersign_offer&id=<offerId>
+  //         Body: { signerName }   (uses signed-in provider's signature_url)
+  //         → renders final dual-signed PDF, uploads to `offers` bucket,
+  //           persists pdf_storage_key, flips status to 'countersigned',
+  //           emails applicant the final signed PDF via signed URL.
+  //
+  // GET   ?action=offers&id=<applicationId>
+  //         → list offers for an application (latest first)
+  //
+  // GET   ?action=offer_pdf&id=<offerId>
+  //         → returns a short-lived signed URL to the countersigned PDF.
+  //
+  // POST  ?action=cancel_offer&id=<offerId>
+  //         → status='cancelled'; used if offer is withdrawn before signing.
+
+  if (req.method === 'POST' && action === 'create_offer') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { roleTitle, compensation, startDate, contractTerms } = req.body || {}
+    const rt = String(roleTitle    || '').trim()
+    const cp = String(compensation || '').trim()
+    const ct = String(contractTerms|| '').trim()
+    if (rt.length < 2 || rt.length > 200) return res.status(400).json({ error: 'roleTitle 2-200 chars required' })
+    if (cp.length < 2 || cp.length > 200) return res.status(400).json({ error: 'compensation 2-200 chars required' })
+    if (ct.length < 20)                    return res.status(400).json({ error: 'contractTerms must be at least a short paragraph' })
+    if (ct.length > 20_000)                return res.status(400).json({ error: 'contractTerms too large (max 20k chars)' })
+    const sd = startDate ? String(startDate).trim() : null
+
+    const { data: app, error: appErr } = await supabase
+      .from('job_applications')
+      .select('id, first_name, last_name, email')
+      .eq('id', id)
+      .maybeSingle()
+    if (appErr || !app) return res.status(404).json({ error: 'Application not found' })
+
+    const signToken = randomBytes(24).toString('base64url')
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .insert({
+        application_id:          id,
+        created_by_provider_id:  auth.provider?.id || null,
+        role_title:              rt,
+        compensation:            cp,
+        start_date:              sd || null,
+        contract_terms:          ct,
+        applicant_sign_token:    signToken,
+        status:                  'sent',
+      })
+      .select('*')
+      .maybeSingle()
+    if (oErr) { console.error('[offer] insert failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
+
+    // Move the application forward if it's not already at offer/hired.
+    supabase.from('job_applications')
+      .update({ status: 'offer' })
+      .eq('id', id)
+      .in('status', ['new', 'reviewing', 'interview'])
+      .then(() => {}, () => {})
+
+    const siteOrigin = getSiteOriginFor(req)
+    const signUrl    = `${siteOrigin}/offer/sign/${signToken}`
+
+    // Email applicant with the sign link.
+    if (app.email) {
+      try {
+        const firstName = app.first_name || 'there'
+        await sendEmail({
+          from:    'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to:      [app.email],
+          subject: `Your Tere Health offer — ${rt}`,
+          html: emailShell(`
+            <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+            <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">We'd love to have you join Tere Health. Your letter of offer is ready to review and sign online.</p>
+            <div style="background:#F0F9FA;border-radius:8px;padding:14px 16px;margin:0 0 20px;font-size:14px;color:#0D2B45">
+              <div><strong>Role:</strong> ${rt}</div>
+              <div style="margin-top:4px"><strong>Compensation:</strong> ${cp}</div>
+              ${sd ? `<div style="margin-top:4px"><strong>Start date:</strong> ${new Date(sd).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })}</div>` : ''}
+            </div>
+            <div style="text-align:center;margin:28px 0"><a href="${signUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Review &amp; sign →</a></div>
+            <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or open this link:</p>
+            <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${signUrl}</p>
+            <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+          text: [
+            `Kia ora ${firstName},`, '',
+            'Your Tere Health letter of offer is ready to review and sign online.', '',
+            `Role: ${rt}`,
+            `Compensation: ${cp}`,
+            sd ? `Start date: ${new Date(sd).toLocaleDateString('en-NZ')}` : null,
+            '',
+            `Review & sign: ${signUrl}`,
+            '', 'Ngā mihi,', 'The Tere Health team',
+          ].filter(Boolean).join('\n'),
+        })
+      } catch (e) {
+        console.error('[offer] applicant sign email failed:', e.message)
+      }
+    }
+
+    return res.status(200).json({ offer, signUrl })
+  }
+
+  if (req.method === 'GET' && action === 'offers') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data, error } = await supabase
+      .from('job_offers')
+      .select('id, application_id, role_title, compensation, start_date, contract_terms, status, applicant_signed_name, applicant_signed_at, countersigned_name, countersigned_at, pdf_storage_key, created_at, applicant_sign_token')
+      .eq('application_id', id)
+      .order('created_at', { ascending: false })
+    if (error) { console.error('[offer] list failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ offers: data || [] })
+  }
+
+  if (req.method === 'GET' && action === 'offer_pdf') {
+    if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
+    const { data: offer } = await supabase
+      .from('job_offers')
+      .select('pdf_storage_key')
+      .eq('id', id)
+      .maybeSingle()
+    if (!offer?.pdf_storage_key) return res.status(404).json({ error: 'PDF not generated yet' })
+    const { data: signed, error: sErr } = await supabase.storage.from('offers')
+      .createSignedUrl(offer.pdf_storage_key, 300)   // 5-min window; admin viewer only
+    if (sErr || !signed?.signedUrl) { console.error('[offer] sign PDF failed:', sErr); return res.status(500).json({ error: 'Sign failed' }) }
+    return res.status(200).json({ signedUrl: signed.signedUrl })
+  }
+
+  if (req.method === 'POST' && action === 'cancel_offer') {
+    if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
+    const { error } = await supabase.from('job_offers')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .in('status', ['sent', 'applicant_signed'])
+    if (error) { console.error('[offer] cancel failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  if (req.method === 'POST' && action === 'countersign_offer') {
+    if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
+    const { signerName } = req.body || {}
+    const clean = String(signerName || '').trim()
+    if (clean.length < 2 || clean.length > 120) {
+      return res.status(400).json({ error: 'signerName 2-120 chars required' })
+    }
+
+    // Load offer + application + Tere signer.
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (oErr || !offer) return res.status(404).json({ error: 'Offer not found' })
+    if (offer.status !== 'applicant_signed') {
+      return res.status(409).json({ error: `Offer is ${offer.status} — countersign requires applicant_signed`, status: offer.status })
+    }
+
+    const [{ data: app }, { data: signer }] = await Promise.all([
+      supabase.from('job_applications').select('first_name, last_name, email').eq('id', offer.application_id).maybeSingle(),
+      supabase.from('providers').select('first_name, last_name, signature_url, specialty').eq('id', auth.provider?.id).maybeSingle(),
+    ])
+
+    // Build the final PDF.
+    let pdfBuffer
+    try {
+      pdfBuffer = await buildOfferPdf({
+        application: app || {},
+        offer: { ...offer, countersigned_name: clean, countersigned_at: new Date().toISOString() },
+        tereSigner: {
+          first_name:    signer?.first_name,
+          last_name:     signer?.last_name,
+          title:         signer?.specialty || null,
+          signature_url: signer?.signature_url || null,
+        },
+      })
+    } catch (e) {
+      console.error('[offer] PDF build failed:', e.message)
+      return res.status(500).json({ error: 'PDF build failed' })
+    }
+
+    // Ensure bucket exists (idempotent — noop if declared via migration).
+    try { await supabase.storage.createBucket('offers', { public: false }) } catch { /* exists */ }
+
+    const path = `${offer.id}.pdf`
+    const { error: upErr } = await supabase.storage.from('offers')
+      .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: true, cacheControl: '0' })
+    if (upErr) { console.error('[offer] upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
+
+    // Flip status + persist countersign metadata + PDF key.
+    const { error: fErr } = await supabase.from('job_offers').update({
+      status:                       'countersigned',
+      countersigned_by_provider_id: auth.provider?.id || null,
+      countersigned_name:           clean,
+      countersigned_at:             new Date().toISOString(),
+      pdf_storage_key:              path,
+    }).eq('id', offer.id)
+    if (fErr) { console.error('[offer] finalise failed:', fErr); return res.status(500).json({ error: 'Server error' }) }
+
+    // Email applicant a signed URL of the final PDF. Non-blocking.
+    try {
+      const { data: signed } = await supabase.storage.from('offers')
+        .createSignedUrl(path, 60 * 60 * 24 * 7)   // 7d window; enough to save/download
+      if (signed?.signedUrl && app?.email) {
+        const firstName = app.first_name || 'there'
+        await sendEmail({
+          from:    'Tere Health <hello@terehealth.co.nz>',
+          replyTo: 'terehealthnz@gmail.com',
+          to:      [app.email],
+          subject: 'Your fully-signed Tere Health offer',
+          html: emailShell(`
+            <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+            <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Welcome aboard  Both signatures are now on the letter of offer. Please download and keep a copy for your records.</p>
+            <div style="text-align:center;margin:28px 0"><a href="${signed.signedUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Download signed PDF →</a></div>
+            <p style="font-size:12px;color:#9CA3AF;line-height:1.6">The link stays live for one week. If you need a fresh copy after that, reply to this email.</p>
+            <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+          text: [
+            `Kia ora ${firstName},`, '',
+            'Both signatures are now on your letter of offer.',
+            'Download it here (link expires in one week):', signed.signedUrl,
+            '', 'Ngā mihi,', 'The Tere Health team',
+          ].join('\n'),
+        })
+      }
+    } catch (e) {
+      console.error('[offer] final PDF email failed:', e.message)
+    }
+
+    return res.status(200).json({ ok: true, offerId: offer.id })
+  }
+
+  // ── Authed reference flow ──────────────────────────────────────────────
+  //
+  // POST ?action=request_reference&id=<applicationId>
+  //         Body: { refereeName, refereeEmail, refereePhone?, refereeRelationship? }
+  //         → creates job_references row, emails referee a token'd link.
+  //
+  // GET  ?action=references&id=<applicationId>
+  //         → list references for an application (latest first).
+  //
+  // POST ?action=cancel_reference&id=<referenceId>
+  //         → status='cancelled'. Referee link still works but shows terminal.
+
+  if (req.method === 'POST' && action === 'request_reference') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const b = req.body || {}
+    const name  = String(b.refereeName        || '').trim()
+    const email = String(b.refereeEmail       || '').trim().toLowerCase()
+    const phone = String(b.refereePhone       || '').trim()
+    const rel   = String(b.refereeRelationship|| '').trim()
+    if (name.length < 2 || name.length > 120)   return res.status(400).json({ error: 'refereeName 2-120 chars required' })
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'refereeEmail is not a valid email' })
+
+    const { data: app, error: aErr } = await supabase
+      .from('job_applications')
+      .select('id, first_name, last_name, job_listing_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (aErr || !app) return res.status(404).json({ error: 'Application not found' })
+
+    let roleTitle = 'a role at Tere Health'
+    if (app.job_listing_id) {
+      const { data: listing } = await supabase.from('job_listings').select('title').eq('id', app.job_listing_id).maybeSingle()
+      if (listing?.title) roleTitle = listing.title
+    }
+
+    const requestToken = randomBytes(24).toString('base64url')
+    const { data: ref, error: rErr } = await supabase
+      .from('job_references')
+      .insert({
+        application_id:         id,
+        created_by_provider_id: auth.provider?.id || null,
+        referee_name:           name,
+        referee_email:          email,
+        referee_phone:          phone || null,
+        referee_relationship:   rel || null,
+        request_token:          requestToken,
+        status:                 'pending',
+      })
+      .select('*')
+      .maybeSingle()
+    if (rErr) { console.error('[reference] insert failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
+
+    const candidateName = [app.first_name, app.last_name].filter(Boolean).join(' ') || 'a candidate'
+    const siteOrigin    = getSiteOriginFor(req)
+    const respondUrl    = `${siteOrigin}/reference/respond/${requestToken}`
+
+    try {
+      const firstName = name.split(' ')[0] || 'there'
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      [email],
+        subject: `Reference request for ${candidateName} — Tere Health`,
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+            <strong>${candidateName}</strong> has applied for <strong>${roleTitle}</strong> at Tere Health and listed you as a referee.
+            We'd be grateful if you could take five minutes to answer a few short questions about them.
+          </p>
+          ${rel ? `<p style="font-size:13px;color:#6B7280;margin:0 0 16px"><em>Noted relationship: ${rel}</em></p>` : ''}
+          <div style="text-align:center;margin:28px 0"><a href="${respondUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Give a reference →</a></div>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or paste this link into your browser:</p>
+          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${respondUrl}</p>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6">Your response is confidential and shared only with the Tere Health hiring team. If you'd rather not give a reference, you can safely ignore this email or reply directly.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+        text: [
+          `Kia ora ${firstName},`, '',
+          `${candidateName} has applied for ${roleTitle} at Tere Health and listed you as a referee.`,
+          "Would you take five minutes to answer a few short questions?", '',
+          `Give a reference: ${respondUrl}`, '',
+          "Your response is confidential. If you'd rather not, ignore this email or reply.",
+          '', 'Ngā mihi,', 'The Tere Health team',
+        ].join('\n'),
+      })
+    } catch (e) {
+      console.error('[reference] send request email failed:', e.message)
+      // Don't fail the request — admin sees the URL in the response.
+    }
+
+    return res.status(200).json({ reference: ref, respondUrl })
+  }
+
+  if (req.method === 'GET' && action === 'references') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data, error } = await supabase
+      .from('job_references')
+      .select('*')
+      .eq('application_id', id)
+      .order('created_at', { ascending: false })
+    if (error) { console.error('[reference] list failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ references: data || [] })
+  }
+
+  if (req.method === 'POST' && action === 'cancel_reference') {
+    if (!id) return res.status(400).json({ error: 'id (reference_id) required' })
+    const { error } = await supabase.from('job_references')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .eq('status', 'pending')
+    if (error) { console.error('[reference] cancel failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true })
+  }
+
+  // ── Authed onboarding intake ───────────────────────────────────────────
+  //
+  // POST ?action=create_onboarding_intake&id=<applicationId>
+  //         → create the intake row (or return existing), email applicant
+  //           the setup link. Idempotent — safe to click twice.
+  //
+  // GET  ?action=onboarding_intake&id=<applicationId>
+  //         → admin view of intake state. Secrets stay encrypted; caller
+  //           gets last-4 masks for tax/bank. Use reveal_onboarding_secret
+  //           to see the full value (audit-logged).
+  //
+  // POST ?action=reveal_onboarding_secret&id=<intakeId>
+  //         Body: { field: 'ird_number' | 'bank_account' }
+  //         → decrypts + returns the full value, writes an audit-log entry.
+  //
+  // GET  ?action=onboarding_file&id=<intakeId>&kind=apc|signature
+  //         → short-lived signed URL for the private onboarding bucket file.
+  //
+  // POST ?action=cancel_onboarding&id=<applicationId>
+  //         → status=cancelled. Applicant link shows cancelled state.
+
+  if (req.method === 'POST' && action === 'create_onboarding_intake') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data: app, error: aErr } = await supabase
+      .from('job_applications')
+      .select('id, first_name, last_name, email')
+      .eq('id', id)
+      .maybeSingle()
+    if (aErr || !app) return res.status(404).json({ error: 'Application not found' })
+    if (!app.email) return res.status(400).json({ error: 'Applicant has no email on file' })
+
+    // Idempotent — reuse if a row already exists.
+    const { data: existing } = await supabase
+      .from('job_onboarding_intake')
+      .select('*')
+      .eq('application_id', id)
+      .maybeSingle()
+
+    let row = existing
+    if (!row) {
+      const setupToken = randomBytes(24).toString('base64url')
+      const { data: created, error: cErr } = await supabase
+        .from('job_onboarding_intake')
+        .insert({
+          application_id:         id,
+          created_by_provider_id: auth.provider?.id || null,
+          setup_token:            setupToken,
+          status:                 'pending',
+        })
+        .select('*')
+        .maybeSingle()
+      if (cErr) { console.error('[onboarding] create failed:', cErr); return res.status(500).json({ error: 'Server error' }) }
+      row = created
+    }
+
+    const siteOrigin = getSiteOriginFor(req)
+    const setupUrl   = `${siteOrigin}/onboarding/setup/${row.setup_token}`
+
+    try {
+      const firstName = app.first_name || 'there'
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      [app.email],
+        subject: 'Welcome to Tere Health — a few details to get you set up',
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">
+            Welcome to the team  Before we can create your provider account and get you into training, we need a few details.
+            The form takes about 10 minutes and has four short sections:
+          </p>
+          <ol style="font-size:14px;color:#374151;line-height:1.8;margin:0 0 20px;padding-left:22px">
+            <li>Personal &amp; emergency contact</li>
+            <li>Payroll (IRD, bank, KiwiSaver) — encrypted end-to-end</li>
+            <li>Clinical credentials (MCNZ registration, APC PDF, HPI-CPN)</li>
+            <li>Your signature</li>
+          </ol>
+          <div style="text-align:center;margin:28px 0"><a href="${setupUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Start onboarding →</a></div>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or paste this link into your browser:</p>
+          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${setupUrl}</p>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6">You can save partway through each section and come back later using the same link.</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+        text: [
+          `Kia ora ${firstName},`, '',
+          'Welcome  Before we can create your provider account we need a few details.',
+          '',
+          'Four short sections — personal, payroll, credentials, signature. About 10 minutes.',
+          '',
+          `Start onboarding: ${setupUrl}`, '',
+          "You can save partway through each section and come back.",
+          '', 'Ngā mihi,', 'The Tere Health team',
+        ].join('\n'),
+      })
+    } catch (e) {
+      console.error('[onboarding] setup email failed:', e.message)
+      // Non-fatal — admin can copy the URL from the response.
+    }
+
+    return res.status(200).json({ intake: row, setupUrl })
+  }
+
+  if (req.method === 'GET' && action === 'onboarding_intake') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { data: row, error: rErr } = await supabase
+      .from('job_onboarding_intake')
+      .select('*')
+      .eq('application_id', id)
+      .maybeSingle()
+    if (rErr) { console.error('[onboarding] admin get failed:', rErr); return res.status(500).json({ error: 'Server error' }) }
+    if (!row) return res.status(200).json({ intake: null })
+
+    // Decrypt only for masking — never leak the full value here.
+    let irdMask = '', bankMask = ''
+    try {
+      if (row.ird_number_enc)  irdMask  = maskForSummary(decryptFromStorage(row.ird_number_enc))
+      if (row.bank_account_enc) bankMask = maskForSummary(decryptFromStorage(row.bank_account_enc))
+    } catch (e) {
+      console.error('[onboarding] decrypt for mask failed:', e.message)
+    }
+
+    const { ird_number_enc, bank_account_enc, ...safe } = row
+    return res.status(200).json({
+      intake: { ...safe, ird_number_mask: irdMask, bank_account_mask: bankMask },
+    })
+  }
+
+  if (req.method === 'POST' && action === 'reveal_onboarding_secret') {
+    if (!id) return res.status(400).json({ error: 'id (intake_id) required' })
+    const field = String((req.body || {}).field || '').trim()
+    if (!['ird_number', 'bank_account'].includes(field)) {
+      return res.status(400).json({ error: 'field must be ird_number or bank_account' })
+    }
+    const column = field === 'ird_number' ? 'ird_number_enc' : 'bank_account_enc'
+    const { data: row } = await supabase
+      .from('job_onboarding_intake')
+      .select(`id, application_id, ${column}`)
+      .eq('id', id)
+      .maybeSingle()
+    if (!row) return res.status(404).json({ error: 'Intake not found' })
+    let plain = ''
+    try { plain = decryptFromStorage(row[column]) }
+    catch (e) { console.error('[onboarding] decrypt failed:', e.message); return res.status(500).json({ error: 'Decrypt failed — key may have rotated' }) }
+
+    // Audit-log the reveal. Best-effort — don't fail the reveal if the log
+    // insert bombs (the reveal already happened in memory).
+    try {
+      await supabase.from('audit_log').insert({
+        provider_id:   auth.provider?.id || null,
+        provider_name: [auth.provider?.first_name, auth.provider?.last_name].filter(Boolean).join(' ') || null,
+        action:        'reveal_onboarding_secret',
+        entity_type:   'job_onboarding_intake',
+        entity_id:     row.id,
+        metadata:      { field, application_id: row.application_id },
+      })
+    } catch (e) { console.error('[onboarding] audit reveal failed:', e.message) }
+
+    return res.status(200).json({ value: plain })
+  }
+
+  if (req.method === 'GET' && action === 'onboarding_file') {
+    if (!id) return res.status(400).json({ error: 'id (intake_id) required' })
+    const kind = String(req.query?.kind || '').trim()
+    if (!['apc', 'signature'].includes(kind)) return res.status(400).json({ error: 'kind must be apc|signature' })
+    const { data: row } = await supabase
+      .from('job_onboarding_intake')
+      .select('apc_storage_key, signature_storage_key')
+      .eq('id', id)
+      .maybeSingle()
+    if (!row) return res.status(404).json({ error: 'Intake not found' })
+    const key = kind === 'apc' ? row.apc_storage_key : row.signature_storage_key
+    if (!key) return res.status(404).json({ error: 'file not uploaded' })
+    const { data: signed, error: sErr } = await supabase.storage.from('onboarding').createSignedUrl(key, 300)
+    if (sErr || !signed?.signedUrl) { console.error('[onboarding] sign file failed:', sErr); return res.status(500).json({ error: 'Sign failed' }) }
+    return res.status(200).json({ signedUrl: signed.signedUrl })
+  }
+
+  if (req.method === 'POST' && action === 'cancel_onboarding') {
+    if (!id) return res.status(400).json({ error: 'id (application_id) required' })
+    const { error } = await supabase.from('job_onboarding_intake')
+      .update({ status: 'cancelled' })
+      .eq('application_id', id)
+      .in('status', ['pending', 'in_progress', 'complete'])
+    if (error) { console.error('[onboarding] cancel failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ ok: true })
   }
 
