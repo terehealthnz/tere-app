@@ -298,9 +298,16 @@ function buildAck({ inbound, msaCode, errorText }) {
   // MSH-5 is wrong — senders often put a gateway name there (BOPHL7 etc), not
   // our real system name. Hardcode. See Medical-Objects helpdesk case #1058382
   // (2026-08-18) where our 2.1 ack returned MSH-3=BOPHL7 (echoed) instead of
-  // "Tere Health". MSH-4 stays as our HPI-O (env-scoped).
+  // "Tere Health".
+  //
+  // MSH-4 of ACK: echo the ORIGINAL inbound MSH-6 verbatim (e.g. "Tere Health
+  // Limited (G11238-E)"). Per Tony Cruice 2026-08-28: senders route the ACK
+  // back through their internal message-routing which keys off the exact
+  // MSH-6 string they sent, so returning just the HPI-O breaks the loop.
+  // Fall back to bare HPI-O only if the sender omitted MSH-6 entirely.
   const ackSendingApp = 'Tere Health'
-  const ackSendingFac = process.env.TERE_HPI_O || TERE_HPI_O
+  const origReceivingFac = field(msh, 6)
+  const ackSendingFac = origReceivingFac || process.env.TERE_HPI_O || TERE_HPI_O
   // MSH-10 of the ack MUST NOT equal MSA-2 of the ack (per checklist).
   const ackControlId = crypto.randomBytes(8).toString('hex').toUpperCase()
 
