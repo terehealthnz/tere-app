@@ -39,7 +39,9 @@ TERE_ENV     = "nz-prod"
 # Update via: wrangler secret put ALLOWED_CNS  (or edit here + redeploy).
 # 2026-08-19 test network CN:
 #   hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au
-ALLOWED_CNS = "hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au"
+# 2026-08-27 prod CN (Tony Cruice, case #1058382):
+#   hd.02f49964-cbab-4908-831e-f32a998d8ce4-guid.id.medical-objects.com.au
+ALLOWED_CNS = "hd.d5ddb385-8b7c-460f-a887-0dcaddf48b0e-guid.id.test.medical-objects.com.au,hd.02f49964-cbab-4908-831e-f32a998d8ce4-guid.id.medical-objects.com.au"
 
 # Logpush destination (optional, for long-term audit trail) can be added later:
 # https://developers.cloudflare.com/workers/observability/logpush/
