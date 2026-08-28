@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useConsultId } from '../../lib/consultUrl'
 import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat, patientUploadDocument } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { requestUserLocation, nearestPharmacies, formatDistance } from '../../lib/nearestPharmacy'
@@ -73,7 +74,7 @@ async function ensureWaiting(consultationId) {
 
 export default function WaitingRoom() {
   const navigate = useNavigate()
-  const { id: idParam } = useParams()
+  const idParam = useConsultId()
   const [providerName, setProviderName] = useState(null)
   const consultationId = idParam || sessionStorage.getItem('consultationId')
   const pushFiredRef = useRef(false)

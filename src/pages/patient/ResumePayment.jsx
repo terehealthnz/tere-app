@@ -1,9 +1,10 @@
 import React, { useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { getConsultation } from '../../lib/supabase'
+import { useConsultId } from '../../lib/consultUrl'
 
 export default function ResumePayment() {
-  const { id } = useParams()
+  const id = useConsultId()
   const navigate = useNavigate()
 
   useEffect(() => {

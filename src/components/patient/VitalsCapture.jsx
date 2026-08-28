@@ -4,6 +4,7 @@ import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames
 import { updateVitals, patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
+import { makeConsultUrl } from '../../lib/consultUrl'
 
 const STATES = {
   REQUESTING: 'requesting',
@@ -384,7 +385,7 @@ export default function VitalsCapture() {
     } else {
       sessionStorage.setItem('vitals', JSON.stringify(result))
     }
-    navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
+    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
   }
 
   async function skip() {
@@ -400,7 +401,7 @@ export default function VitalsCapture() {
         sessionStorage.setItem('vitals', JSON.stringify({ skipped: true }))
       }
     } catch {}
-    navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)
+    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
   }
 
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
@@ -696,7 +697,7 @@ export default function VitalsCapture() {
 
               {uiState === STATES.DONE && (
                 <>
-                  <button className="btn btn-primary btn-full" onClick={() => navigate(`/waiting/${sessionStorage.getItem('consultationId') || 'demo'}`)}>
+                  <button className="btn btn-primary btn-full" onClick={() => navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))}>
                     Continue to consultation
                   </button>
                   {vitals?.numericConfidence < 50 && (

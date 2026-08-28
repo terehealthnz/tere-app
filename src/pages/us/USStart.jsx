@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getRegionConfig, REGIONS } from '../../lib/region'
 import { US_STATES, stateName, detectStateFromIP } from '../../lib/usStates'
 import { LANGUAGES, t } from '../../lib/i18n'
+import { makeConsultUrl } from '../../lib/consultUrl'
 
 // Small hook so all downstream screens re-render when the LanguagePicker
 // writes a new value to sessionStorage. The native 'storage' event only
@@ -595,7 +596,7 @@ function IntakeForm({ state, hipaa, onBack }) {
         sessionStorage.setItem('us_patient_state', state)
         if (hipaa) sessionStorage.setItem('us_hipaa_ack', JSON.stringify(hipaa))
       } catch {}
-      navigate(`/waiting/${consult.id}`, { replace: true })
+      navigate(makeConsultUrl('/waiting', consult.id), { replace: true })
       return
     } catch (err) {
       // Show any server-supplied error message when we have one (e.g., HIPAA

@@ -228,14 +228,19 @@ export default function App() {
         <Route path="/waiting"                element={<WaitingRoom />} />
         <Route path="/waiting/:id"            element={<WaitingRoom />} />
         <Route path="/call"                   element={<PatientCall />} />
+        <Route path="/waitlisted"             element={<Waitlisted />} />
         <Route path="/waitlisted/:id"         element={<Waitlisted />} />
+        <Route path="/resume"                 element={<ResumePayment />} />
         <Route path="/resume/:id"             element={<ResumePayment />} />
         <Route path="/triage-review"          element={<TriageReview />} />
         <Route path="/done"                   element={<PostConsult />} />
         {/* BOOKING — currently disabled (VITE_BOOKING_ENABLED=false); routes kept for when re-enabled */}
         <Route path="/book"                   element={<BookAppointment />} />
+        <Route path="/booking/change"         element={<BookingChange />} />
         <Route path="/booking/change/:id"     element={<BookingChange />} />
+        <Route path="/booking/cancel"         element={<BookingCancel />} />
         <Route path="/booking/cancel/:id"     element={<BookingCancel />} />
+        <Route path="/booking/join"           element={<BookingJoin />} />
         <Route path="/booking/join/:id"       element={<BookingJoin />} />
         <Route path="/my-consultation/:token" element={<ConsultationSummary />} />
         <Route path="/repeat-rx"              element={<RepeatPrescription />} />
@@ -272,6 +277,7 @@ export default function App() {
         <Route path="/interview-ended"        element={<InterviewEnded />} />
         <Route path="/interview-room"         element={<InterviewerRoom />} />
         <Route path="/employers"              element={<Employers />} />
+        <Route path="/rate"                   element={<Rate />} />
         <Route path="/rate/:id"               element={<Rate />} />
         <Route path="/privacy"                element={<PrivacyPolicy />} />
         <Route path="/landing"                element={<Landing />} />
@@ -280,6 +286,7 @@ export default function App() {
         <Route path="/demo/patient"               element={<DemoPatient />} />
         <Route path="/demo/provider"              element={<DemoProvider />} />
         <Route path="/demo/admin"                 element={<DemoAdmin />} />
+        <Route path="/async-message"              element={<AsyncMessage />} />
         <Route path="/async-message/:id"          element={<AsyncMessage />} />
         <Route path="/vitals-validate"                     element={<VitalsValidate />} />
         <Route path="/vitals-validate/dashboard"           element={<VitalsValidateDash />} />

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useConsultId } from '../../lib/consultUrl'
 import { getAvailability, getConsultation, getSchedule, patientUpdateConsultation } from '../../lib/supabase'
 
 const NAVY  = '#0D2B45'
@@ -44,7 +45,7 @@ function TealCheck() {
 }
 
 export default function Waitlisted() {
-  const { id } = useParams()
+  const id = useConsultId()
   const navigate = useNavigate()
 
   const [visible, setVisible] = useState(false)

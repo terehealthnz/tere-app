@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getConsultation, supabase } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { useFeatureFlag } from '../../lib/featureFlags'
+import { useConsultId } from '../../lib/consultUrl'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -154,7 +155,7 @@ function PaymentStep({ consultationId, onSuccess, onBack }) {
 // ── Main inner component ───────────────────────────────────────────────────────
 
 function AsyncMessageInner() {
-  const { id } = useParams()
+  const id = useConsultId()
   const navigate = useNavigate()
   const useWindcave = useFeatureFlag('use_windcave')
   const [phase, setPhase] = useState('loading')

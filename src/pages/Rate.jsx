@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
 import { patientUpdateConsultation, patientGetConsultation } from '../lib/supabase'
+import { useConsultId } from '../lib/consultUrl'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const FF = 'Plus Jakarta Sans, sans-serif'
 
 export default function Rate() {
-  const { id } = useParams()
+  const id = useConsultId()
   const [consult, setConsult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [rating, setRating] = useState(0)

@@ -6,6 +6,7 @@ import { apiFetch } from '../../lib/api'
 import { isClinicOpen } from '../../lib/clinicHours'
 import { findFaceRegion } from '../../lib/rppg'
 import { isNZ } from '../../lib/region'
+import { makeConsultUrl } from '../../lib/consultUrl'
 
 // NHI is a NZ-only identifier — skip the NHI question on non-NZ surfaces
 // (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
@@ -279,13 +280,13 @@ export default function AITriage() {
             const isAsync = c.consultation_subtype === 'async_message' ||
                             sessionStorage.getItem('consultation_subtype') === 'async_message'
             if (isAsync) {
-              navigate(`/async-message/${existingId}`, { replace: true })
+              navigate(makeConsultUrl('/async-message', existingId), { replace: true })
             } else if (['in_progress','ready'].includes(c.status)) {
               navigate('/call', { replace: true })
             } else if (['vitals_complete','waitlisted'].includes(c.status)) {
-              navigate(`/waiting/${existingId}`, { replace: true })
+              navigate(makeConsultUrl('/waiting', existingId), { replace: true })
             } else if (c.status === 'waiting' && sessionStorage.getItem('paymentIntentId')) {
-              navigate(`/vitals/${existingId}`, { replace: true })
+              navigate(makeConsultUrl('/vitals', existingId), { replace: true })
             } else {
               navigate('/consultation-type', { replace: true })
             }
