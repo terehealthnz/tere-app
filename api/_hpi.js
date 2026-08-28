@@ -208,12 +208,16 @@ export default async function handler(req, res) {
 
   try {
     if (action === 'ping') {
+      // reveal=1 returns the actual CLIENT_ID string (not the secret) so we
+      // can copy it into HNZ support tickets that request the identifier.
+      // Guarded by admin auth + HPI_DIAG_ENABLED so it can't be scraped.
+      const reveal = String(req.query.reveal || '') === '1'
       return res.status(200).json({
         ok: true,
         env: {
           HPI_TOKEN_URL:    !!TOKEN_URL,
           HPI_BASE_URL:     !!BASE_URL,
-          HPI_CLIENT_ID:    !!CLIENT_ID,
+          HPI_CLIENT_ID:    reveal ? CLIENT_ID : !!CLIENT_ID,
           HPI_CLIENT_SECRET:!!SECRET,
           HPI_SCOPES:       !!SCOPES,
         },
