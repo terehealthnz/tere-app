@@ -335,7 +335,7 @@ export function buildPayslipPdf(data) {
     doc.rect(0, 0, W, 70).fill('#0D2B45')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 16)
     doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 42)
-    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('GST No: [Your GST]  ·  terehealthnz@gmail.com', 50, 56)
+    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('Not GST-registered (medical services exempt s21 GSTA 1985)  ·  terehealthnz@gmail.com', 50, 56)
 
     // Title
     const fmtDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -592,15 +592,16 @@ export function buildInsuranceReceiptPdf({ consult, provider, payment }) {
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('TAX INVOICE / RECEIPT', M, 90)
     doc.moveTo(M, 110).lineTo(W - M, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
 
-    // Provider (issuer) — Tere legal entity
-    // TODO: Patrick to fill in IRD + GST numbers once registered.
+    // Provider (issuer) — Tere legal entity. Tere is NOT GST-registered:
+    // medical services are exempt under s21 GSTA 1985, so no compulsory
+    // registration threshold applies. Insurers reimbursing a patient just
+    // need the NZBN + practice details, not a GST number.
     doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Issued by', M, 120)
     doc.font('Helvetica').fontSize(10)
       .text('Tere Health Limited', M, 134)
-      .text('NZBN: [TBD - Patrick to fill]', M, 148)
-      .text('IRD: [TBD - Patrick to fill]', M, 162)
-      .text('GST No: [TBD - Patrick to fill]', M, 176)
-      .text('Marlborough Sounds, New Zealand', M, 190)
+      .text('NZBN: 9429053023413', M, 148)
+      .text('Not GST-registered (medical services exempt s21 GSTA 1985)', M, 162)
+      .text('Marlborough Sounds, New Zealand', M, 176)
 
     // Receipt meta
     const receiptId = payment.receipt_id || '—'
