@@ -58,8 +58,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Signup failed. Please try again.' })
   }
 
-  // Confirmation email — best-effort, non-fatal. Skipped if RESEND_API_KEY
-  // isn't set on the AU Vercel project yet (early days).
+  // Confirmation email — best-effort, non-fatal. Skipped if no email provider
+  // is configured on the AU Vercel project yet (early days).
   if (hasEmailProvider()) {
     try {
       const displayName = firstName ? String(firstName).trim() : 'there'

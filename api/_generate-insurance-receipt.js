@@ -119,7 +119,7 @@ export default async function handler(req, res) {
   const patientFirst = consult.patient_first_name || 'there'
   const filename = `tere-insurance-receipt-${receiptId}.pdf`
   try {
-    if (!hasEmailProvider()) throw new Error('RESEND_API_KEY not configured')
+    if (!hasEmailProvider()) throw new Error('No email provider configured')
     await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',

@@ -73,7 +73,7 @@ function generateSimulatedClaimNumber() {
 // cc'd so we keep a copy of every invoice we submit.
 async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi }) {
   if (process.env.ACC_AUTOSEND_INVOICES !== 'true') return { skipped: 'ACC_AUTOSEND_INVOICES not enabled' }
-  if (!hasEmailProvider()) return { skipped: 'RESEND_API_KEY missing' }
+  if (!hasEmailProvider()) return { skipped: 'no email provider configured' }
   const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
   const pdfBuffer = await buildAccInvoicePdf({
     patientName,

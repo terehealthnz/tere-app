@@ -3,8 +3,8 @@ export default async function handler(req, res) {
 
   const canEmail = hasEmailProvider()
   if (!canEmail) {
-    console.warn('[send-waitlist-email] No RESEND_API_KEY — skipping')
-    return res.status(200).json({ sent: false, reason: 'no_key' })
+    console.warn('[send-waitlist-email] no email provider configured — skipping')
+    return res.status(200).json({ sent: false, reason: 'no_email_provider' })
   }
 
   const { consultationId, patientName, patientEmail, chiefComplaint } = req.body || {}

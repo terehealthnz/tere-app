@@ -15,9 +15,8 @@ import { sendEmail as sendEmailProvider , hasEmailProvider} from './_email-clien
 // throw-on-failure semantics so the caller's try/catch still marks the
 // row as skipped rather than swallowing errors silently.
 async function sendEmail({ to, subject, html, text }) {
-  const key = hasEmailProvider()
-  if (!key) throw new Error('RESEND_API_KEY not set')
-  const from = process.env.RESEND_FROM || 'Tere Health <hello@terehealth.co.nz>'
+  if (!hasEmailProvider()) throw new Error('No email provider configured (EMAIL_PROVIDER unset or missing credentials)')
+  const from = process.env.MAIL_FROM || process.env.RESEND_FROM || 'Tere Health <hello@terehealth.co.nz>'
   const r = await sendEmailProvider({ from, to, subject, html, text })
   if (!r.ok) throw new Error(`Email send failed: ${r.error || 'unknown'}`)
 }

@@ -250,7 +250,7 @@ async function seedOnboardingIfNeeded(supabase, applicationId) {
 async function notifyApplicationSubmitted(supabase, application) {
   const canEmail = hasEmailProvider()
   if (!canEmail) {
-    console.warn('[job-applications] RESEND_API_KEY missing — skipping notifications')
+    console.warn('[job-applications] no email provider configured — skipping notifications')
     return
   }
 

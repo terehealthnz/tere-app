@@ -81,7 +81,7 @@ const CLINICAL_CATEGORIES = new Set(['prescription', 'follow_up'])
 async function sendNotifications(row) {
   const canEmail = hasEmailProvider()
   if (!canEmail) {
-    console.warn('[patient-support] RESEND_API_KEY missing — skipping notifications')
+    console.warn('[patient-support] no email provider configured — skipping notifications')
     return
   }
   const label = CATEGORY_LABEL[row.category] || row.category
