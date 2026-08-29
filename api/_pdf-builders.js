@@ -471,7 +471,7 @@ export function buildAccInvoicePdf(data) {
     doc.rect(0, 0, W, 80).fill('#0B6E76')
     doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 22)
     doc.font('Helvetica').fontSize(9).text('terehealth.co.nz · Tere Health Limited', LEFT, 50)
-    doc.text('HPI-O G11238-E · ACC Vendor G11238 · NZBN 9429053023413', LEFT, 63)
+    doc.text('HPI-O G11238-E · ACC Vendor G11238 · NZBN 9429053723413', LEFT, 63)
     try {
       const logo = tereLogoBuffer()
       if (logo) doc.image(logo, RIGHT - 60, 15, { fit: [50, 50], align: 'right' })
@@ -492,7 +492,7 @@ export function buildAccInvoicePdf(data) {
     doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
       .text('Tere Health Limited', 320, 184)
       .text('ACC Vendor ID: G11238', 320, 198)
-      .text('NZBN 9429053023413', 320, 212)
+      .text('NZBN 9429053723413', 320, 212)
 
     // Line items table
     let y = 240
@@ -599,7 +599,7 @@ export function buildInsuranceReceiptPdf({ consult, provider, payment }) {
     doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Issued by', M, 120)
     doc.font('Helvetica').fontSize(10)
       .text('Tere Health Limited', M, 134)
-      .text('NZBN: 9429053023413', M, 148)
+      .text('NZBN: 9429053723413', M, 148)
       .text('Not GST-registered (medical services exempt s21 GSTA 1985)', M, 162)
       .text('Marlborough Sounds, New Zealand', M, 176)
 

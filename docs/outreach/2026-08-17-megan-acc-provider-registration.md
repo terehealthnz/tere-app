@@ -21,7 +21,7 @@ Ngā mihi,
 Dr Patrick John Herling
 Chief Medical Officer, Tere Health Limited
 MCNZ 99529 · HPI-CPN 24NSES · HPI-O G11238-E
-NZBN 9429053023413
+NZBN 9429053723413
 terehealthnz@gmail.com · +64 29 043 234 27
 terehealth.co.nz
 
