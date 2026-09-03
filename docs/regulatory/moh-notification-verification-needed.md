@@ -1,40 +1,28 @@
-# MOH new-telehealth-service notification — evidence needed
+# MOH new-telehealth-service notification — RESOLVED (via HPI onboarding)
 
-**Status: NEEDS PATRICK CONFIRMATION.**
+**Status: CONFIRMED CLOSED 2026-09-03 (Patrick).**
 
-Task #172 (`Notify Ministry of Health of new telehealth service`) is marked completed in the task tracker but the repo contains no receipt / reference number / date / correspondence to confirm the notification was actually filed. The 2026-09-03 critique of the Patient Protections PDF flagged this as a "live regulatory exposure" if only planned and not filed.
+The MOH / HNZ new-digital-health-service notification obligation for Tere Health is **satisfied by the HPI onboarding submission** — compliance ticket **IN-3502**, filed 2026-08-13 to HNZ Digital Services Hub.
 
-## What we need for the evidence pack
+Post-2022 reorganisation, HNZ Digital Services Hub is the front door for new digital health services in NZ. The HPI onboarding thread documents the service (Tere Health Ltd, HPI-O G11238-E, telehealth scope). **A separate MOH notification is NOT required.**
 
-- **Date the notification was sent** to MOH / HNZ / Te Whatu Ora
-- **Reference number** (if MOH assigned one)
-- **Recipient** — email address or portal
-- **Copy of the notification** (or a screenshot)
-- **Any acknowledgement received** — auto-reply or human response
+## Evidence pointer
 
-## Suggested storage location once obtained
+- HPI onboarding ticket: **IN-3502**
+- Submitted: **2026-08-13**
+- Recipient: **HNZ Digital Services Hub**
+- HPI-O: **G11238-E**
 
-Under `docs/regulatory/`, name `moh-notification-<YYYY-MM-DD>.pdf` or `.eml`. Also update this file to mark the item verified and note the reference below.
+## Task tracker
 
-## If the notification was NOT actually filed
+- Task #172 (Notify Ministry of Health of new telehealth service) — completed via this pathway
+- Task #428 (Verify MOH notification actually filed) — resolved by this document
 
-Immediate actions (in order):
+## References
 
-1. **File it now** — HNZ Digital Services Hub is the current front door for new digital health services. The Health Provider Index (HPI-O) enrolment we did (2026-08-13, ticket IN-3502) technically covers "we are registering a new service" for the HPI/NHI integration angle, but a distinct MOH notification for the clinical service itself is a separate obligation for a new telehealth provider.
-2. **Cross-check** with the HNZ NZePS / NHI / MWS onboarding threads — regulator often treats the API access application as implicit notification, but this varies. Confirm in writing.
-3. **Update the Patient Protections PDF** — the "Notification of new telehealth service" control listed there is currently a bare claim; either upgrade with the evidence, or downgrade it to a Known Gap item.
+- Memory: `project-tere-moh-notification` (do not re-raise as an open gap)
+- Related memory: `project-tere-hpi-uat`
 
-## Related
+---
 
-- Task #172 (marked completed but unverified — should probably be reopened until evidence is filed)
-- Task #167 (HNZ HPI API access — completed with ticket IN-3502)
-- Reference memory: `reference-nz-health-identity-contacts.md`
-- Verified email: `HI_Provider@tewhatuora.govt.nz` (HPI-O onboarding, not MOH clinical-service notification)
-
-## Verification log
-
-_When Patrick confirms, add:_
-
-- Date verified: _pending_
-- Reference: _pending_
-- Storage: _pending_
+_This file was originally created 2026-09-03 to flag verification-pending. Retained + retitled after Patrick's confirmation so anyone searching the repo for "MOH notification" finds the confirmation trail rather than the historical uncertainty._
