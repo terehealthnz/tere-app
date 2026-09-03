@@ -67,6 +67,29 @@ function tereLogoBuffer() {
   return _tereLogoBuf || null
 }
 
+// Diagonal watermark across every page — deters casual screenshot-and-forward
+// leaks and makes any leaked PDF traceable to the exporter + timestamp.
+// Call once after doc.end() has NOT been called and pageRange is known.
+export function drawWatermark(doc, { exporter, exportedAt, label = 'CONFIDENTIAL' } = {}) {
+  try {
+    const pageRange = doc.bufferedPageRange()
+    const line = `${label} · ${exporter || 'Tere Health'} · ${exportedAt ? new Date(exportedAt).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }) : new Date().toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })}`
+    for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+      doc.switchToPage(i)
+      const W = doc.page.width, H = doc.page.height
+      doc.save()
+      doc.rotate(-30, { origin: [W / 2, H / 2] })
+      doc.fillOpacity(0.06)
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(50)
+      doc.text(line, 0, H / 2 - 30, { width: W, align: 'center' })
+      doc.fillOpacity(1)
+      doc.restore()
+    }
+  } catch (e) {
+    console.error('[drawWatermark] failed:', e.message)
+  }
+}
+
 // DG statement — required verbatim on any prescription sent without a
 // prescriber signature under the August 2024 Director-General authorisation.
 const DG_SIGNATURE_EXEMPT_STATEMENT =
@@ -1472,6 +1495,9 @@ export function buildAccAuditBundlePdf(bundle) {
       )
     }
 
+    // Diagonal watermark (task #375) — deters casual leaks + makes exports traceable.
+    drawWatermark(doc, { exporter: bundle.generated_by?.name, exportedAt: bundle.generated_at, label: 'CONFIDENTIAL — ACC AUDIT BUNDLE' })
+
     doc.end()
   })
 }
@@ -1697,6 +1723,9 @@ export function buildAccCertificatePdf(data) {
         LEFT, H - 40, { width: CW, align: 'center' }
       )
     }
+
+    // Watermark — provider name + timestamp diagonally across every page.
+    drawWatermark(doc, { exporter: data.provider?.name, label: 'CONFIDENTIAL — ' + (TITLES[type] || 'ACC CERTIFICATE').toUpperCase() })
 
     doc.end()
   })

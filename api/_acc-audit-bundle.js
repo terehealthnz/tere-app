@@ -17,6 +17,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { getClientIp } from './_client-ip.js'
+import { checkElevation } from './_elevation.js'
+import { checkAccessBudget } from './_access-budget.js'
 
 function admin() {
   return createClient(
@@ -75,6 +77,17 @@ export default async function handler(req, res) {
   }
   if (!reason || !ALLOWED_REASONS.has(String(reason))) {
     return res.status(400).json({ error: `reason required (one of: ${[...ALLOWED_REASONS].join(', ')})` })
+  }
+
+  // JIT elevation gate — ACC bundle export is the most sensitive read in the
+  // system. Fresh MFA required (< 5 min old) even inside an active session.
+  const elev = await checkElevation(req, { required: true })
+  if (!elev.ok) return res.status(elev.status).json({ error: elev.error, requires_elevation: true })
+
+  // Daily export budget — block at limit.
+  const budget = await checkAccessBudget(provider.id, 'export')
+  if (budget.status === 'block') {
+    return res.status(429).json({ error: `Daily export limit reached (${budget.used}/${budget.limit}). Ask an admin to lift your override or wait until tomorrow.`, budget })
   }
 
   const supabase = admin()

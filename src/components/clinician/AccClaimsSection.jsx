@@ -12,6 +12,8 @@ import {
   addAccCommunication,
 } from '../../lib/supabase'
 import { ReasonPicker } from './PhiRevealGate'
+import ElevationModal from './ElevationModal'
+import { maskNhi, maskFullName, shouldMaskByDefault } from '../../lib/masking'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -63,6 +65,14 @@ export default function AccClaimsSection() {
   const [bundle, setBundle]             = useState(null)
   const [bundleLoading, setBundleLoading] = useState(false)
 
+  // JIT elevation state — if the server responds with requires_elevation,
+  // prompt MFA then retry.
+  const [needsElevation, setNeedsElevation] = useState(false)
+  const [pendingRetry, setPendingRetry]     = useState(null)
+
+  // Identity masking — masked-by-default for admin/billing/supervisor.
+  const [unmasked, setUnmasked] = useState(!shouldMaskByDefault())
+
   async function refresh() {
     setLoading(true); setError(null)
     try {
@@ -95,24 +105,37 @@ export default function AccClaimsSection() {
     const action = pendingAction
     setPendingClaim(null); setPendingAction(null)
     if (!claim || !action) return
-    if (action === 'json') {
-      setBundleLoading(true)
-      try {
-        const b = await getAccAuditBundle(claim.id, { reason, reasonNotes: reason_notes })
-        setBundle(b)
-      } catch (e) { alert('Bundle fetch failed: ' + e.message) }
-      setBundleLoading(false)
-    } else {
-      try {
-        const blob = await downloadAccAuditBundlePdf(claim.id, { reason, reasonNotes: reason_notes })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `acc-audit-${claim.claim_number || claim.id}.pdf`
-        document.body.appendChild(a); a.click(); a.remove()
-        setTimeout(() => URL.revokeObjectURL(url), 5000)
-      } catch (e) { alert('PDF export failed: ' + e.message) }
+    // Wrap the actual work in a retryable closure — if the server says
+    // requires_elevation, we open the modal, mint a token, then re-invoke.
+    const run = async () => {
+      if (action === 'json') {
+        setBundleLoading(true)
+        try {
+          const b = await getAccAuditBundle(claim.id, { reason, reasonNotes: reason_notes })
+          setBundle(b)
+        } catch (e) {
+          if (/elev/i.test(e.message) || /428/.test(e.message)) {
+            setPendingRetry(() => run); setNeedsElevation(true)
+          } else { alert('Bundle fetch failed: ' + e.message) }
+        }
+        setBundleLoading(false)
+      } else {
+        try {
+          const blob = await downloadAccAuditBundlePdf(claim.id, { reason, reasonNotes: reason_notes })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `acc-audit-${claim.claim_number || claim.id}.pdf`
+          document.body.appendChild(a); a.click(); a.remove()
+          setTimeout(() => URL.revokeObjectURL(url), 5000)
+        } catch (e) {
+          if (/elev/i.test(e.message) || /428/.test(e.message)) {
+            setPendingRetry(() => run); setNeedsElevation(true)
+          } else { alert('PDF export failed: ' + e.message) }
+        }
+      }
     }
+    await run()
   }
 
   function exportCsv() {
@@ -143,7 +166,11 @@ export default function AccClaimsSection() {
             Filter, view, and export per-claim audit evidence bundles.
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => setUnmasked(u => !u)} title={unmasked ? 'Mask patient identifiers' : 'Reveal patient identifiers (audit-logged elsewhere)'}
+            style={{ background: unmasked ? '#FEF3C7' : 'white', color: unmasked ? '#78350F' : NAVY, border: `1px solid ${unmasked ? '#FCD34D' : '#E2E8F0'}`, padding: '.5rem .875rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: 'pointer' }}>
+            {unmasked ? '👁 Unmasked' : '🔒 Masked'}
+          </button>
           <button onClick={exportCsv} disabled={!claims.length}
             style={{ background: 'white', color: NAVY, border: '1px solid #E2E8F0', padding: '.5rem .875rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: claims.length ? 'pointer' : 'default' }}>
             Export CSV ({claims.length})
@@ -235,8 +262,8 @@ export default function AccClaimsSection() {
                   <td style={{ padding: '.625rem .75rem', color: NAVY, fontWeight: 700 }}>{c.claim_number || '—'}</td>
                   <td style={{ padding: '.625rem .75rem' }}><span style={statusPill(c.status)}>{c.status || '—'}</span></td>
                   <td style={{ padding: '.625rem .75rem' }}>
-                    <div style={{ color: NAVY }}>{c.patient_name || '—'}</div>
-                    <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{c.patient_nhi || '—'}</div>
+                    <div style={{ color: NAVY }}>{unmasked ? (c.patient_name || '—') : maskFullName(c.patient_name)}</div>
+                    <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{unmasked ? (c.patient_nhi || '—') : maskNhi(c.patient_nhi)}</div>
                   </td>
                   <td style={{ padding: '.625rem .75rem' }}>
                     <div style={{ color: NAVY }}>{c.provider_name || '—'}</div>
@@ -262,6 +289,16 @@ export default function AccClaimsSection() {
         subject={pendingClaim ? `ACC claim ${pendingClaim.claim_number || pendingClaim.id} · ${pendingClaim.patient_name || pendingClaim.patient_nhi || ''}` : ''}
         onCancel={() => { setPendingClaim(null); setPendingAction(null) }}
         onConfirm={onReasonConfirm}
+      />
+
+      {/* JIT elevation prompt — pops when the server responds with requires_elevation */}
+      <ElevationModal
+        open={needsElevation}
+        purpose="acc_bundle_export"
+        title="Unlock ACC audit bundle"
+        description="Full ACC audit bundle export requires a fresh MFA re-verify. Your elevation lasts 5 minutes."
+        onCancel={() => { setNeedsElevation(false); setPendingRetry(null) }}
+        onGranted={async () => { setNeedsElevation(false); await pendingRetry?.() }}
       />
 
       {/* Bundle modal (JSON view) */}

@@ -11,6 +11,8 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { getClientIp } from './_client-ip.js'
+import { checkElevation } from './_elevation.js'
+import { checkAccessBudget } from './_access-budget.js'
 
 function admin() {
   return createClient(
@@ -167,6 +169,19 @@ export default async function handler(req, res) {
   if (!patient_id) return res.status(400).json({ error: 'patient_id required' })
   if (!reason || !ALLOWED_REASONS.has(String(reason))) {
     return res.status(400).json({ error: `reason required (one of: ${[...ALLOWED_REASONS].join(', ')})` })
+  }
+
+  // JIT elevation required — full patient record export is the highest-
+  // sensitivity read in the system. Skip for the patient-portal synthetic
+  // request (marked by req.auth.provider.id === null).
+  if (provider.id) {
+    const elev = await checkElevation(req, { required: true })
+    if (!elev.ok) return res.status(elev.status).json({ error: elev.error, requires_elevation: true })
+
+    const budget = await checkAccessBudget(provider.id, 'export')
+    if (budget.status === 'block') {
+      return res.status(429).json({ error: `Daily export limit reached (${budget.used}/${budget.limit}).`, budget })
+    }
   }
 
   const supabase = admin()

@@ -93,7 +93,11 @@ export default async function handler(req, res) {
   // Controlled Drugs Register — every prescription flagged controlled=true.
   // Meets NZ Misuse of Drugs Regulations 1977 reg 44 record-keeping expectations
   // (Medsafe audit). Date range + optional drug filter.
+  // JIT elevation required (task #377).
   if (filter === 'controlled_register') {
+    const { checkElevation } = await import('./_elevation.js')
+    const elev = await checkElevation(req, { required: true })
+    if (!elev.ok) return res.status(elev.status).json({ error: elev.error, requires_elevation: true })
     const { from, to, drug } = req.query
     let q = supabase.from('prescriptions')
       .select('id, drug_name, drug, strength, dose, dose_instructions, directions, quantity, refills, delivery_status, created_at, patient_name, patient_nhi, prescriber_number, consultation_id, provider_id, provider_name')

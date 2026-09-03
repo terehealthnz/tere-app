@@ -39,7 +39,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Provider clinical work
   'convert-to-acc', 'acc-claims', 'acc-audit-bundle', 'acc-outcome-measures',
   'acc-communications', 'consultation-peer-reviews', 'generate-acc-cert',
-  'patient-record-export',
+  'patient-record-export', 'elevation',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
@@ -307,6 +307,7 @@ const ROUTES = {
   'acc-communications':        () => import('./_acc-communications.js'),
   'consultation-peer-reviews': () => import('./_consultation-peer-reviews.js'),
   'generate-acc-cert':         () => import('./_generate-acc-cert.js'),
+  'elevation':                 () => import('./_elevation.js'),
   'patient-record-export':     () => import('./_patient-record-export.js'),
   'pms-data':                  () => import('./_pms-data.js'),
   'validation-subjects':       () => import('./_validation-subjects.js'),

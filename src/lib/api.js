@@ -47,6 +47,17 @@ export async function apiFetch(path, options = {}) {
     } catch {}
   }
 
+  // JIT elevation token — attached to every request when available so the
+  // server's checkElevation() gate can validate it. Falls off automatically
+  // after 5 min (see ElevationModal.getElevationToken).
+  if (!headers['x-elevation-token']) {
+    try {
+      const { getElevationToken } = await import('../components/clinician/ElevationModal')
+      const token = getElevationToken()
+      if (token) headers['x-elevation-token'] = token
+    } catch {}
+  }
+
   // Patient session token — automatically attached to every /api/ call
   // when the browser is in a patient session. Server endpoints exchange
   // this token → consultation_id via resolvePatientAuth() rather than
