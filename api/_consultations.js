@@ -131,6 +131,42 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from('consultations').select('*').eq('id', id).eq('is_practice', practice).maybeSingle()
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Consultation not found' })
+
+      // Break-glass gate on off-queue chart access (task #414). A consult
+      // counts as "active queue" if:
+      //   - status is one of the live-workflow states (waiting/vitals/ready/reviewing)
+      //   - OR the caller is the currently-assigned provider
+      // Anything else (completed, no-show, cancelled, or another provider's
+      // active chart) requires the caller to have posted a break-glass
+      // justification via /api/consult-break-glass in the last 60 minutes.
+      // Admins + supervisors + billing_admins are still gated — the whole
+      // point is to force a documented reason for every off-queue view.
+      const ACTIVE_STATES = new Set(['waiting', 'vitals_complete', 'ready', 'reviewing'])
+      const callerId = auth.provider?.id || null
+      const isActiveState = ACTIVE_STATES.has(data.status)
+      const isAssignedToCaller = data.provider_id && callerId && data.provider_id === callerId
+      if (!isActiveState && !isAssignedToCaller) {
+        // Check for a recent break-glass grant.
+        const sixtyMinAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+        const { data: recent } = await supabase.from('audit_logs')
+          .select('id')
+          .eq('provider_id', callerId)
+          .eq('event_type', 'consult_break_glass_access')
+          .eq('resource_id', data.id)
+          .gte('created_at', sixtyMinAgo)
+          .limit(1)
+        if (!recent || recent.length === 0) {
+          return res.status(428).json({
+            error: 'Off-queue chart access requires a break-glass justification.',
+            requires_break_glass: true,
+            consultation_id: data.id,
+            patient_name: [data.patient_first_name, data.patient_last_name].filter(Boolean).join(' ') || null,
+            consultation_status: data.status,
+            consultation_created: data.created_at,
+          })
+        }
+      }
+
       return res.status(200).json({ consultation: redactClinical(data) })
     }
 

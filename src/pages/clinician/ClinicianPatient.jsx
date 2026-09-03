@@ -8,6 +8,7 @@ import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModa
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
 import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
+import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -67,6 +68,11 @@ export default function ClinicianPatient() {
   // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
   const [sendBackOpen, setSendBackOpen] = useState(false)
   const [accessHistoryOpen, setAccessHistoryOpen] = useState(false)
+  // Break-glass gate (task #414). When getConsultation throws with
+  // requires_break_glass=true, we store the enriched context here and mount
+  // ConsultBreakGlassPrompt. On grant we re-invoke the loader.
+  const [breakGlass, setBreakGlass] = useState(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -102,7 +108,23 @@ export default function ClinicianPatient() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await getConsultation(id)
+        let data
+        try {
+          data = await getConsultation(id)
+        } catch (e) {
+          if (e && e.requires_break_glass) {
+            setBreakGlass({
+              consultationId:  e.consultation_id || id,
+              patientName:     e.patient_name || null,
+              consultStatus:   e.consultation_status || null,
+              consultCreated:  e.consultation_created || null,
+            })
+            setLoading(false)
+            return
+          }
+          throw e
+        }
+        setBreakGlass(null)
         setConsult(data)
         // Audit: this provider just opened this chart. Providers get direct
         // clinical-care access (no PhiRevealGate reason prompt), but we still
@@ -172,8 +194,8 @@ export default function ClinicianPatient() {
         }
       } catch {} finally { setLoading(false) }
     }
-    if (id) load()
-  }, [id])
+    if (id) { setLoading(true); load() }
+  }, [id, loadAttempt])
 
   async function startCall() {
     if (!consult) return
@@ -192,6 +214,29 @@ export default function ClinicianPatient() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
       <div className="spinner" />
     </div>
+  )
+
+  if (breakGlass) return (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', flexDirection: 'column', gap: '1rem', fontFamily: FF, padding: '2rem', textAlign: 'center', background: '#F7F5F0' }}>
+        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: NAVY }}>🚨 Off-queue chart</div>
+        <div style={{ maxWidth: 420, fontSize: '.875rem', color: '#374151', lineHeight: 1.5 }}>
+          This chart isn't in your active queue. Provide a break-glass justification to open it, or return to the queue.
+        </div>
+        <button onClick={() => navigate('/provider')} style={{ background: 'white', color: NAVY, border: '1px solid #E2E8F0', borderRadius: 99, padding: '.75rem 1.5rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>
+          ← Back to Queue
+        </button>
+      </div>
+      <ConsultBreakGlassPrompt
+        open
+        consultationId={breakGlass.consultationId}
+        patientName={breakGlass.patientName}
+        consultStatus={breakGlass.consultStatus}
+        consultCreated={breakGlass.consultCreated}
+        onCancel={() => navigate('/provider')}
+        onGranted={() => setLoadAttempt(n => n + 1)}
+      />
+    </>
   )
 
   if (!consult) return (

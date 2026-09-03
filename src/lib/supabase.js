@@ -266,10 +266,36 @@ export async function getConsultation(id) {
   const res = await apiFetch(`/api/consultations?id=${encodeURIComponent(id)}`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
+    // Off-queue chart access — surface the requires_break_glass flag to the
+    // caller so ClinicianPatient can prompt for a justification (task #414).
+    if (res.status === 428 && err.requires_break_glass) {
+      const e = new Error(err.error || 'Break-glass required')
+      e.requires_break_glass = true
+      e.consultation_id = err.consultation_id
+      e.patient_name = err.patient_name
+      e.consultation_status = err.consultation_status
+      e.consultation_created = err.consultation_created
+      throw e
+    }
     throw new Error(err.error || `getConsultation HTTP ${res.status}`)
   }
   const { consultation } = await res.json()
   return consultation
+}
+
+// Consult-level break-glass — records the justification server-side + writes
+// the audit_log entry that the GET-by-id check reads to allow the chart to
+// load. 60-min unlock per (provider, consult).
+export async function grantConsultBreakGlass(consultationId, { reason, reasonNotes }) {
+  const res = await apiFetch('/api/consult-break-glass', {
+    method: 'POST',
+    body: JSON.stringify({ consultationId, reason, reasonNotes }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `HTTP ${res.status}`)
+  }
+  return res.json()
 }
 
 // Patient-side reader — hits /api/patient-consult which returns a safe
