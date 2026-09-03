@@ -322,6 +322,7 @@ const ROUTES = {
   'cron-break-glass-revoke':   () => import('./_cron-break-glass-revoke.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),
   'cron-results-reconciliation': () => import('./_cron-results-reconciliation.js'),
+  'cron-clinical-anomalies':    () => import('./_cron-clinical-anomalies.js'),
   'consult-break-glass':       () => import('./_consult-break-glass.js'),
   'investigation-orders':      () => import('./_investigation-orders.js'),
   'emergency-escalations':     () => import('./_emergency-escalations.js'),
