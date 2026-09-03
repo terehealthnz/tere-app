@@ -19,6 +19,9 @@ import { createClient } from '@supabase/supabase-js'
 import { getClientIp } from './_client-ip.js'
 import { checkElevation } from './_elevation.js'
 import { checkAccessBudget } from './_access-budget.js'
+import { readGeo } from './_geo-check.js'
+import { readMaybeEncrypted } from './_phi-crypto.js'
+import { raiseSecurityAlert } from './_security-alert.js'
 
 function admin() {
   return createClient(
@@ -79,6 +82,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `reason required (one of: ${[...ALLOWED_REASONS].join(', ')})` })
   }
 
+  // Geo check (task #380) — non-NZ/AU access to full ACC bundle raises alert.
+  const geo = readGeo(req)
+  if (geo.headerPresent && !geo.isHome) {
+    raiseSecurityAlert(req, {
+      eventType: 'acc_bundle_export_offshore',
+      severity:  'alert',
+      critical:  true,
+      summary:   `ACC bundle export attempted from ${geo.country} — non-NZ/AU IP`,
+      metadata:  { country: geo.country, provider_id: provider.id, claim_id, claim_number },
+    }).catch(() => {})
+    return res.status(451).json({ error: `ACC bundle exports are restricted to NZ/AU IPs. Detected country: ${geo.country}. If this is legitimate, contact the admin to add a break-glass grant.`, geo_blocked: true })
+  }
+
   // JIT elevation gate — ACC bundle export is the most sensitive read in the
   // system. Fresh MFA required (< 5 min old) even inside an active session.
   const elev = await checkElevation(req, { required: true })
@@ -104,6 +120,23 @@ export default async function handler(req, res) {
   if (claim.consultation_id) {
     const { data } = await supabase.from('consultations').select('*').eq('id', claim.consultation_id).maybeSingle()
     consult = data || null
+    // pgcrypto decrypt (task #381) — prefer encrypted, fall back to plain.
+    if (consult) {
+      if (consult.acc_injury_details_enc) {
+        const r = await readMaybeEncrypted(consult.acc_injury_details_enc, consult.acc_injury_details)
+        consult.acc_injury_details = r.value
+      }
+      // rehab_plan + discharge_summary are jsonb — encrypted variant stores
+      // JSON.stringify'd payload as text.
+      if (consult.rehab_plan_enc) {
+        const r = await readMaybeEncrypted(consult.rehab_plan_enc, JSON.stringify(consult.rehab_plan || null))
+        try { consult.rehab_plan = r.value ? JSON.parse(r.value) : consult.rehab_plan } catch { /* keep plain */ }
+      }
+      if (consult.discharge_summary_enc) {
+        const r = await readMaybeEncrypted(consult.discharge_summary_enc, JSON.stringify(consult.discharge_summary || null))
+        try { consult.discharge_summary = r.value ? JSON.parse(r.value) : consult.discharge_summary } catch { /* keep plain */ }
+      }
+    }
   }
 
   // ── Fetch patient (best-effort) ─────────────────────────────────────────────

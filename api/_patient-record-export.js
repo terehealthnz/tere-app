@@ -13,6 +13,8 @@ import { createClient } from '@supabase/supabase-js'
 import { getClientIp } from './_client-ip.js'
 import { checkElevation } from './_elevation.js'
 import { checkAccessBudget } from './_access-budget.js'
+import { readGeo } from './_geo-check.js'
+import { raiseSecurityAlert } from './_security-alert.js'
 
 function admin() {
   return createClient(
@@ -171,10 +173,21 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: `reason required (one of: ${[...ALLOWED_REASONS].join(', ')})` })
   }
 
-  // JIT elevation required — full patient record export is the highest-
-  // sensitivity read in the system. Skip for the patient-portal synthetic
-  // request (marked by req.auth.provider.id === null).
+  // JIT elevation + geo-block — highest sensitivity read. Skip for the
+  // patient-portal synthetic request (marked by req.auth.provider.id === null).
   if (provider.id) {
+    const geo = readGeo(req)
+    if (geo.headerPresent && !geo.isHome) {
+      raiseSecurityAlert(req, {
+        eventType: 'patient_record_export_offshore',
+        severity:  'alert',
+        critical:  true,
+        summary:   `Patient record export attempted from ${geo.country}`,
+        metadata:  { country: geo.country, provider_id: provider.id, patient_id },
+      }).catch(() => {})
+      return res.status(451).json({ error: `Patient record exports are restricted to NZ/AU IPs. Detected country: ${geo.country}.`, geo_blocked: true })
+    }
+
     const elev = await checkElevation(req, { required: true })
     if (!elev.ok) return res.status(elev.status).json({ error: elev.error, requires_elevation: true })
 

@@ -1,4 +1,5 @@
 import { sendEmail } from './_email-client.js'
+import { encryptPhi } from './_phi-crypto.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -32,6 +33,10 @@ export default async function handler(req, res) {
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
 
   // 2. Update consultation record
+  // Dual-write encrypted variant for highest-sensitivity fields (task #381).
+  // If ACC_PHI_ENCRYPTION_KEY is unset, encryptPhi returns null and only
+  // the plaintext column gets written — same as today's behaviour.
+  const injuryDetailsEnc = mechanism ? await encryptPhi(mechanism) : null
   const updatePayload = {
     acc_eligible: 'yes',
     is_acc: true,
@@ -40,6 +45,7 @@ export default async function handler(req, res) {
     acc_converted_by: providerId || null,
     acc_injury_date: injuryDate || null,
     acc_injury_details: mechanism || null,
+    acc_injury_details_enc: injuryDetailsEnc,
     acc_body_part: bodyPart || null,
     acc_employer: workRelated === 'yes' ? (employer || consult.acc_employer || null) : null,
     acc_read_code: readCode || null,

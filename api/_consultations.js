@@ -77,6 +77,13 @@ const UPDATE_ALLOWLIST = new Set([
   'support_person_present', 'support_person_name',
 ])
 
+// Fields to dual-write encrypted alongside their plaintext columns (task #381).
+// Value must be serialisable to a text form for pgp_sym_encrypt.
+const ENCRYPT_FIELDS = {
+  rehab_plan:        { enc: 'rehab_plan_enc',        serialise: (v) => v == null ? null : JSON.stringify(v) },
+  discharge_summary: { enc: 'discharge_summary_enc', serialise: (v) => v == null ? null : JSON.stringify(v) },
+}
+
 export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
@@ -595,6 +602,20 @@ export default async function handler(req, res) {
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch. Allowed: ' + Array.from(UPDATE_ALLOWLIST).join(', ') })
+    }
+
+    // Dual-write encrypted variants for the highest-sensitivity ACC fields
+    // (task #381). Best-effort — if the key isn't set or the RPC isn't there,
+    // encryptPhi returns null and we just skip the enc column.
+    for (const [field, { enc, serialise }] of Object.entries(ENCRYPT_FIELDS)) {
+      if (field in patch) {
+        try {
+          const { encryptPhi } = await import('./_phi-crypto.js')
+          const plaintext = serialise(patch[field])
+          const cipher = plaintext ? await encryptPhi(plaintext) : null
+          patch[enc] = cipher
+        } catch (e) { console.warn('[consultations] enc field skip:', field, e.message) }
+      }
     }
     patch.updated_at = new Date().toISOString()
 
