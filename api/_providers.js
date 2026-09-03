@@ -497,6 +497,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
 
+    // Identifier validation (task #386) — HPI-CPN must be a valid HISO 10046
+    // 7-char ID with Mod-11 check digit. Catches typos before they enter
+    // provider records + prevents propagation to HL7 messages / prescriptions.
+    if (patch.hpi_number) {
+      const { validateHpiCpn } = await import('./_nz-identifiers.js')
+      const v = validateHpiCpn(patch.hpi_number)
+      if (!v.valid) return res.status(400).json({ error: v.reason, field: 'hpi_number', validation: 'failed' })
+      patch.hpi_number = String(patch.hpi_number).trim().toUpperCase()
+    }
+
     patch.updated_at = new Date().toISOString()
 
     // Snapshot the pre-update MCNZ number so we can tell if this PATCH is

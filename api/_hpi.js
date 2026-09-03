@@ -189,12 +189,47 @@ function shapeLocation(l) {
   }
 }
 
+// Per-provider rate limit (task #388). HNZ enforces its own limit at the
+// gateway; we cap client-side to stay well under it + catch runaway loops
+// early. 100/hour is generous — real admin lookups are single-digit/hour.
+const HPI_RATE_LIMIT_PER_HOUR = 100
+const HPI_RATE_WARN_PCT = 0.8
+const hpiRateBuckets = new Map()
+function checkHpiRate(providerId) {
+  const now = Date.now()
+  const cutoff = now - 60 * 60 * 1000
+  const bucket = (hpiRateBuckets.get(providerId) || []).filter(t => t > cutoff)
+  bucket.push(now)
+  hpiRateBuckets.set(providerId, bucket)
+  return { count: bucket.length, limit: HPI_RATE_LIMIT_PER_HOUR, warn: bucket.length >= HPI_RATE_LIMIT_PER_HOUR * HPI_RATE_WARN_PCT, block: bucket.length > HPI_RATE_LIMIT_PER_HOUR }
+}
+
 export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
   if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
 
   const { action } = req.query || {}
+
+  // Per-provider rate limit (task #388) — only enforced for actions that
+  // actually hit the HNZ HPI API. Diagnostic / config actions don't count.
+  const REAL_ACTIONS = new Set(['get_practitioner', 'search_practitioner', 'get_facility', 'search_facility'])
+  if (REAL_ACTIONS.has(action)) {
+    const r = checkHpiRate(auth.provider.id)
+    if (r.block) {
+      return res.status(429).json({ error: `HPI query limit reached (${r.count}/${r.limit} per hour). Try again in 60 minutes.` })
+    }
+    if (r.warn) {
+      import('./_security-alert.js').then(({ raiseSecurityAlert }) => {
+        raiseSecurityAlert(req, {
+          eventType: 'hpi_rate_warn',
+          severity:  'warn',
+          summary:   `Provider approaching HPI rate limit (${r.count}/${r.limit} per hour)`,
+          metadata:  { provider_id: auth.provider.id, count: r.count, limit: r.limit },
+        }).catch(() => {})
+      }).catch(() => {})
+    }
+  }
 
   // Gate diagnostic actions post-compliance-submission (task #257). These
   // stay available if HPI_DIAG_ENABLED=true is set in Vercel, otherwise

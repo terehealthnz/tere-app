@@ -229,6 +229,34 @@ export default async function handler(req, res) {
       if (!patch.first_name || !patch.last_name || !patch.date_of_birth) {
         return res.status(400).json({ error: 'first_name, last_name, date_of_birth required' })
       }
+
+      // NHI validation + de-duplication (tasks #385, #387). If an NHI is
+      // supplied, it must pass Mod-11 and must not already exist. We return
+      // 409 with the existing patient_id so the client can decide (open the
+      // existing chart vs. proceed without NHI).
+      if (patch.nhi) {
+        const { validateNhi } = await import('./_nz-identifiers.js')
+        const v = validateNhi(patch.nhi)
+        if (!v.valid) {
+          return res.status(400).json({ error: v.reason, field: 'nhi', validation: 'failed' })
+        }
+        const { data: existing } = await supabase
+          .from('patients').select('id, first_name, last_name, dob')
+          .eq('nhi', String(patch.nhi).trim().toUpperCase())
+          .eq('is_practice', patch.is_practice ?? false)
+          .maybeSingle()
+        if (existing) {
+          return res.status(409).json({
+            error: `A patient with NHI ${patch.nhi} already exists (${existing.first_name || ''} ${existing.last_name || ''}). Open that chart or continue without an NHI.`,
+            existing_patient_id: existing.id,
+            existing_patient_summary: existing,
+            duplicate: true,
+          })
+        }
+        // Normalise casing for consistent lookups.
+        patch.nhi = String(patch.nhi).trim().toUpperCase()
+      }
+
       const { data, error } = await supabase
         .from('patients')
         .insert(patch)
