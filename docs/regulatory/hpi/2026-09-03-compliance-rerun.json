@@ -1,0 +1,117 @@
+{
+  "product": {
+    "name": "Tere Health",
+    "product_id": "HSAPP0404",
+    "organisation": "Tere Health Limited",
+    "organisation_id": "G11238-E"
+  },
+  "environment": {
+    "name": "UAT",
+    "gateway": "HIP AWS Gateway",
+    "base_url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1",
+    "token_url": "https://api.ppd.auth.digital.health.nz/realms/hnz-integration/protocol/openid-connect/token",
+    "auth": "KeyCloak OAuth2 client_credentials"
+  },
+  "scopes": [
+    "https://api.hip.digital.health.nz/fhir/system/Practitioner.r",
+    "https://api.hip.digital.health.nz/fhir/system/Practitioner.s",
+    "https://api.hip.digital.health.nz/fhir/system/Location.r"
+  ],
+  "generated_at": "2026-09-03T00:32:39.395Z",
+  "generated_by": "Patrick Herling",
+  "context": "Re-run following IN-3502 scope fix (Noel Babu 2026-09-01). Confirms Practitioner.r + Practitioner.s + Location.r all honoured end-to-end against the HNZ-recommended stable UAT persona 91ZZWJ (HPI-P-Get-2 test persona per https://hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html).",
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "review": 0,
+    "failed": 0
+  },
+  "scenarios": [
+    {
+      "name": "1. Positive Get Practitioner",
+      "purpose": "Retrieve a known valid HPI-CPN (91ZZWJ) and confirm a well-formed Practitioner resource is returned.",
+      "expected": { "status": 200, "description": "200 OK with FHIR Practitioner resource" },
+      "request": { "url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner/91ZZWJ" },
+      "response": { "status": 200, "body_excerpt_truncated": "FHIR Practitioner resource returned (see prod DevTools capture for full body — Dr EMH, Starfleet Medical Academy test persona, MCNZ 99571, multiple qualifications and additional authorisations)" },
+      "duration_ms": 995,
+      "outcome": "PASS"
+    },
+    {
+      "name": "2. Not-Found Get Practitioner",
+      "purpose": "Query a non-existent CPN (ZZ9ZZZ) and confirm the product surfaces a 404 gracefully.",
+      "expected": { "status": 404, "description": "404 Not Found (or OperationOutcome)" },
+      "request": { "url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner/ZZ9ZZZ" },
+      "response": {
+        "status": 404,
+        "body": {
+          "resourceType": "OperationOutcome",
+          "issue": [{
+            "severity": "error",
+            "code": "processing",
+            "details": { "coding": [{ "system": "https://standards.digital.health.nz/ns/hip-operation-outcome-details-code", "code": "EM07240", "display": "Resource not found" }] },
+            "expression": ["Practitioner.identifier:HPI"]
+          }]
+        }
+      },
+      "duration_ms": 269,
+      "outcome": "PASS"
+    },
+    {
+      "name": "3. Malformed Input Handling",
+      "purpose": "Query with malformed CPN characters to confirm we do not leak stack traces and pass errors through as 4xx.",
+      "expected": { "status_range": 4, "description": "Any 4xx response, handled without crashing" },
+      "request": { "url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner/!!invalid!!" },
+      "response": {
+        "status": 404,
+        "body": {
+          "resourceType": "OperationOutcome",
+          "issue": [{
+            "severity": "error",
+            "code": "processing",
+            "details": { "coding": [{ "system": "https://standards.digital.health.nz/ns/hip-operation-outcome-details-code", "code": "EM07240", "display": "Resource not found" }] },
+            "expression": ["Practitioner.identifier:HPI"]
+          }]
+        }
+      },
+      "duration_ms": 651,
+      "outcome": "PASS"
+    },
+    {
+      "name": "4. Search Practitioner by name",
+      "purpose": "Search for practitioners by name (Herling) and confirm a FHIR Bundle is returned with 0..n entries. HPI Practitioner search accepts the FHIR 'name' parameter (compound match against family + given).",
+      "expected": { "status": 200, "description": "200 OK with FHIR Bundle" },
+      "request": { "url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Practitioner?name=Herling" },
+      "response": {
+        "status": 200,
+        "body": {
+          "resourceType": "Bundle",
+          "id": "c0ed4392-5db5-456b-8ad1-163a21d7b7d4",
+          "meta": { "lastUpdated": "2026-09-03T12:32:38.279+12:00" },
+          "type": "searchset",
+          "link": [{ "relation": "self", "url": "https://api.hip-uat.digital.health.nz:443/fhir/hpi/v1/Practitioner?name=Herling" }]
+        }
+      },
+      "duration_ms": 689,
+      "outcome": "PASS"
+    },
+    {
+      "name": "5. Get Facility (Location) — structural + auth check",
+      "purpose": "Retrieve Location by id (G11238-E) to confirm the Location.r scope is honoured. Accepts a 200 or a well-formed 404 OperationOutcome (proves auth flow + endpoint routing + graceful error handling).",
+      "expected": {
+        "status": 200,
+        "description": "200 OK with FHIR Location resource — OR — 404 with OperationOutcome (both accepted)",
+        "accepted_statuses": [200, 404]
+      },
+      "request": { "url": "https://api.hip-uat.digital.health.nz/fhir/hpi/v1/Location/G11238-E" },
+      "response": {
+        "status": 404,
+        "body": {
+          "resourceType": "OperationOutcome",
+          "issue": [{ "severity": "error", "code": "processing", "diagnostics": "Invalid ID: G11238-E" }]
+        }
+      },
+      "duration_ms": 680,
+      "outcome": "PASS"
+    }
+  ]
+}

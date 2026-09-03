@@ -274,7 +274,12 @@ export default async function handler(req, res) {
     //   4. Name search:     Search Practitioner by family name → Bundle
     //   5. Facility get:    Location by HPI-O → 200 or documented 404
     if (action === 'compliance_pack') {
-      const validCpn      = String(req.query.cpn      || '24NSES').trim()
+      // Default valid CPN: HNZ's stable UAT persona for HPI-P-Get-2
+      // (per Noel Babu, ticket IN-3502, 2026-09-02). Listed at
+      // https://hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html
+      // Alternate: 90ZZLC. Live-registered CPNs (e.g. 24NSES) drift when
+      // HNZ refreshes UAT, so we default to the dedicated test persona.
+      const validCpn      = String(req.query.cpn      || '91ZZWJ').trim()
       const notFoundCpn   = String(req.query.notfound || 'ZZ9ZZZ').trim()
       const malformedCpn  = '!!invalid!!'
       const searchFamily  = String(req.query.family   || 'Herling').trim()
