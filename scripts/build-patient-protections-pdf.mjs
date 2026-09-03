@@ -225,6 +225,14 @@ const CONTROLS = [
     title: 'Patient identity verification at consult start',
     what: 'Provider attests per consult that the on-camera person is the NHI holder. Options: photo ID sighted (DL/passport/18+), knowledge-based (NHI+DOB+address), repeat patient, carer vouches; or three unverified variants. Prevents wrong-patient records + NHI-borrow prescribing fraud.',
     orgs: ['PRIV', 'MCNZ', 'HDC'], evidence: 'task #426; IdVerificationPanel.jsx' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'Patient-worried catch-all divert trigger (keyword-independent)',
+    what: 'Persistent "Something feels wrong — get me help now" chip below every AITriage input. Fires the divert screen regardless of keyword match. Closes the atypical-phrasing gap ("my chest feels funny" instead of "chest pain", "I feel like something is wrong" before an MI). Patient own alarm is a trigger, not just our phrase list.',
+    orgs: ['CoR', 'HDC'], evidence: 'task #431; AITriage.jsx worried-chip' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'No-location fallback prompt on emergency screens',
+    what: 'If browser geolocation silently fails (denied permission, timeout, desktop, rural on poor connection), all four emergency screens (111 / mental / addiction / divert) show an amber "Where are you right now?" free-text field. Submission PATCHes the escalation row via a 30-min UUID-authed anon update. Closes the case where the rural patient most needing directed 111 dispatch ends up with no location logged.',
+    orgs: ['CoR', 'HDC'], evidence: 'task #432; AITriage.jsx LocationPromptRow + emergency_escalations id-update path' },
 
   // ================ PREEMPTIVE — Third-Party & Vendor ================
   { cat: 'preemptive', section: 'Third-Party & Vendor',
@@ -379,6 +387,10 @@ const CONTROLS = [
     title: 'CGM minutes log + cadence tracker (evidence-of-operation)',
     what: 'Admin surface for logging CGM / peer review / M&M / audit meeting minutes (min 200 chars). Per-type cadence tiles turn red when overdue (CGM & M&M 90d, peer review 30d, audit 180d). Turns "documented cadence" into "evidence of operation" — what a regulator asks for when they read the framework and want to see the minutes.',
     orgs: ['MCNZ', 'HDC', 'HQSC', 'ISO27001'], evidence: 'task #427; cgm_meetings table + CgmMeetingsPanel.jsx' },
+  { cat: 'audit', section: 'Governance & Reviews',
+    title: 'Safety-netting peer-review meeting (monthly sample)',
+    what: 'New CGM meeting type: safety_netting_review. Admin loads 5 random recent safety_netting_text entries; peer group reviews for appropriateness-per-presentation; consultation IDs logged to the meeting row for audit. Turns the min-40-chars gate from a checkbox into a real control — regulator asks "was return advice appropriate for this presentation", which char-count can not verify.',
+    orgs: ['HDC', 'CoR', 'MCNZ'], evidence: 'task #433; cgm_meetings.safety_netting_samples_reviewed_ids' },
   { cat: 'audit', section: 'Governance & Reviews',
     title: 'Quarterly access review cron',
     what: 'Automated 90-day review of every provider’s access rights + admin roles; report emailed to the clinical lead + compliance owner for sign-off.',
@@ -602,8 +614,19 @@ async function main() {
     <li><strong>WAND scope</strong> — currently HR + SpO2 + RR only; BP + paediatric + other vitals would require a fresh change-notify (task #260).</li>
     <li><strong>NZF prescribing licence</strong> — task #229 blocks the full drug-drug interaction check. Partial coverage shipped: max-quantity + early-refill + doctor-shopping (task #423).</li>
     <li><strong>Patient identity verification — AI face-compare</strong> — v1 is provider attestation only (task #426). AI face-match against uploaded photo ID is future work.</li>
-    <li><strong>MOH new-service notification evidence</strong> — task #172 marked complete but no receipt / reference in the repo. See docs/regulatory/moh-notification-verification-needed.md — Patrick to confirm reference number + date, or file if not actually filed (task #428).</li>
-    <li><strong>Divert keyword coverage</strong> — AI chat divert uses ~24 hardcoded phrases (task #430). Broader coverage would benefit from an LLM-based safety classifier layer, which would need a fresh WAND change-notify. Tracked at task #288.</li>
+    <li><strong>MOH new-service notification — CONFIRMED via HPI onboarding.</strong> HPI compliance submission IN-3502 to HNZ Digital Services Hub (2026-08-13) is the MOH-visible notification pathway post-2022 reorganisation. Task #172 legitimately complete; task #428 verification: closed.</li>
+    <li><strong>Divert keyword coverage</strong> — AI chat divert uses ~24 hardcoded phrases (task #430). Mitigation shipped 2026-09-03: patient-worried catch-all chip (task #431). Broader LLM safety classifier still tracked at task #288 (WAND change-notify).</li>
+  </ul>
+
+  <h2>7. Priority gaps closing next (post-2026-09-03 review)</h2>
+  <p style="font-size:9.5pt;color:#6B7280">A follow-up review on 2026-09-03 named six second-order gaps. The three highest-impact hardening builds shipped same-day (tasks #431 + #432 + #433 — see §4 Clinical Safety and §5 Governance &amp; Reviews). The remainder are tracked as tasks #434–#439:</p>
+  <ul>
+    <li><strong>#434 Child / dependent consent + safeguarding pathway</strong> — new required fields for &lt;18yo consults (consenting adult name/relationship, guardianship_verified_at) + safeguarding_concern flag that routes to admin, with Oranga Tamariki mandatory-reporting runbook. Pre-first-patient priority.</li>
+    <li><strong>#435 Provider competence-to-roster credentialling</strong> — emergency-telehealth-specific competency assessment + scope-per-provider + probationary supervised period, beyond "registered and in-scope". MCNZ + HDC exposure.</li>
+    <li><strong>#436 Interpreter standard</strong> — interpreter_source (certified / family_member / none) with red banner explaining HDC risk when family_member is selected. Language Line / Ezispeak integration in a later phase.</li>
+    <li><strong>#437 Business-continuity fallback banner</strong> — static "if Tere is down, call this fax-number or 111" on consent + waiting-room + after-visit email. Fallback for when everything else has failed.</li>
+    <li><strong>#438 Te Tiriti / equity as governance function</strong> — add outcome-monitoring-by-ethnicity + Te Tiriti commitment to the Clinical Governance Framework. Quarterly equity review as a standing CGM item.</li>
+    <li><strong>#439 SaMD regulatory-affairs read on AI triage engine</strong> — external advisor brief (drafted, docs/regulatory/samd-advisor-brief-draft.md). Answers whether the triage engine needs its own therapeutic-products classification separate from the vitals WAND cert.</li>
   </ul>
 
   <h2>7. Contact</h2>
