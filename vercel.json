@@ -55,6 +55,7 @@
     { "path": "/api/cron-acc-anomaly",          "schedule": "15 7 * * *" },
     { "path": "/api/cron-access-review",        "schedule": "0 21 1 * *" },
     { "path": "/api/cron-break-glass-revoke",   "schedule": "*/5 * * * *" },
-    { "path": "/api/cron-compliance-expiry",    "schedule": "30 20 * * *" }
+    { "path": "/api/cron-compliance-expiry",    "schedule": "30 20 * * *" },
+    { "path": "/api/cron-results-reconciliation","schedule": "45 20 * * *" }
   ]
 }

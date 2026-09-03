@@ -11,6 +11,7 @@ import ControlledDrugsRegister from './ControlledDrugsRegister'
 import { HpiQueryAudit, Hl7ReceiveAudit, Section22fReport } from './NzHealthAuditPanels'
 import ComplaintThemesPanel from './ComplaintThemesPanel'
 import ConflictOfInterestPanel from './ConflictOfInterestPanel'
+import ResultsFollowupPanel from './ResultsFollowupPanel'
 import VendorSlaMetrics from './VendorSlaMetrics'
 import PeerReviewPanel from './PeerReviewPanel'
 import NhiLookup from './NhiLookup'
@@ -4970,7 +4971,7 @@ function AdminBody() {
             case 'quality':
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
-              return <><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+              return <><ResultsFollowupPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />

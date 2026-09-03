@@ -1693,3 +1693,40 @@ export async function getValidationReadingCount() {
   const { count } = await res.json()
   return count || 0
 }
+
+// ── Investigation orders (task #418) — results follow-up loop ───────────────
+export async function listInvestigationOrders({ filter = 'worklist', patientId } = {}) {
+  const p = new URLSearchParams({ filter })
+  if (patientId) p.set('patient_id', patientId)
+  const res = await apiFetch(`/api/investigation-orders?${p.toString()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `listInvestigationOrders HTTP ${res.status}`)
+  }
+  const { orders } = await res.json()
+  return orders || []
+}
+export async function createInvestigationOrder(payload) {
+  const res = await apiFetch('/api/investigation-orders', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `createInvestigationOrder HTTP ${res.status}`)
+  }
+  const { order } = await res.json()
+  return order
+}
+export async function patchInvestigationOrder(id, patch) {
+  const res = await apiFetch(`/api/investigation-orders?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `patchInvestigationOrder HTTP ${res.status}`)
+  }
+  const { order } = await res.json()
+  return order
+}
