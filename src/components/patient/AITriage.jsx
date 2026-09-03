@@ -54,6 +54,75 @@ const CONTROLLED_MED_KEYWORDS = [
   'ritalin','adderall','dexamphetamine','sleeping pills',
 ]
 
+// Divert keywords (task #430) — presentations that need in-person care but
+// aren't immediate 111 emergencies. Trigger the amber divert screen (not the
+// red 111 screen). Cover the 8 divert conditions from the classic Triage.jsx
+// list (paediatric fever <3mo, sudden severe localised pain, head injury
+// with features, pregnancy complications, suspected fractures, thunderclap
+// headache, self-harm not-yet-acute, new neuro symptoms).
+const DIVERT_KEYWORDS = [
+  // Paediatric fever <3mo — extremely low threshold in this age group
+  'baby has a fever','my baby','newborn','2 month old','3 month old','one month old','2-month-old','3-month-old','infant with fever','fever in baby',
+  // Sudden severe localised pain — surgical / testicular / renal / spinal
+  'testicular pain','testicle pain','pain in my testicle','sudden severe pain',
+  'worst pain','worst-ever pain','pain in my abdomen','severe abdominal',
+  'flank pain','loin pain','groin pain','sudden back pain','sudden severe',
+  // Head injury features
+  'hit my head','banged my head','knocked out','concussion','vomiting after head',
+  'confused after head','head injury','head trauma',
+  // Pregnancy complications
+  'pregnant and bleeding','pregnancy bleeding','severe headache pregnant',
+  'vision changes pregnant','reduced movements','baby not moving',
+  // Suspected fracture / wound needing stitches
+  'broken bone','suspected fracture','deep cut','needs stitches','gaping wound',
+  'obvious deformity','wound wont close','wound won\'t close',
+  // Thunderclap headache / new confusion
+  'thunderclap','sudden severe headache','worst headache','new confusion',
+  'sudden confusion',
+  // New neuro symptoms
+  'new numbness','new weakness','new vision loss','sudden numbness','sudden weakness',
+]
+
+function checkDivert(text) {
+  const lower = text.toLowerCase()
+  return DIVERT_KEYWORDS.some(kw => lower.includes(kw))
+}
+
+// Fire-and-forget escalation logging (task #420). Captures browser geolocation
+// (best-effort — 3s timeout, no block if declined). Called every time an
+// emergency/divert screen fires.
+async function logEscalation({ escalation_type, matched_flags, consultationId }) {
+  let loc = { location_declined_reason: 'not_attempted' }
+  try {
+    if ('geolocation' in navigator) {
+      loc = await new Promise(resolve => {
+        const t = setTimeout(() => resolve({ location_declined_reason: 'timeout' }), 3000)
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { clearTimeout(t); resolve({
+            patient_location_lat: pos.coords.latitude,
+            patient_location_lng: pos.coords.longitude,
+            patient_location_accuracy_m: pos.coords.accuracy,
+          })},
+          (err) => { clearTimeout(t); resolve({ location_declined_reason: err.code === 1 ? 'user_denied' : 'geolocation_error' }) },
+          { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 },
+        )
+      })
+    }
+  } catch {}
+  try {
+    await fetch('/api/emergency-escalations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        consultation_id: consultationId || null,
+        escalation_type,
+        matched_flags,
+        ...loc,
+      }),
+    })
+  } catch {}
+}
+
 function checkControlledMed(text) {
   const lower = text.toLowerCase()
   return CONTROLLED_MED_KEYWORDS.some(kw => lower.includes(kw))
@@ -764,9 +833,23 @@ export default function AITriage() {
       textForCheck = await translateToEnglish(value, lang)
     }
 
-    if (checkPhysicalEmergency(textForCheck)) { setTimeout(() => setEmergency('physical'), 500); return }
-    if (checkMentalHealthCrisis(textForCheck)) { setTimeout(() => setEmergency('mental'), 500); return }
-    if (checkAddiction(textForCheck)) { setTimeout(() => setEmergency('addiction'), 500); return }
+    if (checkPhysicalEmergency(textForCheck)) {
+      logEscalation({ escalation_type: 'red_flag_111', matched_flags: ['ai_physical_kw'], consultationId: data.consultation_id })
+      setTimeout(() => setEmergency('physical'), 500); return
+    }
+    if (checkMentalHealthCrisis(textForCheck)) {
+      logEscalation({ escalation_type: 'red_flag_111', matched_flags: ['ai_mental_kw'], consultationId: data.consultation_id })
+      setTimeout(() => setEmergency('mental'), 500); return
+    }
+    if (checkAddiction(textForCheck)) {
+      logEscalation({ escalation_type: 'divert_gp_today', matched_flags: ['ai_addiction_kw'], consultationId: data.consultation_id })
+      setTimeout(() => setEmergency('addiction'), 500); return
+    }
+    // Task #430 — divert keywords (in-person needed, not 111)
+    if (checkDivert(textForCheck)) {
+      logEscalation({ escalation_type: 'divert_ed', matched_flags: ['ai_divert_kw'], consultationId: data.consultation_id })
+      setTimeout(() => setEmergency('divert'), 500); return
+    }
 
     if (checkControlledMed(textForCheck) && !data.controlled_medication_mentioned) {
       setData(prev => ({ ...prev, controlled_medication_mentioned: true }))
@@ -1290,6 +1373,39 @@ export default function AITriage() {
               {t_bilingual('emergency_danger', lang)}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Divert screen (task #430) — in-person care needed but NOT 111. Amber tone,
+  // urgent care + GP options + only-if-worsening 111.
+  if (emergency === 'divert') return (
+    <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF3C7',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
+      <div style={{background:'#78350F',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))'}}>
+        <span onClick={() => navigate('/')} style={{fontFamily:'Cormorant Garamond, serif',fontStyle:'italic',color:'white',fontSize:'1.3rem',cursor:'pointer',userSelect:'none'}} role="link" aria-label="Tere Health — go to home">Tere</span>
+      </div>
+      <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',padding:'1.5rem',overflowY:'auto'}}>
+        <div style={{maxWidth:460,width:'100%',textAlign:'center'}}>
+          <div style={{fontSize:'3.5rem',marginBottom:'1rem'}}>🏥</div>
+          <h1 style={{color:'#78350F',marginBottom:'.75rem',fontSize:'1.6rem'}}>Please seek in-person care today</h1>
+          <p style={{marginBottom:'1.25rem',lineHeight:1.6,color:'#374151'}}>
+            Based on what you've described, Tere <strong>cannot safely manage this by video</strong>. You need someone to see you in person — this kind of presentation needs hands-on examination, and often imaging or observation that a video call can't provide.
+          </p>
+          <div style={{display:'flex',flexDirection:'column',gap:10,marginTop:'1.5rem'}}>
+            <a href="https://www.healthpoint.co.nz/urgent-care/" target="_blank" rel="noreferrer" style={{display:'block',background:'#D97706',color:'white',textDecoration:'none',borderRadius:12,padding:'1rem 1.25rem',fontWeight:700,fontSize:'1rem'}}>
+              🏥 Find urgent care near me
+            </a>
+            <a href="https://www.healthpoint.co.nz/gps-accident-medical/" target="_blank" rel="noreferrer" style={{display:'block',background:'white',border:'2px solid #D97706',color:'#78350F',textDecoration:'none',borderRadius:12,padding:'1rem 1.25rem',fontWeight:700,fontSize:'1rem'}}>
+              👨‍⚕️ Find a GP near me
+            </a>
+            <div style={{background:'#FEF2F2',border:'1px solid #FECACA',color:'#991B1B',borderRadius:12,padding:'.875rem 1rem',fontSize:'.875rem',marginTop:8}}>
+              If symptoms get <strong>worse</strong> — trouble breathing, severe pain, confusion, or you feel unsafe — <a href="tel:111" style={{color:'#991B1B',fontWeight:700}}>call 111</a> immediately.
+            </div>
+          </div>
+          <p style={{fontSize:'.75rem',color:'#78350F',marginTop:'1.25rem'}}>
+            Answered wrong? <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#78350F',fontSize:'.75rem',cursor:'pointer',textDecoration:'underline'}}>go back</button>
+          </p>
         </div>
       </div>
     </div>
