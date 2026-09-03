@@ -121,6 +121,60 @@ export default async function handler(req, res) {
     radiologyReferrals = data || []
   }
 
+  // ── Related consults on same claim (claim history stitch, task #344) ────────
+  // ACC audits typically ask for the full treatment episode, not just the
+  // consult that filed the claim. Find sibling consults linked by claim_number
+  // OR same patient + same injury date (fallback when NZ CN not yet propagated).
+  let relatedConsults = []
+  if (claim.claim_number) {
+    const { data } = await supabase.from('consultations')
+      .select('id, created_at, consultation_type, chief_complaint, acc_injury_date, acc_read_code, acc_body_part, doctor_notes, admin_notes, clinical_notes')
+      .eq('acc_claim_number', claim.claim_number)
+      .order('created_at')
+    relatedConsults = (data || []).filter(row => row.id !== claim.consultation_id)
+  }
+  if (!relatedConsults.length && consult?.patient_nhi && consult?.acc_injury_date) {
+    const { data } = await supabase.from('consultations')
+      .select('id, created_at, consultation_type, chief_complaint, acc_injury_date, acc_read_code, acc_body_part, doctor_notes, admin_notes, clinical_notes')
+      .eq('patient_nhi', consult.patient_nhi)
+      .eq('acc_injury_date', consult.acc_injury_date)
+      .order('created_at')
+    relatedConsults = (data || []).filter(row => row.id !== claim.consultation_id)
+  }
+
+  // ── Outcome measures across the whole claim (task #345) ─────────────────────
+  let outcomeMeasures = []
+  if (claim.claim_number) {
+    const { data } = await supabase.from('consultation_outcome_measures')
+      .select('*').eq('claim_number', claim.claim_number).order('recorded_at')
+    outcomeMeasures = data || []
+  }
+  if (!outcomeMeasures.length && claim.consultation_id) {
+    const consultIds = [claim.consultation_id, ...relatedConsults.map(c => c.id)]
+    const { data } = await supabase.from('consultation_outcome_measures')
+      .select('*').in('consultation_id', consultIds).order('recorded_at')
+    outcomeMeasures = data || []
+  }
+
+  // ── Case-manager comms for this claim (task #347) ───────────────────────────
+  let communications = []
+  {
+    const { data } = await supabase.from('acc_communications')
+      .select('*')
+      .or(`claim_id.eq.${claim.id}${claim.claim_number ? `,claim_number.eq.${claim.claim_number}` : ''}`)
+      .order('occurred_at', { ascending: false })
+    communications = data || []
+  }
+
+  // ── Peer review of the primary consult (task #348) ──────────────────────────
+  let peerReviews = []
+  if (claim.consultation_id) {
+    const consultIds = [claim.consultation_id, ...relatedConsults.map(c => c.id)]
+    const { data } = await supabase.from('consultation_peer_reviews')
+      .select('*').in('consultation_id', consultIds).order('reviewed_at', { ascending: false })
+    peerReviews = data || []
+  }
+
   // ── Fetch audit_logs rows touching this claim or its consultation ───────────
   let auditRows = []
   {
@@ -190,12 +244,19 @@ export default async function handler(req, res) {
       clinical_notes: consult.clinical_notes,
       doctor_notes: consult.doctor_notes,
       admin_notes: consult.admin_notes,
+      rehab_plan: consult.rehab_plan,
+      discharge_summary: consult.discharge_summary,
+      rtw_status: consult.rtw_status,
     } : null,
     patient:        patient,
     provider:       providerRec,
     timeline:       buildTimeline(claim, consult),
     prescriptions:  prescriptions,
     radiology_referrals: radiologyReferrals,
+    related_consults:    relatedConsults,
+    outcome_measures:    outcomeMeasures,
+    communications:      communications,
+    peer_reviews:        peerReviews,
     audit_trail:    auditRows,
   }
 

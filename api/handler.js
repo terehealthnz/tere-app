@@ -37,7 +37,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   //     that ran the training
   'flags',
   // Provider clinical work
-  'convert-to-acc', 'acc-claims', 'acc-audit-bundle',
+  'convert-to-acc', 'acc-claims', 'acc-audit-bundle', 'patient-record-export',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
@@ -297,6 +297,7 @@ const ROUTES = {
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'acc-audit-bundle':          () => import('./_acc-audit-bundle.js'),
+  'patient-record-export':     () => import('./_patient-record-export.js'),
   'pms-data':                  () => import('./_pms-data.js'),
   'validation-subjects':       () => import('./_validation-subjects.js'),
   'validation-readings':       () => import('./_validation-readings.js'),

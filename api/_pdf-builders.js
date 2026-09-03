@@ -1272,6 +1272,120 @@ export function buildAccAuditBundlePdf(bundle) {
       }
     }
 
+    // ── Rehab plan / RTW / discharge summary ──────────────────────────────────
+    if (c.rehab_plan || c.rtw_status || c.discharge_summary) {
+      y = section(y, 'Treatment plan & discharge')
+      if (c.rehab_plan) {
+        y = pageBreakIf(y, 40)
+        const rp = c.rehab_plan
+        doc.fillColor('#6B7280').font('Helvetica-Bold').fontSize(9).text('Rehab plan', LEFT, y)
+        const goals = Array.isArray(rp.goals) ? rp.goals.join(' · ') : (rp.goals || '')
+        const planTxt = [
+          goals && `Goals: ${goals}`,
+          rp.plan && `Plan: ${rp.plan}`,
+          rp.review_cycle_weeks && `Review cycle: every ${rp.review_cycle_weeks} weeks`,
+          rp.next_review_at && `Next review: ${nzDate(rp.next_review_at)}`,
+        ].filter(Boolean).join('\n')
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(planTxt || '—', LEFT, y + 12, { width: CONTENT_W })
+        y += 12 + doc.heightOfString(planTxt || '—', { width: CONTENT_W }) + 8
+      }
+      if (c.rtw_status) {
+        y = pageBreakIf(y, 30)
+        const rw = c.rtw_status
+        doc.fillColor('#6B7280').font('Helvetica-Bold').fontSize(9).text('Return-to-work status', LEFT, y)
+        const rwTxt = [
+          rw.status && `Status: ${rw.status}`,
+          rw.hours_per_week != null && `Hours/week: ${rw.hours_per_week}`,
+          rw.restrictions && `Restrictions: ${rw.restrictions}`,
+          rw.target_date && `Target return date: ${nzDate(rw.target_date)}`,
+        ].filter(Boolean).join('\n')
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(rwTxt || '—', LEFT, y + 12, { width: CONTENT_W })
+        y += 12 + doc.heightOfString(rwTxt || '—', { width: CONTENT_W }) + 8
+      }
+      if (c.discharge_summary) {
+        y = pageBreakIf(y, 30)
+        const ds = c.discharge_summary
+        doc.fillColor('#6B7280').font('Helvetica-Bold').fontSize(9).text('Discharge summary', LEFT, y)
+        const dsTxt = [
+          ds.status && `Status: ${ds.status}`,
+          ds.discharge_date && `Discharged: ${nzDate(ds.discharge_date)}`,
+          ds.referred_to && `Referred to: ${ds.referred_to}`,
+          ds.summary_text && `Summary: ${ds.summary_text}`,
+        ].filter(Boolean).join('\n')
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(dsTxt || '—', LEFT, y + 12, { width: CONTENT_W })
+        y += 12 + doc.heightOfString(dsTxt || '—', { width: CONTENT_W }) + 8
+      }
+    }
+
+    // ── Related consults on this claim (claim history) ────────────────────────
+    y = section(y, `Related consults on this claim (${bundle.related_consults?.length || 0})`)
+    if (!bundle.related_consults?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('This is the only consult filed against this claim.', LEFT, y)
+      y += 18
+    } else {
+      for (const rc of bundle.related_consults) {
+        y = pageBreakIf(y, 28)
+        doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(`${nzDate(rc.created_at)} · ${rc.consultation_type || '—'} · ${rc.acc_read_code || '—'}`, LEFT, y)
+        doc.fillColor('#374151').font('Helvetica').fontSize(9).text(String(rc.chief_complaint || '').slice(0, 200), LEFT, y + 12, { width: CONTENT_W })
+        y += 30
+      }
+    }
+
+    // ── Outcome measures over time ────────────────────────────────────────────
+    y = section(y, `Outcome measures (${bundle.outcome_measures?.length || 0})`)
+    if (!bundle.outcome_measures?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('No structured outcome measures recorded.', LEFT, y)
+      y += 18
+    } else {
+      for (const m of bundle.outcome_measures) {
+        y = pageBreakIf(y, 20)
+        const val = m.value_numeric != null ? m.value_numeric : (m.value_text || '—')
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8.5).text(nzDateTime(m.recorded_at), LEFT, y, { width: 130 })
+        doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(9).text(m.measure_type, LEFT + 135, y, { width: 180 })
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9).text(String(val), LEFT + 320, y, { width: CONTENT_W - 320 })
+        y += 16
+      }
+    }
+
+    // ── Case-manager comms ────────────────────────────────────────────────────
+    y = section(y, `ACC case-manager comms (${bundle.communications?.length || 0})`)
+    if (!bundle.communications?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('No recorded case-manager comms for this claim.', LEFT, y)
+      y += 18
+    } else {
+      for (const cm of bundle.communications.slice(0, 30)) {
+        y = pageBreakIf(y, 30)
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8.5).text(nzDateTime(cm.occurred_at), LEFT, y, { width: 130 })
+        doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(9).text(`${(cm.direction || '').toUpperCase()} · ${cm.channel || '—'}`, LEFT + 135, y, { width: 130 })
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9).text(cm.subject || '(no subject)', LEFT + 270, y, { width: CONTENT_W - 270 })
+        if (cm.body) {
+          doc.fillColor('#374151').font('Helvetica').fontSize(8.5).text(String(cm.body).slice(0, 300), LEFT + 135, y + 12, { width: CONTENT_W - 135 })
+          y += 12 + doc.heightOfString(String(cm.body).slice(0, 300), { width: CONTENT_W - 135 }) + 6
+        } else {
+          y += 20
+        }
+      }
+    }
+
+    // ── Peer review ───────────────────────────────────────────────────────────
+    y = section(y, `Peer review (${bundle.peer_reviews?.length || 0})`)
+    if (!bundle.peer_reviews?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('Not sampled for peer review.', LEFT, y)
+      y += 18
+    } else {
+      for (const pr of bundle.peer_reviews) {
+        y = pageBreakIf(y, 28)
+        doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(`${nzDateTime(pr.reviewed_at)} · ${pr.reviewer_name || '—'}`, LEFT, y)
+        doc.fillColor('#0B6E76').font('Helvetica').fontSize(9).text(`Agreement: ${pr.agreement || '—'} · Sample: ${pr.sample_reason || '—'}`, LEFT, y + 12)
+        if (pr.notes) {
+          doc.fillColor('#374151').font('Helvetica').fontSize(9).text(pr.notes, LEFT, y + 24, { width: CONTENT_W })
+          y += 24 + doc.heightOfString(pr.notes, { width: CONTENT_W }) + 8
+        } else {
+          y += 32
+        }
+      }
+    }
+
     // ── Prescriptions ─────────────────────────────────────────────────────────
     y = section(y, `Prescriptions (${bundle.prescriptions?.length || 0})`)
     if (!bundle.prescriptions?.length) {

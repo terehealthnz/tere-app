@@ -213,16 +213,20 @@ export default async function handler(req, res) {
     }
 
     // Recent consults (all statuses) — analytics panel.
+    // Accepts ?since=<iso> for date-range analytics (VendorSlaMetrics),
+    // otherwise defaults to a limit-based recent window.
     if (filter === 'recent') {
       // payment_amount_nzd is a planned column that was never migrated in;
       // drop from default projection. Client callers that reference it fall
       // back to payment_amount safely.
       const cols = projection || 'id, created_at, completed_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, status, payment_amount, acc_eligible, acc_read_code, consultation_duration_seconds'
-      const limit = Math.max(1, Math.min(500, parseInt(req.query?.limit) || 100))
-      const { data, error } = await supabase
+      const limit = Math.max(1, Math.min(2000, parseInt(req.query?.limit) || 100))
+      let q = supabase
         .from('consultations').select(cols)
         .eq('is_practice', practice)
         .order('created_at', { ascending: false }).limit(limit)
+      if (req.query?.since) q = q.gte('created_at', String(req.query.since))
+      const { data, error } = await q
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
     }

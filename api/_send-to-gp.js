@@ -1,6 +1,7 @@
 // api/send-to-gp.js — Send finalised note PDF to GP via Resend
 import { hasEmailProvider } from './_email-client.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { recordDisclosure } from './_disclosure.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -156,6 +157,19 @@ export default async function handler(req, res) {
       resource_id:     consultationId,
       metadata: { gp_name: gpName || null, gp_email: gpEmail },
     })
+
+    // Consent-snapshotted disclosure record (task #351).
+    recordDisclosure(req, {
+      patientNhi:        patientNhi,
+      consultationId:    consultationId,
+      channel:           'gp_letter_email',
+      destination:       gpEmail,
+      destinationLabel:  gpName ? `Dr ${gpName}` : null,
+      consentSource:     'triage_tick',
+      consentSourceRef:  consultationId,
+      disclosurePurpose: 'continuity_of_care',
+      payloadSummary:    'GP letter — SOAP note + plan (post-consultation summary)',
+    }).catch(() => {})
 
     res.json({ ok: true })
   } catch (e) {

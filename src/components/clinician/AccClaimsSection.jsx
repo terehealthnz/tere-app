@@ -342,6 +342,76 @@ function BundleView({ bundle }) {
         </div>
       )}
 
+      {(consult.rehab_plan || consult.rtw_status || consult.discharge_summary) && (
+        <>
+          <H>Treatment plan & discharge</H>
+          {consult.rehab_plan && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '.5rem .75rem', fontSize: '.8125rem', marginBottom: 6 }}>
+              <div style={{ color: NAVY, fontWeight: 700, marginBottom: 4 }}>Rehab plan</div>
+              {Array.isArray(consult.rehab_plan.goals) && consult.rehab_plan.goals.length > 0 && (
+                <div style={{ color: '#374151' }}>Goals: {consult.rehab_plan.goals.join(' · ')}</div>
+              )}
+              {consult.rehab_plan.plan && <div style={{ color: '#374151' }}>Plan: {consult.rehab_plan.plan}</div>}
+              {consult.rehab_plan.review_cycle_weeks && <div style={{ color: '#6B7280' }}>Review every {consult.rehab_plan.review_cycle_weeks} weeks · next {nzDate(consult.rehab_plan.next_review_at)}</div>}
+            </div>
+          )}
+          {consult.rtw_status && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '.5rem .75rem', fontSize: '.8125rem', marginBottom: 6 }}>
+              <div style={{ color: NAVY, fontWeight: 700, marginBottom: 4 }}>Return to work</div>
+              <div style={{ color: '#374151' }}>Status: {consult.rtw_status.status} · Hours/wk: {consult.rtw_status.hours_per_week ?? '—'} · Target: {nzDate(consult.rtw_status.target_date)}</div>
+              {consult.rtw_status.restrictions && <div style={{ color: '#6B7280' }}>Restrictions: {consult.rtw_status.restrictions}</div>}
+            </div>
+          )}
+          {consult.discharge_summary && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '.5rem .75rem', fontSize: '.8125rem', marginBottom: 6 }}>
+              <div style={{ color: NAVY, fontWeight: 700, marginBottom: 4 }}>Discharge summary</div>
+              <div style={{ color: '#374151' }}>Status: {consult.discharge_summary.status} · {nzDate(consult.discharge_summary.discharge_date)}</div>
+              {consult.discharge_summary.referred_to && <div style={{ color: '#6B7280' }}>Referred to: {consult.discharge_summary.referred_to}</div>}
+              {consult.discharge_summary.summary_text && <div style={{ color: '#374151', marginTop: 4 }}>{consult.discharge_summary.summary_text}</div>}
+            </div>
+          )}
+        </>
+      )}
+
+      <H>Related consults on this claim ({bundle.related_consults?.length || 0})</H>
+      {(!bundle.related_consults?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>None — this is the only consult filed on this claim.</div> : bundle.related_consults.map(rc => (
+        <div key={rc.id} style={{ padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
+          <div style={{ color: NAVY, fontWeight: 700 }}>{nzDate(rc.created_at)} · {rc.consultation_type || '—'} · {rc.acc_read_code || '—'}</div>
+          <div style={{ color: '#6B7280', fontSize: '.75rem' }}>{String(rc.chief_complaint || '').slice(0, 160)}</div>
+        </div>
+      ))}
+
+      <H>Outcome measures ({bundle.outcome_measures?.length || 0})</H>
+      {(!bundle.outcome_measures?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>No structured measures recorded.</div> : bundle.outcome_measures.map(m => (
+        <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '160px 200px 1fr', gap: 8, padding: '4px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
+          <div style={{ color: '#6B7280' }}>{nzDateTime(m.recorded_at)}</div>
+          <div style={{ color: TEAL, fontWeight: 700 }}>{m.measure_type}</div>
+          <div style={{ color: NAVY }}>{m.value_numeric != null ? m.value_numeric : m.value_text || '—'}</div>
+        </div>
+      ))}
+
+      <H>Case-manager comms ({bundle.communications?.length || 0})</H>
+      {(!bundle.communications?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>None recorded.</div> : bundle.communications.slice(0, 20).map(cm => (
+        <div key={cm.id} style={{ padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <span style={{ color: '#6B7280' }}>{nzDateTime(cm.occurred_at)}</span>
+            <span style={{ color: cm.direction === 'inbound' ? '#059669' : '#7C3AED', fontWeight: 700, fontSize: '.6875rem' }}>{(cm.direction || '').toUpperCase()}</span>
+            <span style={{ color: '#6B7280', fontSize: '.6875rem' }}>{cm.channel}</span>
+            <span style={{ color: NAVY, fontWeight: 600 }}>{cm.subject || '(no subject)'}</span>
+          </div>
+          {cm.body && <div style={{ color: '#374151', fontSize: '.75rem', marginTop: 3 }}>{String(cm.body).slice(0, 240)}</div>}
+        </div>
+      ))}
+
+      <H>Peer review ({bundle.peer_reviews?.length || 0})</H>
+      {(!bundle.peer_reviews?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>Not sampled for peer review.</div> : bundle.peer_reviews.map(pr => (
+        <div key={pr.id} style={{ padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
+          <div style={{ color: NAVY, fontWeight: 700 }}>{nzDateTime(pr.reviewed_at)} · {pr.reviewer_name || '—'}</div>
+          <div style={{ color: TEAL, fontSize: '.75rem' }}>Agreement: {pr.agreement || '—'} · Sample: {pr.sample_reason || '—'}</div>
+          {pr.notes && <div style={{ color: '#374151', marginTop: 4 }}>{pr.notes}</div>}
+        </div>
+      ))}
+
       <H>Status timeline</H>
       {(!bundle.timeline?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>No events.</div> : bundle.timeline.map((r, i) => (
         <div key={i} style={{ display: 'grid', gridTemplateColumns: '160px 180px 1fr', gap: 8, padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildAccInvoicePdf } from './_pdf-builders.js'
+import { recordDisclosure } from './_disclosure.js'
 
 const ACC_BASE_URL = process.env.ACC_SANDBOX === 'false'
   ? 'https://apiservices.acc.co.nz'
@@ -103,6 +104,23 @@ async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents,
     attachments: [{ filename: `${claimNumber}.pdf`, content: pdfBase64 }],
   })
   return { sent: true }
+}
+
+// Bridge from the emailAccInvoice helper (which doesn't have `req` in scope)
+// to the disclosure recorder — invoked from the POST handler once we know the
+// email actually went. Kept separate so the pure-email helper stays testable.
+async function recordAccInvoiceDisclosure(req, consult, claimNumber) {
+  return recordDisclosure(req, {
+    patientNhi:        consult.patient_nhi,
+    consultationId:    consult.id,
+    channel:           'acc_invoice',
+    destination:       'providerinvoices@acc.co.nz',
+    destinationLabel:  'ACC (Provider Invoices)',
+    consentSource:     'triage_tick',
+    consentSourceRef:  consult.id,
+    disclosurePurpose: 'billing',
+    payloadSummary:    `ACC invoice PDF — claim ${claimNumber}`,
+  }).catch(() => {})
 }
 
 export default async function handler(req, res) {
@@ -238,6 +256,9 @@ export default async function handler(req, res) {
         claimNumber, consult, serviceCode, amountCents,
         providerName: pName, providerHpi: hpiNumber,
       })
+      if (invoiceOutcome?.sent) {
+        recordAccInvoiceDisclosure(req, consult, claimNumber)
+      }
     } catch (e) {
       invoiceOutcome = { error: 'invoice send failed' }
       console.error('acc-claims: emailAccInvoice failed:', e.message)

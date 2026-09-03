@@ -90,6 +90,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ prescriptions: data || [] })
   }
 
+  // Controlled Drugs Register — every prescription flagged controlled=true.
+  // Meets NZ Misuse of Drugs Regulations 1977 reg 44 record-keeping expectations
+  // (Medsafe audit). Date range + optional drug filter.
+  if (filter === 'controlled_register') {
+    const { from, to, drug } = req.query
+    let q = supabase.from('prescriptions')
+      .select('id, drug_name, drug, strength, dose, dose_instructions, directions, quantity, refills, delivery_status, created_at, patient_name, patient_nhi, prescriber_number, consultation_id, provider_id, provider_name')
+      .eq('controlled', true)
+      .eq('is_practice', practice)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+    if (from) q = q.gte('created_at', from)
+    if (to)   q = q.lte('created_at', to)
+    if (drug) q = q.or(`drug_name.ilike.%${drug}%,drug.ilike.%${drug}%`)
+    const { data, error } = await q
+    if (error) { console.error('[prescriptions] cd register failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ prescriptions: data || [] })
+  }
+
   // Recent list capped at limit — ProviderApp.jsx analytics panel.
   if (filter === 'recent_list') {
     const { limit: rawLimit } = req.query

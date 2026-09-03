@@ -85,6 +85,37 @@ export default function PatientAccessHistoryModal({ open, onClose, patientNhi, p
     setTimeout(() => URL.revokeObjectURL(url), 5000)
   }
 
+  // Patient-friendly export — for HDC Right 6(f) requests where the patient
+  // asks for a copy of who has accessed their record. Redacts internal
+  // metadata (IPs, user agents, resource IDs, reason_notes) that could
+  // expose case references or internal identifiers. Keeps: date, event,
+  // provider role (not name — patient doesn't need to know Tere-internal
+  // provider names beyond their treating clinician), and reason category.
+  function exportPatientReport() {
+    const header = ['Date', 'What happened', 'Accessed by (role)', 'Purpose']
+    const rows = logs.map(l => [
+      new Date(l.created_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+      (l.event_type || '').replace(/_/g, ' '),
+      l.provider_role ? l.provider_role.replace(/_/g, ' ') : '—',
+      l.reason ? (REASON_LABEL[l.reason] || l.reason).replace(/^[^\w]+ /, '') : (l.provider_role === 'provider' ? 'clinical care' : '—'),
+    ])
+    const csv = [header, ...rows].map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${v}"` : v).join(',')).join('\n')
+    const preamble = [
+      `Access history for NHI ${patientNhi}${patientName ? ` (${patientName})` : ''}`,
+      `Generated ${new Date().toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })} · Tere Health Limited · HPI-O G11238-E`,
+      `This report is provided under Right 6(f) of the Code of Health and Disability Services Consumers' Rights and section IPP6 of the Privacy Act 2020.`,
+      `Every access shown was recorded automatically at the time it occurred.`,
+      '',
+    ].join('\n')
+    const blob = new Blob([preamble + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `access-history-for-patient-${patientNhi}-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
   if (!open) return null
 
   return (
@@ -109,9 +140,15 @@ export default function PatientAccessHistoryModal({ open, onClose, patientNhi, p
             </button>
           ))}
           <span style={{ flex: 1 }} />
+          <button onClick={exportPatientReport} disabled={!logs.length}
+            title="Redacted patient-facing CSV — for HDC Right 6(f) requests"
+            style={{ padding: '4px 12px', background: 'white', color: NAVY, border: '1px solid #E2E8F0', borderRadius: 6, fontSize: '.75rem', fontFamily: FF, fontWeight: 700, cursor: logs.length ? 'pointer' : 'default', opacity: logs.length ? 1 : 0.5 }}>
+            Report for patient
+          </button>
           <button onClick={exportCsv} disabled={!logs.length}
+            title="Full internal CSV with all metadata"
             style={{ padding: '4px 12px', background: '#0B6E76', color: 'white', border: 'none', borderRadius: 6, fontSize: '.75rem', fontFamily: FF, fontWeight: 700, cursor: logs.length ? 'pointer' : 'default', opacity: logs.length ? 1 : 0.5 }}>
-            Export CSV
+            Full CSV
           </button>
         </div>
 

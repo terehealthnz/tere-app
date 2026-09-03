@@ -7,6 +7,8 @@ import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
+import ControlledDrugsRegister from './ControlledDrugsRegister'
+import VendorSlaMetrics from './VendorSlaMetrics'
 import NhiLookup from './NhiLookup'
 import { isNZ } from '../../lib/region'
 
@@ -4962,9 +4964,9 @@ function AdminBody() {
             case 'careers':
               return <CareersPanel />
             case 'quality':
-              return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
+              return <><VendorSlaMetrics /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
-              return <><AuditLogPanel /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+              return <><AuditLogPanel /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
