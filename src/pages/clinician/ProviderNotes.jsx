@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
+import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
 
 const FF    = 'Plus Jakarta Sans, sans-serif'
 const TEAL  = '#0B6E76'
@@ -335,6 +336,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [accBodyPart,    setAccBodyPart]    = useState('')
   const [outcome,        setOutcome]        = useState('')
   const [actualMethod,   setActualMethod]   = useState(() => sessionStorage.getItem('consultationType') || 'video')
+  // Safety-netting — gated field required for finalise (task #417). Provider
+  // picks a template then edits. Included in the after-visit summary emailed
+  // to the patient. HDC Right 6 evidence.
+  const [safetyNetTemplateId, setSafetyNetTemplateId] = useState('')
+  const [safetyNetText,       setSafetyNetText]       = useState('')
   const [attested,       setAttested]       = useState(false)
 
   // Async message — thread
@@ -499,6 +505,8 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     if (d.accBodyPart)    setAccBodyPart(d.accBodyPart)
     if (d.outcome)        setOutcome(d.outcome)
     if (d.asyncResponse)  setAsyncResponse(d.asyncResponse)
+    if (d.safetyNetTemplateId) setSafetyNetTemplateId(d.safetyNetTemplateId)
+    if (d.safetyNetText)       setSafetyNetText(d.safetyNetText)
   }
 
   async function runGenerate(consultData) {
@@ -565,9 +573,9 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // Auto-save draft
   useEffect(() => {
     if (!id || !consult) return
-    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse }
+    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText }
     localStorage.setItem(draftKey, JSON.stringify(draft))
-  }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse])
+  }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText])
 
   // ── Thread handlers ───────────────────────────────────────────────────────────
 
@@ -685,7 +693,8 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
 
   // ── Standard finalise (video / phone) ────────────────────────────────────────
 
-  const canFinalise = noteConfirmed && !!outcome && attested
+  const safetyNetOk = (safetyNetText || '').trim().length >= SAFETY_NET_MIN_CHARS
+  const canFinalise = noteConfirmed && !!outcome && attested && safetyNetOk
 
   function addAction(action) {
     actionsRef.current = [...actionsRef.current, action]
@@ -736,7 +745,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       const durationSec  = consult.consultation_duration_seconds ||
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
-      const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current }
+      const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current, safetyNet: { templateId: safetyNetTemplateId || 'custom', text: (safetyNetText || '').trim() } }
 
       try {
         await updateConsultation(id, {
@@ -748,6 +757,9 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           outcome, status:'complete', completed_at:consult.completed_at || now,
           consultation_duration_seconds:durationSec, consultation_type:actualMethod,
           payment_amount:chargeCents / 100, is_acc:isAcc,
+          safety_netting_text:        (safetyNetText || '').trim(),
+          safety_netting_template_id: safetyNetTemplateId || 'custom',
+          safety_netting_at:          now,
         })
       } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })
@@ -1435,6 +1447,50 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             {OUTCOMES.filter(o => !isAsyncMessage || o.value !== 'acc_lodged').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
+
+        {/* Safety-netting (task #417) — HDC Right 6 evidence. Required for
+            finalise on video/phone consults. Provider picks a template then
+            edits; edited text is stored on the row + goes into the after-
+            visit patient email. */}
+        {!isAsyncMessage && (
+          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:`1.5px solid ${safetyNetOk || isFinalised ? '#BBF7D0' : '#FDE68A'}` }}>
+            <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:10 }}>
+              Safety-netting / return advice {!isFinalised && <span style={{ color:'#DC2626' }}>*</span>}
+              <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
+                — what the patient should watch for + when to come back
+              </span>
+            </label>
+            {!isFinalised && (
+              <select value={safetyNetTemplateId}
+                onChange={e => {
+                  const tid = e.target.value
+                  setSafetyNetTemplateId(tid)
+                  const t = SAFETY_NET_TEMPLATES.find(x => x.id === tid)
+                  if (t) setSafetyNetText(t.text)
+                }}
+                style={{ width:'100%', padding:'10px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'.875rem', marginBottom:10, background:'white', outline:'none', WebkitAppearance:'none', appearance:'none' }}>
+                <option value="">Pick a template to start…</option>
+                {SAFETY_NET_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            )}
+            <textarea value={safetyNetText}
+              onChange={e => setSafetyNetText(e.target.value)}
+              readOnly={isFinalised}
+              placeholder="Return advice for the patient. Include: what to expect, what should worsen and prompt review, when to seek in-person care, when to call 111. Minimum 40 chars."
+              rows={7}
+              style={{ width:'100%', boxSizing:'border-box', border:`1.5px solid ${safetyNetOk?'#BBF7D0':'#E2E8F0'}`, borderRadius:8, padding:'10px 12px', fontFamily:FF, fontSize:'.875rem', lineHeight:1.55, resize:'vertical', outline:'none', color:'#1A2A33', background:isFinalised?'#F8FAFC':safetyNetOk?'#F0FDF4':'white', minHeight:120 }} />
+            {!isFinalised && (
+              <div style={{ fontSize:'.6875rem', color: safetyNetOk ? GREEN : '#D97706', marginTop:4, fontWeight:600 }}>
+                {(safetyNetText || '').trim().length}/{SAFETY_NET_MIN_CHARS} chars minimum {safetyNetOk && '✓'}
+              </div>
+            )}
+            {!isFinalised && (
+              <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:6, lineHeight:1.5 }}>
+                This will be included in the patient’s after-visit summary. Required for finalise (HDC Right 6 — informed choice on what to do next).
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Patient-fee tier — single unified pricing. NZ residents pay the
             standard fee; overseas patients pay the international rate.

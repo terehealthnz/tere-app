@@ -79,6 +79,8 @@ const UPDATE_ALLOWLIST = new Set([
   // interpreter_requested column pre-exists (big-migration.sql).
   'interpreter_requested', 'interpreter_language',
   'capacity_confirmed_at', 'capacity_confirmed_by_self',
+  // Safety-netting gated field (task #417, migration 2026-09-03_safety_netting.sql)
+  'safety_netting_text', 'safety_netting_template_id', 'safety_netting_at',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).
