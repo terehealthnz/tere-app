@@ -9,6 +9,7 @@ import PatientAccessHistoryModal from '../../components/clinician/PatientAccessH
 import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
 import IdVerificationPanel from '../../components/clinician/IdVerificationPanel'
+import ChildSafeguardingPanel from '../../components/clinician/ChildSafeguardingPanel'
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -390,6 +391,19 @@ export default function ClinicianPatient() {
         {/* Patient identity verification (task #426) — provider attests
             person on camera matches NHI holder. Recorded per consult. */}
         <IdVerificationPanel
+          consult={consult}
+          onUpdated={async () => {
+            try {
+              const fresh = await getConsultation(id)
+              if (fresh) setConsult(fresh)
+            } catch {}
+          }}
+        />
+
+        {/* Child safeguarding pathway (task #434) — required consenting-adult
+            capture when patient is <18, plus a safeguarding-concern flag for
+            any age patient. Runbook: docs/regulatory/child-safeguarding-oranga-tamariki-runbook.md */}
+        <ChildSafeguardingPanel
           consult={consult}
           onUpdated={async () => {
             try {

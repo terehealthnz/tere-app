@@ -89,6 +89,11 @@ const UPDATE_ALLOWLIST = new Set([
   'id_verification_status', 'id_verification_method', 'id_verification_document_id',
   'id_verification_document_type', 'id_verification_provider_id',
   'id_verification_provider_name', 'id_verification_at', 'id_verification_notes',
+  // Child safeguarding pathway (task #434, migration 2026-09-03_child_safeguarding.sql)
+  'consenting_adult_name', 'consenting_adult_relationship', 'consenting_adult_phone',
+  'guardianship_verified_at', 'guardianship_verified_by',
+  'safeguarding_concern_flagged', 'safeguarding_concern_at', 'safeguarding_concern_notes',
+  'safeguarding_concern_flagged_by', 'safeguarding_concern_type',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).
