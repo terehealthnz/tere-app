@@ -894,6 +894,49 @@ export async function getAccClaims({ limit = 50, provider_id, status } = {}) {
   return claims || []
 }
 
+// Admin ACC-claims list — same underlying /api/acc-claims but higher default
+// limit for the Admin > ACC tab, and post-fetch client-side filtering by
+// date / min amount / NHI (server currently supports status + provider_id
+// only; broader filters live client-side).
+export async function listAccClaimsAdmin({ status, from, to, minAmountCents, patientNhi, limit = 500 } = {}) {
+  const claims = await getAccClaims({ limit, status: status || undefined })
+  return claims.filter(c => {
+    if (from && c.created_at && new Date(c.created_at) < new Date(from)) return false
+    if (to   && c.created_at && new Date(c.created_at) > new Date(to)) return false
+    if (minAmountCents != null && (c.amount_claimed || 0) < minAmountCents) return false
+    if (patientNhi && String(c.patient_nhi || '').toLowerCase() !== String(patientNhi).toLowerCase()) return false
+    return true
+  })
+}
+
+// Fetch the assembled per-claim evidence bundle. `reason` is one of the
+// audit-log ALLOWED_REASONS; the server rejects anything else with 400.
+// The access itself is audit-logged server-side.
+export async function getAccAuditBundle(claimId, { reason, reasonNotes } = {}) {
+  const params = new URLSearchParams({ claim_id: String(claimId), reason: String(reason || 'quality_audit') })
+  if (reasonNotes) params.set('reason_notes', String(reasonNotes))
+  const res = await apiFetch(`/api/acc-audit-bundle?${params.toString()}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
+  const { bundle } = await res.json()
+  return bundle
+}
+
+// Download the PDF-format bundle for a single claim. Returns a Blob so the
+// caller can trigger a browser download.
+export async function downloadAccAuditBundlePdf(claimId, { reason, reasonNotes } = {}) {
+  const params = new URLSearchParams({ claim_id: String(claimId), reason: String(reason || 'quality_audit'), format: 'pdf' })
+  if (reasonNotes) params.set('reason_notes', String(reasonNotes))
+  const res = await apiFetch(`/api/acc-audit-bundle?${params.toString()}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
+  return res.blob()
+}
+
 // ── Bookings ─────────────────────────────────────────────────────────────────
 
 export async function getTodaysBookings(providerId = null) {

@@ -6,6 +6,7 @@ import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
+import AccClaimsSection from './AccClaimsSection'
 import NhiLookup from './NhiLookup'
 import { isNZ } from '../../lib/region'
 
@@ -4341,6 +4342,9 @@ function AuditLogPanel() {
   const [loading, setLoading] = React.useState(true)
   const [filterEvent, setFilterEvent] = React.useState('')
   const [filterReason, setFilterReason] = React.useState('')
+  const [filterProviderId, setFilterProviderId] = React.useState('')
+  const [filterPatientRef, setFilterPatientRef] = React.useState('')
+  const [providers, setProviders] = React.useState([])
   // Date range — default to last 7 days. `from` inclusive, `to` end-of-day inclusive.
   const [dateFrom, setDateFrom] = React.useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7)
@@ -4349,14 +4353,24 @@ function AuditLogPanel() {
   const [dateTo, setDateTo] = React.useState(() => new Date().toISOString().slice(0, 10))
   const [expanded, setExpanded] = React.useState(null)
 
+  // Populate the provider dropdown once. Falls back to an empty list if the
+  // getProviders helper isn't reachable (unlikely in admin surface).
+  React.useEffect(() => {
+    import('../../lib/supabase').then(({ getProviders }) => getProviders())
+      .then(rows => setProviders(Array.isArray(rows) ? rows : []))
+      .catch(() => setProviders([]))
+  }, [])
+
   React.useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        const params = new URLSearchParams({ limit: '100' })
-        if (filterEvent) params.set('event_type', filterEvent)
-        if (dateFrom)    params.set('from', new Date(dateFrom + 'T00:00:00').toISOString())
-        if (dateTo)      params.set('to',   new Date(dateTo   + 'T23:59:59.999').toISOString())
+        const params = new URLSearchParams({ limit: '200' })
+        if (filterEvent)       params.set('event_type',  filterEvent)
+        if (filterProviderId)  params.set('provider_id', filterProviderId)
+        if (filterPatientRef)  params.set('patient_ref', filterPatientRef.trim())
+        if (dateFrom)          params.set('from', new Date(dateFrom + 'T00:00:00').toISOString())
+        if (dateTo)            params.set('to',   new Date(dateTo   + 'T23:59:59.999').toISOString())
         const res = await apiFetch('/api/audit?' + params.toString())
         const { logs } = await res.json()
         setLogs(logs || [])
@@ -4364,7 +4378,24 @@ function AuditLogPanel() {
       setLoading(false)
     }
     load()
-  }, [filterEvent, dateFrom, dateTo])
+  }, [filterEvent, filterProviderId, filterPatientRef, dateFrom, dateTo])
+
+  function exportCsv() {
+    const header = ['created_at', 'event_type', 'provider_name', 'provider_role', 'consultation_id', 'patient_ref', 'resource_type', 'resource_id', 'reason', 'reason_notes', 'ip', 'user_agent']
+    const rows = filtered.map(l => header.map(k => {
+      const v = l[k]
+      if (v == null) return ''
+      return String(v).replace(/"/g, '""')
+    }))
+    const csv = [header, ...rows].map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${v}"` : v).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `audit-log-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
 
   function applyPreset(days) {
     const to = new Date()
@@ -4404,11 +4435,23 @@ function AuditLogPanel() {
             <option value="">All events</option>
             {eventTypes.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
+          <select value={filterProviderId} onChange={e => setFilterProviderId(e.target.value)}
+            style={{ padding:'6px 10px', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', minWidth:180 }}>
+            <option value="">All providers</option>
+            {providers.map(p => <option key={p.id} value={p.id}>{[p.first_name, p.last_name].filter(Boolean).join(' ') || p.email}</option>)}
+          </select>
+          <input type="text" value={filterPatientRef} onChange={e => setFilterPatientRef(e.target.value)}
+            placeholder="Patient NHI"
+            style={{ padding:'6px 10px', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:130 }} />
           <select value={filterReason} onChange={e => setFilterReason(e.target.value)}
             style={{ padding:'6px 10px', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', minWidth:160 }}>
             <option value="">All reasons</option>
             {Object.entries(REASON_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+          <button onClick={exportCsv} disabled={!filtered.length}
+            style={{ padding:'6px 12px', background:'#0B6E76', color:'white', border:'none', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, cursor: filtered.length ? 'pointer' : 'default', opacity: filtered.length ? 1 : 0.5 }}>
+            Export CSV
+          </button>
         </div>
       </div>
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:'1rem', padding:'.625rem .75rem', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:8 }}>
@@ -4852,6 +4895,7 @@ function AdminBody() {
             { id:'careers',      label:'💼 Careers' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
+            { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
             { id:'gp_letters',   label:`✉️ GP letters${pendingCounts.gp_letters ? ` (${pendingCounts.gp_letters})` : ''}` },
@@ -4921,6 +4965,7 @@ function AdminBody() {
               return <><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
               return <><AuditLogPanel /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+            case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
             case 'gp_letters': return <GpLettersPanel />

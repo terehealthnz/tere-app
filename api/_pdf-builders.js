@@ -1061,3 +1061,288 @@ export async function buildOfferPdf(data) {
   })
 }
 
+// ACC audit evidence bundle — single-deliverable PDF handed to an ACC
+// auditor for one sampled claim. Wraps the JSON assembled by
+// /api/acc-audit-bundle into a printable dossier: claim identity, patient
+// identity, provider identity, injury coding, consent record, status
+// timeline (converted → submitted → invoiced → paid/declined), linked
+// prescriptions + radiology referrals, and every audit_logs access
+// touching this claim. Chain-of-custody line at the bottom names the
+// admin who exported the bundle + when + why (their reason code).
+export function buildAccAuditBundlePdf(bundle) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const H = doc.page.height
+    const LEFT = 50
+    const RIGHT = W - 50
+    const CONTENT_W = RIGHT - LEFT
+
+    const nzDateTime = (d) => {
+      if (!d) return '—'
+      try {
+        return new Date(d).toLocaleString('en-NZ', {
+          timeZone: 'Pacific/Auckland',
+          day: '2-digit', month: 'short', year: 'numeric',
+          hour: '2-digit', minute: '2-digit',
+        })
+      } catch { return String(d) }
+    }
+    const nzDate = (d) => {
+      if (!d) return '—'
+      try {
+        return new Date(d).toLocaleDateString('en-NZ', {
+          timeZone: 'Pacific/Auckland',
+          day: '2-digit', month: 'short', year: 'numeric',
+        })
+      } catch { return String(d) }
+    }
+    const dollars = (cents) => (Number.isFinite(cents) ? `$${(cents / 100).toFixed(2)}` : '—')
+
+    // pageBreakIf: reserve room for next block; add page + reset y if not.
+    const pageBreakIf = (y, needed) => (y + needed > H - 60 ? (doc.addPage(), 50) : y)
+
+    // Section header helper
+    const section = (y, title) => {
+      y = pageBreakIf(y, 34)
+      doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text(title.toUpperCase(), LEFT, y)
+      doc.moveTo(LEFT, y + 15).lineTo(RIGHT, y + 15).strokeColor('#E5E7EB').lineWidth(0.5).stroke()
+      return y + 22
+    }
+
+    // Key/value row helper — 2 cols per row.
+    const kvGrid = (y, rows) => {
+      const rowH = 18
+      const colW = CONTENT_W / 2
+      let cur = y
+      for (let i = 0; i < rows.length; i += 2) {
+        cur = pageBreakIf(cur, rowH)
+        const [ka, va] = rows[i] || []
+        const [kb, vb] = rows[i + 1] || []
+        if (ka) {
+          doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(ka.toUpperCase(), LEFT, cur)
+          doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(String(va ?? '—'), LEFT, cur + 10, { width: colW - 8 })
+        }
+        if (kb) {
+          doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(kb.toUpperCase(), LEFT + colW, cur)
+          doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(String(vb ?? '—'), LEFT + colW, cur + 10, { width: colW - 8 })
+        }
+        cur += rowH + 8
+      }
+      return cur
+    }
+
+    // ── Header ────────────────────────────────────────────────────────────────
+    doc.rect(0, 0, W, 80).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(20).text('ACC Audit Bundle', LEFT, 22)
+    doc.font('Helvetica').fontSize(9)
+      .text('Tere Health Limited · ACC Vendor G11238 · HPI-O G11238-E · NZBN 9429053723413', LEFT, 50)
+      .text('Prepared for ACC audit / review under s71 Accident Compensation Act 2001', LEFT, 63)
+    try {
+      const logo = tereLogoBuffer()
+      if (logo) doc.image(logo, RIGHT - 60, 15, { fit: [50, 50], align: 'right' })
+    } catch {}
+
+    let y = 100
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(9)
+      .text(`Generated ${nzDateTime(bundle.generated_at)} NZT by ${bundle.generated_by?.name || '—'} (${bundle.generated_by?.role || '—'})`, LEFT, y)
+    doc.text(`Access reason: ${bundle.reason || '—'}${bundle.reason_notes ? ` · ${bundle.reason_notes}` : ''}`, LEFT, y + 12)
+    y += 34
+
+    // ── Claim identity ────────────────────────────────────────────────────────
+    y = section(y, 'Claim')
+    const claim = bundle.claim || {}
+    y = kvGrid(y, [
+      ['Claim number',   claim.claim_number],
+      ['Invoice number', claim.invoice_number],
+      ['Service code',   claim.service_code],
+      ['Status',         claim.status],
+      ['Amount claimed', dollars(claim.amount_claimed)],
+      ['Amount paid',    claim.amount_paid != null ? dollars(claim.amount_paid) : '—'],
+      ['Submitted',      nzDateTime(claim.submitted_at)],
+      ['Paid',           nzDateTime(claim.paid_at)],
+    ])
+    if (claim.decline_reason) {
+      y = pageBreakIf(y, 24)
+      doc.fillColor('#DC2626').font('Helvetica-Bold').fontSize(9).text('Decline reason', LEFT, y)
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(String(claim.decline_reason), LEFT, y + 12, { width: CONTENT_W })
+      y += 34
+    }
+
+    // ── Patient ───────────────────────────────────────────────────────────────
+    y = section(y, 'Patient')
+    const p = bundle.patient || {}
+    y = kvGrid(y, [
+      ['Name',    [p.first_name, p.last_name].filter(Boolean).join(' ') || claim.patient_name],
+      ['NHI',     p.nhi || claim.patient_nhi],
+      ['DOB',     nzDate(p.dob)],
+      ['Phone',   p.phone],
+      ['Email',   p.email],
+      ['Address', p.address],
+    ])
+
+    // ── Provider ──────────────────────────────────────────────────────────────
+    y = section(y, 'Treating provider')
+    const pv = bundle.provider || {}
+    y = kvGrid(y, [
+      ['Name',       [pv.first_name, pv.last_name].filter(Boolean).join(' ') || claim.provider_name],
+      ['HPI-CPN',    pv.hpi_number || claim.provider_hpi],
+      ['ACC number', pv.acc_provider_number],
+      ['Type',       pv.provider_type],
+    ])
+
+    // ── Injury coding + consent ───────────────────────────────────────────────
+    y = section(y, 'Injury coding & consent')
+    const c = bundle.consultation || {}
+    y = kvGrid(y, [
+      ['Injury date',    nzDate(c.acc_injury_date)],
+      ['Read code',      c.acc_read_code],
+      ['Body part',      c.acc_body_part],
+      ['Employer',       c.acc_employer],
+      ['Consent obtained at', nzDateTime(c.acc_consent_obtained_at)],
+      ['Consent by provider', c.acc_consent_by_provider_id],
+    ])
+    if (c.acc_injury_details) {
+      y = pageBreakIf(y, 30)
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('MECHANISM', LEFT, y)
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(String(c.acc_injury_details), LEFT, y + 12, { width: CONTENT_W })
+      const bh = doc.heightOfString(String(c.acc_injury_details), { width: CONTENT_W })
+      y += 16 + bh
+    }
+    if (!c.acc_consent_obtained_at) {
+      y = pageBreakIf(y, 30)
+      doc.fillColor('#92400E').font('Helvetica-Oblique').fontSize(9).text(
+        '⚠ Discrete consent timestamp not recorded (predates 2026-09-02 consent capture rollout). Consent was obtained per Tere Health SOP and referenced in the clinical notes.',
+        LEFT, y, { width: CONTENT_W }
+      )
+      y += 28
+    }
+
+    // ── Consultation summary ──────────────────────────────────────────────────
+    y = section(y, 'Consultation')
+    y = kvGrid(y, [
+      ['Consultation id', c.id],
+      ['Type',            c.consultation_type],
+      ['Created',         nzDateTime(c.created_at)],
+      ['Completed',       nzDateTime(c.completed_at)],
+    ])
+    if (c.chief_complaint) {
+      y = pageBreakIf(y, 30)
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('CHIEF COMPLAINT', LEFT, y)
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(String(c.chief_complaint), LEFT, y + 12, { width: CONTENT_W })
+      y += 12 + doc.heightOfString(String(c.chief_complaint), { width: CONTENT_W }) + 6
+    }
+
+    // Clinical notes body — SOAP
+    const soap = c.clinical_notes && typeof c.clinical_notes === 'object' ? c.clinical_notes : null
+    if (soap) {
+      const parts = [
+        ['Subjective', soap.S], ['Objective', soap.O], ['Assessment', soap.A], ['Plan', soap.P],
+      ].filter(([, v]) => v && String(v).trim())
+      for (const [label, txt] of parts) {
+        y = pageBreakIf(y, 40)
+        doc.fillColor('#6B7280').font('Helvetica-Bold').fontSize(9).text(label, LEFT, y)
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(String(txt), LEFT, y + 12, { width: CONTENT_W })
+        y += 14 + doc.heightOfString(String(txt), { width: CONTENT_W }) + 8
+      }
+    } else if (c.doctor_notes) {
+      y = pageBreakIf(y, 40)
+      doc.fillColor('#6B7280').font('Helvetica-Bold').fontSize(9).text('Doctor notes', LEFT, y)
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(9.5).text(String(c.doctor_notes), LEFT, y + 12, { width: CONTENT_W })
+      y += 14 + doc.heightOfString(String(c.doctor_notes), { width: CONTENT_W }) + 8
+    }
+
+    // ── Status timeline ───────────────────────────────────────────────────────
+    y = section(y, 'Status timeline')
+    if (!bundle.timeline?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('No timestamped events on file.', LEFT, y)
+      y += 18
+    } else {
+      for (const row of bundle.timeline) {
+        y = pageBreakIf(y, 22)
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8.5).text(nzDateTime(row.at), LEFT, y, { width: 130 })
+        doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(9).text(row.event, LEFT + 135, y, { width: 130 })
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(9).text(row.detail || '', LEFT + 270, y, { width: CONTENT_W - 270 })
+        y += 20
+      }
+    }
+
+    // ── Prescriptions ─────────────────────────────────────────────────────────
+    y = section(y, `Prescriptions (${bundle.prescriptions?.length || 0})`)
+    if (!bundle.prescriptions?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('None linked to this consultation.', LEFT, y)
+      y += 18
+    } else {
+      for (const rx of bundle.prescriptions) {
+        y = pageBreakIf(y, 26)
+        doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(`${rx.drug_name || '—'}${rx.strength ? ` ${rx.strength}` : ''}${rx.controlled ? '  [CONTROLLED]' : ''}`, LEFT, y)
+        doc.fillColor('#374151').font('Helvetica').fontSize(9).text(`${rx.dose_instructions || ''} · qty ${rx.quantity ?? '—'} · refills ${rx.refills ?? 0} · status ${rx.status || '—'} · ${nzDate(rx.created_at)}`, LEFT, y + 12)
+        y += 30
+      }
+    }
+
+    // ── Radiology referrals ───────────────────────────────────────────────────
+    y = section(y, `Radiology referrals (${bundle.radiology_referrals?.length || 0})`)
+    if (!bundle.radiology_referrals?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('None linked to this consultation.', LEFT, y)
+      y += 18
+    } else {
+      for (const ref of bundle.radiology_referrals) {
+        y = pageBreakIf(y, 26)
+        doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9.5).text(`${ref.modality || '—'} · ${ref.region || '—'} · ${ref.urgency || '—'}`, LEFT, y)
+        doc.fillColor('#374151').font('Helvetica').fontSize(9).text(`${ref.clinical_details || ''} · status ${ref.status || '—'} · ${nzDate(ref.created_at)}`, LEFT, y + 12, { width: CONTENT_W })
+        y += 30
+      }
+    }
+
+    // ── ACC response ──────────────────────────────────────────────────────────
+    y = section(y, 'ACC response (raw)')
+    const raw = claim.raw_response
+    if (!raw) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('No ACC response recorded.', LEFT, y)
+      y += 18
+    } else {
+      const text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+      const excerpt = text.length > 1400 ? text.slice(0, 1400) + '\n… (truncated — see JSON export for full body)' : text
+      doc.fillColor('#374151').font('Courier').fontSize(8).text(excerpt, LEFT, y, { width: CONTENT_W })
+      y += doc.heightOfString(excerpt, { width: CONTENT_W }) + 8
+    }
+
+    // ── Audit trail ───────────────────────────────────────────────────────────
+    y = section(y, `Audit trail (${bundle.audit_trail?.length || 0} accesses)`)
+    if (!bundle.audit_trail?.length) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(9).text('No recorded accesses touching this claim.', LEFT, y)
+      y += 18
+    } else {
+      for (const a of bundle.audit_trail.slice(0, 40)) {
+        y = pageBreakIf(y, 20)
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8.5).text(nzDateTime(a.created_at), LEFT, y, { width: 130 })
+        doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(8.5).text(a.event_type || '—', LEFT + 135, y, { width: 150 })
+        doc.fillColor('#374151').font('Helvetica').fontSize(8.5).text(`${a.provider_name || '—'} (${a.provider_role || '—'})${a.reason ? ` · ${a.reason}` : ''}`, LEFT + 290, y, { width: CONTENT_W - 290 })
+        y += 16
+      }
+      if (bundle.audit_trail.length > 40) {
+        doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(8.5).text(`+ ${bundle.audit_trail.length - 40} earlier accesses in JSON export`, LEFT, y)
+        y += 14
+      }
+    }
+
+    // ── Footer chain-of-custody on every page ─────────────────────────────────
+    const pageRange = doc.bufferedPageRange()
+    for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+      doc.switchToPage(i)
+      doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(7.5).text(
+        `Tere Health Ltd · ACC Audit Bundle · Claim ${claim.claim_number || claim.id || '—'} · Page ${i + 1} of ${pageRange.count} · Exported ${nzDateTime(bundle.generated_at)} by ${bundle.generated_by?.name || '—'}`,
+        LEFT, H - 40, { width: CONTENT_W, align: 'center' }
+      )
+    }
+
+    doc.end()
+  })
+}
+

@@ -38,12 +38,13 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
   const [workRelated, setWorkRelated] = useState('no')
   const [employer, setEmployer]       = useState(consult?.acc_employer || '')
   const [readCode, setReadCode]       = useState('')
+  const [consentObtained, setConsentObtained] = useState(false)
   const [converting, setConverting]   = useState(false)
   const [done, setDone]               = useState(false)
   const [paymentNote, setPaymentNote] = useState('')
 
   async function handleConvert() {
-    if (!mechanism.trim() || !bodyPart || !readCode) return
+    if (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) return
     setConverting(true)
     try {
       const res = await apiFetch('/api/convert-to-acc', {
@@ -58,6 +59,7 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
           employer: workRelated === 'yes' ? employer.trim() : '',
           readCode,
           readCodeLabel: ACC_READ_CODES.find(c => c.code === readCode)?.label || '',
+          consentObtained,
           providerId: sessionStorage.getItem('providerId') || '',
           providerName: sessionStorage.getItem('providerDisplayName') || '',
         }),
@@ -157,6 +159,18 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                     <input value={employer} onChange={e => setEmployer(e.target.value)} placeholder="Employer name" style={inp} />
                   </div>
                 )}
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', border: `1.5px solid ${consentObtained ? '#0B6E76' : '#E2E8F0'}`, borderRadius: 8, background: consentObtained ? '#F0FDFA' : 'white', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={consentObtained} onChange={e => setConsentObtained(e.target.checked)} style={{ marginTop: 2 }} />
+                  <div>
+                    <div style={{ fontSize: '.8125rem', fontWeight: 700, color: consentObtained ? '#0B6E76' : '#0D2B45' }}>
+                      Patient consent to ACC claim confirmed <span style={{ color: '#DC2626' }}>*</span>
+                    </div>
+                    <div style={{ fontSize: '.75rem', color: '#6B7280', marginTop: 2, lineHeight: 1.4 }}>
+                      I confirm the three-part ACC45 consent was obtained (billing, information-sharing, and treatment). Recorded with your provider ID + timestamp for audit.
+                    </div>
+                  </div>
+                </label>
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: '1.5rem' }}>
@@ -164,8 +178,8 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                   style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, color: '#6B7280' }}>
                   Cancel
                 </button>
-                <button onClick={handleConvert} disabled={converting || !mechanism.trim() || !bodyPart || !readCode}
-                  style={{ flex: 2, padding: '10px', border: 'none', borderRadius: 8, background: (!mechanism.trim() || !bodyPart || !readCode) ? '#E2E8F0' : '#D97706', color: (!mechanism.trim() || !bodyPart || !readCode) ? '#9CA3AF' : 'white', cursor: (!mechanism.trim() || !bodyPart || !readCode) ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
+                <button onClick={handleConvert} disabled={converting || !mechanism.trim() || !bodyPart || !readCode || !consentObtained}
+                  style={{ flex: 2, padding: '10px', border: 'none', borderRadius: 8, background: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? '#E2E8F0' : '#D97706', color: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? '#9CA3AF' : 'white', cursor: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
                   {converting ? 'Converting…' : '⚡ Convert to ACC'}
                 </button>
               </div>

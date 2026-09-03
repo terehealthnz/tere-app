@@ -12,6 +12,7 @@ export default async function handler(req, res) {
     employer,
     readCode,
     readCodeLabel,
+    consentObtained,
     providerId,
     providerName,
   } = req.body || {}
@@ -44,6 +45,14 @@ export default async function handler(req, res) {
     acc_read_code: readCode || null,
     notes_flagged: true,
     payment_amount: 2500,
+    // Discrete consent capture — auditable independent of note prose.
+    // Only stamp when provider explicitly ticked the checkbox in this flow;
+    // pre-existing consents (from older converts) stay untouched.
+    ...(consentObtained ? {
+      acc_consent: true,
+      acc_consent_obtained_at:     now,
+      acc_consent_by_provider_id:  providerId || null,
+    } : {}),
   }
   await fetch(`${supaUrl}/rest/v1/consultations?id=eq.${consultationId}`, {
     method: 'PATCH',

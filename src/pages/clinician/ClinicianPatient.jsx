@@ -5,6 +5,7 @@ import { getPatientConsultations, updatePatient, createPatient, getConsultation,
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
+import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -63,6 +64,7 @@ export default function ClinicianPatient() {
   // Admin-only: send this patient back into the provider queue with a reason.
   // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
   const [sendBackOpen, setSendBackOpen] = useState(false)
+  const [accessHistoryOpen, setAccessHistoryOpen] = useState(false)
 
   const displayName = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const providerId  = sessionStorage.getItem('providerId')
@@ -100,6 +102,23 @@ export default function ClinicianPatient() {
       try {
         const data = await getConsultation(id)
         setConsult(data)
+        // Audit: this provider just opened this chart. Providers get direct
+        // clinical-care access (no PhiRevealGate reason prompt), but we still
+        // want a record of who viewed which chart when. Fire-and-forget.
+        try {
+          apiFetch('/api/audit-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action:          'consult_opened',
+              consultation_id: id,
+              patient_ref:     data?.patient_nhi || null,
+              resource_type:   'consultation',
+              resource_id:     id,
+              metadata:        { source: 'ClinicianPatient' },
+            }),
+          }).catch(() => {})
+        } catch {}
         // Lock the consultation so other providers see it as being reviewed.
         // Note: since we now read then write via API, there's a small race window
         // if two providers open the same consult at the same second. Acceptable
@@ -279,6 +298,13 @@ export default function ClinicianPatient() {
         />
       )}
 
+      <PatientAccessHistoryModal
+        open={accessHistoryOpen}
+        onClose={() => setAccessHistoryOpen(false)}
+        patientNhi={consult?.patient_nhi}
+        patientName={[consult?.patient_first_name, consult?.patient_last_name].filter(Boolean).join(' ')}
+      />
+
       <div style={{ padding: '1.25rem 1rem calc(11rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
 
         {/* Name + type */}
@@ -311,7 +337,16 @@ export default function ClinicianPatient() {
 
         {/* Patient info */}
         <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
-          <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Patient information</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>Patient information</div>
+            {consult.patient_nhi && (
+              <button onClick={() => setAccessHistoryOpen(true)}
+                title="See who has accessed this patient's chart"
+                style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '4px 10px', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                🔍 Access history
+              </button>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
             <InfoRow label="NHI" value={consult.patient_nhi} />

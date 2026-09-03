@@ -1203,6 +1203,22 @@ export default function ProviderApp() {
     return () => { clearInterval(interval); sub?.unsubscribe?.() }
   }, [load])
 
+  // Audit: log that this provider viewed the queue. Once per browser session
+  // (the flag is cleared when sessionStorage dies), so the noise is bounded
+  // to one entry per shift/session rather than one per poll. Fire-and-forget.
+  useEffect(() => {
+    try {
+      const flag = 'tere_queue_view_audited'
+      if (sessionStorage.getItem(flag) === '1') return
+      sessionStorage.setItem(flag, '1')
+      apiFetch('/api/audit-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'queue_viewed', metadata: { source: 'ProviderApp' } }),
+      }).catch(() => {})
+    } catch {}
+  }, [])
+
   // Poll unread message count so the ✉️ badge stays fresh even when the
   // provider hasn't opened the Messages tab yet. Filters out already-resolved
   // support-ticket notifications (they're closed and shouldn't nag).
