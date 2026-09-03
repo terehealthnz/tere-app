@@ -341,6 +341,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // to the patient. HDC Right 6 evidence.
   const [safetyNetTemplateId, setSafetyNetTemplateId] = useState('')
   const [safetyNetText,       setSafetyNetText]       = useState('')
+  // Continuity of care (task #421) — required for finalise. HDC Right 4(4).
+  const [contDisposition,  setContDisposition]  = useState('')
+  const [contGpName,       setContGpName]       = useState('')
+  const [contGpPractice,   setContGpPractice]   = useState('')
+  const [contNotes,        setContNotes]        = useState('')
+  const [contPatientTold,  setContPatientTold]  = useState(false)
   const [attested,       setAttested]       = useState(false)
 
   // Async message — thread
@@ -507,6 +513,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     if (d.asyncResponse)  setAsyncResponse(d.asyncResponse)
     if (d.safetyNetTemplateId) setSafetyNetTemplateId(d.safetyNetTemplateId)
     if (d.safetyNetText)       setSafetyNetText(d.safetyNetText)
+    if (d.contDisposition)     setContDisposition(d.contDisposition)
+    if (d.contGpName)          setContGpName(d.contGpName)
+    if (d.contGpPractice)      setContGpPractice(d.contGpPractice)
+    if (d.contNotes)           setContNotes(d.contNotes)
+    if (d.contPatientTold)     setContPatientTold(!!d.contPatientTold)
   }
 
   async function runGenerate(consultData) {
@@ -573,9 +584,9 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // Auto-save draft
   useEffect(() => {
     if (!id || !consult) return
-    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText }
+    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contNotes, contPatientTold }
     localStorage.setItem(draftKey, JSON.stringify(draft))
-  }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText])
+  }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contNotes, contPatientTold])
 
   // ── Thread handlers ───────────────────────────────────────────────────────────
 
@@ -694,7 +705,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // ── Standard finalise (video / phone) ────────────────────────────────────────
 
   const safetyNetOk = (safetyNetText || '').trim().length >= SAFETY_NET_MIN_CHARS
-  const canFinalise = noteConfirmed && !!outcome && attested && safetyNetOk
+  // Continuity gate: disposition selected AND (if handoff, patient told box
+  // ticked; if letter-to-send, notes explain why not sent immediately)
+  const HANDOFF_TYPES = new Set(['gp_letter_sent','gp_letter_to_send','handover_to_specialist'])
+  const contOk = !!contDisposition && (
+    !HANDOFF_TYPES.has(contDisposition) || contPatientTold
+  )
+  const canFinalise = noteConfirmed && !!outcome && attested && safetyNetOk && contOk
 
   function addAction(action) {
     actionsRef.current = [...actionsRef.current, action]
@@ -760,6 +777,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           safety_netting_text:        (safetyNetText || '').trim(),
           safety_netting_template_id: safetyNetTemplateId || 'custom',
           safety_netting_at:          now,
+          continuity_disposition:     contDisposition,
+          continuity_gp_name:         contGpName.trim() || null,
+          continuity_gp_practice:     contGpPractice.trim() || null,
+          continuity_notes:           contNotes.trim() || null,
+          continuity_patient_told:    !!contPatientTold,
+          continuity_captured_at:     now,
         })
       } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })
@@ -1487,6 +1510,61 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             {!isFinalised && (
               <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:6, lineHeight:1.5 }}>
                 This will be included in the patient’s after-visit summary. Required for finalise (HDC Right 6 — informed choice on what to do next).
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Continuity of care (task #421) — HDC Right 4(4). Every consult
+            must record how the loop closes. Required for finalise. */}
+        {!isAsyncMessage && (
+          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:`1.5px solid ${contOk || isFinalised ? '#BBF7D0' : '#FDE68A'}` }}>
+            <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:10 }}>
+              Continuity of care {!isFinalised && <span style={{ color:'#DC2626' }}>*</span>}
+              <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
+                — where does this patient's care go next?
+              </span>
+            </label>
+            {!isFinalised ? (
+              <>
+                {[
+                  { v:'gp_letter_sent',            l:'GP letter SENT this consult'      },
+                  { v:'gp_letter_to_send',         l:'GP letter to send (queued)'       },
+                  { v:'handover_to_specialist',    l:'Handover to specialist'           },
+                  { v:'closed_no_followup_needed', l:'Closed — no follow-up needed'     },
+                  { v:'patient_no_gp_told_to_enrol', l:'Patient has no GP — told to enrol' },
+                  { v:'patient_declined_gp_disclosure', l:'Patient declined GP disclosure' },
+                ].map(o => (
+                  <label key={o.v} style={{ display:'flex', gap:8, alignItems:'center', padding:'.375rem 0', cursor:'pointer', fontSize:'.8125rem', color:'#374151' }}>
+                    <input type="radio" name="cont-disp" value={o.v} checked={contDisposition === o.v} onChange={() => setContDisposition(o.v)} />
+                    {o.l}
+                  </label>
+                ))}
+                {HANDOFF_TYPES.has(contDisposition) && (
+                  <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP / specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                    <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                  </div>
+                )}
+                <textarea value={contNotes} onChange={e => setContNotes(e.target.value)} rows={2}
+                  placeholder="Optional notes (e.g. copy of letter attached, referral timing, etc.)"
+                  style={{ width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem', marginTop:8 }} />
+                {HANDOFF_TYPES.has(contDisposition) && (
+                  <label style={{ display:'flex', gap:8, alignItems:'center', padding:'.5rem 0 0', cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#D97706', fontWeight:600 }}>
+                    <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
+                    Patient was informed of the handover / letter recipient
+                  </label>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize:'.8125rem', color:'#374151' }}>
+                {contDisposition || '—'} {contGpName && ` · ${contGpName}${contGpPractice ? ' ('+contGpPractice+')' : ''}`}
+                {contNotes && <div style={{ marginTop:4, fontSize:'.75rem', color:'#6B7280' }}>{contNotes}</div>}
+              </div>
+            )}
+            {!isFinalised && (
+              <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:6, lineHeight:1.5 }}>
+                HDC Right 4(4) — quality and continuity of care. Especially critical for rural patients without a regular GP.
               </div>
             )}
           </div>

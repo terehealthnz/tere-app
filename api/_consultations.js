@@ -81,6 +81,10 @@ const UPDATE_ALLOWLIST = new Set([
   'capacity_confirmed_at', 'capacity_confirmed_by_self',
   // Safety-netting gated field (task #417, migration 2026-09-03_safety_netting.sql)
   'safety_netting_text', 'safety_netting_template_id', 'safety_netting_at',
+  // Continuity / GP-handover gated field (task #421, migration 2026-09-03_continuity_handover.sql)
+  'continuity_disposition', 'continuity_gp_name', 'continuity_gp_practice',
+  'continuity_gp_hpi', 'continuity_notes', 'continuity_captured_at',
+  'continuity_patient_told',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).
