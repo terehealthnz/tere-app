@@ -10,6 +10,7 @@ import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
 import IdVerificationPanel from '../../components/clinician/IdVerificationPanel'
 import ChildSafeguardingPanel from '../../components/clinician/ChildSafeguardingPanel'
+import InterpreterSourcePanel from '../../components/clinician/InterpreterSourcePanel'
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -404,6 +405,19 @@ export default function ClinicianPatient() {
             capture when patient is <18, plus a safeguarding-concern flag for
             any age patient. Runbook: docs/regulatory/child-safeguarding-oranga-tamariki-runbook.md */}
         <ChildSafeguardingPanel
+          consult={consult}
+          onUpdated={async () => {
+            try {
+              const fresh = await getConsultation(id)
+              if (fresh) setConsult(fresh)
+            } catch {}
+          }}
+        />
+
+        {/* Interpreter source (task #436) — only shows if patient ticked
+            "I need an interpreter". Provider records how interpretation
+            was delivered; family_member selections banner-warn re HDC risk. */}
+        <InterpreterSourcePanel
           consult={consult}
           onUpdated={async () => {
             try {

@@ -78,6 +78,9 @@ const UPDATE_ALLOWLIST = new Set([
   // HDC Rights 5(4), 7(2) (migration 2026-09-03_hdc_rights_extensions.sql).
   // interpreter_requested column pre-exists (big-migration.sql).
   'interpreter_requested', 'interpreter_language',
+  // Interpreter source recording (task #436, migration 2026-09-03_interpreter_source.sql)
+  'interpreter_source', 'interpreter_source_notes',
+  'interpreter_source_recorded_at', 'interpreter_source_recorded_by',
   'capacity_confirmed_at', 'capacity_confirmed_by_self',
   // Safety-netting gated field (task #417, migration 2026-09-03_safety_netting.sql)
   'safety_netting_text', 'safety_netting_template_id', 'safety_netting_at',

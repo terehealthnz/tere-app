@@ -575,12 +575,15 @@ export default function WaitingRoom() {
         </button>
       </div>
 
-      {/* Footer */}
+      {/* Footer — emergency + platform-fallback (task #437) */}
       <div style={{ padding: '1.25rem 1.5rem', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,.06)' }}>
         <div style={{ color: 'rgba(255,255,255,.25)', fontSize: '.75rem', lineHeight: 1.8 }}>
           Emergency? Call <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a> immediately
           &nbsp;·&nbsp;
           Mental health: call or text <a href="tel:1737" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>1737</a>
+        </div>
+        <div style={{ color: 'rgba(255,255,255,.35)', fontSize: '.6875rem', lineHeight: 1.6, marginTop: 8 }}>
+          If Tere isn't working: email <a href="mailto:hello@terehealth.co.nz" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>hello@terehealth.co.nz</a> — or for anything urgent, always call <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a>.
         </div>
       </div>
 
