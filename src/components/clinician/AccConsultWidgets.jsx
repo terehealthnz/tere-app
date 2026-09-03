@@ -6,7 +6,7 @@
 // Kept intentionally compact — one accordion per section, expand-to-edit.
 
 import React, { useEffect, useState } from 'react'
-import { updateConsultation, listAccOutcomeMeasures, addAccOutcomeMeasure, deleteAccOutcomeMeasure } from '../../lib/supabase'
+import { updateConsultation, listAccOutcomeMeasures, addAccOutcomeMeasure, deleteAccOutcomeMeasure, generateAccCert } from '../../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -338,6 +338,11 @@ export default function AccConsultWidgets({ consult, onSaved }) {
         </div>
       </Section>
 
+      {/* ACC certificates (WC / RTW / ACC46) */}
+      <Section title="Generate ACC certificate">
+        <AccCertGenerator consult={consult} />
+      </Section>
+
       {/* Support person (HDC Right 8) */}
       <Section title="Support person (HDC Right 8)" badge={consult.support_person_present ? 'yes' : null}>
         <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', border: `1.5px solid ${supportPresent ? TEAL : '#E2E8F0'}`, borderRadius: 6, background: supportPresent ? '#F0FDFA' : 'white', cursor: 'pointer', marginBottom: '.5rem' }}>
@@ -358,6 +363,103 @@ export default function AccConsultWidgets({ consult, onSaved }) {
           {savingSupport ? 'Saving…' : 'Save'}
         </button>
       </Section>
+    </div>
+  )
+}
+
+function AccCertGenerator({ consult }) {
+  const rw = consult.rtw_status || {}
+  const [certType, setCertType] = useState('weekly_compensation')
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState(null)
+
+  const today = new Date().toISOString().slice(0, 10)
+  const in7Days = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+  const [unfitFrom, setUnfitFrom] = useState(today)
+  const [unfitTo,   setUnfitTo]   = useState(in7Days)
+  const [unfitReason, setUnfitReason] = useState(consult.acc_injury_details || '')
+  const [rtwFrom, setRtwFrom] = useState(today)
+  const [hoursPerWeek, setHoursPerWeek] = useState(rw.hours_per_week ?? 20)
+  const [restrictions, setRestrictions] = useState(rw.restrictions || '')
+  const [targetFullRtw, setTargetFullRtw] = useState(rw.target_date?.slice(0, 10) || in7Days)
+  const [sendToPatient, setSendToPatient] = useState(true)
+
+  async function handleGenerate() {
+    setBusy(true); setStatus(null)
+    try {
+      const payload = { certType, consultationId: consult.id, sendToPatient }
+      if (certType === 'weekly_compensation') Object.assign(payload, { unfitFrom, unfitTo, unfitReason })
+      if (certType === 'return_to_work')      Object.assign(payload, { rtwFrom, hoursPerWeek, restrictions, targetFullRtw })
+      const data = await generateAccCert(payload)
+      const bytes = Uint8Array.from(atob(data.pdf_base64), c => c.charCodeAt(0))
+      const blob = new Blob([bytes], { type: 'application/pdf' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = data.filename
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+      setStatus(data.email?.sent ? `Emailed to ${data.email.to} + downloaded` : 'Downloaded')
+    } catch (e) { setStatus('Error: ' + e.message) }
+    setBusy(false)
+  }
+
+  return (
+    <div style={{ display: 'grid', gap: '.5rem' }}>
+      <div>
+        <label style={lbl}>Certificate type</label>
+        <select value={certType} onChange={e => setCertType(e.target.value)} style={inp}>
+          <option value="weekly_compensation">Medical Certificate — Weekly Compensation (off work)</option>
+          <option value="return_to_work">Return-to-Work Certificate</option>
+          <option value="acc46">ACC46 Injury Summary</option>
+        </select>
+      </div>
+
+      {certType === 'weekly_compensation' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
+            <div><label style={lbl}>Unfit from</label><input type="date" value={unfitFrom} onChange={e => setUnfitFrom(e.target.value)} style={inp} /></div>
+            <div><label style={lbl}>Unfit to</label><input type="date" value={unfitTo} onChange={e => setUnfitTo(e.target.value)} style={inp} /></div>
+          </div>
+          <div>
+            <label style={lbl}>Clinical reason</label>
+            <textarea value={unfitReason} onChange={e => setUnfitReason(e.target.value)} rows={3} style={{ ...inp, resize: 'vertical' }} />
+          </div>
+        </>
+      )}
+
+      {certType === 'return_to_work' && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
+            <div><label style={lbl}>RTW from</label><input type="date" value={rtwFrom} onChange={e => setRtwFrom(e.target.value)} style={inp} /></div>
+            <div><label style={lbl}>Hours per week</label><input type="number" min="0" max="80" value={hoursPerWeek} onChange={e => setHoursPerWeek(Number(e.target.value))} style={inp} /></div>
+          </div>
+          <div><label style={lbl}>Target full RTW date</label><input type="date" value={targetFullRtw} onChange={e => setTargetFullRtw(e.target.value)} style={inp} /></div>
+          <div>
+            <label style={lbl}>Restrictions</label>
+            <textarea value={restrictions} onChange={e => setRestrictions(e.target.value)} rows={3} style={{ ...inp, resize: 'vertical' }} />
+          </div>
+        </>
+      )}
+
+      {certType === 'acc46' && (
+        <div style={{ background: '#F0F9FA', border: '1px solid #A7D4D8', padding: '.625rem .75rem', borderRadius: 6, fontSize: '.75rem', color: '#0D2B45' }}>
+          ACC46 pulls examination/assessment/plan from this consult's clinical notes + outcome measures automatically. No extra fields needed.
+        </div>
+      )}
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.8125rem', color: '#374151' }}>
+        <input type="checkbox" checked={sendToPatient} onChange={e => setSendToPatient(e.target.checked)} /> Email a copy to the patient
+      </label>
+
+      <button onClick={handleGenerate} disabled={busy}
+        style={{ padding: '.5rem 1rem', background: TEAL, color: 'white', border: 'none', borderRadius: 6, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }}>
+        {busy ? 'Generating…' : 'Generate + download PDF'}
+      </button>
+
+      {status && (
+        <div style={{ fontSize: '.75rem', color: status.startsWith('Error') ? '#DC2626' : '#059669' }}>{status}</div>
+      )}
     </div>
   )
 }

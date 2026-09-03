@@ -959,6 +959,78 @@ export async function deleteAccOutcomeMeasure(id) {
   return res.ok
 }
 
+// ACC case-manager comms
+export async function listAccCommunications({ claimId, claimNumber } = {}) {
+  const params = new URLSearchParams()
+  if (claimId)     params.set('claim_id', claimId)
+  if (claimNumber) params.set('claim_number', claimNumber)
+  const res = await apiFetch(`/api/acc-communications?${params.toString()}`)
+  if (!res.ok) return []
+  const { communications } = await res.json()
+  return communications || []
+}
+
+export async function addAccCommunication(payload) {
+  const res = await apiFetch('/api/acc-communications', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}))
+    throw new Error(b.error || `HTTP ${res.status}`)
+  }
+  const { communication } = await res.json()
+  return communication
+}
+
+export async function deleteAccCommunication(id) {
+  const res = await apiFetch(`/api/acc-communications?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return res.ok
+}
+
+// Consult peer reviews
+export async function samplePeerReviewCandidates(n = 10) {
+  const res = await apiFetch(`/api/consultation-peer-reviews?filter=sample&n=${n}`)
+  if (!res.ok) return { sample: [], unreviewed_pool_size: 0 }
+  return res.json()
+}
+
+export async function listPeerReviews({ consultationId } = {}) {
+  const params = new URLSearchParams()
+  if (consultationId) params.set('consultation_id', consultationId)
+  else params.set('filter', 'all')
+  const res = await apiFetch(`/api/consultation-peer-reviews?${params.toString()}`)
+  if (!res.ok) return []
+  const { reviews } = await res.json()
+  return reviews || []
+}
+
+export async function addPeerReview(payload) {
+  const res = await apiFetch('/api/consultation-peer-reviews', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}))
+    throw new Error(b.error || `HTTP ${res.status}`)
+  }
+  const { review } = await res.json()
+  return review
+}
+
+// ACC certificate generator (WC / RTW / ACC46)
+export async function generateAccCert(payload) {
+  const res = await apiFetch('/api/generate-acc-cert', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}))
+    throw new Error(b.error || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 // Download the PDF-format bundle for a single claim. Returns a Blob so the
 // caller can trigger a browser download.
 export async function downloadAccAuditBundlePdf(claimId, { reason, reasonNotes } = {}) {

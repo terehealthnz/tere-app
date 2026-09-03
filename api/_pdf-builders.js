@@ -1476,3 +1476,229 @@ export function buildAccAuditBundlePdf(bundle) {
   })
 }
 
+// ── ACC certificate PDFs (tasks #371, #372, #373) ─────────────────────────
+// Shared helper — three cert types (Weekly Compensation, RTW, ACC46 injury
+// summary) all use the same header/footer/patient block. Only the middle
+// clinical section varies.
+//
+// Data shape (all cert types):
+//   {
+//     certType:      'weekly_compensation' | 'return_to_work' | 'acc46',
+//     patient:       { first_name, last_name, dob, nhi, address, phone },
+//     provider:      { name, credential, hpi, mcnz, signature_url, email, phone },
+//     claim:         { number, service_code },
+//     injury:        { date, mechanism, body_part, read_code, employer },
+//     // WC-specific:
+//     unfitFrom:     ISO date
+//     unfitTo:       ISO date
+//     unfitReason:   text
+//     // RTW-specific:
+//     rtwFrom:       ISO date
+//     hoursPerWeek:  number
+//     restrictions:  text
+//     targetFullRtw: ISO date
+//     // ACC46-specific:
+//     examination:   text (multiline)
+//     assessment:    text
+//     plan:          text
+//     outcomeMeasures: [{ measure_type, value, recorded_at }]
+//   }
+export function buildAccCertificatePdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width, H = doc.page.height, LEFT = 50, RIGHT = W - 50, CW = RIGHT - LEFT
+
+    const nzDate = (d) => {
+      if (!d) return '—'
+      try { return new Date(d).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric' }) } catch { return String(d) }
+    }
+    const pageBreakIf = (y, needed) => (y + needed > H - 80 ? (doc.addPage(), 50) : y)
+    const kv = (y, k, v) => {
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(k.toUpperCase(), LEFT, y)
+      doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(10).text(String(v ?? '—'), LEFT, y + 11)
+      return y + 30
+    }
+    const kvRow = (y, pairs) => {
+      const colW = CW / pairs.length
+      pairs.forEach(([k, v], i) => {
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(k.toUpperCase(), LEFT + i * colW, y)
+        doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(10).text(String(v ?? '—'), LEFT + i * colW, y + 11, { width: colW - 12 })
+      })
+      return y + 30
+    }
+    const sectionTitle = (y, title) => {
+      y = pageBreakIf(y, 30)
+      doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text(title.toUpperCase(), LEFT, y)
+      doc.moveTo(LEFT, y + 14).lineTo(RIGHT, y + 14).strokeColor('#0B6E76').lineWidth(1).stroke()
+      return y + 22
+    }
+
+    // Header
+    doc.rect(0, 0, W, 80).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 22)
+    doc.font('Helvetica').fontSize(9)
+      .text('Marlborough Sounds, New Zealand · terehealth.co.nz', LEFT, 50)
+      .text('ACC Vendor G11238 · HPI-O G11238-E · NZBN 9429053723413', LEFT, 63)
+    try { const logo = tereLogoBuffer(); if (logo) doc.image(logo, RIGHT - 60, 15, { fit: [50, 50], align: 'right' }) } catch {}
+
+    const TITLES = {
+      weekly_compensation: 'ACC Medical Certificate — Fitness for Work',
+      return_to_work:      'ACC Return-to-Work Certificate',
+      acc46:               'ACC46 Injury Summary',
+    }
+    const type = data.certType || 'weekly_compensation'
+
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(18).text(TITLES[type] || TITLES.weekly_compensation, LEFT, 100)
+    doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Issued: ${nzDate(new Date())}`, LEFT, 128)
+
+    let y = 160
+
+    // Patient
+    y = sectionTitle(y, 'Patient')
+    y = kvRow(y, [
+      ['Name', [data.patient?.first_name, data.patient?.last_name].filter(Boolean).join(' ') || '—'],
+      ['NHI', data.patient?.nhi],
+    ])
+    y = kvRow(y, [
+      ['Date of birth', nzDate(data.patient?.dob)],
+      ['Phone', data.patient?.phone],
+    ])
+    if (data.patient?.address) y = kv(y, 'Address', data.patient.address)
+
+    // Claim + injury (common to all three cert types)
+    y = sectionTitle(y, 'Claim & injury')
+    y = kvRow(y, [
+      ['ACC claim #', data.claim?.number || '(pending)'],
+      ['Injury date', nzDate(data.injury?.date)],
+    ])
+    y = kvRow(y, [
+      ['Read code', data.injury?.read_code],
+      ['Body part', data.injury?.body_part],
+    ])
+    if (data.injury?.mechanism) y = kv(y, 'Mechanism', data.injury.mechanism)
+    if (data.injury?.employer)  y = kv(y, 'Employer', data.injury.employer)
+
+    // Type-specific body
+    if (type === 'weekly_compensation') {
+      y = sectionTitle(y, 'Fitness for work')
+      y = kvRow(y, [
+        ['Unfit for work from', nzDate(data.unfitFrom)],
+        ['Unfit for work to',   nzDate(data.unfitTo)],
+      ])
+      if (data.unfitReason) {
+        y = pageBreakIf(y, 40)
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('CLINICAL REASON', LEFT, y)
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(data.unfitReason, LEFT, y + 11, { width: CW })
+        y += 11 + doc.heightOfString(data.unfitReason, { width: CW }) + 12
+      }
+      // Attestation
+      y = pageBreakIf(y, 40)
+      doc.fillColor('#374151').font('Helvetica-Oblique').fontSize(9).text(
+        'I certify that the above-named patient is unable to work during the period stated as a consequence of the injury described. This certification is issued for the purposes of ACC Weekly Compensation.',
+        LEFT, y, { width: CW }
+      )
+      y += doc.heightOfString('I certify...', { width: CW }) + 20
+    } else if (type === 'return_to_work') {
+      y = sectionTitle(y, 'Return-to-work plan')
+      y = kvRow(y, [
+        ['RTW start date',       nzDate(data.rtwFrom)],
+        ['Hours per week',       data.hoursPerWeek != null ? `${data.hoursPerWeek} hours` : '—'],
+      ])
+      y = kv(y, 'Target full RTW date', nzDate(data.targetFullRtw))
+      if (data.restrictions) {
+        y = pageBreakIf(y, 40)
+        doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('WORK RESTRICTIONS', LEFT, y)
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(data.restrictions, LEFT, y + 11, { width: CW })
+        y += 11 + doc.heightOfString(data.restrictions, { width: CW }) + 12
+      }
+      y = pageBreakIf(y, 40)
+      doc.fillColor('#374151').font('Helvetica-Oblique').fontSize(9).text(
+        'I certify that the above-named patient is fit to return to work on the terms specified above. Suitable duties within these restrictions are recommended.',
+        LEFT, y, { width: CW }
+      )
+      y += doc.heightOfString('I certify...', { width: CW }) + 20
+    } else if (type === 'acc46') {
+      y = sectionTitle(y, 'Examination')
+      if (data.examination) {
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(data.examination, LEFT, y, { width: CW })
+        y += doc.heightOfString(data.examination, { width: CW }) + 12
+      } else {
+        doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(9).text('Not recorded.', LEFT, y); y += 18
+      }
+      y = sectionTitle(y, 'Assessment')
+      if (data.assessment) {
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(data.assessment, LEFT, y, { width: CW })
+        y += doc.heightOfString(data.assessment, { width: CW }) + 12
+      } else {
+        doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(9).text('Not recorded.', LEFT, y); y += 18
+      }
+      y = sectionTitle(y, 'Plan')
+      if (data.plan) {
+        doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(data.plan, LEFT, y, { width: CW })
+        y += doc.heightOfString(data.plan, { width: CW }) + 12
+      } else {
+        doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(9).text('Not recorded.', LEFT, y); y += 18
+      }
+      if (Array.isArray(data.outcomeMeasures) && data.outcomeMeasures.length) {
+        y = sectionTitle(y, `Outcome measures (${data.outcomeMeasures.length})`)
+        for (const m of data.outcomeMeasures) {
+          y = pageBreakIf(y, 20)
+          const v = m.value_numeric != null ? m.value_numeric : m.value_text || '—'
+          doc.fillColor('#6B7280').font('Helvetica').fontSize(9).text(nzDate(m.recorded_at), LEFT, y, { width: 140 })
+          doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(9).text(m.measure_type, LEFT + 145, y, { width: 200 })
+          doc.fillColor('#1A2A33').font('Helvetica').fontSize(9).text(String(v), LEFT + 350, y, { width: CW - 350 })
+          y += 16
+        }
+      }
+    }
+
+    // Provider signature block (all types)
+    y = pageBreakIf(y, 100)
+    y = sectionTitle(y, 'Prescribing / issuing clinician')
+    y = kvRow(y, [
+      ['Name', data.provider?.name],
+      ['Credential', data.provider?.credential || 'Registered Medical Practitioner'],
+    ])
+    y = kvRow(y, [
+      ['MCNZ', data.provider?.mcnz],
+      ['HPI-CPN', data.provider?.hpi],
+    ])
+    y = kvRow(y, [
+      ['Email', data.provider?.email],
+      ['Phone', data.provider?.phone],
+    ])
+    // Signature line
+    y += 10
+    doc.moveTo(LEFT, y + 30).lineTo(LEFT + 250, y + 30).strokeColor('#94A3B8').lineWidth(0.5).stroke()
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('Signature', LEFT, y + 34)
+    doc.moveTo(LEFT + 280, y + 30).lineTo(RIGHT, y + 30).strokeColor('#94A3B8').lineWidth(0.5).stroke()
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text('Date', LEFT + 280, y + 34)
+    // If we have an electronic signature URL, embed it above the line.
+    // Note: buildAccCertificatePdf is sync-wrapped in a Promise; the actual
+    // signature fetch happens inline via ensureSignature (below) before we call this fn.
+    if (data.provider?.signatureBuffer) {
+      try { doc.image(data.provider.signatureBuffer, LEFT, y - 20, { fit: [180, 55], align: 'left' }) } catch {}
+    } else {
+      doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(9).text('(electronically issued — signature exempt under DG August 2024 authorisation)', LEFT, y, { width: 250 })
+    }
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(10).text(nzDate(new Date()), LEFT + 280, y)
+
+    // Footer on every page
+    const pageRange = doc.bufferedPageRange()
+    for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+      doc.switchToPage(i)
+      doc.fillColor('#9CA3AF').font('Helvetica-Oblique').fontSize(7.5).text(
+        `Tere Health Ltd · ${TITLES[type]} · Patient ${data.patient?.nhi || ''} · Claim ${data.claim?.number || 'pending'} · Page ${i + 1} of ${pageRange.count}`,
+        LEFT, H - 40, { width: CW, align: 'center' }
+      )
+    }
+
+    doc.end()
+  })
+}
+

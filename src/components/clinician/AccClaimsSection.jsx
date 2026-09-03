@@ -9,6 +9,7 @@ import {
   listAccClaimsAdmin,
   getAccAuditBundle,
   downloadAccAuditBundlePdf,
+  addAccCommunication,
 } from '../../lib/supabase'
 import { ReasonPicker } from './PhiRevealGate'
 
@@ -424,7 +425,8 @@ function BundleView({ bundle }) {
       ))}
 
       <H>Case-manager comms ({bundle.communications?.length || 0})</H>
-      {(!bundle.communications?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>None recorded.</div> : bundle.communications.slice(0, 20).map(cm => (
+      <AccCommsAdder claim={bundle.claim} />
+      {(!bundle.communications?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem', marginTop: 8 }}>None recorded.</div> : bundle.communications.slice(0, 20).map(cm => (
         <div key={cm.id} style={{ padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ color: '#6B7280' }}>{nzDateTime(cm.occurred_at)}</span>
@@ -436,7 +438,7 @@ function BundleView({ bundle }) {
         </div>
       ))}
 
-      <H>Peer review ({bundle.peer_reviews?.length || 0})</H>
+      <H>Peer review ({bundle.peer_reviews?.length || 0}) — <span style={{ fontSize: '.75rem', fontWeight: 400, color: '#6B7280' }}>Admin → Quality → Peer review sampling</span></H>
       {(!bundle.peer_reviews?.length) ? <div style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>Not sampled for peer review.</div> : bundle.peer_reviews.map(pr => (
         <div key={pr.id} style={{ padding: '6px 0', borderBottom: '1px dashed #F1F5F9', fontSize: '.8125rem' }}>
           <div style={{ color: NAVY, fontWeight: 700 }}>{nzDateTime(pr.reviewed_at)} · {pr.reviewer_name || '—'}</div>
@@ -485,6 +487,71 @@ function BundleView({ bundle }) {
           <div style={{ color: '#374151' }}>{a.provider_name} ({a.provider_role}) {a.reason && `· ${a.reason}`}</div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function AccCommsAdder({ claim }) {
+  const [open, setOpen] = useState(false)
+  const [direction, setDirection] = useState('inbound')
+  const [channel, setChannel] = useState('email')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState(null)
+
+  async function save() {
+    if (!subject.trim() && !body.trim()) { setMsg('Add a subject or body'); return }
+    setBusy(true); setMsg(null)
+    try {
+      await addAccCommunication({
+        claim_id:     claim.id,
+        claim_number: claim.claim_number,
+        direction, channel,
+        subject:      subject.trim() || null,
+        body:         body.trim() || null,
+      })
+      setMsg('Logged. Refresh the bundle to see it.')
+      setSubject(''); setBody('')
+      setOpen(false)
+    } catch (e) { setMsg('Error: ' + e.message) }
+    setBusy(false)
+  }
+
+  if (!open) return (
+    <button onClick={() => setOpen(true)}
+      style={{ background: 'white', border: `1px dashed ${TEAL}`, color: TEAL, padding: '.375rem .75rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', marginBottom: 8 }}>
+      + Log a case-manager communication
+    </button>
+  )
+
+  return (
+    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.75rem', marginBottom: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
+        <select value={direction} onChange={e => setDirection(e.target.value)} style={inp}>
+          <option value="inbound">Inbound (ACC → us)</option>
+          <option value="outbound">Outbound (us → ACC)</option>
+        </select>
+        <select value={channel} onChange={e => setChannel(e.target.value)} style={inp}>
+          <option value="email">Email</option>
+          <option value="phone">Phone</option>
+          <option value="letter">Letter</option>
+          <option value="portal">Portal</option>
+          <option value="webhook">Webhook</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject (e.g. Request for further clinical info)" style={{ ...inp, marginBottom: 6, width: '100%', boxSizing: 'border-box' }} />
+      <textarea value={body} onChange={e => setBody(e.target.value)} rows={3} placeholder="Body / summary of what was communicated" style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical' }} />
+      <div style={{ display: 'flex', gap: 6, marginTop: 8, alignItems: 'center' }}>
+        <button onClick={save} disabled={busy} style={{ background: TEAL, color: 'white', border: 'none', padding: '.375rem .75rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }}>
+          {busy ? 'Saving…' : 'Log'}
+        </button>
+        <button onClick={() => setOpen(false)} style={{ background: 'white', color: '#374151', border: '1px solid #E2E8F0', padding: '.375rem .75rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', cursor: 'pointer' }}>
+          Cancel
+        </button>
+        {msg && <span style={{ fontSize: '.75rem', color: msg.startsWith('Error') ? '#DC2626' : '#059669' }}>{msg}</span>}
+      </div>
     </div>
   )
 }

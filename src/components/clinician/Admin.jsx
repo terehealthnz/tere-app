@@ -9,6 +9,7 @@ import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
 import VendorSlaMetrics from './VendorSlaMetrics'
+import PeerReviewPanel from './PeerReviewPanel'
 import NhiLookup from './NhiLookup'
 import { isNZ } from '../../lib/region'
 
@@ -4964,7 +4965,7 @@ function AdminBody() {
             case 'careers':
               return <CareersPanel />
             case 'quality':
-              return <><VendorSlaMetrics /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
+              return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
               return <><AuditLogPanel /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'acc':        return <AccClaimsSection />
