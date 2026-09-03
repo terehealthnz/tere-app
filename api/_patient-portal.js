@@ -241,5 +241,34 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, message: 'Received. We will respond within 20 working days.' })
   }
 
+  // ── Action: revoke research consent (task #399, HDC Right 9) ───────────────
+  if (action === 'revoke_research') {
+    const gate = await authorised()
+    if (gate.err) return
+    const { row } = gate
+    // Flip research_consent = false on every consult tied to this patient NHI.
+    const patientRefs = { nhi: row.patient_nhi, email: row.patient_email }
+    if (!patientRefs.nhi) return res.status(400).json({ error: 'Cannot identify your record without an NHI on file.' })
+    const { error, count } = await supabase.from('consultations')
+      .update({ research_consent: false }, { count: 'exact' })
+      .eq('patient_nhi', patientRefs.nhi)
+    if (error) { console.error('[patient-portal] revoke_research failed:', error); return res.status(500).json({ error: 'Could not revoke — try again or email support@terehealth.co.nz' }) }
+    // Record disclosure event for the audit trail.
+    try {
+      await supabase.from('disclosure_events').insert({
+        patient_nhi:       row.patient_nhi,
+        channel:           'other',
+        destination:       'internal — research consent revoked',
+        destination_label: 'Patient portal',
+        disclosed_by:      null,
+        disclosed_by_name: 'Patient (self-service)',
+        consent_source:    'patient_request',
+        disclosure_purpose:'consent_revocation',
+        payload_summary:   `Research consent revoked across ${count || 0} consultations`,
+      })
+    } catch {}
+    return res.status(200).json({ ok: true, revoked_consultations: count || 0 })
+  }
+
   return res.status(400).json({ error: `Unknown action: ${action}` })
 }

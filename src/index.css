@@ -261,3 +261,22 @@ textarea { resize: vertical; min-height: 80px; }
   .tere-start-widget-row > a { padding: 1rem 1.5rem !important; }
 }
 
+/* HDC Right 5(2) accessibility toggles (task #395). Applied via
+   AccessibilityToggle component setting body classes. Scoped so we
+   don't affect provider surfaces (they have their own dense info UI). */
+body.a11y-large-text {
+  font-size: 118% !important;
+  line-height: 1.6 !important;
+}
+body.a11y-large-text input,
+body.a11y-large-text button,
+body.a11y-large-text select,
+body.a11y-large-text textarea {
+  font-size: 1.05rem !important;
+}
+body.a11y-high-contrast {
+  filter: contrast(1.15) saturate(1.1);
+}
+body.a11y-high-contrast a { text-decoration: underline; }
+body.a11y-high-contrast ::selection { background: #000; color: #fff; }
+

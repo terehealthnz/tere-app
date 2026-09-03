@@ -82,8 +82,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const { id, ...updates } = req.body
+    const { id, offerAdvocacy, ...updates } = req.body
     if (!id) return res.status(400).json({ error: 'id required' })
+    // Right 10(4) — auto-append HDC Advocacy Service reference when a response
+    // is being sent. Default ON. Sets hdc_advocacy_offered = true for audit.
+    if (offerAdvocacy !== false && (updates.status === 'resolved' || updates.response_sent)) {
+      updates.hdc_advocacy_offered = true
+      updates.hdc_advocacy_offered_at = new Date().toISOString()
+      if (updates.resolution_notes && !/HDC Advocacy/i.test(updates.resolution_notes)) {
+        updates.resolution_notes += '\n\n---\nYou also have the right to contact the HDC Advocacy Service for free, confidential advocacy about this concern:\n  Phone: 0800 555 050\n  Email: advocacy@hdc.org.nz\n  Web: https://www.hdc.org.nz/complaints/advocacy-service/\nThis is your right under Right 10(4) of the Code of Health and Disability Services Consumers\' Rights.'
+      }
+    }
     const { error } = await supabase.from('complaints')
       .update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id)
     if (error) { console.error('[complaints] error failed:', error); return res.status(500).json({ error: 'Server error' }) }

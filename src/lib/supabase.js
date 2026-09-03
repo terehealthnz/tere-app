@@ -141,6 +141,13 @@ export async function createConsultation(data) {
     gp_email:                     data.gpEmail || null,
     gp_clinic:                    data.gpClinic || null,
     interpreter_requested:        data.interpreterRequested || false,
+    interpreter_language:         data.interpreterLanguage || null,
+    // HDC Right 7(2) — capacity to consent (task #397). If the patient
+    // ticked the capacity screen, stamp confirmation.
+    ...(data.capacityConfirmedBySelf ? {
+      capacity_confirmed_at:       new Date().toISOString(),
+      capacity_confirmed_by_self:  true,
+    } : {}),
     hdc_rights_accepted:          data.hdcRightsAccepted || true,
     research_consent:             data.researchConsent || false,
     tobacco_use:                  data.tobaccoUse || null,

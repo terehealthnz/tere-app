@@ -7,6 +7,7 @@ import StructuredHistoryCard from '../../components/clinician/StructuredHistoryC
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
 import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
+import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -305,6 +306,10 @@ export default function ClinicianPatient() {
         patientNhi={consult?.patient_nhi}
         patientName={[consult?.patient_first_name, consult?.patient_last_name].filter(Boolean).join(' ')}
       />
+
+      {consult && <SupportPersonPrompt consult={consult} onDone={async () => {
+        try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
+      }} />}
 
       <div style={{ padding: '1.25rem 1rem calc(11rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
 

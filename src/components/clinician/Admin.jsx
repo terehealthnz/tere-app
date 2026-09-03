@@ -9,6 +9,7 @@ import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
 import { HpiQueryAudit, Hl7ReceiveAudit, Section22fReport } from './NzHealthAuditPanels'
+import ComplaintThemesPanel from './ComplaintThemesPanel'
 import VendorSlaMetrics from './VendorSlaMetrics'
 import PeerReviewPanel from './PeerReviewPanel'
 import NhiLookup from './NhiLookup'
@@ -4968,7 +4969,7 @@ function AdminBody() {
             case 'quality':
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
-              return <><AuditLogPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+              return <><AuditLogPanel /><ComplaintThemesPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />

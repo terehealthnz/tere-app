@@ -123,6 +123,8 @@ export default function IntakeForm() {
     complaint:'', duration:'', redFlag:'',
     accEligible:'', employer:'', injuryDate:'', injuryDetails:'',
     recordingConsent: false, accConsent: false,
+    interpreterRequested: false, interpreterLanguage: '',
+    capacityConfirmedBySelf: false,
   })
 
   const set = (k, v) => setForm(f => ({...f, [k]: v}))
@@ -181,6 +183,7 @@ export default function IntakeForm() {
     e.preventDefault()
     await verifyACC()
     if (!form.recordingConsent) { setError('Please confirm recording consent to continue.'); return }
+    if (!form.capacityConfirmedBySelf) { setError('Please confirm you are at least 16 and making this decision yourself (HDC Right 7).'); return }
     setLoading(true); setError('')
     try {
       const consult = await createConsultation(form)
@@ -397,6 +400,35 @@ export default function IntakeForm() {
                 </label>
               </div>
 
+              {/* HDC Right 7(2) — capacity confirmation. Required to proceed. */}
+              <div style={{background:'#F0F9FA',border:'1.5px solid var(--teal-light)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1rem'}}>
+                <label style={{display:'flex',alignItems:'flex-start',gap:'.75rem',cursor:'pointer',fontWeight:400}}>
+                  <input type="checkbox" checked={form.capacityConfirmedBySelf}
+                    onChange={e => set('capacityConfirmedBySelf', e.target.checked)}
+                    style={{width:'18px',height:'18px',marginTop:'2px',flexShrink:0,accentColor:'var(--teal)'}} />
+                  <span style={{fontSize:'.9375rem',lineHeight:1.6}}>
+                    <strong>I am 16 or older and I am making this decision for myself</strong> (or on behalf of a person I am legally authorised to represent). If neither is true, please stop and have your parent, guardian, or authorised representative complete this form.
+                  </span>
+                </label>
+              </div>
+
+              {/* HDC Right 5(4) — interpreter request. Optional. */}
+              <div style={{background:'#F8FAFC',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1rem'}}>
+                <label style={{display:'flex',alignItems:'flex-start',gap:'.75rem',cursor:'pointer',fontWeight:400,marginBottom:form.interpreterRequested?'.5rem':0}}>
+                  <input type="checkbox" checked={form.interpreterRequested}
+                    onChange={e => set('interpreterRequested', e.target.checked)}
+                    style={{width:'18px',height:'18px',marginTop:'2px',flexShrink:0,accentColor:'var(--teal)'}} />
+                  <span style={{fontSize:'.9375rem',lineHeight:1.6}}>
+                    <strong>I need an interpreter for this consultation</strong> — under the Code of Rights, you can have an interpreter present. Tick this and we will arrange one before the consult starts.
+                  </span>
+                </label>
+                {form.interpreterRequested && (
+                  <input value={form.interpreterLanguage} onChange={e => set('interpreterLanguage', e.target.value)}
+                    placeholder="Which language? (e.g. Mandarin, NZSL, Tongan)"
+                    style={{width:'100%',boxSizing:'border-box',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:'.5rem',fontSize:'.875rem',marginTop:'.5rem'}} />
+                )}
+              </div>
+
               <div style={{background:'#F8FAFC',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1rem',fontSize:'.875rem',color:'var(--muted)',lineHeight:1.6}}>
                 <strong style={{color:'var(--text)',display:'block',marginBottom:'.375rem'}}>Privacy</strong>
                 Your health information is stored by Tere Health Limited under the Privacy Act 2020 and Health Information Privacy Code 2020. It is shared only with your treating clinician, your GP (with permission), and ACC (if a claim is lodged).
@@ -425,7 +457,7 @@ export default function IntakeForm() {
                   Continue
                 </button>
               ) : (
-                <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={loading || !form.recordingConsent}>
+                <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={loading || !form.recordingConsent || !form.capacityConfirmedBySelf}>
                   {loading ? 'Starting…' : 'Start my consultation'}
                 </button>
               )}

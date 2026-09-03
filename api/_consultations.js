@@ -75,6 +75,10 @@ const UPDATE_ALLOWLIST = new Set([
   'rehab_plan', 'discharge_summary', 'rtw_status',
   // HDC Right 8 (migration 2026-09-03_hdc_privacy_extras.sql)
   'support_person_present', 'support_person_name',
+  // HDC Rights 5(4), 7(2) (migration 2026-09-03_hdc_rights_extensions.sql).
+  // interpreter_requested column pre-exists (big-migration.sql).
+  'interpreter_requested', 'interpreter_language',
+  'capacity_confirmed_at', 'capacity_confirmed_by_self',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).

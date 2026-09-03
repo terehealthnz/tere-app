@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import AccessibilityToggle, { useAccessibilityBoot } from '../../components/patient/AccessibilityToggle'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -31,6 +32,7 @@ const nzDateTime = (iso) => {
 }
 
 export default function PatientPortal() {
+  useAccessibilityBoot()
   const [params, setParams] = useSearchParams()
   const tokenFromUrl = params.get('token')
   const [phase, setPhase] = useState(tokenFromUrl ? 'verifying' : 'request')  // request | sent | verifying | signed_in | error
@@ -46,6 +48,10 @@ export default function PatientPortal() {
   const [correctionRequested, setCorrectionRequested] = useState('')
   const [correctionReason, setCorrectionReason] = useState('')
   const [correctionSent, setCorrectionSent] = useState(false)
+
+  // Research consent revoke (task #399, HDC Right 9)
+  const [revoking, setRevoking] = useState(false)
+  const [revokedCount, setRevokedCount] = useState(null)
 
   // ── Verify magic-link token on mount ────────────────────────────────────────
   useEffect(() => {
@@ -105,6 +111,16 @@ export default function PatientPortal() {
     } catch (e) { alert('Download failed: ' + e.message) }
   }
 
+  async function revokeResearchConsent() {
+    if (!confirm('Withdraw your consent for any research use of your data? This cannot be undone.')) return
+    setRevoking(true); setError(null)
+    try {
+      const data = await post('revoke_research', { token: session.token })
+      setRevokedCount(data.revoked_consultations)
+    } catch (e) { setError(e.message) }
+    setRevoking(false)
+  }
+
   async function submitCorrection(e) {
     e?.preventDefault?.()
     setError(null)
@@ -133,9 +149,12 @@ export default function PatientPortal() {
   return (
     <div style={page}>
       <div style={card}>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', color: TEAL, fontSize: '1.5rem' }}>Tere Health</div>
-          <div style={{ fontSize: '.75rem', color: '#6B7280', letterSpacing: '.1em', textTransform: 'uppercase' }}>Patient portal</div>
+        <div style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', color: TEAL, fontSize: '1.5rem' }}>Tere Health</div>
+            <div style={{ fontSize: '.75rem', color: '#6B7280', letterSpacing: '.1em', textTransform: 'uppercase' }}>Patient portal</div>
+          </div>
+          <AccessibilityToggle />
         </div>
 
         {phase === 'request' && (
@@ -215,6 +234,22 @@ export default function PatientPortal() {
                 Get a copy of your record as a FHIR Bundle (a standard health-data format your GP or another provider can import).
               </p>
               <button onClick={downloadRecord} style={btn}>Download my record (FHIR JSON)</button>
+            </section>
+
+            {/* Research consent withdrawal */}
+            <section style={{ marginBottom: '2rem' }}>
+              <h2 style={{ color: NAVY, fontSize: '1rem', margin: 0, borderBottom: '2px solid #F1F5F9', paddingBottom: 8 }}>Withdraw research consent</h2>
+              <p style={{ fontSize: '.8125rem', color: '#374151', marginTop: '.75rem', lineHeight: 1.6 }}>
+                If you previously ticked the research consent box (VitalsValidate or similar), you can withdraw it here. Your clinical care won't change. We'll set research consent to <strong>false</strong> across every consultation on file.
+              </p>
+              {revokedCount !== null ? (
+                <p style={{ color: '#059669', fontSize: '.875rem', marginTop: '.5rem' }}>Research consent withdrawn across {revokedCount} consultation{revokedCount === 1 ? '' : 's'}. Recorded in our audit trail.</p>
+              ) : (
+                <button onClick={revokeResearchConsent} disabled={revoking}
+                  style={{ background: 'white', border: '1px solid #DC2626', color: '#DC2626', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.875rem', fontWeight: 700, cursor: revoking ? 'default' : 'pointer', marginTop: '.5rem' }}>
+                  {revoking ? 'Withdrawing…' : 'Withdraw research consent'}
+                </button>
+              )}
             </section>
 
             {/* Correction request */}
