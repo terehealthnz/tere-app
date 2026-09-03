@@ -85,6 +85,10 @@ const UPDATE_ALLOWLIST = new Set([
   'continuity_disposition', 'continuity_gp_name', 'continuity_gp_practice',
   'continuity_gp_hpi', 'continuity_notes', 'continuity_captured_at',
   'continuity_patient_told',
+  // Patient identity verification (task #426, migration 2026-09-03_patient_identity_verification.sql)
+  'id_verification_status', 'id_verification_method', 'id_verification_document_id',
+  'id_verification_document_type', 'id_verification_provider_id',
+  'id_verification_provider_name', 'id_verification_at', 'id_verification_notes',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).

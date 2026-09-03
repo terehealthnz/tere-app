@@ -8,6 +8,7 @@ import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModa
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
 import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
+import IdVerificationPanel from '../../components/clinician/IdVerificationPanel'
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -385,6 +386,18 @@ export default function ClinicianPatient() {
             <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.6 }}>{consult.chief_complaint}</div>
           </div>
         </div>
+
+        {/* Patient identity verification (task #426) — provider attests
+            person on camera matches NHI holder. Recorded per consult. */}
+        <IdVerificationPanel
+          consult={consult}
+          onUpdated={async () => {
+            try {
+              const fresh = await getConsultation(id)
+              if (fresh) setConsult(fresh)
+            } catch {}
+          }}
+        />
 
         {/* ACC widgets — only render when consult is ACC-billed. Populates
             the discrete fields the ACC audit bundle reads. */}
