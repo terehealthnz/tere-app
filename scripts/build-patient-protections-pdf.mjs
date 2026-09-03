@@ -199,8 +199,8 @@ const CONTROLS = [
     orgs: ['MCNZ', 'HDC'], evidence: 'task #223' },
   { cat: 'preemptive', section: 'Clinical Safety',
     title: 'System-enforced triage divert list (must-in-person presentations)',
-    what: 'Second-tier YES/NO screening after red-flag phase — 8 hardcoded presentations that cannot close on video (paediatric fever <3mo, sudden severe localised pain, head injury with features, pregnancy complications, suspected fractures, thunderclap headache, self-harm ideation, new neuro symptoms). Not AI judgement — hard rules. Any YES = divert screen (ED same-day tone escalated for high-consequence subset).',
-    orgs: ['CoR', 'HDC', 'MCNZ'], evidence: 'task #416; src/lib/triageSafetyGates.js' },
+    what: 'Keyword-driven divert detection on every chat message (AITriage). 24 hardcoded phrases covering 8 divert categories — paediatric fever <3mo, sudden severe localised pain, head injury with features, pregnancy complications, suspected fractures, thunderclap headache / new confusion, self-harm ideation, new neuro symptoms. Match = amber divert screen (in-person needed, NOT 111) with urgent-care + GP links + "if worsening → 111". Second-tier YES/NO version also on the legacy /triage/:id page as a fallback.',
+    orgs: ['CoR', 'HDC', 'MCNZ'], evidence: 'tasks #416 + #430; AITriage.jsx DIVERT_KEYWORDS + src/lib/triageSafetyGates.js' },
   { cat: 'preemptive', section: 'Clinical Safety',
     title: 'Safety-netting as gated field at consult close',
     what: 'Mandatory structured return-advice (min 40 chars) at consult finalise. Template picker (8 common presentations: viral URI, cellulitis, UTI, MSK, gastro, back pain, mental health, generic) that provider edits. Blocks finalise. HDC Right 6 evidence.',
@@ -211,8 +211,8 @@ const CONTROLS = [
     orgs: ['HDC', 'MCNZ', 'CORONER', 'HQSC'], evidence: 'task #418; investigation_orders table + api/_investigation-orders.js' },
   { cat: 'preemptive', section: 'Clinical Safety',
     title: 'Emergency escalation with current-location capture',
-    what: 'Every red-flag / divert fires attempts browser geolocation and POSTs to /api/emergency-escalations with matched_flags + lat/lng (or decline reason). 111 dispatch can be directed to the patient CURRENT location, not registered address.',
-    orgs: ['CoR', 'HDC'], evidence: 'task #420; emergency_escalations table' },
+    what: 'Every 111/divert fire in the AI chat flow (AITriage) attempts browser geolocation (3s timeout, best-effort) and POSTs to /api/emergency-escalations with escalation_type + matched_flags + lat/lng (or decline reason). 111 dispatch can be directed to the patient CURRENT location, not registered address. Verified end-to-end on prod 2026-09-03.',
+    orgs: ['CoR', 'HDC'], evidence: 'tasks #420 + #430; emergency_escalations table + AITriage.jsx logEscalation()' },
   { cat: 'preemptive', section: 'Clinical Safety',
     title: 'GP-handover / continuity guarantee at close',
     what: 'Every consult must record disposition (gp_letter_sent / to_send / handover / closed_no_followup / patient_no_gp_told_to_enrol / declined). Handoff dispositions require "patient was informed" tick. Blocks finalise. HDC Right 4(4).',
@@ -603,6 +603,7 @@ async function main() {
     <li><strong>NZF prescribing licence</strong> — task #229 blocks the full drug-drug interaction check. Partial coverage shipped: max-quantity + early-refill + doctor-shopping (task #423).</li>
     <li><strong>Patient identity verification — AI face-compare</strong> — v1 is provider attestation only (task #426). AI face-match against uploaded photo ID is future work.</li>
     <li><strong>MOH new-service notification evidence</strong> — task #172 marked complete but no receipt / reference in the repo. See docs/regulatory/moh-notification-verification-needed.md — Patrick to confirm reference number + date, or file if not actually filed (task #428).</li>
+    <li><strong>Divert keyword coverage</strong> — AI chat divert uses ~24 hardcoded phrases (task #430). Broader coverage would benefit from an LLM-based safety classifier layer, which would need a fresh WAND change-notify. Tracked at task #288.</li>
   </ul>
 
   <h2>7. Contact</h2>
