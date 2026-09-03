@@ -190,7 +190,12 @@ export default async function handler(req, res) {
     if (error.code === '42703' || (error.message && error.message.includes('column'))) {
       const { patient_age_band, complaint_category, consultation_month,
               device_type, language_selected, patient_employment_sector,
-              patient_region, ...core } = payload
+              patient_region,
+              // Defensive strip — patient_address should now exist per the
+              // 2026-09-03_consultations_patient_address.sql hotfix, but if
+              // the migration hasn't been applied yet don't block intake.
+              patient_address,
+              ...core } = payload
       const retry = await supabase.from('consultations').insert(core).select().single()
       if (retry.error) {
         if (isDuplicateOpen(retry.error)) {
