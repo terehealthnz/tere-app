@@ -42,7 +42,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'patient-record-export', 'elevation', 'break-glass', 'phi-training',
   'disclosures', 'hl7-audit', 'cultural-safety-training', 'conflict-of-interest',
   'consult-break-glass',
-  'investigation-orders', 'prescribing-surveillance', 'cgm-meetings',
+  'investigation-orders', 'prescribing-surveillance', 'cgm-meetings', 'provider-competencies',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',

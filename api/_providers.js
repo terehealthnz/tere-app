@@ -164,6 +164,10 @@ const UPDATE_ALLOWLIST = new Set([
   'patient_access_from',
   // Nursing Council of New Zealand fields (task #412, migration 2026-09-03).
   'nursing_council_number', 'ncnz_apc_expiry', 'ncnz_scope',
+  // Provider competency-to-roster (task #435, migration 2026-09-03_provider_competency.sql)
+  'competency_status', 'competency_notes', 'competency_assessed_at', 'competency_assessed_by',
+  'probation_started_at', 'probation_min_supervised_consults', 'probation_supervised_completed',
+  'scope_of_clinical_practice',
 ])
 
 // Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via

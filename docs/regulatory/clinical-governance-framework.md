@@ -113,12 +113,56 @@ Any new or materially changed AI feature (triage classifier, note drafting, subt
 4. Consent capture updates if patient-visible.
 5. Model changelog entry (`docs/regulatory/model-changelog.md` — create when first change ships).
 
-## 9. Cultural safety + Te Tiriti obligations
+## 9. Te Tiriti o Waitangi + equity as a governance function
 
-- Named Māori advisor is a 2027 hire commitment (Ethics Policy v1 §6).
+Cultural safety training is a provider-level control (task #400). This section is the governance-level counterpart — equity treated as a standing accountability of the organisation, not just an individual attestation.
+
+### Te Tiriti commitment
+
+Tere Health operates in Aotearoa New Zealand under Te Tiriti o Waitangi. As a health service predominantly serving rural populations — including a substantial Māori patient cohort — Tere Health accepts an active responsibility beyond passive non-discrimination. Specifically:
+
+- **Tino rangatiratanga** — Māori patients retain authority over their own health information; recognised via HDC Right 6 disclosure logging, per-disclosure consent snapshots (task #351), and patient-facing "who saw my data" view (task #350).
+- **Partnership** — engagement with iwi and Māori health leaders on service design decisions that materially affect Māori patients, before those decisions are made rather than after.
+- **Equity** — outcome parity, not process equality, is the standard. Where outcomes diverge by ethnicity, that is a governance issue requiring redress.
+- **Active protection** — cultural safety, translation, and interpreter access are prioritised expenditures, not discretionary.
+
+### Standing CGM agenda item — Equity Review
+
+Every Clinical Governance Meeting includes an "Equity Review" agenda item. Data reviewed at each cycle:
+
+- **Consult volume by patient ethnicity** — Māori / Pacific / Asian / European / other / undisclosed
+- **Divert / 111 rate by ethnicity** — differences flagged for investigation
+- **Complaint rate + resolution time by ethnicity** — differences flagged
+- **Interpreter request rate + source (task #436)** — track that certified interpreters are being used, not family members
+- **Prescribing pattern differences** — controlled substances + antibiotic prescribing rates by ethnicity (bias check)
+- **Follow-up completion rate by ethnicity** — safety-netting reviewed for equal quality (task #433 CGM peer-review)
+- **Any Māori-patient safeguarding concerns raised (task #434)** — patterns discussed with cultural-safety lens
+
+Minutes of each Equity Review are captured in the CGM meeting log (task #427).
+
+### Māori advisor engagement
+
+- Named Māori advisor is a 2027 hire commitment (see Ethics Policy v1 §6).
+- Interim: any service design decision materially affecting Māori patients is presented to at least one Māori clinical peer for review before adoption.
+- Advisor sign-off is a prerequisite for Ethics Policy v2.0.
+
+### Data sovereignty
+
+- Māori-patient data governance follows Te Mana Raraunga (Māori Data Sovereignty Network) principles.
+- Research uses of Māori-patient data require iwi-organisation engagement (see Ethics Policy v1 §7; HDEC OOS letter 2026-08-03 confirms current VitalsValidate scope does NOT engage this).
+- Any future Māori-patient-specific research programme requires a separate consent + governance pathway.
+
+### Te Reo Māori accessibility
+
 - All patient-facing surfaces available in Te Reo Māori (task #17).
-- Provider annual cultural safety attestation (task #400).
-- Any Māori-patient-specific research or data use requires engagement with iwi organisations per Te Mana Raraunga.
+- Bilingual red-flag messages regardless of language selection (task #20).
+- Provider annual cultural safety attestation (task #400) covers the responsibility for Te Reo-preferred patients.
+
+### Equity outcome-monitoring cadence
+
+Individual reviews happen at each CGM (quarterly minimum). A consolidated annual equity report is generated for the CMO by year-end and provided to any regulator on request.
+
+Where a divergent outcome is identified, the response follows the standard governance improvement cycle: investigate → discuss at CGM → corrective action → measure at next cycle.
 
 ## 10. Regulator engagement
 
@@ -138,4 +182,5 @@ Any new or materially changed AI feature (triage classifier, note drafting, subt
 
 ## Change log
 
-- 2026-09-03 — v1.0 draft. Rachel to review + adopt at first CGM.
+- 2026-09-03 — v1.0 draft.
+- 2026-09-03 — v1.1: §9 expanded to Te Tiriti / equity as a governance function (task #438). Standing "Equity Review" CGM agenda item with defined metrics; data sovereignty per Te Mana Raraunga; annual equity report to CMO.
