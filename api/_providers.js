@@ -162,6 +162,8 @@ const UPDATE_ALLOWLIST = new Set([
   // Onboarding gate — admin sets a future date. Nulled to open access
   // immediately. See supabase/2026-08-21_provider_patient_access_gate.sql
   'patient_access_from',
+  // Nursing Council of New Zealand fields (task #412, migration 2026-09-03).
+  'nursing_council_number', 'ncnz_apc_expiry', 'ncnz_scope',
 ])
 
 // Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via
@@ -175,6 +177,7 @@ const UPDATE_ALLOWLIST = new Set([
 const SELF_UPDATE_ALLOWLIST = new Set([
   'first_name', 'last_name', 'credential', 'specialty',
   'prescriber_number', 'mcnz_registration_number', 'cpn', 'hpi_number', 'acc_provider_number',
+  'nursing_council_number', 'ncnz_apc_expiry', 'ncnz_scope',
   'scope_of_practice', 'pgy_level',
   'signature_url',
   'bank_account', 'ird_number', 'tax_code',
