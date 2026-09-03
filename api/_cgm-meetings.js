@@ -9,8 +9,8 @@ function admin() {
     { auth: { autoRefreshToken: false, persistSession: false } })
 }
 
-const ALLOWED_TYPES = new Set(['clinical_governance','peer_review','morbidity_mortality','incident_review','audit_review','other'])
-const CREATE_FIELDS = new Set(['meeting_type','meeting_at','duration_minutes','chair_name','attendees','agenda','minutes','actions_noted','related_incident_ids','next_meeting_due_at'])
+const ALLOWED_TYPES = new Set(['clinical_governance','peer_review','morbidity_mortality','incident_review','audit_review','safety_netting_review','other'])
+const CREATE_FIELDS = new Set(['meeting_type','meeting_at','duration_minutes','chair_name','attendees','agenda','minutes','actions_noted','related_incident_ids','next_meeting_due_at','safety_netting_samples_reviewed_ids'])
 const MIN_MINUTES_CHARS = 200
 
 export default async function handler(req, res) {
@@ -20,6 +20,22 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'Admin/supervisor only' })
   }
   const supabase = admin()
+
+  // Task #433 — sample recent safety-netting entries for the peer-review
+  // meeting to work through. Random-ish (order by created_at DESC, top 20,
+  // shuffle server-side, return 5).
+  if (req.method === 'GET' && req.query?.action === 'safety_netting_samples') {
+    const days = Math.min(180, Math.max(1, Number(req.query.days) || 30))
+    const since = new Date(Date.now() - days * 86400 * 1000).toISOString()
+    const { data } = await supabase.from('consultations')
+      .select('id, patient_first_name, patient_last_name, chief_complaint, safety_netting_text, safety_netting_at, notes_finalised_by')
+      .not('safety_netting_at', 'is', null)
+      .gte('safety_netting_at', since)
+      .order('safety_netting_at', { ascending: false })
+      .limit(50)
+    const shuffled = (data || []).sort(() => Math.random() - 0.5).slice(0, 5)
+    return res.status(200).json({ samples: shuffled })
+  }
 
   if (req.method === 'GET') {
     const { meeting_type, limit } = req.query || {}

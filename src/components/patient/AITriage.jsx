@@ -88,9 +88,10 @@ function checkDivert(text) {
   return DIVERT_KEYWORDS.some(kw => lower.includes(kw))
 }
 
-// Fire-and-forget escalation logging (task #420). Captures browser geolocation
-// (best-effort — 3s timeout, no block if declined). Called every time an
-// emergency/divert screen fires.
+// Escalation logging (tasks #420, #432). Captures browser geolocation
+// (best-effort — 3s timeout, no block if declined). Returns { id, hasLocation }
+// so the emergency screen can prompt for a manual location if silent-fail
+// (task #432). Called every time an emergency/divert screen fires.
 async function logEscalation({ escalation_type, matched_flags, consultationId }) {
   let loc = { location_declined_reason: 'not_attempted' }
   try {
@@ -109,8 +110,9 @@ async function logEscalation({ escalation_type, matched_flags, consultationId })
       })
     }
   } catch {}
+  const hasLocation = !!loc.patient_location_lat
   try {
-    await fetch('/api/emergency-escalations', {
+    const res = await fetch('/api/emergency-escalations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -120,7 +122,24 @@ async function logEscalation({ escalation_type, matched_flags, consultationId })
         ...loc,
       }),
     })
-  } catch {}
+    const j = await res.json().catch(() => ({}))
+    return { id: j.id || null, hasLocation }
+  } catch { return { id: null, hasLocation } }
+}
+
+// Late location update (task #432) — patient types their location on the
+// emergency screen if browser geo silently failed. UUID is unguessable so
+// this anon endpoint doesn't need auth.
+async function updateEscalationLocation(escalationId, text) {
+  if (!escalationId || !text || !text.trim()) return false
+  try {
+    const res = await fetch('/api/emergency-escalations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: escalationId, patient_location_text: text.trim() }),
+    })
+    return res.ok
+  } catch { return false }
 }
 
 function checkControlledMed(text) {
@@ -313,6 +332,9 @@ export default function AITriage() {
   const [stepHistory, setStepHistory] = useState(() => { const s = loadTriageState(); return s?.stepHistory || [] })
   const [photos, setPhotos] = useState([])
   const [emergency, setEmergency] = useState(null)
+  // Task #432 — track escalation id + whether location was captured, so
+  // the emergency screen can prompt for a manual location if geo failed.
+  const [escalationInfo, setEscalationInfo] = useState({ id: null, hasLocation: false })
   const [done, setDone] = useState(false)
   const [saving, setSaving] = useState(false)
   const [waitingForPhoto, setWaitingForPhoto] = useState(false)
@@ -835,19 +857,23 @@ export default function AITriage() {
 
     if (checkPhysicalEmergency(textForCheck)) {
       logEscalation({ escalation_type: 'red_flag_111', matched_flags: ['ai_physical_kw'], consultationId: data.consultation_id })
+        .then(r => setEscalationInfo(r))
       setTimeout(() => setEmergency('physical'), 500); return
     }
     if (checkMentalHealthCrisis(textForCheck)) {
       logEscalation({ escalation_type: 'red_flag_111', matched_flags: ['ai_mental_kw'], consultationId: data.consultation_id })
+        .then(r => setEscalationInfo(r))
       setTimeout(() => setEmergency('mental'), 500); return
     }
     if (checkAddiction(textForCheck)) {
       logEscalation({ escalation_type: 'divert_gp_today', matched_flags: ['ai_addiction_kw'], consultationId: data.consultation_id })
+        .then(r => setEscalationInfo(r))
       setTimeout(() => setEmergency('addiction'), 500); return
     }
     // Task #430 — divert keywords (in-person needed, not 111)
     if (checkDivert(textForCheck)) {
       logEscalation({ escalation_type: 'divert_ed', matched_flags: ['ai_divert_kw'], consultationId: data.consultation_id })
+        .then(r => setEscalationInfo(r))
       setTimeout(() => setEmergency('divert'), 500); return
     }
 
@@ -1301,6 +1327,36 @@ export default function AITriage() {
     setGpClinicResults([])
   }
 
+  // Task #432 — location capture prompt shown ONLY when browser geo failed
+  // silently. Amber-toned + short. On submit, patches the escalation row.
+  const LocationPromptRow = () => {
+    const [text, setText] = useState('')
+    const [submitted, setSubmitted] = useState(false)
+    if (escalationInfo.hasLocation) return null                     // geo worked, no prompt
+    if (submitted) return (
+      <div style={{background:'#DCFCE7',border:'1px solid #86EFAC',color:'#065F46',padding:'.625rem .875rem',borderRadius:10,fontSize:'.8125rem',marginBottom:12,textAlign:'left'}}>
+        ✓ Location saved. Tell the 111 operator the same address.
+      </div>
+    )
+    return (
+      <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',color:'#78350F',padding:'.75rem .875rem',borderRadius:10,fontSize:'.8125rem',marginBottom:12,textAlign:'left'}}>
+        <div style={{fontWeight:700,marginBottom:6}}>📍 Where are you right now?</div>
+        <div style={{fontSize:'.75rem',marginBottom:8,lineHeight:1.5}}>We couldn't get your location automatically. If you can, tell us — it helps 111 find you.</div>
+        <div style={{display:'flex',gap:6}}>
+          <input value={text} onChange={e=>setText(e.target.value)} placeholder="Address or landmark"
+            style={{flex:1,padding:'.5rem .625rem',border:'1px solid #FDE68A',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem'}} />
+          <button onClick={async () => {
+            if (!text.trim()) return
+            const ok = await updateEscalationLocation(escalationInfo.id, text)
+            if (ok) setSubmitted(true)
+          }} style={{padding:'.5rem 1rem',background:'#D97706',color:'white',border:'none',borderRadius:6,fontWeight:700,fontSize:'.8125rem',cursor:'pointer'}}>
+            Save
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   if (emergency === 'physical') return (
     <div style={{height:'100dvh',display:'flex',flexDirection:'column',background:'#FEF2F2',fontFamily:'Plus Jakarta Sans, sans-serif',direction:langMeta.rtl?'rtl':'ltr'}}>
       <div style={{background:'#991B1B',padding:'.875rem 1.25rem',paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))'}}>
@@ -1312,6 +1368,7 @@ export default function AITriage() {
           <h1 style={{color:'#991B1B',marginBottom:'.75rem',fontSize:'1.75rem'}}>{t_bilingual('physical_heading', lang)}</h1>
           <p style={{marginBottom:'2rem',lineHeight:1.7,color:'#374151'}}>{t_bilingual('physical_body', lang)}</p>
           <a href="tel:111" style={{display:'block',background:'#DC2626',color:'white',textDecoration:'none',borderRadius:14,padding:'1.25rem',fontSize:'1.25rem',fontWeight:700,marginBottom:'1rem',boxShadow:'0 4px 12px rgba(220,38,38,0.4)'}}>📞 Call 111</a>
+          <LocationPromptRow />
           <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>{t('physical_back', lang)}</button>
         </div>
       </div>
@@ -1403,6 +1460,7 @@ export default function AITriage() {
               If symptoms get <strong>worse</strong> — trouble breathing, severe pain, confusion, or you feel unsafe — <a href="tel:111" style={{color:'#991B1B',fontWeight:700}}>call 111</a> immediately.
             </div>
           </div>
+          <div style={{marginTop:16,textAlign:'left'}}><LocationPromptRow /></div>
           <p style={{fontSize:'.75rem',color:'#78350F',marginTop:'1.25rem'}}>
             Answered wrong? <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#78350F',fontSize:'.75rem',cursor:'pointer',textDecoration:'underline'}}>go back</button>
           </p>
@@ -1708,6 +1766,20 @@ export default function AITriage() {
           />
           <button onClick={handleSend} disabled={!input.trim()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'white',fontWeight:700,fontSize:'1rem',opacity:!input.trim()?0.5:1}}>↑</button>
         </div>
+        {/* Task #431 — catch-all "I'm worried" divert trigger. Always visible
+            below the chat input. Fires the divert screen regardless of
+            keyword match. Closes the gap where atypical phrasing ("something
+            feels wrong", "I feel like something's wrong") would silently
+            miss keyword detection. */}
+        <button
+          onClick={() => {
+            logEscalation({ escalation_type: 'divert_ed', matched_flags: ['patient_worried'], consultationId: data.consultation_id })
+              .then(r => setEscalationInfo(r))
+            setEmergency('divert')
+          }}
+          style={{marginTop:8,width:'100%',background:'#FFFBEB',border:'1px solid #FDE68A',color:'#78350F',borderRadius:10,padding:'.625rem .875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem',fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <span>⚠</span> Something feels wrong — get me help now
+        </button>
       </div>
 </div>
   )

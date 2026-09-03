@@ -33,6 +33,30 @@ export default async function handler(req, res) {
   // ---- POST (patient side — anon with consultation_token) ----
   if (req.method === 'POST') {
     const b = req.body || {}
+
+    // Late location-update variant (task #432). If the body has { id, patient_location_text }
+    // and the escalation is < 30 min old, update it. Lets the patient fill in
+    // their location after the divert screen when browser geolocation failed
+    // silently. UUID is unguessable so anon can PATCH by id.
+    if (b.id && (b.patient_location_text || b.location_declined_reason)) {
+      const { data: current } = await supabase.from('emergency_escalations')
+        .select('id, escalated_at').eq('id', String(b.id)).maybeSingle()
+      if (!current) return res.status(404).json({ error: 'Escalation not found' })
+      const ageMin = (Date.now() - new Date(current.escalated_at).getTime()) / 60000
+      if (ageMin > 30) return res.status(410).json({ error: 'Escalation too old to update' })
+      const patch = {}
+      if (b.patient_location_text) {
+        patch.patient_location_text = String(b.patient_location_text).slice(0, 400)
+        patch.location_captured_at = new Date().toISOString()
+      }
+      if (b.location_declined_reason) {
+        patch.location_declined_reason = String(b.location_declined_reason).slice(0, 200)
+      }
+      const { error } = await supabase.from('emergency_escalations').update(patch).eq('id', String(b.id))
+      if (error) return res.status(500).json({ error: error.message })
+      return res.status(200).json({ ok: true, id: b.id, updated: true })
+    }
+
     const escalation_type = String(b.escalation_type || '')
     if (!ALLOWED_ESCALATION_TYPES.has(escalation_type)) {
       return res.status(400).json({ error: `escalation_type must be one of ${[...ALLOWED_ESCALATION_TYPES].join(', ')}` })

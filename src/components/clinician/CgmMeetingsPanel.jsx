@@ -12,22 +12,24 @@ const AMBER = '#D97706'
 const FF   = 'Plus Jakarta Sans, sans-serif'
 
 const TYPE_LABELS = {
-  clinical_governance:   'Clinical Governance',
-  peer_review:           'Peer Review',
-  morbidity_mortality:   'M&M',
-  incident_review:       'Incident Review',
-  audit_review:          'Audit Review',
-  other:                 'Other',
+  clinical_governance:    'Clinical Governance',
+  peer_review:            'Peer Review',
+  morbidity_mortality:    'M&M',
+  incident_review:        'Incident Review',
+  audit_review:           'Audit Review',
+  safety_netting_review:  'Safety-Netting Review',
+  other:                  'Other',
 }
 
 // Expected cadence (days) for the overdue banner. Not enforced server-side
 // — provider sets next_meeting_due_at explicitly.
 const EXPECTED_CADENCE_DAYS = {
-  clinical_governance: 90,   // quarterly
-  peer_review:         30,   // monthly sample review
-  morbidity_mortality: 90,
-  incident_review:      0,   // ad-hoc; only overdue if next_meeting_due_at set
-  audit_review:        180,
+  clinical_governance:    90,   // quarterly
+  peer_review:            30,   // monthly sample review
+  morbidity_mortality:    90,
+  incident_review:         0,   // ad-hoc; only overdue if next_meeting_due_at set
+  audit_review:           180,
+  safety_netting_review:  30,   // monthly — turns min-40-chars gate into a real control
 }
 
 const nzDate = (iso) => {
@@ -50,6 +52,18 @@ export default function CgmMeetingsPanel() {
   })
   const [busy, setBusy] = useState(false)
   const [err, setErr]   = useState(null)
+  const [safetyNetSamples, setSafetyNetSamples] = useState([])
+  const [loadingSamples, setLoadingSamples]     = useState(false)
+
+  async function loadSafetyNetSamples() {
+    setLoadingSamples(true)
+    try {
+      const r = await apiFetch('/api/cgm-meetings?action=safety_netting_samples&days=30')
+      const j = await r.json()
+      setSafetyNetSamples(j.samples || [])
+    } catch { setSafetyNetSamples([]) }
+    setLoadingSamples(false)
+  }
 
   async function refresh() {
     setLoading(true)
@@ -86,6 +100,7 @@ export default function CgmMeetingsPanel() {
         actions_noted:        form.actions_noted ? form.actions_noted.split('\n').map(s => s.trim()).filter(Boolean) : [],
         duration_minutes:     Number(form.duration_minutes) || null,
         next_meeting_due_at:  form.next_meeting_due_at || null,
+        safety_netting_samples_reviewed_ids: safetyNetSamples.map(s => s.id),
       }
       const r = await apiFetch('/api/cgm-meetings', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -93,6 +108,7 @@ export default function CgmMeetingsPanel() {
       })
       if (!r.ok) { const j = await r.json(); throw new Error(j.error || 'save failed') }
       setForm({ meeting_type: 'clinical_governance', meeting_at: '', duration_minutes: 60, attendees: '', agenda: '', minutes: '', actions_noted: '', next_meeting_due_at: '' })
+      setSafetyNetSamples([])
       setAddOpen(false)
       await refresh()
     } catch (e) { setErr(e.message) }
@@ -158,6 +174,37 @@ export default function CgmMeetingsPanel() {
             <label style={lbl}>Agenda (optional)</label>
             <input value={form.agenda} onChange={e => setForm(f => ({ ...f, agenda: e.target.value }))} style={inp} />
           </div>
+          {form.meeting_type === 'safety_netting_review' && (
+            <div style={{ marginTop: 8, padding: '.625rem .75rem', background: 'white', border: '1px dashed #FDE68A', borderRadius: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#78350F' }}>Peer-review samples (from last 30 days)</div>
+                <button type="button" onClick={loadSafetyNetSamples} disabled={loadingSamples}
+                  style={{ padding: '3px 10px', background: '#D97706', color: 'white', border: 'none', borderRadius: 6, fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer' }}>
+                  {loadingSamples ? 'Loading…' : safetyNetSamples.length ? '↻ Reload 5 samples' : 'Load 5 random samples'}
+                </button>
+              </div>
+              {safetyNetSamples.length === 0 && !loadingSamples && (
+                <div style={{ fontSize: '.75rem', color: '#9CA3AF' }}>Click "Load 5 random samples" to pull the last 30d of finalised safety-netting text for peer review.</div>
+              )}
+              {safetyNetSamples.map((s, i) => (
+                <div key={s.id} style={{ borderTop: i > 0 ? '1px solid #F1F5F9' : 'none', padding: '.5rem 0', fontSize: '.75rem' }}>
+                  <div style={{ color: '#374151', fontWeight: 700 }}>
+                    {(s.patient_first_name || '') + ' ' + (s.patient_last_name || '')} — {s.chief_complaint || '(no CC)'}
+                    <span style={{ color: '#9CA3AF', fontWeight: 400, marginLeft: 8 }}>by {s.notes_finalised_by || '—'}</span>
+                  </div>
+                  <div style={{ color: '#374151', marginTop: 4, whiteSpace: 'pre-wrap', background: '#F8FAFC', padding: '.5rem .625rem', borderRadius: 4 }}>
+                    {(s.safety_netting_text || '').slice(0, 400)}
+                    {(s.safety_netting_text || '').length > 400 ? '…' : ''}
+                  </div>
+                </div>
+              ))}
+              {safetyNetSamples.length > 0 && (
+                <div style={{ fontSize: '.6875rem', color: '#78350F', marginTop: 6 }}>
+                  ✓ These {safetyNetSamples.length} consultation IDs will be linked to the meeting for audit.
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ marginTop: 8 }}>
             <label style={lbl}>Minutes <span style={{ color: form.minutes.length >= 200 ? '#059669' : '#D97706' }}>({form.minutes.length}/200 min)</span></label>
             <textarea value={form.minutes} onChange={e => setForm(f => ({ ...f, minutes: e.target.value }))} rows={8} style={{ ...inp, minHeight: 140 }} placeholder="Discussion, decisions, action-owners. Enough that a regulator can see what was reviewed." />
