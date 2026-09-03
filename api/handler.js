@@ -324,6 +324,7 @@ const ROUTES = {
   'cron-results-reconciliation': () => import('./_cron-results-reconciliation.js'),
   'consult-break-glass':       () => import('./_consult-break-glass.js'),
   'investigation-orders':      () => import('./_investigation-orders.js'),
+  'emergency-escalations':     () => import('./_emergency-escalations.js'),
   'patient-record-export':     () => import('./_patient-record-export.js'),
   'pms-data':                  () => import('./_pms-data.js'),
   'validation-subjects':       () => import('./_validation-subjects.js'),

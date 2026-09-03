@@ -45,21 +45,72 @@ export default function Triage() {
     }).catch(() => {})
   }
 
-  const handleRedAnswer = (flagId, value) => {
+  // Escalation logging (task #420) — every red-flag/divert creates a row in
+  // emergency_escalations with the patient's CURRENT location (not registered
+  // address). Location is optional; if declined we record why. Called after
+  // browser geolocation attempt on the divert screens.
+  async function logEscalation(escalation_type, matched, locationPayload) {
+    try {
+      await apiFetch('/api/emergency-escalations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultation_id: id || null,
+          escalation_type,
+          matched_flags: matched,
+          ...(locationPayload || {}),
+        }),
+      })
+    } catch {}
+  }
+
+  // Ask the browser for the patient's CURRENT location. Best-effort — no
+  // block if declined. Returns a locationPayload suitable for the endpoint.
+  async function captureLocation() {
+    if (!('geolocation' in navigator)) {
+      return { location_declined_reason: 'geolocation_not_available' }
+    }
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve({ location_declined_reason: 'timeout' }), 5000)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          clearTimeout(timeout)
+          resolve({
+            patient_location_lat:        pos.coords.latitude,
+            patient_location_lng:        pos.coords.longitude,
+            patient_location_accuracy_m: pos.coords.accuracy,
+          })
+        },
+        (err) => {
+          clearTimeout(timeout)
+          resolve({ location_declined_reason: err.code === 1 ? 'user_denied' : 'geolocation_error' })
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 },
+      )
+    })
+  }
+
+  const handleRedAnswer = async (flagId, value) => {
     const next = { ...redAns, [flagId]: value }
     setRedAns(next)
     if (value === true && !redFired) {
       setRedFired(true)
       auditGateFired('red', [flagId])
+      const loc = await captureLocation()
+      logEscalation('red_flag_111', [flagId], loc)
     }
   }
 
-  const handleDivertAnswer = (flagId, value) => {
+  const handleDivertAnswer = async (flagId, value) => {
     const next = { ...divertAns, [flagId]: value }
     setDivertAns(next)
     if (value === true && !divertFired) {
       setDivertFired(true)
       auditGateFired('divert', [flagId])
+      const loc = await captureLocation()
+      // Same-day (ED-tier) diverts get 'divert_ed'; others 'divert_gp_today'.
+      const type = DIVERT_ED_SAME_DAY.has(flagId) ? 'divert_ed' : 'divert_gp_today'
+      logEscalation(type, [flagId], loc)
     }
   }
 
