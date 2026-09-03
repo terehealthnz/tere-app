@@ -71,6 +71,10 @@ const UPDATE_ALLOWLIST = new Set([
   // Two-attempt no-show flow (see supabase-no-show-migration.sql)
   'ring_started_at', 'patient_joined_at', 'cooldown_until',
   'join_attempts', 'join_attempt_history', 'no_show_at',
+  // ACC regulatory extensions (migration 2026-09-03_acc_regulatory_extensions.sql)
+  'rehab_plan', 'discharge_summary', 'rtw_status',
+  // HDC Right 8 (migration 2026-09-03_hdc_privacy_extras.sql)
+  'support_person_present', 'support_person_name',
 ])
 
 export default async function handler(req, res) {

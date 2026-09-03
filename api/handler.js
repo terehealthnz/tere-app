@@ -37,7 +37,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   //     that ran the training
   'flags',
   // Provider clinical work
-  'convert-to-acc', 'acc-claims', 'acc-audit-bundle', 'patient-record-export',
+  'convert-to-acc', 'acc-claims', 'acc-audit-bundle', 'acc-outcome-measures', 'patient-record-export',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
@@ -272,6 +272,7 @@ const ROUTES = {
   'cron-retention-purge':      () => import('./_cron-retention-purge.js'),
   'cron-complaint-deadlines':  () => import('./_cron-complaint-deadlines.js'),
   'patient-correction-request': () => import('./_patient-correction-request.js'),
+  'patient-portal':             () => import('./_patient-portal.js'),
   'payroll':                   () => import('./_payroll.js'),
   'sms':                       () => import('./_sms.js'),
   'appointments':              () => import('./_appointments.js'),
@@ -300,6 +301,7 @@ const ROUTES = {
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'acc-audit-bundle':          () => import('./_acc-audit-bundle.js'),
+  'acc-outcome-measures':      () => import('./_acc-outcome-measures.js'),
   'patient-record-export':     () => import('./_patient-record-export.js'),
   'pms-data':                  () => import('./_pms-data.js'),
   'validation-subjects':       () => import('./_validation-subjects.js'),

@@ -86,6 +86,7 @@ const BookingCancel       = lazy(() => import('./pages/patient/BookingCancel'))
 const BookingJoin         = lazy(() => import('./pages/patient/BookingJoin'))
 const ConsultationSummary = lazy(() => import('./pages/patient/ConsultationSummary'))
 const RepeatPrescription  = lazy(() => import('./pages/patient/RepeatPrescription'))
+const PatientPortal        = lazy(() => import('./pages/patient/PatientPortal'))
 const ClinicianLogin      = lazy(() => import('./components/clinician/Login'))
 const Dashboard           = lazy(() => import('./components/clinician/Dashboard'))
 const ConsultView         = lazy(() => import('./components/clinician/ConsultView'))
@@ -254,6 +255,7 @@ export default function App() {
         <Route path="/waitlist"               element={<WaitlistRouter />} />
         <Route path="/contact"                element={<Contact />} />
         <Route path="/accessibility"          element={<Accessibility />} />
+        <Route path="/patient/portal"         element={<PatientPortal />} />
         <Route path="/provider"               element={<ProviderApp />} />
         <Route path="/provider/consult/:id"   element={<ProviderConsult />} />
         <Route path="/clinician/patient/:id"  element={<ClinicianPatient />} />

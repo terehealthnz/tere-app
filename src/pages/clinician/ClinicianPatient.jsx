@@ -6,6 +6,7 @@ import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
+import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -334,6 +335,18 @@ export default function ClinicianPatient() {
             <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.6 }}>{consult.chief_complaint}</div>
           </div>
         </div>
+
+        {/* ACC widgets — only render when consult is ACC-billed. Populates
+            the discrete fields the ACC audit bundle reads. */}
+        <AccConsultWidgets
+          consult={consult}
+          onSaved={async () => {
+            try {
+              const fresh = await getConsultation(id)
+              if (fresh) setConsult(fresh)
+            } catch {}
+          }}
+        />
 
         {/* Patient info */}
         <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>

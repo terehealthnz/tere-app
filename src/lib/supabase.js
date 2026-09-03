@@ -924,6 +924,41 @@ export async function getAccAuditBundle(claimId, { reason, reasonNotes } = {}) {
   return bundle
 }
 
+// ACC outcome measures (per-consult time-series pain/function/RTW scores).
+export async function listAccOutcomeMeasures({ consultationId, claimNumber } = {}) {
+  const params = new URLSearchParams()
+  if (consultationId) params.set('consultation_id', consultationId)
+  if (claimNumber)    params.set('claim_number', claimNumber)
+  const res = await apiFetch(`/api/acc-outcome-measures?${params.toString()}`)
+  if (!res.ok) return []
+  const { measures } = await res.json()
+  return measures || []
+}
+
+export async function addAccOutcomeMeasure({ consultationId, measureType, valueNumeric, valueText, notes }) {
+  const res = await apiFetch('/api/acc-outcome-measures', {
+    method: 'POST',
+    body: JSON.stringify({
+      consultation_id: consultationId,
+      measure_type:    measureType,
+      value_numeric:   valueNumeric,
+      value_text:      valueText,
+      notes,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
+  const { measure } = await res.json()
+  return measure
+}
+
+export async function deleteAccOutcomeMeasure(id) {
+  const res = await apiFetch(`/api/acc-outcome-measures?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  return res.ok
+}
+
 // Download the PDF-format bundle for a single claim. Returns a Blob so the
 // caller can trigger a browser download.
 export async function downloadAccAuditBundlePdf(claimId, { reason, reasonNotes } = {}) {
