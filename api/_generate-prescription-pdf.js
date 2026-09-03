@@ -3,6 +3,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt, classifyDrug } from './_drug-classifications.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { checkPrescribingSafety } from './_prescribing-safety.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -45,11 +46,67 @@ export default async function handler(req, res) {
     // have one — matches direction NZ pharmacies are moving)
     deliveryChannel,
     needsApproval, draftedByName,
+    // Task #423 — provider override of prescribing-safety block. Requires
+    // reason (min 20 chars, audit-logged).
+    safetyOverride, safetyOverrideReason,
   } = req.body || {}
 
   if (!patientName || !drug) return res.status(400).json({ error: 'Missing required fields' })
 
   const supabase = supabaseAdmin()
+
+  // ── Prescribing safety guards (task #423) ────────────────────────────
+  // Cross-provider max-quantity + early-refill + doctor-shopping check.
+  // Blocks controlled/benzo/opioid early refills; warns on regular Rx.
+  // Provider can override with a reason (audit-logged).
+  const medsafeClass = classifyDrug(drug)
+  const safety = await checkPrescribingSafety({
+    supabase, patientNhi, patientEmail, patientName,
+    drug, quantity, medsafeClass,
+    bypassChecks: false,
+  })
+  if (safety.blocked && !safetyOverride) {
+    // Audit the block (didn't proceed) so we know the control fired.
+    try { await writeAuditEvent(supabase, {
+      action:          'prescribing_safety_block',
+      consultation_id: consultationId || null,
+      resource_type:   'prescription_attempt',
+      patient_ref:     patientNhi || patientEmail || null,
+      metadata:        { drug, bucket: safety.bucket, reason: safety.reason, prior_count: safety.prior_count, distinct_providers: safety.distinct_providers, provider_id: providerId },
+    }) } catch {}
+    return res.status(409).json({
+      error:                'Prescribing safety block',
+      prescribing_blocked:  true,
+      reason:               safety.reason,
+      bucket:               safety.bucket,
+      warnings:             safety.warnings,
+      prior_count:          safety.prior_count,
+      distinct_providers:   safety.distinct_providers,
+      can_override:         true,
+    })
+  }
+  if (safetyOverride) {
+    if (!safetyOverrideReason || String(safetyOverrideReason).trim().length < 20) {
+      return res.status(400).json({ error: 'safetyOverrideReason required (≥ 20 chars)' })
+    }
+    try { await writeAuditEvent(supabase, {
+      action:          'prescribing_safety_override',
+      consultation_id: consultationId || null,
+      resource_type:   'prescription_attempt',
+      patient_ref:     patientNhi || patientEmail || null,
+      metadata:        { drug, bucket: safety.bucket, reason: safety.reason, override_reason: String(safetyOverrideReason).trim().slice(0, 500), provider_id: providerId },
+    }) } catch {}
+  }
+  // Non-blocking warnings still get audited so we can see the pattern.
+  if (safety.warnings && safety.warnings.length) {
+    try { await writeAuditEvent(supabase, {
+      action:          'prescribing_safety_warn',
+      consultation_id: consultationId || null,
+      resource_type:   'prescription_attempt',
+      patient_ref:     patientNhi || patientEmail || null,
+      metadata:        { drug, bucket: safety.bucket, warnings: safety.warnings, provider_id: providerId },
+    }) } catch {}
+  }
 
   // ── Pending approval path ────────────────────────────────────────────
   if (needsApproval) {

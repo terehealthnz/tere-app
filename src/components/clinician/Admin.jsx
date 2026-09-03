@@ -13,6 +13,7 @@ import ComplaintThemesPanel from './ComplaintThemesPanel'
 import ConflictOfInterestPanel from './ConflictOfInterestPanel'
 import ResultsFollowupPanel from './ResultsFollowupPanel'
 import EmergencyEscalationsPanel from './EmergencyEscalationsPanel'
+import PrescribingSurveillancePanel from './PrescribingSurveillancePanel'
 import VendorSlaMetrics from './VendorSlaMetrics'
 import PeerReviewPanel from './PeerReviewPanel'
 import NhiLookup from './NhiLookup'
@@ -4972,7 +4973,7 @@ function AdminBody() {
             case 'quality':
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
-              return <><ResultsFollowupPanel /><EmergencyEscalationsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+              return <><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
