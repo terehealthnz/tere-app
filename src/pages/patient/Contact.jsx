@@ -112,6 +112,10 @@ export default function Contact() {
           </p>
         </div>
 
+        <div style={{ background: 'rgba(11,110,118,.2)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 8, padding: '.75rem 1rem', fontSize: '.8125rem', marginBottom: '1.5rem', color: BRAND.tealLight, lineHeight: 1.6 }}>
+          <strong>Want to see who's accessed your record, download a copy, or request a correction?</strong> Use the <span onClick={() => navigate('/patient/portal')} style={{ textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }}>Patient portal</span> — we'll email you a sign-in link (HDC Right 6 / Privacy Act IPP6-7).
+        </div>
+
         <div style={{ background: 'rgba(220,38,38,.15)', border: '1px solid rgba(220,38,38,.4)', borderRadius: 8, padding: '.75rem 1rem', fontSize: '.8125rem', color: '#FCA5A5', marginBottom: '1.5rem' }}>
           ⚠️ <strong>In an emergency, call 111 or visit your nearest emergency department immediately.</strong> Do not use this form for medical emergencies.
         </div>

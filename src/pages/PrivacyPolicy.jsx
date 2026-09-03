@@ -46,16 +46,24 @@ export default function PrivacyPolicy() {
           <p style={{ fontSize: '.875rem', color: '#9CA3AF' }}>Tere Health Limited · Version 2.0 · Last updated: May 2026</p>
         </div>
 
-        <div style={{ background: '#EFF9F9', border: '1px solid #0B6E76', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '2.5rem' }}>
+        <div style={{ background: '#EFF9F9', border: '1px solid #0B6E76', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '1rem' }}>
           <strong style={{ color: BRAND.navy, display: 'block', marginBottom: '.375rem' }}>Plain-language summary</strong>
           <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '.9rem', color: '#374151', lineHeight: 1.8 }}>
             <li>We collect your health information to provide your consultation — nothing else</li>
             <li>Your information is never sold or used for advertising</li>
-            <li>Only your doctor and authorised Tere staff can see your records</li>
+            <li>Only your doctor and authorised Tere staff can see your records — every access is logged</li>
             <li>You can access, correct, or request deletion of your information at any time</li>
             <li>Records are kept for 10 years as required by NZ law, then securely deleted</li>
+            <li>Some processing (AI drafting, email, SMS) happens on AWS Sydney under a Business Associate Agreement — this is an offshore disclosure under IPP12</li>
             <li>You can complain to us, the Privacy Commissioner, or the HDC at any time</li>
           </ul>
+        </div>
+
+        <div style={{ background: '#F0F9FA', border: '2px solid #0B6E76', borderRadius: 12, padding: '1.25rem 1.5rem', marginBottom: '2.5rem' }}>
+          <strong style={{ color: BRAND.navy, display: 'block', marginBottom: '.5rem', fontSize: '1rem' }}>🔒 Access your record online</strong>
+          <p style={{ margin: 0, fontSize: '.9rem', color: '#374151', lineHeight: 1.7 }}>
+            Sign in to the <Link to="/patient/portal" style={{ color: BRAND.teal, fontWeight: 700, textDecoration: 'underline' }}>Patient portal</Link> to see who has accessed your record, download a copy in a standard format, or ask us to correct something we have wrong. We'll email you a sign-in link (no password required).
+          </p>
         </div>
 
         <Section title="1. Who we are">
