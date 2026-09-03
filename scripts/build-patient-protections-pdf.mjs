@@ -233,6 +233,22 @@ const CONTROLS = [
     title: 'No-location fallback prompt on emergency screens',
     what: 'If browser geolocation silently fails (denied permission, timeout, desktop, rural on poor connection), all four emergency screens (111 / mental / addiction / divert) show an amber "Where are you right now?" free-text field. Submission PATCHes the escalation row via a 30-min UUID-authed anon update. Closes the case where the rural patient most needing directed 111 dispatch ends up with no location logged.',
     orgs: ['CoR', 'HDC'], evidence: 'task #432; AITriage.jsx LocationPromptRow + emergency_escalations id-update path' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'Child / dependent consent + safeguarding pathway',
+    what: 'Auto-shows on ClinicianPatient when patient DOB indicates <18: required consenting_adult_name + relationship (parent/guardian/foster/whanau/OT worker/other_authorised) + phone + guardianship_verified timestamp. Second surface (any age): safeguarding_concern flag (physical/sexual/emotional/neglect abuse, family violence, unsafe home, suicide risk) with ≥20-char factual notes; fires admin ticket and triggers OT mandatory-reporting runbook.',
+    orgs: ['CoR', 'HDC', 'MCNZ'], evidence: 'task #434; ChildSafeguardingPanel.jsx + docs/regulatory/child-safeguarding-oranga-tamariki-runbook.md' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'Interpreter source recording (HDC risk-flagging)',
+    what: 'When patient ticked interpreter_requested at triage, provider must record how interpretation was delivered: certified_service / certified_bilingual_clinician / family_member_adult / family_member_child / friend / declined / not_needed. Family-member selections fire HDC-risk banner (child = red HDC-CRITICISED; adult = amber). Language Line + Ezispeak numbers referenced inline. Non-certified sources require ≥20-char justification.',
+    orgs: ['CoR', 'HDC'], evidence: 'task #436; InterpreterSourcePanel.jsx' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'Provider competence-to-roster credentialling',
+    what: 'Beyond registered + in-scope: provider lifecycle onboarding → probationary (≥5 supervised consults) → full_roster, with 14 defined competency domains (video-consult undifferentiated acute, red-flag recognition, safety-netting, escalation/handoff, continuity, prescribing general + Class C + pattern recognition, cultural safety, interpreter use, safeguarding, ACC, HDC Code + complaints, CGM participation). Per-domain sign-off table + framework doc.',
+    orgs: ['MCNZ', 'NCNZ', 'HDC'], evidence: 'task #435; provider_competencies table + docs/regulatory/provider-competency-framework.md' },
+  { cat: 'preemptive', section: 'Clinical Safety',
+    title: 'Business-continuity fallback banner (platform-down)',
+    what: 'Static "If Tere isn\'t working: email hello@terehealth.co.nz — or for anything urgent, always call 111" on WaitingRoom footer. Out-of-band channel that still works when the app doesn\'t.',
+    orgs: ['CoR', 'HDC'], evidence: 'task #437; WaitingRoom.jsx footer + PlatformFallbackBanner component' },
 
   // ================ PREEMPTIVE — Third-Party & Vendor ================
   { cat: 'preemptive', section: 'Third-Party & Vendor',
@@ -618,15 +634,15 @@ async function main() {
     <li><strong>Divert keyword coverage</strong> — AI chat divert uses ~24 hardcoded phrases (task #430). Mitigation shipped 2026-09-03: patient-worried catch-all chip (task #431). Broader LLM safety classifier still tracked at task #288 (WAND change-notify).</li>
   </ul>
 
-  <h2>7. Priority gaps closing next (post-2026-09-03 review)</h2>
-  <p style="font-size:9.5pt;color:#6B7280">A follow-up review on 2026-09-03 named six second-order gaps. The three highest-impact hardening builds shipped same-day (tasks #431 + #432 + #433 — see §4 Clinical Safety and §5 Governance &amp; Reviews). The remainder are tracked as tasks #434–#439:</p>
+  <h2>7. Follow-up review response — all six items shipped</h2>
+  <p style="font-size:9.5pt;color:#6B7280">A follow-up review on 2026-09-03 named six second-order gaps. All six shipped same-day. Three hardening builds (tasks #431/#432/#433 — see §4 Clinical Safety and §5 Governance &amp; Reviews) plus six second-tier controls (tasks #434–#439):</p>
   <ul>
-    <li><strong>#434 Child / dependent consent + safeguarding pathway</strong> — new required fields for &lt;18yo consults (consenting adult name/relationship, guardianship_verified_at) + safeguarding_concern flag that routes to admin, with Oranga Tamariki mandatory-reporting runbook. Pre-first-patient priority.</li>
-    <li><strong>#435 Provider competence-to-roster credentialling</strong> — emergency-telehealth-specific competency assessment + scope-per-provider + probationary supervised period, beyond "registered and in-scope". MCNZ + HDC exposure.</li>
-    <li><strong>#436 Interpreter standard</strong> — interpreter_source (certified / family_member / none) with red banner explaining HDC risk when family_member is selected. Language Line / Ezispeak integration in a later phase.</li>
-    <li><strong>#437 Business-continuity fallback banner</strong> — static "if Tere is down, call this fax-number or 111" on consent + waiting-room + after-visit email. Fallback for when everything else has failed.</li>
-    <li><strong>#438 Te Tiriti / equity as governance function</strong> — add outcome-monitoring-by-ethnicity + Te Tiriti commitment to the Clinical Governance Framework. Quarterly equity review as a standing CGM item.</li>
-    <li><strong>#439 SaMD regulatory-affairs read on AI triage engine</strong> — external advisor brief (drafted, docs/regulatory/samd-advisor-brief-draft.md). Answers whether the triage engine needs its own therapeutic-products classification separate from the vitals WAND cert.</li>
+    <li><strong>#434 Child / dependent consent + safeguarding pathway</strong> — SHIPPED. Consenting-adult required for &lt;18yo consults; safeguarding-concern flag (any age); Oranga Tamariki mandatory-reporting runbook.</li>
+    <li><strong>#435 Provider competence-to-roster credentialling</strong> — SHIPPED. 14 competency domains + probationary lifecycle + full framework doc.</li>
+    <li><strong>#436 Interpreter standard</strong> — SHIPPED. interpreter_source recorded with HDC-risk banners for family_member selections.</li>
+    <li><strong>#437 Business-continuity fallback banner</strong> — SHIPPED. WaitingRoom footer references hello@terehealth.co.nz + 111.</li>
+    <li><strong>#438 Te Tiriti / equity as governance function</strong> — SHIPPED. Clinical Governance Framework §9 v1.1 expanded to full Te Tiriti commitment + standing Equity Review CGM agenda item + Te Mana Raraunga data sovereignty.</li>
+    <li><strong>#439 SaMD regulatory-affairs read on AI triage engine</strong> — SHIPPED (as draft brief). External advisor brief at docs/regulatory/samd-advisor-brief-draft.md. Ready to send when engaging a NZ regulatory-affairs advisor.</li>
   </ul>
 
   <h2>7. Contact</h2>
