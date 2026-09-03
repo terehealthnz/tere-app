@@ -1152,7 +1152,23 @@ export function buildAccAuditBundlePdf(bundle) {
     doc.fillColor('#6B7280').font('Helvetica').fontSize(9)
       .text(`Generated ${nzDateTime(bundle.generated_at)} NZT by ${bundle.generated_by?.name || '—'} (${bundle.generated_by?.role || '—'})`, LEFT, y)
     doc.text(`Access reason: ${bundle.reason || '—'}${bundle.reason_notes ? ` · ${bundle.reason_notes}` : ''}`, LEFT, y + 12)
-    y += 34
+    y += 30
+
+    // Time-in-care + financials rollup — visible at a glance.
+    if (bundle.time_in_care || bundle.financials) {
+      const tic = bundle.time_in_care
+      const fin = bundle.financials
+      const chips = [
+        tic && `Days in care: ${tic.days_in_care}${tic.is_discharged ? ' (discharged)' : ' (open)'}`,
+        fin && `Billed: ${dollars(fin.total_billed_cents)}`,
+        fin && `Paid: ${dollars(fin.total_paid_cents)}`,
+        fin && fin.delta_cents > 0 && `Outstanding: ${dollars(fin.delta_cents)}${fin.days_outstanding != null ? ` (${fin.days_outstanding}d)` : ''}`,
+        fin && fin.claims_on_episode > 1 && `${fin.claims_on_episode} claims on episode`,
+      ].filter(Boolean).join('   ·   ')
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(9).text(chips, LEFT, y, { width: CONTENT_W })
+      y += 20
+    }
+    y += 4
 
     // ── Claim identity ────────────────────────────────────────────────────────
     y = section(y, 'Claim')

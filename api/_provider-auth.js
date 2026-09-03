@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import bcrypt from 'bcryptjs'
 import { verifyTotp } from './_totp.js'
+import { raiseSecurityAlert } from './_security-alert.js'
+import { getClientIp } from './_client-ip.js'
 
 // Lockout policy: after MAX_FAILS consecutive failures, lock the
 // account for LOCKOUT_MS. State is persisted in the
@@ -126,7 +128,63 @@ export default async function handler(req, res) {
   }
 
   // ── Success — reset the attempt counter ────────────────────────
+  //
+  // Snapshot the failure state BEFORE clearing so we can raise an alert
+  // if this is a success-after-failed-streak (credential-stuffing signal).
+  const preLoginFailures = lockout.failed
   await clearAttempts(supabase, providerId)
+
+  // ── Real-time security signals ────────────────────────────────
+  // We fire raiseSecurityAlert() with req.auth synthesised so it can
+  // attach the provider to the event row. Fire-and-forget — never blocks
+  // the login response.
+  const authForAlert = { provider }
+  const reqForAlert = { headers: req.headers, socket: req.socket, connection: req.connection, auth: authForAlert }
+  const currentIp = getClientIp(reqForAlert)
+
+  // Signal 1: successful login AFTER a run of failed attempts on this
+  // account — critical because it can indicate credential stuffing that
+  // just landed.
+  if (preLoginFailures >= 3) {
+    raiseSecurityAlert(reqForAlert, {
+      eventType: 'login_after_failed_streak',
+      severity:  'alert',
+      critical:  true,
+      summary:   `Provider ${provider.first_name || ''} ${provider.last_name || ''}`.trim() +
+                 ` logged in successfully after ${preLoginFailures} recent failed attempts`,
+      metadata:  { failed_count_before_success: preLoginFailures, provider_id: providerId },
+    }).catch(() => {})
+  }
+
+  // Signal 2: successful login from an IP we haven't seen for this
+  // provider in the last 90 days. Warn severity for regular providers,
+  // alert (critical) for admin accounts.
+  try {
+    if (currentIp) {
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const { data: prevSeen } = await supabase
+        .from('audit_logs')
+        .select('id')
+        .eq('provider_id', providerId)
+        .eq('ip', currentIp)
+        .gte('created_at', cutoff)
+        .limit(1)
+      const isNewIp = !prevSeen || prevSeen.length === 0
+      if (isNewIp) {
+        const isAdminAccount = provider.is_admin || provider.is_billing_admin || provider.is_supervisor
+        raiseSecurityAlert(reqForAlert, {
+          eventType: isAdminAccount ? 'admin_login_new_ip' : 'provider_login_new_ip',
+          severity:  'alert',
+          critical:  isAdminAccount,
+          summary:   `${isAdminAccount ? 'ADMIN' : 'Provider'} ${provider.first_name || ''} ${provider.last_name || ''}`.trim() +
+                     ` logged in from a new IP (${currentIp}) — no matching audit-log activity in last 90 days`,
+          metadata:  { provider_id: providerId, new_ip: currentIp, is_admin: !!isAdminAccount },
+        }).catch(() => {})
+      }
+    }
+  } catch (e) {
+    console.error('[provider-auth] new-IP check failed:', e.message)
+  }
 
   const { pin: _pin, pin_hash: _hash, mfa_secret_encoded: _sec, ...safe } = provider
   res.json({ provider: safe })

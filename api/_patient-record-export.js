@@ -220,6 +220,28 @@ export default async function handler(req, res) {
     entry: entries,
   }
 
+  // Bulk-export detection (task #359).
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count } = await supabase.from('audit_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', provider.id)
+      .in('event_type', ['acc_audit_bundle_export', 'patient_record_export'])
+      .gte('created_at', oneHourAgo)
+    if ((count || 0) >= 10) {
+      import('./_security-alert.js').then(({ raiseSecurityAlert }) => {
+        raiseSecurityAlert(req, {
+          eventType: 'bulk_export_threshold',
+          severity:  'alert',
+          critical:  true,
+          summary:   `Provider ${provider.first_name || ''} ${provider.last_name || ''}`.trim() +
+                     ` exported ${(count || 0) + 1} records/bundles in the last hour`,
+          metadata:  { provider_id: provider.id, export_count_1h: (count || 0) + 1 },
+        }).catch(() => {})
+      }).catch(() => {})
+    }
+  } catch { /* best-effort */ }
+
   // Audit-log the export.
   try {
     await supabase.from('audit_logs').insert({

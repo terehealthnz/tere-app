@@ -198,6 +198,31 @@ export default async function handler(req, res) {
     auditRows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }
 
+  // ── Bulk-export detection (task #359) ───────────────────────────────────────
+  // If this provider has already exported >10 bundles in the last hour,
+  // raise a real-time alert — high volume of full-record exports is a
+  // classic exfiltration pattern.
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const { count } = await supabase.from('audit_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', provider.id)
+      .in('event_type', ['acc_audit_bundle_export', 'patient_record_export'])
+      .gte('created_at', oneHourAgo)
+    if ((count || 0) >= 10) {
+      import('./_security-alert.js').then(({ raiseSecurityAlert }) => {
+        raiseSecurityAlert(req, {
+          eventType: 'bulk_export_threshold',
+          severity:  'alert',
+          critical:  true,
+          summary:   `Provider ${provider.first_name || ''} ${provider.last_name || ''}`.trim() +
+                     ` exported ${(count || 0) + 1} records/bundles in the last hour`,
+          metadata:  { provider_id: provider.id, export_count_1h: (count || 0) + 1 },
+        }).catch(() => {})
+      }).catch(() => {})
+    }
+  } catch { /* best-effort */ }
+
   // ── Record this access in the audit log ─────────────────────────────────────
   try {
     await supabase.from('audit_logs').insert({
@@ -219,11 +244,52 @@ export default async function handler(req, res) {
     console.error('[acc-audit-bundle] audit write failed:', e.message)
   }
 
+  // ── Financials + time-in-care rollup (tasks #366, #367) ────────────────────
+  // Cost dashboard: aggregate every claim on the same claim_number to show
+  // total billed vs paid and days-outstanding.
+  let claimSet = [claim]
+  if (claim.claim_number) {
+    const { data } = await supabase.from('acc_claims').select('*').eq('claim_number', claim.claim_number)
+    if (data?.length) claimSet = data
+  }
+  const totalBilledCents = claimSet.reduce((a, c) => a + (c.amount_claimed || 0), 0)
+  const totalPaidCents   = claimSet.reduce((a, c) => a + (c.amount_paid    || 0), 0)
+  const earliestSubmitted = claimSet.map(c => c.submitted_at).filter(Boolean).sort()[0] || null
+  const daysOutstanding  = earliestSubmitted && totalPaidCents < totalBilledCents
+    ? Math.floor((Date.now() - new Date(earliestSubmitted).getTime()) / (24 * 60 * 60 * 1000))
+    : null
+  const financials = {
+    claims_on_episode:   claimSet.length,
+    total_billed_cents:  totalBilledCents,
+    total_paid_cents:    totalPaidCents,
+    delta_cents:         totalBilledCents - totalPaidCents,
+    days_outstanding:    daysOutstanding,
+  }
+
+  // Time-in-care: from first consult on this claim (or acc_converted_at) to
+  // discharge_summary.discharge_date (or now if not discharged).
+  const consultDates = [
+    consult?.acc_converted_at,
+    consult?.created_at,
+    ...relatedConsults.map(c => c.created_at),
+  ].filter(Boolean).map(d => new Date(d).getTime())
+  const dischargeDate = consult?.discharge_summary?.discharge_date
+    ? new Date(consult.discharge_summary.discharge_date).getTime()
+    : null
+  const timeInCare = consultDates.length ? {
+    episode_start:   new Date(Math.min(...consultDates)).toISOString(),
+    episode_end:     dischargeDate ? new Date(dischargeDate).toISOString() : null,
+    days_in_care:    Math.floor(((dischargeDate || Date.now()) - Math.min(...consultDates)) / (24 * 60 * 60 * 1000)),
+    is_discharged:   !!dischargeDate,
+  } : null
+
   const bundle = {
     generated_at:   new Date().toISOString(),
     generated_by:   { id: provider.id, name: `${provider.first_name || ''} ${provider.last_name || ''}`.trim(), role },
     reason:         String(reason),
     reason_notes:   reason_notes || null,
+    financials:     financials,
+    time_in_care:   timeInCare,
     claim:          claim,
     consultation:   consult ? {
       id: consult.id,

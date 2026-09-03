@@ -102,8 +102,32 @@ const ESSENTIAL_TYPES = new Set([
   'call_ready',   // provider is ready — patient needs to join the consult
   'call_retry',   // second ring — still needs to join
   'in_person',    // provider recommended in-person visit — clinical follow-up
+  'security_alert', // critical-severity security alert (break-in signal)
   'test',         // internal smoke tests
 ])
+
+// Direct-call helper — bypass the HTTP handler for internal callers like
+// _security-alert.js that need to send SMS from server-side code. Returns
+// the same shape as the pluggable providers. Skips silently if no provider
+// is configured (rather than throwing) so callers don't crash on dev envs.
+export async function sendSms({ to, body }) {
+  const normalised = normaliseNZNumber(to)
+  if (!normalised) return { ok: false, skipped: true, reason: 'invalid phone' }
+  const provider = process.env.SMS_PROVIDER || DEFAULT_PROVIDER
+  const providers = { sns: sendSNS, telnyx: sendTelnyx, twilio: sendTwilio }
+  const primary = providers[provider] || sendSNS
+  const primaryResult = await primary({ to: normalised, body })
+  if (primaryResult.ok) return primaryResult
+  // Fallback chain — if primary is unconfigured, try the others in order.
+  if (primaryResult.skipped) {
+    for (const [name, fn] of Object.entries(providers)) {
+      if (name === provider) continue
+      const r = await fn({ to: normalised, body })
+      if (r.ok) return r
+    }
+  }
+  return primaryResult
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()

@@ -22,6 +22,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { generateSecret, verifyTotp, otpauthUrl } from './_totp.js'
+import { raiseSecurityAlert } from './_security-alert.js'
 
 function admin() {
   return createClient(
@@ -126,6 +127,14 @@ export default async function handler(req, res) {
         metadata: { target_type: 'provider', target_id: providerId, actor_email: auth.email || null },
       })
     } catch (e) { console.warn('[provider-mfa] audit-log write failed:', e.message) }
+    // Real-time critical alert — MFA disable is a strong compromise signal.
+    raiseSecurityAlert(req, {
+      eventType: 'mfa_disabled',
+      severity:  'alert',
+      critical:  true,
+      summary:   `MFA disabled on account ${auth.email || providerId}`,
+      metadata:  { provider_id: providerId, actor_email: auth.email || null },
+    }).catch(() => {})
     return res.status(200).json({ ok: true, mfa_enabled: false })
   }
 

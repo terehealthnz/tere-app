@@ -304,8 +304,41 @@ function BundleView({ bundle }) {
     </div>
   )
   const H = ({ children }) => <div style={{ color: NAVY, fontWeight: 800, marginTop: '1rem', marginBottom: '.5rem', fontSize: '.9375rem' }}>{children}</div>
+  const tic = bundle.time_in_care
+  const fin = bundle.financials
   return (
     <div>
+      {(tic || fin) && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginBottom: '1rem' }}>
+          {tic && (
+            <div style={{ background: '#F7F5F0', padding: '.5rem .75rem', borderRadius: 8 }}>
+              <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Days in care</div>
+              <div style={{ fontSize: '1.125rem', color: NAVY, fontWeight: 800 }}>{tic.days_in_care}</div>
+              <div style={{ fontSize: '.6875rem', color: tic.is_discharged ? '#059669' : '#D97706' }}>{tic.is_discharged ? 'discharged' : 'open episode'}</div>
+            </div>
+          )}
+          {fin && (
+            <>
+              <div style={{ background: '#F7F5F0', padding: '.5rem .75rem', borderRadius: 8 }}>
+                <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Billed</div>
+                <div style={{ fontSize: '1.125rem', color: NAVY, fontWeight: 800 }}>{dollars(fin.total_billed_cents)}</div>
+                {fin.claims_on_episode > 1 && <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{fin.claims_on_episode} claims</div>}
+              </div>
+              <div style={{ background: '#F7F5F0', padding: '.5rem .75rem', borderRadius: 8 }}>
+                <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase' }}>Paid</div>
+                <div style={{ fontSize: '1.125rem', color: '#059669', fontWeight: 800 }}>{dollars(fin.total_paid_cents)}</div>
+              </div>
+              {fin.delta_cents > 0 && (
+                <div style={{ background: '#FFFBEB', padding: '.5rem .75rem', borderRadius: 8 }}>
+                  <div style={{ fontSize: '.6875rem', color: '#92400E', fontWeight: 700, textTransform: 'uppercase' }}>Outstanding</div>
+                  <div style={{ fontSize: '1.125rem', color: '#D97706', fontWeight: 800 }}>{dollars(fin.delta_cents)}</div>
+                  {fin.days_outstanding != null && <div style={{ fontSize: '.6875rem', color: '#92400E' }}>{fin.days_outstanding} days</div>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
       <H>Claim</H>
       {kv('Claim #', c.claim_number)}
       {kv('Invoice #', c.invoice_number)}

@@ -85,6 +85,21 @@ export default async function handler(req, res) {
   if (error && (error.message?.includes('does not exist') || error.message?.includes('schema cache'))) {
     return res.status(200).json({ ok: true, skipped: 'audit_logs table missing' })
   }
-  if (error) { console.error('[audit-log] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+  if (error) {
+    console.error('[audit-log] error failed:', error)
+    // Integrity signal: an audit-log write failure could indicate an attacker
+    // trying to prevent audit-trail creation. Raise a critical alert so we
+    // notice even if the primary op silently 500s.
+    import('./_security-alert.js').then(({ raiseSecurityAlert }) => {
+      raiseSecurityAlert(req, {
+        eventType: 'audit_log_write_failed',
+        severity:  'alert',
+        critical:  true,
+        summary:   `audit_logs write failed for ${action}`,
+        metadata:  { action, error: error.message, resource_type: resource_type || null, consultation_id: consultation_id || null },
+      }).catch(() => {})
+    }).catch(() => {})
+    return res.status(500).json({ error: 'Server error' })
+  }
   return res.status(200).json({ ok: true })
 }

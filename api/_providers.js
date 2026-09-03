@@ -503,10 +503,14 @@ export default async function handler(req, res) {
     // adding it for the first time (or changing it), which is the trigger for
     // re-notifying RHCNZ.
     let previousMcnz = null
-    if ('mcnz_registration_number' in patch) {
+    // Also snapshot the pre-update role flags so we can raise a real-time
+    // security alert on any escalation (task #359).
+    let previousRoles = null
+    if ('mcnz_registration_number' in patch || 'is_admin' in patch || 'is_billing_admin' in patch || 'is_supervisor' in patch) {
       const { data: before } = await supabase
-        .from('providers').select('mcnz_registration_number').eq('id', id).maybeSingle()
-      previousMcnz = before?.mcnz_registration_number || null
+        .from('providers').select('mcnz_registration_number, is_admin, is_billing_admin, is_supervisor').eq('id', id).maybeSingle()
+      previousMcnz  = before?.mcnz_registration_number || null
+      previousRoles = before ? { is_admin: !!before.is_admin, is_billing_admin: !!before.is_billing_admin, is_supervisor: !!before.is_supervisor } : null
     }
 
     const { data, error } = await supabase
@@ -521,6 +525,26 @@ export default async function handler(req, res) {
     // this is the field they actually need for their referrer registry.
     if ('mcnz_registration_number' in patch && (patch.mcnz_registration_number || null) !== previousMcnz && data?.is_provider) {
       notifyRhcnzOfProvider(data, { changeType: 'update' })
+    }
+
+    // Real-time alert on role escalation (task #359). Only fire on the
+    // false → true transition; role removal is not itself a security signal.
+    if (previousRoles && data) {
+      const escalated = []
+      if (!previousRoles.is_admin         && data.is_admin)         escalated.push('is_admin')
+      if (!previousRoles.is_billing_admin && data.is_billing_admin) escalated.push('is_billing_admin')
+      if (!previousRoles.is_supervisor    && data.is_supervisor)    escalated.push('is_supervisor')
+      if (escalated.length) {
+        import('./_security-alert.js').then(({ raiseSecurityAlert }) => {
+          raiseSecurityAlert(req, {
+            eventType: 'role_escalation',
+            severity:  'alert',
+            critical:  escalated.includes('is_admin'),
+            summary:   `Provider ${data.first_name || ''} ${data.last_name || ''}`.trim() + ` granted role(s): ${escalated.join(', ')}`,
+            metadata:  { provider_id: data.id, added_roles: escalated, actor_provider_id: auth.provider?.id, actor_email: auth.provider?.email },
+          }).catch(() => {})
+        }).catch(() => {})
+      }
     }
 
     return res.status(200).json({ provider: data })
