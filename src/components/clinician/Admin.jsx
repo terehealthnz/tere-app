@@ -470,6 +470,7 @@ function AdminHpiLookupPanel() {
   const [error, setError] = React.useState('')
   const [practitioner, setPractitioner] = React.useState(null)
   const [searchResults, setSearchResults] = React.useState(null)
+  const [searchDiag, setSearchDiag] = React.useState(null)
   const [rawJson, setRawJson] = React.useState(null)
   const [showRaw, setShowRaw] = React.useState(false)
 
@@ -489,12 +490,13 @@ function AdminHpiLookupPanel() {
 
   async function search() {
     if (!name.trim()) return
-    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setSearchDiag(null); setRawJson(null)
     try {
       const r = await apiFetch(`/api/hpi?action=search_practitioner&family=${encodeURIComponent(name.trim())}`)
       const j = await r.json()
-      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); setSearchDiag(j?.tried || null); return }
       setSearchResults(j.results || [])
+      setSearchDiag({ tried: j.tried, matched_via: j.matched_via })
     } catch (e) { setError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
@@ -544,7 +546,13 @@ function AdminHpiLookupPanel() {
         <div style={panelStyle}>
           <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45', marginBottom:'.5rem' }}>
             Search results — {searchResults.length} match{searchResults.length === 1 ? '' : 'es'}
+            {searchDiag?.matched_via && <span style={{ fontWeight:400, fontSize:'.75rem', color:'#6B7280', marginLeft:8 }}>(matched via <code>{searchDiag.matched_via}</code>)</span>}
           </div>
+          {searchDiag?.tried && searchDiag.tried.length > 1 && (
+            <div style={{ marginBottom:'.75rem', padding:'.5rem .75rem', background:'#F9FAFB', borderRadius:6, fontSize:'.75rem', color:'#6B7280' }}>
+              <strong>HPI search fallback:</strong> tried {searchDiag.tried.map(t => `${t.shape} (${t.hits} hit${t.hits===1?'':'s'})`).join(' → ')}
+            </div>
+          )}
           {searchResults.length === 0 ? (
             <div style={{ fontSize:'.875rem', color:'#6B7280' }}>No practitioners returned.</div>
           ) : (

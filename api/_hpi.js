@@ -372,25 +372,46 @@ export default async function handler(req, res) {
       const given  = String(req.query.given  || '').trim()
       const nameQ  = String(req.query.name   || '').trim()
       if (!family && !given && !nameQ) return res.status(400).json({ error: 'name, family, or given required' })
-      // HNZ's HPI Practitioner search on UAT accepts the FHIR-standard
-      // `family` + `given` params (proved by O'Reilly / Hunnicutt personas
-      // on the HPI compliance test docs page). The compound `name` param
-      // is also honoured. Send whichever the caller supplied — do NOT
-      // combine into a synthetic `name` when only one field is given,
-      // as that causes 0 matches for bare surnames on UAT.
-      const params = { _count: 20 }
-      if (nameQ)  params.name   = nameQ
-      if (family) params.family = family
-      if (given)  params.given  = given
-      const r = await fhirGet('Practitioner', params, undefined, adminUserId)
-      await auditHpi(auth, req, 'search_practitioner', 'Practitioner',
-        `name=${nameQ}|family=${family}|given=${given}`, r)
-      if (!r.ok) return res.status(r.status).json({ error: 'HPI error', body: r.body })
-      const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
-      return res.status(200).json({
-        results: entries.map(e => shapePractitioner(e.resource)).filter(Boolean),
-        total:   r.body?.total ?? entries.length,
-      })
+
+      // HPI UAT's Practitioner search is picky about which FHIR name param
+      // matches. Some personas (Walter O'Reilly, Brian Hunnicutt) do not
+      // return on bare `family=` or bare `name=<surname>` — the working
+      // shape depends on the persona. Try the standard shapes in order and
+      // return the first that produces >=1 result. Every attempt is
+      // audit-logged for traceability.
+      const attempts = []
+      if (nameQ)          attempts.push({ label: `name=${nameQ}`,             params: { name: nameQ } })
+      if (family && given) attempts.push({ label: `given=${given}&family=${family}`, params: { given, family } })
+      if (family)         attempts.push({ label: `family=${family}`,           params: { family } })
+      if (family)         attempts.push({ label: `name=${family}`,             params: { name: family } })
+      if (given)          attempts.push({ label: `given=${given}`,             params: { given } })
+      // De-dupe (a nameQ that equals family would otherwise repeat)
+      const seen = new Set()
+      const uniq = attempts.filter(a => { if (seen.has(a.label)) return false; seen.add(a.label); return true })
+
+      let lastResponse = null
+      const tried = []
+      for (const attempt of uniq) {
+        const r = await fhirGet('Practitioner', { ...attempt.params, _count: 20 }, undefined, adminUserId)
+        await auditHpi(auth, req, 'search_practitioner', 'Practitioner', attempt.label, r)
+        lastResponse = r
+        const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
+        tried.push({ shape: attempt.label, status: r.status, hits: entries.length })
+        if (r.ok && entries.length > 0) {
+          return res.status(200).json({
+            results:      entries.map(e => shapePractitioner(e.resource)).filter(Boolean),
+            total:        r.body?.total ?? entries.length,
+            matched_via:  attempt.label,
+            tried,
+          })
+        }
+        if (!r.ok) {
+          // Real error — return immediately, don't keep hammering HPI
+          return res.status(r.status).json({ error: 'HPI error', body: r.body, tried })
+        }
+      }
+      // All shapes returned 200 with 0 hits — return empty result set with diagnostic
+      return res.status(200).json({ results: [], total: 0, tried })
     }
 
     // compliance_pack runs the five standard HPI FHIR conformance scenarios
