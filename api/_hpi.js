@@ -370,9 +370,18 @@ export default async function handler(req, res) {
     if (action === 'search_practitioner') {
       const family = String(req.query.family || '').trim()
       const given  = String(req.query.given  || '').trim()
-      if (!family && !given) return res.status(400).json({ error: 'family or given required' })
-      const r = await fhirGet('Practitioner', { family, given, _count: 20 }, undefined, adminUserId)
-      await auditHpi(auth, req, 'search_practitioner', 'Practitioner', `family=${family}|given=${given}`, r)
+      const nameQ  = String(req.query.name   || '').trim()
+      if (!family && !given && !nameQ) return res.status(400).json({ error: 'name, family, or given required' })
+      // HNZ's HPI Practitioner search uses the compound `name` parameter
+      // (matches family + given). Compliance pack (Search-1/-4) confirmed this
+      // is the working shape. If caller supplied family+given separately, we
+      // still forward them — HPI ignores unknown params.
+      const combined = nameQ || [given, family].filter(Boolean).join(' ')
+      const params = { name: combined, _count: 20 }
+      if (family && !nameQ) params.family = family
+      if (given && !nameQ) params.given = given
+      const r = await fhirGet('Practitioner', params, undefined, adminUserId)
+      await auditHpi(auth, req, 'search_practitioner', 'Practitioner', `name=${combined}`, r)
       if (!r.ok) return res.status(r.status).json({ error: 'HPI error', body: r.body })
       const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
       return res.status(200).json({
