@@ -91,8 +91,14 @@ export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, va
           boxShadow: '0 4px 16px rgba(0,0,0,.12)', marginTop: 2, maxHeight: 260, overflowY: 'auto',
         }}>
           {isMock && (
-            <div style={{ padding: '6px 12px', fontSize: '.6875rem', color: 'var(--muted)', background: '#FFFBEB', borderBottom: '1px solid var(--border)' }}>
-              Demo data — HPI API credentials not configured
+            <div style={{
+              padding: '8px 12px', fontSize: '.75rem', fontWeight: 800, color: 'white',
+              background: '#B91C1C', borderBottom: '2px solid #7F1D1D',
+              textTransform: 'uppercase', letterSpacing: '.04em',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ fontSize: '1rem' }}>⚠</span>
+              Demo data — not from HPI
             </div>
           )}
           {results.map((r, i) => (

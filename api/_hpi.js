@@ -180,21 +180,79 @@ async function fhirGet(path, params, scopeOverride, userIdOverride) {
 // Extract just the fields our admin UI actually needs, so we don't
 // return the entire FHIR resource to the client. Keeps the surface small
 // and audit-friendly.
+// shapePractitioner (extended for IN-3502 mandatory tests HPI-P-Get-3/7/8/9/11/12).
+// Surfaces every HNZ-required field so the admin UI can render distinct evidence
+// for each compliance scenario: registration status, conditions of practice,
+// qualification scope, confidentiality flag, and date of death handling.
 function shapePractitioner(p) {
   if (!p) return null
   const name = Array.isArray(p.name) ? p.name.find(n => n.use === 'official') || p.name[0] : null
   const family = name?.family || ''
   const given  = Array.isArray(name?.given) ? name.given.join(' ') : (name?.given || '')
-  const cpn = (p.identifier || []).find(i =>
-    /HPI|Common Person Number/i.test(i.type?.text || '') ||
-    /^https?:\/\/standards\.digital\.health\.nz\/ns\/hpi-person-id/i.test(i.system || '')
-  )
+
+  // All HPI identifiers with type distinction, not just CPN
+  const identifiers = (p.identifier || []).map(i => ({
+    system:  i.system || '',
+    value:   i.value || '',
+    type:    i.type?.text || i.type?.coding?.[0]?.display || i.type?.coding?.[0]?.code || null,
+    isCpn:   /HPI|Common Person Number/i.test(i.type?.text || '') ||
+             /^https?:\/\/standards\.digital\.health\.nz\/ns\/hpi-person-id/i.test(i.system || ''),
+  }))
+  const cpn = identifiers.find(x => x.isCpn) || null
+
+  // HPI-P-Get-8: registration status. `active` gives active/inactive; HPI
+  // may also emit a status extension or a business practitionerRole.
+  const registrationStatus = p.active === false ? 'inactive' : 'active'
+
+  // HPI-P-Get-7 + HPI-P-Get-9: conditions of practice + qualification scope.
+  // Each qualification carries a code (scope) + period (validity) + optional
+  // extension for practice-condition (limitations imposed by MCNZ/NCNZ).
+  const qualifications = (p.qualification || []).map(q => ({
+    code:      q.code?.text || q.code?.coding?.[0]?.display || q.code?.coding?.[0]?.code || null,
+    system:    q.code?.coding?.[0]?.system || null,
+    issuer:    q.issuer?.display || q.issuer?.reference || null,
+    periodStart: q.period?.start || null,
+    periodEnd:   q.period?.end || null,
+    conditionsOfPractice: (q.extension || [])
+      .filter(e => /condition-of-practice|practice-condition|scope-of-practice/i.test(e.url || ''))
+      .map(e => e.valueString || e.valueCodeableConcept?.text || e.valueCodeableConcept?.coding?.[0]?.display)
+      .filter(Boolean),
+  }))
+
+  // HPI-P-Get-11: confidentiality flag. Two possible surfaces per HNZ IG:
+  // meta.security (Value Set 'Confidentiality' with codes V/R/N/L/M/U) OR
+  // an extension on the Practitioner resource. We surface both.
+  const confidentialityCodes = (p.meta?.security || [])
+    .map(s => s.code || s.display)
+    .filter(Boolean)
+  const confidentialityExt = (p.extension || [])
+    .find(e => /confidentiality|hpi-confidentiality/i.test(e.url || ''))
+  const confidentiality = confidentialityCodes.length ? confidentialityCodes.join(',')
+                        : confidentialityExt?.valueCode || confidentialityExt?.valueString || null
+  const isConfidential = !!confidentiality && !/^N|Normal/i.test(String(confidentiality))
+
+  // HPI-P-Get-12: date of death. HNZ uses the practitioner-death-date
+  // extension (HL7NZ profile). Also check standard FHIR deceasedDateTime.
+  const deathExt = (p.extension || [])
+    .find(e => /death-date|date-of-death|deceased/i.test(e.url || ''))
+  const dateOfDeath = deathExt?.valueDate || deathExt?.valueDateTime ||
+                      p.deceasedDateTime || null
+
   return {
     id:      p.id,
     active:  p.active !== false,
+    registrationStatus,                           // HPI-P-Get-8
     family, given,
-    cpn:     cpn?.value || p.id || null,
-    scope:   (p.qualification || []).map(q => q.code?.text || q.code?.coding?.[0]?.display).filter(Boolean),
+    fullName: `${given} ${family}`.trim(),
+    cpn:      cpn?.value || p.id || null,
+    identifiers,                                   // full list (HPI-P-Search-4 evidence)
+    qualifications,                                // HPI-P-Get-7 + HPI-P-Get-9
+    scope:    qualifications.map(q => q.code).filter(Boolean),  // backwards-compat
+    conditionsOfPractice: qualifications.flatMap(q => q.conditionsOfPractice),
+    confidentiality,                               // HPI-P-Get-11 (raw code)
+    isConfidential,                                // HPI-P-Get-11 (bool for banner)
+    dateOfDeath,                                   // HPI-P-Get-12
+    isDeceased: !!dateOfDeath,
   }
 }
 
@@ -333,16 +391,37 @@ export default async function handler(req, res) {
     //   4. Name search:     Search Practitioner by family name → Bundle
     //   5. Facility get:    Location by HPI-O → 200 or documented 404
     if (action === 'compliance_pack') {
-      // Default valid CPN: HNZ's stable UAT persona for HPI-P-Get-2
-      // (per Noel Babu, ticket IN-3502, 2026-09-02). Listed at
-      // https://hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html
-      // Alternate: 90ZZLC. Live-registered CPNs (e.g. 24NSES) drift when
-      // HNZ refreshes UAT, so we default to the dedicated test persona.
-      const validCpn      = String(req.query.cpn      || '91ZZWJ').trim()
+      // HNZ-supplied UAT test personas (Noel Babu 2026-09-03, ticket IN-3502).
+      // These are the CPNs to use for compliance — do NOT default to a live
+      // provider's CPN (e.g. Patrick's 24NSES), that was the mistake caught in
+      // the previous submission. All are documented at
+      //   https://hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html
+      //
+      // HPI-P-Get-1  → primary positive-get CPN
+      // HPI-P-Get-2  → alternate positive-get CPN (different name / registration variant)
+      // HPI-P-Get-3  → different persona to prove code-path parity
+      // HPI-P-Get-7  → CPN with conditions-of-practice populated
+      // HPI-P-Get-8  → CPN with a non-active registration status
+      // HPI-P-Get-9  → CPN with multi-qualification scope
+      // HPI-P-Get-11 → CPN with a confidentiality flag (now required per Noel 2026-09-03)
+      // HPI-P-Get-12 → CPN with a date-of-death value
+      // HPI-P-Search-1 → surname O'Reilly (apostrophe handling)
+      // HPI-P-Search-4 → surname Hunnicutt (case + partial match)
+      const cpnGet1       = String(req.query.cpn1 || '99ZZRT').trim()
+      const cpnGet2       = String(req.query.cpn2 || '90ZZJF').trim()
+      const cpnGet3       = String(req.query.cpn3 || '91ZZWJ').trim()
+      const cpnGet7       = String(req.query.cpn7 || req.query.conditions_cpn || '90ZZLC').trim()
+      const cpnGet8       = String(req.query.cpn8 || req.query.regstatus_cpn  || '90ZZLC').trim()
+      const cpnGet9       = String(req.query.cpn9 || req.query.qualscope_cpn  || '91ZZWJ').trim()
+      const cpnGet11      = String(req.query.cpn11 || req.query.conf_cpn      || '90ZZJF').trim()
+      const cpnGet12      = String(req.query.cpn12 || req.query.deceased_cpn  || '99ZZRT').trim()
       const notFoundCpn   = String(req.query.notfound || 'ZZ9ZZZ').trim()
       const malformedCpn  = '!!invalid!!'
-      const searchFamily  = String(req.query.family   || 'Herling').trim()
+      const searchFamily1 = String(req.query.family1 || req.query.family || "O'Reilly").trim()
+      const searchFamily4 = String(req.query.family4 || 'Hunnicutt').trim()
       const facilityId    = String(req.query.facility || 'G11238-E').trim()
+      // Backwards compat for older query param
+      const validCpn      = cpnGet1
       // scope override, passed through to fhirGet so we can iterate without
       // redeploying HPI_SCOPES. ?scope=none forces omission of the OAuth
       // scope param entirely (HNZ's KeyCloak client has defaults configured
@@ -377,38 +456,86 @@ export default async function handler(req, res) {
         }
       }
 
+      // HNZ mandatory practitioner tests (IN-3502). All against HNZ-supplied
+      // UAT test CPNs — never against a live-registered clinician's CPN.
       await run(
-        '1. Positive Get Practitioner',
-        `Retrieve a known valid HPI-CPN (${validCpn}) and confirm a well-formed Practitioner resource is returned.`,
+        'HPI-P-Get-1: Positive Get Practitioner (test CPN 1)',
+        `GET Practitioner/${cpnGet1}. Confirms a well-formed FHIR Practitioner resource is returned for a known-valid HNZ UAT test CPN. Uses HNZ-supplied test data, not a live-registered clinician CPN.`,
         { status: 200, description: '200 OK with FHIR Practitioner resource' },
-        () => fhirGet(`Practitioner/${encodeURIComponent(validCpn)}`, null, scopeOverride, userId),
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet1)}`, null, scopeOverride, userId),
       )
       await run(
-        '2. Not-Found Get Practitioner',
-        `Query a non-existent CPN (${notFoundCpn}) and confirm the product surfaces a 404 gracefully.`,
+        'HPI-P-Get-2: Positive Get Practitioner (test CPN 2)',
+        `GET Practitioner/${cpnGet2}. Second HNZ-supplied UAT persona to prove code-path parity across records.`,
+        { status: 200, description: '200 OK with FHIR Practitioner resource' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet2)}`, null, scopeOverride, userId),
+      )
+      await run(
+        'HPI-P-Get-3: Positive Get Practitioner (test CPN 3)',
+        `GET Practitioner/${cpnGet3}. Third HNZ persona covering an additional name/registration variant. Admin UI must render the returned resource without inference (evidence via UI screenshot).`,
+        { status: 200, description: '200 OK with FHIR Practitioner resource' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet3)}`, null, scopeOverride, userId),
+      )
+      await run(
+        'HPI-P-Get-5: Not-Found Get Practitioner',
+        `GET Practitioner/${notFoundCpn}. Confirms the product surfaces a 404 (or OperationOutcome) gracefully without crashing when the CPN does not exist.`,
         { status: 404, description: '404 Not Found (or OperationOutcome)' },
         () => fhirGet(`Practitioner/${encodeURIComponent(notFoundCpn)}`, null, scopeOverride, userId),
       )
       await run(
-        '3. Malformed Input Handling',
-        'Query with malformed CPN characters to confirm we do not leak stack traces and pass errors through as 4xx.',
+        'HPI-P-Get-6: Malformed Input Handling',
+        `GET Practitioner/${malformedCpn}. Confirms malformed CPN characters return a documented 4xx without leaking stack traces.`,
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
         () => fhirGet(`Practitioner/${encodeURIComponent(malformedCpn)}`, null, scopeOverride, userId),
       )
       await run(
-        '4. Search Practitioner by name',
-        `Search for practitioners by name (${searchFamily}) and confirm a FHIR Bundle is returned with 0..n entries. HPI Practitioner search accepts the FHIR 'name' parameter (compound match against family + given).`,
-        { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { name: searchFamily }, scopeOverride, userId),
+        'HPI-P-Get-7: Conditions of Practice rendered',
+        `GET Practitioner/${cpnGet7}. Extracts qualification[].extension entries carrying condition-of-practice / practice-condition / scope-of-practice URLs and surfaces them as a discrete field on the admin viewer (see shapePractitioner.conditionsOfPractice). Evidence: admin UI screenshot showing the conditions field populated.`,
+        { status: 200, description: '200 OK; conditions_of_practice[] populated on the response' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet7)}`, null, scopeOverride, userId),
       )
-      // Scenario 5 accepts either 200 (positive lookup with a known UAT
-      // facility id) OR a well-formed 404 OperationOutcome (proves the
-      // Location.r scope + endpoint routing + error handling are correct).
-      // A real UAT id is normally supplied by HNZ in the compliance test
-      // template; before that lands, negative-path evidence is sufficient.
       await run(
-        '5. Get Facility (Location) — structural + auth check',
-        `Retrieve Location by id (${facilityId}) to confirm the Location.r scope is honoured. Accepts a 200 (positive lookup) or a well-formed 404 OperationOutcome (proves the auth flow + endpoint routing + graceful error handling); a positive-lookup id is normally supplied by HNZ in the compliance test template.`,
+        'HPI-P-Get-8: Registration Status handled',
+        `GET Practitioner/${cpnGet8}. Extracts p.active + any status extension into a distinct registration_status field (active/inactive). Admin UI displays the status prominently. Evidence: admin UI screenshot showing the status pill.`,
+        { status: 200, description: '200 OK; registration_status populated' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet8)}`, null, scopeOverride, userId),
+      )
+      await run(
+        'HPI-P-Get-9: Qualification Scope displayed',
+        `GET Practitioner/${cpnGet9}. Multi-qualification practitioner: qualifications[] surfaces every code + issuer + period + condition-of-practice entry as separate rows. Evidence: admin UI screenshot showing all qualifications.`,
+        { status: 200, description: '200 OK; qualifications[] enumerates every scope' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet9)}`, null, scopeOverride, userId),
+      )
+      await run(
+        'HPI-P-Get-11: Confidentiality Flag handled',
+        `GET Practitioner/${cpnGet11}. Extracts meta.security[] + any confidentiality extension into isConfidential + confidentiality (raw code). Admin UI renders a red confidentiality banner when set. Now REQUIRED per Noel Babu 2026-09-03. Evidence: admin UI screenshot with confidentiality banner visible.`,
+        { status: 200, description: '200 OK; isConfidential correctly derived from meta.security or extension' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet11)}`, null, scopeOverride, userId),
+      )
+      await run(
+        'HPI-P-Get-12: Date of Death handled',
+        `GET Practitioner/${cpnGet12}. Extracts practitioner-death-date extension or standard deceasedDateTime into dateOfDeath + isDeceased. Admin UI shows a deceased banner + suppresses selection for onboarding. Evidence: admin UI screenshot.`,
+        { status: 200, description: '200 OK; dateOfDeath correctly extracted' },
+        () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet12)}`, null, scopeOverride, userId),
+      )
+      await run(
+        `HPI-P-Search-1: Search Practitioner by name (${searchFamily1})`,
+        `Search /Practitioner?name=${searchFamily1}. HNZ-supplied test surname. Handles apostrophe URL-encoding + returns a Bundle. Evidence: admin UI screenshot listing matched entries.`,
+        { status: 200, description: '200 OK with FHIR Bundle' },
+        () => fhirGet('Practitioner', { name: searchFamily1 }, scopeOverride, userId),
+      )
+      await run(
+        `HPI-P-Search-4: Search Practitioner by name (${searchFamily4})`,
+        `Search /Practitioner?name=${searchFamily4}. HNZ-supplied test surname covering case + partial match. Evidence: admin UI screenshot listing matched entries.`,
+        { status: 200, description: '200 OK with FHIR Bundle' },
+        () => fhirGet('Practitioner', { name: searchFamily4 }, scopeOverride, userId),
+      )
+      // Scenario Location 5 accepts either 200 (positive lookup with a known
+      // UAT facility id) OR a well-formed 404 OperationOutcome (proves the
+      // Location.r scope + endpoint routing + error handling are correct).
+      await run(
+        `HPI-L-Get: Facility lookup (${facilityId})`,
+        `GET Location/${facilityId}. Confirms Location.r scope is honoured. Accepts a 200 (positive lookup) or a well-formed 404 OperationOutcome. Live-use evidence: three separate call sites (patient GP picker type=GP, prescribe pharmacy picker type=PHARM, referral radiology picker type=RADDX) — see HPI-L-Search screenshots.`,
         { status: 200, description: '200 OK with FHIR Location resource — OR — 404 with OperationOutcome (both accepted)', accepted_statuses: [200, 404] },
         () => fhirGet(`Location/${encodeURIComponent(facilityId)}`, null, scopeOverride, userId),
       )

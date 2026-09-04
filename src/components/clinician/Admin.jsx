@@ -454,6 +454,250 @@ function SignaturePad({ onSaved, disabled }) {
   )
 }
 
+// Full HPI Lookup panel for admin compliance evidence (IN-3502).
+// Renders every field HNZ requires the product surface for mandatory tests:
+//   HPI-P-Get-7  conditions of practice
+//   HPI-P-Get-8  registration status
+//   HPI-P-Get-9  qualification scope
+//   HPI-P-Get-11 confidentiality flag (banner)
+//   HPI-P-Get-12 date of death (banner + suppress-select)
+//   HPI-P-Search-1/-4 practitioner name search returning a rendered list
+// Each field is a distinct visual element so screenshots can be cited by name.
+function AdminHpiLookupPanel() {
+  const [cpn, setCpn] = React.useState('')
+  const [name, setName] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [error, setError] = React.useState('')
+  const [practitioner, setPractitioner] = React.useState(null)
+  const [searchResults, setSearchResults] = React.useState(null)
+  const [rawJson, setRawJson] = React.useState(null)
+  const [showRaw, setShowRaw] = React.useState(false)
+
+  async function lookup() {
+    if (!cpn.trim()) return
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
+    try {
+      const r = await apiFetch(`/api/hpi?action=get_practitioner&cpn=${encodeURIComponent(cpn.trim())}`)
+      if (r.status === 404) { setError(`No practitioner found for CPN ${cpn.trim()}`); return }
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setPractitioner(j.practitioner)
+      setRawJson(j.raw || j.practitioner)
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  async function search() {
+    if (!name.trim()) return
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
+    try {
+      const r = await apiFetch(`/api/hpi?action=search_practitioner&family=${encodeURIComponent(name.trim())}`)
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setSearchResults(j.results || [])
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  const panelStyle = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
+  const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
+  const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
+  const inputStyle = { padding:'8px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:'100%' }
+  const btnStyle = { background:'#0B6E76', color:'white', border:'none', padding:'8px 16px', borderRadius:8, fontSize:'.875rem', fontWeight:700, cursor:'pointer' }
+
+  return (
+    <div>
+      <div style={panelStyle}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>HPI Practitioner Lookup</div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
+          Live query against Te Whatu Ora HPI FHIR API. Renders every field HNZ requires the product surface (HPI-P-Get-1/-2/-3/-7/-8/-9/-11/-12, HPI-P-Search-1/-4). Every request is audit-logged and attributed to your CPN.
+        </div>
+
+        <div style={{ display:'grid', gap:'.75rem', gridTemplateColumns:'1fr 1fr', marginBottom:'.5rem' }}>
+          <div>
+            <div style={label}>By HPI-CPN</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={cpn} onChange={e => setCpn(e.target.value)} placeholder="e.g. 99ZZRT" style={inputStyle} onKeyDown={e => e.key === 'Enter' && lookup()} />
+              <button type="button" onClick={lookup} disabled={busy || !cpn.trim()} style={{ ...btnStyle, opacity: busy || !cpn.trim() ? .5 : 1 }}>Get</button>
+            </div>
+          </div>
+          <div>
+            <div style={label}>By surname (search)</div>
+            <div style={{ display:'flex', gap:8 }}>
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. O'Reilly" style={inputStyle} onKeyDown={e => e.key === 'Enter' && search()} />
+              <button type="button" onClick={search} disabled={busy || !name.trim()} style={{ ...btnStyle, opacity: busy || !name.trim() ? .5 : 1 }}>Search</button>
+            </div>
+          </div>
+        </div>
+
+        {busy && <div style={{ marginTop:'.75rem', fontSize:'.875rem', color:'#6B7280' }}>Querying HPI…</div>}
+        {error && (
+          <div style={{ marginTop:'.75rem', padding:'.75rem 1rem', background:'#FEE2E2', border:'1.5px solid #FCA5A5', borderRadius:8, color:'#7F1D1D', fontSize:'.875rem' }}>
+            ⚠ {error}
+          </div>
+        )}
+      </div>
+
+      {practitioner && <PractitionerCard p={practitioner} rawJson={rawJson} showRaw={showRaw} setShowRaw={setShowRaw} />}
+
+      {searchResults && (
+        <div style={panelStyle}>
+          <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45', marginBottom:'.5rem' }}>
+            Search results — {searchResults.length} match{searchResults.length === 1 ? '' : 'es'}
+          </div>
+          {searchResults.length === 0 ? (
+            <div style={{ fontSize:'.875rem', color:'#6B7280' }}>No practitioners returned.</div>
+          ) : (
+            <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
+              {searchResults.map((r, i) => (
+                <div key={r.id || i} style={{ padding:'.75rem 1rem', borderBottom: i < searchResults.length - 1 ? '1px solid #F3F4F6' : 'none', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <div>
+                    <div style={{ fontWeight:700, color:'#0D2B45' }}>{r.fullName || `${r.given} ${r.family}`}</div>
+                    <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                      CPN <code>{r.cpn || r.id}</code> · {r.registrationStatus}
+                      {r.scope?.length > 0 && <> · {r.scope.slice(0, 3).join(', ')}</>}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => { setCpn(r.cpn || r.id); setSearchResults(null); setTimeout(lookup, 0) }} style={{ background:'transparent', color:'#0B6E76', border:'1.5px solid #0B6E76', padding:'6px 12px', borderRadius:6, fontWeight:700, fontSize:'.75rem', cursor:'pointer' }}>Open</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
+  const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
+  const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
+  const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
+  const kv = (k, v) => (
+    <div>
+      <div style={label}>{k}</div>
+      <div style={value}>{v || <span style={{ color:'#9CA3AF', fontWeight:400 }}>—</span>}</div>
+    </div>
+  )
+  return (
+    <>
+      {p.isDeceased && (
+        <div style={{ padding:'.875rem 1rem', background:'#1F2937', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>⚠</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Practitioner marked deceased in HPI</div>
+            <div style={{ fontSize:'.8125rem', opacity:.85 }}>Date of death: {p.dateOfDeath || 'unknown'}. Onboarding + prescribing blocked. (HPI-P-Get-12)</div>
+          </div>
+        </div>
+      )}
+      {p.isConfidential && (
+        <div style={{ padding:'.875rem 1rem', background:'#B91C1C', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>🔒</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Confidentiality flag set</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>HPI Confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{p.confidentiality}</code>. Do not disclose to unauthorised parties. (HPI-P-Get-11)</div>
+          </div>
+        </div>
+      )}
+      {!p.isDeceased && p.registrationStatus === 'inactive' && (
+        <div style={{ padding:'.875rem 1rem', background:'#F59E0B', color:'#1F2937', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Registration status: INACTIVE</div>
+          <div style={{ fontSize:'.8125rem' }}>Practitioner is not currently registered — do not roster for clinical work. (HPI-P-Get-8)</div>
+        </div>
+      )}
+
+      <div style={panel}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', gap:12 }}>
+          <div>
+            <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{p.fullName || `${p.given} ${p.family}`}</div>
+            <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>HPI Practitioner resource</div>
+          </div>
+          <div style={{
+            padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap',
+            background: p.registrationStatus === 'active' ? '#DCFCE7' : '#FEE2E2',
+            color:      p.registrationStatus === 'active' ? '#166534' : '#7F1D1D',
+          }}>
+            {p.registrationStatus === 'active' ? '✓ ACTIVE' : '✗ INACTIVE'}
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'1rem', marginBottom:'1rem', paddingBottom:'1rem', borderBottom:'1px solid #F3F4F6' }}>
+          {kv('HPI-CPN', p.cpn)}
+          {kv('Given name', p.given)}
+          {kv('Family name', p.family)}
+          {kv('Registration status', p.registrationStatus)}
+          {kv('Date of death', p.dateOfDeath || 'not recorded')}
+          {kv('Confidentiality', p.confidentiality || 'N (normal)')}
+        </div>
+
+        {/* HPI-P-Get-9: qualifications enumerated as separate rows so multi-scope practitioners are visible */}
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.8125rem', fontWeight:800, color:'#0D2B45', marginBottom:'.5rem' }}>
+            Qualifications / Scope of Practice ({p.qualifications?.length || 0})
+            <span style={{ fontWeight:400, fontSize:'.6875rem', color:'#6B7280', marginLeft:8 }}>HPI-P-Get-9</span>
+          </div>
+          {p.qualifications?.length ? (
+            <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
+              {p.qualifications.map((q, i) => (
+                <div key={i} style={{ padding:'.625rem .875rem', borderBottom: i < p.qualifications.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 ? '#FAFBFC' : 'white' }}>
+                  <div style={{ fontWeight:700, fontSize:'.875rem', color:'#0D2B45' }}>{q.code || '(unnamed scope)'}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                    {q.issuer && <>Issuer: {q.issuer} · </>}
+                    {q.periodStart && <>From {q.periodStart} </>}
+                    {q.periodEnd && <>to {q.periodEnd}</>}
+                    {!q.periodStart && !q.periodEnd && 'No period recorded'}
+                  </div>
+                  {q.conditionsOfPractice?.length > 0 && (
+                    <div style={{ marginTop:'.375rem', padding:'.5rem .75rem', background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:6 }}>
+                      <div style={{ fontSize:'.6875rem', fontWeight:800, color:'#92400E', marginBottom:2 }}>CONDITIONS OF PRACTICE (HPI-P-Get-7)</div>
+                      <ul style={{ margin:0, paddingLeft:'1.25rem', fontSize:'.8125rem', color:'#78350F' }}>
+                        {q.conditionsOfPractice.map((c, j) => <li key={j}>{c}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize:'.8125rem', color:'#9CA3AF', padding:'.5rem 0' }}>No qualifications recorded on this Practitioner resource.</div>
+          )}
+        </div>
+
+        {/* HPI-P-Search-4 evidence: all identifiers, not just CPN */}
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.8125rem', fontWeight:800, color:'#0D2B45', marginBottom:'.5rem' }}>
+            Identifiers ({p.identifiers?.length || 0})
+          </div>
+          {p.identifiers?.length ? (
+            <div style={{ display:'grid', gap:'.375rem' }}>
+              {p.identifiers.map((id, i) => (
+                <div key={i} style={{ padding:'.375rem .625rem', background:'#F9FAFB', borderRadius:6, fontSize:'.8125rem', display:'flex', gap:12 }}>
+                  <span style={{ fontWeight:700, color:'#0D2B45', minWidth:120 }}>{id.type || 'identifier'}</span>
+                  <code style={{ color:'#374151' }}>{id.value}</code>
+                  {id.isCpn && <span style={{ marginLeft:'auto', color:'#0B6E76', fontWeight:700 }}>← CPN</span>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize:'.8125rem', color:'#9CA3AF' }}>None</div>
+          )}
+        </div>
+
+        <div>
+          <button type="button" onClick={() => setShowRaw(!showRaw)} style={{ background:'transparent', color:'#6B7280', border:'1.5px solid #E2E8F0', padding:'6px 12px', borderRadius:6, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>
+            {showRaw ? 'Hide' : 'Show'} raw FHIR JSON
+          </button>
+          {showRaw && (
+            <pre style={{ marginTop:'.75rem', padding:'.75rem', background:'#0F172A', color:'#E2E8F0', borderRadius:8, fontSize:'.6875rem', overflow:'auto', maxHeight:400, fontFamily:'ui-monospace, Menlo, monospace' }}>
+{JSON.stringify(rawJson, null, 2)}
+            </pre>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // Verifies an HPI-CPN against the Te Whatu Ora HPI FHIR API via
 // /api/hpi?action=get_practitioner. Renders a small button + a result chip
 // underneath the input it sits next to. Fires onFound(practitioner) so the
@@ -4905,6 +5149,7 @@ function AdminBody() {
             { id:'careers',      label:'💼 Careers' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
+            { id:'hpi',          label:'🩺 HPI Lookup' },
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
@@ -4975,6 +5220,7 @@ function AdminBody() {
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
               return <><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><CgmMeetingsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+            case 'hpi':        return <AdminHpiLookupPanel />
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />

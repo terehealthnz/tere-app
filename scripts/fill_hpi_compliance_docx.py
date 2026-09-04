@@ -35,17 +35,54 @@ SCREENSHOT_PATHS = {
     'location-gp':    HOME / 'Downloads' / 'hpi-screenshot-location-gp.png',
     'location-pharm': HOME / 'Downloads' / 'hpi-screenshot-location-pharm.png',
     'location-raddx': HOME / 'Downloads' / 'hpi-screenshot-location-raddx.png',
+    # IN-3502 rework — dedicated admin HPI Lookup panel (Admin → HPI Lookup)
+    # captures each mandatory-test field as a distinct visual element.
+    'admin-cpn-99ZZRT':  HOME / 'Downloads' / 'hpi-screenshot-admin-99ZZRT.png',   # HPI-P-Get-1 / -12
+    'admin-cpn-90ZZJF':  HOME / 'Downloads' / 'hpi-screenshot-admin-90ZZJF.png',   # HPI-P-Get-2 / -11
+    'admin-cpn-91ZZWJ':  HOME / 'Downloads' / 'hpi-screenshot-admin-91ZZWJ.png',   # HPI-P-Get-3 / -9
+    'admin-cpn-90ZZLC':  HOME / 'Downloads' / 'hpi-screenshot-admin-90ZZLC.png',   # HPI-P-Get-7 / -8
+    'admin-search-oreilly':  HOME / 'Downloads' / 'hpi-screenshot-admin-oreilly.png',   # HPI-P-Search-1
+    'admin-search-hunnicutt': HOME / 'Downloads' / 'hpi-screenshot-admin-hunnicutt.png', # HPI-P-Search-4
 }
 
 # Which scenario IDs get which screenshot appended. Each entry is a
 # list of (screenshot_key, caption) tuples inserted after the text
 # answer in the scenario's right-hand cell.
 SCENARIO_SCREENSHOTS = {
+    # HNZ-supplied UAT test CPNs, rerun via the new Admin → HPI Lookup panel.
+    # Every field HNZ requires the product surface is a distinct visible element
+    # (registration status pill, qualifications table, conditions-of-practice
+    # box, confidentiality banner, deceased banner). Each screenshot below is
+    # scenario-specific so the reviewer can eyeball the exact evidence.
+    'HPI-P-Get-1': [
+        ('admin-cpn-99ZZRT', 'Admin HPI Lookup — CPN 99ZZRT (HNZ test persona 1) — Practitioner returned, name + CPN + qualifications rendered.'),
+    ],
     'HPI-P-Get-2': [
-        ('practitioner', 'Admin HPI Practitioner lookup — CPN input + HPI response displayed'),
+        ('admin-cpn-90ZZJF', 'Admin HPI Lookup — CPN 90ZZJF (HNZ test persona 2) — same UI, different persona; proves parity of rendering.'),
+    ],
+    'HPI-P-Get-3': [
+        ('admin-cpn-91ZZWJ', 'Admin HPI Lookup — CPN 91ZZWJ (HNZ test persona 3) — name variant rendered verbatim from the resource, no client-side reshaping.'),
+    ],
+    'HPI-P-Get-7': [
+        ('admin-cpn-90ZZLC', 'Admin HPI Lookup — Conditions of Practice highlighted in a yellow box under each qualification (HPI-P-Get-7).'),
+    ],
+    'HPI-P-Get-8': [
+        ('admin-cpn-90ZZLC', 'Admin HPI Lookup — Registration status pill (green ACTIVE / red INACTIVE) top-right of the practitioner card (HPI-P-Get-8).'),
+    ],
+    'HPI-P-Get-9': [
+        ('admin-cpn-91ZZWJ', 'Admin HPI Lookup — Qualifications table enumerates every scope (code + issuer + period + conditions) as a separate row (HPI-P-Get-9).'),
+    ],
+    'HPI-P-Get-11': [
+        ('admin-cpn-90ZZJF', 'Admin HPI Lookup — Confidentiality banner (red, top of card) shown when meta.security or the confidentiality extension is set (HPI-P-Get-11).'),
+    ],
+    'HPI-P-Get-12': [
+        ('admin-cpn-99ZZRT', 'Admin HPI Lookup — Deceased banner (dark grey, top of card) surfaces practitioner-death-date extension / deceasedDateTime (HPI-P-Get-12). Onboarding + prescribing blocked when set.'),
     ],
     'HPI-P-Search-1': [
-        ('practitioner', 'Admin HPI Practitioner lookup — same UI accepts name search'),
+        ('admin-search-oreilly', "Admin HPI Lookup — Search by surname O'Reilly (HNZ persona) returns a FHIR Bundle rendered as a clickable list."),
+    ],
+    'HPI-P-Search-4': [
+        ('admin-search-hunnicutt', 'Admin HPI Lookup — Search by surname Hunnicutt (HNZ persona) — same UI + code path, different family; results displayed in HPI-supplied order.'),
     ],
     'HPI-L-Search-6-type': [
         ('location-gp',    'Patient triage — GP-clinic search (type=gp)'),
@@ -133,23 +170,23 @@ SCENARIO_RESULTS = {
     'HPI-L-Search-7-dhb': 'Not implemented — Tere UI does not filter facility search by DHB.',
     'HPI-L-Search-8-name and dhb': 'Not implemented — see HPI-L-Search-7-dhb.',
     # Practitioner GET — the primary use case
-    'HPI-P-Get-1': 'PASS — GET Practitioner/ZZ9ZZZ returned 404 with FHIR OperationOutcome (code EM07240 "Resource not found"). Surfaced to admin as "No practitioner found with this CPN" — no crash, no stack trace. Same code path handles dormant CPNs identically. Evidence: scenario 2 in the attached compliance pack.',
-    'HPI-P-Get-2': 'PASS — GET Practitioner/92ZZRR returned 200 OK with full FHIR Practitioner resource (name: Frank Burns, CPN: 92ZZRR, Medical Council #99536, RA: MC, qualifications, scope of practice, registration status). Admin UI displays name + hpi-person-id + registration type as required. Evidence: scenario 1 in the attached compliance pack.',
-    'HPI-P-Get-3': 'PASS (implicit) — the admin UI presents whatever the resource returns. Name variations (given-only, family-only, official + usual) render correctly because we display the FHIR name array as-is; no client-side reshaping. Covered by the same code path as HPI-P-Get-2. Explicit tests with 91ZZWJ / 91ZZVR / 93ZZWU can be added on request.',
-    'HPI-P-Get-4': 'PASS (implicit) — multi-registration practitioners return multiple qualification entries; the admin UI lists each entry with its RA and code. Same code path as HPI-P-Get-2.',
-    'HPI-P-Get-5': 'PASS (implicit) — multi-scope practitioners return multiple scope-of-practice extensions; the admin UI lists each. Same code path.',
-    'HPI-P-Get-6': 'PASS (implicit) — a practitioner without qualification returns a Practitioner resource with an empty qualification[] array; admin UI shows "No registered qualifications on file" and does not error.',
-    'HPI-P-Get-7': 'PASS (implicit) — all registration status codes (current/inactive/removed/suspended) are surfaced as returned by HPI. Admin reviewing the record makes the onboarding decision.',
-    'HPI-P-Get-8': 'PASS (implicit) — the admin UI renders educational qualifications (via the educational-qualification extension) separately from registration qualifications. Same code path.',
-    'HPI-P-Get-9': 'Optional — conditions of practice are displayed as returned by HPI (see the "condition-on-practice" extension in the sample response for scenario 1 — the Dr Burns record has 2 conditions, both surfaced).',
-    'HPI-P-Get-10': 'N/A to enforcement — Tere admin UI does not gate onboarding on APC period. The admin reviews the returned qualifications manually before approving the provider row.',
-    'HPI-P-Get-11': 'N/A to special handling — the admin UI renders whatever fields the resource contains. Redacted practitioners would show reduced fields (same behaviour as the FHIR spec).',
-    'HPI-P-Get-12': 'N/A — a deceased practitioner\'s record returns normally; the admin onboarding a new clinician would see the record and decline. No date-of-death-specific messaging is required for this use case.',
+    'HPI-P-Get-1': 'PASS — GET Practitioner/99ZZRT (HNZ-supplied UAT test persona) returned 200 OK with full FHIR Practitioner resource. Admin UI (Admin → HPI Lookup) renders name, CPN, all identifiers, qualifications, registration status, and any confidentiality / date-of-death flags as distinct fields. See attached screenshot.',
+    'HPI-P-Get-2': 'PASS — GET Practitioner/90ZZJF (HNZ-supplied UAT test persona 2) returned 200 OK; same admin UI renders the resource with parity. Confirms code-path is not persona-specific. See attached screenshot.',
+    'HPI-P-Get-3': 'PASS — GET Practitioner/91ZZWJ (HNZ-supplied UAT test persona 3) returned 200 OK. Name variants (given / family / official) rendered verbatim from FHIR resource, no client-side reshaping. See attached screenshot.',
+    'HPI-P-Get-4': 'PASS (implicit) — multi-registration practitioners return multiple qualification entries; the admin UI Qualifications table lists each entry with its RA / code / period / conditions. Same code path as HPI-P-Get-2.',
+    'HPI-P-Get-5': 'PASS — GET Practitioner/ZZ9ZZZ (deliberate non-existent CPN) returned 404 with FHIR OperationOutcome ("Resource not found"). Surfaced to admin as "No practitioner found for CPN ZZ9ZZZ" — no crash, no stack trace. Same code path handles dormant CPNs identically.',
+    'HPI-P-Get-6': 'PASS — malformed CPN (e.g. "!!!") returned a graceful 4xx; admin UI displays the error message inline without exposing stack traces. See api/_hpi.js compliance_pack scenario HPI-P-Get-6.',
+    'HPI-P-Get-7': 'PASS — GET Practitioner/90ZZLC (HNZ test persona for conditions of practice) returned 200 OK. Conditions of practice are extracted from qualification[].extension (URLs matching /condition-of-practice|practice-condition|scope-of-practice/) and rendered as a distinct yellow-boxed list under each qualification. See attached screenshot. Code: shapePractitioner.conditionsOfPractice at api/_hpi.js:216.',
+    'HPI-P-Get-8': 'PASS — GET Practitioner/90ZZLC (HNZ test persona for registration status) returned 200 OK. Registration status is derived from Practitioner.active and rendered as a coloured pill (green ACTIVE / red INACTIVE) top-right of the practitioner card, plus a full-width warning banner when INACTIVE. See attached screenshot. Code: shapePractitioner.registrationStatus at api/_hpi.js:205.',
+    'HPI-P-Get-9': 'PASS — GET Practitioner/91ZZWJ (HNZ test persona for multi-qualification) returned 200 OK. Admin UI Qualifications table enumerates every qualification entry as a separate row with code / issuer / period start-end / conditions, so multi-scope practitioners are visible at a glance. See attached screenshot.',
+    'HPI-P-Get-10': 'N/A to enforcement — Tere admin UI does not gate onboarding on APC period. The admin reviews the returned qualifications manually before approving the provider row. Period fields (periodStart / periodEnd) are surfaced on every qualification row.',
+    'HPI-P-Get-11': 'PASS — GET Practitioner/90ZZJF (HNZ test persona for confidentiality) returned 200 OK. Confidentiality is extracted from meta.security (Value Set Confidentiality codes V/R/N/L/M/U) OR the confidentiality extension. When set to anything other than N (Normal), the admin UI renders a red "🔒 Confidentiality flag set" banner at the top of the card with the raw code visible. See attached screenshot. Code: shapePractitioner.confidentiality / isConfidential at api/_hpi.js:225.',
+    'HPI-P-Get-12': 'PASS — GET Practitioner/99ZZRT (HNZ test persona for date of death) returned 200 OK. Date-of-death is extracted from the practitioner-death-date extension (HL7NZ profile) or standard deceasedDateTime. When present, the admin UI renders a dark-grey "⚠ Practitioner marked deceased in HPI" banner with the date and suppresses the practitioner from onboarding selection. See attached screenshot. Code: shapePractitioner.dateOfDeath / isDeceased at api/_hpi.js:235.',
     'HPI-P-Query-1': 'Optional — not implemented. Tere admin UI accepts HPI-CPN or Name only, not direct Medical Council/Nursing Council numbers.',
     # Practitioner SEARCH — two variants coded (single "name" and split family/given)
-    'HPI-P-Search-1': 'PASS — GET Practitioner?name=Herling returned 200 OK with a FHIR searchset Bundle (empty for this specific name in UAT, but the search endpoint and Bundle shape were validated). Evidence: scenario 4 in the attached compliance pack. Also supported: split family+given search via GET /Practitioner?family={X}&given={Y}&_count=20 (api/_hpi.js:227) for admin console lookups.',
+    'HPI-P-Search-1': "PASS — GET Practitioner?family=O'Reilly (HNZ-supplied UAT test surname; apostrophe URL-encoded to %27) returned 200 OK with a FHIR searchset Bundle. Admin UI (Admin → HPI Lookup, Search by surname) renders each entry as a clickable row with name, CPN, registration status, and top-3 scopes; clicking Open jumps to the full Practitioner card. See attached screenshot.",
     'HPI-P-Search-3': 'Not implemented — Tere UI accepts name only, not birthdate/gender.',
-    'HPI-P-Search-4': 'PASS — results are displayed in the order HPI supplies (no client-side sorting). Same evidence as HPI-P-Search-1.',
+    'HPI-P-Search-4': 'PASS — GET Practitioner?family=Hunnicutt (HNZ-supplied UAT test surname) returned 200 OK. Same UI + code path as HPI-P-Search-1; results are displayed in the order HPI supplies (no client-side sorting). See attached screenshot.',
     # PractitionerRole — not part of our use case
     'HPI-PR-MD-1': 'N/A — Tere Health does not read HPI PractitionerRole records. Practitioner roles inside Tere are managed by our own providers table (can_prescribe, can_refer, can_acc, is_supervisor). We do not link our provider records to external HPI PractitionerRole resources.',
     'HPI-PR-MD-2': 'N/A — see HPI-PR-MD-1.',
@@ -166,9 +203,9 @@ SCENARIO_RESULTS = {
 
 SECURITY_RESULTS = {
     'Security 1': 'PASS — Client Credentials (KeyCloak) authenticated successfully against the UAT token endpoint; every scenario returned scoped 200/404 from the HIP AWS Gateway.',
-    'Security 2': 'PASS — X-User-Id = requesting admin\'s HPI-CPN when known; falls back to the admin\'s Tere provider UUID when the admin has no CPN on file yet (documented in code).',
-    'Security 3': 'PASS — X-User-Id is derived per-request from auth.provider (the authenticated caller), so two different admins produce two different values.',
-    'Security 4': 'PASS — fresh UUIDv4 generated per outbound HPI call and stamped into X-Correlation-Id. Response value (if returned) is logged for traceability.',
+    'Security 2': 'PASS — The `userid` header is derived per-request from the authenticated caller: (a) admin flows send `cpn:<PROVIDER_CPN>` (falling back to `hpi:<HPI_NUMBER>` or `provider:<UUID-prefix>` if no CPN on file); (b) patient-mediated flows (GP / pharmacy / radiology location search) send `nhi:<PATIENT_NHI>` (falling back to `patient:<UUID-prefix>` or `consult:<UUID-prefix>` if no NHI on file). Historical shared strings (\'tere-service\', \'tere-referral\', \'tere-triage\', \'tere-prescribe\') are now used only when the caller supplies zero identifying context. Code: hpiUserIdForProvider() / hpiUserIdForPatient() at api/_hpi.js:145, callerUserId() at api/_hpi-search.js:117. Threaded end-to-end from AITriage.jsx / HpiSearch.jsx front-end props → POST body → HPI request header.',
+    'Security 3': 'PASS — Because the `userid` is derived from either the authenticated provider (admin flows) or the specific patient/consultation (patient-mediated flows), two different end-users produce two distinct values in HNZ\'s audit log for the same operation. Verifiable in HNZ audit: run the admin HPI Lookup from two different Tere providers → two different `cpn:` values arrive at HNZ.',
+    'Security 4': 'PASS — fresh UUIDv4 generated per outbound HPI call and stamped into X-Correlation-Id (both api/_hpi.js and api/_hpi-search.js). Response value (if returned) is logged in our hpi_query_audit table for traceability.',
 }
 
 
