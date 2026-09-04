@@ -389,14 +389,19 @@ export default async function handler(req, res) {
       const seen = new Set()
       const uniq = attempts.filter(a => { if (seen.has(a.label)) return false; seen.add(a.label); return true })
 
-      let lastResponse = null
       const tried = []
+      let lastError = null
       for (const attempt of uniq) {
         const r = await fhirGet('Practitioner', { ...attempt.params, _count: 20 }, undefined, adminUserId)
         await auditHpi(auth, req, 'search_practitioner', 'Practitioner', attempt.label, r)
-        lastResponse = r
         const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
-        tried.push({ shape: attempt.label, status: r.status, hits: entries.length })
+        tried.push({
+          shape:  attempt.label,
+          status: r.status,
+          ok:     r.ok,
+          hits:   entries.length,
+          diagnostic: r.body?.issue?.[0]?.details?.text || r.body?.issue?.[0]?.diagnostics || null,
+        })
         if (r.ok && entries.length > 0) {
           return res.status(200).json({
             results:      entries.map(e => shapePractitioner(e.resource)).filter(Boolean),
@@ -405,12 +410,18 @@ export default async function handler(req, res) {
             tried,
           })
         }
-        if (!r.ok) {
-          // Real error — return immediately, don't keep hammering HPI
-          return res.status(r.status).json({ error: 'HPI error', body: r.body, tried })
-        }
+        if (!r.ok) lastError = { status: r.status, body: r.body, shape: attempt.label }
+        // continue to next shape either way — HPI may reject some params and honour others
       }
-      // All shapes returned 200 with 0 hits — return empty result set with diagnostic
+      // No shape produced results. If every attempt errored, return the last error;
+      // otherwise return 200 with empty results + full diagnostic.
+      if (lastError && tried.every(t => !t.ok)) {
+        return res.status(lastError.status).json({
+          error: 'HPI search — all name-param shapes rejected',
+          last_error_body: lastError.body,
+          tried,
+        })
+      }
       return res.status(200).json({ results: [], total: 0, tried })
     }
 

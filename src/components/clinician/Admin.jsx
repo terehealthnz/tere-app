@@ -494,7 +494,11 @@ function AdminHpiLookupPanel() {
     try {
       const r = await apiFetch(`/api/hpi?action=search_practitioner&family=${encodeURIComponent(name.trim())}`)
       const j = await r.json()
-      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); setSearchDiag(j?.tried || null); return }
+      if (!r.ok) {
+        setError(j?.error || `HTTP ${r.status}`)
+        setSearchDiag({ tried: j?.tried || [], matched_via: null, last_error_body: j?.last_error_body })
+        return
+      }
       setSearchResults(j.results || [])
       setSearchDiag({ tried: j.tried, matched_via: j.matched_via })
     } catch (e) { setError(e.message || 'Network error') }
@@ -535,7 +539,23 @@ function AdminHpiLookupPanel() {
         {busy && <div style={{ marginTop:'.75rem', fontSize:'.875rem', color:'#6B7280' }}>Querying HPI…</div>}
         {error && (
           <div style={{ marginTop:'.75rem', padding:'.75rem 1rem', background:'#FEE2E2', border:'1.5px solid #FCA5A5', borderRadius:8, color:'#7F1D1D', fontSize:'.875rem' }}>
-            ⚠ {error}
+            <div>⚠ {error}</div>
+            {searchDiag?.tried?.length > 0 && (
+              <div style={{ marginTop:'.5rem', paddingTop:'.5rem', borderTop:'1px solid #FCA5A5' }}>
+                <div style={{ fontSize:'.75rem', fontWeight:800, marginBottom:4 }}>All shapes attempted:</div>
+                <ul style={{ margin:0, paddingLeft:'1.25rem', fontSize:'.75rem' }}>
+                  {searchDiag.tried.map((t, i) => (
+                    <li key={i}><code>{t.shape}</code> → HTTP {t.status} · {t.hits} hit{t.hits === 1 ? '' : 's'}{t.diagnostic ? ` · ${t.diagnostic}` : ''}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {searchDiag?.last_error_body && (
+              <details style={{ marginTop:'.5rem' }}>
+                <summary style={{ cursor:'pointer', fontSize:'.75rem', fontWeight:700 }}>Show HPI error body</summary>
+                <pre style={{ marginTop:'.375rem', padding:'.5rem', background:'#0F172A', color:'#E2E8F0', borderRadius:6, fontSize:'.6875rem', overflow:'auto', maxHeight:200, fontFamily:'ui-monospace, Menlo, monospace' }}>{JSON.stringify(searchDiag.last_error_body, null, 2)}</pre>
+              </details>
+            )}
           </div>
         )}
       </div>
