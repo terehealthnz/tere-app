@@ -113,6 +113,26 @@ async function getBearer(scopeOverride) {
   return j.access_token
 }
 
+// Task #440 — per-end-user HPI traceability (ticket IN-3502 Security 3).
+// HNZ audit requires the `userid` header on every HPI call to identify the
+// individual human who initiated the request, not just our service account.
+// Prefer HPI-CPN when the provider has one (e.g. Patrick = 24NSES), fall
+// back to a masked internal UUID otherwise. Patient-facing callers derive
+// from patient NHI where present.
+export function hpiUserIdForProvider(provider) {
+  if (!provider) return 'unauth'
+  if (provider.cpn && String(provider.cpn).trim()) return `cpn:${String(provider.cpn).trim().toUpperCase()}`
+  if (provider.hpi_number && String(provider.hpi_number).trim()) return `hpi:${String(provider.hpi_number).trim().toUpperCase()}`
+  if (provider.id) return `provider:${String(provider.id).slice(0, 8)}`
+  return 'unknown-provider'
+}
+export function hpiUserIdForPatient({ nhi, consultationId, patientId } = {}) {
+  if (nhi && String(nhi).trim()) return `nhi:${String(nhi).trim().toUpperCase()}`
+  if (patientId) return `patient:${String(patientId).slice(0, 8)}`
+  if (consultationId) return `consult:${String(consultationId).slice(0, 8)}`
+  return 'anon-patient'
+}
+
 async function fhirGet(path, params, scopeOverride, userIdOverride) {
   if (!BASE_URL) throw new Error('HPI env missing: HPI_BASE_URL')
   const token = await getBearer(scopeOverride)
@@ -275,10 +295,14 @@ export default async function handler(req, res) {
       }
     }
 
+    // Every admin HPI action derives an end-user id from the authenticated
+    // provider (Noel Babu 2026-09-03 — Security 3 traceability).
+    const adminUserId = hpiUserIdForProvider(auth.provider)
+
     if (action === 'get_practitioner') {
       const cpn = String(req.query.cpn || '').trim()
       if (!cpn) return res.status(400).json({ error: 'cpn required' })
-      const r = await fhirGet(`Practitioner/${encodeURIComponent(cpn)}`)
+      const r = await fhirGet(`Practitioner/${encodeURIComponent(cpn)}`, null, undefined, adminUserId)
       await auditHpi(auth, req, 'get_practitioner', 'Practitioner', cpn, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })
@@ -289,7 +313,7 @@ export default async function handler(req, res) {
       const family = String(req.query.family || '').trim()
       const given  = String(req.query.given  || '').trim()
       if (!family && !given) return res.status(400).json({ error: 'family or given required' })
-      const r = await fhirGet('Practitioner', { family, given, _count: 20 })
+      const r = await fhirGet('Practitioner', { family, given, _count: 20 }, undefined, adminUserId)
       await auditHpi(auth, req, 'search_practitioner', 'Practitioner', `family=${family}|given=${given}`, r)
       if (!r.ok) return res.status(r.status).json({ error: 'HPI error', body: r.body })
       const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
@@ -325,7 +349,10 @@ export default async function handler(req, res) {
       // server-side, so passing no scope Just Works).
       const rawScope      = req.query.scope
       const scopeOverride = rawScope === 'none' ? '' : (rawScope != null ? String(rawScope) : undefined)
-      const userId        = String(req.query.userid || auth.provider?.id || 'tere-service')
+      // Per-user traceability: prefer CPN → hpi_number → provider UUID
+      // over the historical 'tere-service' shared account (Noel IN-3502
+      // Security 3). Query override still honoured for scripted reruns.
+      const userId = String(req.query.userid || adminUserId)
 
       const scenarios = []
       const run = async (name, purpose, expected, fn) => {
@@ -415,7 +442,7 @@ export default async function handler(req, res) {
       if (!name) return res.status(400).json({ error: 'name required' })
       const rawS = req.query.scope
       const scopeOverride = rawS === 'none' ? '' : (rawS != null ? String(rawS) : undefined)
-      const userId = String(req.query.userid || auth.provider?.id || 'tere-service')
+      const userId = String(req.query.userid || adminUserId)
       const r = await fhirGet('Location', { name }, scopeOverride, userId)
       return res.status(r.ok ? 200 : r.status).json({ status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 3000) })
     }
@@ -423,7 +450,7 @@ export default async function handler(req, res) {
     if (action === 'get_facility') {
       const hpi = String(req.query.hpi || '').trim()
       if (!hpi) return res.status(400).json({ error: 'hpi required' })
-      const r = await fhirGet(`Location/${encodeURIComponent(hpi)}`)
+      const r = await fhirGet(`Location/${encodeURIComponent(hpi)}`, null, undefined, adminUserId)
       await auditHpi(auth, req, 'get_facility', 'Location', hpi, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })

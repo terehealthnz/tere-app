@@ -810,7 +810,13 @@ export default function AITriage() {
         const res = await apiFetch('/api/hpi-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: processed, type: 'gp' }),
+          body: JSON.stringify({
+            query: processed, type: 'gp',
+            // Per-user HPI traceability (task #440, IN-3502)
+            patientNhi:     data?.patient_nhi || newData?.patient_nhi || null,
+            patientId:      data?.patient_id  || newData?.patient_id  || null,
+            consultationId: data?.consultation_id || newData?.consultation_id || null,
+          }),
         })
         const { results } = await res.json()
         if (results?.length > 0) {
@@ -1267,7 +1273,11 @@ export default function AITriage() {
         const res = await apiFetch('/api/hpi-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q, type: 'gp' }),
+          body: JSON.stringify({
+            query: q, type: 'gp',
+            patientNhi: data?.patient_nhi || null,
+            consultationId: data?.consultation_id || null,
+          }),
         })
         const { results } = await res.json()
         if (!cancelled) setGpResults(Array.isArray(results) ? results.slice(0, 6) : [])
@@ -1305,7 +1315,11 @@ export default function AITriage() {
         const res = await apiFetch('/api/hpi-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: q, type: 'gp_clinic' }),
+          body: JSON.stringify({
+            query: q, type: 'gp_clinic',
+            patientNhi: data?.patient_nhi || null,
+            consultationId: data?.consultation_id || null,
+          }),
         })
         const { results } = await res.json()
         if (!cancelled) setGpClinicResults(Array.isArray(results) ? results.slice(0, 6) : [])

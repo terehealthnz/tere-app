@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { apiFetch } from '../lib/api'
 
-export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, value }) {
+export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, value, patientNhi, patientId, consultationId }) {
   const [query, setQuery] = useState(value || '')
   const [results, setResults] = useState([])
   const [open, setOpen] = useState(false)
@@ -33,10 +33,24 @@ export default function HpiSearch({ type = 'pharmacy', onSelect, placeholder, va
   async function search(q) {
     setLoading(true)
     try {
+      // HNZ traceability (task #440, IN-3502 Security 3): send caller-specific
+      // userid so the HPI audit log attributes the request to the individual
+      // patient (via NHI) or the individual provider (via CPN / provider id)
+      // rather than our shared service account.
+      const providerCpn = typeof window !== 'undefined' ? sessionStorage.getItem('providerCpn') : null
+      const providerHpi = typeof window !== 'undefined' ? sessionStorage.getItem('providerHpiNumber') : null
+      const providerId  = typeof window !== 'undefined' ? sessionStorage.getItem('providerId') : null
       const res = await apiFetch('/api/hpi-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: q, type }),
+        body: JSON.stringify({
+          query: q,
+          type,
+          // Patient-flow identifiers (props) preferred; provider identifiers
+          // (sessionStorage) used when no patient context is passed.
+          patientNhi, patientId, consultationId,
+          providerCpn, providerHpi, providerId,
+        }),
       })
       const data = await res.json()
       setResults(data.results || [])

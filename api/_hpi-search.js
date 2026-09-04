@@ -110,9 +110,24 @@ const MOCK_RADIOLOGY = [
   { name: 'Nelson Hospital Radiology', hpiId: 'FAC0001004', address: 'Tipahi Street, Nelson 7010', phone: '03 546 1800', email: 'radiology@nmdhb.govt.nz', fax: '03 546 1801' },
 ]
 
+// Derive a caller-specific userid for HNZ traceability (task #440, IN-3502).
+// Patient-facing callers send { patientNhi } or { consultationId }; provider
+// callers send { providerCpn } or { providerId }. Historical hard-coded strings
+// ('tere-triage' etc.) are the fallback if the caller supplies nothing.
+function callerUserId(body) {
+  if (body?.providerCpn)     return `cpn:${String(body.providerCpn).trim().toUpperCase()}`
+  if (body?.providerHpi)     return `hpi:${String(body.providerHpi).trim().toUpperCase()}`
+  if (body?.providerId)      return `provider:${String(body.providerId).slice(0, 8)}`
+  if (body?.patientNhi)      return `nhi:${String(body.patientNhi).trim().toUpperCase()}`
+  if (body?.patientId)       return `patient:${String(body.patientId).slice(0, 8)}`
+  if (body?.consultationId)  return `consult:${String(body.consultationId).slice(0, 8)}`
+  return null  // → hpiHeaders will use its own historical fallback
+}
+
 export default async function handler(req, res) {
   const { query, type } = req.body || {}
   if (!query || query.length < 2) return res.json({ results: [] })
+  const callerId = callerUserId(req.body)
 
   // GP practitioner search — uses HPI sandbox Practitioner endpoint
   if (type === 'gp') {
@@ -129,7 +144,7 @@ export default async function handler(req, res) {
       if (!HPI_BASE_URL) return res.json({ results: mockResults, mock: true })
       const base = HPI_BASE_URL.replace(/\/+$/, '')
       const url = `${base}/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
-      const hpiRes = await globalThis.fetch(url, { headers: hpiHeaders(token, 'tere-triage') })
+      const hpiRes = await globalThis.fetch(url, { headers: hpiHeaders(token, callerId || 'tere-triage') })
       if (!hpiRes.ok) return res.json({ results: mockResults, mock: true })
 
       const bundle = await hpiRes.json()
@@ -176,10 +191,10 @@ export default async function handler(req, res) {
     const base = HPI_BASE_URL.replace(/\/+$/, '')
     const url = `${base}/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
     const hpiRes = await globalThis.fetch(url, {
-      headers: hpiHeaders(token,
-        type === 'radiology' ? 'tere-referral'
+      headers: hpiHeaders(token, callerId ||
+        (type === 'radiology' ? 'tere-referral'
         : type === 'gp_clinic' ? 'tere-triage'
-        : 'tere-prescribe'
+        : 'tere-prescribe')
       ),
     })
 
