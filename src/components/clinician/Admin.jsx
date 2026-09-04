@@ -466,6 +466,7 @@ function SignaturePad({ onSaved, disabled }) {
 function AdminHpiLookupPanel() {
   const [cpn, setCpn] = React.useState('')
   const [name, setName] = React.useState('')
+  const [dob, setDob] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState('')
   const [practitioner, setPractitioner] = React.useState(null)
@@ -492,7 +493,9 @@ function AdminHpiLookupPanel() {
     if (!name.trim()) return
     setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setSearchDiag(null); setRawJson(null)
     try {
-      const r = await apiFetch(`/api/hpi?action=search_practitioner&family=${encodeURIComponent(name.trim())}`)
+      const qs = new URLSearchParams({ action: 'search_practitioner', family: name.trim() })
+      if (dob.trim()) qs.set('birthdate', dob.trim())
+      const r = await apiFetch(`/api/hpi?${qs.toString()}`)
       const j = await r.json()
       if (!r.ok) {
         setError(j?.error || `HTTP ${r.status}`)
@@ -549,9 +552,10 @@ function AdminHpiLookupPanel() {
             </div>
           </div>
           <div>
-            <div style={label}>By surname (search)</div>
+            <div style={label}>By surname + date of birth <span style={{ fontWeight:400, textTransform:'none', color:'#9CA3AF' }}>(HPI requires both)</span></div>
             <div style={{ display:'flex', gap:8 }}>
-              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. O'Reilly" style={inputStyle} onKeyDown={e => e.key === 'Enter' && search()} />
+              <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. O'Reilly" style={{ ...inputStyle, flex:2 }} onKeyDown={e => e.key === 'Enter' && search()} />
+              <input value={dob} onChange={e => setDob(e.target.value)} placeholder="YYYY-MM-DD" style={{ ...inputStyle, flex:1.4 }} onKeyDown={e => e.key === 'Enter' && search()} type="text" />
               <button type="button" onClick={search} disabled={busy || !name.trim()} style={{ ...btnStyle, opacity: busy || !name.trim() ? .5 : 1 }}>Search</button>
             </div>
           </div>
