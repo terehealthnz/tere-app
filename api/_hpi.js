@@ -372,16 +372,19 @@ export default async function handler(req, res) {
       const given  = String(req.query.given  || '').trim()
       const nameQ  = String(req.query.name   || '').trim()
       if (!family && !given && !nameQ) return res.status(400).json({ error: 'name, family, or given required' })
-      // HNZ's HPI Practitioner search uses the compound `name` parameter
-      // (matches family + given). Compliance pack (Search-1/-4) confirmed this
-      // is the working shape. If caller supplied family+given separately, we
-      // still forward them — HPI ignores unknown params.
-      const combined = nameQ || [given, family].filter(Boolean).join(' ')
-      const params = { name: combined, _count: 20 }
-      if (family && !nameQ) params.family = family
-      if (given && !nameQ) params.given = given
+      // HNZ's HPI Practitioner search on UAT accepts the FHIR-standard
+      // `family` + `given` params (proved by O'Reilly / Hunnicutt personas
+      // on the HPI compliance test docs page). The compound `name` param
+      // is also honoured. Send whichever the caller supplied — do NOT
+      // combine into a synthetic `name` when only one field is given,
+      // as that causes 0 matches for bare surnames on UAT.
+      const params = { _count: 20 }
+      if (nameQ)  params.name   = nameQ
+      if (family) params.family = family
+      if (given)  params.given  = given
       const r = await fhirGet('Practitioner', params, undefined, adminUserId)
-      await auditHpi(auth, req, 'search_practitioner', 'Practitioner', `name=${combined}`, r)
+      await auditHpi(auth, req, 'search_practitioner', 'Practitioner',
+        `name=${nameQ}|family=${family}|given=${given}`, r)
       if (!r.ok) return res.status(r.status).json({ error: 'HPI error', body: r.body })
       const entries = Array.isArray(r.body?.entry) ? r.body.entry : []
       return res.status(200).json({
@@ -528,16 +531,16 @@ export default async function handler(req, res) {
         () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet12)}`, null, scopeOverride, userId),
       )
       await run(
-        `HPI-P-Search-1: Search Practitioner by name (${searchFamily1})`,
-        `Search /Practitioner?name=${searchFamily1}. HNZ-supplied test surname. Handles apostrophe URL-encoding + returns a Bundle. Evidence: admin UI screenshot listing matched entries.`,
+        `HPI-P-Search-1: Search Practitioner by family (${searchFamily1})`,
+        `Search /Practitioner?family=${searchFamily1}. HNZ-supplied test surname (Walter O'Reilly persona, per hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html). Uses FHIR family param for a bare-surname search. Evidence: admin UI screenshot listing matched entries.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { name: searchFamily1 }, scopeOverride, userId),
+        () => fhirGet('Practitioner', { family: searchFamily1 }, scopeOverride, userId),
       )
       await run(
-        `HPI-P-Search-4: Search Practitioner by name (${searchFamily4})`,
-        `Search /Practitioner?name=${searchFamily4}. HNZ-supplied test surname covering case + partial match. Evidence: admin UI screenshot listing matched entries.`,
+        `HPI-P-Search-4: Search Practitioner by family (${searchFamily4})`,
+        `Search /Practitioner?family=${searchFamily4}. HNZ-supplied test surname (Brian Hunnicutt persona). Same code path as HPI-P-Search-1, different family. Evidence: admin UI screenshot listing matched entries.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { name: searchFamily4 }, scopeOverride, userId),
+        () => fhirGet('Practitioner', { family: searchFamily4 }, scopeOverride, userId),
       )
       // Scenario Location 5 accepts either 200 (positive lookup with a known
       // UAT facility id) OR a well-formed 404 OperationOutcome (proves the

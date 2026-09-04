@@ -491,7 +491,7 @@ function AdminHpiLookupPanel() {
     if (!name.trim()) return
     setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
     try {
-      const r = await apiFetch(`/api/hpi?action=search_practitioner&name=${encodeURIComponent(name.trim())}`)
+      const r = await apiFetch(`/api/hpi?action=search_practitioner&family=${encodeURIComponent(name.trim())}`)
       const j = await r.json()
       if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
       setSearchResults(j.results || [])
