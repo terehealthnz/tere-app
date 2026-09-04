@@ -368,23 +368,29 @@ export default async function handler(req, res) {
     }
 
     if (action === 'search_practitioner') {
-      const family = String(req.query.family || '').trim()
-      const given  = String(req.query.given  || '').trim()
-      const nameQ  = String(req.query.name   || '').trim()
+      const family    = String(req.query.family    || '').trim()
+      const given     = String(req.query.given     || '').trim()
+      const nameQ     = String(req.query.name      || '').trim()
+      const birthdate = String(req.query.birthdate || '').trim()  // YYYY-MM-DD; required by HNZ per compliance docs
       if (!family && !given && !nameQ) return res.status(400).json({ error: 'name, family, or given required' })
 
-      // HPI UAT's Practitioner search is picky about which FHIR name param
-      // matches. Some personas (Walter O'Reilly, Brian Hunnicutt) do not
-      // return on bare `family=` or bare `name=<surname>` — the working
-      // shape depends on the persona. Try the standard shapes in order and
-      // return the first that produces >=1 result. Every attempt is
-      // audit-logged for traceability.
+      // HPI UAT's Practitioner search per HNZ compliance docs is restricted
+      // to "name AND date of birth" — bare name searches return 400. When a
+      // birthdate is supplied, we prefer combined shapes; otherwise we fall
+      // back to bare-name shapes (which will likely 400, but the diagnostic
+      // shows the reviewer exactly what HPI rejected).
       const attempts = []
-      if (nameQ)          attempts.push({ label: `name=${nameQ}`,             params: { name: nameQ } })
+      if (birthdate) {
+        if (nameQ)           attempts.push({ label: `name=${nameQ}&birthdate=${birthdate}`,   params: { name: nameQ,           birthdate } })
+        if (family && given) attempts.push({ label: `given=${given}&family=${family}&birthdate=${birthdate}`, params: { given, family, birthdate } })
+        if (family)          attempts.push({ label: `family=${family}&birthdate=${birthdate}`, params: { family, birthdate } })
+        if (family)          attempts.push({ label: `name=${family}&birthdate=${birthdate}`,   params: { name: family, birthdate } })
+      }
+      if (nameQ)           attempts.push({ label: `name=${nameQ}`,             params: { name: nameQ } })
       if (family && given) attempts.push({ label: `given=${given}&family=${family}`, params: { given, family } })
-      if (family)         attempts.push({ label: `family=${family}`,           params: { family } })
-      if (family)         attempts.push({ label: `name=${family}`,             params: { name: family } })
-      if (given)          attempts.push({ label: `given=${given}`,             params: { given } })
+      if (family)          attempts.push({ label: `family=${family}`,           params: { family } })
+      if (family)          attempts.push({ label: `name=${family}`,             params: { name: family } })
+      if (given)           attempts.push({ label: `given=${given}`,             params: { given } })
       // De-dupe (a nameQ that equals family would otherwise repeat)
       const seen = new Set()
       const uniq = attempts.filter(a => { if (seen.has(a.label)) return false; seen.add(a.label); return true })
@@ -563,16 +569,16 @@ export default async function handler(req, res) {
         () => fhirGet(`Practitioner/${encodeURIComponent(cpnGet12)}`, null, scopeOverride, userId),
       )
       await run(
-        `HPI-P-Search-1: Search Practitioner by family (${searchFamily1})`,
-        `Search /Practitioner?family=${searchFamily1}. HNZ-supplied test surname (Walter O'Reilly persona, per hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html). Uses FHIR family param for a bare-surname search. Evidence: admin UI screenshot listing matched entries.`,
+        `HPI-P-Search-1: Search Practitioner by name + DOB (Walter O'Reilly)`,
+        `Search /Practitioner?given=Walter&family=O'Reilly&birthdate=1943-05-24. HNZ compliance docs restrict Practitioner search to name+DOB (hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html). Evidence: admin UI screenshot showing matched Bundle.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { family: searchFamily1 }, scopeOverride, userId),
+        () => fhirGet('Practitioner', { given: 'Walter', family: "O'Reilly", birthdate: '1943-05-24' }, scopeOverride, userId),
       )
       await run(
-        `HPI-P-Search-4: Search Practitioner by family (${searchFamily4})`,
-        `Search /Practitioner?family=${searchFamily4}. HNZ-supplied test surname (Brian Hunnicutt persona). Same code path as HPI-P-Search-1, different family. Evidence: admin UI screenshot listing matched entries.`,
+        `HPI-P-Search-4: Search Practitioner by name + DOB (Brian Hunnicutt)`,
+        `Search /Practitioner?given=Brian&family=Hunnicutt&birthdate=1939-02-06. Same code path as Search-1; second HNZ-documented persona.`,
         { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirGet('Practitioner', { family: searchFamily4 }, scopeOverride, userId),
+        () => fhirGet('Practitioner', { given: 'Brian', family: 'Hunnicutt', birthdate: '1939-02-06' }, scopeOverride, userId),
       )
       // Scenario Location 5 accepts either 200 (positive lookup with a known
       // UAT facility id) OR a well-formed 404 OperationOutcome (proves the

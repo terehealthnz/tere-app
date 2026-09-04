@@ -505,6 +505,27 @@ function AdminHpiLookupPanel() {
     finally { setBusy(false) }
   }
 
+  // One-click HPI-P-Search-1/-4 scenario runners. HNZ compliance docs
+  // (hpi-ig.hip-uat.digital.health.nz/PractitionerComplianceTesting.html)
+  // restrict Practitioner search to name + date-of-birth. These two personas
+  // + DOBs are the exact test data HNZ specifies.
+  async function runSearchScenario(family, given, birthdate) {
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setSearchDiag(null); setRawJson(null); setName(family)
+    try {
+      const qs = new URLSearchParams({ action: 'search_practitioner', family, given, birthdate }).toString()
+      const r = await apiFetch(`/api/hpi?${qs}`)
+      const j = await r.json()
+      if (!r.ok) {
+        setError(j?.error || `HTTP ${r.status}`)
+        setSearchDiag({ tried: j?.tried || [], matched_via: null, last_error_body: j?.last_error_body })
+        return
+      }
+      setSearchResults(j.results || [])
+      setSearchDiag({ tried: j.tried, matched_via: j.matched_via })
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
   const panelStyle = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
   const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
   const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
@@ -533,6 +554,22 @@ function AdminHpiLookupPanel() {
               <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. O'Reilly" style={inputStyle} onKeyDown={e => e.key === 'Enter' && search()} />
               <button type="button" onClick={search} disabled={busy || !name.trim()} style={{ ...btnStyle, opacity: busy || !name.trim() ? .5 : 1 }}>Search</button>
             </div>
+          </div>
+        </div>
+
+        <div style={{ marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #F3F4F6' }}>
+          <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+            HNZ-documented search scenarios (name + DOB)
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button type="button" onClick={() => runSearchScenario("O'Reilly", 'Walter', '1943-05-24')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-P-Search-1 — Walter O'Reilly (1943-05-24)
+            </button>
+            <button type="button" onClick={() => runSearchScenario('Hunnicutt', 'Brian', '1939-02-06')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-P-Search-4 — Brian Hunnicutt (1939-02-06)
+            </button>
           </div>
         </div>
 
