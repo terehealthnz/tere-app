@@ -51,7 +51,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.24.0",
-    "resend": "^6.12.3",
+    "resend": "^6.22.1",
     "stripe": "^22.1.1",
     "web-push": "^3.6.7"
   },
