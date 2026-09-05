@@ -166,7 +166,7 @@ SCENARIO_RESULTS = {
     'HPI-L-Search-3-address': 'Not implemented — Tere UI accepts name-only for facility search. Address is displayed on results but not accepted as a search parameter.',
     'HPI-L-Search-4-name and address': 'Not implemented — see HPI-L-Search-3-address.',
     'HPI-L-Search-5-organisation': 'Not implemented — Tere UI does not search facilities by managing organisation.',
-    'HPI-L-Search-6-type': 'PASS — the search query always includes a type filter appropriate to the caller: type=gp (patient GP lookup), type=PHARM (pharmacy), type=RADDX (radiology). See api/_hpi-search.js:139 for the URL template.',
+    'HPI-L-Search-6-type': 'PASS — the search query always includes a type filter appropriate to the caller: type=gp (patient GP lookup), type=PHARM (pharmacy), type=RADDX (radiology). See api/_hpi-search.js:139 for the URL template. Note re Noel Babu 2026-09-03 radiology screenshot: the fallback demo-data banner (shown when the HPI proxy cannot reach UAT) has been rewritten as an unmistakable red bar reading "⚠ DEMO DATA — NOT FROM HPI" (white text, uppercase, red background, warning icon). This prevents any future screenshot from being visually confused with a live HPI response. Live radiology location searches render only real HPI Location resource fields.',
     'HPI-L-Search-7-dhb': 'Not implemented — Tere UI does not filter facility search by DHB.',
     'HPI-L-Search-8-name and dhb': 'Not implemented — see HPI-L-Search-7-dhb.',
     # Practitioner GET — the primary use case
@@ -291,7 +291,9 @@ def write_answer_to_cell(cell, answer_text, screenshots=None):
                 continue
             p_img = cell.add_paragraph()
             r_img = p_img.add_run()
-            r_img.add_picture(str(img_path), width=Inches(5.5))
+            # Cell widths in HNZ's template vary (narrowest scenario cells
+            # are ~3.5" wide). 3.3" fits every cell without overflow.
+            r_img.add_picture(str(img_path), width=Inches(3.3))
             p_cap = cell.add_paragraph()
             r_cap = p_cap.add_run(f'Fig: {caption}')
             r_cap.italic = True

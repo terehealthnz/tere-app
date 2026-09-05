@@ -47,5 +47,46 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Tere Health uses your camera for video consultations with your clinician and, when a clinician asks, to measure your heart rate, oxygen saturation, and respiratory rate from your face.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Tere Health uses your microphone for video consultations with your clinician.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Tere Health lets you attach photos of a rash, wound, or documents your clinician needs for your consultation.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Tere Health can save your prescription or referral PDF to your Photos so you can show it at the pharmacy or specialist.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Tere Health uses your location to find the nearest pharmacy for your prescription and, in an emergency, to include your location if you dial 111.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Tere Health uses Face ID so you can sign back into your account quickly and securely without re-typing your password.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Tere Health does not track you across other apps or websites.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>voip</string>
+		<string>remote-notification</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>co.nz.terehealth.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>terehealth</string>
+			</array>
+		</dict>
+	</array>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>terehealth.co.nz</string>
+		<string>www.terehealth.co.nz</string>
+	</array>
 </dict>
 </plist>

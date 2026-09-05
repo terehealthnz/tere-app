@@ -127,6 +127,7 @@ const Watch               = lazy(() => import('./pages/Watch'))
 const Waitlist            = lazy(() => import('./pages/Waitlist'))
 import BetaBanner from './components/BetaBanner'
 import SessionIdleGuard from './components/clinician/SessionIdleGuard'
+import NativeShell from './lib/NativeShell'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
@@ -216,6 +217,7 @@ function WaitlistRouter() {
 export default function App() {
   return (
     <ChunkErrorBoundary>
+    <NativeShell />
     <BetaBanner />
     <SessionIdleGuard />
     <Suspense fallback={<Spinner />}>

@@ -12,9 +12,9 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:hardening": "playwright test tests/e2e/hardening-guard.spec.ts --project=chromium",
-    "app:sync":     "npm run build && npx cap sync",
-    "app:ios":      "npm run build && npx cap sync ios && npx cap open ios",
-    "app:android":  "npm run build && npx cap sync android && npx cap open android"
+    "app:sync": "npm run build && npx cap sync",
+    "app:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "app:android": "npm run build && npx cap sync android && npx cap open android"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.24.0",
@@ -56,6 +56,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@playwright/test": "^1.60.0",
     "@resvg/resvg-js": "^2.6.2",
     "@vitejs/plugin-react": "^4.3.0",
