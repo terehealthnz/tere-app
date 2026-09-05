@@ -53,6 +53,46 @@ function complaintOverlap(a, b) {
   return n / Math.min(a.size, b.size)
 }
 
+// Signal classifier — separates real clinical safety events from noise so
+// the digest surfaces the 1-in-12 real finding at the top and buries the
+// test/QA/no-complaint chatter at the bottom.
+//
+// A finding is "noise" when any of:
+//   - triage never captured a chief complaint (patient bailed at consent)
+//   - flagged from a test / smoke / QA trigger (matched_flags contains
+//     test_smoke*, smoke_test*, *_post_deploy, ai_divert_kw_post_deploy)
+//   - anonymous & no named patient tied to the event (usually a synthetic
+//     probe from monitoring)
+const NOISE_FLAG_PATTERNS = [
+  /^test_/i, /_test$/i, /^smoke_/i, /_smoke$/i,
+  /_post_deploy$/i, /^ai_divert_kw_post_deploy$/i,
+  /^synthetic/i, /_probe$/i,
+]
+function isTestFlag(flag) {
+  const s = String(flag || '')
+  return NOISE_FLAG_PATTERNS.some(rx => rx.test(s))
+}
+function hasRealComplaint(text) {
+  const t = String(text || '').toLowerCase().trim()
+  if (!t) return false
+  if (t === 'pending' || t.startsWith('pending —') || t.startsWith('pending -')) return false
+  if (/^triage not started$/i.test(t)) return false
+  return t.length >= 3
+}
+function classifyRepresentation(r) {
+  // Real signal needs: both consults have a chief complaint the AI could read
+  const both = hasRealComplaint(r.first_complaint) && hasRealComplaint(r.second_complaint)
+  if (!both) return 'noise:no-complaint'
+  if (!r.patient_name && !r.patient_key) return 'noise:anonymous'
+  return 'signal'
+}
+function classifyAbandonment(a) {
+  const flags = Array.isArray(a.matched_flags) ? a.matched_flags : []
+  if (flags.length && flags.every(isTestFlag)) return 'noise:test'
+  if (!a.patient_name && !a.patient_nhi) return 'noise:anonymous'
+  return 'signal'
+}
+
 export default async function handler(req, res) {
   const { verifyCronSecret } = await import('./_cron-auth.js')
   if (!verifyCronSecret(req)) return res.status(404).json({ error: 'Not found' })
@@ -156,10 +196,25 @@ export default async function handler(req, res) {
     }
   }
 
-  const total = findings.represent_72h.length + findings.deteriorated_after_close.length + findings.red_flag_abandonment.length
+  // Auto-classify — every finding gets a signal/noise label. Signals go
+  // to the top with recommended actions; noise gets a single-line summary
+  // at the bottom so we still know it fired but don't clutter the read.
+  const signalRepresent   = findings.represent_72h.filter(r => classifyRepresentation(r) === 'signal')
+  const noiseRepresent    = findings.represent_72h.filter(r => classifyRepresentation(r) !== 'signal')
+  const signalAbandon     = findings.red_flag_abandonment.filter(a => classifyAbandonment(a) === 'signal')
+  const noiseAbandon      = findings.red_flag_abandonment.filter(a => classifyAbandonment(a) !== 'signal')
+  // Deterioration is always signal — it needs a real completed consult + a real escalation, hard to fake
+  const signalDeteriorate = findings.deteriorated_after_close
+
+  const totalRaw    = findings.represent_72h.length + findings.deteriorated_after_close.length + findings.red_flag_abandonment.length
+  const totalSignal = signalRepresent.length + signalDeteriorate.length + signalAbandon.length
+  const totalNoise  = totalRaw - totalSignal
   const force = req.query?.force === '1'
-  if (!total && !force) {
-    return res.status(200).json({ ok: true, message: 'Clinical anomalies — clean' })
+
+  // Send only when we have REAL signals, or a manual force. Pure-noise
+  // nights stay silent (no email at all).
+  if (!totalSignal && !force) {
+    return res.status(200).json({ ok: true, message: 'Clinical anomalies — clean (no signals; noise filtered)', filtered_noise: totalNoise })
   }
 
   const lines = [
@@ -167,36 +222,56 @@ export default async function handler(req, res) {
     `${nzDateTime(now.toISOString())} NZT`,
     `Lookback: ${LOOKBACK_DAYS} days`,
     '',
+    totalSignal
+      ? `⚠️  ${totalSignal} real signal(s) worth reviewing (see below). ${totalNoise} noise event(s) filtered out.`
+      : `No real signals detected — ${totalNoise} noise event(s) suppressed (see summary at bottom).`,
+    '',
   ]
   const section = (title, items, formatter) => {
     if (!items.length) return
     lines.push(title); items.forEach(i => lines.push('  • ' + formatter(i))); lines.push('')
   }
 
-  section(`🔁 Re-presentation within ${REPRESENT_WINDOW_H}h (same/similar complaint):`,
-    findings.represent_72h,
-    r => `${r.patient_name || r.patient_key} — "${r.first_complaint}" ${nzDateTime(r.first_at)} → "${r.second_complaint}" ${r.gap_hours}h later (overlap ${r.overlap})`)
+  if (totalSignal > 0) {
+    lines.push('=== REAL SIGNALS — please review today ===')
+    lines.push('')
 
-  section('🚨 Discharged then deteriorated (escalated within 7d of close):',
-    findings.deteriorated_after_close,
-    r => `${r.patient_name || r.patient_key} — closed ${nzDateTime(r.closed_at)}, then ${r.escalation_type} ${r.gap_hours}h later (${(r.matched || []).join(',')})`)
+    section(`🔁 Re-presentation within ${REPRESENT_WINDOW_H}h (same/similar complaint):`,
+      signalRepresent,
+      r => `${r.patient_name || r.patient_key} — "${r.first_complaint}" ${nzDateTime(r.first_at)} → "${r.second_complaint}" ${r.gap_hours}h later (overlap ${r.overlap})`)
 
-  section('👻 Red-flag/divert abandonment (no consult completion + no follow-up outcome):',
-    findings.red_flag_abandonment,
-    r => `${r.patient_name || r.patient_nhi || '(unknown)'} — ${r.escalation_type} at ${nzDateTime(r.escalated_at)} (${(r.matched_flags || []).join(',')}) · reason: ${r.reason}`)
+    section('🚨 Discharged then deteriorated (escalated within 7d of close):',
+      signalDeteriorate,
+      r => `${r.patient_name || r.patient_key} — closed ${nzDateTime(r.closed_at)}, then ${r.escalation_type} ${r.gap_hours}h later (${(r.matched || []).join(',')})`)
 
-  lines.push('Actions:')
-  lines.push('  • Re-presentation: peer-review the second consult against the first — was the diagnosis missed?')
-  lines.push('  • Deteriorated: peer-review + consider CGM incident report if severity threshold met.')
-  lines.push('  • Abandonment: contact patient TODAY, record outcome under Admin > Emergency Escalations.')
-  lines.push('')
-  lines.push('Tasks #422 + #425 — clinical anomaly detection (early warning for missed diagnosis + safety-eventful abandonment).')
+    section('👻 Red-flag/divert abandonment (no consult completion + no follow-up outcome):',
+      signalAbandon,
+      r => `${r.patient_name || r.patient_nhi || '(unknown)'} — ${r.escalation_type} at ${nzDateTime(r.escalated_at)} (${(r.matched_flags || []).join(',')}) · reason: ${r.reason}`)
+
+    lines.push('Actions:')
+    lines.push('  • Re-presentation: peer-review the second consult against the first — was the diagnosis missed?')
+    lines.push('  • Deteriorated: peer-review + consider CGM incident report if severity threshold met.')
+    lines.push('  • Abandonment: contact patient TODAY, record outcome under Admin > Emergency Escalations.')
+    lines.push('')
+  }
+
+  if (totalNoise > 0) {
+    lines.push('=== Filtered noise (no action needed — logged for audit) ===')
+    lines.push(`  • ${noiseRepresent.length} re-presentation(s) where triage never captured a chief complaint`)
+    lines.push(`  • ${noiseAbandon.filter(a => classifyAbandonment(a) === 'noise:test').length} escalation(s) triggered by test / smoke / post-deploy tags`)
+    lines.push(`  • ${noiseAbandon.filter(a => classifyAbandonment(a) === 'noise:anonymous').length} anonymous escalation(s) with no linked patient`)
+    lines.push('')
+  }
+
+  lines.push('Tasks #422 + #425 + #449 — clinical anomaly detection with automatic signal/noise classification.')
 
   try {
     await sendEmail({
       from:    'Tere Clinical Safety <hello@terehealth.co.nz>',
       to:      ADMIN_EMAIL,
-      subject: `Clinical anomalies — ${total} pattern(s) worth reviewing`,
+      subject: totalSignal
+        ? `⚠️ Clinical anomalies — ${totalSignal} real signal${totalSignal === 1 ? '' : 's'} to review`
+        : `Clinical anomalies — ${totalNoise} noise event${totalNoise === 1 ? '' : 's'} filtered (no action)`,
       text:    lines.join('\n'),
     })
   } catch (e) { console.error('[cron-clinical-anomalies] email failed:', e.message) }
@@ -204,9 +279,11 @@ export default async function handler(req, res) {
   return res.status(200).json({
     ok: true,
     counts: {
-      represent_72h:            findings.represent_72h.length,
-      deteriorated_after_close: findings.deteriorated_after_close.length,
-      red_flag_abandonment:     findings.red_flag_abandonment.length,
+      signals: totalSignal,
+      noise:   totalNoise,
+      represent_72h:            { total: findings.represent_72h.length, signal: signalRepresent.length },
+      deteriorated_after_close: { total: findings.deteriorated_after_close.length, signal: signalDeteriorate.length },
+      red_flag_abandonment:     { total: findings.red_flag_abandonment.length, signal: signalAbandon.length },
     },
   })
 }
