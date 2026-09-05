@@ -17,7 +17,7 @@
     "app:android": "npm run build && npx cap sync android && npx cap open android"
   },
   "dependencies": {
-    "@anthropic-ai/bedrock-sdk": "^0.24.0",
+    "@anthropic-ai/bedrock-sdk": "^0.33.3",
     "@aws-sdk/client-sesv2": "^3.1117.0",
     "@aws-sdk/client-sns": "^3.1090.0",
     "@capacitor/android": "^8.5.1",
