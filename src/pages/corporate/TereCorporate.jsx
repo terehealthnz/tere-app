@@ -456,6 +456,105 @@ export default function TereCorporate() {
         </div>
       </div>
 
+      {/* REGULATORY ALIGNMENT — quiet proof for compliance-mature buyers.
+          Only things actually true today. NZePS / NHI / MWS deliberately
+          omitted (still pending HNZ approvals) to avoid overclaim. Full
+          per-regulator matrix lives in a gated dossier requested below. */}
+      <div style={{ background: CREAM, borderTop: '1px solid rgba(13,43,69,.06)', borderBottom: '1px solid rgba(13,43,69,.06)' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '4rem 1.5rem' }}>
+          <SectionEyebrow>Regulatory & standards alignment</SectionEyebrow>
+          <SectionHeading>Built to the standards NZ health integrators actually check.</SectionHeading>
+          <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2rem', maxWidth: 620, lineHeight: 1.6 }}>
+            Below is the shortlist. A full compliance dossier — policies, evidence pack, audit-log samples, PIA — is available under NDA.
+          </p>
+
+          <div className="corp-regs" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+            {[
+              {
+                title: 'Clinical safety',
+                items: [
+                  'HDC Code of Rights',
+                  'NEAC 2019 (ethics)',
+                  'HDEC-informed',
+                  'HQSC SAE reporting',
+                  'MCNZ supervised scope',
+                  'Coroners Act s.15 SOP',
+                ],
+              },
+              {
+                title: 'Data & privacy',
+                items: [
+                  'Privacy Act 2020',
+                  'HISO 10029 conformance',
+                  'IPP12 offshore notice',
+                  'HIPAA + BAA (AWS Sydney)',
+                  'Bedrock, SES, SNS — all BAA',
+                  'Breach runbook',
+                ],
+              },
+              {
+                title: 'Interoperability',
+                items: [
+                  'HPI FHIR (UAT)',
+                  'HL7 v2 receive (Medical Objects)',
+                  'Section 22F Bundle export',
+                  'GP handover letter',
+                  'MOH new-service notification',
+                  'WAND-registered rPPG',
+                ],
+              },
+              {
+                title: 'Operations & billing',
+                items: [
+                  'ACC integrated (46 / RTW / WC)',
+                  'Medsafe CD register',
+                  'Vendor SLA metrics',
+                  'Records retention (HIPC r.9)',
+                  'Conflict of interest register',
+                  'Quarterly access review',
+                ],
+              },
+            ].map(({ title, items }) => (
+              <div key={title} style={{
+                background: 'white', border: '1px solid rgba(13,43,69,.08)', borderRadius: 14,
+                padding: '1.25rem 1.35rem',
+              }}>
+                <div style={{
+                  fontSize: '.7rem', fontWeight: 700, letterSpacing: '.12em',
+                  textTransform: 'uppercase', color: TEAL, marginBottom: '.8rem',
+                }}>{title}</div>
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: '.55rem' }}>
+                  {items.map(item => (
+                    <li key={item} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: '.82rem', color: NAVY, lineHeight: 1.4 }}>
+                      <span style={{ marginTop: 3, flexShrink: 0 }}><Icon path={I.check} size={12} color={TEAL} /></span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between',
+            padding: '1.25rem 1.5rem', background: 'white',
+            border: '1px solid rgba(13,43,69,.08)', borderRadius: 14,
+          }}>
+            <div style={{ color: NAVY, fontSize: '.9rem', fontWeight: 600, lineHeight: 1.4, maxWidth: 640 }}>
+              Full compliance dossier — policies, PIA, audit-log samples, per-standard evidence pack — available under NDA.
+            </div>
+            <a href="mailto:terehealthnz@gmail.com?subject=Compliance%20dossier%20request%20%E2%80%94%20Tere%20Health&body=Please%20send%20me%20the%20Tere%20Health%20compliance%20dossier%20(under%20NDA).%0A%0AOrganisation%3A%0AName%3A%0ARole%3A%0ARelationship%20to%20Tere%20(prospective%20partner%20%2F%20clinical%20lead%20%2F%20other)%3A%0A" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 10,
+              background: NAVY, color: 'white', textDecoration: 'none',
+              padding: '12px 22px', borderRadius: 10, fontWeight: 700, fontSize: '.9rem',
+              flexShrink: 0,
+            }}>
+              Request compliance dossier <Icon path={I.arrow} size={14} />
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* CONTACT — full-bleed navy */}
       <div style={{ background: NAVY, color: 'white', padding: '4.5rem 0' }}>
         <div className="corp-contact" style={{ maxWidth: 1180, margin: '0 auto', padding: '0 1.5rem', display: 'grid', gridTemplateColumns: 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '2.5rem', alignItems: 'center' }}>
