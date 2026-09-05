@@ -72,5 +72,26 @@ export async function apiFetch(path, options = {}) {
   }
 
   const res = await fetch(path, { ...options, headers })
+
+  // MFA-mandatory: if the server rejects with MFA_REQUIRED, the caller is
+  // an authenticated provider who hasn't enrolled TOTP yet. Punt the whole
+  // window to the enrollment page — no dashboard access until enrolled.
+  // Exception: we're already on the enrollment page (avoid redirect loop)
+  // or hitting the enrollment endpoint itself.
+  if (res.status === 403 && typeof window !== 'undefined') {
+    const alreadyOnMfaPage = window.location.pathname === '/clinician/mfa-required'
+    const isMfaEndpoint    = /\/api\/provider-mfa\b/.test(String(path))
+    if (!alreadyOnMfaPage && !isMfaEndpoint) {
+      // Clone the response before reading body so callers can still consume it
+      try {
+        const clone = res.clone()
+        const body = await clone.json()
+        if (body?.error === 'MFA_REQUIRED') {
+          window.location.href = '/clinician/mfa-required'
+        }
+      } catch { /* not a JSON body, or already consumed — safe to ignore */ }
+    }
+  }
+
   return res
 }

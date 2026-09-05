@@ -64,9 +64,19 @@ export default function ClinicianLogin() {
     if (d?.providerDisplayName) setSavedDevice(d)
   }, [])
 
-  function loginWithDevice() {
+  async function loginWithDevice() {
     restoreDevice(savedDevice)
     localStorage.setItem('tere_portal', savedDevice?.providerIsAdmin === 'true' ? 'admin' : 'provider')
+    // Even for remembered devices, if the provider hasn't enrolled MFA we
+    // punt them to the hard-block enrollment page. Fresh check on every
+    // login — a saved-device flag might be stale (admin re-enabled after
+    // an incident, etc.).
+    try {
+      const r = await apiFetch(`/api/providers?id=${encodeURIComponent(savedDevice?.providerId)}&columns=id,mfa_enabled`)
+      const j = await r.json()
+      if (!j?.provider?.mfa_enabled) { navigate('/clinician/mfa-required'); return }
+      sessionStorage.setItem('providerMfaEnabled', 'true')
+    } catch { /* fall through to dashboard; server will 403 with MFA_REQUIRED */ }
     const params = new URLSearchParams(location.search)
     navigate(safeRedirect(params.get('redirect')) || defaultDest(savedDevice?.providerIsAdmin === 'true'))
   }
@@ -138,8 +148,15 @@ export default function ClinicianLogin() {
       if (p.supervisor_id) sessionStorage.setItem('providerSupervisorId', p.supervisor_id)
 
       localStorage.setItem('tere_portal', p.is_admin ? 'admin' : 'provider')
+      // MFA is mandatory on every provider account (task #448). If the caller
+      // hasn't enrolled yet, punt them to the hard-block enrollment page
+      // before any dashboard. Server-side guardProvider ALSO rejects PHI
+      // endpoints for un-enrolled providers, so this is belt-and-braces.
+      sessionStorage.setItem('providerMfaEnabled', String(p.mfa_enabled === true))
       if (p.must_change_password) {
         navigate('/clinician/change-password')
+      } else if (!p.mfa_enabled) {
+        navigate('/clinician/mfa-required')
       } else {
         // Offer to save device if not already saved for this provider
         const existing = getSaved()

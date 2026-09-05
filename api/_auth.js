@@ -52,7 +52,7 @@ export async function requireProvider(req) {
     const email = userRes.user.email.toLowerCase()
     const { data: provider, error: pErr } = await supabase
       .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
+      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, mfa_enabled')
       .ilike('email', email)
       .maybeSingle()
     if (pErr) { console.error('[auth] provider lookup (jwt) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
@@ -66,7 +66,7 @@ export async function requireProvider(req) {
   if (providerId) {
     const { data: provider, error: pErr } = await supabase
       .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from')
+      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, mfa_enabled')
       .eq('id', String(providerId))
       .maybeSingle()
     if (pErr) { console.error('[auth] provider lookup (session) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }

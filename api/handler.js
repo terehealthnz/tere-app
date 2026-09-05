@@ -446,6 +446,19 @@ export default async function handler(req, res) {
     const auth = await guardProvider(req, res)
     if (!auth) return
     req.auth = auth
+
+    // MFA is mandatory for every authenticated provider. Any PHI-touching
+    // endpoint rejects the request if the caller has not enrolled TOTP MFA
+    // yet, EXCEPT for the enrollment endpoint itself (chicken-and-egg) and
+    // audit-write (so the client can still log the redirect event).
+    // Client sees { error:'MFA_REQUIRED' } and routes to /clinician/mfa-required.
+    const MFA_EXEMPT_ROUTES = new Set(['provider-mfa', 'audit-write', 'audit', 'flags'])
+    if (!MFA_EXEMPT_ROUTES.has(route) && auth.provider?.mfa_enabled === false) {
+      return res.status(403).json({
+        error:  'MFA_REQUIRED',
+        detail: 'Two-factor authentication is required for provider accounts. Enroll at /clinician/mfa-required.',
+      })
+    }
   }
 
   // ── Rate limiting ───────────────────────────────────────────────────────────

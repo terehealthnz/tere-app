@@ -94,6 +94,7 @@ const Admin               = lazy(() => import('./components/clinician/Admin'))
 const AdminFlags          = lazy(() => import('./pages/clinician/AdminFlags'))
 const NotesCompletion     = lazy(() => import('./pages/clinician/NotesCompletion'))
 const ChangePassword      = lazy(() => import('./pages/clinician/ChangePassword'))
+const MfaRequired         = lazy(() => import('./components/clinician/MfaRequired'))
 const ForgotPassword      = lazy(() => import('./pages/clinician/ForgotPassword'))
 const ResetPassword       = lazy(() => import('./pages/clinician/ResetPassword'))
 const RadiologyReports    = lazy(() => import('./pages/clinician/RadiologyReports'))
@@ -269,6 +270,7 @@ export default function App() {
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
         <Route path="/clinician/profile"      element={<MyProfile />} />
         <Route path="/clinician/change-password" element={<ChangePassword />} />
+        <Route path="/clinician/mfa-required"    element={<MfaRequired />} />
         <Route path="/clinician/forgot-password" element={<ForgotPassword />} />
         <Route path="/clinician/reset-password"  element={<ResetPassword />} />
         <Route path="/clinician/reports"         element={<RadiologyReports />} />

@@ -23,7 +23,7 @@ const RED   = '#DC2626'
 const GREEN = '#059669'
 const FF    = 'Plus Jakarta Sans, sans-serif'
 
-export default function MfaEnrollModal({ providerId, providerName, onClose }) {
+export default function MfaEnrollModal({ providerId, providerName, onClose, mandatory = false }) {
   const [phase, setPhase] = useState('loading')      // loading | idle | enrolling | verifying | disabling | done
   const [enabled, setEnabled] = useState(false)
   const [secret, setSecret] = useState('')
@@ -113,17 +113,19 @@ export default function MfaEnrollModal({ providerId, providerName, onClose }) {
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:1200, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      onClick={e => { if (!mandatory && e.target === e.currentTarget) onClose() }}>
       <div style={{ background:'white', borderRadius:16, width:'100%', maxWidth:440, maxHeight:'90vh', overflowY:'auto', fontFamily:FF }}>
         <div style={{ padding:'1.25rem 1.25rem 0', display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
           <div>
             <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem' }}>Two-factor authentication</div>
             <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>{providerName}</div>
           </div>
-          <button onClick={onClose} aria-label="Close"
-            style={{ background:'none', border:'none', fontSize:'1.5rem', color:'#9CA3AF', cursor:'pointer', lineHeight:1, padding:0 }}>
-            ×
-          </button>
+          {!mandatory && (
+            <button onClick={onClose} aria-label="Close"
+              style={{ background:'none', border:'none', fontSize:'1.5rem', color:'#9CA3AF', cursor:'pointer', lineHeight:1, padding:0 }}>
+              ×
+            </button>
+          )}
         </div>
 
         <div style={{ padding:'1rem 1.25rem 1.25rem' }}>
