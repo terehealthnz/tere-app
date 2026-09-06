@@ -13,9 +13,10 @@ import { apiFetch } from '../../lib/api'
 //   2b. Enrolled → "Disable" button → prompt for current code → POST
 //       action=disable.
 //
-// Deliberately no QR code library: manual secret entry is universally
-// supported by authenticator apps and avoids exposing the secret through
-// any third-party QR renderer.
+// QR code is rendered locally in the browser via the `qrcode` npm library
+// (dynamic import, ~30 KB, chunk-split). No third-party network call: the
+// secret never leaves the browser. Manual key entry is retained as a
+// fallback for password managers / accessibility.
 
 const NAVY  = '#0D2B45'
 const TEAL  = '#0B6E76'
@@ -32,6 +33,23 @@ export default function MfaEnrollModal({ providerId, providerName, onClose, mand
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [copied, setCopied] = useState(false)
+  const [qrDataUrl, setQrDataUrl] = useState('')
+
+  // Render the QR code locally whenever the otpauth URI is set. Dynamic
+  // import so the qrcode library only loads when the enroll modal actually
+  // needs it, not for every provider page load.
+  useEffect(() => {
+    if (!otpUri) { setQrDataUrl(''); return }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const QR = await import('qrcode')
+        const dataUrl = await QR.toDataURL(otpUri, { errorCorrectionLevel: 'M', margin: 1, width: 220, color: { dark: '#0D2B45', light: '#FFFFFF' } })
+        if (!cancelled) setQrDataUrl(dataUrl)
+      } catch { if (!cancelled) setQrDataUrl('') }
+    })()
+    return () => { cancelled = true }
+  }, [otpUri])
 
   useEffect(() => {
     async function loadStatus() {
@@ -178,11 +196,20 @@ export default function MfaEnrollModal({ providerId, providerName, onClose, mand
           {phase === 'verifying' && (
             <>
               <div style={{ background:'#F0F9FF', border:'1px solid #BAE6FD', borderRadius:10, padding:'.875rem 1rem', fontSize:'.8125rem', color:'#0C4A6E', lineHeight:1.55, marginBottom:'1rem' }}>
-                <strong>Step 1:</strong> Open your authenticator app and add a new account. Use the setup key below (or paste the URI into Passwords / 1Password).
+                <strong>Step 1:</strong> Open your authenticator app and scan the QR code below. If your app can't scan, use the setup key underneath instead.
               </div>
 
+              {qrDataUrl && (
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:'1rem' }}>
+                  <div style={{ background:'white', padding:12, border:'1px solid #E2E8F0', borderRadius:12 }}>
+                    <img src={qrDataUrl} alt="QR code — scan with authenticator app" width={220} height={220}
+                      style={{ display:'block' }} />
+                  </div>
+                </div>
+              )}
+
               <label style={{ fontSize:'.75rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.05em', display:'block', marginBottom:'.375rem' }}>
-                Setup key
+                Setup key (if you can't scan)
               </label>
               <div style={{ display:'flex', gap:'.5rem', marginBottom:'.75rem' }}>
                 <input readOnly value={secret}
