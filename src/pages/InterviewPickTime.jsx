@@ -53,6 +53,7 @@ export default function InterviewPickTime() {
           displayName:     body.displayName,
           proposedSlots:   body.proposedSlots || [],
           durationMinutes: body.durationMinutes || 30,
+          jobTitle:        body.jobTitle || null,
         })
         setState('ready')
       } catch (e) {
@@ -137,9 +138,11 @@ export default function InterviewPickTime() {
   if (state === 'picked') {
     return (
       <div style={S.centered}>
-        <div style={S.brandChip}>Tere</div>
-        <h1 style={S.h1}>You're booked in </h1>
-        <p style={{ ...S.body, marginBottom: 8 }}>Kia ora {meta?.displayName?.split(' ')[0] || 'there'} — confirmed for:</p>
+        <img src="/tere-logo.png" alt="Tere Health" style={S.logo} />
+        <h1 style={S.h1}>You're booked in ✅</h1>
+        <p style={{ ...S.body, marginBottom: 8 }}>
+          Kia ora {meta?.displayName?.split(' ')[0] || 'there'} — your{meta?.jobTitle ? <> <strong>{meta.jobTitle}</strong></> : ''} interview is confirmed for:
+        </p>
         <p style={{ color: '#0D2B45', fontWeight: 700, fontSize: '1.05rem', marginBottom: 20 }}>
           {fmtNz(confirmed.scheduledAt)} (NZ time)
         </p>
@@ -154,11 +157,13 @@ export default function InterviewPickTime() {
   const busy = state === 'submitting'
   return (
     <div style={S.centered}>
-      <div style={S.brandChip}>Tere</div>
+      <img src="/tere-logo.png" alt="Tere Health" style={S.logo} />
       <h1 style={S.h1}>Kia ora {meta?.displayName?.split(' ')[0] || 'there'}!</h1>
-      <p style={{ ...S.body, marginBottom: 4 }}>Pick a time that suits for your Tere Health interview.</p>
+      <p style={{ ...S.body, marginBottom: 4 }}>
+        Pick a time that suits for your{meta?.jobTitle ? <> <strong>{meta.jobTitle}</strong></> : ' Tere Health'} interview.
+      </p>
       <p style={{ color: '#6B7280', fontSize: '.85rem', marginBottom: 20 }}>
-        {meta?.durationMinutes || 30} minutes · times shown in NZ time
+        {meta?.durationMinutes || 30} minutes · video call · times shown in NZ time
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 460, width: '100%', marginBottom: 20 }}>
@@ -223,12 +228,7 @@ const S = {
     background: '#F8FAFC',
     fontFamily: 'Plus Jakarta Sans, sans-serif',
   },
-  brandChip: {
-    background: '#0D2B45', color: 'white',
-    padding: '10px 24px', borderRadius: 999,
-    fontFamily: 'Georgia, serif', fontStyle: 'italic',
-    fontSize: '1.2rem', marginBottom: 24,
-  },
+  logo: { width: 88, height: 88, marginBottom: 20, borderRadius: 20 },
   h1: { fontSize: '1.5rem', color: '#0D2B45', marginBottom: 12, textAlign: 'center' },
   body: { color: '#374151', fontSize: '.95rem', maxWidth: 460, textAlign: 'center', lineHeight: 1.6, margin: 0 },
   spinner: {

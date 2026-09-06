@@ -1197,7 +1197,7 @@ export default async function handler(req, res) {
       await svc.createRoom({
         name: roomKey,
         emptyTimeout: 900,          // 15 min empty → auto-delete
-        maxParticipants: 4,          // interviewer + applicant + 2 headroom
+        maxParticipants: 10,         // applicant + up to 9 admin/interviewer participants for panel interviews
       })
     } catch (e) {
       // Room already exists is fine.
@@ -1221,14 +1221,15 @@ export default async function handler(req, res) {
   // Invite email that either (a) joins straight to the video room (instant /
   // pre-scheduled), or (b) links to a picker page so the applicant chooses
   // from N proposed slots. Uses module-scope helpers (emailShell, fmtNz).
-  async function sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots }) {
+  async function sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots, jobTitle }) {
     const firstName = app.first_name || 'there'
+    const roleLabel = jobTitle ? `${jobTitle} ` : ''
     let bodyMain
     if (proposedSlots?.length) {
       const listHtml = proposedSlots.map(s => `<li>${fmtNz(s)}</li>`).join('')
       bodyMain = `
         <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat — please pick a time that suits from the options below.</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health${jobTitle ? ` for the <strong>${jobTitle}</strong> role` : ''}. We'd love to have a chat — please pick a time that suits from the options below.</p>
         <ul style="font-size:14px;color:#374151;line-height:1.8;margin:0 0 20px;padding-left:20px">${listHtml}</ul>
         <div style="text-align:center;margin:28px 0"><a href="${pickerUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Pick a time →</a></div>
         <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
@@ -1239,7 +1240,7 @@ export default async function handler(req, res) {
         : `Scheduled for <strong>${fmtNz(scheduledAt)}</strong> (NZ time).`
       bodyMain = `
         <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health. We'd love to have a chat.</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Thanks for applying to Tere Health${jobTitle ? ` for the <strong>${jobTitle}</strong> role` : ''}. We'd love to have a chat.</p>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 20px">${whenLine}</p>
         <div style="text-align:center;margin:28px 0"><a href="${joinUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Join interview →</a></div>
         <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">If the button doesn't work, paste this link into your browser:</p>
@@ -1251,16 +1252,19 @@ export default async function handler(req, res) {
         </div>
         <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`)
 
+    const introLine = jobTitle
+      ? `Thanks for applying to Tere Health for the ${jobTitle} role.`
+      : 'Thanks for applying to Tere Health.'
     const textLines = proposedSlots?.length
       ? [
           `Kia ora ${firstName},`, '',
-          "Thanks for applying to Tere Health. Please pick a time that suits:",
+          `${introLine} Please pick a time that suits:`,
           ...proposedSlots.map(s => `  • ${fmtNz(s)}`), '',
           `Pick a time: ${pickerUrl}`, '',
         ]
       : [
           `Kia ora ${firstName},`, '',
-          "Thanks for applying to Tere Health. We'd love to have a chat.",
+          `${introLine} We'd love to have a chat.`,
           isInstant
             ? 'Your interviewer is ready now.'
             : `Scheduled for ${fmtNz(scheduledAt)} (NZ time).`, '',
@@ -1302,10 +1306,11 @@ export default async function handler(req, res) {
 
     const { data: app, error: appErr } = await supabase
       .from('job_applications')
-      .select('id, first_name, last_name, email')
+      .select('id, first_name, last_name, email, job_listing:job_listings(title)')
       .eq('id', id)
       .maybeSingle()
     if (appErr || !app) return res.status(404).json({ error: 'Application not found' })
+    const jobTitle = app.job_listing?.title || null
 
     const roomKey  = 'iv-' + randomBytes(6).toString('hex')       // e.g. iv-a1b2c3d4e5f6
     const joinTok  = randomBytes(24).toString('base64url')        // ~32 URL-safe chars
@@ -1341,7 +1346,7 @@ export default async function handler(req, res) {
     const joinUrl   = `${siteOrigin}/interview/${joinTok}`
     const pickerUrl = `${siteOrigin}/interview/pick/${joinTok}`
     try {
-      await sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots: isPicker ? validSlots : null })
+      await sendInviteEmail({ app, joinUrl, pickerUrl, scheduledAt, isInstant, proposedSlots: isPicker ? validSlots : null, jobTitle })
     } catch (e) {
       console.error('[interview] invite email send failed:', e.message)
       // Don't fail the request — admin can copy the URL from the response

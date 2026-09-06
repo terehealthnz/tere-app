@@ -49,13 +49,15 @@ export default async function handler(req, res) {
   }
   if (!iv) return res.status(404).json({ error: 'Interview not found' })
 
-  // Pull the applicant's name for display + LiveKit identity.
+  // Pull the applicant's name + job title so the pick page can say
+  // "your Nurse Practitioner interview" instead of the generic version.
   const { data: app } = await supabase
     .from('job_applications')
-    .select('first_name, last_name')
+    .select('first_name, last_name, job_listing:job_listings(title)')
     .eq('id', iv.application_id)
     .maybeSingle()
   const displayName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'
+  const jobTitle    = app?.job_listing?.title || null
 
   // Slot-picker flow: interview created with proposed_slots and status='proposed'
   // means the applicant hasn't chosen a time yet. Return the slots so the picker
@@ -66,6 +68,7 @@ export default async function handler(req, res) {
       proposedSlots:   Array.isArray(iv.proposed_slots) ? iv.proposed_slots : [],
       durationMinutes: iv.duration_minutes || 30,
       displayName,
+      jobTitle,
     })
   }
 
@@ -90,7 +93,7 @@ export default async function handler(req, res) {
   try {
     const httpUrl = LK_URL.replace(/^wss?:\/\//, 'https://')
     const svc = new RoomServiceClient(httpUrl, LK_KEY, LK_SECRET)
-    await svc.createRoom({ name: iv.room_key, emptyTimeout: 900, maxParticipants: 4 })
+    await svc.createRoom({ name: iv.room_key, emptyTimeout: 900, maxParticipants: 10 })
   } catch {}
 
   const at = new AccessToken(LK_KEY, LK_SECRET, {
