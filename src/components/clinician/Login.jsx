@@ -19,12 +19,6 @@ function getSaved() {
   } catch { return null }
 }
 
-function restoreDevice(d) {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
-  sessionStorage.setItem('clinicianAuth', 'true')
-  keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
-}
-
 function defaultDest(isAdmin) {
   const isPWA    = window.matchMedia('(display-mode: standalone)').matches
   const isMobile = window.innerWidth < 768
@@ -64,21 +58,20 @@ export default function ClinicianLogin() {
     if (d?.providerDisplayName) setSavedDevice(d)
   }, [])
 
-  async function loginWithDevice() {
-    restoreDevice(savedDevice)
-    localStorage.setItem('tere_portal', savedDevice?.providerIsAdmin === 'true' ? 'admin' : 'provider')
-    // Even for remembered devices, if the provider hasn't enrolled MFA we
-    // punt them to the hard-block enrollment page. Fresh check on every
-    // login — a saved-device flag might be stale (admin re-enabled after
-    // an incident, etc.).
-    try {
-      const r = await apiFetch(`/api/providers?id=${encodeURIComponent(savedDevice?.providerId)}&columns=id,mfa_enabled`)
-      const j = await r.json()
-      if (!j?.provider?.mfa_enabled) { navigate('/clinician/mfa-required'); return }
-      sessionStorage.setItem('providerMfaEnabled', 'true')
-    } catch { /* fall through to dashboard; server will 403 with MFA_REQUIRED */ }
-    const params = new URLSearchParams(location.search)
-    navigate(safeRedirect(params.get('redirect')) || defaultDest(savedDevice?.providerIsAdmin === 'true'))
+  // The "remembered device" is a UX convenience: it pre-selects the provider
+  // so the user only has to type their PIN + TOTP code, not pick from the
+  // roster again. It does NOT bypass PIN or MFA — every login goes through
+  // /api/provider-auth with PIN and (if enrolled) TOTP.
+  //
+  // Previously this function auto-logged-in the saved provider by writing
+  // sessionStorage flags directly and navigating to the dashboard. That
+  // bypassed BOTH PIN and MFA and defeated the MFA-mandatory intent of task
+  // #448 for anyone with a valid tere_device localStorage entry (7-day
+  // window). Fixed to force a full re-auth on every login.
+  function pickSavedProvider() {
+    const match = (providers || []).find(p => p.id === savedDevice?.providerId)
+    if (match) setSelected(match)
+    setSavedDevice(null)
   }
 
   useEffect(() => {
@@ -193,9 +186,9 @@ export default function ClinicianLogin() {
           </div>
           <div style={{fontWeight:700,fontSize:'1.125rem',color:'#0D2B45',marginBottom:'.25rem'}}>{savedDevice.providerDisplayName}</div>
           <div style={{fontSize:'.875rem',color:'#6B7280',marginBottom:'1.5rem'}}>Welcome back</div>
-          <button onClick={loginWithDevice}
+          <button onClick={pickSavedProvider}
             style={{width:'100%',minHeight:52,background:'#0B6E76',color:'white',border:'none',borderRadius:10,fontFamily:'Plus Jakarta Sans, sans-serif',fontWeight:700,fontSize:'1rem',cursor:'pointer',marginBottom:'.75rem',boxShadow:'0 4px 16px rgba(11,110,118,.3)'}}>
-            🔐 Continue as {(savedDevice.providerDisplayName||'').split(' ')[0]}
+            🔐 Sign in as {(savedDevice.providerDisplayName||'').split(' ')[0]}
           </button>
           <button onClick={() => setSavedDevice(null)}
             style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.875rem',cursor:'pointer',textDecoration:'underline'}}>
@@ -203,7 +196,7 @@ export default function ClinicianLogin() {
           </button>
         </div>
         <p style={{color:'rgba(255,255,255,.3)',fontSize:'.75rem',marginTop:'1rem'}}>
-          Remembered for 30 days · Device is protected by your screen lock
+          Device remembers who you are · Password and authenticator code required every login
         </p>
       </div>
     </div>

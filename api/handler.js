@@ -453,7 +453,10 @@ export default async function handler(req, res) {
     // audit-write (so the client can still log the redirect event).
     // Client sees { error:'MFA_REQUIRED' } and routes to /clinician/mfa-required.
     const MFA_EXEMPT_ROUTES = new Set(['provider-mfa', 'audit-write', 'audit', 'flags'])
-    if (!MFA_EXEMPT_ROUTES.has(route) && auth.provider?.mfa_enabled === false) {
+    // Use falsy check (`!x`) not `x === false` — a provider row with
+    // mfa_enabled === null (e.g. never enrolled, or column added post-hoc
+    // without a backfill) must be treated as "MFA not enabled" and blocked.
+    if (!MFA_EXEMPT_ROUTES.has(route) && !auth.provider?.mfa_enabled) {
       return res.status(403).json({
         error:  'MFA_REQUIRED',
         detail: 'Two-factor authentication is required for provider accounts. Enroll at /clinician/mfa-required.',
