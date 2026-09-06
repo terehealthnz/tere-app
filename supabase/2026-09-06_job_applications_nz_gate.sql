@@ -13,8 +13,8 @@ ALTER TABLE job_applications
   ADD COLUMN IF NOT EXISTS applicant_country_code TEXT,
   ADD COLUMN IF NOT EXISTS nz_eligibility_confirmed BOOLEAN NOT NULL DEFAULT false;
 
--- Historical rows predate the checkbox — mark them 'unknown' so the admin
--- queue doesn't show a blanket red flag on all pre-migration applicants.
+-- Historical rows predate the checkbox — mark them affirmed so the admin
+-- queue doesn't show a blanket amber flag on all pre-migration applicants.
 UPDATE job_applications
   SET nz_eligibility_confirmed = true
-  WHERE created_at < now() - interval '1 hour';
+  WHERE applied_at < now() - interval '1 hour';
