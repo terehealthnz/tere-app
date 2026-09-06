@@ -3352,6 +3352,17 @@ function ApplicantsSection() {
                       {a.job_listing.title}
                     </span>
                   )}
+                  {a.applicant_country_code && a.applicant_country_code !== 'NZ' && (
+                    <span title={`Applied from ${a.applicant_country_code} (not NZ) — NZ regulator eligibility ${a.nz_eligibility_confirmed ? 'affirmed' : 'NOT affirmed'}`}
+                      style={{ background: '#FEE2E2', color: '#7F1D1D', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                      🌏 {a.applicant_country_code}
+                    </span>
+                  )}
+                  {a.nz_eligibility_confirmed === false && (
+                    <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                      ⚠ NZ-eligibility not affirmed
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
                   {a.email}{a.phone ? ` · ${a.phone}` : ''} · Applied {new Date(a.applied_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}

@@ -81,7 +81,18 @@ async function signCvUrl(supabase, cvUrl) {
 const APPLY_ALLOWLIST = new Set([
   'first_name', 'last_name', 'email', 'phone', 'cover_note',
   'cv_url', 'cv_filename', 'job_listing_id', 'source',
+  'nz_eligibility_confirmed',
 ])
+
+// Extract 2-letter country code from Vercel / Cloudflare geo headers. Vercel
+// sets x-vercel-ip-country on every edge request; Cloudflare sets cf-ipcountry.
+// Returns 'XX' when neither header is present (local dev / unknown proxy).
+function callerCountry(req) {
+  const h = req.headers || {}
+  const raw = h['x-vercel-ip-country'] || h['cf-ipcountry'] || ''
+  const cc = String(raw).trim().toUpperCase()
+  return /^[A-Z]{2}$/.test(cc) ? cc : ''
+}
 
 const STATUS_ALLOWED = new Set([
   'new', 'reviewing', 'interview', 'offer', 'hired', 'rejected', 'withdrawn',
@@ -384,8 +395,21 @@ export default async function handler(req, res) {
     if (!payload.first_name || !payload.last_name || !payload.email) {
       return res.status(400).json({ error: 'first_name, last_name, email required' })
     }
+    // Tere Health is a NZ-only clinical service — every role requires MCNZ /
+    // NCNZ / Pharmacy Council / Nursing Council registration (or eligibility).
+    // Applicants must actively affirm this in the form. Server double-checks
+    // the boolean so a client-side bypass still 400s.
+    if (payload.nz_eligibility_confirmed !== true) {
+      return res.status(400).json({
+        error: 'This role requires eligibility for New Zealand health-regulator registration (MCNZ / NCNZ / Pharmacy Council etc.). Please confirm this on the form.',
+      })
+    }
     // Status is always 'new' regardless of client claim.
     payload.status = 'new'
+    // Capture caller country from edge geo header — non-authoritative but
+    // useful for the admin queue triage. Doesn't reject on its own; that's
+    // the checkbox's job.
+    payload.applicant_country_code = callerCountry(req) || null
     const { data, error } = await supabase
       .from('job_applications')
       .insert(payload)

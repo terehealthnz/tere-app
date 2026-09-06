@@ -22,6 +22,7 @@ export default function CareersApply() {
     first_name: '', last_name: '', email: '', phone: '',
     cover_note: '', source: '',
   })
+  const [nzEligible, setNzEligible] = useState(false)
   const [cvFile, setCvFile] = useState(null)
   const [cvError, setCvError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -73,6 +74,10 @@ export default function CareersApply() {
       setError('Please fill in name and email.')
       return
     }
+    if (!nzEligible) {
+      setError('Every Tere clinical role requires eligibility for registration with a New Zealand health regulator (MCNZ, Nursing Council, Pharmacy Council etc.). Please tick the confirmation box if you meet this.')
+      return
+    }
     setSubmitting(true)
     try {
       let cv_url = null, cv_filename = null
@@ -83,6 +88,7 @@ export default function CareersApply() {
       }
       const { ok, error: err, id } = await submitJobApplication({
         ...form,
+        nz_eligibility_confirmed: true,
         job_listing_id: jobId,
         cv_url, cv_filename,
       })
@@ -205,13 +211,27 @@ export default function CareersApply() {
               <input style={input} value={form.source} onChange={e => set('source', e.target.value)} placeholder="e.g. LinkedIn, colleague, MCNZ newsletter" />
             </div>
 
+            <label style={{
+              display:'flex', gap:'.625rem', alignItems:'flex-start',
+              background: nzEligible ? '#F0FDF4' : '#FEF9C3',
+              border: `1px solid ${nzEligible ? '#BBF7D0' : '#FDE68A'}`,
+              padding:'.75rem .875rem', borderRadius:8, cursor:'pointer',
+            }}>
+              <input type="checkbox" checked={nzEligible}
+                onChange={e => setNzEligible(e.target.checked)}
+                style={{ marginTop:3, width:18, height:18, flexShrink:0, accentColor:TEAL }} />
+              <span style={{ fontSize:'.8125rem', color:'#0D2B45', lineHeight:1.5 }}>
+                <strong>New Zealand health-regulator eligibility (required).</strong> I confirm I am currently registered with — or eligible to register with — a New Zealand health regulator: Medical Council of New Zealand (MCNZ), Nursing Council of New Zealand (NCNZ), Pharmacy Council, HPCA-recognised body, or equivalent. Tere Health is a NZ-only clinical service and does not sponsor overseas applicants who are not eligible.
+              </span>
+            </label>
+
             {error && (
               <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', padding:'.75rem 1rem', borderRadius:8, fontSize:'.875rem' }}>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={submitting || !!cvError} style={primary(submitting || !!cvError)}>
+            <button type="submit" disabled={submitting || !!cvError || !nzEligible} style={primary(submitting || !!cvError || !nzEligible)}>
               {submitting ? 'Submitting…' : 'Submit application'}
             </button>
 
