@@ -1123,6 +1123,39 @@ export default async function handler(req, res) {
   if (!auth) return
   const supabase = admin()
 
+  // Admin manually adds an applicant (referral, colleague sourced, etc.).
+  // Bypasses the NZ-eligibility gate — admin is vouching by the act of
+  // adding. Source defaults to "Manually added by {admin name}" so the
+  // origin is auditable. Status starts at 'reviewing' not 'new' since the
+  // admin has already effectively screened them in.
+  if (req.method === 'POST' && action === 'create_manual') {
+    const raw = req.body || {}
+    if (!raw.first_name?.trim() || !raw.last_name?.trim() || !raw.email?.trim()) {
+      return res.status(400).json({ error: 'first_name, last_name, email required' })
+    }
+    const provider = auth.provider || {}
+    const adminName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'Admin'
+    const payload = {
+      first_name: String(raw.first_name).trim(),
+      last_name:  String(raw.last_name).trim(),
+      email:      String(raw.email).trim().toLowerCase(),
+      phone:      raw.phone ? String(raw.phone).trim() : null,
+      cover_note: raw.cover_note ? String(raw.cover_note).trim() : null,
+      job_listing_id: raw.job_listing_id || null,
+      source:     raw.source ? String(raw.source).trim() : `Manually added by ${adminName}`,
+      status:     'reviewing',
+      nz_eligibility_confirmed: true,   // admin vouches
+      applicant_country_code: 'NZ',     // admin adding = presumed NZ context
+    }
+    const { data, error } = await supabase
+      .from('job_applications')
+      .insert(payload)
+      .select('*')
+      .maybeSingle()
+    if (error) { console.error('[job-applications] manual create failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true, id: data?.id, application: data })
+  }
+
   if (req.method === 'GET') {
     if (id) {
       const [{ data: app, error: appErr }, { data: notes }, { data: steps }] = await Promise.all([

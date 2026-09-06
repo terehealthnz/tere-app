@@ -3272,11 +3272,123 @@ function InterviewsQueueSection() {
   )
 }
 
+function ManualAddApplicantModal({ onClose, onCreated }) {
+  const [form, setForm] = React.useState({
+    first_name: '', last_name: '', email: '', phone: '',
+    job_listing_id: '', cover_note: '',
+  })
+  const [listings, setListings] = React.useState([])
+  const [saving, setSaving] = React.useState(false)
+  const [err, setErr] = React.useState('')
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const { getJobListings } = await import('../../lib/supabase')
+        setListings((await getJobListings()) || [])
+      } catch { setListings([]) }
+    })()
+  }, [])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function save() {
+    setErr('')
+    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
+      setErr('First name, last name, and email are required.')
+      return
+    }
+    setSaving(true)
+    try {
+      const res = await apiFetch('/api/job-applications?action=create_manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: form.first_name.trim(),
+          last_name:  form.last_name.trim(),
+          email:      form.email.trim(),
+          phone:      form.phone.trim() || null,
+          job_listing_id: form.job_listing_id || null,
+          cover_note: form.cover_note.trim() || null,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      onCreated?.(data)
+    } catch (e) {
+      setErr(e.message || 'Could not create applicant')
+    } finally { setSaving(false) }
+  }
+
+  const NAVY = '#0D2B45', TEAL = '#0B6E76'
+  const label = { fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem', display: 'block' }
+  const inp = { width: '100%', padding: '.625rem .75rem', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: '.9375rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ background: 'white', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <div style={{ padding: '1.25rem 1.25rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '1.125rem' }}>Add applicant manually</div>
+            <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 2 }}>For colleagues, referrals, or in-person leads. Starts at 'Reviewing' status.</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#9CA3AF', cursor: 'pointer', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+
+        <div style={{ padding: '1rem 1.25rem 1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
+            <div>
+              <label style={label}>First name*</label>
+              <input value={form.first_name} onChange={e => set('first_name', e.target.value)} style={inp} autoFocus />
+            </div>
+            <div>
+              <label style={label}>Last name*</label>
+              <input value={form.last_name} onChange={e => set('last_name', e.target.value)} style={inp} />
+            </div>
+          </div>
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={label}>Email*</label>
+            <input type="email" value={form.email} onChange={e => set('email', e.target.value)} style={inp} />
+          </div>
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={label}>Phone</label>
+            <input value={form.phone} onChange={e => set('phone', e.target.value)} style={inp} placeholder="Optional" />
+          </div>
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={label}>Role / job listing</label>
+            <select value={form.job_listing_id} onChange={e => set('job_listing_id', e.target.value)} style={inp}>
+              <option value="">— Speculative / no specific role —</option>
+              {listings.map(l => (
+                <option key={l.id} value={l.id}>{l.title}{l.location ? ` · ${l.location}` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={label}>Note (context, how you know them)</label>
+            <textarea value={form.cover_note} onChange={e => set('cover_note', e.target.value)}
+              style={{ ...inp, minHeight: 80, resize: 'vertical' }}
+              placeholder="e.g. Former colleague at MidCentral DHB, senior NP. Reached out on LinkedIn." />
+          </div>
+          {err && <div style={{ color: '#DC2626', fontSize: '.8125rem', marginBottom: '.75rem' }}>{err}</div>}
+          <div style={{ display: 'flex', gap: '.5rem' }}>
+            <button onClick={onClose} style={{ flex: 1, background: '#F1F5F9', color: NAVY, border: 'none', borderRadius: 10, padding: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={save} disabled={saving} style={{ flex: 2, background: TEAL, color: 'white', border: 'none', borderRadius: 10, padding: '.75rem', fontWeight: 700, cursor: saving ? 'wait' : 'pointer', opacity: saving ? .6 : 1, fontFamily: 'inherit' }}>
+              {saving ? 'Adding…' : 'Add applicant'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ApplicantsSection() {
   const [applicants, setApplicants] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [statusFilter, setStatusFilter] = React.useState('active')  // 'active' | 'archived' | any status key
   const [openId, setOpenId] = React.useState(null)
+  const [showAdd, setShowAdd] = React.useState(false)
 
   async function load() {
     setLoading(true)
@@ -3313,10 +3425,15 @@ function ApplicantsSection() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
           <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Applicants</div>
-          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Submissions from /careers/apply.</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Submissions from /careers/apply — plus admin-added referrals.</div>
         </div>
-        <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻ Refresh</button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => setShowAdd(true)} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 700 }}>+ Add applicant</button>
+          <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
+        </div>
       </div>
+
+      {showAdd && <ManualAddApplicantModal onClose={() => setShowAdd(false)} onCreated={() => { setShowAdd(false); load() }} />}
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1rem' }}>
         <button onClick={() => setStatusFilter('active')} style={chip(statusFilter === 'active')}>All active</button>
