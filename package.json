@@ -44,7 +44,7 @@
     "express": "^5.2.1",
     "firebase-admin": "^14.0.0",
     "formidable": "^3.5.4",
-    "livekit-client": "^2.19.0",
+    "livekit-client": "^2.22.2",
     "livekit-server-sdk": "^2.15.3",
     "marked": "^18.0.6",
     "pdfkit": "^0.18.0",
