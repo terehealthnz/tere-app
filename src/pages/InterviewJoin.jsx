@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
+import InterviewBrandOverlay from '../components/InterviewBrandOverlay'
 
 export default function InterviewJoin() {
   const { token: joinToken } = useParams()
@@ -42,7 +43,7 @@ export default function InterviewJoin() {
           setState('error')
           return
         }
-        setMeta({ displayName: body.displayName, scheduledAt: body.scheduledAt, roomName: body.roomName })
+        setMeta({ displayName: body.displayName, scheduledAt: body.scheduledAt, roomName: body.roomName, jobTitle: body.jobTitle })
         setLk({ token: body.token, serverUrl: body.serverUrl, mock: !!body.mock })
         setState('ready')
       } catch (e) {
@@ -118,9 +119,12 @@ export default function InterviewJoin() {
     )
   }
 
-  // joined — full-screen LiveKit room
+  // joined — full-screen LiveKit room with branded overlay
+  const headerTitle = meta?.jobTitle
+    ? `${meta.jobTitle} interview`
+    : 'Tere Health interview'
   return (
-    <div style={{ height: '100dvh', background: '#000' }}>
+    <div style={{ height: '100dvh', background: '#000', position: 'relative' }}>
       <LiveKitRoom
         token={lk.token}
         serverUrl={lk.serverUrl}
@@ -132,6 +136,7 @@ export default function InterviewJoin() {
       >
         <VideoConference />
       </LiveKitRoom>
+      <InterviewBrandOverlay title={headerTitle} subtitle={meta?.displayName} />
     </div>
   )
 }

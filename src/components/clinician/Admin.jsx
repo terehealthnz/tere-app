@@ -3137,9 +3137,9 @@ function InterviewsQueueSection() {
     setSaving(true); setMsg('')
     try {
       const { startInterview } = await import('../../lib/supabase')
-      const { token, serverUrl, roomName } = await startInterview(interviewId)
+      const { token, serverUrl, roomName, applicantName, jobTitle } = await startInterview(interviewId)
       if (!token) { setMsg('LiveKit not configured in this environment.'); return }
-      const url = `/interview-room?token=${encodeURIComponent(token)}&serverUrl=${encodeURIComponent(serverUrl)}&room=${encodeURIComponent(roomName)}&interviewId=${encodeURIComponent(interviewId)}`
+      const url = `/interview-room?token=${encodeURIComponent(token)}&serverUrl=${encodeURIComponent(serverUrl)}&room=${encodeURIComponent(roomName)}&interviewId=${encodeURIComponent(interviewId)}&applicantName=${encodeURIComponent(applicantName || '')}&jobTitle=${encodeURIComponent(jobTitle || '')}`
       window.open(url, '_blank', 'noopener')
     } catch (e) {
       setMsg('Could not start: ' + (e.message || 'unknown'))

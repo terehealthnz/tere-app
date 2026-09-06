@@ -9,13 +9,16 @@
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { LiveKitRoom, VideoConference } from '@livekit/components-react'
 import '@livekit/components-styles'
+import InterviewBrandOverlay from '../components/InterviewBrandOverlay'
 
 export default function InterviewerRoom() {
   const [params] = useSearchParams()
   const navigate = useNavigate()
-  const token     = params.get('token')
-  const serverUrl = params.get('serverUrl')
-  const room      = params.get('room')
+  const token         = params.get('token')
+  const serverUrl     = params.get('serverUrl')
+  const room          = params.get('room')
+  const applicantName = params.get('applicantName') || ''
+  const jobTitle      = params.get('jobTitle') || ''
 
   if (!token || !serverUrl) {
     return (
@@ -28,8 +31,16 @@ export default function InterviewerRoom() {
     )
   }
 
+  // Interviewer overlay: applicant name is the primary line (that's who
+  // this call is about), job title as the subtitle. Falls back to a
+  // generic label when either is missing (older interview rows).
+  const headerTitle = applicantName
+    ? `Interview: ${applicantName}`
+    : 'Interview'
+  const headerSubtitle = jobTitle || null
+
   return (
-    <div style={{ height: '100dvh', background: '#000' }}>
+    <div style={{ height: '100dvh', background: '#000', position: 'relative' }}>
       <LiveKitRoom
         token={token}
         serverUrl={serverUrl}
@@ -41,6 +52,7 @@ export default function InterviewerRoom() {
       >
         <VideoConference />
       </LiveKitRoom>
+      <InterviewBrandOverlay title={headerTitle} subtitle={headerSubtitle} />
     </div>
   )
 }

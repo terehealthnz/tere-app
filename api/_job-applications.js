@@ -1421,6 +1421,17 @@ export default async function handler(req, res) {
       .from('job_interviews').select('*').eq('id', id).maybeSingle()
     if (ivErr || !iv) return res.status(404).json({ error: 'Interview not found' })
 
+    // Pull applicant name + job title so the branded overlay in
+    // InterviewerRoom can render "Interview: Justin Thomas — Nurse
+    // Practitioner" without a second round-trip.
+    const { data: app } = await supabase
+      .from('job_applications')
+      .select('first_name, last_name, job_listing:job_listings(title)')
+      .eq('id', iv.application_id)
+      .maybeSingle()
+    const applicantName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'
+    const jobTitle      = app?.job_listing?.title || null
+
     await createInterviewRoom(iv.room_key)
     const provider = auth.provider || {}
     const identity = `interviewer-${provider.id || 'unknown'}-${Date.now()}`
@@ -1432,7 +1443,7 @@ export default async function handler(req, res) {
       .eq('id', id)
       .is('ended_at', null)
 
-    return res.status(200).json({ token, serverUrl, roomName: iv.room_key })
+    return res.status(200).json({ token, serverUrl, roomName: iv.room_key, applicantName, jobTitle })
   }
 
   // Onboarding step toggle.

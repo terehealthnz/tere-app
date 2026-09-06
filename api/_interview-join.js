@@ -84,6 +84,7 @@ export default async function handler(req, res) {
       serverUrl: null,
       roomName: iv.room_key,
       displayName,
+      jobTitle,
       scheduledAt: iv.scheduled_at,
       mock: true,
     })
@@ -115,6 +116,7 @@ export default async function handler(req, res) {
     serverUrl:   LK_URL,
     roomName:    iv.room_key,
     displayName,
+    jobTitle,
     scheduledAt: iv.scheduled_at,
   })
 }
