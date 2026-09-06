@@ -119,10 +119,12 @@ export default function InterviewJoin() {
     )
   }
 
-  // joined — full-screen LiveKit room with branded overlay
-  const headerTitle = meta?.jobTitle
-    ? `${meta.jobTitle} interview`
-    : 'Tere Health interview'
+  // joined — full-screen LiveKit room with branded overlay.
+  // Header is intentionally identical on both sides (applicant + interviewer)
+  // so screenshots line up and there's no confusion about which product they're
+  // in. Primary: 'Interview: {name}'. Subtitle: job title.
+  const headerTitle    = `Interview: ${meta?.displayName || 'Applicant'}`
+  const headerSubtitle = meta?.jobTitle || null
   return (
     <div style={{ height: '100dvh', background: '#000', position: 'relative' }}>
       <LiveKitRoom
@@ -136,7 +138,7 @@ export default function InterviewJoin() {
       >
         <VideoConference />
       </LiveKitRoom>
-      <InterviewBrandOverlay title={headerTitle} subtitle={meta?.displayName} />
+      <InterviewBrandOverlay title={headerTitle} subtitle={headerSubtitle} />
     </div>
   )
 }
