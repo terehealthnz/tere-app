@@ -81,6 +81,15 @@ export default function Summary() {
                 </p>}
               </div>
             ))}
+            {rxList.some(rx => rx.pharmacy) && (
+              <div style={{
+                marginTop:'0.75rem', padding:'0.75rem 0.875rem',
+                background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:'var(--radius)',
+                fontSize:'0.8rem', color:'#78350F', lineHeight:1.5,
+              }}>
+                <strong>Before you travel:</strong> please ring your pharmacy in about 30 minutes to confirm they have received it. If they say no, ask them to check their <strong>junk / spam folder</strong> for an email from <span style={{ whiteSpace:'nowrap' }}>hello@terehealth.co.nz</span>.
+              </div>
+            )}
           </div>
         )}
 

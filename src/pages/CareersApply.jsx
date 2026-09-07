@@ -58,9 +58,9 @@ export default function CareersApply() {
       setCvFile(null)
       return
     }
-    const ok = /pdf|word|officedocument/i.test(f.type) || /\.(pdf|docx?|doc)$/i.test(f.name)
+    const ok = /pdf/i.test(f.type) || /\.pdf$/i.test(f.name)
     if (!ok) {
-      setCvError('CV must be a PDF or Word document.')
+      setCvError('CV must be a PDF. If you have a Word document, use File → Save As → PDF and upload the PDF.')
       setCvFile(null)
       return
     }
@@ -193,8 +193,8 @@ export default function CareersApply() {
             </div>
 
             <div>
-              <label style={label}>CV / résumé <span style={{ color:'#9CA3AF', fontWeight:400 }}>(PDF or Word, ≤5 MB)</span></label>
-              <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              <label style={label}>CV / résumé <span style={{ color:'#9CA3AF', fontWeight:400 }}>(PDF only, ≤5 MB)</span></label>
+              <input type="file" accept=".pdf,application/pdf"
                 onChange={onFile}
                 style={{ display:'block', fontSize:'.875rem', color:'#374151' }}
               />

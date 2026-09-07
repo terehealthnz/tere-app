@@ -1174,6 +1174,13 @@ export async function updateJobApplication(id, patch) {
   return res.ok
 }
 
+export async function deleteJobApplication(id) {
+  const res = await apiFetch(`/api/job-applications?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  return res.ok
+}
+
 export async function addApplicationNote(applicationId, note) {
   const res = await apiFetch(`/api/job-applications?action=note&id=${encodeURIComponent(applicationId)}`, {
     method: 'POST',
@@ -1416,15 +1423,17 @@ export async function startInterview(interviewId) {
 }
 
 export async function uploadCvFile(file, applicantEmail) {
-  // Direct-to-storage upload with the anon client. Bucket policy allows anon
-  // INSERT into the `cvs` bucket; PDF/DOCX only, 5MB limit enforced server-side.
+  // Direct-to-storage upload with the anon client. PDF-only — Word docs are
+  // rejected here (and by the file input) because admin CV preview can't
+  // render docx inline safely, and macros carry malware risk.
+  const isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name)
+  if (!isPdf) throw new Error('CV must be a PDF.')
   const safeEmail = (applicantEmail || 'applicant').toLowerCase().replace(/[^a-z0-9]/g, '_')
-  const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
-  const path = `${safeEmail}/${Date.now()}.${ext}`
+  const path = `${safeEmail}/${Date.now()}.pdf`
   const { error } = await supabase.storage.from('cvs').upload(path, file, {
     cacheControl: '3600',
     upsert: false,
-    contentType: file.type || undefined,
+    contentType: 'application/pdf',
   })
   if (error) throw error
   const { data } = supabase.storage.from('cvs').getPublicUrl(path)

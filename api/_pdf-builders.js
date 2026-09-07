@@ -115,57 +115,89 @@ export async function buildPrescriptionPdf(data) {
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('PRESCRIPTION', 50, 90)
     doc.moveTo(50, 110).lineTo(doc.page.width - 50, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
 
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Prescriber', 50, 120)
-    doc.font('Helvetica').fontSize(10)
-      .text(data.providerName || 'Tere Clinician', 50, 134)
-      .text(`Prescriber No: ${data.prescriberNumber || '—'}`, 50, 148)
-      .text('Tere Health Limited · terehealth.co.nz', 50, 162)
-    // Prescriber contact — DG authorisation requires an address the pharmacy
-    // can use to verify identity or request amendments. Always the central
-    // monitored inbox so scripts don't route replies to a provider's personal
-    // email; provider identity is uniquely pinned by the MCNZ number above.
-    doc.fillColor('#555').fontSize(9).text('Contact: terehealthnz@gmail.com', 50, 176)
+    // Two-column header (Prescriber / Patient). Each field flows off the
+    // previous field's real height so long names / addresses wrap without
+    // colliding with the next line. Column widths give a small gutter at
+    // A4 (595 - 100 margin = 495 → each column 235 with 15px gap).
+    const LEFT_COL  = 50
+    const RIGHT_COL = 300
+    const COL_W     = 235
 
-    if (data.approvedByName) {
-      doc.fillColor('#065F46').font('Helvetica-Bold').fontSize(9)
-        .text(`Countersigned by: ${data.approvedByName}`, 50, 189)
+    const put = (text, x, y, { w = COL_W, fs = 10, font = 'Helvetica', color = null, gap = 2 } = {}) => {
+      if (color) doc.fillColor(color)
+      doc.font(font).fontSize(fs).text(String(text), x, y, { width: w })
+      const h = doc.heightOfString(String(text), { width: w })
+      return y + Math.max(fs + gap, h + gap)
     }
 
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Patient', 300, 120)
-    doc.font('Helvetica').fontSize(10)
-      .text(data.patientName, 300, 134)
-      .text(`NHI: ${data.patientNhi || '—'}`, 300, 148)
-      .text(`DOB: ${data.patientDob || '—'}`, 300, 162)
-    doc.text(`Date: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 300, 176)
+    // Prescriber column
+    let leftY = 120
+    leftY = put('Prescriber',                                           LEFT_COL, leftY, { fs: 10, font: 'Helvetica-Bold', color: '#333' })
+    leftY = put(data.providerName || 'Tere Clinician',                  LEFT_COL, leftY, { fs: 10, font: 'Helvetica',      color: '#1A2A33' })
+    leftY = put(`Prescriber No: ${data.prescriberNumber || '—'}`,       LEFT_COL, leftY)
+    leftY = put('Tere Health Limited · terehealth.co.nz',               LEFT_COL, leftY)
+    leftY = put('Contact: terehealthnz@gmail.com',                      LEFT_COL, leftY, { fs: 9, color: '#555' })
+    if (data.approvedByName) {
+      leftY = put(`Countersigned by: ${data.approvedByName}`,           LEFT_COL, leftY, { fs: 9, font: 'Helvetica-Bold', color: '#065F46' })
+    }
 
-    doc.moveTo(50, 210).lineTo(doc.page.width - 50, 210).strokeColor('#DDD').lineWidth(0.5).stroke()
+    // Patient column
+    let rightY = 120
+    rightY = put('Patient',                                             RIGHT_COL, rightY, { fs: 10, font: 'Helvetica-Bold', color: '#333' })
+    rightY = put(data.patientName || '—',                               RIGHT_COL, rightY, { fs: 10, font: 'Helvetica',      color: '#1A2A33' })
+    rightY = put(`NHI: ${data.patientNhi || '—'}`,                      RIGHT_COL, rightY)
+    rightY = put(`DOB: ${data.patientDob || '—'}`,                      RIGHT_COL, rightY)
+    rightY = put(`Date: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, RIGHT_COL, rightY)
 
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(14).text('℞', 50, 225)
-    doc.fillColor('#1A2A33').fontSize(13).text(data.drug, 75, 225)
-    doc.fillColor('#555').font('Helvetica').fontSize(10)
-      .text(`Dose: ${data.dose || '—'}`, 75, 242)
-      .text(`Directions: ${data.directions || '—'}`, 75, 256)
-      .text(`Quantity: ${data.quantity || '—'}`, 75, 270)
-      .text(`Repeats: ${data.repeats || 0}`, 75, 284)
+    // Divider below whichever column is longer, then the drug block starts.
+    let flowY = Math.max(leftY, rightY) + 10
+    doc.moveTo(50, flowY).lineTo(doc.page.width - 50, flowY).strokeColor('#DDD').lineWidth(0.5).stroke()
+    flowY += 12
 
-    doc.moveTo(50, 305).lineTo(doc.page.width - 50, 305).strokeColor('#DDD').lineWidth(0.5).stroke()
+    // Drug block. Rx marker on the left, drug name + details flow to its right.
+    // Uses "Rx" instead of the ℞ codepoint — Helvetica has no glyph for it and
+    // pdfkit renders it as "!".
+    const RX_MARK_X = 50
+    const RX_TEXT_X = 78
+    const RX_TEXT_W = doc.page.width - RX_TEXT_X - 50
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(14).text('Rx', RX_MARK_X, flowY)
+    const drugTop = flowY
+    flowY = put(data.drug || '—', RX_TEXT_X, flowY, { w: RX_TEXT_W, fs: 13, font: 'Helvetica-Bold', color: '#1A2A33', gap: 4 })
+    flowY = put(`Dose: ${data.dose || '—'}`,             RX_TEXT_X, flowY, { w: RX_TEXT_W, fs: 10, color: '#555' })
+    flowY = put(`Directions: ${data.directions || '—'}`, RX_TEXT_X, flowY, { w: RX_TEXT_W, fs: 10, color: '#555' })
+    flowY = put(`Quantity: ${data.quantity || '—'}`,     RX_TEXT_X, flowY, { w: RX_TEXT_W, fs: 10, color: '#555' })
+    flowY = put(`Repeats: ${data.repeats || 0}`,         RX_TEXT_X, flowY, { w: RX_TEXT_W, fs: 10, color: '#555' })
+    // Ensure the Rx block always spans at least the height of the marker.
+    if (flowY - drugTop < 20) flowY = drugTop + 20
+    flowY += 8
 
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Dispensing Pharmacy', 50, 315)
-    doc.font('Helvetica').fontSize(10).fillColor('#555')
-      .text(data.pharmacyName || "Patient's preferred pharmacy", 50, 329)
-    if (data.pharmacyAddress) doc.text(data.pharmacyAddress, 50, 343)
+    // Pharmacy block.
+    doc.moveTo(50, flowY).lineTo(doc.page.width - 50, flowY).strokeColor('#DDD').lineWidth(0.5).stroke()
+    flowY += 10
+    flowY = put('Dispensing Pharmacy',                                  LEFT_COL, flowY, { w: doc.page.width - 100, fs: 10, font: 'Helvetica-Bold', color: '#333' })
+    flowY = put(data.pharmacyName || "Patient's preferred pharmacy",    LEFT_COL, flowY, { w: doc.page.width - 100, fs: 10, color: '#555' })
+    if (data.pharmacyAddress) {
+      flowY = put(data.pharmacyAddress,                                 LEFT_COL, flowY, { w: doc.page.width - 100, fs: 10, color: '#555' })
+    }
+    flowY += 12
 
     // DG authorisation statement — verbatim quote required when using the
     // signature-exempt path. Rendered as a bordered callout above the
-    // signature line so pharmacists can spot it at a glance.
+    // signature line so pharmacists can spot it at a glance. Height derived
+    // from the wrapped statement so a longer statement never clips its box.
     if (data.signatureExempt) {
-      const stmtY = 375
-      doc.rect(50, stmtY, doc.page.width - 100, 34).lineWidth(0.8).strokeColor('#0B6E76').stroke()
-      doc.fillColor('#0B6E76').font('Helvetica-Oblique').fontSize(8.5)
-        .text(DG_SIGNATURE_EXEMPT_STATEMENT, 58, stmtY + 6, { width: doc.page.width - 116, lineGap: 1 })
+      doc.font('Helvetica-Oblique').fontSize(8.5)
+      const stmtH = doc.heightOfString(DG_SIGNATURE_EXEMPT_STATEMENT, { width: doc.page.width - 116, lineGap: 1 }) + 12
+      doc.rect(50, flowY, doc.page.width - 100, stmtH).lineWidth(0.8).strokeColor('#0B6E76').stroke()
+      doc.fillColor('#0B6E76')
+        .text(DG_SIGNATURE_EXEMPT_STATEMENT, 58, flowY + 6, { width: doc.page.width - 116, lineGap: 1 })
+      flowY += stmtH + 20
     }
 
-    const sigY = 440
+    // Signature block sits at a fixed baseline near the page bottom, but never
+    // above the content that just flowed — otherwise a long DG statement
+    // (e.g. amended wording) would render on top of the signature line.
+    const sigY = Math.max(flowY + 30, doc.page.height - 160)
     // Prescriber signature — four paths, checked in order:
     //   1. signatureText override (sample/demo PDFs only — italic-font text
     //      stand-in when we don't want to ship a real signature image)
@@ -245,15 +277,19 @@ export async function buildReferralPdf(data) {
       y += 22
     }
 
-    // Helper — draws a label:value row (wraps value)
+    // Helper — draws a label:value row (wraps value). Advances y by the
+    // taller of the two so a wrapped value never overlaps the next row and
+    // a wrapped label (rare, long labels) doesn't either.
     const row = (label, value, opts = {}) => {
       const v = (value == null || value === '') ? '—' : String(value)
+      const valueW = RIGHT - LEFT - LABEL_W - 8
       doc.font('Helvetica-Bold').fontSize(9).fillColor('#333').text(label, LEFT, y, { width: LABEL_W })
+      const labH = doc.heightOfString(label, { width: LABEL_W })
       const color = opts.color || '#1A2A33'
       doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(color)
-        .text(v, LEFT + LABEL_W + 8, y, { width: RIGHT - LEFT - LABEL_W - 8 })
-      const h = doc.heightOfString(v, { width: RIGHT - LEFT - LABEL_W - 8, fontSize: 9 })
-      y += Math.max(14, h + 4)
+        .text(v, LEFT + LABEL_W + 8, y, { width: valueW })
+      const valH = doc.heightOfString(v, { width: valueW })
+      y += Math.max(14, Math.max(labH, valH) + 4)
     }
 
     // ── Section 1: Referral details ─────────────────────────────────
@@ -324,21 +360,57 @@ export async function buildReferralPdf(data) {
       y += 14
     }
 
-    // Signature block near page bottom
-    const sigY = Math.max(y + 30, doc.page.height - 120)
-    if (sigBuf) {
+    // Signature block sits close to the content rather than forced to a
+    // fixed page-bottom position — the old (page.height - 120) floor left
+    // a lot of dead space and, combined with the fixed-position footer,
+    // often spilled just the footer line onto page 2 (Jemimah, MMI, 2026-09-07).
+    const sigY = Math.min(Math.max(y + 40, doc.page.height - 150), doc.page.height - 110)
+
+    // Signature — three paths, checked in order:
+    //   1. signatureText override (sample / test PDFs use this so the
+    //      sample document Jemimah / Poswillo review looks like a real
+    //      signed one without shipping a real wet-ink image)
+    //   2. wet-ink image on file for the provider
+    //   3. fallback: short italic "Signed electronically" stamp above the
+    //      line — the who/MCNZ identification sits *below* the line as
+    //      the signature-label (replacing the generic "Referring clinician
+    //      signature" caption) so the two never overlap.
+    const identifierBits = [data.providerName || 'Referring clinician']
+    if (data.providerMcnz) identifierBits.push(`MCNZ ${data.providerMcnz}`)
+    const identifierLine = identifierBits.join(' · ')
+
+    if (data.signatureText) {
+      doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+        .text(String(data.signatureText), LEFT + 4, sigY - 26)
+    } else if (sigBuf) {
       try { doc.image(sigBuf, LEFT, sigY - 40, { fit: [170, 40] }) } catch {}
+    } else {
+      doc.fillColor('#0B6E76').font('Helvetica-Oblique').fontSize(10)
+        .text('Signed electronically', LEFT + 4, sigY - 16, { width: 166, lineBreak: false })
     }
+
     doc.moveTo(LEFT, sigY).lineTo(LEFT + 170, sigY).strokeColor('#999').lineWidth(0.5).stroke()
-    doc.fillColor('#999').font('Helvetica').fontSize(9).text('Referring clinician signature', LEFT, sigY + 4)
+    // Caption under signature line names the clinician — replaces the
+    // generic "Referring clinician signature" so pharmacies / radiologists
+    // can see WHO signed even when no wet-ink image is uploaded.
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8.5)
+      .text(identifierLine, LEFT, sigY + 4, { width: 240, lineBreak: false, ellipsis: true })
+    doc.fillColor('#999').font('Helvetica').fontSize(8)
+      .text('Referring clinician', LEFT, sigY + 15, { width: 240 })
+
     doc.moveTo(300, sigY).lineTo(RIGHT, sigY).strokeColor('#999').lineWidth(0.5).stroke()
-    doc.text('Date', 300, sigY + 4)
+    doc.fillColor('#999').font('Helvetica').fontSize(9).text('Date', 300, sigY + 4)
     doc.font('Helvetica').fontSize(9).fillColor('#333').text(
       new Date().toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland' }), 305, sigY - 12
     )
 
-    doc.fillColor('#AAA').fontSize(8)
-      .text('Electronically issued by Tere Health Limited · For clinical use only', LEFT, doc.page.height - 50, { align: 'center', width: RIGHT - LEFT })
+    // Footer sits just under the signature block, not glued to page-bottom.
+    // lineBreak:false prevents pdfkit from auto-breaking to page 2 if the
+    // internal cursor happens to have advanced past the bottom margin.
+    doc.fillColor('#AAA').font('Helvetica').fontSize(8)
+      .text('Electronically issued by Tere Health Limited · For clinical use only',
+            LEFT, sigY + 28,
+            { align: 'center', width: RIGHT - LEFT, lineBreak: false })
 
     doc.end()
   })

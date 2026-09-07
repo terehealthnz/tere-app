@@ -3496,6 +3496,64 @@ function ApplicantsSection() {
   )
 }
 
+// Inline CV viewer — fetches the file into a blob URL and renders in an
+// iframe so nothing ever touches the OS Downloads folder or spawns Word.
+// PDFs render in the browser's sandboxed PDF viewer. DOCX cannot be safely
+// previewed inline without a converter dep, so we ask the applicant to
+// resubmit as PDF (which also cuts macro risk).
+function CvPreviewModal({ url, filename, onClose }) {
+  const [blobUrl, setBlobUrl] = React.useState(null)
+  const [err, setErr] = React.useState('')
+  const isPdf = /\.pdf($|\?)/i.test(filename || '') || /\.pdf($|\?)/i.test(url || '')
+
+  React.useEffect(() => {
+    if (!isPdf) return
+    let revoked = null
+    ;(async () => {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) { setErr(`Could not load CV (HTTP ${res.status}).`); return }
+        const buf = await res.blob()
+        // Force the browser to treat it as PDF regardless of what the storage layer set.
+        const pdfBlob = new Blob([buf], { type: 'application/pdf' })
+        const objUrl = URL.createObjectURL(pdfBlob)
+        revoked = objUrl
+        setBlobUrl(objUrl)
+      } catch (e) {
+        setErr(e?.message || 'Could not load CV.')
+      }
+    })()
+    return () => { if (revoked) URL.revokeObjectURL(revoked) }
+  }, [url, isPdf])
+
+  const backdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }
+  const frame    = { background: 'white', borderRadius: 12, width: 'min(1000px, 96vw)', height: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,.4)' }
+
+  return (
+    <div style={backdrop} onClick={onClose}>
+      <div style={frame} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #E2E8F0' }}>
+          <div style={{ fontWeight: 700, color: '#0D2B45', fontSize: '.95rem' }}>{filename || 'CV preview'}</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: '#6B7280', lineHeight: 1 }} aria-label="Close">×</button>
+        </div>
+        <div style={{ flex: 1, minHeight: 0, background: '#0D2B45' }}>
+          {!isPdf ? (
+            <div style={{ color: 'white', padding: '2rem', fontSize: '.9rem', lineHeight: 1.6 }}>
+              This CV is a Word document, which can't be previewed inline safely. To avoid opening Word documents on your computer, please email the applicant and ask them to resubmit as a PDF.
+            </div>
+          ) : err ? (
+            <div style={{ color: '#FCA5A5', padding: '2rem', fontSize: '.9rem' }}>{err}</div>
+          ) : !blobUrl ? (
+            <div style={{ color: '#94A3B8', padding: '2rem', fontSize: '.9rem' }}>Loading preview…</div>
+          ) : (
+            <iframe src={blobUrl} title="CV preview" style={{ width: '100%', height: '100%', border: 'none' }} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ApplicantDetail({ id, onClose, onChanged }) {
   const [data, setData] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
@@ -3531,6 +3589,8 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   const [intake, setIntake] = React.useState(null)
   const [intakeMsg, setIntakeMsg] = React.useState('')
   const [revealed, setRevealed] = React.useState({ ird_number: null, bank_account: null })
+
+  const [cvPreviewOpen, setCvPreviewOpen] = React.useState(false)
 
   async function load() {
     setLoading(true)
@@ -3794,6 +3854,18 @@ function ApplicantDetail({ id, onClose, onChanged }) {
       onChanged?.()
     } finally { setSaving(false) }
   }
+  async function deletePermanent() {
+    const name = [data?.application?.first_name, data?.application?.last_name].filter(Boolean).join(' ') || 'this applicant'
+    if (!confirm(`Delete ${name} permanently? This wipes the applicant record and cannot be undone.`)) return
+    setSaving(true)
+    try {
+      const { deleteJobApplication } = await import('../../lib/supabase')
+      const ok = await deleteJobApplication(id)
+      if (!ok) { alert('Delete failed. Try again or refresh.'); return }
+      onChanged?.()
+      onClose?.()
+    } finally { setSaving(false) }
+  }
   async function addNote() {
     if (!noteText.trim()) return
     setSaving(true)
@@ -3938,10 +4010,15 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                   </>
                 )
               })()}
-              <div style={{ marginTop: '.75rem', display: 'flex', gap: 6 }}>
+              <div style={{ marginTop: '.75rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button onClick={toggleArchive} disabled={saving} style={btn('ghost')}>
                   {app.archived ? 'Unarchive' : 'Archive'}
                 </button>
+                {(app.archived || app.status === 'rejected' || app.status === 'withdrawn') && (
+                  <button onClick={deletePermanent} disabled={saving} style={{ ...btn('ghost'), color: '#B91C1C', borderColor: '#FCA5A5' }}>
+                    Delete permanently
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3951,7 +4028,19 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                 <div><strong>Applied:</strong> {new Date(app.applied_at).toLocaleString('en-NZ')}</div>
                 {app.source && <div><strong>Source:</strong> {app.source}</div>}
                 {app.cv_url && (
-                  <div><strong>CV:</strong> <a href={app.cv_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76' }}>{app.cv_filename || 'Open CV'}</a></div>
+                  <div>
+                    <strong>CV:</strong>{' '}
+                    <button
+                      type="button"
+                      onClick={() => setCvPreviewOpen(true)}
+                      style={{ background: 'none', border: 'none', color: '#0B6E76', textDecoration: 'underline', cursor: 'pointer', padding: 0, font: 'inherit' }}>
+                      {app.cv_filename || 'Review CV'}
+                    </button>
+                    <span style={{ color: '#94A3B8', fontSize: '.8rem', marginLeft: 6 }}>· previews in browser, nothing downloaded</span>
+                  </div>
+                )}
+                {cvPreviewOpen && app.cv_url && (
+                  <CvPreviewModal url={app.cv_url} filename={app.cv_filename} onClose={() => setCvPreviewOpen(false)} />
                 )}
                 {app.cover_note && (
                   <div style={{ marginTop: '.5rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, whiteSpace: 'pre-wrap' }}>{app.cover_note}</div>
