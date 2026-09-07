@@ -17,7 +17,7 @@ export default function Intake() {
 
   const [form, setForm] = useState({
     patient_name: '', patient_dob: '', patient_nhi: '',
-    patient_phone: '', patient_location: '',
+    patient_phone: '', patient_address: '', patient_location: '',
     chief_complaint: '',
     is_acc: false,
     acc_injury_description: '', acc_employer: '', acc_injury_date: '',
@@ -32,6 +32,11 @@ export default function Intake() {
     if (!form.patient_dob)             e.patient_dob     = 'Required'
     if (!form.patient_location)        e.patient_location= 'Required'
     if (!form.chief_complaint.trim())  e.chief_complaint = 'Required — describe what happened or what\'s wrong'
+    // Physical address is required for ACC claims where NHI is missing (the
+    // ACC45 needs enough identifiers to link the claimant to their file when
+    // no NHI is available — name + DOB + address is the minimum set).
+    if (form.is_acc && !form.patient_nhi.trim() && !form.patient_address.trim())
+                                       e.patient_address = 'Required for ACC claims when NHI is not provided'
     if (form.is_acc && !form.acc_injury_description.trim())
                                        e.acc_injury_description = 'Required for ACC claims'
     setErrors(e)
@@ -131,6 +136,18 @@ export default function Intake() {
                   onChange={e => set('patient_phone', e.target.value)}
                   placeholder="021 000 0000" autoComplete="tel" />
               </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                Physical address {form.is_acc && !form.patient_nhi ? '' : <span className="optional">(optional)</span>}
+              </label>
+              <input className={`form-input ${errors.patient_address ? 'error' : ''}`}
+                value={form.patient_address}
+                onChange={e => set('patient_address', e.target.value)}
+                placeholder="Street address, suburb, city, postcode"
+                autoComplete="street-address" />
+              {errors.patient_address && <p className="form-error">{errors.patient_address}</p>}
             </div>
 
             <div className="form-group">

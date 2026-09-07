@@ -140,9 +140,20 @@ export default async function handler(req, res) {
   }
 
   // ── Fetch patient (best-effort) ─────────────────────────────────────────────
+  // Try NHI first; fall back to name+DOB matching for patients without NHI
+  // (overseas visitors, unregistered — ACC still needs to bill for these).
   let patient = null
+  const PATIENT_COLS = 'id, first_name, last_name, dob, nhi, phone, email, address'
   if (consult?.patient_nhi) {
-    const { data } = await supabase.from('patients').select('id, first_name, last_name, dob, nhi, phone, email, address').eq('nhi', consult.patient_nhi).maybeSingle()
+    const { data } = await supabase.from('patients').select(PATIENT_COLS).eq('nhi', consult.patient_nhi).maybeSingle()
+    patient = data || null
+  }
+  if (!patient && consult?.patient_first_name && consult?.patient_last_name && consult?.patient_dob) {
+    const { data } = await supabase.from('patients').select(PATIENT_COLS)
+      .eq('first_name', consult.patient_first_name)
+      .eq('last_name', consult.patient_last_name)
+      .eq('date_of_birth', consult.patient_dob)
+      .maybeSingle()
     patient = data || null
   }
 
@@ -179,13 +190,25 @@ export default async function handler(req, res) {
       .order('created_at')
     relatedConsults = (data || []).filter(row => row.id !== claim.consultation_id)
   }
-  if (!relatedConsults.length && consult?.patient_nhi && consult?.acc_injury_date) {
-    const { data } = await supabase.from('consultations')
+  if (!relatedConsults.length && consult?.acc_injury_date) {
+    // Prefer NHI match; fall back to name+DOB when NHI missing (overseas
+    // visitors, unregistered patients).
+    const q = supabase.from('consultations')
       .select('id, created_at, consultation_type, chief_complaint, acc_injury_date, acc_read_code, acc_body_part, doctor_notes, admin_notes, clinical_notes')
-      .eq('patient_nhi', consult.patient_nhi)
       .eq('acc_injury_date', consult.acc_injury_date)
       .order('created_at')
-    relatedConsults = (data || []).filter(row => row.id !== claim.consultation_id)
+    let rel
+    if (consult.patient_nhi) {
+      const { data } = await q.eq('patient_nhi', consult.patient_nhi)
+      rel = data
+    } else if (consult.patient_first_name && consult.patient_last_name && consult.patient_dob) {
+      const { data } = await q
+        .eq('patient_first_name', consult.patient_first_name)
+        .eq('patient_last_name', consult.patient_last_name)
+        .eq('patient_dob', consult.patient_dob)
+      rel = data
+    }
+    relatedConsults = (rel || []).filter(row => row.id !== claim.consultation_id)
   }
 
   // ── Outcome measures across the whole claim (task #345) ─────────────────────
