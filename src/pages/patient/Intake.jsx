@@ -19,8 +19,9 @@ export default function Intake() {
     patient_name: '', patient_dob: '', patient_nhi: '',
     patient_phone: '', patient_address: '', patient_location: '',
     chief_complaint: '',
-    is_acc: false,
-    acc_injury_description: '', acc_employer: '', acc_injury_date: '',
+    is_acc: false, is_work_injury: false,
+    acc_injury_description: '', acc_injury_date: '',
+    acc_employer: '', acc_employer_address: '', acc_employer_phone: '',
     recording_consent: false,
   })
 
@@ -39,6 +40,13 @@ export default function Intake() {
                                        e.patient_address = 'Required for ACC claims when NHI is not provided'
     if (form.is_acc && !form.acc_injury_description.trim())
                                        e.acc_injury_description = 'Required for ACC claims'
+    // Work injuries need enough employer detail for ACC to contact the
+    // employer to verify the claim (Sched 1 of Accident Compensation Act).
+    if (form.is_acc && form.is_work_injury) {
+      if (!form.acc_employer.trim())         e.acc_employer         = 'Required for work-related injuries'
+      if (!form.acc_employer_address.trim()) e.acc_employer_address = 'Required for work-related injuries'
+      if (!form.acc_employer_phone.trim())   e.acc_employer_phone   = 'Required for work-related injuries'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -193,22 +201,49 @@ export default function Intake() {
                       rows={3} />
                     {errors.acc_injury_description && <p className="form-error">{errors.acc_injury_description}</p>}
                   </div>
-                  <div className="form-row">
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">
-                        Employer <span className="optional">(if work injury)</span>
-                      </label>
-                      <input className="form-input" value={form.acc_employer}
-                        onChange={e => set('acc_employer', e.target.value)}
-                        placeholder="Company name" />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Date of injury</label>
-                      <input type="date" className="form-input" value={form.acc_injury_date}
-                        onChange={e => set('acc_injury_date', e.target.value)}
-                        max={new Date().toISOString().split('T')[0]} />
-                    </div>
+                  <div className="form-group" style={{ marginBottom: '0.875rem' }}>
+                    <label className="form-label">Date of injury</label>
+                    <input type="date" className="form-input" value={form.acc_injury_date}
+                      onChange={e => set('acc_injury_date', e.target.value)}
+                      max={new Date().toISOString().split('T')[0]} />
                   </div>
+
+                  <label className="form-check" style={{ marginBottom: form.is_work_injury ? '1rem' : 0 }}>
+                    <input type="checkbox" checked={form.is_work_injury}
+                      onChange={e => set('is_work_injury', e.target.checked)} />
+                    <span className="form-check-label">
+                      <strong>This was a work-related injury</strong> — happened at work or during work duties
+                    </span>
+                  </label>
+
+                  {form.is_work_injury && (
+                    <>
+                      <div className="form-group" style={{ marginBottom: '0.875rem' }}>
+                        <label className="form-label">Employer name</label>
+                        <input className={`form-input ${errors.acc_employer ? 'error' : ''}`}
+                          value={form.acc_employer}
+                          onChange={e => set('acc_employer', e.target.value)}
+                          placeholder="Company name" />
+                        {errors.acc_employer && <p className="form-error">{errors.acc_employer}</p>}
+                      </div>
+                      <div className="form-group" style={{ marginBottom: '0.875rem' }}>
+                        <label className="form-label">Employer address</label>
+                        <input className={`form-input ${errors.acc_employer_address ? 'error' : ''}`}
+                          value={form.acc_employer_address}
+                          onChange={e => set('acc_employer_address', e.target.value)}
+                          placeholder="Street address, suburb, city, postcode" />
+                        {errors.acc_employer_address && <p className="form-error">{errors.acc_employer_address}</p>}
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Employer phone</label>
+                        <input type="tel" className={`form-input ${errors.acc_employer_phone ? 'error' : ''}`}
+                          value={form.acc_employer_phone}
+                          onChange={e => set('acc_employer_phone', e.target.value)}
+                          placeholder="03 000 0000" />
+                        {errors.acc_employer_phone && <p className="form-error">{errors.acc_employer_phone}</p>}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
