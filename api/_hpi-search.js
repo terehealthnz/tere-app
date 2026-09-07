@@ -104,7 +104,7 @@ const MOCK_GPS = [
 ]
 
 const MOCK_RADIOLOGY = [
-  { name: 'Marlborough Medical Imaging', hpiId: 'FAC0001001', address: '25 Alma Road, Blenheim 7201', phone: '03 579 8050', email: 'referrals@mmi.co.nz', fax: '03 579 8051' },
+  { name: 'Marlborough Medical Imaging', hpiId: 'FAC0001001', address: '25 Alma Road, Blenheim 7201', phone: '03 579 8050', email: 'bookings@mmimaging.co.nz', fax: '03 579 8051' },
   { name: 'Pacific Radiology Nelson', hpiId: 'FAC0001002', address: '98 Waimea Road, Nelson 7010', phone: '03 546 9100', email: 'nelson@pacificradiology.co.nz', fax: '03 546 9101' },
   { name: 'Medray Marlborough', hpiId: 'FAC0001003', address: '5 Scott Street, Blenheim 7201', phone: '03 577 7733', email: 'bookings@medray.co.nz', fax: '' },
   { name: 'Nelson Hospital Radiology', hpiId: 'FAC0001004', address: 'Tipahi Street, Nelson 7010', phone: '03 546 1800', email: 'radiology@nmdhb.govt.nz', fax: '03 546 1801' },
