@@ -489,6 +489,23 @@ export default async function handler(req, res) {
         subject: `Interview booked: ${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'}`,
         intro:   `${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'The applicant'} picked a time from the slots you sent. Calendar invite attached.`,
       }))
+      // Always notify the ops inbox on slot pick — belt-and-braces so the
+      // hiring team is never silent even if no interviewer_provider_id was
+      // set on the invite, or their provider row email is stale. Skipped
+      // only when the assigned interviewer IS the ops inbox (avoids dup).
+      const opsInbox = 'terehealthnz@gmail.com'
+      if (interviewer?.email !== opsInbox) {
+        p.push(sendInterviewConfirmationEmail({
+          to: opsInbox,
+          name: 'Tere Health team',
+          joinUrl,
+          scheduledAt: updated.scheduled_at,
+          durationMin: updated.duration_minutes || 30,
+          interviewId: iv.id,
+          subject: `[Ops] Interview booked: ${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'Applicant'}`,
+          intro:   `${[app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'An applicant'} picked a time. ${interviewer?.email ? `Assigned interviewer: ${[interviewer?.first_name, interviewer?.last_name].filter(Boolean).join(' ')} (${interviewer.email}).` : 'No specific interviewer was assigned to this invite.'}`,
+        }))
+      }
       await Promise.allSettled(p)
     } catch (e) {
       console.error('[interview] pick_slot email failed:', e.message)
