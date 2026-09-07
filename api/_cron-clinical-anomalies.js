@@ -108,9 +108,14 @@ export default async function handler(req, res) {
   }
 
   // Pull the last 30d of consults so we can walk pairs.
+  // Exclude archived/deleted rows — admin "Archive" (Admin.jsx setStatus
+  // 'archived') is a soft-delete used to clear test data and mistakes from
+  // the queue; re-presentation detection should not resurface them as
+  // clinical signals.
   const { data: consults } = await supabase.from('consultations')
     .select('id, patient_id, patient_nhi, patient_email, patient_first_name, patient_last_name, chief_complaint, status, created_at, completed_at')
     .gte('created_at', lookback)
+    .not('status', 'in', '(archived,deleted)')
     .order('created_at', { ascending: true })
     .limit(5000)
 
