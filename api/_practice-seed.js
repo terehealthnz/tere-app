@@ -9,7 +9,7 @@
 // Design:
 //   - Every seeded row is tagged is_practice=true. Practice-mode-aware
 //     endpoints filter by that flag and never mix practice with real data.
-//   - Consultations are matched_provider_id = current provider so
+//   - Consultations are provider_id = current provider so
 //     get-queue returns them without a queue-assignment step.
 //   - Names are obviously mock but realistic-sounding (see MOCK_PATIENTS).
 //     No real NHIs — practice NHIs use the PRAC prefix which is not in
@@ -159,7 +159,7 @@ export default async function handler(req, res) {
       chief_complaint:           p.complaint,
       consultation_type:         'video',
       status:                    'waiting',
-      matched_provider_id:       provider.id,
+      provider_id:       provider.id,
       is_practice:               true,
     }
     const { data: consult, error: cErr } = await supabase.from('consultations').insert(consultBase).select('id').single()
