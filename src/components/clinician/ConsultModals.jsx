@@ -38,8 +38,54 @@ export function calcPaedDose(drug, weightKg) {
 
 // ── Prescribe modal ───────────────────────────────────────────────────────────
 
+// Structured prescription fields — decomposes what used to be a free-text
+// "Directions" field into the individual components a pharmacist needs:
+// strength (concentration — critical for anything liquid), form, dose,
+// frequency, duration. Composed back into the compound drug / directions
+// strings on submit so backend + PDF renderer are unchanged.
+const FREQUENCY_OPTIONS = [
+  { v: 'OD',     l: 'Once daily (OD / mane)' },
+  { v: 'BD',     l: 'Twice daily (BD)' },
+  { v: 'TDS',    l: 'Three times daily (TDS)' },
+  { v: 'QID',    l: 'Four times daily (QID)' },
+  { v: 'nocte',  l: 'At night (nocte)' },
+  { v: 'Q4H',    l: 'Every 4 hours' },
+  { v: 'Q6H',    l: 'Every 6 hours' },
+  { v: 'Q8H',    l: 'Every 8 hours' },
+  { v: 'PRN',    l: 'As needed (PRN)' },
+  { v: 'STAT',   l: 'Immediately (STAT), single dose' },
+  { v: 'weekly', l: 'Weekly' },
+]
+const FORM_OPTIONS = [
+  { v: '',              l: '— select form —' },
+  { v: 'tablets',       l: 'Tablets' },
+  { v: 'capsules',      l: 'Capsules' },
+  { v: 'oral liquid',   l: 'Oral liquid / suspension' },
+  { v: 'drops',         l: 'Drops' },
+  { v: 'cream',         l: 'Cream / ointment' },
+  { v: 'inhaler',       l: 'Inhaler' },
+  { v: 'suppository',   l: 'Suppository' },
+  { v: 'patch',         l: 'Patch' },
+  { v: 'injection',     l: 'Injection' },
+]
+function composeRx(rx) {
+  const drug = [rx.medication, rx.strength, rx.form].filter(Boolean).join(' ').trim()
+  const freqLabel = FREQUENCY_OPTIONS.find(f => f.v === rx.frequency)?.l?.replace(/\s*\([^)]*\)/, '') || rx.frequency
+  const parts = []
+  if (rx.dose) parts.push(rx.dose)
+  if (freqLabel) parts.push(freqLabel.toLowerCase())
+  if (rx.duration) parts.push(`for ${rx.duration}`)
+  let directions = parts.join(' ')
+  if (rx.notes) directions = directions ? `${directions}. ${rx.notes}` : rx.notes
+  return { drug, directions }
+}
+
 export function PrescribeModal({ open, onClose, consult, onDone }) {
-  const [rx, setRx] = useState({ drug:'', dose:'', directions:'', qty:'', repeats:0 })
+  const [rx, setRx] = useState({
+    medication: '', strength: '', form: '',
+    dose: '', frequency: '', duration: '',
+    notes: '', qty: '', repeats: 0,
+  })
   const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
@@ -90,16 +136,28 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
   }, [open, providerId])
 
   function loadTemplate(t) {
-    setRx({ drug:t.drug||'', dose:t.dose||'', directions:t.directions||'', qty:t.quantity||'', repeats:t.repeats||0 })
+    // Legacy templates store `drug` as a compound string — leave what
+    // we can't parse in `medication` for the provider to split by hand.
+    setRx({
+      medication: t.drug || '', strength: t.strength || '', form: t.form || '',
+      dose: t.dose || '', frequency: t.frequency || '', duration: t.duration || '',
+      notes: t.directions || '', qty: t.quantity || '', repeats: t.repeats || 0,
+    })
     setIsPaediatric(!!t.paediatric)
     setPaedWeight('')
   }
 
   async function saveTemplate() {
-    if (!templateName.trim() || !rx.drug) return
+    if (!templateName.trim() || !rx.medication) return
     setSavingTemplate(true)
     try {
-      const r = await apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({ action:'save_template', provider_id:providerId, name:templateName.trim(), drug:rx.drug, dose:rx.dose, directions:rx.directions, quantity:rx.qty, repeats:rx.repeats }) })
+      const composed = composeRx(rx)
+      const r = await apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({
+        action:'save_template', provider_id:providerId, name:templateName.trim(),
+        drug: composed.drug, dose: rx.dose, directions: composed.directions,
+        strength: rx.strength, form: rx.form, frequency: rx.frequency, duration: rx.duration,
+        quantity: rx.qty, repeats: rx.repeats,
+      }) })
       const d = await r.json()
       if (d.ok) { setTemplates(ts => [...ts, d.template]); setShowSaveTemplate(false); setTemplateName('') }
     } catch {} finally { setSavingTemplate(false) }
@@ -109,6 +167,7 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
     e.preventDefault()
     setSending(true)
     setResult(null)
+    const composed = composeRx(rx)
     try {
       const res = await apiFetch('/api/generate-prescription-pdf', {
         method: 'POST',
@@ -122,7 +181,7 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
           patientNhi: consult?.patient_nhi,
           patientDob: consult?.patient_dob,
           patientEmail: consult?.patient_email,
-          drug: rx.drug, dose: rx.dose, directions: rx.directions,
+          drug: composed.drug, dose: rx.dose, directions: composed.directions,
           quantity: rx.qty, repeats: rx.repeats,
           pharmacyName: pharmacy.name, pharmacyHpiId: pharmacy.hpiId,
           pharmacyEmail: pharmacy.email, pharmacyPhone: pharmacy.phone,
@@ -134,7 +193,7 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
       const data = await res.json()
       if (data.ok) {
         setResult({ ok: true, pending: data.pending, warnings: data.deliveryErrors })
-        onDone({ type: 'prescription', drug: rx.drug, directions: rx.directions, pharmacy: pharmacy.name, pending: data.pending, timestamp: new Date().toISOString() })
+        onDone({ type: 'prescription', drug: composed.drug, directions: composed.directions, pharmacy: pharmacy.name, pending: data.pending, timestamp: new Date().toISOString() })
         setTimeout(() => { setResult(null); onClose() }, data.pending ? 3000 : 2000)
       } else {
         setResult({ ok: false, error: data.error })
@@ -170,8 +229,8 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
         )}
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
         <div className="form-group">
-          <label>Medication</label>
-          <input value={rx.drug} onChange={e=>setRx(r=>({...r,drug:e.target.value}))} onBlur={e=>checkDrugInteractions(e.target.value)} required placeholder="e.g. Ibuprofen 400mg tablets" />
+          <label>Medication name <span style={{color:'#DC2626'}}>*</span></label>
+          <input value={rx.medication} onChange={e=>setRx(r=>({...r,medication:e.target.value}))} onBlur={e=>checkDrugInteractions(e.target.value)} required placeholder="e.g. Ibuprofen (no strength — enter that below)" />
           {checkingInteractions && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:3}}>Checking interactions…</div>}
           {interactions && interactions.interactions?.length > 0 && (
             <div style={{marginTop:'.5rem',borderRadius:8,border:`1.5px solid ${interactions.maxSeverity==='major'?'#DC2626':interactions.maxSeverity==='moderate'?'#D97706':'#E2E8F0'}`,padding:'.75rem',background:interactions.maxSeverity==='major'?'#FEF2F2':interactions.maxSeverity==='moderate'?'#FFFBEB':'#F8FAFC'}}>
@@ -186,7 +245,7 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
                   <div style={{fontSize:'.75rem',color:'#DC2626',marginBottom:4,fontWeight:600}}>Major interaction — document reason to proceed</div>
                   <input value={overrideReason} onChange={e=>setOverrideReason(e.target.value)} placeholder="Clinical reason for prescribing despite interaction…"
                     style={{width:'100%',boxSizing:'border-box',padding:'6px 8px',border:'1.5px solid #FECACA',borderRadius:6,fontSize:'.8125rem',fontFamily:'Plus Jakarta Sans, sans-serif'}} />
-                  <button onClick={()=>{if(overrideReason.trim()){setInteractionOverride(true);apiFetch('/api/drug-interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({drug:rx.drug,patientMedications:consult?.medications,consultationId:consult?.id,providerId,override:true,overrideReason})})}}}
+                  <button onClick={()=>{if(overrideReason.trim()){setInteractionOverride(true);apiFetch('/api/drug-interactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({drug:rx.medication,patientMedications:consult?.medications,consultationId:consult?.id,providerId,override:true,overrideReason})})}}}
                     disabled={!overrideReason.trim()}
                     style={{marginTop:'.375rem',background:'#DC2626',color:'white',border:'none',borderRadius:6,padding:'5px 12px',cursor:'pointer',fontSize:'.75rem',fontWeight:700,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
                     Override — proceed with prescription
@@ -214,22 +273,64 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
             <div style={{display:'flex',gap:8,alignItems:'center'}}>
               <input type="number" min={1} max={100} value={paedWeight} onChange={e => {
                 const w = parseFloat(e.target.value); setPaedWeight(e.target.value)
-                if (w > 0 && rx.drug) { const calc = calcPaedDose(rx.drug, w); if (calc) setRx(r => ({...r, dose:calc.dose, directions:calc.directions, qty:calc.qty})) }
+                if (w > 0 && rx.medication) {
+                  const calc = calcPaedDose(rx.medication, w)
+                  if (calc) setRx(r => ({ ...r, dose: calc.dose, qty: calc.qty, notes: calc.directions }))
+                }
               }} placeholder="Weight (kg)" style={{width:130,padding:'7px 10px',border:'1.5px solid #93C5FD',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}} />
               <span style={{fontSize:'.8rem',color:'#6B7280'}}>kg</span>
-              {paedWeight && calcPaedDose(rx.drug, parseFloat(paedWeight)) && (
-                <span style={{fontSize:'.8rem',color:'#1D4ED8',fontWeight:700}}>→ {calcPaedDose(rx.drug, parseFloat(paedWeight)).dose}</span>
+              {paedWeight && calcPaedDose(rx.medication, parseFloat(paedWeight)) && (
+                <span style={{fontSize:'.8rem',color:'#1D4ED8',fontWeight:700}}>→ {calcPaedDose(rx.medication, parseFloat(paedWeight)).dose}</span>
               )}
-              {paedWeight && !calcPaedDose(rx.drug, parseFloat(paedWeight)) && (
+              {paedWeight && !calcPaedDose(rx.medication, parseFloat(paedWeight)) && (
                 <span style={{fontSize:'.8rem',color:'#D97706'}}>No auto-calc — enter dose manually</span>
               )}
             </div>
           </div>
         )}
-        <div className="form-group"><label>Dose</label><input value={rx.dose} onChange={e=>setRx(r=>({...r,dose:e.target.value}))} placeholder="400mg" /></div>
-        <div className="form-group"><label>Directions</label><input value={rx.directions} onChange={e=>setRx(r=>({...r,directions:e.target.value}))} required placeholder="One tablet three times daily with food" /></div>
+        {/* Structured prescription fields — pharmacist needs strength +
+            frequency at minimum; free-text "directions" only was fragile
+            (Patrick 2026-09-08 fix). */}
         <div className="form-row">
-          <div className="form-group"><label>Quantity</label><input value={rx.qty} onChange={e=>setRx(r=>({...r,qty:e.target.value}))} placeholder="30 tablets" /></div>
+          <div className="form-group">
+            <label>Strength / concentration <span style={{color:'#DC2626'}}>*</span></label>
+            <input value={rx.strength} onChange={e=>setRx(r=>({...r,strength:e.target.value}))} required placeholder="e.g. 400mg   or   100mg/5mL (for liquid)" />
+          </div>
+          <div className="form-group">
+            <label>Form</label>
+            <select value={rx.form} onChange={e=>setRx(r=>({...r,form:e.target.value}))}>
+              {FORM_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Dose per administration <span style={{color:'#DC2626'}}>*</span></label>
+            <input value={rx.dose} onChange={e=>setRx(r=>({...r,dose:e.target.value}))} required placeholder="e.g. 1 tablet   or   5mL   or   2 puffs" />
+          </div>
+          <div className="form-group">
+            <label>Frequency <span style={{color:'#DC2626'}}>*</span></label>
+            <select value={rx.frequency} onChange={e=>setRx(r=>({...r,frequency:e.target.value}))} required>
+              <option value="">— select frequency —</option>
+              {FREQUENCY_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="form-group">
+          <label>Duration <span style={{color:'#9CA3AF',fontWeight:400,fontSize:'.75rem'}}>(optional)</span></label>
+          <input value={rx.duration} onChange={e=>setRx(r=>({...r,duration:e.target.value}))} placeholder="e.g. 5 days   or   until finished   or   ongoing" />
+        </div>
+        <div className="form-group">
+          <label>Additional instructions <span style={{color:'#9CA3AF',fontWeight:400,fontSize:'.75rem'}}>(optional)</span></label>
+          <input value={rx.notes} onChange={e=>setRx(r=>({...r,notes:e.target.value}))} placeholder="e.g. with food, avoid alcohol, shake well" />
+        </div>
+        {(rx.medication && rx.strength && rx.dose && rx.frequency) && (
+          <div style={{background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,padding:'.5rem .75rem',marginBottom:'.75rem',fontSize:'.75rem',color:'#166534'}}>
+            <strong>Preview:</strong> {composeRx(rx).drug} — {composeRx(rx).directions}
+          </div>
+        )}
+        <div className="form-row">
+          <div className="form-group"><label>Quantity <span style={{color:'#DC2626'}}>*</span></label><input value={rx.qty} onChange={e=>setRx(r=>({...r,qty:e.target.value}))} required placeholder="e.g. 30 tablets   or   100mL" /></div>
           <div className="form-group"><label>Repeats</label><input type="number" min={0} max={12} value={rx.repeats} onChange={e=>setRx(r=>({...r,repeats:parseInt(e.target.value)||0}))} /></div>
         </div>
         {!consult?.pharmacy ? (
@@ -266,7 +367,7 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
           </button>
         </div>
       </form>
-      {rx.drug && (
+      {rx.medication && (
         <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem',marginTop:'.75rem'}}>
           {showSaveTemplate ? (
             <div style={{display:'flex',gap:'.5rem',alignItems:'center'}}>
