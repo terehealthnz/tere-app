@@ -108,20 +108,39 @@ export default async function handler(req, res) {
   }
 
   // Pull the last 30d of consults so we can walk pairs.
-  // Exclude archived/deleted rows — admin "Archive" (Admin.jsx setStatus
-  // 'archived') is a soft-delete used to clear test data and mistakes from
-  // the queue; re-presentation detection should not resurface them as
-  // clinical signals.
+  // Exclude terminal-cleanup statuses — archive/expire/dismiss are all
+  // provider actions that mean "this isn't a real clinical event to keep
+  // scoring." Includes 'expired' because Dashboard's Dismiss action sets
+  // that (see Dashboard.jsx dismissConsult) — without it, dismissed test
+  // consults kept re-surfacing as re-presentation signals.
+  // Also exclude is_practice=true (sandbox/training data must never appear
+  // in clinical signals).
   const { data: consults } = await supabase.from('consultations')
-    .select('id, patient_id, patient_nhi, patient_email, patient_first_name, patient_last_name, chief_complaint, status, created_at, completed_at')
+    .select('id, patient_id, patient_nhi, patient_email, patient_first_name, patient_last_name, chief_complaint, status, created_at, completed_at, is_practice')
     .gte('created_at', lookback)
-    .not('status', 'in', '(archived,deleted)')
+    .not('status', 'in', '(archived,deleted,expired,cancelled,no_show)')
+    .neq('is_practice', true)
     .order('created_at', { ascending: true })
     .limit(5000)
 
+  // Team-member exclusion: consults where the patient email/name matches an
+  // internal provider (Patrick, Rachel, Justin, etc.) are self-tests, not
+  // real patient encounters. Never surface these as clinical signals.
+  const { data: teamRows } = await supabase.from('providers')
+    .select('email, first_name, last_name')
+  const teamEmails = new Set((teamRows || []).map(p => (p.email || '').toLowerCase()).filter(Boolean))
+  const teamNames  = new Set((teamRows || []).map(p => `${(p.first_name || '').toLowerCase()}|${(p.last_name || '').toLowerCase()}`).filter(k => k !== '|'))
+  const isTeamMember = (c) => {
+    if (c.patient_email && teamEmails.has(String(c.patient_email).toLowerCase())) return true
+    const key = `${(c.patient_first_name || '').toLowerCase()}|${(c.patient_last_name || '').toLowerCase()}`
+    if (key !== '|' && teamNames.has(key)) return true
+    return false
+  }
+  const filteredConsults = (consults || []).filter(c => !isTeamMember(c))
+
   // Group by patient key.
   const byPatient = new Map()
-  for (const c of consults || []) {
+  for (const c of filteredConsults) {
     const key = c.patient_nhi || c.patient_email || c.patient_id || `name:${c.patient_first_name}|${c.patient_last_name}`
     if (!byPatient.has(key)) byPatient.set(key, [])
     byPatient.get(key).push(c)
