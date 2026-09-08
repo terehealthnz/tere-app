@@ -86,10 +86,12 @@ const MOCK_PATIENTS = [
 ]
 
 async function countPracticeForProvider(supabase, providerId) {
+  // Count via canonical deterministic IDs so we don't rely on
+  // created_by_provider_id (may not exist in every schema version).
+  const ids = MOCK_PATIENTS.map(p => detUuid('practice-patient', providerId, p.key))
   const { count } = await supabase.from('patients')
     .select('id', { count: 'exact', head: true })
-    .eq('is_practice', true)
-    .eq('created_by_provider_id', providerId)
+    .in('id', ids)
   return count || 0
 }
 
@@ -103,8 +105,10 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
     const nhi = detNhi(provider.id, p.key)
 
     // Upsert patient. Same ID every time → hits the same row → no unique
-    // constraint games.
-    const { error: pErr } = await supabase.from('patients').upsert({
+    // constraint games. created_by_provider_id is optional (column doesn't
+    // exist in all schema versions) — retry without it if the first attempt
+    // trips a schema-cache error.
+    const basePatient = {
       id:            patientId,
       first_name:    p.first_name,
       last_name:     p.last_name,
@@ -113,8 +117,14 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       email:         p.email,
       nhi,
       is_practice:   true,
-      created_by_provider_id: provider.id,
-    }, { onConflict: 'id' })
+    }
+    let { error: pErr } = await supabase.from('patients').upsert(
+      { ...basePatient, created_by_provider_id: provider.id },
+      { onConflict: 'id' },
+    )
+    if (pErr?.message?.includes('created_by_provider_id')) {
+      ;({ error: pErr } = await supabase.from('patients').upsert(basePatient, { onConflict: 'id' }))
+    }
     if (pErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `patient upsert: ${pErr.message}` }); continue }
 
     // Upsert consultation. status forced to 'waiting' every seed so the
