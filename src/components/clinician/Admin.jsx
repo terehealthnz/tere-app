@@ -1906,6 +1906,27 @@ function ProvidersPanel() {
   const [addOpen, setAddOpen] = React.useState(false)
   const [editing, setEditing] = React.useState(null)
   const [createdNotice, setCreatedNotice] = React.useState(null)
+  // Track current user's sandbox state so the per-row toggle re-renders on flip.
+  const [sandboxOn, setSandboxOn] = React.useState(() => {
+    try { return sessionStorage.getItem('practice_mode') === '1' } catch { return false }
+  })
+  React.useEffect(() => {
+    const handler = () => {
+      try { setSandboxOn(sessionStorage.getItem('practice_mode') === '1') } catch {}
+    }
+    window.addEventListener('tere:practice-mode-changed', handler)
+    return () => window.removeEventListener('tere:practice-mode-changed', handler)
+  }, [])
+  const currentProviderId = (() => { try { return sessionStorage.getItem('providerId') } catch { return null } })()
+  function toggleSandbox() {
+    try {
+      const next = !sandboxOn
+      if (next) sessionStorage.setItem('practice_mode', '1')
+      else      sessionStorage.removeItem('practice_mode')
+      setSandboxOn(next)
+      window.dispatchEvent(new CustomEvent('tere:practice-mode-changed', { detail: { practice: next } }))
+    } catch {}
+  }
 
   async function load() {
     try {
@@ -2002,10 +2023,24 @@ function ProvidersPanel() {
                     {initial1}{initial2}
                   </div>
                   <div>
-                    <div style={{ fontWeight:700, fontSize:'.9375rem', color:'#0D2B45', marginBottom:2 }}>
-                      {displayName}
-                      {p.is_admin && <span style={{ marginLeft:8, background:'#EDE9FE', color:'#6D28D9', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Admin</span>}
-                      {!p.is_provider && <span style={{ marginLeft:8, background:'#F3F4F6', color:'#6B7280', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Non-clinical</span>}
+                    <div style={{ fontWeight:700, fontSize:'.9375rem', color:'#0D2B45', marginBottom:2, display:'flex', alignItems:'center', flexWrap:'wrap', gap:6 }}>
+                      <span>{displayName}</span>
+                      {p.is_admin && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Admin</span>}
+                      {!p.is_provider && <span style={{ background:'#F3F4F6', color:'#6B7280', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Non-clinical</span>}
+                      {p.id === currentProviderId && (
+                        <button
+                          onClick={toggleSandbox}
+                          title={sandboxOn ? 'Turn sandbox off — your provider view goes back to real patients' : 'Turn sandbox on — your provider view will show the 3 practice patients (admin views stay live)'}
+                          style={{
+                            background: sandboxOn ? '#065F46' : '#FEF3C7',
+                            color:      sandboxOn ? 'white'   : '#78350F',
+                            border:     sandboxOn ? '1px solid #065F46' : '1px solid #FDE68A',
+                            padding:'2px 9px', borderRadius:99, fontSize:'.7rem', fontWeight:700,
+                            cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif',
+                          }}>
+                          {sandboxOn ? '🧪 Exit sandbox' : '🧪 Activate sandbox'}
+                        </button>
+                      )}
                     </div>
                     <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.5rem' }}>
                       {p.specialty || (p.is_admin && !p.is_provider ? 'Admin only' : 'Clinician')}
