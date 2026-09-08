@@ -266,21 +266,30 @@ export function nearestClinic(userCoords) {
 
 /**
  * Main entry point for auto-selecting a region from patient input.
- *   - If patientCoords passed AND any region has clinics with lat/lng →
- *     nearest-clinic wins (BDM data active).
- *   - Otherwise falls back to extracting a postcode from patientAddress
- *     and using postcode-prefix lookup.
- *   - Returns { regionId, reason } or null if no confident match.
+ *   1. patientCoords + any clinic with lat/lng → nearest-clinic (strongest).
+ *   2. Pharmacy postcode (extracted from pharmacyAddress) → real-time
+ *      catchment. Patient must physically collect the script, so the
+ *      pharmacy they picked is where they can actually get to today.
+ *      Beats home postcode for travellers (Wellington resident on holiday
+ *      in Christchurch → Christchurch pharmacy → imaging in Christchurch).
+ *   3. Patient postcode → home-address fallback when no pharmacy chosen
+ *      or the pharmacy pick doesn't map to a region.
+ *   Returns { regionId, reason } or null if no confident match.
  */
-export function autoSelectRegion({ patientAddress, patientCoords } = {}) {
+export function autoSelectRegion({ patientAddress, patientCoords, pharmacyAddress } = {}) {
   if (patientCoords) {
     const nearest = nearestClinic(patientCoords)
     if (nearest) return { regionId: nearest.regionId, reason: `nearest clinic (${nearest.distanceKm.toFixed(1)} km)` }
   }
-  const postcode = extractNzPostcode(patientAddress)
-  if (postcode) {
-    const regionId = regionByPostcode(postcode)
-    if (regionId) return { regionId, reason: `postcode ${postcode}` }
+  const pharmacyPostcode = extractNzPostcode(pharmacyAddress)
+  if (pharmacyPostcode) {
+    const regionId = regionByPostcode(pharmacyPostcode)
+    if (regionId) return { regionId, reason: `pharmacy postcode ${pharmacyPostcode}` }
+  }
+  const patientPostcode = extractNzPostcode(patientAddress)
+  if (patientPostcode) {
+    const regionId = regionByPostcode(patientPostcode)
+    if (regionId) return { regionId, reason: `patient postcode ${patientPostcode}` }
   }
   return null
 }

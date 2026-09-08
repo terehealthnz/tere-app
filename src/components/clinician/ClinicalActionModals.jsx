@@ -55,8 +55,30 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   })
   const [showExtra, setShowExtra] = useState(false)
 
-  // Auto-select the RHCNZ region from patient address (postcode-prefix
-  // fallback until BDM sends clinic coordinates — see rhcnzRegions.js).
+  // Look up the patient-chosen pharmacy's postcode from the Medsafe register.
+  // Pharmacy pick beats home postcode for RHCNZ region routing because it
+  // reflects where the patient can PHYSICALLY collect the script today —
+  // a traveller consulting from Christchurch will pick a Chch pharmacy
+  // even if their home postcode is Wellington. Imaging needs to happen
+  // near where they are, not where they're from (Patrick call, 2026-09-08).
+  const [pharmacyAddress, setPharmacyAddress] = useState('')
+  useEffect(() => {
+    if (!consult?.pharmacy_id) { setPharmacyAddress(''); return }
+    ;(async () => {
+      try {
+        const res = await fetch('/pharmacies.json')
+        if (!res.ok) return
+        const list = await res.json()
+        const p = Array.isArray(list) ? list.find(x => x.id === consult.pharmacy_id) : null
+        if (p) setPharmacyAddress([p.address, p.town, p.postcode].filter(Boolean).join(' '))
+      } catch {}
+    })()
+  }, [consult?.pharmacy_id])
+
+  // Auto-select the RHCNZ region. Priority (see rhcnzRegions.js):
+  //   1. patient GPS coords (if we have them + clinic lat/lng data)
+  //   2. pharmacy postcode (revealed real-time location — beats home)
+  //   3. patient home postcode (fallback)
   // Never overwrites a manual pick.
   useEffect(() => {
     if (regionTouchedByUser) return
@@ -65,6 +87,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
       patientCoords: consult?.patient_lat && consult?.patient_lng
         ? { lat: consult.patient_lat, lng: consult.patient_lng }
         : null,
+      pharmacyAddress,
     })
     if (match) {
       setRhcnzRegionId(match.regionId)
@@ -72,7 +95,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
     } else {
       setRhcnzAutoReason(null)
     }
-  }, [extra.address, consult?.patient_lat, consult?.patient_lng, regionTouchedByUser])
+  }, [extra.address, consult?.patient_lat, consult?.patient_lng, pharmacyAddress, regionTouchedByUser])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''
