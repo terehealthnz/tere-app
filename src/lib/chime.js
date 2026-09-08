@@ -153,19 +153,26 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
   }
   session.audioVideo.addObserver(observer)
 
-  // Choose default input devices. Failures here don't block joining — user
-  // may connect a mic/camera later via device picker UI.
+  // Pick default input devices, but DO NOT start the local video tile yet —
+  // Chime's state machine rejects tile operations before audioVideoDidStart
+  // fires ("no transition found from NotConnected with Update"). We queue
+  // the tile start inside the observer once the session is live.
   try {
     const audioInputs = await session.audioVideo.listAudioInputDevices()
     if (audioInputs.length) await session.audioVideo.startAudioInput(audioInputs[0].deviceId)
   } catch (e) { console.warn('[chime] audio input:', e?.message) }
   try {
     const videoInputs = await session.audioVideo.listVideoInputDevices()
-    if (videoInputs.length) {
-      await session.audioVideo.startVideoInput(videoInputs[0].deviceId)
-      session.audioVideo.startLocalVideoTile()
-    }
+    if (videoInputs.length) await session.audioVideo.startVideoInput(videoInputs[0].deviceId)
   } catch (e) { console.warn('[chime] video input:', e?.message) }
+
+  // Wrap observer's audioVideoDidStart to fire startLocalVideoTile once the
+  // session is connected. Avoids the pre-connect NotConnected/Update warning.
+  const originalStart = observer.audioVideoDidStart
+  observer.audioVideoDidStart = function () {
+    try { session.audioVideo.startLocalVideoTile() } catch (e) { console.warn('[chime] local tile:', e?.message) }
+    originalStart.call(this)
+  }
 
   session.audioVideo.start()
 
