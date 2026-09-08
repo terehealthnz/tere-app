@@ -1,5 +1,6 @@
 import { guardProvider } from './_auth.js'
 import { resolveDataMode } from './_provider-access-gate.js'
+import { ensurePracticeSandbox } from './_practice-seed.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
@@ -20,6 +21,16 @@ export default async function handler(req, res) {
       process.env.VITE_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
     )
+
+    // Practice mode invariant: the sandbox always has patients waiting.
+    // If a provider lands in practice mode with an empty queue, seed the
+    // 3 fake patients (Aroha / David / Emily) on demand. Idempotent — no
+    // duplicate seed on subsequent loads. Fail-open: if seeding fails,
+    // don't block the queue read.
+    if (practice) {
+      try { await ensurePracticeSandbox(supabase, auth.provider) }
+      catch (e) { console.error('[get-queue] ensurePracticeSandbox failed (non-fatal):', e?.message) }
+    }
 
     const ACTIVE = ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing']
 

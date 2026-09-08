@@ -77,33 +77,17 @@ async function countPracticeForProvider(supabase, providerId) {
   return count || 0
 }
 
-export default async function handler(req, res) {
-  const auth = await guardProvider(req, res)
-  if (!auth) return
-  const provider = auth.provider
-  const supabase = admin()
-
-  if (req.method === 'GET') {
-    const count = await countPracticeForProvider(supabase, provider.id)
-    return res.status(200).json({ count })
-  }
-
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
+// Reusable seed core. Idempotent — safe to call any number of times per
+// provider. Callers: the POST handler below (manual admin trigger), and
+// ensurePracticeSandbox() (auto-seed on first practice-mode load so a
+// new hire's queue is never empty).
+export async function seedPracticePatientsForProvider(supabase, provider) {
   const now = new Date()
   const results = []
-
   for (let i = 0; i < MOCK_PATIENTS.length; i++) {
     const p = MOCK_PATIENTS[i]
     const nhi = mockNhi(Date.now() + i)
-    // Insert patient. created_by_provider_id may not exist on the schema;
-    // catch and continue so we don't hard-fail if the column is absent.
-    // Real patients table uses `date_of_birth` (not `dob`) and has no `sex`
-    // column — seed originally used the wrong column names and every insert
-    // 400'd. `created_by_provider_id` may or may not exist depending on
-    // migration state; try with, fall back without.
     let patientId = null
-    // Try inserting with created_by_provider_id (newer schemas).
     let insertRes = await supabase.from('patients').insert({
       first_name:    p.first_name,
       last_name:     p.last_name,
@@ -114,32 +98,19 @@ export default async function handler(req, res) {
       is_practice:   true,
       created_by_provider_id: provider.id,
     }).select('id').single()
-    // If the column doesn't exist, retry without it.
     if (insertRes.error?.message?.includes('created_by_provider_id')) {
       insertRes = await supabase.from('patients').insert({
-        first_name:    p.first_name,
-        last_name:     p.last_name,
-        date_of_birth: p.date_of_birth,
-        phone:         p.phone,
-        email:         p.email,
-        nhi,
-        is_practice:   true,
+        first_name: p.first_name, last_name: p.last_name, date_of_birth: p.date_of_birth,
+        phone: p.phone, email: p.email, nhi, is_practice: true,
       }).select('id').single()
     }
-    // Idempotency: if a practice patient with the same identity already
-    // exists (dedup index hit), reuse it instead of failing. Lets a
-    // provider re-seed without hitting patients_identity_idx.
     if (insertRes.error?.code === '23505' || insertRes.error?.message?.includes('duplicate key')) {
       const { data: existing } = await supabase.from('patients')
         .select('id')
-        .eq('first_name', p.first_name)
-        .eq('last_name',  p.last_name)
-        .eq('date_of_birth', p.date_of_birth)
-        .eq('is_practice', true)
-        .maybeSingle()
+        .eq('first_name', p.first_name).eq('last_name', p.last_name)
+        .eq('date_of_birth', p.date_of_birth).eq('is_practice', true).maybeSingle()
       if (existing?.id) patientId = existing.id
     } else if (insertRes.error) {
-      console.error('[practice-seed] patient insert failed:', insertRes.error)
       results.push({ ok: false, error: `patient insert failed: ${insertRes.error.message}` })
       continue
     } else {
@@ -147,25 +118,22 @@ export default async function handler(req, res) {
     }
     if (!patientId) { results.push({ ok: false, error: 'no patient id after insert' }); continue }
 
-    // Consultation, waiting in the queue so this provider sees it immediately.
-    const consultBase = {
-      patient_id:                patientId,
-      patient_first_name:        p.first_name,
-      patient_last_name:         p.last_name,
-      patient_dob:               p.date_of_birth,
-      patient_nhi:               nhi,
-      patient_phone:             p.phone,
-      patient_email:             p.email,
-      chief_complaint:           p.complaint,
-      consultation_type:         'video',
-      status:                    'waiting',
-      provider_id:       provider.id,
-      is_practice:               true,
-    }
-    const { data: consult, error: cErr } = await supabase.from('consultations').insert(consultBase).select('id').single()
+    const { data: consult, error: cErr } = await supabase.from('consultations').insert({
+      patient_id:         patientId,
+      patient_first_name: p.first_name,
+      patient_last_name:  p.last_name,
+      patient_dob:        p.date_of_birth,
+      patient_nhi:        nhi,
+      patient_phone:      p.phone,
+      patient_email:      p.email,
+      chief_complaint:    p.complaint,
+      consultation_type:  'video',
+      status:             'waiting',
+      provider_id:        provider.id,
+      is_practice:        true,
+    }).select('id').single()
     if (cErr) { results.push({ ok: false, patient_id: patientId, error: cErr.message }); continue }
 
-    // Structured history — attach to patient so ClinicianPatient chart is populated.
     if (p.allergens.length) {
       await supabase.from('patient_allergens').insert(p.allergens.map(a => ({
         patient_id: patientId, ...a, is_practice: true, created_by_name: 'Practice seed',
@@ -181,10 +149,41 @@ export default async function handler(req, res) {
         patient_id: patientId, ...c, is_practice: true, created_by_name: 'Practice seed',
       })))
     }
-
     results.push({ ok: true, patient_id: patientId, consultation_id: consult.id, name: `${p.first_name} ${p.last_name}` })
   }
+  return results
+}
 
+// Idempotent "make sure the sandbox is ready" call. If this provider has
+// zero active practice consultations, seed them. Called on every GET
+// queue in practice mode so the sandbox is always populated — a new hire
+// never lands on an empty queue and can never sit unable to progress
+// through training.
+export async function ensurePracticeSandbox(supabase, provider) {
+  const { count } = await supabase.from('consultations')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_practice', true)
+    .eq('provider_id', provider.id)
+    .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing'])
+  if ((count || 0) > 0) return { seeded: false, existingConsults: count }
+  const results = await seedPracticePatientsForProvider(supabase, provider)
+  return { seeded: true, results }
+}
+
+export default async function handler(req, res) {
+  const auth = await guardProvider(req, res)
+  if (!auth) return
+  const provider = auth.provider
+  const supabase = admin()
+
+  if (req.method === 'GET') {
+    const count = await countPracticeForProvider(supabase, provider.id)
+    return res.status(200).json({ count })
+  }
+
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  const results = await seedPracticePatientsForProvider(supabase, provider)
   const count = await countPracticeForProvider(supabase, provider.id)
   return res.status(200).json({ seeded: results, total: count })
 }
