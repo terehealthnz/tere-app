@@ -27,13 +27,32 @@ import {
 import { apiFetch } from './api'
 
 /**
- * Feature flag. Env `VITE_USE_CHIME_SDK=1` swaps calls from LiveKit to Chime.
- * Default off — Phase 2 flips it once components are wired.
+ * Feature flag. Chime is enabled when any of:
+ *   - env `VITE_USE_CHIME_SDK=1` (build-time, prod/preview flip)
+ *   - URL `?chime=1` on any page (opt-in per-tab test override; stamped
+ *     to sessionStorage so navigation across the SPA preserves it)
+ *   - sessionStorage.tere_chime === '1' (set by the URL override above)
+ *
+ * The URL override lets us test Chime on prod without flipping the
+ * global env var — safe because real users never add ?chime=1.
  */
 export function useChimeSdk() {
   try {
-    return import.meta.env?.VITE_USE_CHIME_SDK === '1'
-  } catch { return false }
+    if (import.meta.env?.VITE_USE_CHIME_SDK === '1') return true
+    if (typeof window !== 'undefined') {
+      const qp = new URLSearchParams(window.location.search).get('chime')
+      if (qp === '1') {
+        try { sessionStorage.setItem('tere_chime', '1') } catch {}
+        return true
+      }
+      if (qp === '0') {
+        try { sessionStorage.removeItem('tere_chime') } catch {}
+        return false
+      }
+      try { if (sessionStorage.getItem('tere_chime') === '1') return true } catch {}
+    }
+  } catch {}
+  return false
 }
 
 /**
