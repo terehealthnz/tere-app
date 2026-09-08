@@ -347,15 +347,38 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         )}
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
         <div className="form-group">
-          <label>Medication name <span style={{color:'#DC2626'}}>*</span> <span style={{color:'#6B7280',fontWeight:400,fontSize:'.7rem'}}>· pick from list to auto-fill dose (NZF reference, provider verifies)</span></label>
+          <label>Medication name <span style={{color:'#DC2626'}}>*</span> <span style={{color:'#6B7280',fontWeight:400,fontSize:'.7rem'}}>· pick from list to auto-fill (your ⭐ defaults beat the NZF starter)</span></label>
           <input
             value={rx.medication}
             list="tere-rx-preset-list"
             onChange={e => {
               const v = e.target.value
               setRx(r => ({ ...r, medication: v }))
-              // If the value exactly matches a preset, auto-fill the rest.
-              const preset = ADULT_DRUG_PRESETS[v.toLowerCase().trim()]
+              const key = v.toLowerCase().trim()
+              // Provider's own saved template for this drug wins over the
+              // generic NZF preset — matches by drug name (first word),
+              // case-insensitive. Provider's usual dose > our starter.
+              const myTemplate = templates.find(t => {
+                const tKey = (t.drug || '').toLowerCase().split(/\s+/)[0]
+                return tKey && tKey === key
+              })
+              if (myTemplate) {
+                setRx(r => ({
+                  ...r,
+                  medication: myTemplate.drug || v,
+                  strength:  myTemplate.strength  || r.strength,
+                  form:      myTemplate.form      || r.form,
+                  dose:      myTemplate.dose      || r.dose,
+                  frequency: myTemplate.frequency || r.frequency,
+                  duration:  myTemplate.duration  || r.duration,
+                  notes:     myTemplate.directions || r.notes,
+                  qty:       myTemplate.quantity  || r.qty,
+                  repeats:   myTemplate.repeats ?? r.repeats,
+                }))
+                return
+              }
+              // Fallback: the generic NZF starter preset.
+              const preset = ADULT_DRUG_PRESETS[key]
               if (preset) {
                 setRx(r => ({
                   ...r,
@@ -373,6 +396,16 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
             required
             placeholder="Start typing to search NZ Formulary presets (paracetamol, amoxicillin, …)"
           />
+          {(() => {
+            const key = rx.medication.toLowerCase().trim().split(/\s+/)[0]
+            const myTemplate = key && templates.find(t => (t.drug || '').toLowerCase().split(/\s+/)[0] === key)
+            if (!myTemplate) return null
+            return (
+              <div style={{ fontSize: '.7rem', color: '#B45309', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                ⭐ Using your saved default ({myTemplate.name}) — edit any field to override for this script only
+              </div>
+            )
+          })()}
           <datalist id="tere-rx-preset-list">
             {/* 23 curated presets auto-fill all fields; other 427 NZF drugs
                 just appear as name suggestions — provider fills the rest,
@@ -531,16 +564,43 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         </div>
       </form>
       {rx.medication && (
-        <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem',marginTop:'.75rem'}}>
+        <div style={{borderTop:'1px solid var(--border)',paddingTop:'.75rem',marginTop:'.75rem',display:'flex',gap:'.75rem',flexWrap:'wrap',alignItems:'center'}}>
           {showSaveTemplate ? (
-            <div style={{display:'flex',gap:'.5rem',alignItems:'center'}}>
+            <div style={{display:'flex',gap:'.5rem',alignItems:'center',width:'100%'}}>
               <input value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="Template name e.g. Ibuprofen standard"
                 style={{flex:1,padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontSize:'.875rem',fontFamily:'Plus Jakarta Sans, sans-serif'}} />
               <button onClick={saveTemplate} disabled={savingTemplate||!templateName.trim()} style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'.5rem .875rem',cursor:'pointer',fontSize:'.875rem',fontWeight:600}}>{savingTemplate?'…':'Save'}</button>
               <button onClick={()=>setShowSaveTemplate(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',padding:'.5rem'}}>✕</button>
             </div>
           ) : (
-            <button onClick={()=>setShowSaveTemplate(true)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',padding:0}}>★ Save as template</button>
+            <>
+              {/* ⭐ Save as MY default for this drug — one click; template gets
+                  named "My [Drug]" so the auto-match on next typing works. */}
+              <button
+                onClick={async () => {
+                  const drugKey = rx.medication.toLowerCase().split(/\s+/)[0]
+                  const autoName = `My ${drugKey}`
+                  setTemplateName(autoName)
+                  // Save immediately using the auto-name — no dialog needed.
+                  setSavingTemplate(true)
+                  try {
+                    const composed = composeRx(rx)
+                    const r = await apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({
+                      action:'save_template', provider_id: providerId, name: autoName,
+                      drug: composed.drug, dose: rx.dose, directions: composed.directions,
+                      strength: rx.strength, form: rx.form, frequency: rx.frequency, duration: rx.duration,
+                      quantity: rx.qty, repeats: rx.repeats,
+                    }) })
+                    const d = await r.json()
+                    if (d.ok) setTemplates(ts => [...ts.filter(t => t.name !== autoName), d.template])
+                  } catch {} finally { setSavingTemplate(false); setTemplateName('') }
+                }}
+                disabled={savingTemplate}
+                style={{background:'#FEF3C7',border:'1px solid #FDE68A',color:'#92400E',fontSize:'.8125rem',fontWeight:700,cursor:savingTemplate?'wait':'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',padding:'.375rem .625rem',borderRadius:6}}>
+                {savingTemplate ? '…' : `⭐ Save as my default for ${rx.medication.split(/\s+/)[0]}`}
+              </button>
+              <button onClick={()=>setShowSaveTemplate(true)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',padding:0}}>★ Save as named template…</button>
+            </>
           )}
         </div>
       )}

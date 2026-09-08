@@ -285,9 +285,19 @@ export default async function handler(req, res) {
 
     // Prescription template CRUD
     if (action === 'save_template') {
-      const { provider_id, name, drug, dose, directions, quantity, repeats } = req.body
-      const { data, error } = await supabase.from('prescription_templates')
-        .insert({ provider_id, name, drug, dose, directions, quantity, repeats }).select().single()
+      const { provider_id, name, drug, dose, directions, quantity, repeats,
+              strength, form, frequency, duration } = req.body
+      // Upsert on (provider_id, name) so the ⭐ "Save as my default for X"
+      // button can be tapped repeatedly to update the same "My ibuprofen"
+      // template rather than piling duplicates.
+      const { data: existing } = await supabase.from('prescription_templates')
+        .select('id').eq('provider_id', provider_id).eq('name', name).maybeSingle()
+      const payload = { provider_id, name, drug, dose, directions, quantity, repeats,
+                        strength, form, frequency, duration }
+      const q = existing?.id
+        ? supabase.from('prescription_templates').update(payload).eq('id', existing.id).select().single()
+        : supabase.from('prescription_templates').insert(payload).select().single()
+      const { data, error } = await q
       if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true, template: data })
     }
