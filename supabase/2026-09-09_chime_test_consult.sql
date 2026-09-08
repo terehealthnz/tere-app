@@ -18,6 +18,9 @@ INSERT INTO patients (
   false
 ) ON CONFLICT (id) DO UPDATE SET updated_at = now();
 
+-- Token expiry is derived server-side from consultations.created_at + 24h
+-- (see api/_patient-token.js TOKEN_TTL_HOURS). No separate expiry column.
+-- created_at is force-refreshed on re-run so the token stays valid.
 INSERT INTO consultations (
   id,
   patient_id,
@@ -29,7 +32,7 @@ INSERT INTO consultations (
   is_practice,
   provider_id,
   patient_access_token,
-  patient_access_token_expires_at
+  created_at
 ) VALUES (
   '11111111-1111-4111-8111-111111111111',
   '22222222-2222-4222-8222-222222222222',
@@ -41,12 +44,12 @@ INSERT INTO consultations (
   false,
   NULL,
   '33333333-3333-4333-8333-333333333333',
-  now() + interval '24 hours'
+  now()
 ) ON CONFLICT (id) DO UPDATE SET
   status = 'ready',
   provider_id = NULL,
   patient_access_token = '33333333-3333-4333-8333-333333333333',
-  patient_access_token_expires_at = now() + interval '24 hours',
+  created_at = now(),
   chime_meeting_id = NULL,
   chime_meeting_started_at = NULL,
   updated_at = now();
