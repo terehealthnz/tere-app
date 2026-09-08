@@ -1198,9 +1198,18 @@ export default function ClinicianPatient() {
           )}
           <EncounterActionBar
             consultationId={id}
+            consult={consult}
             onCall={async (channel) => {
               setCallError(null)
               await unlock()
+              // Sandbox: don't call initiate-call for practice consults.
+              // The bar's Simulate Call button already flipped status via
+              // encounterAction; just flip UI into "in-call" mode so the
+              // provider can practise notes + prescribing + referrals.
+              if (channel === 'practice') {
+                setActiveCall({ channel: 'practice', startedAt: Date.now() })
+                return
+              }
               const body = channel === 'livekit'
                 ? { consultationId: id, providerId, providerName: displayName }
                 : { consultationId: id, providerId, providerName: displayName, forcePhone: true }

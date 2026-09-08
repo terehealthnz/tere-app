@@ -24,6 +24,7 @@ const RED  = '#DC2626'
 
 export default function EncounterActionBar({
   consultationId,
+  consult,     // optional: full consultation row — used to detect is_practice
   onCall,      // optional: (deliveryChannel: 'livekit' | 'phone', reason: string) => void
   onNoAnswer,  // optional: (res: { dismissed?: boolean, smsSent?: boolean, consultation? }) => void
   onComplete,  // optional: () => void — defaults to navigate('/provider/notes/:id')
@@ -36,11 +37,25 @@ export default function EncounterActionBar({
 }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(null)  // 'call' | 'no_answer' | 'complete' | null
+  const isPractice = !!consult?.is_practice
 
   async function fire(action, cb) {
     if (busy || disabled) return
     setBusy(action)
     try {
+      // Sandbox short-circuit: practice-flagged consults never invoke the
+      // real LiveKit / phone-bridge stack — the "call" is simulated so the
+      // new-hire training exercise can tick without a ghost patient on the
+      // other end. Only intercept the 'call' action; no_answer and
+      // complete still record properly for training-progress tracking.
+      if (action === 'call' && isPractice) {
+        // Fake the encounter-action response shape the caller expects, so
+        // downstream navigation to /provider/consult/:id still fires and
+        // status transitions past 'queued' (which is what training checks).
+        await encounterAction(consultationId, 'call').catch(() => {})
+        if (typeof cb === 'function') cb({ deliveryChannel: 'practice', reason: 'sandbox' })
+        return
+      }
       const res = await encounterAction(consultationId, action)
       if (typeof cb === 'function') cb(res)
     } catch (e) {
@@ -72,7 +87,7 @@ export default function EncounterActionBar({
           cursor: (busy || disabled) ? 'not-allowed' : 'pointer',
           opacity: (busy && busy !== 'call') ? .5 : 1,
         }}>
-        {busy === 'call' ? '…' : '📞 Call'}
+        {busy === 'call' ? '…' : (isPractice ? '📞 Simulate call (practice)' : '📞 Call')}
       </button>
       )}
 
