@@ -1,23 +1,29 @@
 // /api/practice-seed — populate the provider sandbox with fake patients.
 //
 // GET  → returns { count } current practice patients visible to the provider
-// POST → seeds a fresh set of 3 fake patients + consultations + structured
-//         history, all is_practice=true, matched to this provider so they
-//         appear in the practice queue. Idempotent-ish — running twice
-//         will add another batch. Use /api/practice-reset to wipe first.
+// POST → idempotently seeds the 3 fake patients + consultations + structured
+//         history using DETERMINISTIC UUIDs per (provider, patient). Upsert
+//         semantics — running it any number of times converges to the same
+//         canonical state, so this doubles as the "reset sandbox" action.
+//         No delete-then-reinsert dance, no unique-constraint collisions.
 //
 // Design:
-//   - Every seeded row is tagged is_practice=true. Practice-mode-aware
-//     endpoints filter by that flag and never mix practice with real data.
-//   - Consultations are provider_id = current provider so
-//     get-queue returns them without a queue-assignment step.
+//   - Every row is tagged is_practice=true. Practice-mode-aware endpoints
+//     filter by that flag and never mix practice with real data.
+//   - Patient + consultation IDs are sha1(provider.id + patient_name)
+//     formatted as UUID, so re-running the seed hits the SAME row every
+//     time (upsert), instead of trying to insert a new one and tripping
+//     unique indexes.
+//   - Consultation status is force-reset to 'waiting' on every seed so
+//     the trainee's queue is always populated with fresh cases.
+//   - Child tables (allergens, meds, conditions) are wiped for these
+//     specific patient_ids and re-inserted so any provider-added items
+//     from a previous training run are cleaned up.
 //   - Names are obviously mock but realistic-sounding (see MOCK_PATIENTS).
-//     No real NHIs — practice NHIs use the PRAC prefix which is not in
-//     the HNZ NHI issuance range.
-//   - Structured history (allergies, meds, conditions) attached so the
-//     Prescribe modal safety check has something to hit.
+//     Practice NHIs use PRAC prefix which is not in the HNZ NHI range.
 
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 import { guardProvider } from './_auth.js'
 
 function admin() {
@@ -28,18 +34,24 @@ function admin() {
   )
 }
 
-// Deterministic prefix so practice NHIs are unmistakable and can never
-// collide with real HNZ-issued identifiers. Widened to 4 chars of entropy
-// (24^4 ≈ 330k combinations) so repeat resets don't collide on the tiny
-// keyspace of the previous 2-char version.
-function mockNhi(seed) {
+// Deterministic UUID from arbitrary inputs. Same inputs → same UUID every
+// time. Lets us upsert practice rows by primary key so reset === re-seed.
+function detUuid(...parts) {
+  const h = createHash('sha1').update(parts.join('|')).digest('hex')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`
+}
+
+// Deterministic mock NHI derived from provider+patient key. Same key →
+// same NHI every seed, so no unique-constraint drift.
+function detNhi(providerId, patientKey) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
-  const n = (seed * 2654435761) >>> 0
-  return 'PRAC' + chars[n % 24] + chars[(n >> 5) % 24] + chars[(n >> 10) % 24] + chars[(n >> 15) % 24]
+  const h = createHash('sha1').update(providerId + '|' + patientKey).digest()
+  return 'PRAC' + chars[h[0] % 24] + chars[h[1] % 24] + chars[h[2] % 24] + chars[h[3] % 24]
 }
 
 const MOCK_PATIENTS = [
   {
+    key: 'aroha-mitchell',
     first_name: 'Aroha',   last_name: 'Mitchell', date_of_birth: '1984-07-05',
     phone: '+64211234501', email: 'practice.aroha@example.test',
     complaint: 'Fatigue and dizziness for the past week. Concerned about iron levels.',
@@ -48,6 +60,7 @@ const MOCK_PATIENTS = [
     conditions: [{ condition: 'Iron deficiency anaemia', icd10_code: 'D50.9', status: 'active' }],
   },
   {
+    key: 'david-chen',
     first_name: 'David',   last_name: 'Chen',     date_of_birth: '1969-02-18',
     phone: '+64211234502', email: 'practice.david@example.test',
     complaint: 'Sore throat and fever for 3 days. History of tonsillitis.',
@@ -62,6 +75,7 @@ const MOCK_PATIENTS = [
     ],
   },
   {
+    key: 'emily-thompson',
     first_name: 'Emily',   last_name: 'Thompson', date_of_birth: '1991-09-24',
     phone: '+64211234503', email: 'practice.emily@example.test',
     complaint: 'UTI symptoms. Sixth episode this year — asks about prophylaxis.',
@@ -79,18 +93,19 @@ async function countPracticeForProvider(supabase, providerId) {
   return count || 0
 }
 
-// Reusable seed core. Idempotent — safe to call any number of times per
-// provider. Callers: the POST handler below (manual admin trigger), and
-// ensurePracticeSandbox() (auto-seed on first practice-mode load so a
-// new hire's queue is never empty).
+// Idempotent seed. Same (provider, patient) always maps to the same row IDs,
+// so this can be called any number of times and converges to the same state.
 export async function seedPracticePatientsForProvider(supabase, provider) {
-  const now = new Date()
   const results = []
-  for (let i = 0; i < MOCK_PATIENTS.length; i++) {
-    const p = MOCK_PATIENTS[i]
-    const nhi = mockNhi(Date.now() + i)
-    let patientId = null
-    let insertRes = await supabase.from('patients').insert({
+  for (const p of MOCK_PATIENTS) {
+    const patientId = detUuid('practice-patient', provider.id, p.key)
+    const consultId = detUuid('practice-consult', provider.id, p.key)
+    const nhi = detNhi(provider.id, p.key)
+
+    // Upsert patient. Same ID every time → hits the same row → no unique
+    // constraint games.
+    const { error: pErr } = await supabase.from('patients').upsert({
+      id:            patientId,
       first_name:    p.first_name,
       last_name:     p.last_name,
       date_of_birth: p.date_of_birth,
@@ -99,28 +114,13 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       nhi,
       is_practice:   true,
       created_by_provider_id: provider.id,
-    }).select('id').single()
-    if (insertRes.error?.message?.includes('created_by_provider_id')) {
-      insertRes = await supabase.from('patients').insert({
-        first_name: p.first_name, last_name: p.last_name, date_of_birth: p.date_of_birth,
-        phone: p.phone, email: p.email, nhi, is_practice: true,
-      }).select('id').single()
-    }
-    if (insertRes.error?.code === '23505' || insertRes.error?.message?.includes('duplicate key')) {
-      const { data: existing } = await supabase.from('patients')
-        .select('id')
-        .eq('first_name', p.first_name).eq('last_name', p.last_name)
-        .eq('date_of_birth', p.date_of_birth).eq('is_practice', true).maybeSingle()
-      if (existing?.id) patientId = existing.id
-    } else if (insertRes.error) {
-      results.push({ ok: false, error: `patient insert failed: ${insertRes.error.message}` })
-      continue
-    } else {
-      patientId = insertRes.data?.id
-    }
-    if (!patientId) { results.push({ ok: false, error: 'no patient id after insert' }); continue }
+    }, { onConflict: 'id' })
+    if (pErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `patient upsert: ${pErr.message}` }); continue }
 
-    const { data: consult, error: cErr } = await supabase.from('consultations').insert({
+    // Upsert consultation. status forced to 'waiting' every seed so the
+    // trainee's queue is always populated with fresh cases.
+    const { error: cErr } = await supabase.from('consultations').upsert({
+      id:                 consultId,
       patient_id:         patientId,
       patient_first_name: p.first_name,
       patient_last_name:  p.last_name,
@@ -133,9 +133,14 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       status:             'waiting',
       provider_id:        provider.id,
       is_practice:        true,
-    }).select('id').single()
-    if (cErr) { results.push({ ok: false, patient_id: patientId, error: cErr.message }); continue }
+    }, { onConflict: 'id' })
+    if (cErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult upsert: ${cErr.message}` }); continue }
 
+    // Wipe + reseed child rows for this patient. Scoped to patient_id so we
+    // never touch other patients' data.
+    await supabase.from('patient_allergens').delete().eq('patient_id', patientId)
+    await supabase.from('patient_medications').delete().eq('patient_id', patientId)
+    await supabase.from('patient_conditions').delete().eq('patient_id', patientId)
     if (p.allergens.length) {
       await supabase.from('patient_allergens').insert(p.allergens.map(a => ({
         patient_id: patientId, ...a, is_practice: true, created_by_name: 'Practice seed',
@@ -151,16 +156,19 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
         patient_id: patientId, ...c, is_practice: true, created_by_name: 'Practice seed',
       })))
     }
-    results.push({ ok: true, patient_id: patientId, consultation_id: consult.id, name: `${p.first_name} ${p.last_name}` })
+
+    // Also wipe prescriptions + referrals added during previous training runs
+    // so the sandbox comes back clean.
+    await supabase.from('prescriptions').delete().eq('is_practice', true).eq('patient_id', patientId)
+    await supabase.from('radiology_referrals').delete().eq('is_practice', true).eq('patient_id', patientId)
+
+    results.push({ ok: true, patient_id: patientId, consultation_id: consultId, name: `${p.first_name} ${p.last_name}` })
   }
   return results
 }
 
-// Idempotent "make sure the sandbox is ready" call. If this provider has
-// zero active practice consultations, seed them. Called on every GET
-// queue in practice mode so the sandbox is always populated — a new hire
-// never lands on an empty queue and can never sit unable to progress
-// through training.
+// Ensure the sandbox is ready. Deterministic seed means we can just always
+// call it — it's a no-op if rows already match.
 export async function ensurePracticeSandbox(supabase, provider) {
   const { count } = await supabase.from('consultations')
     .select('id', { count: 'exact', head: true })

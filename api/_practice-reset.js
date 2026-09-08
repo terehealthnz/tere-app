@@ -1,17 +1,20 @@
-// /api/practice-reset — wipe all practice data owned by this provider.
+// /api/practice-reset — wipe legacy practice rows + re-seed via idempotent
+// deterministic upsert.
 //
-// POST → deletes every is_practice=true row from consultations,
-//         patients, and their child tables (allergens, medications,
-//         conditions, documents, prescriptions, messages, hl7 messages,
-//         radiology referrals + reports) where the parent is scoped to
-//         this provider. Safe by construction: all deletes are gated on
-//         is_practice=true, so no real PHI can be touched.
+// The old flow used random NHIs + random UUIDs and tried to delete-then-
+// insert. Any orphan (from a stale-reviewing auto-expire that nulled out
+// provider_id, or from a failed cascade) survived reset and blocked the
+// next seed by tripping consultations_one_open_per_patient_idx.
 //
-// Companion to /api/practice-seed. Use "Reset practice" from the
-// provider header to blow away a corrupted sandbox and start fresh.
+// New flow: seed uses deterministic UUIDs per (provider, patient) with
+// upsert, so seed IS reset. This endpoint just clears the legacy orphan
+// rows before delegating to seed.
+//
+// Companion to /api/practice-seed.
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
+import { seedPracticePatientsForProvider } from './_practice-seed.js'
 
 function admin() {
   return createClient(
@@ -26,36 +29,30 @@ export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
   const supabase = admin()
-  const providerId = auth.provider.id
 
-  // Find every practice consultation matched to this provider, plus every
-  // practice patient. Everything else (allergens, meds, prescriptions,
-  // etc.) cascades via FK on patient/consultation delete — but we go
-  // wider and delete by is_practice=true directly to catch orphaned rows
-  // that might have been left behind by earlier seed runs.
   const deletions = {}
+
+  // Clear all is_practice rows so any legacy random-UUID orphans go away.
+  // Safe by construction — is_practice=true rows are sandbox data only.
   const CHILD_TABLES = [
-    'patient_allergens','patient_medications','patient_conditions','patient_documents',
-    'prescriptions','messages','inbound_hl7_messages','radiology_referrals','radiology_reports',
+    'patient_allergens', 'patient_medications', 'patient_conditions', 'patient_documents',
+    'prescriptions', 'messages', 'inbound_hl7_messages', 'radiology_referrals', 'radiology_reports',
   ]
   for (const t of CHILD_TABLES) {
-    const { count, error } = await supabase.from(t).delete({ count: 'exact' })
-      .eq('is_practice', true)
-    if (error) { console.error(`[practice-reset] delete ${t} failed:`, error); deletions[t] = { error: 'delete failed' } }
+    const { count, error } = await supabase.from(t).delete({ count: 'exact' }).eq('is_practice', true)
+    if (error) { console.error(`[practice-reset] delete ${t} failed:`, error); deletions[t] = { error: error.message } }
     else { deletions[t] = { deleted: count } }
   }
-  // Delete ALL practice consults (not scoped to provider_id) because
-  // get-queue's stale-reviewing cleanup nulls out provider_id when a
-  // consult in 'reviewing' idles for >5min. Those orphans would survive
-  // a provider-scoped delete and then block re-seed by tripping
-  // consultations_one_open_per_patient_idx. Safe because is_practice=true
-  // means sandbox data by construction — no real PHI risk.
-  const { count: consCount } = await supabase.from('consultations').delete({ count: 'exact' })
-    .eq('is_practice', true)
-  deletions.consultations = { deleted: consCount }
-  const { count: patCount } = await supabase.from('patients').delete({ count: 'exact' })
-    .eq('is_practice', true)
-  deletions.patients = { deleted: patCount }
+  const { count: consCount, error: consErr } = await supabase.from('consultations').delete({ count: 'exact' }).eq('is_practice', true)
+  if (consErr) { console.error('[practice-reset] delete consultations failed:', consErr); deletions.consultations = { error: consErr.message } }
+  else { deletions.consultations = { deleted: consCount } }
+  const { count: patCount, error: patErr } = await supabase.from('patients').delete({ count: 'exact' }).eq('is_practice', true)
+  if (patErr) { console.error('[practice-reset] delete patients failed:', patErr); deletions.patients = { error: patErr.message } }
+  else { deletions.patients = { deleted: patCount } }
 
-  return res.status(200).json({ ok: true, deletions })
+  // Re-seed with deterministic upsert. From now on any subsequent reset
+  // just re-seeds the same UUIDs — no more orphan drift.
+  const seeded = await seedPracticePatientsForProvider(supabase, auth.provider)
+
+  return res.status(200).json({ ok: true, deletions, seeded })
 }

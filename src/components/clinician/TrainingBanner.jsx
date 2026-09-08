@@ -28,26 +28,17 @@ export default function TrainingBanner({ providerId }) {
 
   async function resetSandbox() {
     if (resetting) return
-    if (!window.confirm('Wipe your practice patients + all sandbox data, then re-seed a fresh 3 (Aroha, David, Emily)?')) return
+    if (!window.confirm('Reset your practice sandbox — Aroha, David, Emily come back with fresh status and any prescriptions / referrals you added get wiped?')) return
     setResetting(true)
     try {
       const r = await apiFetch('/api/practice-reset', { method: 'POST' })
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}))
-        throw new Error(body.error || `Reset failed (${r.status})`)
-      }
-      // Explicitly seed instead of relying on get-queue's ensurePracticeSandbox —
-      // that path bails silently when a single patient insert fails. Explicit
-      // seed returns per-patient results so we can flag partial failure.
-      const s = await apiFetch('/api/practice-seed', { method: 'POST' })
-      const sBody = await s.json().catch(() => ({}))
-      if (!s.ok) throw new Error(sBody.error || `Seed failed (${s.status})`)
-      const seeded = Array.isArray(sBody.seeded) ? sBody.seeded : []
-      const okCount   = seeded.filter(x => x.ok).length
-      const failed    = seeded.filter(x => !x.ok)
-      if (okCount < 3) {
-        const failReport = failed.map(f => `• ${f.name || 'unknown'} — ${f.error}`).join('\n')
-        window.alert(`Seeded only ${okCount}/3 patients.\n\nFailures:\n${failReport || '(no error detail)'}\n\nCheck server logs — the sandbox is in an inconsistent state.`)
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(body.error || `Reset failed (${r.status})`)
+      const seeded = Array.isArray(body.seeded) ? body.seeded : []
+      const failed = seeded.filter(x => !x.ok)
+      if (failed.length) {
+        const report = failed.map(f => `• ${f.name || 'unknown'} — ${f.error}`).join('\n')
+        window.alert(`Reset completed but ${failed.length} patient(s) failed to seed:\n\n${report}`)
         setResetting(false)
         return
       }
