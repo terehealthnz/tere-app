@@ -32,7 +32,21 @@ export default function TrainingBanner({ providerId }) {
       try {
         const res = await apiFetch(`/api/providers?action=training_status&provider_id=${encodeURIComponent(providerId)}`, { method: 'POST' })
         const body = await res.json()
-        if (!cancelled && res.ok) setStatus(body)
+        if (!cancelled && res.ok) {
+          setStatus(body)
+          // While training is incomplete, keep practice mode ON so the queue
+          // shows the 3 seeded test patients (Aroha / David / Emily). Prevents
+          // a page reload from silently dropping the trainee into an empty
+          // live queue when sessionStorage.practice_mode isn't set yet.
+          if (!body.training_completed_at) {
+            try {
+              if (sessionStorage.getItem('practice_mode') !== '1') {
+                sessionStorage.setItem('practice_mode', '1')
+                window.dispatchEvent(new CustomEvent('tere:practice-mode-changed', { detail: { practice: true } }))
+              }
+            } catch { /* ignore */ }
+          }
+        }
       } catch { /* ignore */ }
     }
     refresh()

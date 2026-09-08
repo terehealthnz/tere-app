@@ -358,7 +358,9 @@ export default function Dashboard() {
       getTodaysConsultations().then(setTodaysConsults)
     }, 15000)
     const sub = subscribeToQueue(() => load())
-    return () => { clearInterval(interval); sub?.unsubscribe?.() }
+    const onPracticeChanged = () => load()
+    window.addEventListener('tere:practice-mode-changed', onPracticeChanged)
+    return () => { clearInterval(interval); sub?.unsubscribe?.(); window.removeEventListener('tere:practice-mode-changed', onPracticeChanged) }
   }, [load])
 
   async function dismissConsult(id) {

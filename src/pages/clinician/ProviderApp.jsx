@@ -1201,7 +1201,11 @@ export default function ProviderApp() {
     load()
     const interval = setInterval(load, 15000)
     const sub = subscribeToQueue(() => load())
-    return () => { clearInterval(interval); sub?.unsubscribe?.() }
+    // Re-fetch immediately when practice mode toggles so the queue swaps
+    // between practice (sandbox) and live without a 15s wait.
+    const onPracticeChanged = () => load()
+    window.addEventListener('tere:practice-mode-changed', onPracticeChanged)
+    return () => { clearInterval(interval); sub?.unsubscribe?.(); window.removeEventListener('tere:practice-mode-changed', onPracticeChanged) }
   }, [load])
 
   // Audit: log that this provider viewed the queue. Once per browser session
