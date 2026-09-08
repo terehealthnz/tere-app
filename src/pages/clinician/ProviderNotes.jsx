@@ -1694,63 +1694,63 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
               <>
                 {/* Compact status line — reads what will happen at Finalise
                     based on the default (or overridden) disposition. */}
+                {/* Status line — everything a provider needs to see for the
+                    common (default) case. Recipient details stay hidden
+                    unless provider clicks Change GP details OR opens the
+                    override picker OR needs to supply a missing GP email. */}
                 {contDisposition === 'gp_letter_sent' && (
-                  <div style={{ padding:'10px 12px', background:'#F0FDF4', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:'.875rem', color:'#065F46', fontWeight:600, lineHeight:1.5 }}>
-                    ✓ GP letter will auto-send at Finalise{contGpName && ` to ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}
-                  </div>
-                )}
-                {contDisposition === 'patient_no_gp_told_to_enrol' && (
-                  <div style={{ padding:'10px 12px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
-                    ⚠ No GP on file — after-visit summary will include GP enrolment guidance
-                  </div>
-                )}
-                {contDisposition === 'closed_no_followup_needed' && (
-                  <div style={{ padding:'10px 12px', background:'#F8FAFC', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', color:'#374151', fontWeight:600, lineHeight:1.5 }}>
-                    Closed — no follow-up needed
-                  </div>
-                )}
-                {contDisposition === 'patient_declined_gp_disclosure' && (
-                  <div style={{ padding:'10px 12px', background:'#FEF2F2', border:'1.5px solid #FECACA', borderRadius:8, fontSize:'.875rem', color:'#991B1B', fontWeight:600, lineHeight:1.5 }}>
-                    Patient asked me not to tell their GP — no letter sent (HDC Right 7)
-                  </div>
-                )}
-                {contDisposition === 'handover_to_specialist' && (
-                  <div style={{ padding:'10px 12px', background:'#EFF6FF', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:'.875rem', color:'#1D4ED8', fontWeight:600, lineHeight:1.5 }}>
-                    Handover to specialist{contGpName && `: ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}
+                  <div style={{ padding:'10px 14px', background:'#F0FDF4', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:'.875rem', color:'#065F46', fontWeight:600, lineHeight:1.5 }}>
+                    <div>✓ GP letter will auto-send at Finalise{contGpName && ` to ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}</div>
+                    <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:8, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#B45309', fontWeight:600 }}>
+                      <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
+                      I told the patient I'm sending this
+                    </label>
+                    {!contGpEmail && (
+                      <div style={{ marginTop:8, fontSize:'.75rem', color:'#B45309', fontWeight:600 }}>
+                        ⚠ No GP email on file — letter will land in Admin's pending-letters worklist unless you add one.
+                      </div>
+                    )}
                   </div>
                 )}
                 {contDisposition === 'gp_letter_to_send' && (
-                  <div style={{ padding:'10px 12px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
-                    Queued for admin to send later
-                  </div>
-                )}
-
-                {/* Recipient details — only shown for handover flows (GP letter
-                    or specialist). Pre-filled from triage. */}
-                {HANDOFF_TYPES.has(contDisposition) && (
-                  <div style={{ marginTop:10, padding:12, background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0' }}>
-                    <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>
-                      Recipient details {consult.gp_name && !contGpName && <span style={{ fontWeight:400, color:'#6B7280' }}>· pre-filled from triage</span>}
-                    </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                      <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP or specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                      <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                    </div>
-                    <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"
-                      placeholder="Email (fills → letter auto-sends at Finalise; blank → admin worklist)"
-                      style={{ marginTop:8, width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:`1px solid ${contDisposition === 'gp_letter_sent' && !contGpEmail ? '#D97706' : '#E2E8F0'}`, borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                    <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:10, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#D97706', fontWeight:600 }}>
+                  <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
+                    <div>Queued for admin to send later</div>
+                    <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:8, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#B45309', fontWeight:600 }}>
                       <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
                       I told the patient I'm sending this
                     </label>
                   </div>
                 )}
+                {contDisposition === 'handover_to_specialist' && (
+                  <div style={{ padding:'10px 14px', background:'#EFF6FF', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:'.875rem', color:'#1D4ED8', fontWeight:600, lineHeight:1.5 }}>
+                    <div>Handover to specialist{contGpName && `: ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}</div>
+                    <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:8, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#B45309', fontWeight:600 }}>
+                      <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
+                      I told the patient I'm handing them over
+                    </label>
+                  </div>
+                )}
+                {contDisposition === 'patient_no_gp_told_to_enrol' && (
+                  <div style={{ padding:'10px 14px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
+                    ⚠ No GP on file — after-visit summary will include GP enrolment guidance
+                  </div>
+                )}
+                {contDisposition === 'closed_no_followup_needed' && (
+                  <div style={{ padding:'10px 14px', background:'#F8FAFC', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', color:'#374151', fontWeight:600, lineHeight:1.5 }}>
+                    Closed — no follow-up needed
+                  </div>
+                )}
+                {contDisposition === 'patient_declined_gp_disclosure' && (
+                  <div style={{ padding:'10px 14px', background:'#FEF2F2', border:'1.5px solid #FECACA', borderRadius:8, fontSize:'.875rem', color:'#991B1B', fontWeight:600, lineHeight:1.5 }}>
+                    Patient asked me not to tell their GP — no letter sent (HDC Right 7)
+                  </div>
+                )}
 
-                {/* Override link — reveals a compact reason picker for the ~10%
-                    of consults where the default (send / no-GP-enrol) is wrong.
-                    Preserves HDC Right 7 (patient declined disclosure) + Right
-                    4(4) audit trail without a 6-radio block on every consult. */}
-                <div style={{ marginTop:10, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                {/* Override link — expands to reveal the 6-option reason picker
+                    AND the recipient card (name/practice/email) for editing.
+                    Hidden by default so the common case reads as a single
+                    status line. */}
+                <div style={{ marginTop:10, display:'flex', justifyContent:'flex-end', alignItems:'center', gap:8 }}>
                   <button type="button" onClick={() => setShowContOverride(s => !s)}
                     style={{ background:'none', border:'none', color:'var(--teal)', fontSize:'.75rem', fontWeight:600, cursor:'pointer', padding:0 }}>
                     {showContOverride ? 'Hide options' : "Not right? Change what happens →"}
@@ -1768,15 +1768,26 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                       { v:'patient_declined_gp_disclosure',l:'Patient asked me not to tell their GP (Right 7)' },
                     ].map(o => (
                       <label key={o.v} style={{ display:'flex', gap:8, alignItems:'center', padding:'.375rem 0', cursor:'pointer', fontSize:'.8125rem', color:'#374151' }}>
-                        <input type="radio" name="cont-override" value={o.v} checked={contDisposition === o.v} onChange={() => { setContDisposition(o.v); setShowContOverride(false) }} />
+                        <input type="radio" name="cont-override" value={o.v} checked={contDisposition === o.v} onChange={() => setContDisposition(o.v)} />
                         {o.l}
                       </label>
                     ))}
+                    {HANDOFF_TYPES.has(contDisposition) && (
+                      <div style={{ marginTop:12, paddingTop:12, borderTop:'1px solid #E2E8F0' }}>
+                        <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>
+                          Recipient details {consult?.gp_name && <span style={{ fontWeight:400, color:'#6B7280' }}>· pre-filled from triage</span>}
+                        </div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                          <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP or specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                          <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                        </div>
+                        <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"
+                          placeholder="Email (auto-sends at Finalise; blank → admin worklist)"
+                          style={{ marginTop:8, width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:`1px solid ${contDisposition === 'gp_letter_sent' && !contGpEmail ? '#D97706' : '#E2E8F0'}`, borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                      </div>
+                    )}
                   </div>
                 )}
-                <textarea value={contNotes} onChange={e => setContNotes(e.target.value)} rows={2}
-                  placeholder="Notes (optional — anything unusual about this handover)"
-                  style={{ width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem', marginTop:8 }} />
               </>
             ) : (
               <div style={{ fontSize:'.8125rem', color:'#374151' }}>
