@@ -155,6 +155,8 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // pathways join the same LiveKit room, so whichever connects first wins.
   // `sipFallbackFired` prevents us dialling more than once.
   const [sipFallbackFired, setSipFallbackFired] = useState(false)
+  // Hoisted so the SIP auto-fallback useEffect (below) can gate on it.
+  const chimeMode = useChimeSdk()
   const AUTO_FALLBACK_S = 15
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
   // Final-attempt phone-only flow — provider dials patient directly from
@@ -589,7 +591,6 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // The FloatingCallWidget is position:fixed so it renders as a floating
   // pill regardless of the (zero-size) parent container, letting the
   // ClinicianPatient chart underneath stay fully interactive.
-  const chimeMode = useChimeSdk()
   if (inCall && popupMode) return (
     <>
       {callComplete && (
