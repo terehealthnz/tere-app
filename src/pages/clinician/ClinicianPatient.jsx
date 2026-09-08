@@ -420,11 +420,13 @@ export default function ClinicianPatient() {
         </div>
 
         {/* Patient identity verification (task #426) — provider attests
-            person on camera matches NHI holder. Only rendered once the
-            video call is connected (activeCall) — asking before the call
-            is guesswork; the whole point is to look at the on-camera
-            person and compare with photo ID or KBA questions. */}
-        {activeCall && (
+            person on camera matches NHI holder. Moved from activeCall
+            (during-call) to activeNotes (Complete Encounter wrap-up)
+            2026-09-08 per Patrick — same pattern as SupportPersonPrompt
+            below. Provider now records verification when finishing the
+            encounter rather than mid-call. No hard gate on completion;
+            skipping is possible (Rx flow still requires it separately). */}
+        {consult && activeNotes && (
           <IdVerificationPanel
             consult={consult}
             onUpdated={async () => {
