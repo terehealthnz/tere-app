@@ -38,7 +38,7 @@ function mockNhi(seed) {
 
 const MOCK_PATIENTS = [
   {
-    first_name: 'Aroha',   last_name: 'Mitchell', dob: '1984-07-05', sex: 'F',
+    first_name: 'Aroha',   last_name: 'Mitchell', date_of_birth: '1984-07-05',
     phone: '+64211234501', email: 'practice.aroha@example.test',
     complaint: 'Fatigue and dizziness for the past week. Concerned about iron levels.',
     allergens: [{ allergen: 'Penicillin', allergen_type: 'drug', reaction: 'Rash', reaction_severity: 'moderate' }],
@@ -46,7 +46,7 @@ const MOCK_PATIENTS = [
     conditions: [{ condition: 'Iron deficiency anaemia', icd10_code: 'D50.9', status: 'active' }],
   },
   {
-    first_name: 'David',   last_name: 'Chen',     dob: '1969-02-18', sex: 'M',
+    first_name: 'David',   last_name: 'Chen',     date_of_birth: '1969-02-18',
     phone: '+64211234502', email: 'practice.david@example.test',
     complaint: 'Sore throat and fever for 3 days. History of tonsillitis.',
     allergens: [],
@@ -60,7 +60,7 @@ const MOCK_PATIENTS = [
     ],
   },
   {
-    first_name: 'Emily',   last_name: 'Thompson', dob: '1991-09-24', sex: 'F',
+    first_name: 'Emily',   last_name: 'Thompson', date_of_birth: '1991-09-24',
     phone: '+64211234503', email: 'practice.emily@example.test',
     complaint: 'UTI symptoms. Sixth episode this year — asks about prophylaxis.',
     allergens: [{ allergen: 'Trimethoprim', allergen_type: 'drug', reaction: 'GI upset', reaction_severity: 'mild' }],
@@ -98,34 +98,35 @@ export default async function handler(req, res) {
     const nhi = mockNhi(Date.now() + i)
     // Insert patient. created_by_provider_id may not exist on the schema;
     // catch and continue so we don't hard-fail if the column is absent.
+    // Real patients table uses `date_of_birth` (not `dob`) and has no `sex`
+    // column — seed originally used the wrong column names and every insert
+    // 400'd. `created_by_provider_id` may or may not exist depending on
+    // migration state; try with, fall back without.
     let patientId = null
     try {
       const { data: pat, error } = await supabase.from('patients').insert({
-        first_name: p.first_name,
-        last_name:  p.last_name,
-        dob:        p.dob,
-        sex:        p.sex,
-        phone:      p.phone,
-        email:      p.email,
+        first_name:    p.first_name,
+        last_name:     p.last_name,
+        date_of_birth: p.date_of_birth,
+        phone:         p.phone,
+        email:         p.email,
         nhi,
-        is_practice: true,
+        is_practice:   true,
         created_by_provider_id: provider.id,
       }).select('id').single()
       if (error) throw error
       patientId = pat?.id
     } catch (e) {
-      // If created_by_provider_id doesn't exist, retry without it.
       const { data: pat, error } = await supabase.from('patients').insert({
-        first_name: p.first_name,
-        last_name:  p.last_name,
-        dob:        p.dob,
-        sex:        p.sex,
-        phone:      p.phone,
-        email:      p.email,
+        first_name:    p.first_name,
+        last_name:     p.last_name,
+        date_of_birth: p.date_of_birth,
+        phone:         p.phone,
+        email:         p.email,
         nhi,
-        is_practice: true,
+        is_practice:   true,
       }).select('id').single()
-      if (error) { console.error('[practice-seed] patient insert failed:', error); results.push({ ok: false, error: 'patient insert failed' }); continue }
+      if (error) { console.error('[practice-seed] patient insert failed:', error); results.push({ ok: false, error: `patient insert failed: ${error.message}` }); continue }
       patientId = pat?.id
     }
 
@@ -134,7 +135,7 @@ export default async function handler(req, res) {
       patient_id:                patientId,
       patient_first_name:        p.first_name,
       patient_last_name:         p.last_name,
-      patient_dob:               p.dob,
+      patient_dob:               p.date_of_birth,
       patient_nhi:               nhi,
       patient_phone:             p.phone,
       patient_email:             p.email,
