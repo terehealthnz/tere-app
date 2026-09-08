@@ -9,6 +9,8 @@ import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
 import { getLangMeta, LANGUAGES } from '../../lib/i18n'
 import CallSubtitles from '../../components/clinical/CallSubtitles'
+import ChimeCall from '../../components/call/ChimeCall'
+import { useChimeSdk } from '../../lib/chime'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -581,6 +583,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // The FloatingCallWidget is position:fixed so it renders as a floating
   // pill regardless of the (zero-size) parent container, letting the
   // ClinicianPatient chart underneath stay fully interactive.
+  const chimeMode = useChimeSdk()
   if (inCall && popupMode) return (
     <>
       {callComplete && (
@@ -597,7 +600,20 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           </div>
         </div>
       )}
-      {lkToken && lkUrl && (
+      {chimeMode && id && (
+        // Chime path — fixed-position floating widget carrying our own
+        // ChimeCall (which owns its control bar). Skips FloatingCallWidget +
+        // RoomCapture + PatientPresenceStamp + CallSubtitles — Phase 3 wires
+        // scribe/subtitles onto Chime's audioVideo observer.
+        <div style={{
+          position:'fixed', bottom:20, right:20, width:320, height:420,
+          borderRadius:14, overflow:'hidden', boxShadow:'0 12px 32px rgba(0,0,0,.35)',
+          zIndex:150, background:'#000',
+        }}>
+          <ChimeCall role="provider" consultationId={id} compact onEnded={endCall} />
+        </div>
+      )}
+      {!chimeMode && lkToken && lkUrl && (
         <LiveKitRoom
           token={lkToken}
           serverUrl={lkUrl}
@@ -709,10 +725,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         </div>
       </div>
 
+      {/* Chime path — full-screen ChimeCall covers the video area. Skips
+          FloatingCallWidget + PatientPresenceStamp + CallSubtitles (Phase 3
+          will re-wire scribe + subtitles onto Chime's audioVideo observer). */}
+      {chimeMode && id && (
+        <div style={{ position:'fixed', inset:0, zIndex:100 }}>
+          <ChimeCall role="provider" consultationId={id} onEnded={endCall} />
+        </div>
+      )}
       {/* LiveKit room wrapper — provides context for the FloatingCallWidget below.
           The widget renders as a fixed-position overlay outside the normal
           flow, so it stays visible while the chart scrolls beneath it. */}
-      {lkToken && lkUrl ? (
+      {chimeMode ? null : lkToken && lkUrl ? (
         <LiveKitRoom
           token={lkToken}
           serverUrl={lkUrl}
