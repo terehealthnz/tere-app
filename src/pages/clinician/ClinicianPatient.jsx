@@ -425,21 +425,9 @@ export default function ClinicianPatient() {
             <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.6 }}>{consult.chief_complaint}</div>
           </div>
 
-          {/* ACC conversion — NZ only, only when consult isn't already flagged
-              as ACC. Provider clicks this the moment they decide the injury
-              is ACC-eligible; opens ConvertToAccModal for consent capture +
-              claim conversion. Was previously only on /provider/consult
-              (deprecated route) — added here 2026-09-08 so it lives on the
-              actual chart surface providers use every day. */}
-          {isNZ() && consult.acc_eligible !== 'yes' && !consult.acc_converted_by_provider && (
-            <button
-              type="button"
-              onClick={() => setShowAccConvert(true)}
-              style={{ width:'100%', marginTop:'.5rem', padding:'10px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'.875rem' }}
-            >
-              ⚡ Convert to ACC claim (injury)
-            </button>
-          )}
+          {/* ACC 'converted' status stays visible on chart even outside the
+              wrap-up so provider knows at a glance. Convert action itself
+              lives in Complete Encounter (wrap-up decision, Patrick 2026-09-08). */}
           {isNZ() && consult.acc_converted_by_provider && (
             <div style={{ marginTop:'.5rem', padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
               ✓ Converted to ACC — pending admin lodgement
@@ -479,16 +467,20 @@ export default function ClinicianPatient() {
 
         {/* Child safeguarding pathway (task #434) — required consenting-adult
             capture when patient is <18, plus a safeguarding-concern flag for
-            any age patient. Runbook: docs/regulatory/child-safeguarding-oranga-tamariki-runbook.md */}
-        <ChildSafeguardingPanel
-          consult={consult}
-          onUpdated={async () => {
-            try {
-              const fresh = await getConsultation(id)
-              if (fresh) setConsult(fresh)
-            } catch {}
-          }}
-        />
+            any age patient. Runbook: docs/regulatory/child-safeguarding-oranga-tamariki-runbook.md
+            Gated to activeNotes (Complete Encounter) 2026-09-08 per Patrick —
+            same pattern as SupportPersonPrompt / IdVerificationPanel. */}
+        {consult && activeNotes && (
+          <ChildSafeguardingPanel
+            consult={consult}
+            onUpdated={async () => {
+              try {
+                const fresh = await getConsultation(id)
+                if (fresh) setConsult(fresh)
+              } catch {}
+            }}
+          />
+        )}
 
         {/* Interpreter source (task #436) — only shows if patient ticked
             "I need an interpreter". Provider records how interpretation

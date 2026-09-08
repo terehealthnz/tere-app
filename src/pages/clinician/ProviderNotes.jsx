@@ -3,6 +3,8 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
+import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
+import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
 
 const FF    = 'Plus Jakarta Sans, sans-serif'
@@ -335,6 +337,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [accMechanism,   setAccMechanism]   = useState('')
   const [accBodyPart,    setAccBodyPart]    = useState('')
   const [outcome,        setOutcome]        = useState('')
+  const [showAccConvert, setShowAccConvert] = useState(false)
   const [actualMethod,   setActualMethod]   = useState(() => sessionStorage.getItem('consultationType') || 'video')
   // Safety-netting — gated field required for finalise (task #417). Provider
   // picks a template then edits. Included in the after-visit summary emailed
@@ -1589,7 +1592,39 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             <option value="">Select outcome…</option>
             {OUTCOMES.filter(o => !isAsyncMessage || o.value !== 'acc_lodged').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          {/* ACC conversion — the injury-billing decision belongs in wrap-up
+              alongside outcome / fee tier / continuity. Moved from chart 2026-09-08.
+              NZ only; only when not already converted. */}
+          {isNZ() && !isFinalised && !consult?.acc_converted_by_provider && consult?.acc_eligible !== 'yes' && (
+            <button type="button" onClick={() => setShowAccConvert(true)}
+              style={{ marginTop:10, width:'100%', padding:'10px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.875rem' }}>
+              ⚡ Convert to ACC claim (injury)
+            </button>
+          )}
+          {isNZ() && consult?.acc_converted_by_provider && (
+            <div style={{ marginTop:10, padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
+              ✓ Converted to ACC — pending admin lodgement
+            </div>
+          )}
         </div>
+
+        {showAccConvert && consult && (
+          <ConvertToAccModal
+            consult={consult}
+            onClose={() => setShowAccConvert(false)}
+            onSuccess={async () => {
+              setShowAccConvert(false)
+              // Ask the parent (ClinicianPatient popup mode) to refresh — the
+              // consult prop is passed in; on success we reload the page-level
+              // state via the same callback pattern used elsewhere.
+              try {
+                const { getConsultation } = await import('../../lib/supabase')
+                const fresh = await getConsultation(consult.id)
+                if (fresh && setConsult) setConsult(fresh)
+              } catch {}
+            }}
+          />
+        )}
 
         {/* Safety-netting (task #417) — HDC Right 6 evidence. Required for
             finalise on video/phone consults. Provider picks a template then
