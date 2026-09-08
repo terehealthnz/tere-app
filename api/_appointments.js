@@ -316,6 +316,40 @@ export default async function handler(req, res) {
       return res.status(200).json({ templates: data || [] })
     }
 
+    // ── Safety-net templates ──────────────────────────────────────────────
+    // Same pattern as prescription templates; separate table so the two
+    // template lists don't cross-contaminate the two dropdowns.
+
+    if (action === 'save_safety_net_template') {
+      const { provider_id, name, text } = req.body
+      if (!provider_id || !name?.trim() || !text?.trim()) {
+        return res.status(400).json({ error: 'provider_id + name + text required' })
+      }
+      const { data: existing } = await supabase.from('safety_net_templates')
+        .select('id').eq('provider_id', provider_id).eq('name', name.trim()).maybeSingle()
+      const payload = { provider_id, name: name.trim(), text: text.trim(), updated_at: new Date().toISOString() }
+      const q = existing?.id
+        ? supabase.from('safety_net_templates').update(payload).eq('id', existing.id).select().single()
+        : supabase.from('safety_net_templates').insert(payload).select().single()
+      const { data, error } = await q
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true, template: data })
+    }
+
+    if (action === 'get_safety_net_templates') {
+      const { provider_id } = req.body
+      const { data } = await supabase.from('safety_net_templates')
+        .select('*').eq('provider_id', provider_id).order('name')
+      return res.status(200).json({ templates: data || [] })
+    }
+
+    if (action === 'delete_safety_net_template') {
+      const { template_id } = req.body
+      const { error } = await supabase.from('safety_net_templates').delete().eq('id', template_id)
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true })
+    }
+
     return res.status(400).json({ error: 'Invalid action' })
   }
 

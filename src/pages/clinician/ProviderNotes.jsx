@@ -341,6 +341,38 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // to the patient. HDC Right 6 evidence.
   const [safetyNetTemplateId, setSafetyNetTemplateId] = useState('')
   const [safetyNetText,       setSafetyNetText]       = useState('')
+  // Provider's personal safety-net templates (task 466 follow-up 2026-09-08).
+  // Merged into the built-in SAFETY_NET_TEMPLATES dropdown with a "⭐" prefix.
+  const [mySafetyNetTemplates, setMySafetyNetTemplates] = useState([])
+  const [savingSafetyNet, setSavingSafetyNet] = useState(false)
+  const [safetyNetSaveName, setSafetyNetSaveName] = useState('')
+  const [showSafetyNetSave, setShowSafetyNetSave] = useState(false)
+
+  useEffect(() => {
+    const providerId = sessionStorage.getItem('providerId')
+    if (!providerId) return
+    apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({ action:'get_safety_net_templates', provider_id: providerId }) })
+      .then(r => r.json()).then(d => setMySafetyNetTemplates(d.templates || [])).catch(() => {})
+  }, [])
+
+  async function saveMySafetyNetTemplate() {
+    const providerId = sessionStorage.getItem('providerId')
+    const name = (safetyNetSaveName || '').trim()
+    const text = (safetyNetText || '').trim()
+    if (!providerId || !name || !text) return
+    setSavingSafetyNet(true)
+    try {
+      const r = await apiFetch('/api/appointments', { method:'POST', body: JSON.stringify({
+        action: 'save_safety_net_template', provider_id: providerId, name, text,
+      }) })
+      const d = await r.json()
+      if (d.ok) {
+        setMySafetyNetTemplates(ts => [...ts.filter(t => t.name !== name), d.template].sort((a,b)=>a.name.localeCompare(b.name)))
+        setShowSafetyNetSave(false)
+        setSafetyNetSaveName('')
+      }
+    } catch {} finally { setSavingSafetyNet(false) }
+  }
   // Continuity of care (task #421) — required for finalise. HDC Right 4(4).
   const [contDisposition,  setContDisposition]  = useState('')
   const [contGpName,       setContGpName]       = useState('')
@@ -1520,12 +1552,25 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 onChange={e => {
                   const tid = e.target.value
                   setSafetyNetTemplateId(tid)
-                  const t = SAFETY_NET_TEMPLATES.find(x => x.id === tid)
-                  if (t) setSafetyNetText(t.text)
+                  // Provider's own templates (id prefix "mine:") beat the built-ins.
+                  if (tid.startsWith('mine:')) {
+                    const mine = mySafetyNetTemplates.find(t => `mine:${t.id}` === tid)
+                    if (mine) setSafetyNetText(mine.text)
+                  } else {
+                    const t = SAFETY_NET_TEMPLATES.find(x => x.id === tid)
+                    if (t) setSafetyNetText(t.text)
+                  }
                 }}
                 style={{ width:'100%', padding:'10px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'.875rem', marginBottom:10, background:'white', outline:'none', WebkitAppearance:'none', appearance:'none' }}>
                 <option value="">Pick a template to start…</option>
-                {SAFETY_NET_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                {mySafetyNetTemplates.length > 0 && (
+                  <optgroup label="⭐ My saved wording">
+                    {mySafetyNetTemplates.map(t => <option key={t.id} value={`mine:${t.id}`}>{t.name}</option>)}
+                  </optgroup>
+                )}
+                <optgroup label="Built-in templates">
+                  {SAFETY_NET_TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </optgroup>
               </select>
             )}
             <textarea value={safetyNetText}
@@ -1539,6 +1584,38 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 {(safetyNetText || '').trim().length}/{SAFETY_NET_MIN_CHARS} chars minimum {safetyNetOk && '✓'}
               </div>
             )}
+            {/* ⭐ Save my wording — provider can persist their custom safety-net text
+                for reuse. Shown when the textarea has ≥40 chars and either no
+                template is picked OR the text has been edited from the source. */}
+            {!isFinalised && safetyNetOk && (() => {
+              const source = safetyNetTemplateId.startsWith('mine:')
+                ? mySafetyNetTemplates.find(t => `mine:${t.id}` === safetyNetTemplateId)?.text
+                : SAFETY_NET_TEMPLATES.find(x => x.id === safetyNetTemplateId)?.text
+              const isCustom = !source || (source.trim() !== safetyNetText.trim())
+              if (!isCustom) return null
+              return (
+                <div style={{ marginTop:8, display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                  {showSafetyNetSave ? (
+                    <>
+                      <input value={safetyNetSaveName} onChange={e => setSafetyNetSaveName(e.target.value)}
+                        placeholder="Name this template (e.g. 'My URTI advice')"
+                        style={{ flex:1, minWidth:200, padding:'.4rem .625rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                      <button onClick={saveMySafetyNetTemplate} disabled={savingSafetyNet || !safetyNetSaveName.trim()}
+                        style={{ background:'#0B6E76', color:'white', border:'none', borderRadius:6, padding:'.4rem .875rem', cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>
+                        {savingSafetyNet ? '…' : 'Save'}
+                      </button>
+                      <button onClick={() => { setShowSafetyNetSave(false); setSafetyNetSaveName('') }}
+                        style={{ background:'none', border:'none', color:'var(--muted)', cursor:'pointer', padding:'.4rem' }}>✕</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setShowSafetyNetSave(true)}
+                      style={{ background:'#FEF3C7', border:'1px solid #FDE68A', color:'#92400E', fontSize:'.75rem', fontWeight:700, cursor:'pointer', fontFamily:FF, padding:'.25rem .625rem', borderRadius:6 }}>
+                      ⭐ Save my current wording as a template
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
             {!isFinalised && (
               <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:6, lineHeight:1.5 }}>
                 This will be included in the patient’s after-visit summary. Required for finalise (HDC Right 6 — informed choice on what to do next).
