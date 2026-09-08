@@ -57,6 +57,10 @@ export class ConsultationRecorder {
     this.destinationNode = null
     this.sourceNodes   = []
     this.room          = opts.room || null
+    // Chime path: HTMLAudioElement whose captureStream() emits the mixed
+    // remote audio Chime binds via bindAudioElement. Local mic is captured
+    // via a fresh getUserMedia handle (see #collectChimeAudioStreams).
+    this.chimeAudioEl  = opts.chimeAudioEl || null
   }
 
   async start() {
@@ -65,13 +69,19 @@ export class ConsultationRecorder {
     // track. Both the provider's local audio and any remote audio tracks
     // (there'll be one per remote participant — patient) get wired into
     // a single MediaStreamDestination that MediaRecorder can record.
-    const roomTracks = this.#collectLiveKitAudioTracks()
+    let mixedStreams = this.#collectLiveKitAudioTracks()
 
-    if (roomTracks.length > 0) {
+    // Chime path: no LiveKit Room but a Chime audio element. Grab remote
+    // mixed audio from the element + a parallel mic handle for local audio.
+    if (mixedStreams.length === 0 && this.chimeAudioEl) {
+      mixedStreams = await this.#collectChimeAudioStreams()
+    }
+
+    if (mixedStreams.length > 0) {
       const AC = window.AudioContext || window.webkitAudioContext
       this.audioContext = new AC()
       this.destinationNode = this.audioContext.createMediaStreamDestination()
-      for (const mediaStream of roomTracks) {
+      for (const mediaStream of mixedStreams) {
         const src = this.audioContext.createMediaStreamSource(mediaStream)
         src.connect(this.destinationNode)
         this.sourceNodes.push(src)
@@ -118,6 +128,35 @@ export class ConsultationRecorder {
       }
       this.mediaRecorder.stop()
     })
+  }
+
+  // Chime path: remote audio is mixed by Chime into the bound audio element,
+  // so HTMLAudioElement.captureStream() gives us the patient's voice. Local
+  // mic is captured via a fresh getUserMedia — the browser tolerates a
+  // parallel handle to the same device Chime is already using. If mic
+  // capture fails we still return the remote-only stream (better than
+  // nothing for post-call transcript).
+  async #collectChimeAudioStreams() {
+    const streams = []
+    try {
+      const captureFn = this.chimeAudioEl?.captureStream
+        || this.chimeAudioEl?.mozCaptureStream    // Firefox
+      if (typeof captureFn === 'function') {
+        const remote = captureFn.call(this.chimeAudioEl)
+        if (remote?.getAudioTracks?.().length) streams.push(remote)
+      }
+    } catch (e) {
+      console.warn('[tereScribe] Chime remote captureStream failed:', e?.message)
+    }
+    try {
+      this.fallbackStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 }
+      })
+      streams.push(this.fallbackStream)
+    } catch (e) {
+      console.warn('[tereScribe] Chime local mic getUserMedia failed:', e?.message)
+    }
+    return streams
   }
 
   // Collect all currently-published audio tracks from the LiveKit Room:

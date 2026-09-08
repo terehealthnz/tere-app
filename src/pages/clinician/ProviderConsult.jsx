@@ -176,6 +176,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // audio tracks directly (avoids the empty-blob bug from grabbing a second
   // getUserMedia stream).
   const scribeRoomRef = useRef(null)
+  // Chime path equivalent: ChimeCall exposes its bound <audio> element via
+  // onAudioElReady. tereScribe captureStream()s the remote mix from it and
+  // grabs a parallel getUserMedia for local mic.
+  const chimeAudioElRef = useRef(null)
   const pollRef = useRef(null)
 
   // Lazy-load pharmacy register the first time the picker opens.
@@ -455,10 +459,15 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
 
   async function startScribe() {
     setScribeState('recording')
-    // Pass the live LiveKit Room so the recorder mixes local mic + remote
-    // audio (both sides) instead of grabbing a second, potentially-muted
-    // mic stream via getUserMedia — see tereScribe.js for the reason.
-    recorderRef.current = new ConsultationRecorder({ room: scribeRoomRef.current })
+    // Route both LiveKit and Chime paths through the same recorder — the
+    // recorder picks which stream-collection strategy to use based on
+    // which ref is populated. LiveKit hands over a Room object; Chime
+    // hands over its bound <audio> element (captureStream'd for remote,
+    // plus a parallel getUserMedia for local mic).
+    recorderRef.current = new ConsultationRecorder({
+      room: scribeRoomRef.current,
+      chimeAudioEl: chimeMode ? chimeAudioElRef.current : null,
+    })
     try { await recorderRef.current.start() }
     catch (e) { console.error(e); setScribeState('idle') }
   }
@@ -617,7 +626,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           borderRadius:14, overflow:'hidden', boxShadow:'0 12px 32px rgba(0,0,0,.35)',
           zIndex:150, background:'#000',
         }}>
-          <ChimeCall role="provider" consultationId={id} compact onEnded={endCall} onPatientHere={markPatientHere} />
+          <ChimeCall
+            role="provider" consultationId={id} compact
+            onEnded={endCall}
+            onPatientHere={markPatientHere}
+            onAudioElReady={el => { chimeAudioElRef.current = el }}
+          />
         </div>
       )}
       {!chimeMode && lkToken && lkUrl && (
@@ -737,7 +751,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           will re-wire scribe + subtitles onto Chime's audioVideo observer). */}
       {chimeMode && id && (
         <div style={{ position:'fixed', inset:0, zIndex:100 }}>
-          <ChimeCall role="provider" consultationId={id} onEnded={endCall} onPatientHere={markPatientHere} />
+          <ChimeCall
+            role="provider" consultationId={id}
+            onEnded={endCall}
+            onPatientHere={markPatientHere}
+            onAudioElReady={el => { chimeAudioElRef.current = el }}
+          />
         </div>
       )}
       {/* LiveKit room wrapper — provides context for the FloatingCallWidget below.

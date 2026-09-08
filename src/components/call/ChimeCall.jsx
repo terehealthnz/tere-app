@@ -22,7 +22,7 @@ import { apiFetch } from '../../lib/api'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 
-export default function ChimeCall({ role, consultationId, onEnded, onPatientHere, overlay, compact = false }) {
+export default function ChimeCall({ role, consultationId, onEnded, onPatientHere, onAudioElReady, overlay, compact = false }) {
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
   const audioRef       = useRef(null)
@@ -30,6 +30,7 @@ export default function ChimeCall({ role, consultationId, onEnded, onPatientHere
   const endedRef       = useRef(false)  // guard against double-leave
   const heartbeatRef   = useRef(null)   // patient-side setInterval id
   const patientHereFiredRef = useRef(false)
+  const audioElReadyFiredRef = useRef(false)
 
   // Mobile Safari + iOS Chrome require a user gesture before we can start
   // getUserMedia. Autoplaying WebRTC on mount silently fails the audio-
@@ -144,8 +145,18 @@ export default function ChimeCall({ role, consultationId, onEnded, onPatientHere
         autoPlay playsInline
         style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
       />
-      {/* Hidden audio sink for remote audio mix */}
-      <audio ref={audioRef} autoPlay />
+      {/* Hidden audio sink for remote audio mix. Also captureStream'd by
+          the scribe recorder so both sides land in the transcript. */}
+      <audio
+        ref={el => {
+          audioRef.current = el
+          if (el && !audioElReadyFiredRef.current) {
+            audioElReadyFiredRef.current = true
+            try { onAudioElReady?.(el) } catch {}
+          }
+        }}
+        autoPlay
+      />
 
       {/* Local self-view overlay */}
       <video
