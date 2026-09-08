@@ -405,8 +405,14 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // in. If the patient later joins LiveKit (e.g. they were slow to click the
   // notification), whichever route connects first wins; the other simply
   // shows an extra participant which the provider can mute/dismiss.
+  //
+  // SUPPRESSED ON CHIME PATH: PatientPresenceStamp doesn't run under Chime
+  // (Phase 3 rework), so patientHere never flips true — SIP would auto-fire
+  // on every Chime call, spuriously ringing the patient's phone. Skip until
+  // Chime attendee-join events are wired to setPatientHere.
   useEffect(() => {
     if (!inCall || patientHere || sipFallbackFired) return
+    if (chimeMode) return
     if (elapsed < AUTO_FALLBACK_S) return
     setSipFallbackFired(true)
     ;(async () => {

@@ -28,44 +28,45 @@ export default function ChimeCall({ role, consultationId, onEnded, overlay, comp
   const sessionRef     = useRef(null)   // { session, leave }
   const endedRef       = useRef(false)  // guard against double-leave
 
-  const [status, setStatus]   = useState('connecting') // connecting | live | ended | error
+  // Mobile Safari + iOS Chrome require a user gesture before we can start
+  // getUserMedia. Autoplaying WebRTC on mount silently fails the audio-
+  // permission prompt. We detect mobile and gate the join behind a "Tap to
+  // start" button, then it's the click handler that fires connect().
+  const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  const [status, setStatus]   = useState(isMobile ? 'gesture-required' : 'connecting') // gesture-required | connecting | live | ended | error
   const [errorMsg, setErrorMsg] = useState(null)
   const [muted, setMuted]     = useState(false)
   const [videoOn, setVideoOn] = useState(true)
 
-  // Mount → create-or-join meeting → wire session. Unmount → leave.
-  useEffect(() => {
-    let cancelled = false
-    async function connect() {
-      try {
-        const meetingResponse = await createOrJoinMeeting({ role, consultationId })
-        if (cancelled) return
-        const handle = await joinMeeting({
-          meetingResponse,
-          localVideoEl:   localVideoRef.current,
-          remoteVideoEls: [remoteVideoRef.current],
-          audioEl:        audioRef.current,
-          onEvent: (ev) => {
-            if (ev.type === 'started')       setStatus('live')
-            if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
-            if (ev.type === 'connection-poor') console.warn('[chime] connection poor')
-          },
-        })
-        if (cancelled) { handle.leave(); return }
-        sessionRef.current = handle
-      } catch (e) {
-        console.error('[ChimeCall] connect failed:', e)
-        if (!cancelled) {
-          setStatus('error')
-          setErrorMsg(e?.status === 409
-            ? 'The provider hasn’t started the call yet — hang on a moment and try again.'
-            : e?.message || 'Failed to connect')
-        }
-      }
+  const doConnect = useCallback(async () => {
+    setStatus('connecting')
+    try {
+      const meetingResponse = await createOrJoinMeeting({ role, consultationId })
+      const handle = await joinMeeting({
+        meetingResponse,
+        localVideoEl:   localVideoRef.current,
+        remoteVideoEls: [remoteVideoRef.current],
+        audioEl:        audioRef.current,
+        onEvent: (ev) => {
+          if (ev.type === 'started')       setStatus('live')
+          if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
+          if (ev.type === 'connection-poor') console.warn('[chime] connection poor')
+        },
+      })
+      sessionRef.current = handle
+    } catch (e) {
+      console.error('[ChimeCall] connect failed:', e)
+      setStatus('error')
+      setErrorMsg(e?.status === 409
+        ? 'The provider hasn’t started the call yet — hang on a moment and try again.'
+        : e?.message || 'Failed to connect')
     }
-    connect()
+  }, [role, consultationId, onEnded])
+
+  // Desktop auto-connects on mount. Mobile waits for tap.
+  useEffect(() => {
+    if (!isMobile) doConnect()
     return () => {
-      cancelled = true
       const h = sessionRef.current
       if (h) { h.leave().catch(() => {}); sessionRef.current = null }
     }
@@ -145,6 +146,17 @@ export default function ChimeCall({ role, consultationId, onEnded, overlay, comp
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', padding: 20, textAlign: 'center',
         }}>
+          {status === 'gesture-required' && (<>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>Ready to see the doctor?</div>
+            <div style={{ fontSize: '.875rem', color: 'rgba(255,255,255,.85)', maxWidth: 320 }}>
+              Tap below to start the call. Your phone will ask for camera and microphone — please allow both.
+            </div>
+            <button
+              onClick={doConnect}
+              style={{ ...btn, background: TEAL, borderColor: TEAL, marginTop: 8, padding: '14px 32px', fontSize: '1rem' }}>
+              📞 Start call
+            </button>
+          </>)}
           {status === 'connecting' && (<>
             <div style={{ width: 48, height: 48, border: '3px solid rgba(255,255,255,.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Connecting…</div>
@@ -153,7 +165,7 @@ export default function ChimeCall({ role, consultationId, onEnded, overlay, comp
           {status === 'error' && (<>
             <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#FCA5A5' }}>Couldn't connect</div>
             <div style={{ fontSize: '.875rem', color: 'rgba(255,255,255,.85)', maxWidth: 320 }}>{errorMsg}</div>
-            <button onClick={() => window.location.reload()} style={{ ...btn, background: TEAL, borderColor: TEAL, marginTop: 8 }}>Try again</button>
+            <button onClick={doConnect} style={{ ...btn, background: TEAL, borderColor: TEAL, marginTop: 8 }}>Try again</button>
           </>)}
           {status === 'ended' && (
             <div style={{ fontSize: '1rem', fontWeight: 700 }}>Call ended</div>
