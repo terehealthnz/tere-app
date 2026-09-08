@@ -62,7 +62,13 @@ export default function TrainingBanner({ providerId }) {
           // shows the 3 seeded test patients (Aroha / David / Emily). Prevents
           // a page reload from silently dropping the trainee into an empty
           // live queue when sessionStorage.practice_mode isn't set yet.
-          if (!body.training_completed_at) {
+          //
+          // Skip admins: their practice-mode header is opt-in via toggle, and
+          // auto-flipping it here would leak sandbox data into admin surfaces
+          // (queue, patient search, etc.) because the header is session-wide,
+          // not route-scoped.
+          const isAdmin = (() => { try { return sessionStorage.getItem('providerIsAdmin') === 'true' } catch { return false } })()
+          if (!body.training_completed_at && !isAdmin) {
             try {
               if (sessionStorage.getItem('practice_mode') !== '1') {
                 sessionStorage.setItem('practice_mode', '1')
