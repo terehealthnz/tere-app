@@ -144,7 +144,6 @@ export default async function handler(req, res) {
       status:                    'waiting',
       matched_provider_id:       provider.id,
       is_practice:               true,
-      buffer_expires_at:         new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
     }
     const { data: consult, error: cErr } = await supabase.from('consultations').insert(consultBase).select('id').single()
     if (cErr) { results.push({ ok: false, patient_id: patientId, error: cErr.message }); continue }
