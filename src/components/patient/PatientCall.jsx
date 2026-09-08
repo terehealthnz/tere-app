@@ -7,6 +7,8 @@ import { apiFetch } from '../../lib/api'
 import { getPatientConsult } from '../../lib/supabase'
 import { getLangMeta, t } from '../../lib/i18n'
 import CallSubtitles from '../clinical/CallSubtitles'
+import ChimeCall from '../call/ChimeCall'
+import { useChimeSdk } from '../../lib/chime'
 
 export default function PatientCall() {
   const navigate = useNavigate()
@@ -119,12 +121,17 @@ export default function PatientCall() {
     }
   }, [])
 
+  const chimeMode = useChimeSdk()
+
   useEffect(() => {
     if (!consultationId) { navigate('/start'); return }
     // Only fetch a LiveKit token once the status gate says it's OK to join.
     // While cooldown/waiting/no_show we render a dedicated screen instead.
     if (gate !== 'ready') return
     if (token) return
+    // Chime path handles its own auth via /api/chime-meeting join-patient —
+    // no LiveKit token needed. Skip the fetch entirely.
+    if (chimeMode) return
 
     async function fetchToken() {
       try {
@@ -148,7 +155,7 @@ export default function PatientCall() {
     }
 
     fetchToken()
-  }, [consultationId, navigate, gate, token])
+  }, [consultationId, navigate, gate, token, chimeMode])
 
   // Gated: no-show — provider tried twice and marked us as missed. Payment
   // hold has been released. Offer patient a path back into triage.
@@ -237,6 +244,38 @@ export default function PatientCall() {
       </div>
 </div>
   )
+
+  // Chime path — bypasses LiveKit entirely. ChimeCall handles auth via the
+  // /api/chime-meeting server endpoint, manages its own device permissions,
+  // and calls onEnded when the meeting drops. Behind VITE_USE_CHIME_SDK=1.
+  if (chimeMode) {
+    return (
+      <div style={{ position: 'relative', height: '100dvh' }}>
+        <ChimeCall
+          role="patient"
+          consultationId={consultationId}
+          onEnded={() => navigate('/done')}
+        />
+        {consultationId && (
+          <div style={{ position: 'absolute', bottom: 0, right: 0, top: 0, pointerEvents: 'none' }}>
+            <div style={{ position: 'relative', height: '100%', pointerEvents: 'auto' }}>
+              <ChatPanel
+                consultationId={consultationId}
+                sender="patient"
+                patientLanguage={sessionStorage.getItem('patient_language') || 'en'}
+                style={{ bottom: 90, right: 16 }}
+              />
+            </div>
+          </div>
+        )}
+        <div style={{position:'absolute',top:0,left:0,right:0,zIndex:4,pointerEvents:'none',display:'flex',justifyContent:'center'}}>
+          <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',color:'rgba(255,255,255,.7)',fontSize:'.75rem',padding:'3px 10px',borderRadius:'0 0 6px 6px'}}>
+            Emergency? <a href="tel:111" style={{color:'white',fontWeight:700,pointerEvents:'auto'}}>Call 111</a>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ position: 'relative', height: '100dvh' }}>

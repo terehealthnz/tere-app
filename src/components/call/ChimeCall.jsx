@@ -1,0 +1,188 @@
+// ChimeCall — drop-in replacement for the LiveKitRoom + VideoConference
+// wrapper used in PatientCall.jsx, ProviderConsult.jsx, and
+// FloatingCallWidget.jsx. Rendered behind the useChimeSdk() feature flag
+// so LiveKit path stays intact until we're confident in Chime.
+//
+// Simple 2-party layout: remote video fills the frame, local video is a
+// small overlay in the corner. Control bar at the bottom: mute, camera,
+// leave. Matches the visual language patients + providers are already
+// used to on the LiveKit path.
+//
+// Props:
+//   role            'patient' | 'provider'
+//   consultationId  UUID — used to call /api/chime-meeting server endpoint
+//   onEnded         () => void — called when leave() completes or session drops
+//   overlay         ReactNode — optional children rendered on top (subtitles etc)
+//   compact         boolean — smaller control bar (FloatingCallWidget)
+
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo } from '../../lib/chime'
+
+const TEAL = '#0B6E76'
+const NAVY = '#0D2B45'
+
+export default function ChimeCall({ role, consultationId, onEnded, overlay, compact = false }) {
+  const localVideoRef  = useRef(null)
+  const remoteVideoRef = useRef(null)
+  const audioRef       = useRef(null)
+  const sessionRef     = useRef(null)   // { session, leave }
+  const endedRef       = useRef(false)  // guard against double-leave
+
+  const [status, setStatus]   = useState('connecting') // connecting | live | ended | error
+  const [errorMsg, setErrorMsg] = useState(null)
+  const [muted, setMuted]     = useState(false)
+  const [videoOn, setVideoOn] = useState(true)
+
+  // Mount → create-or-join meeting → wire session. Unmount → leave.
+  useEffect(() => {
+    let cancelled = false
+    async function connect() {
+      try {
+        const meetingResponse = await createOrJoinMeeting({ role, consultationId })
+        if (cancelled) return
+        const handle = await joinMeeting({
+          meetingResponse,
+          localVideoEl:   localVideoRef.current,
+          remoteVideoEls: [remoteVideoRef.current],
+          audioEl:        audioRef.current,
+          onEvent: (ev) => {
+            if (ev.type === 'started')       setStatus('live')
+            if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
+            if (ev.type === 'connection-poor') console.warn('[chime] connection poor')
+          },
+        })
+        if (cancelled) { handle.leave(); return }
+        sessionRef.current = handle
+      } catch (e) {
+        console.error('[ChimeCall] connect failed:', e)
+        if (!cancelled) {
+          setStatus('error')
+          setErrorMsg(e?.status === 409
+            ? 'The provider hasn’t started the call yet — hang on a moment and try again.'
+            : e?.message || 'Failed to connect')
+        }
+      }
+    }
+    connect()
+    return () => {
+      cancelled = true
+      const h = sessionRef.current
+      if (h) { h.leave().catch(() => {}); sessionRef.current = null }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultationId, role])
+
+  const doMute = useCallback(() => {
+    const h = sessionRef.current
+    if (!h) return
+    setMuted(toggleMute(h.session))
+  }, [])
+
+  const doVideo = useCallback(async () => {
+    const h = sessionRef.current
+    if (!h) return
+    setVideoOn(await toggleVideo(h.session))
+  }, [])
+
+  const doLeave = useCallback(async () => {
+    const h = sessionRef.current
+    if (h) { try { await h.leave() } catch {} }
+    // Provider deletes the meeting on the server too; patient just leaves.
+    if (role === 'provider' && consultationId) {
+      try { await endMeeting({ consultationId }) } catch (e) { console.warn('[chime] endMeeting:', e?.message) }
+    }
+    if (!endedRef.current) { endedRef.current = true; onEnded?.() }
+    setStatus('ended')
+  }, [role, consultationId, onEnded])
+
+  const btn = {
+    background: 'rgba(255,255,255,.12)', color: 'white',
+    border: '1px solid rgba(255,255,255,.25)',
+    borderRadius: 99, padding: compact ? '6px 10px' : '10px 16px',
+    fontSize: compact ? '.75rem' : '.875rem', fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+  }
+  const dangerBtn = { ...btn, background: '#DC2626', borderColor: '#DC2626' }
+  const activeBtn = { ...btn, background: 'rgba(255,255,255,.28)' }
+
+  return (
+    <div style={{
+      position: 'relative', height: '100%', width: '100%',
+      background: '#000', overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Remote video fills */}
+      <video
+        ref={remoteVideoRef}
+        autoPlay playsInline
+        style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
+      />
+      {/* Hidden audio sink for remote audio mix */}
+      <audio ref={audioRef} autoPlay />
+
+      {/* Local self-view overlay */}
+      <video
+        ref={localVideoRef}
+        autoPlay playsInline muted
+        style={{
+          position: 'absolute',
+          top: compact ? 8 : 16, right: compact ? 8 : 16,
+          width:  compact ? 96 : 160,
+          height: compact ? 128 : 200,
+          objectFit: 'cover',
+          borderRadius: 10,
+          border: '2px solid rgba(255,255,255,.35)',
+          background: '#222',
+          zIndex: 3,
+        }}
+      />
+
+      {/* Status overlay while connecting or on error */}
+      {status !== 'live' && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 4,
+          background: 'rgba(0,0,0,.7)', color: 'white',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          gap: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', padding: 20, textAlign: 'center',
+        }}>
+          {status === 'connecting' && (<>
+            <div style={{ width: 48, height: 48, border: '3px solid rgba(255,255,255,.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <div style={{ fontSize: '1rem', fontWeight: 700 }}>Connecting…</div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </>)}
+          {status === 'error' && (<>
+            <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#FCA5A5' }}>Couldn't connect</div>
+            <div style={{ fontSize: '.875rem', color: 'rgba(255,255,255,.85)', maxWidth: 320 }}>{errorMsg}</div>
+            <button onClick={() => window.location.reload()} style={{ ...btn, background: TEAL, borderColor: TEAL, marginTop: 8 }}>Try again</button>
+          </>)}
+          {status === 'ended' && (
+            <div style={{ fontSize: '1rem', fontWeight: 700 }}>Call ended</div>
+          )}
+        </div>
+      )}
+
+      {/* Control bar */}
+      {status === 'live' && (
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 5,
+          padding: compact ? '10px 12px' : '18px 24px',
+          paddingBottom: `calc(${compact ? 10 : 18}px + env(safe-area-inset-bottom, 0px))`,
+          background: 'linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0))',
+          display: 'flex', justifyContent: 'center', gap: compact ? 8 : 14,
+        }}>
+          <button onClick={doMute}    style={muted ? activeBtn : btn}    title={muted ? 'Unmute' : 'Mute'}>
+            {muted ? '🔇 Muted' : '🎙️ Mic'}
+          </button>
+          <button onClick={doVideo}   style={videoOn ? btn : activeBtn}  title={videoOn ? 'Turn off camera' : 'Turn on camera'}>
+            {videoOn ? '📷 Camera' : '📷 Off'}
+          </button>
+          <button onClick={doLeave}   style={dangerBtn}                  title="Leave call">
+            {role === 'provider' ? '⛔ End call' : '⛔ Leave'}
+          </button>
+        </div>
+      )}
+
+      {overlay}
+    </div>
+  )
+}
