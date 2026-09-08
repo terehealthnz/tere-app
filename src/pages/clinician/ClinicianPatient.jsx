@@ -13,6 +13,8 @@ import ChildSafeguardingPanel from '../../components/clinician/ChildSafeguarding
 import InterpreterSourcePanel from '../../components/clinician/InterpreterSourcePanel'
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 import { PrescribeModal } from '../../components/clinician/ConsultModals'
+import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
+import { isNZ } from '../../lib/region'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -72,6 +74,11 @@ export default function ClinicianPatient() {
   // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
   const [sendBackOpen, setSendBackOpen] = useState(false)
   const [accessHistoryOpen, setAccessHistoryOpen] = useState(false)
+  // ACC conversion (task #338 build was only wired on the deprecated
+  // /provider/consult route). Adding the entry point here so providers
+  // on the current chart surface can flag an injury as ACC at the
+  // moment they identify it — before the 24hr claim window drifts.
+  const [showAccConvert, setShowAccConvert] = useState(false)
   // Re-issue flow: provider clicks "Re-issue" on a past prescription row →
   // opens PrescribeModal pre-filled with the past script's values. Provider
   // reviews / edits / sends as a fresh script.
@@ -417,7 +424,39 @@ export default function ClinicianPatient() {
             <div style={{ fontSize: '.625rem', fontWeight: 700, color: TEAL, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '.375rem' }}>Chief Complaint</div>
             <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.6 }}>{consult.chief_complaint}</div>
           </div>
+
+          {/* ACC conversion — NZ only, only when consult isn't already flagged
+              as ACC. Provider clicks this the moment they decide the injury
+              is ACC-eligible; opens ConvertToAccModal for consent capture +
+              claim conversion. Was previously only on /provider/consult
+              (deprecated route) — added here 2026-09-08 so it lives on the
+              actual chart surface providers use every day. */}
+          {isNZ() && consult.acc_eligible !== 'yes' && !consult.acc_converted_by_provider && (
+            <button
+              type="button"
+              onClick={() => setShowAccConvert(true)}
+              style={{ width:'100%', marginTop:'.5rem', padding:'10px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'.875rem' }}
+            >
+              ⚡ Convert to ACC claim (injury)
+            </button>
+          )}
+          {isNZ() && consult.acc_converted_by_provider && (
+            <div style={{ marginTop:'.5rem', padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
+              ✓ Converted to ACC — pending admin lodgement
+            </div>
+          )}
         </div>
+
+        {showAccConvert && (
+          <ConvertToAccModal
+            consult={consult}
+            onClose={() => setShowAccConvert(false)}
+            onSuccess={async () => {
+              setShowAccConvert(false)
+              try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
+            }}
+          />
+        )}
 
         {/* Patient identity verification (task #426) — provider attests
             person on camera matches NHI holder. Moved from activeCall
