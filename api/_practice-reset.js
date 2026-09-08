@@ -44,8 +44,14 @@ export default async function handler(req, res) {
     if (error) { console.error(`[practice-reset] delete ${t} failed:`, error); deletions[t] = { error: 'delete failed' } }
     else { deletions[t] = { deleted: count } }
   }
+  // Delete ALL practice consults (not scoped to provider_id) because
+  // get-queue's stale-reviewing cleanup nulls out provider_id when a
+  // consult in 'reviewing' idles for >5min. Those orphans would survive
+  // a provider-scoped delete and then block re-seed by tripping
+  // consultations_one_open_per_patient_idx. Safe because is_practice=true
+  // means sandbox data by construction — no real PHI risk.
   const { count: consCount } = await supabase.from('consultations').delete({ count: 'exact' })
-    .eq('is_practice', true).eq('provider_id', providerId)
+    .eq('is_practice', true)
   deletions.consultations = { deleted: consCount }
   const { count: patCount } = await supabase.from('patients').delete({ count: 'exact' })
     .eq('is_practice', true)
