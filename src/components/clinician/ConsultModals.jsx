@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../../lib/api'
+import { updateConsultation } from '../../lib/supabase'
 import HpiSearch from '../HpiSearch'
 import NZF_FORMULARY from '../../lib/nzf-formulary.json'
 
@@ -187,7 +188,19 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
       }))
     }
   }, [open, prefill])
-  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
+  const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'', medsafeId:'' })
+  // Medsafe register picker state — lets the provider swap from the patient's
+  // triage selection to another Medsafe pharmacy. Filtered to emailable ones
+  // (fax decommissioned 2026-08-01). Ported from ClinicalActionModals when
+  // the two PrescribeModals were consolidated (2026-09-08).
+  const [medsafeList, setMedsafeList] = useState(null)
+  const [showPharmacyPicker, setShowPharmacyPicker] = useState(false)
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+  // Allergen cross-check (task #223 phase E). Matches rx.medication against
+  // patient's active structured allergens. Provider must tick to override
+  // the red banner before submit fires.
+  const [allergens, setAllergens] = useState([])
+  const [allergenAck, setAllergenAck] = useState(false)
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [templates, setTemplates] = useState([])
@@ -200,6 +213,94 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
   const [overrideReason, setOverrideReason] = useState('')
   const [isPaediatric, setIsPaediatric] = useState(false)
   const [paedWeight, setPaedWeight] = useState('')
+
+  // Load structured allergens once when the modal opens for cross-check.
+  useEffect(() => {
+    if (!open || !consult?.patient_id) { setAllergens([]); return }
+    ;(async () => {
+      try {
+        const { patientAllergensApi } = await import('../../lib/supabase')
+        const rows = await patientAllergensApi.list(consult.patient_id)
+        setAllergens((rows || []).filter(r => r.is_active !== false))
+      } catch { setAllergens([]) }
+    })()
+    setAllergenAck(false)
+  }, [open, consult?.patient_id])
+
+  // Lazy-load the Medsafe register when the picker is opened. Filtered to
+  // pharmacies with a crowdsourced dispensary_email — same as patient triage picker.
+  useEffect(() => {
+    if (!showPharmacyPicker || medsafeList !== null) return
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const list = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(list)) { setMedsafeList([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        setMedsafeList(emailable && emailable.size > 0 ? list.filter(p => emailable.has(p.id)) : list)
+      } catch { setMedsafeList([]) }
+    })()
+  }, [showPharmacyPicker, medsafeList])
+
+  const filteredPharmacies = useMemo(() => {
+    if (!medsafeList) return []
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of medsafeList) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  }, [medsafeList, pharmacyQuery])
+
+  async function pickPharmacy(p) {
+    setPharmacy({
+      name: p.premises_name || '',
+      medsafeId: p.id || '',
+      hpiId: '',
+      email: '',
+      phone: '',
+      address: p.address || '',
+    })
+    setShowPharmacyPicker(false)
+    setPharmacyQuery('')
+    // Server-mediated lookup — anon SELECT on pharmacy_contacts is revoked,
+    // so route via /api/pharmacy-contacts?id=… (service_role).
+    if (p.id) {
+      try {
+        const r = await apiFetch(`/api/pharmacy-contacts?id=${encodeURIComponent(p.id)}`)
+        const j = await r.json().catch(() => ({}))
+        const data = j.contact
+        if (data) {
+          setPharmacy(prev => ({
+            ...prev,
+            email: data.dispensary_email || '',
+            phone: data.phone || '',
+            hpiId: data.hpi_id || '',
+          }))
+        }
+      } catch {}
+    }
+    // Persist the change on the consultation row so downstream steps
+    // (prescription PDF, patient email, provider notes) all agree.
+    if (consult?.id) {
+      try {
+        await updateConsultation(consult.id, {
+          pharmacy: p.premises_name || null,
+          pharmacy_id: p.id || null,
+        })
+      } catch {}
+    }
+  }
 
   // Auto-enable paediatric mode when patient is a child + auto-fill weight
   // from what they entered at intake. Provider can still turn it off or
@@ -221,15 +322,40 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
   const providerId = sessionStorage.getItem('providerId')
 
-  // Pre-fill pharmacy name from triage data when modal opens
+  // Pre-fill pharmacy from triage data when modal opens — name + medsafe id
+  // + crowdsourced contact if we have a pharmacy_id on the consult row.
   useEffect(() => {
-    if (open && consult?.pharmacy && !pharmacy.name) {
-      setPharmacy(p => ({ ...p, name: consult.pharmacy }))
-    }
     if (!open) {
-      setPharmacy({ name:'', hpiId:'', email:'', phone:'', address:'' })
+      setPharmacy({ name:'', hpiId:'', email:'', phone:'', address:'', medsafeId:'' })
+      setShowPharmacyPicker(false)
+      setPharmacyQuery('')
+      setMedsafeList(null)
+      return
     }
-  }, [open, consult?.pharmacy])
+    if (!consult) return
+    const medsafeId = consult.pharmacy_id || ''
+    setPharmacy(p => ({
+      ...p,
+      name: p.name || consult.pharmacy || '',
+      medsafeId: p.medsafeId || medsafeId,
+    }))
+    if (!medsafeId) return
+    ;(async () => {
+      try {
+        const r = await apiFetch(`/api/pharmacy-contacts?id=${encodeURIComponent(medsafeId)}`)
+        const j = await r.json().catch(() => ({}))
+        const data = j.contact
+        if (data) {
+          setPharmacy(p => ({
+            ...p,
+            email: p.email || data.dispensary_email || '',
+            phone: p.phone || data.phone || '',
+            hpiId: p.hpiId || data.hpi_id || '',
+          }))
+        }
+      } catch {}
+    })()
+  }, [open, consult?.id])
 
   async function checkDrugInteractions(drugName) {
     if (!drugName) return
@@ -283,6 +409,19 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Block submit if allergen alert showing + not acknowledged.
+    const drug = (rx.medication || '').toLowerCase().trim()
+    if (drug && allergens.length > 0) {
+      const hits = allergens.filter(a => {
+        const name = (a.allergen || '').toLowerCase()
+        if (!name) return false
+        return name.includes(drug) || drug.includes(name)
+      })
+      if (hits.length > 0 && !allergenAck) {
+        setResult({ ok: false, error: 'Allergen alert not acknowledged — tick the confirmation checkbox in the red banner above before submitting.' })
+        return
+      }
+    }
     setSending(true)
     setResult(null)
     const composed = composeRx(rx)
@@ -299,6 +438,7 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
           patientNhi: consult?.patient_nhi,
           patientDob: consult?.patient_dob,
           patientEmail: consult?.patient_email,
+          pharmacyId: pharmacy.medsafeId,
           drug: composed.drug, dose: rx.dose, directions: composed.directions,
           quantity: rx.qty, repeats: rx.repeats,
           pharmacyName: pharmacy.name, pharmacyHpiId: pharmacy.hpiId,
@@ -346,6 +486,38 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
           </div>
         )}
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
+        {/* Allergen cross-check (task #223 phase E) — matches rx.medication
+            against the patient's structured allergens, both directions
+            (substring), case-insensitive. Provider must tick to override
+            before submit fires. */}
+        {(() => {
+          const drug = (rx.medication || '').toLowerCase().trim()
+          if (!drug || allergens.length === 0) return null
+          const hits = allergens.filter(a => {
+            const name = (a.allergen || '').toLowerCase()
+            if (!name) return false
+            return name.includes(drug) || drug.includes(name)
+          })
+          if (hits.length === 0) return null
+          return (
+            <div style={{ marginBottom: '.75rem', borderRadius: 10, border: '2px solid #DC2626', background: '#FEF2F2', padding: '.75rem 1rem' }}>
+              <div style={{ fontWeight: 800, color: '#991B1B', fontSize: '.9375rem', marginBottom: 6 }}>
+                🚨 Allergen alert — patient is allergic to this drug (or a related one)
+              </div>
+              {hits.map(h => (
+                <div key={h.id} style={{ fontSize: '.8125rem', color: '#7F1D1D', marginBottom: 3 }}>
+                  <strong>{h.allergen}</strong>
+                  {h.reaction && ` — ${h.reaction}`}
+                  {h.reaction_severity && ` (${h.reaction_severity})`}
+                </div>
+              ))}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, cursor: 'pointer', fontSize: '.8125rem', color: '#991B1B', fontWeight: 700 }}>
+                <input type="checkbox" checked={allergenAck} onChange={e => setAllergenAck(e.target.checked)} />
+                I have reviewed the alert and confirm this prescription is clinically appropriate
+              </label>
+            </div>
+          )
+        })()}
         <div className="form-group">
           <label>Medication name <span style={{color:'#DC2626'}}>*</span> <span style={{color:'#6B7280',fontWeight:400,fontSize:'.7rem'}}>· pick from list to auto-fill (your ⭐ defaults beat the NZF starter)</span></label>
           <input
@@ -539,14 +711,66 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
           </div>
         ) : null}
         <div className="form-group">
-          <label>Pharmacy</label>
-          <HpiSearch type="pharmacy" value={pharmacy.name} onSelect={r => setPharmacy({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address })} placeholder="Search pharmacies…" />
-          {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{pharmacy.address}</div>}
+          <label style={{display:'flex',justifyContent:'space-between',alignItems:'baseline'}}>
+            <span>Pharmacy</span>
+            {pharmacy.name && !showPharmacyPicker && (
+              <button type="button" onClick={() => setShowPharmacyPicker(true)}
+                style={{background:'none',border:'none',color:'var(--teal)',fontSize:'.75rem',fontWeight:600,cursor:'pointer',padding:0}}>
+                Change pharmacy →
+              </button>
+            )}
+          </label>
+          {pharmacy.name && !showPharmacyPicker ? (
+            <div style={{border:'1.5px solid var(--border)',borderRadius:8,padding:'.5rem .75rem',background:'#F8FAFC'}}>
+              <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{pharmacy.name}</div>
+              {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:2}}>{pharmacy.address}</div>}
+              {pharmacy.medsafeId && <div style={{fontSize:'.6875rem',color:'var(--muted)',marginTop:2}}>Medsafe ID: {pharmacy.medsafeId}</div>}
+            </div>
+          ) : (
+            <>
+              {/* Medsafe register picker — same list as the triage patient picker. */}
+              <div style={{position:'relative'}}>
+                <input
+                  value={pharmacyQuery}
+                  onChange={e => { setPharmacyQuery(e.target.value); setShowPharmacyPicker(true) }}
+                  onFocus={() => setShowPharmacyPicker(true)}
+                  placeholder="Search Medsafe register — pharmacy name, town, region…"
+                  style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',outline:'none',boxSizing:'border-box'}}
+                />
+                {filteredPharmacies.length > 0 && (
+                  <div style={{position:'absolute',top:'100%',left:0,right:0,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginTop:2,zIndex:20,overflow:'hidden',boxShadow:'0 4px 12px rgba(0,0,0,.1)',maxHeight:280,overflowY:'auto'}}>
+                    {filteredPharmacies.map((p, idx) => (
+                      <button type="button" key={p.id || idx} onClick={() => pickPharmacy(p)}
+                        style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<filteredPharmacies.length-1?'1px solid #F3F4F6':'none'}}
+                        onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                        <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{p.premises_name}</div>
+                        {(p.town || p.region) && (
+                          <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{[p.town, p.region].filter(Boolean).join(' · ')}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={{fontSize:'.7rem',color:'var(--muted)',marginTop:4}}>Or use HPI directory lookup:</div>
+              <HpiSearch type="pharmacy" value={pharmacy.name}
+                onSelect={r => setPharmacy({ name:r.name, hpiId:r.hpiId, email:r.email || '', phone:r.phone, address:r.address, medsafeId:'' })}
+                placeholder="Search HPI directory…" />
+              {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{pharmacy.address}</div>}
+            </>
+          )}
         </div>
-        {!pharmacy.email && pharmacy.name && (
+        {pharmacy.name && (
           <div className="form-group">
-            <label>Pharmacy email <span style={{color:'var(--muted)',fontWeight:400}}>(if not found above)</span></label>
-            <input value={pharmacy.email} onChange={e=>setPharmacy(p=>({...p,email:e.target.value}))} placeholder="dispensary@pharmacy.co.nz" type="email" />
+            <div style={{fontSize:'.7rem',color:'var(--muted)',marginBottom:3,fontWeight:600}}>Dispensary email</div>
+            <input value={pharmacy.email} onChange={e=>setPharmacy(p=>({...p,email:e.target.value}))}
+              placeholder="dispensary@pharmacy.co.nz" type="email"
+              style={{width:'100%',padding:'.4rem .6rem',border:'1.5px solid var(--border)',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem',outline:'none',boxSizing:'border-box'}} />
+            {!pharmacy.email && (
+              <div style={{fontSize:'.7rem',color:'#B45309',marginTop:6}}>
+                No dispensary email on file — the prescription can still be generated as a PDF, but nothing will be delivered until an email is added.
+              </div>
+            )}
           </div>
         )}
         {canPrescribe && <div className="alert alert-info" style={{fontSize:'.8125rem',marginBottom:'1rem'}}>PDF generated &amp; emailed to pharmacy and patient. Non-controlled medications only.</div>}
