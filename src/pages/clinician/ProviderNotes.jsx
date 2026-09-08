@@ -508,6 +508,18 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     load()
   }, [id])
 
+  // Pre-fill continuity GP details from what the patient told us at triage
+  // (AITriage collects gp_name + gp_clinic + optional gp_email → consult row).
+  // Provider should not retype what the patient already answered. Runs once
+  // when consult loads and only fills blanks — never overwrites edits.
+  useEffect(() => {
+    if (!consult) return
+    if (!contGpName && consult.gp_name)      setContGpName(consult.gp_name)
+    if (!contGpPractice && consult.gp_clinic) setContGpPractice(consult.gp_clinic)
+    if (!contGpEmail && consult.gp_email)    setContGpEmail(consult.gp_email)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consult?.id])
+
   // Support ticket context — load ticket + finalised prescriptions when deep-linked
   useEffect(() => {
     if (!ticketId || !consult) return
