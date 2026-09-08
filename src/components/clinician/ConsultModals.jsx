@@ -153,12 +153,40 @@ function composeRx(rx) {
   return { drug, directions }
 }
 
-export function PrescribeModal({ open, onClose, consult, onDone }) {
+export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
   const [rx, setRx] = useState({
     medication: '', strength: '', form: '',
     dose: '', frequency: '', duration: '',
     notes: '', qty: '', repeats: 0,
   })
+
+  // Re-issue prefill: when the modal is opened with a prefill payload
+  // (from clicking "Re-issue" on a past prescription), populate the form
+  // from the previous script. Old scripts may not have the new structured
+  // fields (strength/form/frequency/duration) — those get dumped into
+  // `notes` so the provider sees them and re-enters them properly.
+  useEffect(() => {
+    if (!open || !prefill) return
+    setRx({
+      medication: prefill.drug_name || prefill.drug || prefill.medication || '',
+      strength:   prefill.strength || '',
+      form:       prefill.form || '',
+      dose:       prefill.dose || '',
+      frequency:  prefill.frequency || '',
+      duration:   prefill.duration || '',
+      notes:      prefill.directions || prefill.notes || '',   // legacy free-text directions land here for provider review
+      qty:        prefill.quantity || prefill.qty || '',
+      repeats:    prefill.repeats || 0,
+    })
+    if (prefill.pharmacy_name) {
+      setPharmacy(p => ({
+        ...p,
+        name:  prefill.pharmacy_name,
+        email: prefill.pharmacy_email || p.email,
+        hpiId: prefill.pharmacy_hpi_id || p.hpiId,
+      }))
+    }
+  }, [open, prefill])
   const [pharmacy, setPharmacy] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)

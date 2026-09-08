@@ -12,6 +12,7 @@ import IdVerificationPanel from '../../components/clinician/IdVerificationPanel'
 import ChildSafeguardingPanel from '../../components/clinician/ChildSafeguardingPanel'
 import InterpreterSourcePanel from '../../components/clinician/InterpreterSourcePanel'
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
+import { PrescribeModal } from '../../components/clinician/ConsultModals'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -71,6 +72,10 @@ export default function ClinicianPatient() {
   // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
   const [sendBackOpen, setSendBackOpen] = useState(false)
   const [accessHistoryOpen, setAccessHistoryOpen] = useState(false)
+  // Re-issue flow: provider clicks "Re-issue" on a past prescription row →
+  // opens PrescribeModal pre-filled with the past script's values. Provider
+  // reviews / edits / sends as a fresh script.
+  const [reissuePrefill, setReissuePrefill] = useState(null)
   // Break-glass gate (task #414). When getConsultation throws with
   // requires_break_glass=true, we store the enriched context here and mount
   // ConsultBreakGlassPrompt. On grant we re-invoke the loader.
@@ -362,6 +367,27 @@ export default function ClinicianPatient() {
       {consult && activeNotes && <SupportPersonPrompt consult={consult} onDone={async () => {
         try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
       }} />}
+
+      {/* Re-issue: past-prescription "Re-issue" click opens PrescribeModal
+          pre-filled with the previous script's medication/dose/pharmacy.
+          Provider reviews and can adjust anything before sending. */}
+      <PrescribeModal
+        open={!!reissuePrefill}
+        onClose={() => setReissuePrefill(null)}
+        consult={consult}
+        prefill={reissuePrefill}
+        onDone={async () => {
+          setReissuePrefill(null)
+          try {
+            const [freshRx, freshConsult] = await Promise.all([
+              getPatientPrescriptions(consult?.patient_id).catch(() => []),
+              getConsultation(id),
+            ])
+            setPastRx(freshRx || [])
+            if (freshConsult) setConsult(freshConsult)
+          } catch {}
+        }}
+      />
 
       <div style={{ padding: '1.25rem 1rem calc(11rem + env(safe-area-inset-bottom))', maxWidth: 640, margin: '0 auto' }}>
 
@@ -698,16 +724,22 @@ export default function ClinicianPatient() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {pastRx.map(r => (
                 <div key={r.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.75rem .875rem', fontSize: '.8125rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.75rem', marginBottom: 3 }}>
-                    <div style={{ fontWeight: 700, color: NAVY }}>{r.drug_name || r.drug || 'Unnamed drug'}{r.dose ? ` · ${r.dose}` : ''}</div>
-                    <div style={{ color: '#6B7280', flexShrink: 0 }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('en-NZ') : ''}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.75rem', marginBottom: 3, alignItems: 'flex-start' }}>
+                    <div style={{ fontWeight: 700, color: NAVY, flex: 1 }}>{r.drug_name || r.drug || 'Unnamed drug'}{r.dose ? ` · ${r.dose}` : ''}</div>
+                    <div style={{ color: '#6B7280', flexShrink: 0, fontSize: '.75rem' }}>{r.created_at ? new Date(r.created_at).toLocaleDateString('en-NZ') : ''}</div>
                   </div>
-                  {r.directions && <div style={{ color: '#374151', marginBottom: 3 }}>{r.directions}</div>}
-                  <div style={{ display: 'flex', gap: '.75rem', fontSize: '.75rem', color: '#6B7280', flexWrap: 'wrap' }}>
+                  {r.directions && <div style={{ color: '#374151', marginBottom: 6 }}>{r.directions}</div>}
+                  <div style={{ display: 'flex', gap: '.75rem', fontSize: '.75rem', color: '#6B7280', flexWrap: 'wrap', alignItems: 'center' }}>
                     {r.quantity && <span>Qty: {r.quantity}</span>}
                     {r.repeats != null && <span>Repeats: {r.repeats}</span>}
                     {r.pharmacy_name && <span>→ {r.pharmacy_name}</span>}
                     {r.delivery_status && <span>· {r.delivery_status}</span>}
+                    <button
+                      onClick={() => setReissuePrefill(r)}
+                      style={{ marginLeft: 'auto', background: TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}
+                      title="Open Prescribe with this script pre-filled — review + send as fresh script">
+                      🔁 Re-issue
+                    </button>
                   </div>
                 </div>
               ))}
