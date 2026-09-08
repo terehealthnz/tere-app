@@ -1,6 +1,19 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../../lib/api'
 import HpiSearch from '../HpiSearch'
+import NZF_FORMULARY from '../../lib/nzf-formulary.json'
+
+// ── NZF lookup ────────────────────────────────────────────────────────────────
+// 450 monographs extracted from NZF release 171 (September 2026). Provider
+// types a drug name; if it matches a monograph, we show the NZF Dose block
+// as an inline reference. Independent of the 23-drug ADULT_DRUG_PRESETS
+// starting-values table — that's for auto-fill, this is for lookup.
+const NZF_INDEX = new Map(NZF_FORMULARY.map(e => [e.name, e]))
+function findNzfEntry(medicationText) {
+  if (!medicationText) return null
+  const key = medicationText.toLowerCase().trim().split(/\s+/)[0]  // "Ibuprofen 400mg" → "ibuprofen"
+  return NZF_INDEX.get(key) || null
+}
 
 // ── Shared modal shell ────────────────────────────────────────────────────────
 
@@ -333,8 +346,26 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
             placeholder="Start typing to search NZ Formulary presets (paracetamol, amoxicillin, …)"
           />
           <datalist id="tere-rx-preset-list">
-            {Object.keys(ADULT_DRUG_PRESETS).map(name => <option key={name} value={name} />)}
+            {/* 23 curated presets auto-fill all fields; other 427 NZF drugs
+                just appear as name suggestions — provider fills the rest,
+                using the NZF reference panel below for dosing guidance. */}
+            {Object.keys(ADULT_DRUG_PRESETS).map(name => <option key={`p-${name}`} value={name}>{name} — auto-fills dose</option>)}
+            {NZF_FORMULARY.filter(e => !ADULT_DRUG_PRESETS[e.name]).map(e => (
+              <option key={`n-${e.name}`} value={e.name} />
+            ))}
           </datalist>
+          {(() => {
+            const nzf = findNzfEntry(rx.medication)
+            if (!nzf || !nzf.dose) return null
+            return (
+              <div style={{ marginTop: '.5rem', background:'#F0F9FA', border:'1px solid #C7EAEC', borderRadius:8, padding:'.75rem', fontSize:'.75rem', color:'#134E5B', maxHeight:220, overflowY:'auto', lineHeight:1.5, fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                <div style={{ fontWeight:700, marginBottom:4, textTransform:'uppercase', letterSpacing:'.05em', color:'#0B6E76', fontSize:'.7rem' }}>NZF dosing reference · {nzf.name}</div>
+                {nzf.indications && <div style={{ marginBottom:6, fontStyle:'italic', color:'#0B6E76' }}>Indications: {nzf.indications}</div>}
+                <pre style={{ margin:0, whiteSpace:'pre-wrap', fontFamily:'inherit', fontSize:'.7rem' }}>{nzf.dose}</pre>
+                <div style={{ marginTop:6, fontSize:'.65rem', color:'#6B7280' }}>NZF release 171 · verify current dosing at nzf.org.nz before prescribing</div>
+              </div>
+            )
+          })()}
           {checkingInteractions && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:3}}>Checking interactions…</div>}
           {interactions && interactions.interactions?.length > 0 && (
             <div style={{marginTop:'.5rem',borderRadius:8,border:`1.5px solid ${interactions.maxSeverity==='major'?'#DC2626':interactions.maxSeverity==='moderate'?'#D97706':'#E2E8F0'}`,padding:'.75rem',background:interactions.maxSeverity==='major'?'#FEF2F2':interactions.maxSeverity==='moderate'?'#FFFBEB':'#F8FAFC'}}>
