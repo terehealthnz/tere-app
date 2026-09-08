@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { subscribeToQueue, updateConsultation, getCompleteSince, getAllCompleteConsultations } from '../../lib/supabase'
 import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { apiFetch } from '../../lib/api'
+import { isUS } from '../../lib/region'
 import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
 import ProviderInbox from '../../pages/clinician/ProviderInbox.jsx'
 import ProviderEarnings from '../../pages/clinician/ProviderEarnings.jsx'
@@ -184,8 +185,8 @@ function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }
       ['inbox',     '📥 Inbox'],
       ['earnings',  '💰 Earnings'],
       ['notes',     'Notes'],
-      ['licenses',  '🪪 State licenses'],
     ]
+    if (isUS())       t.push(['licenses',       '🪪 State licenses'])
     if (isSupervisor) t.push(['supervision',    'Supervision'])
     if (isRMO)        t.push(['my-supervision', 'My supervision'])
     return t

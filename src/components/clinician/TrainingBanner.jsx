@@ -60,6 +60,7 @@ export default function TrainingBanner({ providerId }) {
       justifyContent: 'space-between',
       gap: '.75rem',
       flexShrink: 0,
+      position: 'relative',
       zIndex: 300,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>

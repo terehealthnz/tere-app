@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue, getCompleteSince, getPendingNotes, getCompletedNotes } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { isUS } from '../../lib/region'
 import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } from '../../components/clinician/ConsultModals'
 import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
@@ -1095,7 +1096,7 @@ function MenuTab({ navigate, displayName, isAdmin }) {
     { label:'My profile', icon:'👤', action:()=>navigate('/clinician/profile'), color:'#374151' },
     { label:'Provider dashboard (desktop)', icon:'🖥', action:()=>navigate('/clinician/dashboard'), color:'#374151' },
     { label:'Earnings — payment records', icon:'💰', action:()=>navigate('/provider/earnings'), color:'#374151' },
-    { label:'US state licenses', icon:'🪪', action:()=>navigate('/clinician/state-licenses'), color:'#374151' },
+    ...(isUS() ? [{ label:'US state licenses', icon:'🪪', action:()=>navigate('/clinician/state-licenses'), color:'#374151' }] : []),
     { label:'Inbox — results & referrals', icon:'📥', action:()=>navigate('/clinician/inbox'), color:'#374151' },
     { label:'Change password', icon:'🔑', action:()=>navigate('/clinician/change-password'), color:'#374151' },
     { label:'Two-factor authentication', icon:'🛡', action:()=>setShowMfa(true), color:'#374151' },

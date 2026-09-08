@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getCompleteSince, getSchedule, setSchedule } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { isUS } from '../../lib/region'
 import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
@@ -588,7 +589,7 @@ function SettingsTab({ navigate, displayName }) {
 
   const links = [
     { label:'Payroll',               icon:'💰',  sub:'Calculate & approve provider earnings', action:()=>navigate('/admin/payroll') },
-    { label:'State license verifications', icon:'🪪', sub:'Review pending provider US state licenses', action:()=>navigate('/clinician/admin/state-licenses') },
+    ...(isUS() ? [{ label:'State license verifications', icon:'🪪', sub:'Review pending provider US state licenses', action:()=>navigate('/clinician/admin/state-licenses') }] : []),
     { label:'Provider dashboard',    icon:'📊',  sub:'Clinician consultation view',           action:()=>navigate('/clinician/dashboard') },
     { label:'Change password',       icon:'🔑',  sub:'Update your PIN',                       action:()=>navigate('/clinician/change-password') },
     { label:'Two-factor authentication', icon:'🛡', sub:'Set up an authenticator app for MFA', action:()=>setShowMfa(true) },
