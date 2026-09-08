@@ -37,6 +37,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   //     that ran the training
   'flags',
   // Provider clinical work
+  'billing-country',
   'convert-to-acc', 'acc-claims', 'acc-audit-bundle', 'acc-outcome-measures',
   'acc-communications', 'consultation-peer-reviews', 'generate-acc-cert',
   'patient-record-export', 'elevation', 'break-glass', 'phi-training',
@@ -238,6 +239,7 @@ const ROUTES = {
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
   'encounter-action':          () => import('./_encounter-action.js'),
+  'billing-country':           () => import('./_billing-country.js'),
   'patient-documents':         () => import('./_patient-documents.js'),
   'patient-upload':            () => import('./_patient-upload.js'),
   'patient-allergens':         () => import('./_patient-allergens.js'),

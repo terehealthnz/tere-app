@@ -82,6 +82,8 @@ const UPDATE_ALLOWLIST = new Set([
   'interpreter_source', 'interpreter_source_notes',
   'interpreter_source_recorded_at', 'interpreter_source_recorded_by',
   'capacity_confirmed_at', 'capacity_confirmed_by_self',
+  // Auto fee-tier from Stripe billing (migration 2026-09-08_patient_billing_country.sql).
+  'patient_billing_country',
   // Safety-netting gated field (task #417, migration 2026-09-03_safety_netting.sql)
   'safety_netting_text', 'safety_netting_template_id', 'safety_netting_at',
   // Continuity / GP-handover gated field (task #421, migration 2026-09-03_continuity_handover.sql)

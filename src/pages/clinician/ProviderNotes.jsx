@@ -355,6 +355,32 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       .then(r => r.json()).then(d => setMySafetyNetTemplates(d.templates || [])).catch(() => {})
   }, [])
 
+  // Auto fee-tier from Stripe billing country (task 466 follow-up 2026-09-08).
+  // Provider should not be making the NZ-vs-International call themselves —
+  // we know it from the card billing address. Country is fetched at mount
+  // (server caches on first hit), then actualMethod auto-selects. Provider
+  // can still override by clicking the tier — the UI just seeds it.
+  const [billingCountry, setBillingCountry] = useState(null)
+  const [billingCountrySource, setBillingCountrySource] = useState(null)
+  useEffect(() => {
+    if (!id) return
+    ;(async () => {
+      try {
+        const r = await apiFetch(`/api/billing-country?consultationId=${id}`)
+        const j = await r.json()
+        if (j.country) {
+          setBillingCountry(j.country)
+          setBillingCountrySource(j.source)
+          // Only auto-set if provider hasn't already picked something.
+          if (!actualMethod || actualMethod === 'consult' || actualMethod === 'video' || actualMethod === 'phone') {
+            setActualMethod(j.country === 'NZ' ? 'nz_resident' : 'international')
+          }
+        }
+      } catch {}
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
   async function saveMySafetyNetTemplate() {
     const providerId = sessionStorage.getItem('providerId')
     const name = (safetyNetSaveName || '').trim()
@@ -1697,7 +1723,14 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         {!isAsyncMessage && !isFinalised && (
           <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
             <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>
-              Patient fee tier <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— patient charged this amount</span>
+              Patient fee tier
+              {billingCountry
+                ? <span style={{ color:'#065F46', fontWeight:600, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
+                    ✓ auto-detected from card billing country ({billingCountry})
+                  </span>
+                : <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
+                    — no card billing country on file, please pick
+                  </span>}
             </div>
             <div style={{ display:'flex', gap:8 }}>
               {[
@@ -1711,6 +1744,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 </button>
               ))}
             </div>
+            {billingCountry && (
+              <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:6, lineHeight:1.5 }}>
+                Override only if the auto-detected country is wrong (e.g. NZ resident paid with an overseas-issued card).
+              </div>
+            )}
           </div>
         )}
 
