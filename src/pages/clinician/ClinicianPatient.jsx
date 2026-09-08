@@ -355,7 +355,11 @@ export default function ClinicianPatient() {
         patientName={[consult?.patient_first_name, consult?.patient_last_name].filter(Boolean).join(' ')}
       />
 
-      {consult && <SupportPersonPrompt consult={consult} onDone={async () => {
+      {/* HDC Right 8 support-person question — moved from chart-open mount
+          to the Complete Encounter wrap-up (activeNotes gate) because the
+          provider can only answer this after seeing/hearing the patient's
+          consult. Asking at chart open is guesswork. */}
+      {consult && activeNotes && <SupportPersonPrompt consult={consult} onDone={async () => {
         try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
       }} />}
 
@@ -390,16 +394,21 @@ export default function ClinicianPatient() {
         </div>
 
         {/* Patient identity verification (task #426) — provider attests
-            person on camera matches NHI holder. Recorded per consult. */}
-        <IdVerificationPanel
-          consult={consult}
-          onUpdated={async () => {
-            try {
-              const fresh = await getConsultation(id)
-              if (fresh) setConsult(fresh)
-            } catch {}
-          }}
-        />
+            person on camera matches NHI holder. Only rendered once the
+            video call is connected (activeCall) — asking before the call
+            is guesswork; the whole point is to look at the on-camera
+            person and compare with photo ID or KBA questions. */}
+        {activeCall && (
+          <IdVerificationPanel
+            consult={consult}
+            onUpdated={async () => {
+              try {
+                const fresh = await getConsultation(id)
+                if (fresh) setConsult(fresh)
+              } catch {}
+            }}
+          />
+        )}
 
         {/* Child safeguarding pathway (task #434) — required consenting-adult
             capture when patient is <18, plus a safeguarding-concern flag for
