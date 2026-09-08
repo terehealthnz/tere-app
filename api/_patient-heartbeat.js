@@ -24,9 +24,22 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'id query param required' })
 
   const supabase = admin()
+  // On the first heartbeat that arrives while the row still has a NULL
+  // patient_joined_at, stamp it. This mirrors what LiveKit's
+  // PatientPresenceStamp did (provider PATCHed the column when the
+  // patient participant appeared) but drives it from the patient side —
+  // so Chime works without a Chime-specific server hook.
+  const now = new Date().toISOString()
+  const { data: current } = await supabase
+    .from('consultations')
+    .select('patient_joined_at')
+    .eq('id', id)
+    .maybeSingle()
+  const patch = { last_seen_at: now }
+  if (current && !current.patient_joined_at) patch.patient_joined_at = now
   const { error } = await supabase
     .from('consultations')
-    .update({ last_seen_at: new Date().toISOString() })
+    .update(patch)
     .eq('id', id)
   if (error) { console.error('[patient-heartbeat] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   return res.status(200).json({ ok: true })

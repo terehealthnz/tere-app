@@ -153,6 +153,24 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
   }
   session.audioVideo.addObserver(observer)
 
+  // Attendee-presence subscription — Chime fires this for every attendee
+  // (self included) with `present=true` when they join, `false` when they
+  // leave. We filter out self (matching the Attendee.AttendeeId from the
+  // meetingResponse) so callers only see the OTHER side joining. Wired to
+  // onEvent as 'attendee-joined' / 'attendee-left' so the parent component
+  // can flip patientHere without needing to poll or watch tile events.
+  const selfAttendeeId = meetingResponse.Attendee.AttendeeId
+  try {
+    session.audioVideo.realtimeSubscribeToAttendeeIdPresence(
+      (attendeeId, present, externalUserId, dropped) => {
+        if (attendeeId === selfAttendeeId) return
+        emit(present ? 'attendee-joined' : 'attendee-left', {
+          attendeeId, externalUserId, dropped: !!dropped,
+        })
+      }
+    )
+  } catch (e) { console.warn('[chime] attendee presence subscribe failed:', e?.message) }
+
   // Pick default input devices, but DO NOT start the local video tile yet —
   // Chime's state machine rejects tile operations before audioVideoDidStart
   // fires ("no transition found from NotConnected with Update"). We queue

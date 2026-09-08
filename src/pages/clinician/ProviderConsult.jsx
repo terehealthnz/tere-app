@@ -408,10 +408,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // notification), whichever route connects first wins; the other simply
   // shows an extra participant which the provider can mute/dismiss.
   //
-  // SUPPRESSED ON CHIME PATH: PatientPresenceStamp doesn't run under Chime
-  // (Phase 3 rework), so patientHere never flips true — SIP would auto-fire
-  // on every Chime call, spuriously ringing the patient's phone. Skip until
-  // Chime attendee-join events are wired to setPatientHere.
+  // Chime path: still skipped. SIP → LiveKit room bridge is a LiveKit-specific
+  // feature (LIVEKIT_SIP_TRUNK_ID + LiveKit's room graph). Chime SDK Meetings
+  // has no equivalent auto-dial-in — the No-Answer button (3 attempts) is the
+  // provider's escalation path instead.
   useEffect(() => {
     if (!inCall || patientHere || sipFallbackFired) return
     if (chimeMode) return
@@ -617,7 +617,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           borderRadius:14, overflow:'hidden', boxShadow:'0 12px 32px rgba(0,0,0,.35)',
           zIndex:150, background:'#000',
         }}>
-          <ChimeCall role="provider" consultationId={id} compact onEnded={endCall} />
+          <ChimeCall role="provider" consultationId={id} compact onEnded={endCall} onPatientHere={markPatientHere} />
         </div>
       )}
       {!chimeMode && lkToken && lkUrl && (
@@ -737,7 +737,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           will re-wire scribe + subtitles onto Chime's audioVideo observer). */}
       {chimeMode && id && (
         <div style={{ position:'fixed', inset:0, zIndex:100 }}>
-          <ChimeCall role="provider" consultationId={id} onEnded={endCall} />
+          <ChimeCall role="provider" consultationId={id} onEnded={endCall} onPatientHere={markPatientHere} />
         </div>
       )}
       {/* LiveKit room wrapper — provides context for the FloatingCallWidget below.

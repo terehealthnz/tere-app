@@ -17,16 +17,19 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo } from '../../lib/chime'
+import { apiFetch } from '../../lib/api'
 
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 
-export default function ChimeCall({ role, consultationId, onEnded, overlay, compact = false }) {
+export default function ChimeCall({ role, consultationId, onEnded, onPatientHere, overlay, compact = false }) {
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
   const audioRef       = useRef(null)
   const sessionRef     = useRef(null)   // { session, leave }
   const endedRef       = useRef(false)  // guard against double-leave
+  const heartbeatRef   = useRef(null)   // patient-side setInterval id
+  const patientHereFiredRef = useRef(false)
 
   // Mobile Safari + iOS Chrome require a user gesture before we can start
   // getUserMedia. Autoplaying WebRTC on mount silently fails the audio-
@@ -48,9 +51,31 @@ export default function ChimeCall({ role, consultationId, onEnded, overlay, comp
         remoteVideoEls: [remoteVideoRef.current],
         audioEl:        audioRef.current,
         onEvent: (ev) => {
-          if (ev.type === 'started')       setStatus('live')
+          if (ev.type === 'started') {
+            setStatus('live')
+            // Patient-side presence: fire an immediate heartbeat so provider
+            // queue sees a fresh last_seen_at, then poll every 15s while live.
+            // First heartbeat also stamps patient_joined_at server-side.
+            if (role === 'patient' && consultationId) {
+              const beat = () => {
+                apiFetch(`/api/patient-heartbeat?id=${encodeURIComponent(consultationId)}`, { method: 'POST' })
+                  .catch(() => {})
+              }
+              beat()
+              heartbeatRef.current = setInterval(beat, 15000)
+            }
+          }
           if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
           if (ev.type === 'connection-poor') console.warn('[chime] connection poor')
+          // Provider-side presence: first time a non-self attendee joins,
+          // notify the parent so patientHere flips true (drives return-to-
+          // queue button state + suppresses any lingering fallback dial).
+          if (ev.type === 'attendee-joined' && role === 'provider') {
+            if (!patientHereFiredRef.current) {
+              patientHereFiredRef.current = true
+              try { onPatientHere?.() } catch {}
+            }
+          }
         },
       })
       sessionRef.current = handle
@@ -69,6 +94,7 @@ export default function ChimeCall({ role, consultationId, onEnded, overlay, comp
     return () => {
       const h = sessionRef.current
       if (h) { h.leave().catch(() => {}); sessionRef.current = null }
+      if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consultationId, role])
