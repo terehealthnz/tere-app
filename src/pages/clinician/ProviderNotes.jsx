@@ -967,6 +967,10 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             consult:{ chief_complaint:consult.chief_complaint },
             consultationId:id,
             accClaimNumber: result.accClaimNumber || undefined,
+            // Continuity signals: server injects the enrolment-guidance block
+            // (with a link to the record-forward portal) for no-GP patients.
+            continuityDisposition: contDisposition,
+            patientHasGp: !!(contGpName || consult.gp_name),
           }),
         }).catch(() => {})
         // Free basic payment receipt — fire-and-forget, idempotent server-side

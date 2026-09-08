@@ -240,6 +240,7 @@ const ROUTES = {
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
   'encounter-action':          () => import('./_encounter-action.js'),
   'billing-country':           () => import('./_billing-country.js'),
+  'record-forward':            () => import('./_record-forward.js'),
   'patient-documents':         () => import('./_patient-documents.js'),
   'patient-upload':            () => import('./_patient-upload.js'),
   'patient-allergens':         () => import('./_patient-allergens.js'),

@@ -105,7 +105,7 @@ export async function sendBasicReceipt(consultationId) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
-  const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId, isBasicReceipt } = req.body
+  const { to, name, sections = {}, notes = {}, actions = [], consult = {}, consultationId, isOpenNotification, resumeId, isBasicReceipt, continuityDisposition, patientHasGp } = req.body
   const canEmail = hasEmailProvider()
 
   // Basic receipt — the FREE plain HTML receipt auto-sent when the provider
@@ -214,6 +214,40 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
        </div>`
     : ''
 
+  // Enrolment guidance — only inserted when the provider flagged the patient
+  // as unenrolled during the continuity step. Links to Healthpoint's GP
+  // finder + a portal action that lets the patient trigger a record-forward
+  // to their new GP once they enrol. Rural-NZ continuity fix (2026-09-08).
+  const APP_URL = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
+  const showEnrolmentBlock = (continuityDisposition === 'patient_no_gp_told_to_enrol') ||
+                             (!patientHasGp && !continuityDisposition)
+  const forwardUrl = consultationId ? `${APP_URL}/portal/forward-records/${consultationId}` : `${APP_URL}`
+  const enrolmentHtml = showEnrolmentBlock
+    ? `<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:16px 20px;margin:20px 0">
+        <div style="font-size:15px;font-weight:700;color:#92400E;margin:0 0 8px">Finding a GP near you</div>
+        <p style="font-size:14px;color:#78350F;line-height:1.7;margin:0 0 10px">
+          You told us you don't currently have a regular GP. Being enrolled means cheaper visits (about $19.50 with a Community Services Card), phone advice when you need it, and someone who knows your whole medical picture.
+        </p>
+        <p style="font-size:14px;color:#78350F;line-height:1.7;margin:0 0 10px">
+          Use these to find a practice taking new patients:
+        </p>
+        <ul style="font-size:14px;color:#78350F;line-height:1.7;margin:0 0 14px;padding-left:20px">
+          <li><a href="https://www.healthpoint.co.nz/gps-accident-urgent-medical-care/" style="color:#B45309;text-decoration:underline">Healthpoint GP directory</a> — filter to "Accepting new enrolments"</li>
+          <li><a href="https://info.health.nz/services-support/enrolling-with-a-gp" style="color:#B45309;text-decoration:underline">Health NZ — how enrolment works</a></li>
+          <li>Ring Healthline free on <strong>0800 611 116</strong> — they can help you find a practice</li>
+        </ul>
+        <div style="background:white;border:1px solid #FDE68A;border-radius:6px;padding:12px 14px;margin:12px 0 0">
+          <div style="font-size:13px;font-weight:700;color:#92400E;margin:0 0 6px">Once you enrol, we'll send your Tere records to your new GP</div>
+          <p style="font-size:13px;color:#78350F;line-height:1.6;margin:0 0 10px">
+            Click the link below when you've enrolled — enter your new GP's name and email and we'll forward everything from today (and any future consult) automatically.
+          </p>
+          <div style="text-align:center;margin:6px 0 0">
+            <a href="${forwardUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:10px 20px;border-radius:99px;font-size:13px;font-weight:700">Send my records to a new GP →</a>
+          </div>
+        </div>
+       </div>`
+    : ''
+
   const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -231,6 +265,8 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
     ${rxHtml}${xrHtml}${accHtml}
 
     <div style="margin:20px 0;font-size:15px;line-height:1.8;color:#374151;white-space:pre-line">${summaryText.replace(/\n/g, '<br>')}</div>
+
+    ${enrolmentHtml}
 
     <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:24px">
       ⚠️ <strong>If your condition worsens or you're concerned, call 111 or go to your nearest emergency department straight away.</strong>

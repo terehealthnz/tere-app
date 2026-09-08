@@ -1813,6 +1813,92 @@ function GpLettersPanel() {
   )
 }
 
+// RecordForwardPanel — patient-initiated 'send my records to my new GP'
+// requests from the after-visit email flow. Admin reviews the request +
+// clicks Send to forward via /api/send-to-gp. Patient email consent is
+// captured at submission (they typed the same email that received the
+// consult summary), so this is HDC-safe to send once admin verifies.
+function RecordForwardPanel() {
+  const [rows, setRows] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [busy, setBusy] = React.useState(null)
+  const [flash, setFlash] = React.useState(null)
+  async function load() {
+    setLoading(true)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch('/api/record-forward', { method:'POST', body: JSON.stringify({ action:'list', status:'pending' }) })
+      const j = await r.json()
+      setRows(j.requests || [])
+    } catch { setRows([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+  async function fulfil(row) {
+    if (!confirm(`Send Tere records for ${row.patient_name} to ${row.gp_email}?`)) return
+    setBusy(row.id)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch('/api/record-forward', { method:'POST', body: JSON.stringify({ action:'fulfil', requestId: row.id }) })
+      const j = await r.json()
+      if (r.ok) { setFlash(`Sent to ${row.gp_email}`); setTimeout(() => setFlash(null), 3000); load() }
+      else { setFlash('Send failed: ' + (j.error || r.status)); setTimeout(() => setFlash(null), 4000) }
+    } catch (e) { setFlash('Send failed: ' + e.message); setTimeout(() => setFlash(null), 4000) }
+    setBusy(null)
+  }
+  async function decline(row) {
+    const note = prompt('Reason for declining? (Optional — will be logged)') || ''
+    if (note === null) return
+    setBusy(row.id)
+    try {
+      const { apiFetch } = await import('../../lib/api')
+      const r = await apiFetch('/api/record-forward', { method:'POST', body: JSON.stringify({ action:'decline', requestId: row.id, adminNotes: note }) })
+      if (r.ok) load()
+    } catch {}
+    setBusy(null)
+  }
+  const card = { background:'white', border:'1px solid #E2E8F0', borderRadius:12, padding:'1.25rem 1.5rem', marginBottom:'1rem' }
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:'1.125rem' }}>Patient record-forward requests ({rows.length})</h2>
+          <p style={{ fontSize:'.8125rem', color:'#6B7280', margin:'2px 0 0' }}>Patients who've enrolled with a new GP after their Tere consult — waiting for admin to forward their records.</p>
+        </div>
+        <button onClick={load} disabled={loading} style={{ background:'#F0F9FA', border:'none', color:'#0B6E76', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>↻ Refresh</button>
+      </div>
+      {flash && <div style={{ background:'#DCFCE7', border:'1px solid #86EFAC', color:'#065F46', padding:'.5rem .875rem', borderRadius:8, fontSize:'.8125rem', marginBottom:'.75rem' }}>{flash}</div>}
+      {loading ? (
+        <div style={{ color:'#9CA3AF', padding:'1.5rem 0', textAlign:'center' }}>Loading…</div>
+      ) : rows.length === 0 ? (
+        <div style={{ color:'#9CA3AF', padding:'1.5rem 0', textAlign:'center' }}>No pending requests.</div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+          {rows.map(row => (
+            <div key={row.id} style={{ border:'1px solid #E2E8F0', borderRadius:10, padding:'.875rem 1rem' }}>
+              <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr auto', gap:'.75rem', alignItems:'center' }}>
+                <div>
+                  <div style={{ fontWeight:700, fontSize:'.9375rem', color:'#0D2B45' }}>{row.patient_name || '—'}</div>
+                  <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{row.patient_email} · Requested {new Date(row.created_at).toLocaleString('en-NZ')}</div>
+                </div>
+                <div>
+                  <div style={{ fontWeight:600, fontSize:'.875rem', color:'#0D2B45' }}>{row.gp_name}{row.gp_practice ? ` · ${row.gp_practice}` : ''}</div>
+                  <div style={{ fontSize:'.75rem', color:'#0B6E76', fontFamily:'monospace' }}>{row.gp_email}</div>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button onClick={() => decline(row)} disabled={busy===row.id} style={{ background:'white', border:'1px solid #E2E8F0', color:'#6B7280', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:600 }}>Decline</button>
+                  <button onClick={() => fulfil(row)} disabled={busy===row.id} style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:700 }}>{busy===row.id ? '…' : 'Send now'}</button>
+                </div>
+              </div>
+              {row.patient_note && <div style={{ marginTop:8, padding:'8px 10px', background:'#F8FAFC', borderRadius:6, fontSize:'.8125rem', color:'#374151' }}>Patient note: {row.patient_note}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ProvidersPanel() {
   const [providers, setProviders] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -5510,7 +5596,7 @@ function AdminBody() {
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
-            case 'gp_letters': return <GpLettersPanel />
+            case 'gp_letters': return <><GpLettersPanel /><RecordForwardPanel /></>
             case 'research':   return <AdminResearch embedded />
             case 'patients':   return <AdminPatients embedded />
             default:           return <OverviewDashboard setAdminTab={setAdminTab} />
