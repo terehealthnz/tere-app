@@ -29,11 +29,13 @@ function admin() {
 }
 
 // Deterministic prefix so practice NHIs are unmistakable and can never
-// collide with real HNZ-issued identifiers.
+// collide with real HNZ-issued identifiers. Widened to 4 chars of entropy
+// (24^4 ≈ 330k combinations) so repeat resets don't collide on the tiny
+// keyspace of the previous 2-char version.
 function mockNhi(seed) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
   const n = (seed * 2654435761) >>> 0
-  return 'PRAC' + chars[n % 24] + chars[(n >> 5) % 24]
+  return 'PRAC' + chars[n % 24] + chars[(n >> 5) % 24] + chars[(n >> 10) % 24] + chars[(n >> 15) % 24]
 }
 
 const MOCK_PATIENTS = [

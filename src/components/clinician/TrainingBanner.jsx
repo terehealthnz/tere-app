@@ -36,10 +36,21 @@ export default function TrainingBanner({ providerId }) {
         const body = await r.json().catch(() => ({}))
         throw new Error(body.error || `Reset failed (${r.status})`)
       }
-      // Seed happens automatically on next get-queue when the sandbox is
-      // empty — nudge it now so the seed fires before we reload.
-      await apiFetch('/api/get-queue')
-      // Hard reload so the queue view refreshes from a clean slate.
+      // Explicitly seed instead of relying on get-queue's ensurePracticeSandbox —
+      // that path bails silently when a single patient insert fails. Explicit
+      // seed returns per-patient results so we can flag partial failure.
+      const s = await apiFetch('/api/practice-seed', { method: 'POST' })
+      const sBody = await s.json().catch(() => ({}))
+      if (!s.ok) throw new Error(sBody.error || `Seed failed (${s.status})`)
+      const seeded = Array.isArray(sBody.seeded) ? sBody.seeded : []
+      const okCount   = seeded.filter(x => x.ok).length
+      const failed    = seeded.filter(x => !x.ok)
+      if (okCount < 3) {
+        const failReport = failed.map(f => `• ${f.name || 'unknown'} — ${f.error}`).join('\n')
+        window.alert(`Seeded only ${okCount}/3 patients.\n\nFailures:\n${failReport || '(no error detail)'}\n\nCheck server logs — the sandbox is in an inconsistent state.`)
+        setResetting(false)
+        return
+      }
       window.location.reload()
     } catch (e) {
       window.alert('Reset failed: ' + (e?.message || 'unknown error'))
