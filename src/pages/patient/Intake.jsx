@@ -22,10 +22,17 @@ export default function Intake() {
     is_acc: false, is_work_injury: false,
     acc_injury_description: '', acc_injury_date: '',
     acc_employer: '', acc_employer_address: '', acc_employer_phone: '',
+    patient_weight_kg: '',
     recording_consent: false,
   })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Weight is required for paediatric weight-based dosing calculations
+  // (ages 2-14). Under 2 needs specialist input outside telehealth scope;
+  // 15+ uses flat adult dosing. Prescribe modal auto-fills from this.
+  const patientAge = form.patient_dob ? Math.floor((Date.now() - new Date(form.patient_dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null
+  const requiresWeight = patientAge != null && patientAge >= 2 && patientAge <= 14
 
   const validate = () => {
     const e = {}
@@ -46,6 +53,12 @@ export default function Intake() {
       if (!form.acc_employer.trim())         e.acc_employer         = 'Required for work-related injuries'
       if (!form.acc_employer_address.trim()) e.acc_employer_address = 'Required for work-related injuries'
       if (!form.acc_employer_phone.trim())   e.acc_employer_phone   = 'Required for work-related injuries'
+    }
+    // Paediatric weight for safe weight-based dosing (ages 2-14).
+    if (requiresWeight) {
+      const w = parseFloat(form.patient_weight_kg)
+      if (!form.patient_weight_kg) e.patient_weight_kg = "Required for children's dosing"
+      else if (isNaN(w) || w < 5 || w > 100) e.patient_weight_kg = 'Enter weight in kilograms (5-100 kg)'
     }
     setErrors(e)
     return Object.keys(e).length === 0
@@ -157,6 +170,27 @@ export default function Intake() {
                 autoComplete="street-address" />
               {errors.patient_address && <p className="form-error">{errors.patient_address}</p>}
             </div>
+
+            {/* Paediatric weight — required for weight-based dosing (ages 2-14).
+                Auto-shown when DOB puts the patient in that band. Doctor's
+                Prescribe modal pre-fills its paediatric dose calculator from
+                this. Weight of an infant / adult uses different logic. */}
+            {requiresWeight && (
+              <div className="form-group">
+                <label className="form-label">
+                  Child's weight (kg)
+                </label>
+                <input type="number" min={5} max={100} step={0.1}
+                  className={`form-input ${errors.patient_weight_kg ? 'error' : ''}`}
+                  value={form.patient_weight_kg}
+                  onChange={e => set('patient_weight_kg', e.target.value)}
+                  placeholder="e.g. 22" />
+                <p style={{ fontSize: '.75rem', color: 'var(--muted)', marginTop: 4 }}>
+                  Needed so the doctor can prescribe the right dose for {form.patient_name ? form.patient_name.split(' ')[0] : 'your child'}. If unsure, weigh them now on a bathroom scale.
+                </p>
+                {errors.patient_weight_kg && <p className="form-error">{errors.patient_weight_kg}</p>}
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">Your location</label>

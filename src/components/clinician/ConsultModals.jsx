@@ -159,6 +159,23 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
   const [overrideReason, setOverrideReason] = useState('')
   const [isPaediatric, setIsPaediatric] = useState(false)
   const [paedWeight, setPaedWeight] = useState('')
+
+  // Auto-enable paediatric mode when patient is a child + auto-fill weight
+  // from what they entered at intake. Provider can still turn it off or
+  // change the weight if they weighed the child on the call and got a
+  // different reading. Also picks up if a persisted patients.weight_kg is
+  // in scope (e.g. re-consult where the child was weighed last time).
+  useEffect(() => {
+    if (!open || !consult) return
+    const dob = consult.patient_dob
+    if (!dob) return
+    const ageYears = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    if (ageYears >= 2 && ageYears <= 14) {
+      setIsPaediatric(true)
+      const w = consult.patient_weight_kg || consult.patient?.weight_kg
+      if (w) setPaedWeight(String(w))
+    }
+  }, [open, consult?.id])
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
   const providerId = sessionStorage.getItem('providerId')
