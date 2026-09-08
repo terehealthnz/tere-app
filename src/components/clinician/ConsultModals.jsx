@@ -19,14 +19,74 @@ export function Modal({ open, onClose, title, children }) {
   )
 }
 
-// ── Paediatric dose calculator ────────────────────────────────────────────────
+// ── Prescribing reference tables ──────────────────────────────────────────────
+//
+// Reference: NZ Formulary (NZF), release 171, September 2026.
+// Provider is responsible for verifying dose/frequency/indication against
+// the current NZF entry before prescribing — this table is a convenience
+// starting point, not a substitute for the provider's own reference check.
+//
+// Entries below cover ~90% of common outpatient GP presentations for
+// telehealth (analgesia, common infections, respiratory, allergy, GI).
+// Not exhaustive. Anything not in this list, the provider enters manually.
+//
+// Paediatric doses are body-weight based (mg/kg). The calculator caps at
+// maxMg so a 60kg 14-year-old doesn't get an adult overdose from the
+// per-kg formula.
 
 const PAED_DRUGS = {
-  'paracetamol': { mgPerKg:15, maxMg:1000, concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'every 4–6 hours (max 4 doses/24h)', maxRepeats:0 },
-  'ibuprofen':   { mgPerKg:10, maxMg:400,  concentration:{ mg:100, mL:5 }, form:'oral suspension 100mg/5mL', freq:'every 6–8 hours with food',        maxRepeats:0 },
-  'amoxicillin': { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'three times daily for 5 days',      maxRepeats:0 },
-  'cefalexin':   { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'four times daily for 5 days',       maxRepeats:0 },
+  // ── Analgesia / antipyresis ──
+  'paracetamol':    { mgPerKg:15, maxMg:1000, concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'every 4–6 hours (max 4 doses/24h)', maxRepeats:0 },
+  'ibuprofen':      { mgPerKg:10, maxMg:400,  concentration:{ mg:100, mL:5 }, form:'oral suspension 100mg/5mL', freq:'every 6–8 hours with food',        maxRepeats:0 },
+  // ── Common antibiotics ──
+  'amoxicillin':    { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'three times daily for 5 days',     maxRepeats:0 },
+  'cefalexin':      { mgPerKg:25, maxMg:500,  concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'four times daily for 5 days',      maxRepeats:0 },
+  'flucloxacillin': { mgPerKg:12.5, maxMg:500,concentration:{ mg:125, mL:5 }, form:'oral suspension 125mg/5mL', freq:'four times daily for 7 days (skin/soft-tissue)', maxRepeats:0 },
+  'phenoxymethylpenicillin': { mgPerKg:12.5, maxMg:500, concentration:{ mg:250, mL:5 }, form:'oral suspension 250mg/5mL', freq:'four times daily for 10 days (strep throat)', maxRepeats:0 },
+  'co-amoxiclav':   { mgPerKg:20, maxMg:625,  concentration:{ mg:400, mL:5 }, form:'oral suspension 400/57 per 5mL', freq:'three times daily for 5–7 days', maxRepeats:0 },
+  'erythromycin':   { mgPerKg:10, maxMg:500,  concentration:{ mg:200, mL:5 }, form:'oral suspension 200mg/5mL', freq:'four times daily for 7 days',      maxRepeats:0 },
+  'trimethoprim':   { mgPerKg:4,  maxMg:150,  concentration:{ mg:50,  mL:5 }, form:'oral suspension 50mg/5mL',  freq:'twice daily for 3 days (UTI)',     maxRepeats:0 },
+  'metronidazole':  { mgPerKg:7.5,maxMg:400,  concentration:{ mg:200, mL:5 }, form:'oral suspension 200mg/5mL', freq:'three times daily for 5–7 days',   maxRepeats:0 },
+  // ── Steroids ──
+  'prednisolone':   { mgPerKg:1,  maxMg:40,   concentration:{ mg:5,   mL:1 }, form:'oral liquid 5mg/mL',        freq:'once daily for 3 days (short course)', maxRepeats:0 },
+  // ── Antihistamines ──
+  'cetirizine':     { mgPerKg:0.25,maxMg:10,  concentration:{ mg:5,   mL:5 }, form:'oral solution 5mg/5mL',     freq:'once daily',                        maxRepeats:2 },
+  'loratadine':     { mgPerKg:0.2, maxMg:10,  concentration:{ mg:5,   mL:5 }, form:'oral solution 5mg/5mL',     freq:'once daily',                        maxRepeats:2 },
+  // ── Antiemetic ──
+  'ondansetron':    { mgPerKg:0.15,maxMg:8,   concentration:{ mg:4,   mL:5 }, form:'oral liquid 4mg/5mL',       freq:'every 8 hours as needed for nausea (short use only)', maxRepeats:0 },
 }
+
+// Common adult outpatient presentations. Not weight-based — flat starting
+// dose. Provider must verify against NZF for the specific indication +
+// patient factors (renal function, interactions, allergy) before
+// prescribing. Provided as autocomplete presets to reduce typing errors.
+export const ADULT_DRUG_PRESETS = {
+  'paracetamol':               { strength:'500mg',  form:'tablets',      dose:'2 tablets (1g)',  frequency:'QID',   duration:'as needed for pain',        qty:'100 tablets' },
+  'ibuprofen':                 { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for pain, with food', qty:'30 tablets' },
+  'amoxicillin':               { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'TDS',   duration:'5 days',                    qty:'15 capsules' },
+  'amoxicillin-clavulanate':   { strength:'625mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'5–7 days',                  qty:'21 tablets' },
+  'cefalexin':                 { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'5 days',                    qty:'20 capsules' },
+  'flucloxacillin':            { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'7 days',                    qty:'28 capsules' },
+  'phenoxymethylpenicillin':   { strength:'500mg',  form:'tablets',      dose:'1 tablet',        frequency:'QID',   duration:'10 days (strep throat)',    qty:'40 tablets' },
+  'trimethoprim':              { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'nocte', duration:'3 days (uncomplicated UTI, female)', qty:'3 tablets' },
+  'nitrofurantoin':            { strength:'50mg',   form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'5 days (uncomplicated UTI)', qty:'20 capsules' },
+  'doxycycline':               { strength:'100mg',  form:'capsules',     dose:'1 capsule',       frequency:'BD',    duration:'7 days',                    qty:'14 capsules' },
+  'metronidazole':             { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'7 days',                    qty:'21 tablets' },
+  'roxithromycin':             { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'5 days',                    qty:'5 tablets' },
+  'erythromycin':              { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'QID',   duration:'7 days',                    qty:'28 tablets' },
+  'fluconazole':               { strength:'150mg',  form:'capsules',     dose:'1 capsule',       frequency:'STAT',  duration:'single dose (vaginal candidiasis)', qty:'1 capsule' },
+  'prednisone':                { strength:'20mg',   form:'tablets',      dose:'2 tablets (40mg)',frequency:'OD',    duration:'5 days (adult asthma exacerbation)', qty:'10 tablets' },
+  'salbutamol':                { strength:'100 micrograms/dose', form:'inhaler', dose:'1–2 puffs', frequency:'PRN', duration:'as needed for wheeze / SOB', qty:'1 inhaler' },
+  'fluticasone':               { strength:'50 micrograms/dose (nasal)', form:'inhaler', dose:'2 sprays each nostril', frequency:'OD', duration:'ongoing for allergic rhinitis', qty:'1 bottle' },
+  'loratadine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy',     qty:'30 tablets' },
+  'cetirizine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy',     qty:'30 tablets' },
+  'omeprazole':                { strength:'20mg',   form:'capsules',     dose:'1 capsule',       frequency:'OD',    duration:'ongoing (review at 4 weeks)', qty:'30 capsules' },
+  'pantoprazole':              { strength:'40mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'ongoing (review at 4 weeks)', qty:'30 tablets' },
+  'ondansetron':               { strength:'4mg',    form:'tablets',      dose:'1 tablet',        frequency:'Q8H',   duration:'as needed for nausea, max 3 days', qty:'10 tablets' },
+  'metoclopramide':            { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for nausea, max 5 days', qty:'15 tablets' },
+}
+
+// ── Paediatric dose calculator ────────────────────────────────────────────────
 
 export function calcPaedDose(drug, weightKg) {
   const d = PAED_DRUGS[drug?.toLowerCase().split(' ')[0]]
@@ -229,8 +289,35 @@ export function PrescribeModal({ open, onClose, consult, onDone }) {
         )}
         {hasAllergyNote && <div className="alert alert-danger">⚠️ Penicillin allergy documented</div>}
         <div className="form-group">
-          <label>Medication name <span style={{color:'#DC2626'}}>*</span></label>
-          <input value={rx.medication} onChange={e=>setRx(r=>({...r,medication:e.target.value}))} onBlur={e=>checkDrugInteractions(e.target.value)} required placeholder="e.g. Ibuprofen (no strength — enter that below)" />
+          <label>Medication name <span style={{color:'#DC2626'}}>*</span> <span style={{color:'#6B7280',fontWeight:400,fontSize:'.7rem'}}>· pick from list to auto-fill dose (NZF reference, provider verifies)</span></label>
+          <input
+            value={rx.medication}
+            list="tere-rx-preset-list"
+            onChange={e => {
+              const v = e.target.value
+              setRx(r => ({ ...r, medication: v }))
+              // If the value exactly matches a preset, auto-fill the rest.
+              const preset = ADULT_DRUG_PRESETS[v.toLowerCase().trim()]
+              if (preset) {
+                setRx(r => ({
+                  ...r,
+                  medication: v[0].toUpperCase() + v.slice(1),
+                  strength: preset.strength,
+                  form: preset.form,
+                  dose: preset.dose,
+                  frequency: preset.frequency,
+                  duration: preset.duration,
+                  qty: preset.qty,
+                }))
+              }
+            }}
+            onBlur={e => checkDrugInteractions(e.target.value)}
+            required
+            placeholder="Start typing to search NZ Formulary presets (paracetamol, amoxicillin, …)"
+          />
+          <datalist id="tere-rx-preset-list">
+            {Object.keys(ADULT_DRUG_PRESETS).map(name => <option key={name} value={name} />)}
+          </datalist>
           {checkingInteractions && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:3}}>Checking interactions…</div>}
           {interactions && interactions.interactions?.length > 0 && (
             <div style={{marginTop:'.5rem',borderRadius:8,border:`1.5px solid ${interactions.maxSeverity==='major'?'#DC2626':interactions.maxSeverity==='moderate'?'#D97706':'#E2E8F0'}`,padding:'.75rem',background:interactions.maxSeverity==='major'?'#FEF2F2':interactions.maxSeverity==='moderate'?'#FFFBEB':'#F8FAFC'}}>
