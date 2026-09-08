@@ -356,14 +356,19 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   }, [])
 
   // Auto fee-tier from Stripe billing country (task 466 follow-up 2026-09-08).
-  // Provider should not be making the NZ-vs-International call themselves —
-  // we know it from the card billing address. Country is fetched at mount
-  // (server caches on first hit), then actualMethod auto-selects. Provider
-  // can still override by clicking the tier — the UI just seeds it.
+  // Provider should not be making the NZ-vs-International call themselves.
+  // Default to nz_resident (99% case); auto-flip to international ONLY when
+  // Stripe returns a non-NZ card country. Picker hidden unless provider
+  // clicks the override link — so provider never sees a "please pick" state.
   const [billingCountry, setBillingCountry] = useState(null)
   const [billingCountrySource, setBillingCountrySource] = useState(null)
+  const [showFeeTierOverride, setShowFeeTierOverride] = useState(false)
   useEffect(() => {
     if (!id) return
+    // Immediate safe default so provider never sees an unpicked tier.
+    if (!actualMethod || actualMethod === 'consult' || actualMethod === 'video' || actualMethod === 'phone') {
+      setActualMethod('nz_resident')
+    }
     ;(async () => {
       try {
         const r = await apiFetch(`/api/billing-country?consultationId=${id}`)
@@ -371,10 +376,8 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         if (j.country) {
           setBillingCountry(j.country)
           setBillingCountrySource(j.source)
-          // Only auto-set if provider hasn't already picked something.
-          if (!actualMethod || actualMethod === 'consult' || actualMethod === 'video' || actualMethod === 'phone') {
-            setActualMethod(j.country === 'NZ' ? 'nz_resident' : 'international')
-          }
+          // Auto-flip to international if the card was issued outside NZ.
+          setActualMethod(j.country === 'NZ' ? 'nz_resident' : 'international')
         }
       } catch {}
     })()
@@ -1721,33 +1724,44 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             (video vs phone) is no longer priced separately — provider picks
             the media type inside the call itself. */}
         {!isAsyncMessage && !isFinalised && (
-          <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
-            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>
-              Patient fee tier
-              {billingCountry
-                ? <span style={{ color:'#065F46', fontWeight:600, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
-                    ✓ auto-detected from card billing country ({billingCountry})
-                  </span>
-                : <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
-                    — no card billing country on file, please pick
-                  </span>}
-            </div>
-            <div style={{ display:'flex', gap:8 }}>
-              {[
-                { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 60 },
-                { val:'international', label:'🌍 International', price: 100 },
-              ].map(o => (
-                <button key={o.val} onClick={() => setActualMethod(o.val)}
-                  style={{ flex:1, minHeight:52, borderRadius:10, border:`1.5px solid ${actualMethod===o.val?TEAL:'#E2E8F0'}`, background:actualMethod===o.val?'#EFF9F9':'white', color:actualMethod===o.val?TEAL:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }}>
-                  <div>{o.label}</div>
-                  <div style={{ fontSize:'.6875rem', fontWeight:400, marginTop:2 }}>${o.price}</div>
-                </button>
-              ))}
-            </div>
-            {billingCountry && (
-              <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:6, lineHeight:1.5 }}>
-                Override only if the auto-detected country is wrong (e.g. NZ resident paid with an overseas-issued card).
+          <div style={{ background:'white', borderRadius:14, padding:'1rem 1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:12 }}>
+              <div>
+                <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:2 }}>
+                  Patient fee tier
+                </div>
+                <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45' }}>
+                  {actualMethod === 'international' ? '🌍 International — $100' : '🇳🇿 NZ resident — $60'}
+                </div>
+                <div style={{ fontSize:'.6875rem', color:'#065F46', marginTop:2, fontWeight:600 }}>
+                  {billingCountry
+                    ? `✓ auto-detected from card billing country (${billingCountry})`
+                    : 'default (no overseas card on file)'}
+                </div>
               </div>
+              <button type="button" onClick={() => setShowFeeTierOverride(s => !s)}
+                style={{ background:'none', border:'none', color:'var(--teal)', fontSize:'.75rem', fontWeight:600, cursor:'pointer', padding:0, whiteSpace:'nowrap' }}>
+                {showFeeTierOverride ? 'Hide' : 'Change tier'} ⇅
+              </button>
+            </div>
+            {showFeeTierOverride && (
+              <>
+                <div style={{ display:'flex', gap:8, marginTop:10 }}>
+                  {[
+                    { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 60 },
+                    { val:'international', label:'🌍 International', price: 100 },
+                  ].map(o => (
+                    <button key={o.val} onClick={() => { setActualMethod(o.val); setShowFeeTierOverride(false) }}
+                      style={{ flex:1, minHeight:52, borderRadius:10, border:`1.5px solid ${actualMethod===o.val?TEAL:'#E2E8F0'}`, background:actualMethod===o.val?'#EFF9F9':'white', color:actualMethod===o.val?TEAL:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }}>
+                      <div>{o.label}</div>
+                      <div style={{ fontSize:'.6875rem', fontWeight:400, marginTop:2 }}>${o.price}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:6, lineHeight:1.5 }}>
+                  Only override if the auto-detected tier is wrong (e.g. NZ resident paid with an overseas-issued card).
+                </div>
+              </>
             )}
           </div>
         )}
