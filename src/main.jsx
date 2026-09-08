@@ -11,6 +11,21 @@ import { loadFlags } from './lib/featureFlags'
 // back to their default (off).
 loadFlags().catch(() => {})
 
+// One-tap test bootstrap. Open a URL like:
+//   https://terehealth.co.nz/call?token=<uuid>&consultId=<uuid>
+// on any device (phone, laptop) and jump straight into the call as the
+// patient side, bypassing triage/payment. Runs BEFORE React mounts so
+// PatientCall sees populated sessionStorage on first render. Used for
+// Chime 2-device tests and demos — real user flows never carry these
+// params.
+try {
+  const q = new URLSearchParams(window.location.search)
+  const token = q.get('token')
+  const consultId = q.get('consultId') || q.get('consultationId')
+  if (token) sessionStorage.setItem('patient_access_token', token)
+  if (consultId) sessionStorage.setItem('consultationId', consultId)
+} catch {}
+
 // Register the service worker. Moved out of index.html inline <script>
 // so we can strip 'unsafe-inline' from the CSP script-src (pen-test H-3).
 if ('serviceWorker' in navigator) {
