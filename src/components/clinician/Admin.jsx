@@ -4014,11 +4014,9 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                 <button onClick={toggleArchive} disabled={saving} style={btn('ghost')}>
                   {app.archived ? 'Unarchive' : 'Archive'}
                 </button>
-                {(app.archived || app.status === 'rejected' || app.status === 'withdrawn') && (
-                  <button onClick={deletePermanent} disabled={saving} style={{ ...btn('ghost'), color: '#B91C1C', borderColor: '#FCA5A5' }}>
-                    Delete permanently
-                  </button>
-                )}
+                <button onClick={deletePermanent} disabled={saving} style={{ ...btn('ghost'), color: '#B91C1C', borderColor: '#FCA5A5' }}>
+                  Delete permanently
+                </button>
               </div>
             </div>
 
