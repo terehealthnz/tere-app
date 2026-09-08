@@ -162,6 +162,9 @@ const UPDATE_ALLOWLIST = new Set([
   // Onboarding gate — admin sets a future date. Nulled to open access
   // immediately. See supabase/2026-08-21_provider_patient_access_gate.sql
   'patient_access_from',
+  // Server-forced sandbox lock (task 2026-09-08_provider_practice_only.sql).
+  // Admin toggles to permanently lock a provider into practice/sandbox mode.
+  'practice_only',
   // Nursing Council of New Zealand fields (task #412, migration 2026-09-03).
   'nursing_council_number', 'ncnz_apc_expiry', 'ncnz_scope',
   // Provider competency-to-roster (task #435, migration 2026-09-03_provider_competency.sql)

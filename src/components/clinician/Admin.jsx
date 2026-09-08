@@ -2027,10 +2027,25 @@ function ProvidersPanel() {
                       <span>{displayName}</span>
                       {p.is_admin && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Admin</span>}
                       {!p.is_provider && <span style={{ background:'#F3F4F6', color:'#6B7280', fontSize:'.75rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Non-clinical</span>}
-                      {p.id === currentProviderId && (
+                      <button
+                        onClick={() => update(p.id, { practice_only: !p.practice_only })}
+                        disabled={saving === p.id}
+                        title={p.practice_only
+                          ? 'Unlock this provider — they can see live patients on next request. Toggle off means: back to normal (admin sees live, non-admin subject to onboarding gate + own toggle).'
+                          : 'Lock this provider into sandbox forever. Server forces practice=true on every request regardless of admin status, header, or gate. Use for demo accounts and locked-down contractors.'}
+                        style={{
+                          background: p.practice_only ? '#065F46' : '#F3F4F6',
+                          color:      p.practice_only ? 'white'   : '#374151',
+                          border:     p.practice_only ? '1px solid #065F46' : '1px solid #D1D5DB',
+                          padding:'2px 9px', borderRadius:99, fontSize:'.7rem', fontWeight:700,
+                          cursor: saving === p.id ? 'default' : 'pointer', fontFamily:'Plus Jakarta Sans, sans-serif',
+                        }}>
+                        {p.practice_only ? '🔒 Sandbox locked' : '🔓 Force sandbox'}
+                      </button>
+                      {p.id === currentProviderId && !p.practice_only && (
                         <button
                           onClick={toggleSandbox}
-                          title={sandboxOn ? 'Turn sandbox off — your provider view goes back to real patients' : 'Turn sandbox on — your provider view will show the 3 practice patients (admin views stay live)'}
+                          title={sandboxOn ? 'Turn sandbox off in your own view (does not affect the server lock)' : 'Turn sandbox on for your own view (does not lock other sessions)'}
                           style={{
                             background: sandboxOn ? '#065F46' : '#FEF3C7',
                             color:      sandboxOn ? 'white'   : '#78350F',
@@ -2038,7 +2053,7 @@ function ProvidersPanel() {
                             padding:'2px 9px', borderRadius:99, fontSize:'.7rem', fontWeight:700,
                             cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif',
                           }}>
-                          {sandboxOn ? '🧪 Exit sandbox' : '🧪 Activate sandbox'}
+                          {sandboxOn ? '🧪 Exit my sandbox' : '🧪 My sandbox'}
                         </button>
                       )}
                     </div>

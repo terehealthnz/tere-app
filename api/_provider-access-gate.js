@@ -30,6 +30,13 @@
  */
 export function resolveDataMode(provider, req) {
   if (!provider) return { mode: 'live', practice: false, unlockAt: null }
+  // Hard sandbox lock — server-forced flag set by admin. Overrides admin
+  // status, header, and patient_access_from gate. Used for demo accounts
+  // (Justin's Tere Demo login) and locked-down contractors who must never
+  // see live PHI even if they hold admin privileges.
+  if (provider.practice_only) {
+    return { mode: 'gated', practice: true, unlockAt: null }
+  }
   if (provider.is_admin) {
     // Admin: header controls practice mode, no gate applies.
     const header = req?.headers?.['x-practice-mode']
