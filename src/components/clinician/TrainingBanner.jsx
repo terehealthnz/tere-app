@@ -31,14 +31,20 @@ export default function TrainingBanner({ providerId }) {
     if (!window.confirm('Wipe your practice patients + all sandbox data, then re-seed a fresh 3 (Aroha, David, Emily)?')) return
     setResetting(true)
     try {
-      await apiFetch('/api/practice-reset', { method: 'POST' })
+      const r = await apiFetch('/api/practice-reset', { method: 'POST' })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        throw new Error(body.error || `Reset failed (${r.status})`)
+      }
       // Seed happens automatically on next get-queue when the sandbox is
-      // empty — nudge it now so the queue repopulates without a wait.
+      // empty — nudge it now so the seed fires before we reload.
       await apiFetch('/api/get-queue')
-      window.dispatchEvent(new CustomEvent('tere:practice-mode-changed', { detail: { practice: true } }))
+      // Hard reload so the queue view refreshes from a clean slate.
+      window.location.reload()
     } catch (e) {
       window.alert('Reset failed: ' + (e?.message || 'unknown error'))
-    } finally { setResetting(false) }
+      setResetting(false)
+    }
   }
 
   useEffect(() => {
