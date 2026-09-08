@@ -104,12 +104,10 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
     const consultId = detUuid('practice-consult', provider.id, p.key)
     const nhi = detNhi(provider.id, p.key)
 
-    // Upsert patient. Same ID every time → hits the same row → no unique
-    // constraint games. created_by_provider_id is optional (column doesn't
-    // exist in all schema versions) — retry without it if the first attempt
-    // trips a schema-cache error.
-    const basePatient = {
-      id:            patientId,
+    // Patient: lookup by identity → update in place if exists, else insert.
+    // Avoids fighting unknown unique indexes (patients_identity_idx,
+    // idx_patients_nhi_unique, etc.) that we can't hit via onConflict.
+    const patientFields = {
       first_name:    p.first_name,
       last_name:     p.last_name,
       date_of_birth: p.date_of_birth,
@@ -118,20 +116,34 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       nhi,
       is_practice:   true,
     }
-    let { error: pErr } = await supabase.from('patients').upsert(
-      { ...basePatient, created_by_provider_id: provider.id },
-      { onConflict: 'id' },
-    )
-    if (pErr?.message?.includes('created_by_provider_id')) {
-      ;({ error: pErr } = await supabase.from('patients').upsert(basePatient, { onConflict: 'id' }))
+    let existingPatientId = null
+    {
+      const { data: existing } = await supabase.from('patients').select('id')
+        .eq('first_name', p.first_name)
+        .eq('last_name',  p.last_name)
+        .eq('date_of_birth', p.date_of_birth)
+        .eq('is_practice', true)
+        .limit(1).maybeSingle()
+      if (existing?.id) existingPatientId = existing.id
     }
-    if (pErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `patient upsert: ${pErr.message}` }); continue }
+    let usedPatientId = existingPatientId || patientId
+    if (existingPatientId) {
+      const { error: uErr } = await supabase.from('patients').update(patientFields).eq('id', existingPatientId)
+      if (uErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `patient update: ${uErr.message}` }); continue }
+    } else {
+      // Try insert with our deterministic id. If it trips
+      // created_by_provider_id, retry without.
+      let { error: iErr } = await supabase.from('patients').insert({ id: patientId, ...patientFields, created_by_provider_id: provider.id })
+      if (iErr?.message?.includes('created_by_provider_id')) {
+        ;({ error: iErr } = await supabase.from('patients').insert({ id: patientId, ...patientFields }))
+      }
+      if (iErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `patient insert: ${iErr.message}` }); continue }
+    }
 
-    // Upsert consultation. status forced to 'waiting' every seed so the
-    // trainee's queue is always populated with fresh cases.
-    const { error: cErr } = await supabase.from('consultations').upsert({
-      id:                 consultId,
-      patient_id:         patientId,
+    // Consultation: same treatment. Find any active practice consult for this
+    // patient, update in place; else insert fresh with deterministic id.
+    const consultFields = {
+      patient_id:         usedPatientId,
       patient_first_name: p.first_name,
       patient_last_name:  p.last_name,
       patient_dob:        p.date_of_birth,
@@ -143,36 +155,53 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       status:             'waiting',
       provider_id:        provider.id,
       is_practice:        true,
-    }, { onConflict: 'id' })
-    if (cErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult upsert: ${cErr.message}` }); continue }
+      cooldown_until:     null,
+    }
+    let existingConsultId = null
+    {
+      const { data: existing } = await supabase.from('consultations').select('id')
+        .eq('patient_id', usedPatientId)
+        .eq('is_practice', true)
+        .not('status', 'in', '(complete,cancelled)')
+        .limit(1).maybeSingle()
+      if (existing?.id) existingConsultId = existing.id
+    }
+    if (existingConsultId) {
+      const { error: uErr } = await supabase.from('consultations').update(consultFields).eq('id', existingConsultId)
+      if (uErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult update: ${uErr.message}` }); continue }
+    } else {
+      const { error: iErr } = await supabase.from('consultations').insert({ id: consultId, ...consultFields })
+      if (iErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult insert: ${iErr.message}` }); continue }
+    }
 
-    // Wipe + reseed child rows for this patient. Scoped to patient_id so we
-    // never touch other patients' data.
-    await supabase.from('patient_allergens').delete().eq('patient_id', patientId)
-    await supabase.from('patient_medications').delete().eq('patient_id', patientId)
-    await supabase.from('patient_conditions').delete().eq('patient_id', patientId)
+    // Wipe + reseed child rows for this patient. Scoped to the used
+    // patient_id (may be existing or freshly-inserted) so we never touch
+    // other patients' data.
+    await supabase.from('patient_allergens').delete().eq('patient_id', usedPatientId)
+    await supabase.from('patient_medications').delete().eq('patient_id', usedPatientId)
+    await supabase.from('patient_conditions').delete().eq('patient_id', usedPatientId)
     if (p.allergens.length) {
       await supabase.from('patient_allergens').insert(p.allergens.map(a => ({
-        patient_id: patientId, ...a, is_practice: true, created_by_name: 'Practice seed',
+        patient_id: usedPatientId, ...a, is_practice: true, created_by_name: 'Practice seed',
       })))
     }
     if (p.medications.length) {
       await supabase.from('patient_medications').insert(p.medications.map(m => ({
-        patient_id: patientId, ...m, is_active: true, is_practice: true, created_by_name: 'Practice seed',
+        patient_id: usedPatientId, ...m, is_active: true, is_practice: true, created_by_name: 'Practice seed',
       })))
     }
     if (p.conditions.length) {
       await supabase.from('patient_conditions').insert(p.conditions.map(c => ({
-        patient_id: patientId, ...c, is_practice: true, created_by_name: 'Practice seed',
+        patient_id: usedPatientId, ...c, is_practice: true, created_by_name: 'Practice seed',
       })))
     }
 
     // Also wipe prescriptions + referrals added during previous training runs
     // so the sandbox comes back clean.
-    await supabase.from('prescriptions').delete().eq('is_practice', true).eq('patient_id', patientId)
-    await supabase.from('radiology_referrals').delete().eq('is_practice', true).eq('patient_id', patientId)
+    await supabase.from('prescriptions').delete().eq('is_practice', true).eq('patient_id', usedPatientId)
+    await supabase.from('radiology_referrals').delete().eq('is_practice', true).eq('patient_id', usedPatientId)
 
-    results.push({ ok: true, patient_id: patientId, consultation_id: consultId, name: `${p.first_name} ${p.last_name}` })
+    results.push({ ok: true, patient_id: usedPatientId, consultation_id: existingConsultId || consultId, name: `${p.first_name} ${p.last_name}` })
   }
   return results
 }
