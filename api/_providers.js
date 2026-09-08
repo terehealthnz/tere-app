@@ -507,6 +507,15 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
 
+    // Privilege-escalation guard: nobody may clear their OWN practice_only
+    // (or is_admin) flag. Only another admin can. Prevents a locked-down
+    // demo/marketing account (e.g. McLovin A) from freeing itself even if
+    // it holds admin privileges — the practice lock has to be lifted by a
+    // different admin, deliberately.
+    if (isSelf && 'practice_only' in patch) {
+      return res.status(403).json({ error: 'Cannot modify your own practice_only flag — another admin must do it' })
+    }
+
     // Identifier validation (task #386) — HPI-CPN must be a valid HISO 10046
     // 7-char ID with Mod-11 check digit. Catches typos before they enter
     // provider records + prevents propagation to HL7 messages / prescriptions.
