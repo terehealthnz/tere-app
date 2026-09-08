@@ -27,32 +27,27 @@ import {
 import { apiFetch } from './api'
 
 /**
- * Feature flag. Chime is enabled when any of:
- *   - env `VITE_USE_CHIME_SDK=1` (build-time, prod/preview flip)
- *   - URL `?chime=1` on any page (opt-in per-tab test override; stamped
- *     to sessionStorage so navigation across the SPA preserves it)
- *   - sessionStorage.tere_chime === '1' (set by the URL override above)
- *
- * The URL override lets us test Chime on prod without flipping the
- * global env var — safe because real users never add ?chime=1.
+ * Chime is the default video/audio path. LiveKit stays as a dead
+ * fallback that can be re-enabled with ?chime=0 for one-off debug.
+ * Pre-launch — no real users to protect from breakage — so no build-time
+ * env flag; the switch is unconditional.
  */
 export function useChimeSdk() {
   try {
-    if (import.meta.env?.VITE_USE_CHIME_SDK === '1') return true
     if (typeof window !== 'undefined') {
       const qp = new URLSearchParams(window.location.search).get('chime')
-      if (qp === '1') {
-        try { sessionStorage.setItem('tere_chime', '1') } catch {}
-        return true
-      }
       if (qp === '0') {
-        try { sessionStorage.removeItem('tere_chime') } catch {}
+        try { sessionStorage.setItem('tere_chime', '0') } catch {}
         return false
       }
-      try { if (sessionStorage.getItem('tere_chime') === '1') return true } catch {}
+      if (qp === '1') {
+        try { sessionStorage.removeItem('tere_chime') } catch {}
+        return true
+      }
+      try { if (sessionStorage.getItem('tere_chime') === '0') return false } catch {}
     }
   } catch {}
-  return false
+  return true
 }
 
 /**
