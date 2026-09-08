@@ -409,6 +409,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [contGpEmail,      setContGpEmail]      = useState('')
   const [contNotes,        setContNotes]        = useState('')
   const [contPatientTold,  setContPatientTold]  = useState(false)
+  const [showContOverride, setShowContOverride] = useState(false)
   const [attested,       setAttested]       = useState(false)
 
   // Async message — thread
@@ -512,11 +513,21 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // (AITriage collects gp_name + gp_clinic + optional gp_email → consult row).
   // Provider should not retype what the patient already answered. Runs once
   // when consult loads and only fills blanks — never overwrites edits.
+  //
+  // Also sets the DEFAULT continuity disposition based on GP presence:
+  //   GP on file → 'gp_letter_sent' (auto-fires letter at finalise, zero clicks)
+  //   No GP      → 'patient_no_gp_told_to_enrol' (after-visit summary carries
+  //                enrolment guidance instead of a letter)
+  // Provider can override via the "Don't send this one" link (declined /
+  // no follow-up / specialist handover). Simplification per Patrick 2026-09-08.
   useEffect(() => {
     if (!consult) return
     if (!contGpName && consult.gp_name)      setContGpName(consult.gp_name)
     if (!contGpPractice && consult.gp_clinic) setContGpPractice(consult.gp_clinic)
     if (!contGpEmail && consult.gp_email)    setContGpEmail(consult.gp_email)
+    if (!contDisposition) {
+      setContDisposition(consult.gp_name ? 'gp_letter_sent' : 'patient_no_gp_told_to_enrol')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consult?.id])
 
@@ -1677,46 +1688,90 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             </label>
             {!isFinalised ? (
               <>
-                <select value={contDisposition} onChange={e => setContDisposition(e.target.value)}
-                  style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${contDisposition ? '#BBF7D0' : '#E2E8F0'}`, borderRadius:8, fontFamily:FF, fontSize:'.9375rem', background:'white', outline:'none', WebkitAppearance:'none', appearance:'none', color:contDisposition ? '#0D2B45' : '#9CA3AF', fontWeight: contDisposition ? 600 : 400 }}>
-                  <option value="">— Pick one —</option>
-                  <optgroup label="Send GP a letter">
-                    <option value="gp_letter_sent">I'm sending the GP a letter now (auto-send if email filled below)</option>
-                    <option value="gp_letter_to_send">Queue for admin to send later (no email needed now)</option>
-                  </optgroup>
-                  <optgroup label="Specialist handover">
-                    <option value="handover_to_specialist">Handover to a specialist (not their GP)</option>
-                  </optgroup>
-                  <optgroup label="No further action">
-                    <option value="closed_no_followup_needed">Closed — no follow-up needed (e.g. simple UTI, done)</option>
-                    <option value="patient_no_gp_told_to_enrol">Patient has no GP — I told them to enrol</option>
-                    <option value="patient_declined_gp_disclosure">Patient asked me not to tell their GP</option>
-                  </optgroup>
-                </select>
-                {/* Handover-only extras — appear only when a GP-letter or specialist option is picked. */}
+                {/* Compact status line — reads what will happen at Finalise
+                    based on the default (or overridden) disposition. */}
+                {contDisposition === 'gp_letter_sent' && (
+                  <div style={{ padding:'10px 12px', background:'#F0FDF4', border:'1.5px solid #BBF7D0', borderRadius:8, fontSize:'.875rem', color:'#065F46', fontWeight:600, lineHeight:1.5 }}>
+                    ✓ GP letter will auto-send at Finalise{contGpName && ` to ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}
+                  </div>
+                )}
+                {contDisposition === 'patient_no_gp_told_to_enrol' && (
+                  <div style={{ padding:'10px 12px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
+                    ⚠ No GP on file — after-visit summary will include GP enrolment guidance
+                  </div>
+                )}
+                {contDisposition === 'closed_no_followup_needed' && (
+                  <div style={{ padding:'10px 12px', background:'#F8FAFC', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.875rem', color:'#374151', fontWeight:600, lineHeight:1.5 }}>
+                    Closed — no follow-up needed
+                  </div>
+                )}
+                {contDisposition === 'patient_declined_gp_disclosure' && (
+                  <div style={{ padding:'10px 12px', background:'#FEF2F2', border:'1.5px solid #FECACA', borderRadius:8, fontSize:'.875rem', color:'#991B1B', fontWeight:600, lineHeight:1.5 }}>
+                    Patient asked me not to tell their GP — no letter sent (HDC Right 7)
+                  </div>
+                )}
+                {contDisposition === 'handover_to_specialist' && (
+                  <div style={{ padding:'10px 12px', background:'#EFF6FF', border:'1.5px solid #BFDBFE', borderRadius:8, fontSize:'.875rem', color:'#1D4ED8', fontWeight:600, lineHeight:1.5 }}>
+                    Handover to specialist{contGpName && `: ${contGpName}${contGpPractice ? ` (${contGpPractice})` : ''}`}
+                  </div>
+                )}
+                {contDisposition === 'gp_letter_to_send' && (
+                  <div style={{ padding:'10px 12px', background:'#FFFBEB', border:'1.5px solid #FDE68A', borderRadius:8, fontSize:'.875rem', color:'#92400E', fontWeight:600, lineHeight:1.5 }}>
+                    Queued for admin to send later
+                  </div>
+                )}
+
+                {/* Recipient details — only shown for handover flows (GP letter
+                    or specialist). Pre-filled from triage. */}
                 {HANDOFF_TYPES.has(contDisposition) && (
-                  <div style={{ marginTop:12, padding:12, background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0' }}>
-                    <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>Recipient details</div>
+                  <div style={{ marginTop:10, padding:12, background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0' }}>
+                    <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>
+                      Recipient details {consult.gp_name && !contGpName && <span style={{ fontWeight:400, color:'#6B7280' }}>· pre-filled from triage</span>}
+                    </div>
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                       <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP or specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                       <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                     </div>
                     <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"
-                      placeholder="Email (fills → letter auto-sends at Finalise)"
+                      placeholder="Email (fills → letter auto-sends at Finalise; blank → admin worklist)"
                       style={{ marginTop:8, width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:`1px solid ${contDisposition === 'gp_letter_sent' && !contGpEmail ? '#D97706' : '#E2E8F0'}`, borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                    {contDisposition === 'gp_letter_sent' && !contGpEmail && (
-                      <div style={{ fontSize:'.7rem', color:'#B45309', marginTop:4 }}>
-                        No email → letter lands in Admin's pending-letters worklist for someone to chase.
-                      </div>
-                    )}
                     <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:10, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#D97706', fontWeight:600 }}>
                       <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
                       I told the patient I'm sending this
                     </label>
                   </div>
                 )}
+
+                {/* Override link — reveals a compact reason picker for the ~10%
+                    of consults where the default (send / no-GP-enrol) is wrong.
+                    Preserves HDC Right 7 (patient declined disclosure) + Right
+                    4(4) audit trail without a 6-radio block on every consult. */}
+                <div style={{ marginTop:10, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                  <button type="button" onClick={() => setShowContOverride(s => !s)}
+                    style={{ background:'none', border:'none', color:'var(--teal)', fontSize:'.75rem', fontWeight:600, cursor:'pointer', padding:0 }}>
+                    {showContOverride ? 'Hide options' : "Not right? Change what happens →"}
+                  </button>
+                </div>
+                {showContOverride && (
+                  <div style={{ marginTop:8, padding:12, background:'#FAFAFA', borderRadius:8, border:'1px solid #E2E8F0' }}>
+                    <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>What actually happens with this consult?</div>
+                    {[
+                      { v:'gp_letter_sent',                l:'Send GP letter now (default when a GP is on file)' },
+                      { v:'gp_letter_to_send',             l:'Queue GP letter for admin to send later' },
+                      { v:'handover_to_specialist',        l:'Handover to a specialist (not their GP)' },
+                      { v:'closed_no_followup_needed',     l:'No follow-up needed (e.g. simple UTI, resolved)' },
+                      { v:'patient_no_gp_told_to_enrol',   l:'Patient has no GP — enrolment guidance in summary' },
+                      { v:'patient_declined_gp_disclosure',l:'Patient asked me not to tell their GP (Right 7)' },
+                    ].map(o => (
+                      <label key={o.v} style={{ display:'flex', gap:8, alignItems:'center', padding:'.375rem 0', cursor:'pointer', fontSize:'.8125rem', color:'#374151' }}>
+                        <input type="radio" name="cont-override" value={o.v} checked={contDisposition === o.v} onChange={() => { setContDisposition(o.v); setShowContOverride(false) }} />
+                        {o.l}
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <textarea value={contNotes} onChange={e => setContNotes(e.target.value)} rows={2}
-                  placeholder="Anything else? (optional — e.g. sent 2 letters, referral urgent, etc.)"
+                  placeholder="Notes (optional — anything unusual about this handover)"
                   style={{ width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem', marginTop:8 }} />
               </>
             ) : (
