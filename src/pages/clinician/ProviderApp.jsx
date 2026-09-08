@@ -53,6 +53,15 @@ function queueStatus(c, now) {
   if (s === 'expired')    return { label: 'Expired',    color: '#6B7280', bg: '#F3F4F6' }
   if (s === 'in_progress') return { label: 'In Progress', color: '#7C3AED', bg: '#EDE9FE' }
   if (s === 'reviewing')  return { label: `Reviewing — ${c.provider_display_name || 'Provider'}`, color: '#92400E', bg: '#FEF3C7' }
+  // Row was just released by /api/ring-timeout (patient didn't answer). Row
+  // stays in queue so the provider can retry — 3 attempts total. Attempt
+  // number reflects how many rings have already fired (join_attempts is
+  // incremented by initiate-call).
+  const cooldownMs = c.cooldown_until ? new Date(c.cooldown_until).getTime() - now : 0
+  if (cooldownMs > 0) {
+    const attempts = c.join_attempts || 0
+    return { label: `No answer · retry (${attempts}/3)`, color: '#92400E', bg: '#FEF3C7' }
+  }
   // 'waiting' is the standard "queued, ready to pick up" state now that the
   // post-payment vitals scan is gone. 'vitals_requested' is the transient
   // "provider asked the patient to run a scan during the call" state; label

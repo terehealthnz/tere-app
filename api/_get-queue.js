@@ -45,17 +45,14 @@ export default async function handler(req, res) {
     // but DB status not promoted due to RLS blocking the client-side update).
     //
     // cooldown_until is set by /api/ring-timeout when a provider bails on a
-    // patient who never joined — the row must stay out of the queue for 5
-    // minutes so the same provider (or another) can't accidentally re-pick
-    // the same no-answer patient immediately. `cooldown_until.is.null` covers
-    // the normal case; `cooldown_until.lt.<now>` covers cooldowns that have
-    // already expired.
-    const nowIso = new Date().toISOString()
+    // patient who never joined. The row STAYS in the queue during cooldown
+    // so the provider can retry (they get 3 attempts total before no-show).
+    // The client renders a "just released — retry when ready" chip on
+    // cooldown rows so it's visually clear the patient hasn't joined yet.
     const [activeRes, paidWaitlistRes] = await Promise.all([
       supabase.from('consultations').select('*')
         .in('status', ACTIVE)
         .eq('is_practice', practice)
-        .or(`cooldown_until.is.null,cooldown_until.lt.${nowIso}`)
         .order('created_at', { ascending: true }),
       supabase.from('consultations').select('*')
         .eq('status', 'waitlisted')
