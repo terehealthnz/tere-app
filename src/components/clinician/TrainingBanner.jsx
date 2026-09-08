@@ -90,6 +90,12 @@ export default function TrainingBanner({ providerId }) {
     // Already trained — no banner. Real-patient gate is separate.
     return null
   }
+  // Admins are never gated and don't need to complete the 4 trainee tasks.
+  // Rendering the banner for them was confusing — it says "practice mode is
+  // on until ... an admin unlocks patients" but they ARE the admin, and
+  // toggling sandbox off leaves the banner visibly contradicting the queue.
+  const isAdmin = (() => { try { return sessionStorage.getItem('providerIsAdmin') === 'true' } catch { return false } })()
+  if (isAdmin) return null
 
   const doneCount = TASKS.filter(t => status.tasks?.[t.key]).length
 
