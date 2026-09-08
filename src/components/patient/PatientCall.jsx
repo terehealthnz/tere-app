@@ -236,18 +236,11 @@ export default function PatientCall() {
     </div>
   )
 
-  if (!token || !serverUrl) return (
-    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
-      <div style={{textAlign:'center',color:'rgba(255,255,255,.6)'}}>
-        <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
-        <div>Connecting to {isPhone ? 'call' : 'video call'}…</div>
-      </div>
-</div>
-  )
-
   // Chime path — bypasses LiveKit entirely. ChimeCall handles auth via the
   // /api/chime-meeting server endpoint, manages its own device permissions,
-  // and calls onEnded when the meeting drops. Behind VITE_USE_CHIME_SDK=1.
+  // and calls onEnded when the meeting drops. Must come BEFORE the LiveKit
+  // token-wait gate below, otherwise Chime users get stuck forever on
+  // "Connecting to video call…" because token stays null on the Chime path.
   if (chimeMode) {
     return (
       <div style={{ position: 'relative', height: '100dvh' }}>
@@ -276,6 +269,17 @@ export default function PatientCall() {
       </div>
     )
   }
+
+  // LiveKit fallback path (only reached when ?chime=0). Wait for token
+  // before mounting <LiveKitRoom>.
+  if (!token || !serverUrl) return (
+    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+      <div style={{textAlign:'center',color:'rgba(255,255,255,.6)'}}>
+        <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
+        <div>Connecting to {isPhone ? 'call' : 'video call'}…</div>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ position: 'relative', height: '100dvh' }}>
