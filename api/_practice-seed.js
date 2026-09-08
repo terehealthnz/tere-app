@@ -103,8 +103,20 @@ export default async function handler(req, res) {
     // 400'd. `created_by_provider_id` may or may not exist depending on
     // migration state; try with, fall back without.
     let patientId = null
-    try {
-      const { data: pat, error } = await supabase.from('patients').insert({
+    // Try inserting with created_by_provider_id (newer schemas).
+    let insertRes = await supabase.from('patients').insert({
+      first_name:    p.first_name,
+      last_name:     p.last_name,
+      date_of_birth: p.date_of_birth,
+      phone:         p.phone,
+      email:         p.email,
+      nhi,
+      is_practice:   true,
+      created_by_provider_id: provider.id,
+    }).select('id').single()
+    // If the column doesn't exist, retry without it.
+    if (insertRes.error?.message?.includes('created_by_provider_id')) {
+      insertRes = await supabase.from('patients').insert({
         first_name:    p.first_name,
         last_name:     p.last_name,
         date_of_birth: p.date_of_birth,
@@ -112,23 +124,28 @@ export default async function handler(req, res) {
         email:         p.email,
         nhi,
         is_practice:   true,
-        created_by_provider_id: provider.id,
       }).select('id').single()
-      if (error) throw error
-      patientId = pat?.id
-    } catch (e) {
-      const { data: pat, error } = await supabase.from('patients').insert({
-        first_name:    p.first_name,
-        last_name:     p.last_name,
-        date_of_birth: p.date_of_birth,
-        phone:         p.phone,
-        email:         p.email,
-        nhi,
-        is_practice:   true,
-      }).select('id').single()
-      if (error) { console.error('[practice-seed] patient insert failed:', error); results.push({ ok: false, error: `patient insert failed: ${error.message}` }); continue }
-      patientId = pat?.id
     }
+    // Idempotency: if a practice patient with the same identity already
+    // exists (dedup index hit), reuse it instead of failing. Lets a
+    // provider re-seed without hitting patients_identity_idx.
+    if (insertRes.error?.code === '23505' || insertRes.error?.message?.includes('duplicate key')) {
+      const { data: existing } = await supabase.from('patients')
+        .select('id')
+        .eq('first_name', p.first_name)
+        .eq('last_name',  p.last_name)
+        .eq('date_of_birth', p.date_of_birth)
+        .eq('is_practice', true)
+        .maybeSingle()
+      if (existing?.id) patientId = existing.id
+    } else if (insertRes.error) {
+      console.error('[practice-seed] patient insert failed:', insertRes.error)
+      results.push({ ok: false, error: `patient insert failed: ${insertRes.error.message}` })
+      continue
+    } else {
+      patientId = insertRes.data?.id
+    }
+    if (!patientId) { results.push({ ok: false, error: 'no patient id after insert' }); continue }
 
     // Consultation, waiting in the queue so this provider sees it immediately.
     const consultBase = {
