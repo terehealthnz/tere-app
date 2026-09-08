@@ -85,9 +85,11 @@ const UPDATE_ALLOWLIST = new Set([
   // Safety-netting gated field (task #417, migration 2026-09-03_safety_netting.sql)
   'safety_netting_text', 'safety_netting_template_id', 'safety_netting_at',
   // Continuity / GP-handover gated field (task #421, migration 2026-09-03_continuity_handover.sql)
+  // GP email added 2026-09-08 (migration 2026-09-08_continuity_gp_email.sql) so
+  // finalise can auto-fire /api/send-to-gp on 'gp_letter_sent'.
   'continuity_disposition', 'continuity_gp_name', 'continuity_gp_practice',
-  'continuity_gp_hpi', 'continuity_notes', 'continuity_captured_at',
-  'continuity_patient_told',
+  'continuity_gp_hpi', 'continuity_gp_email', 'continuity_notes',
+  'continuity_captured_at', 'continuity_patient_told',
   // Patient identity verification (task #426, migration 2026-09-03_patient_identity_verification.sql)
   'id_verification_status', 'id_verification_method', 'id_verification_document_id',
   'id_verification_document_type', 'id_verification_provider_id',
@@ -211,20 +213,30 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
-    // Admin queue: consultations where the note has been finalised, a GP
-    // email is on file, and no GP letter has yet been sent. Admin reviews +
-    // approves each send (patient data + consent) before firing the email.
+    // Admin queue: consultations where the provider flagged a GP letter
+    // (either 'sent this consult' as an attestation OR 'to send' as queued)
+    // and no letter has actually been sent. Widened 2026-09-08 to include
+    // BOTH the new continuity_disposition flow AND the legacy gp_email flow,
+    // and to include rows with no email (so admin can chase the email + send).
     if (filter === 'pending_gp_letter') {
       const { data, error } = await supabase
         .from('consultations')
-        .select('id, created_at, notes_finalised_at, chief_complaint, patient_first_name, patient_last_name, patient_email, patient_nhi, patient_dob, gp_name, gp_clinic, gp_email, provider_display_name, provider_id, notes_final, status')
+        .select('id, created_at, notes_finalised_at, chief_complaint, patient_first_name, patient_last_name, patient_email, patient_nhi, patient_dob, gp_name, gp_clinic, gp_email, continuity_disposition, continuity_gp_name, continuity_gp_practice, continuity_gp_email, continuity_notes, provider_display_name, provider_id, notes_final, status')
         .not('notes_finalised_at', 'is', null)
-        .not('gp_email', 'is', null)
         .is('gp_letter_sent_at', null)
+        .or('continuity_disposition.in.(gp_letter_sent,gp_letter_to_send),gp_email.not.is.null')
         .eq('is_practice', practice)
         .order('notes_finalised_at', { ascending: true })
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
-      return res.status(200).json({ consultations: redactList(data || []) })
+      // Merge new continuity_* fields into legacy gp_* fields so GpLettersPanel
+      // renders both flows uniformly.
+      const merged = (data || []).map(r => ({
+        ...r,
+        gp_name:   r.gp_name   || r.continuity_gp_name   || null,
+        gp_clinic: r.gp_clinic || r.continuity_gp_practice || null,
+        gp_email:  r.gp_email  || r.continuity_gp_email  || null,
+      }))
+      return res.status(200).json({ consultations: redactList(merged) })
     }
 
     if (filter === 'waitlist') {

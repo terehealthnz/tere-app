@@ -345,6 +345,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [contDisposition,  setContDisposition]  = useState('')
   const [contGpName,       setContGpName]       = useState('')
   const [contGpPractice,   setContGpPractice]   = useState('')
+  const [contGpEmail,      setContGpEmail]      = useState('')
   const [contNotes,        setContNotes]        = useState('')
   const [contPatientTold,  setContPatientTold]  = useState(false)
   const [attested,       setAttested]       = useState(false)
@@ -514,6 +515,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     if (d.safetyNetTemplateId) setSafetyNetTemplateId(d.safetyNetTemplateId)
     if (d.safetyNetText)       setSafetyNetText(d.safetyNetText)
     if (d.contDisposition)     setContDisposition(d.contDisposition)
+    if (d.contGpEmail)         setContGpEmail(d.contGpEmail)
     if (d.contGpName)          setContGpName(d.contGpName)
     if (d.contGpPractice)      setContGpPractice(d.contGpPractice)
     if (d.contNotes)           setContNotes(d.contNotes)
@@ -584,7 +586,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // Auto-save draft
   useEffect(() => {
     if (!id || !consult) return
-    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contNotes, contPatientTold }
+    const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contGpEmail, contNotes, contPatientTold }
     localStorage.setItem(draftKey, JSON.stringify(draft))
   }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contNotes, contPatientTold])
 
@@ -780,12 +782,42 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           continuity_disposition:     contDisposition,
           continuity_gp_name:         contGpName.trim() || null,
           continuity_gp_practice:     contGpPractice.trim() || null,
+          continuity_gp_email:        contGpEmail.trim() || null,
           continuity_notes:           contNotes.trim() || null,
           continuity_patient_told:    !!contPatientTold,
           continuity_captured_at:     now,
         })
       } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })
+
+      // Continuity → GP letter auto-send (task #421 phase 2 close-out).
+      // If provider picked 'GP letter SENT this consult' AND supplied an email,
+      // fire /api/send-to-gp so the attestation actually sends. Best-effort:
+      // failure doesn't block finalise — the row lands in the Admin 'Pending
+      // GP letters' worklist for retry. If no email, the disposition falls
+      // through to the same worklist for manual send later.
+      if (contDisposition === 'gp_letter_sent' && contGpEmail.trim()) {
+        try {
+          await apiFetch('/api/send-to-gp', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              consultationId: id,
+              gpName: contGpName.trim() || 'Recipient GP',
+              gpEmail: contGpEmail.trim(),
+              patientName: `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim(),
+              patientNhi: consult.patient_nhi,
+              patientDob: consult.patient_dob,
+              consultationDate: consult.started_at || consult.created_at,
+              providerName,
+              providerCredentials: sessionStorage.getItem('providerCredentials') || '',
+              chiefComplaint: consult.chief_complaint,
+              noteContent: { presentingHistory: noteText, plan: (safetyNetText || '').trim() },
+            }),
+          })
+        } catch (sendErr) {
+          console.error('[finalise] auto-send-to-gp failed (row will appear in Admin pending worklist):', sendErr.message)
+        }
+      }
 
       // ── Step 1: Capture payment ──────────────────────────────────────────────
       setStep(1, { status: 'running' })
@@ -1541,10 +1573,20 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   </label>
                 ))}
                 {HANDOFF_TYPES.has(contDisposition) && (
-                  <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                    <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP / specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                    <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
-                  </div>
+                  <>
+                    <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP / specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                      <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                    </div>
+                    <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"
+                      placeholder={contDisposition === 'gp_letter_sent' ? "GP email (letter will auto-send at finalise if filled)" : "GP email (optional, for later send from Admin)"}
+                      style={{ marginTop:8, width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:`1px solid ${contDisposition === 'gp_letter_sent' && !contGpEmail ? '#D97706' : '#E2E8F0'}`, borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                    {contDisposition === 'gp_letter_sent' && !contGpEmail && (
+                      <div style={{ fontSize:'.7rem', color:'#B45309', marginTop:4 }}>
+                        ⚠ No email supplied — letter will land in Admin's pending-letters worklist instead of auto-sending.
+                      </div>
+                    )}
+                  </>
                 )}
                 <textarea value={contNotes} onChange={e => setContNotes(e.target.value)} rows={2}
                   placeholder="Optional notes (e.g. copy of letter attached, referral timing, etc.)"

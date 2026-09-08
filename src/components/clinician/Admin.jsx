@@ -1750,8 +1750,10 @@ function GpLettersPanel() {
                   <div style={{ fontWeight:600, fontSize:'.875rem', color:'#0D2B45' }}>{row.gp_name || '—'}</div>
                   <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{row.gp_email || '—'}{row.gp_clinic ? ` · ${row.gp_clinic}` : ''}</div>
                 </div>
-                <div style={{ fontSize:'.75rem', color: !!row.gp_email ? '#065F46' : '#B91C1C', fontWeight:700 }}>
-                  {!!row.gp_email ? '✓ Consent' : '⚠ NO CONSENT'}
+                <div style={{ fontSize:'.75rem', color: !!row.gp_email ? '#065F46' : '#B45309', fontWeight:700 }}>
+                  {!!row.gp_email ? '✓ Ready to send' : '✎ Needs email'}
+                  {row.continuity_disposition === 'gp_letter_to_send' && <div style={{ fontWeight:400, fontSize:'.6875rem', color:'#6B7280', marginTop:2 }}>queued by provider</div>}
+                  {row.continuity_disposition === 'gp_letter_sent' && !row.gp_email && <div style={{ fontWeight:400, fontSize:'.6875rem', color:'#6B7280', marginTop:2 }}>attested — verify send</div>}
                 </div>
                 <button onClick={() => setOpen(row)} style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontWeight:700 }}>Review</button>
               </div>
