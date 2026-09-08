@@ -9,6 +9,7 @@ import '@livekit/components-styles'
 import { apiFetch } from '../../lib/api'
 import { getLangMeta, LANGUAGES } from '../../lib/i18n'
 import CallSubtitles from '../../components/clinical/CallSubtitles'
+import ChimeCallSubtitles from '../../components/clinical/ChimeCallSubtitles'
 import ChimeCall from '../../components/call/ChimeCall'
 import { useChimeSdk } from '../../lib/chime'
 
@@ -180,6 +181,21 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // onAudioElReady. tereScribe captureStream()s the remote mix from it and
   // grabs a parallel getUserMedia for local mic.
   const chimeAudioElRef = useRef(null)
+  // Remote MediaStream captured from ChimeCall's bound <audio> once mounted.
+  // Fed to ChimeCallSubtitles for AWS Transcribe STT. In 1:1 consults the
+  // audio element carries only the other person's mixed audio — exactly what
+  // subtitles need.
+  const [chimeRemoteStream, setChimeRemoteStream] = useState(null)
+  const chimeAudioReady = useCallback((el) => {
+    chimeAudioElRef.current = el
+    try {
+      const captureFn = el?.captureStream || el?.mozCaptureStream
+      if (typeof captureFn === 'function') {
+        const ms = captureFn.call(el)
+        if (ms?.getAudioTracks?.().length) setChimeRemoteStream(ms)
+      }
+    } catch (e) { console.warn('[chime] audio captureStream failed:', e?.message) }
+  }, [])
   const pollRef = useRef(null)
 
   // Lazy-load pharmacy register the first time the picker opens.
@@ -630,7 +646,26 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             role="provider" consultationId={id} compact
             onEnded={endCall}
             onPatientHere={markPatientHere}
-            onAudioElReady={el => { chimeAudioElRef.current = el }}
+            onAudioElReady={chimeAudioReady}
+            overlay={(() => {
+              const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+              const activeLang = subtitleLangOverride || patientLang
+              const activeMeta = getLangMeta(activeLang)
+              const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+                (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+              if (!subtitlesAvailable || !chimeRemoteStream) return null
+              return (
+                <ChimeCallSubtitles
+                  viewerRole="provider"
+                  viewerLang="en"
+                  speakerLang={activeLang}
+                  enabled={subtitlesOn}
+                  modalOpen={showNotes}
+                  consultationId={id}
+                  remoteStream={chimeRemoteStream}
+                />
+              )
+            })()}
           />
         </div>
       )}
@@ -755,7 +790,26 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             role="provider" consultationId={id}
             onEnded={endCall}
             onPatientHere={markPatientHere}
-            onAudioElReady={el => { chimeAudioElRef.current = el }}
+            onAudioElReady={chimeAudioReady}
+            overlay={(() => {
+              const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+              const activeLang = subtitleLangOverride || patientLang
+              const activeMeta = getLangMeta(activeLang)
+              const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+                (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+              if (!subtitlesAvailable || !chimeRemoteStream) return null
+              return (
+                <ChimeCallSubtitles
+                  viewerRole="provider"
+                  viewerLang="en"
+                  speakerLang={activeLang}
+                  enabled={subtitlesOn}
+                  modalOpen={showNotes}
+                  consultationId={id}
+                  remoteStream={chimeRemoteStream}
+                />
+              )
+            })()}
           />
         </div>
       )}
