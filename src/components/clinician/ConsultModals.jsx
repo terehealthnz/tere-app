@@ -656,9 +656,47 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
             </div>
           </div>
         )}
+        {/* NZ-available strength+form picker — populated from the NZF
+            "Preparations" block per monograph. Provider picks what a
+            community pharmacy actually stocks; select autofills both
+            strength and form. "— Enter manually —" leaves fields free.
+            Only rendered when the drug has ≥1 preparation on file. */}
+        {(() => {
+          const nzf = findNzfEntry(rx.medication)
+          const preps = nzf?.preparations || []
+          if (preps.length === 0) return null
+          const currentValue = `${rx.strength}||${rx.form}`
+          const matchesPrep = preps.some(p => `${p.strength}||${p.form}` === currentValue)
+          const selVal = matchesPrep ? currentValue : (rx.strength || rx.form ? '__manual__' : '')
+          return (
+            <div className="form-group">
+              <label>
+                Available in NZ pharmacies <span style={{color:'#6B7280',fontWeight:400,fontSize:'.7rem'}}>· {preps.length} formulation{preps.length!==1?'s':''} from NZF</span>
+              </label>
+              <select
+                value={selVal}
+                onChange={e => {
+                  const v = e.target.value
+                  if (v === '__manual__' || v === '') return  // leave fields as they are
+                  const [strength, form] = v.split('||')
+                  setRx(r => ({ ...r, strength, form }))
+                }}
+                style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',cursor:'pointer'}}>
+                <option value=''>— Pick a formulation —</option>
+                {preps.map((p, i) => (
+                  <option key={i} value={`${p.strength}||${p.form}`}>
+                    {p.strength} · {p.form}
+                  </option>
+                ))}
+                <option value='__manual__'>— Enter manually (fields below) —</option>
+              </select>
+            </div>
+          )
+        })()}
         {/* Structured prescription fields — pharmacist needs strength +
             frequency at minimum; free-text "directions" only was fragile
-            (Patrick 2026-09-08 fix). */}
+            (Patrick 2026-09-08 fix). Autofilled by the picker above when
+            provider selects a NZ-available formulation. */}
         <div className="form-row">
           <div className="form-group">
             <label>Strength / concentration <span style={{color:'#DC2626'}}>*</span></label>
@@ -666,9 +704,10 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
           </div>
           <div className="form-group">
             <label>Form</label>
-            <select value={rx.form} onChange={e=>setRx(r=>({...r,form:e.target.value}))}>
-              {FORM_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-            </select>
+            <input value={rx.form} onChange={e=>setRx(r=>({...r,form:e.target.value}))} list="tere-rx-form-list" placeholder="e.g. tablets, capsules, oral liquid" />
+            <datalist id="tere-rx-form-list">
+              {FORM_OPTIONS.filter(o=>o.v).map(o => <option key={o.v} value={o.v} />)}
+            </datalist>
           </div>
         </div>
         <div className="form-row">
