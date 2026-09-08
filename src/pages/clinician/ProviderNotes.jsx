@@ -1665,44 +1665,47 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             </label>
             {!isFinalised ? (
               <>
-                {[
-                  { v:'gp_letter_sent',            l:'GP letter SENT this consult'      },
-                  { v:'gp_letter_to_send',         l:'GP letter to send (queued)'       },
-                  { v:'handover_to_specialist',    l:'Handover to specialist'           },
-                  { v:'closed_no_followup_needed', l:'Closed — no follow-up needed'     },
-                  { v:'patient_no_gp_told_to_enrol', l:'Patient has no GP — told to enrol' },
-                  { v:'patient_declined_gp_disclosure', l:'Patient declined GP disclosure' },
-                ].map(o => (
-                  <label key={o.v} style={{ display:'flex', gap:8, alignItems:'center', padding:'.375rem 0', cursor:'pointer', fontSize:'.8125rem', color:'#374151' }}>
-                    <input type="radio" name="cont-disp" value={o.v} checked={contDisposition === o.v} onChange={() => setContDisposition(o.v)} />
-                    {o.l}
-                  </label>
-                ))}
+                <select value={contDisposition} onChange={e => setContDisposition(e.target.value)}
+                  style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${contDisposition ? '#BBF7D0' : '#E2E8F0'}`, borderRadius:8, fontFamily:FF, fontSize:'.9375rem', background:'white', outline:'none', WebkitAppearance:'none', appearance:'none', color:contDisposition ? '#0D2B45' : '#9CA3AF', fontWeight: contDisposition ? 600 : 400 }}>
+                  <option value="">— Pick one —</option>
+                  <optgroup label="Send GP a letter">
+                    <option value="gp_letter_sent">I'm sending the GP a letter now (auto-send if email filled below)</option>
+                    <option value="gp_letter_to_send">Queue for admin to send later (no email needed now)</option>
+                  </optgroup>
+                  <optgroup label="Specialist handover">
+                    <option value="handover_to_specialist">Handover to a specialist (not their GP)</option>
+                  </optgroup>
+                  <optgroup label="No further action">
+                    <option value="closed_no_followup_needed">Closed — no follow-up needed (e.g. simple UTI, done)</option>
+                    <option value="patient_no_gp_told_to_enrol">Patient has no GP — I told them to enrol</option>
+                    <option value="patient_declined_gp_disclosure">Patient asked me not to tell their GP</option>
+                  </optgroup>
+                </select>
+                {/* Handover-only extras — appear only when a GP-letter or specialist option is picked. */}
                 {HANDOFF_TYPES.has(contDisposition) && (
-                  <>
-                    <div style={{ marginTop:8, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                      <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP / specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                  <div style={{ marginTop:12, padding:12, background:'#F8FAFC', borderRadius:8, border:'1px solid #E2E8F0' }}>
+                    <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>Recipient details</div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP or specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                       <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                     </div>
                     <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"
-                      placeholder={contDisposition === 'gp_letter_sent' ? "GP email (letter will auto-send at finalise if filled)" : "GP email (optional, for later send from Admin)"}
+                      placeholder="Email (fills → letter auto-sends at Finalise)"
                       style={{ marginTop:8, width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:`1px solid ${contDisposition === 'gp_letter_sent' && !contGpEmail ? '#D97706' : '#E2E8F0'}`, borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                     {contDisposition === 'gp_letter_sent' && !contGpEmail && (
                       <div style={{ fontSize:'.7rem', color:'#B45309', marginTop:4 }}>
-                        ⚠ No email supplied — letter will land in Admin's pending-letters worklist instead of auto-sending.
+                        No email → letter lands in Admin's pending-letters worklist for someone to chase.
                       </div>
                     )}
-                  </>
+                    <label style={{ display:'flex', gap:8, alignItems:'center', marginTop:10, cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#D97706', fontWeight:600 }}>
+                      <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
+                      I told the patient I'm sending this
+                    </label>
+                  </div>
                 )}
                 <textarea value={contNotes} onChange={e => setContNotes(e.target.value)} rows={2}
-                  placeholder="Optional notes (e.g. copy of letter attached, referral timing, etc.)"
+                  placeholder="Anything else? (optional — e.g. sent 2 letters, referral urgent, etc.)"
                   style={{ width:'100%', boxSizing:'border-box', padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem', marginTop:8 }} />
-                {HANDOFF_TYPES.has(contDisposition) && (
-                  <label style={{ display:'flex', gap:8, alignItems:'center', padding:'.5rem 0 0', cursor:'pointer', fontSize:'.8125rem', color: contPatientTold ? '#065F46' : '#D97706', fontWeight:600 }}>
-                    <input type="checkbox" checked={contPatientTold} onChange={e => setContPatientTold(e.target.checked)} />
-                    Patient was informed of the handover / letter recipient
-                  </label>
-                )}
               </>
             ) : (
               <div style={{ fontSize:'.8125rem', color:'#374151' }}>
