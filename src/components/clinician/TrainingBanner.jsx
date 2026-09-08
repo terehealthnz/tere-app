@@ -24,6 +24,22 @@ export default function TrainingBanner({ providerId }) {
   const [status, setStatus] = useState(null)   // { tasks, completed, training_completed_at } | null
   const [expanded, setExpanded] = useState(false)
   const [dismissed, setDismissed] = useState(false)
+  const [resetting, setResetting] = useState(false)
+
+  async function resetSandbox() {
+    if (resetting) return
+    if (!window.confirm('Wipe your practice patients + all sandbox data, then re-seed a fresh 3 (Aroha, David, Emily)?')) return
+    setResetting(true)
+    try {
+      await apiFetch('/api/practice-reset', { method: 'POST' })
+      // Seed happens automatically on next get-queue when the sandbox is
+      // empty — nudge it now so the queue repopulates without a wait.
+      await apiFetch('/api/get-queue')
+      window.dispatchEvent(new CustomEvent('tere:practice-mode-changed', { detail: { practice: true } }))
+    } catch (e) {
+      window.alert('Reset failed: ' + (e?.message || 'unknown error'))
+    } finally { setResetting(false) }
+  }
 
   useEffect(() => {
     if (!providerId) return
@@ -117,6 +133,17 @@ export default function TrainingBanner({ providerId }) {
               </div>
             )
           })}
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: '.75rem', color: '#6B7280', lineHeight: 1.4 }}>
+              Consulted a patient and want to try again? Reset wipes and re-seeds the 3 sandbox patients.
+            </div>
+            <button
+              onClick={resetSandbox}
+              disabled={resetting}
+              style={{ flexShrink: 0, background: '#F1F5F9', color: '#0D2B45', border: '1px solid #E2E8F0', padding: '6px 12px', borderRadius: 6, fontSize: '.8rem', fontWeight: 700, cursor: resetting ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+              {resetting ? 'Resetting…' : '↻ Reset sandbox'}
+            </button>
+          </div>
         </div>
       )}
     </div>

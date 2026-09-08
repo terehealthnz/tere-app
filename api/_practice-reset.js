@@ -45,7 +45,7 @@ export default async function handler(req, res) {
     else { deletions[t] = { deleted: count } }
   }
   const { count: consCount } = await supabase.from('consultations').delete({ count: 'exact' })
-    .eq('is_practice', true).eq('matched_provider_id', providerId)
+    .eq('is_practice', true).eq('provider_id', providerId)
   deletions.consultations = { deleted: consCount }
   const { count: patCount } = await supabase.from('patients').delete({ count: 'exact' })
     .eq('is_practice', true)
