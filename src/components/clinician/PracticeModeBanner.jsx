@@ -64,7 +64,38 @@ export default function PracticeModeBanner({ dataMode: dataModeProp }) {
     } finally { setToggling(false) }
   }
 
-  if (mode === 'live') return null
+  // On admin routes, apiFetch omits the practice header so the server
+  // returns mode='live' — but sessionStorage might still have the flag
+  // from a provider-side toggle. Show a slim "exit sandbox" chip so the
+  // user has a visible off-switch even from admin surfaces.
+  const path = typeof window !== 'undefined' ? window.location.pathname : ''
+  const isAdminRoute = path.startsWith('/admin') || path.startsWith('/clinician/admin')
+  const sessionPractice = (() => { try { return sessionStorage.getItem('practice_mode') === '1' } catch { return false } })()
+  if (mode === 'live') {
+    if (isAdminRoute && sessionPractice) {
+      return (
+        <div style={{
+          background: '#FEF3C7', color: '#78350F', padding: '6px 14px', textAlign: 'center',
+          fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.5rem',
+          borderBottom: '1px solid #FDE68A', position: 'relative', zIndex: 100,
+        }}>
+          <span>🧪 Sandbox is ON for your provider view (admin surfaces stay live)</span>
+          <button
+            onClick={() => togglePractice(false)}
+            disabled={toggling}
+            style={{
+              background: 'rgba(120,53,15,.1)', color: '#78350F',
+              border: '1px solid rgba(120,53,15,.25)', borderRadius: 5,
+              padding: '2px 9px', fontSize: '.7rem', fontWeight: 700,
+              cursor: toggling ? 'default' : 'pointer', fontFamily: 'inherit',
+            }}
+          >{toggling ? '…' : 'Exit sandbox'}</button>
+        </div>
+      )
+    }
+    return null
+  }
 
   const isGated = mode === 'gated'
   const bg = isGated ? '#B45309' : '#D97706'

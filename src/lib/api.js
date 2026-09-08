@@ -39,9 +39,17 @@ export async function apiFetch(path, options = {}) {
   // is_practice accordingly. Server ignores the header for
   // onboarding-gated providers (they're always in practice regardless)
   // and for admins unless they've explicitly enabled it.
+  //
+  // ROUTE SCOPE: never send the practice-mode header from admin surfaces.
+  // Sandbox data belongs to provider/consult views only. Without this
+  // check, a provider who toggled practice mode ON leaks Aroha/David/Emily
+  // into their admin queue the moment they switch to the Admin tab —
+  // because the sessionStorage flag is session-wide, not route-scoped.
   if (typeof sessionStorage !== 'undefined') {
     try {
-      if (sessionStorage.getItem('practice_mode') === '1') {
+      const path = typeof window !== 'undefined' ? window.location.pathname : ''
+      const isAdminRoute = path.startsWith('/admin') || path.startsWith('/clinician/admin')
+      if (!isAdminRoute && sessionStorage.getItem('practice_mode') === '1') {
         headers['x-practice-mode'] = 'true'
       }
     } catch {}
