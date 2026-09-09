@@ -16,7 +16,13 @@
 //   compact         boolean — smaller control bar (FloatingCallWidget)
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo, startScreenShare, stopScreenShare } from '../../lib/chime'
+import {
+  createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo,
+  startScreenShare, stopScreenShare,
+  listAudioInputs, switchAudioInput,
+  listAudioOutputs, switchAudioOutput,
+  listVideoInputs, cycleCamera,
+} from '../../lib/chime'
 import { apiFetch } from '../../lib/api'
 
 const TEAL = '#0B6E76'
@@ -90,6 +96,16 @@ export default function ChimeCall({
   const [dialError, setDialError] = useState(null)
   const autoDialFiredRef = useRef(false)
   const autoDialTimerRef = useRef(null)
+  // Device picker state (settings gear). Loaded lazily on open so we
+  // don't fire enumerateDevices at every mount.
+  const [showSettings, setShowSettings] = useState(false)
+  const [devices, setDevices] = useState({ mics: [], cams: [], speakers: [] })
+  const [currentDeviceIds, setCurrentDeviceIds] = useState({ mic: null, cam: null, speaker: null })
+  // Reconnection toast — fires when Chime tears down + restarts the
+  // signaling channel mid-call (e.g. wifi flap). audioVideoDidStart on a
+  // *subsequent* start (not first) is our trigger.
+  const startedOnceRef = useRef(false)
+  const [reconnected, setReconnected] = useState(false)
 
   const doConnect = useCallback(async () => {
     setStatus('connecting')
@@ -104,6 +120,14 @@ export default function ChimeCall({
         onEvent: (ev) => {
           if (ev.type === 'started') {
             setStatus('live')
+            // Reconnection detection: second-or-later 'started' event =
+            // Chime tore down + restored the signaling channel. Surface a
+            // brief toast so both sides know the blip's over.
+            if (startedOnceRef.current) {
+              setReconnected(true)
+              setTimeout(() => setReconnected(false), 3000)
+            }
+            startedOnceRef.current = true
             // Patient-side presence: fire an immediate heartbeat so provider
             // queue sees a fresh last_seen_at, then poll every 15s while live.
             // First heartbeat also stamps patient_joined_at server-side.
@@ -196,6 +220,49 @@ export default function ChimeCall({
   // + dialState guard against firing twice. Server returns 500 when the
   // SMA env vars aren't set; we surface that as an inline error so the
   // provider can fall back to SMS or dialling directly from their own phone.
+  // Cycle to the next camera (front ↔ back on mobile). No-op if only one
+  // camera. Patient needing to show a rash on their back is the classic
+  // use case — they can flip without leaving the call.
+  const doFlipCamera = useCallback(async () => {
+    const h = sessionRef.current
+    if (!h) return
+    const next = await cycleCamera(h.session, currentDeviceIds.cam)
+    if (next) setCurrentDeviceIds(d => ({ ...d, cam: next }))
+  }, [currentDeviceIds.cam])
+
+  // Populate the device-picker modal on open. Cached until close so we
+  // don't hit enumerateDevices repeatedly.
+  const openSettings = useCallback(async () => {
+    setShowSettings(true)
+    const h = sessionRef.current
+    if (!h) return
+    const [mics, cams, speakers] = await Promise.all([
+      listAudioInputs(h.session),
+      listVideoInputs(h.session),
+      listAudioOutputs(h.session),
+    ])
+    setDevices({ mics, cams, speakers })
+  }, [])
+
+  const pickMic = useCallback(async (deviceId) => {
+    const h = sessionRef.current
+    if (!h) return
+    const ok = await switchAudioInput(h.session, deviceId)
+    if (ok) setCurrentDeviceIds(d => ({ ...d, mic: deviceId }))
+  }, [])
+  const pickCam = useCallback(async (deviceId) => {
+    const h = sessionRef.current
+    if (!h) return
+    try { await h.session.audioVideo.startVideoInput(deviceId); setCurrentDeviceIds(d => ({ ...d, cam: deviceId })) }
+    catch (e) { console.warn('[chime] pick cam failed:', e?.message) }
+  }, [])
+  const pickSpeaker = useCallback(async (deviceId) => {
+    const h = sessionRef.current
+    if (!h) return
+    const ok = await switchAudioOutput(h.session, deviceId)
+    if (ok) setCurrentDeviceIds(d => ({ ...d, speaker: deviceId }))
+  }, [])
+
   const doPstnDial = useCallback(async () => {
     if (!consultationId || dialState === 'dialling') return
     setDialState('dialling')
@@ -248,6 +315,66 @@ export default function ChimeCall({
         autoPlay playsInline
         style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
       />
+      {/* Reconnected toast — fires briefly after Chime restores signaling
+          after a wifi flap. Sibling to the network-poor banner but green
+          because the outcome is good. */}
+      {status === 'live' && reconnected && (
+        <div style={{
+          position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 6,
+          background: 'rgba(16,185,129,.95)', color: 'white',
+          padding: '6px 16px', borderRadius: 99,
+          fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem', fontWeight: 700,
+        }}>
+          ✓ Reconnected
+        </div>
+      )}
+      {/* Device settings modal — mic / camera / speaker pickers.
+          Opened via ⚙️ button. Overlays the call. */}
+      {status === 'live' && showSettings && (
+        <div
+          onClick={() => setShowSettings(false)}
+          style={{
+            position: 'absolute', inset: 0, zIndex: 7,
+            background: 'rgba(0,0,0,.7)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#0D2B45', color: 'white', borderRadius: 14,
+              padding: '20px 24px', maxWidth: 380, width: '100%',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <strong style={{ fontSize: '1rem' }}>Audio &amp; video</strong>
+              <button onClick={() => setShowSettings(false)} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,.7)', cursor: 'pointer', fontSize: '1.125rem' }}>✕</button>
+            </div>
+            {[
+              { label: '🎙️ Microphone', items: devices.mics,     current: currentDeviceIds.mic,     onPick: pickMic },
+              { label: '📷 Camera',      items: devices.cams,     current: currentDeviceIds.cam,     onPick: pickCam },
+              { label: '🔊 Speaker',     items: devices.speakers, current: currentDeviceIds.speaker, onPick: pickSpeaker },
+            ].map(({ label, items, current, onPick }) => (
+              <div key={label}>
+                <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.7)', marginBottom: 4 }}>{label}</div>
+                <select
+                  value={current || (items[0]?.deviceId || '')}
+                  onChange={e => onPick(e.target.value)}
+                  style={{
+                    width: '100%', background: 'rgba(255,255,255,.1)', color: 'white',
+                    border: '1px solid rgba(255,255,255,.2)', borderRadius: 8,
+                    padding: '8px 10px', fontFamily: 'inherit', fontSize: '.875rem',
+                  }}>
+                  {items.length === 0 && <option value="">No devices detected</option>}
+                  {items.map(d => (
+                    <option key={d.deviceId} value={d.deviceId} style={{ background: '#0D1117' }}>{d.label}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {/* PSTN dial error toast — surfaces when /api/chime-dial fails.
           Most common cause pre-launch: SMA env vars not set → server
           returns 500. Provider dismisses by tapping X. Auto-clears
@@ -372,6 +499,14 @@ export default function ChimeCall({
           </button>
           <button onClick={doVideo}   style={videoOn ? btn : activeBtn}  title={videoOn ? 'Turn off camera' : 'Turn on camera'}>
             {videoOn ? '📷 Camera' : '📷 Off'}
+          </button>
+          {videoOn && isMobile && (
+            <button onClick={doFlipCamera} style={btn} title="Switch to the other camera (front ↔ back)">
+              🔄 Flip
+            </button>
+          )}
+          <button onClick={openSettings} style={btn} title="Audio + video devices">
+            ⚙️
           </button>
           {role === 'provider' && (
             <button

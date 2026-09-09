@@ -23,6 +23,7 @@ import {
   DefaultMeetingSession,
   LogLevel,
   MeetingSessionConfiguration,
+  VoiceFocusDeviceTransformer,
 } from 'amazon-chime-sdk-js'
 import { apiFetch } from './api'
 
@@ -177,7 +178,21 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
   // the tile start inside the observer once the session is live.
   try {
     const audioInputs = await session.audioVideo.listAudioInputDevices()
-    if (audioInputs.length) await session.audioVideo.startAudioInput(audioInputs[0].deviceId)
+    if (audioInputs.length) {
+      // Amazon Voice Focus — ML noise suppression (Krisp-equivalent). Big
+      // UX win for rural NZ calls where dogs / generators / wind trample
+      // audio. Falls back to raw mic if Voice Focus unsupported on the
+      // browser (older Safari / low-CPU devices).
+      let inputDevice = audioInputs[0].deviceId
+      try {
+        const vfTransformer = await VoiceFocusDeviceTransformer.create()
+        if (vfTransformer.isSupported()) {
+          const vfDevice = await vfTransformer.createTransformDevice(inputDevice)
+          if (vfDevice) inputDevice = vfDevice
+        }
+      } catch (e) { console.warn('[chime] Voice Focus disabled:', e?.message) }
+      await session.audioVideo.startAudioInput(inputDevice)
+    }
   } catch (e) { console.warn('[chime] audio input:', e?.message) }
   // Only enumerate/start video devices if the caller wants video at join.
   // audioOnly=true keeps the camera fully off (no permission prompt, no
@@ -277,6 +292,59 @@ export async function switchAudioInput(session, deviceId) {
   if (!av || !deviceId) return false
   try { await av.startAudioInput(deviceId); return true }
   catch (e) { console.warn('[chime] audio input switch failed:', e?.message); return false }
+}
+
+/**
+ * List available video input devices (front/back camera on mobile,
+ * webcams on desktop). Returns [{ deviceId, label }].
+ */
+export async function listVideoInputs(session) {
+  const av = session?.audioVideo
+  if (!av) return []
+  try {
+    const devs = await av.listVideoInputDevices()
+    return devs.map(d => ({ deviceId: d.deviceId, label: d.label || 'Camera' }))
+  } catch { return [] }
+}
+
+/**
+ * Cycle to the next video input (e.g. front → back on mobile).
+ * Returns the deviceId now active, or null if unchanged.
+ */
+export async function cycleCamera(session, currentDeviceId) {
+  const av = session?.audioVideo
+  if (!av) return null
+  try {
+    const cams = await av.listVideoInputDevices()
+    if (cams.length < 2) return null
+    const idx = Math.max(0, cams.findIndex(c => c.deviceId === currentDeviceId))
+    const next = cams[(idx + 1) % cams.length].deviceId
+    await av.startVideoInput(next)
+    return next
+  } catch (e) { console.warn('[chime] cycle camera failed:', e?.message); return null }
+}
+
+/**
+ * List available audio OUTPUT devices (speakers / headphones / Bluetooth).
+ */
+export async function listAudioOutputs(session) {
+  const av = session?.audioVideo
+  if (!av) return []
+  try {
+    const devs = await av.listAudioOutputDevices()
+    return devs.map(d => ({ deviceId: d.deviceId, label: d.label || 'Speaker' }))
+  } catch { return [] }
+}
+
+/**
+ * Route call audio to a specific speaker / headset. Chime hot-swaps —
+ * user hears output on the new device within ~1s.
+ */
+export async function switchAudioOutput(session, deviceId) {
+  const av = session?.audioVideo
+  if (!av || !deviceId) return false
+  try { await av.chooseAudioOutput(deviceId); return true }
+  catch (e) { console.warn('[chime] audio output switch failed:', e?.message); return false }
 }
 
 /**
