@@ -105,7 +105,12 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
   }
 
   const logger = new ConsoleLogger('tere-chime', LogLevel.WARN)
-  const deviceController = new DefaultDeviceController(logger)
+  // enableWebAudio is required for Voice Focus (Amazon's ML noise
+  // suppression) transform devices to attach — without it Chime throws
+  // "Cannot apply transform device without enabling Web Audio" on
+  // startAudioInput, and audio never starts at all. Safe to always
+  // enable — costs one AudioContext per session.
+  const deviceController = new DefaultDeviceController(logger, { enableWebAudio: true })
   const config = new MeetingSessionConfiguration(meetingResponse.Meeting, meetingResponse.Attendee)
   const session = new DefaultMeetingSession(config, logger, deviceController)
 
@@ -183,15 +188,24 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
       // UX win for rural NZ calls where dogs / generators / wind trample
       // audio. Falls back to raw mic if Voice Focus unsupported on the
       // browser (older Safari / low-CPU devices).
-      let inputDevice = audioInputs[0].deviceId
+      const rawDeviceId = audioInputs[0].deviceId
+      let inputDevice = rawDeviceId
       try {
         const vfTransformer = await VoiceFocusDeviceTransformer.create()
         if (vfTransformer.isSupported()) {
-          const vfDevice = await vfTransformer.createTransformDevice(inputDevice)
+          const vfDevice = await vfTransformer.createTransformDevice(rawDeviceId)
           if (vfDevice) inputDevice = vfDevice
         }
       } catch (e) { console.warn('[chime] Voice Focus disabled:', e?.message) }
-      await session.audioVideo.startAudioInput(inputDevice)
+      try {
+        await session.audioVideo.startAudioInput(inputDevice)
+      } catch (e) {
+        // If the transform device rejects (browser quirk, CPU load), retry
+        // with the raw mic so the caller still has audio — the transcript
+        // may be noisier but the call works.
+        console.warn('[chime] transform audio failed, falling back to raw mic:', e?.message)
+        await session.audioVideo.startAudioInput(rawDeviceId)
+      }
     }
   } catch (e) { console.warn('[chime] audio input:', e?.message) }
   // Only enumerate/start video devices if the caller wants video at join.

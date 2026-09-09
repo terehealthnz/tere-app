@@ -221,8 +221,14 @@ export default function ProviderTestCall() {
           </div>
         )}
 
-        {phase === 'live' && (
-          <div>
+        {/* Video + audio elements render as soon as we start connecting so
+            their refs are populated BEFORE joinMeeting binds Chime tiles.
+            If we gate them on phase === 'live', the refs are null at
+            join time → Chime's videoTileDidUpdate can't bind → no self
+            video ever appears. Hidden with visibility instead of removed
+            so refs stay stable across state changes. */}
+        {(phase === 'connecting' || phase === 'live') && (
+          <div style={{ visibility: phase === 'live' ? 'visible' : 'hidden', position: phase === 'live' ? 'static' : 'absolute', pointerEvents: phase === 'live' ? 'auto' : 'none' }}>
             <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', aspectRatio: '4 / 3', maxWidth: 360, margin: '0 auto' }}>
               <video ref={videoRef} autoPlay playsInline muted
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
