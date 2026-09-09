@@ -101,6 +101,16 @@ export default async function handler(req, res) {
       no_answer_count: newCount,
       last_attempt_at: now,
     }
+    // Attempts 1 & 2: release the consult back to the queue. Status flips
+    // from in_progress → waiting and provider_id clears so the row shows
+    // as "In queue" (not "In Progress — locked to X") on every provider's
+    // dashboard, and any provider can re-pick it for retry. No cooldown —
+    // Patrick's rule: patient stays visible for the 3-attempt window.
+    if (newCount < 3) {
+      patch.status = 'waiting'
+      patch.provider_id = null
+      patch.provider_display_name = null
+    }
     // Three strikes → dismiss the consult from the active queue and text
     // the patient a friendly invitation to start over. The consult isn't
     // deleted — audit + no-show reporting still needs the row — it's just
