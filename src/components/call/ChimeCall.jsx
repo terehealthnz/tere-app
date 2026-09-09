@@ -30,6 +30,13 @@ export default function ChimeCall({
   subtitlesAvailable = false,
   subtitlesOn = false,
   onToggleSubtitles,
+  // Source-language picker (matches FloatingCallWidget's shape). Lets the
+  // provider override the patient's assumed language mid-call — useful
+  // when triage-detected language doesn't match what the patient actually
+  // speaks. Only shown when subtitlesAvailable + subtitlesOn.
+  subtitleLanguages = [],
+  currentSubtitleLang = null,
+  onChangeSubtitleLang,
   // Audio-only default. When true, we skip starting the local video tile at
   // join — patient/provider can turn video on mid-call via the Camera button.
   // Set by ProviderConsult / PatientCall when consultation_type is phone-like.
@@ -274,6 +281,26 @@ export default function ChimeCall({
               }>
               {subtitlesOn ? '💬 Subtitles ✓' : '💬 Subtitles'}
             </button>
+          )}
+          {subtitlesAvailable && subtitlesOn && subtitleLanguages.length > 0 && typeof onChangeSubtitleLang === 'function' && (
+            <select
+              value={currentSubtitleLang || ''}
+              onChange={(e) => onChangeSubtitleLang(e.target.value)}
+              title="Patient's spoken language (source for subtitles)"
+              style={{
+                background: 'rgba(255,255,255,.12)', color: 'white',
+                border: '1px solid rgba(255,255,255,.25)',
+                borderRadius: 99, padding: compact ? '6px 8px' : '8px 12px',
+                fontSize: compact ? '.75rem' : '.8125rem', fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+              }}
+            >
+              {subtitleLanguages.map(l => (
+                <option key={l.code} value={l.code} style={{ background: '#0D1117' }}>
+                  {l.flag} {l.name}
+                </option>
+              ))}
+            </select>
           )}
           <button onClick={doLeave}   style={dangerBtn}                  title="Leave call">
             {role === 'provider' ? '⛔ End call' : '⛔ Leave'}

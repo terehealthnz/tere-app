@@ -649,6 +649,11 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             const activeMeta = getLangMeta(activeLang)
             const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
               (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+            // Non-English languages with strong AWS Transcribe streaming
+            // coverage — same filter as the LiveKit FloatingCallWidget path.
+            const supportedLangs = LANGUAGES
+              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
             return (
               <ChimeCall
                 role="provider" consultationId={id} compact
@@ -658,6 +663,9 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                 subtitlesAvailable={subtitlesAvailable}
                 subtitlesOn={subtitlesOn}
                 onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                subtitleLanguages={supportedLangs}
+                currentSubtitleLang={activeLang}
+                onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
                 audioOnly={isPhone}
                 overlay={subtitlesAvailable && chimeRemoteStream ? (
                   <ChimeCallSubtitles
@@ -810,6 +818,9 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             const activeMeta = getLangMeta(activeLang)
             const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
               (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+            const supportedLangs = LANGUAGES
+              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
             return (
               <>
                 <ChimeCall
@@ -820,6 +831,9 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   subtitlesAvailable={subtitlesAvailable}
                   subtitlesOn={subtitlesOn}
                   onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                  subtitleLanguages={supportedLangs}
+                  currentSubtitleLang={activeLang}
+                  onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
                   audioOnly={isPhone}
                   overlay={subtitlesAvailable && chimeRemoteStream ? (
                     <ChimeCallSubtitles
