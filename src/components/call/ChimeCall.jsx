@@ -258,11 +258,20 @@ export default function ChimeCall({
           <button onClick={doVideo}   style={videoOn ? btn : activeBtn}  title={videoOn ? 'Turn off camera' : 'Turn on camera'}>
             {videoOn ? '📷 Camera' : '📷 Off'}
           </button>
-          {subtitlesAvailable && typeof onToggleSubtitles === 'function' && (
+          {typeof onToggleSubtitles === 'function' && (
             <button
-              onClick={() => onToggleSubtitles()}
-              style={subtitlesOn ? activeBtn : btn}
-              title={subtitlesOn ? 'Hide subtitles' : 'Show subtitles'}>
+              onClick={() => subtitlesAvailable && onToggleSubtitles()}
+              disabled={!subtitlesAvailable}
+              style={{
+                ...(subtitlesOn ? activeBtn : btn),
+                opacity: subtitlesAvailable ? 1 : 0.5,
+                cursor: subtitlesAvailable ? 'pointer' : 'not-allowed',
+              }}
+              title={
+                !subtitlesAvailable
+                  ? 'Subtitles only apply when the patient speaks a non-English language.'
+                  : subtitlesOn ? 'Hide subtitles' : 'Show subtitles'
+              }>
               {subtitlesOn ? '💬 Subtitles ✓' : '💬 Subtitles'}
             </button>
           )}

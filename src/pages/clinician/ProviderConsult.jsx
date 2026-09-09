@@ -12,6 +12,7 @@ import CallSubtitles from '../../components/clinical/CallSubtitles'
 import ChimeCallSubtitles from '../../components/clinical/ChimeCallSubtitles'
 import ChimeCall from '../../components/call/ChimeCall'
 import { useChimeSdk } from '../../lib/chime'
+import ChatPanel from '../../components/ChatPanel'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -674,6 +675,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           })()}
         </div>
       )}
+      {/* Chat with patient — popup-mode Chime path. Renders OUTSIDE the
+          320×420 call widget so the chat bubble floats over the chart page
+          it's on top of. Positioned below the call widget so both are
+          reachable. */}
+      {chimeMode && id && popupMode && (
+        <ChatPanel
+          consultationId={id}
+          sender="provider"
+          patientLanguage={consult?.patient_language || consult?.preferred_language || 'en'}
+          style={{ bottom: 460, right: 20 }}
+        />
+      )}
       {!chimeMode && lkToken && lkUrl && (
         <LiveKitRoom
           token={lkToken}
@@ -798,27 +811,38 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
               (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
             return (
-              <ChimeCall
-                role="provider" consultationId={id}
-                onEnded={endCall}
-                onPatientHere={markPatientHere}
-                onAudioElReady={chimeAudioReady}
-                subtitlesAvailable={subtitlesAvailable}
-                subtitlesOn={subtitlesOn}
-                onToggleSubtitles={() => setSubtitlesOn(v => !v)}
-                audioOnly={isPhone}
-                overlay={subtitlesAvailable && chimeRemoteStream ? (
-                  <ChimeCallSubtitles
-                    viewerRole="provider"
-                    viewerLang="en"
-                    speakerLang={activeLang}
-                    enabled={subtitlesOn}
-                    modalOpen={showNotes}
-                    consultationId={id}
-                    remoteStream={chimeRemoteStream}
-                  />
-                ) : null}
-              />
+              <>
+                <ChimeCall
+                  role="provider" consultationId={id}
+                  onEnded={endCall}
+                  onPatientHere={markPatientHere}
+                  onAudioElReady={chimeAudioReady}
+                  subtitlesAvailable={subtitlesAvailable}
+                  subtitlesOn={subtitlesOn}
+                  onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                  audioOnly={isPhone}
+                  overlay={subtitlesAvailable && chimeRemoteStream ? (
+                    <ChimeCallSubtitles
+                      viewerRole="provider"
+                      viewerLang="en"
+                      speakerLang={activeLang}
+                      enabled={subtitlesOn}
+                      modalOpen={showNotes}
+                      consultationId={id}
+                      remoteStream={chimeRemoteStream}
+                    />
+                  ) : null}
+                />
+                {/* Chat with patient — parity with the patient side which
+                    already ships ChatPanel on its Chime render. Provider
+                    can send text/photos mid-call for consent, links, etc. */}
+                <ChatPanel
+                  consultationId={id}
+                  sender="provider"
+                  patientLanguage={patientLang}
+                  style={{ bottom: 90, right: 16 }}
+                />
+              </>
             )
           })()}
         </div>
