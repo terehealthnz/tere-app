@@ -16,7 +16,7 @@
 //   compact         boolean — smaller control bar (FloatingCallWidget)
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo } from '../../lib/chime'
+import { createOrJoinMeeting, joinMeeting, endMeeting, toggleMute, toggleVideo, startScreenShare, stopScreenShare } from '../../lib/chime'
 import { apiFetch } from '../../lib/api'
 
 const TEAL = '#0B6E76'
@@ -67,6 +67,13 @@ export default function ChimeCall({
   // Video off by default when audioOnly is set. Camera button in the
   // control bar turns it on mid-call.
   const [videoOn, setVideoOn] = useState(!audioOnly)
+  // Screenshare is one-way (provider → patient); provider toggles it via
+  // the 🖥 button. Patient side doesn't render the button so this stays false.
+  const [sharing, setSharing] = useState(false)
+  // Network health from Chime SDK observer. 'poor' surfaces a banner both
+  // sides can see. 'good' hides it. Chime emits these on live packet-loss +
+  // jitter metrics — better signal than raw RTT.
+  const [network, setNetwork] = useState('good')
 
   const doConnect = useCallback(async () => {
     setStatus('connecting')
@@ -94,7 +101,8 @@ export default function ChimeCall({
             }
           }
           if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
-          if (ev.type === 'connection-poor') console.warn('[chime] connection poor')
+          if (ev.type === 'connection-poor') setNetwork('poor')
+          if (ev.type === 'connection-good') setNetwork('good')
           // Provider-side presence: first time a non-self attendee joins,
           // notify the parent so patientHere flips true (drives return-to-
           // queue button state + suppresses any lingering fallback dial).
@@ -142,6 +150,13 @@ export default function ChimeCall({
     setVideoOn(await toggleVideo(h.session))
   }, [])
 
+  const doShare = useCallback(async () => {
+    const h = sessionRef.current
+    if (!h) return
+    if (sharing) { await stopScreenShare(h.session); setSharing(false) }
+    else         { const ok = await startScreenShare(h.session); setSharing(ok) }
+  }, [sharing])
+
   const doLeave = useCallback(async () => {
     const h = sessionRef.current
     if (h) { try { await h.leave() } catch {} }
@@ -175,6 +190,21 @@ export default function ChimeCall({
         autoPlay playsInline
         style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
       />
+      {/* Network-poor banner — surfaces Chime's connection-poor observer
+          event on both sides so the provider knows to switch to phone or
+          the patient knows why the video is stuttering. Auto-hides when
+          Chime reports connection-good. */}
+      {status === 'live' && network === 'poor' && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5,
+          background: '#DC2626', color: 'white', textAlign: 'center',
+          padding: '6px 12px', fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontSize: compact ? '.6875rem' : '.8125rem', fontWeight: 700,
+          paddingTop: 'calc(6px + env(safe-area-inset-top, 0px))',
+        }}>
+          ⚠ Connection unstable — audio/video may drop briefly
+        </div>
+      )}
       {/* Hidden audio sink for remote audio mix. Also captureStream'd by
           the scribe recorder so both sides land in the transcript. */}
       <audio
@@ -265,6 +295,14 @@ export default function ChimeCall({
           <button onClick={doVideo}   style={videoOn ? btn : activeBtn}  title={videoOn ? 'Turn off camera' : 'Turn on camera'}>
             {videoOn ? '📷 Camera' : '📷 Off'}
           </button>
+          {role === 'provider' && (
+            <button
+              onClick={doShare}
+              style={sharing ? activeBtn : btn}
+              title={sharing ? 'Stop sharing screen' : 'Share screen (show wound-care, discharge instructions, etc.)'}>
+              {sharing ? '🖥 Sharing ✓' : '🖥 Share'}
+            </button>
+          )}
           {typeof onToggleSubtitles === 'function' && (
             <button
               onClick={() => subtitlesAvailable && onToggleSubtitles()}

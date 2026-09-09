@@ -228,6 +228,58 @@ export function toggleMute(session) {
 }
 
 /**
+ * Start screen-share (provider → patient direction). Uses getDisplayMedia,
+ * then hands the stream to Chime as a content share. Chime treats this as
+ * a second attendee ("content") which shows up on the patient's video tile
+ * pool without displacing the provider's camera feed.
+ */
+export async function startScreenShare(session) {
+  const av = session?.audioVideo
+  if (!av) return false
+  try {
+    // Chime SDK has a built-in helper that prompts + starts.
+    await av.startContentShareFromScreenCapture()
+    return true
+  } catch (e) {
+    console.warn('[chime] screen share start failed:', e?.message)
+    return false
+  }
+}
+
+/**
+ * Stop screen-share.
+ */
+export async function stopScreenShare(session) {
+  const av = session?.audioVideo
+  if (!av) return
+  try { await av.stopContentShare() } catch (e) { console.warn('[chime] screen share stop:', e?.message) }
+}
+
+/**
+ * List available audio input devices (mic + Bluetooth headsets).
+ * Returns [{ deviceId, label }].
+ */
+export async function listAudioInputs(session) {
+  const av = session?.audioVideo
+  if (!av) return []
+  try {
+    const devs = await av.listAudioInputDevices()
+    return devs.map(d => ({ deviceId: d.deviceId, label: d.label || 'Microphone' }))
+  } catch { return [] }
+}
+
+/**
+ * Swap the active mic to a new device (mid-call). No visible tile
+ * disruption — Chime hot-swaps the input.
+ */
+export async function switchAudioInput(session, deviceId) {
+  const av = session?.audioVideo
+  if (!av || !deviceId) return false
+  try { await av.startAudioInput(deviceId); return true }
+  catch (e) { console.warn('[chime] audio input switch failed:', e?.message); return false }
+}
+
+/**
  * Toggle local video (stops/starts the local tile).
  */
 export async function toggleVideo(session) {
