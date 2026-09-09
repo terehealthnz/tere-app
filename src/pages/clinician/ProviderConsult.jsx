@@ -657,6 +657,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                 subtitlesAvailable={subtitlesAvailable}
                 subtitlesOn={subtitlesOn}
                 onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                audioOnly={isPhone}
                 overlay={subtitlesAvailable && chimeRemoteStream ? (
                   <ChimeCallSubtitles
                     viewerRole="provider"
@@ -805,6 +806,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                 subtitlesAvailable={subtitlesAvailable}
                 subtitlesOn={subtitlesOn}
                 onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                audioOnly={isPhone}
                 overlay={subtitlesAvailable && chimeRemoteStream ? (
                   <ChimeCallSubtitles
                     viewerRole="provider"

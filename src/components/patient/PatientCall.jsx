@@ -49,6 +49,11 @@ export default function PatientCall() {
   // camera is a toggle on top, not a mode. Only historical 'video' defaults
   // camera on.
   const isPhone = consultationType === 'phone' || consultationType === 'consult'
+  // Set to the Chime meeting id once the provider has clicked Call server-
+  // side. Populated from the same status-poll below. Gates the "Start call"
+  // button on Chime so the patient can't tap before the meeting exists
+  // (which would 409 → "Couldn't connect").
+  const [chimeMeetingId, setChimeMeetingId] = useState(null)
 
   // When sessionStorage was cleared (browser reopened), fetch type from DB
   useEffect(() => {
@@ -71,6 +76,9 @@ export default function PatientCall() {
       try {
         const c = await getPatientConsult(consultationId)
         if (cancelled || !c) return
+        // Mirror server-side chime_meeting_id into state so ChimeCall's
+        // providerReady prop flips true the moment the provider clicks Call.
+        setChimeMeetingId(c.chime_meeting_id || null)
         if (c.status === 'no_show') {
           setGate('no_show')
           return
@@ -272,6 +280,8 @@ export default function PatientCall() {
               subtitlesAvailable={subtitlesAvailable}
               subtitlesOn={subtitlesOn}
               onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+              audioOnly={isPhone}
+              providerReady={!!chimeMeetingId}
               overlay={subtitlesAvailable && subtitlesOn && chimeRemoteStream ? (
                 <ChimeCallSubtitles
                   viewerRole="patient"

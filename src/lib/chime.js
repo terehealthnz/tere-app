@@ -98,7 +98,7 @@ export async function endMeeting({ consultationId }) {
  * @param {(event: {type: string, ...}) => void} [opts.onEvent] - lifecycle callback
  * @returns {Promise<{ session: DefaultMeetingSession, leave: () => Promise<void> }>}
  */
-export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEls, audioEl, onEvent }) {
+export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEls, audioEl, onEvent, audioOnly = false }) {
   if (!meetingResponse?.Meeting || !meetingResponse?.Attendee) {
     throw new Error('meetingResponse missing Meeting or Attendee')
   }
@@ -179,16 +179,25 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
     const audioInputs = await session.audioVideo.listAudioInputDevices()
     if (audioInputs.length) await session.audioVideo.startAudioInput(audioInputs[0].deviceId)
   } catch (e) { console.warn('[chime] audio input:', e?.message) }
-  try {
-    const videoInputs = await session.audioVideo.listVideoInputDevices()
-    if (videoInputs.length) await session.audioVideo.startVideoInput(videoInputs[0].deviceId)
-  } catch (e) { console.warn('[chime] video input:', e?.message) }
+  // Only enumerate/start video devices if the caller wants video at join.
+  // audioOnly=true keeps the camera fully off (no permission prompt, no
+  // startLocalVideoTile) — matches the "consult defaults to phone" UX.
+  if (!audioOnly) {
+    try {
+      const videoInputs = await session.audioVideo.listVideoInputDevices()
+      if (videoInputs.length) await session.audioVideo.startVideoInput(videoInputs[0].deviceId)
+    } catch (e) { console.warn('[chime] video input:', e?.message) }
+  }
 
   // Wrap observer's audioVideoDidStart to fire startLocalVideoTile once the
-  // session is connected. Avoids the pre-connect NotConnected/Update warning.
+  // session is connected — but only when video was actually requested.
+  // Avoids the pre-connect NotConnected/Update warning AND keeps the camera
+  // dark on phone-first consults.
   const originalStart = observer.audioVideoDidStart
   observer.audioVideoDidStart = function () {
-    try { session.audioVideo.startLocalVideoTile() } catch (e) { console.warn('[chime] local tile:', e?.message) }
+    if (!audioOnly) {
+      try { session.audioVideo.startLocalVideoTile() } catch (e) { console.warn('[chime] local tile:', e?.message) }
+    }
     originalStart.call(this)
   }
 

@@ -30,6 +30,15 @@ export default function ChimeCall({
   subtitlesAvailable = false,
   subtitlesOn = false,
   onToggleSubtitles,
+  // Audio-only default. When true, we skip starting the local video tile at
+  // join — patient/provider can turn video on mid-call via the Camera button.
+  // Set by ProviderConsult / PatientCall when consultation_type is phone-like.
+  audioOnly = false,
+  // Provider-ready gate. Patient side only. When false, we show
+  // "Waiting for the doctor…" instead of the "Start call" gesture button —
+  // prevents patients from hammering the 409 "meeting doesn't exist yet"
+  // when the provider hasn't clicked Call yet.
+  providerReady = true,
 }) {
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
@@ -48,7 +57,9 @@ export default function ChimeCall({
   const [status, setStatus]   = useState(isMobile ? 'gesture-required' : 'connecting') // gesture-required | connecting | live | ended | error
   const [errorMsg, setErrorMsg] = useState(null)
   const [muted, setMuted]     = useState(false)
-  const [videoOn, setVideoOn] = useState(true)
+  // Video off by default when audioOnly is set. Camera button in the
+  // control bar turns it on mid-call.
+  const [videoOn, setVideoOn] = useState(!audioOnly)
 
   const doConnect = useCallback(async () => {
     setStatus('connecting')
@@ -59,6 +70,7 @@ export default function ChimeCall({
         localVideoEl:   localVideoRef.current,
         remoteVideoEls: [remoteVideoRef.current],
         audioEl:        audioRef.current,
+        audioOnly,
         onEvent: (ev) => {
           if (ev.type === 'started') {
             setStatus('live')
@@ -97,8 +109,11 @@ export default function ChimeCall({
     }
   }, [role, consultationId, onEnded])
 
-  // Desktop auto-connects on mount. Mobile waits for tap.
+  // Desktop auto-connects on mount. Mobile waits for tap. On the patient
+  // side we also hold off until providerReady flips true — no point trying
+  // to join a meeting the provider hasn't created yet (would 409).
   useEffect(() => {
+    if (role === 'patient' && !providerReady) return
     if (!isMobile) doConnect()
     return () => {
       const h = sessionRef.current
@@ -106,7 +121,7 @@ export default function ChimeCall({
       if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [consultationId, role])
+  }, [consultationId, role, providerReady])
 
   const doMute = useCallback(() => {
     const h = sessionRef.current
@@ -191,15 +206,25 @@ export default function ChimeCall({
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           gap: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', padding: 20, textAlign: 'center',
         }}>
-          {status === 'gesture-required' && (<>
-            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>Ready to see the doctor?</div>
+          {status === 'gesture-required' && !providerReady && (<>
+            <div style={{ width: 48, height: 48, border: '3px solid rgba(255,255,255,.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <div style={{ fontSize: '1.125rem', fontWeight: 700 }}>Waiting for the doctor</div>
             <div style={{ fontSize: '.875rem', color: 'rgba(255,255,255,.85)', maxWidth: 320 }}>
-              Tap below to start the call. Your phone will ask for camera and microphone — please allow both.
+              Please stay on this page. We'll enable the "Start call" button as soon as the doctor calls you.
+            </div>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </>)}
+          {status === 'gesture-required' && providerReady && (<>
+            <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>{audioOnly ? 'Your doctor is calling' : 'Ready to see the doctor?'}</div>
+            <div style={{ fontSize: '.875rem', color: 'rgba(255,255,255,.85)', maxWidth: 320 }}>
+              {audioOnly
+                ? 'Tap below to answer. Your phone will ask for microphone — please allow.'
+                : 'Tap below to start the call. Your phone will ask for camera and microphone — please allow both.'}
             </div>
             <button
               onClick={doConnect}
               style={{ ...btn, background: TEAL, borderColor: TEAL, marginTop: 8, padding: '14px 32px', fontSize: '1rem' }}>
-              📞 Start call
+              📞 {audioOnly ? 'Answer' : 'Start call'}
             </button>
           </>)}
           {status === 'connecting' && (<>
