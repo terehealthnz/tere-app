@@ -667,6 +667,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                 currentSubtitleLang={activeLang}
                 onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
                 audioOnly={isPhone}
+                patientPhone={consult?.patient_phone || null}
                 overlay={subtitlesAvailable && chimeRemoteStream ? (
                   <ChimeCallSubtitles
                     viewerRole="provider"
@@ -835,6 +836,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   currentSubtitleLang={activeLang}
                   onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
                   audioOnly={isPhone}
+                  patientPhone={consult?.patient_phone || null}
                   overlay={subtitlesAvailable && chimeRemoteStream ? (
                     <ChimeCallSubtitles
                       viewerRole="provider"

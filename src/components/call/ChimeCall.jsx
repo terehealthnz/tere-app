@@ -37,6 +37,15 @@ export default function ChimeCall({
   subtitleLanguages = [],
   currentSubtitleLang = null,
   onChangeSubtitleLang,
+  // Provider-only PSTN dial. When patientPhone is set (E.164), the control
+  // bar shows a 📱 Ring phone button and a 10s auto-dial timer kicks in if
+  // the patient hasn't joined the Chime meeting. Both call /api/chime-dial
+  // which places an outbound PSTN call via Chime SMA and bridges the
+  // patient's phone audio into the running meeting. Endpoint returns 500
+  // when CHIME_SMA_ID / CHIME_SMA_FROM_NUMBER env vars aren't set — we
+  // surface that as a toast so the provider knows to fall through to SMS.
+  patientPhone = null,
+  autoDialAfterMs = 10000,
   // Audio-only default. When true, we skip starting the local video tile at
   // join — patient/provider can turn video on mid-call via the Camera button.
   // Set by ProviderConsult / PatientCall when consultation_type is phone-like.
@@ -74,6 +83,13 @@ export default function ChimeCall({
   // sides can see. 'good' hides it. Chime emits these on live packet-loss +
   // jitter metrics — better signal than raw RTT.
   const [network, setNetwork] = useState('good')
+  // PSTN dial state — 'idle' | 'dialling' | 'error'. Auto-dial fires once
+  // at autoDialAfterMs unless patient joined first. autoDialFiredRef guards
+  // against double-fire (manual click + timer firing back-to-back).
+  const [dialState, setDialState] = useState('idle')
+  const [dialError, setDialError] = useState(null)
+  const autoDialFiredRef = useRef(false)
+  const autoDialTimerRef = useRef(null)
 
   const doConnect = useCallback(async () => {
     setStatus('connecting')
@@ -99,6 +115,18 @@ export default function ChimeCall({
               beat()
               heartbeatRef.current = setInterval(beat, 15000)
             }
+            // Provider-side auto-dial timer. Fires once at autoDialAfterMs
+            // if the patient hasn't joined the Chime meeting yet — mirrors
+            // the previous LiveKit-SIP behaviour. Cancelled when the first
+            // attendee arrives (see attendee-joined branch above) or when
+            // the component unmounts.
+            if (role === 'provider' && patientPhone && !autoDialFiredRef.current) {
+              autoDialTimerRef.current = setTimeout(() => {
+                if (patientHereFiredRef.current) return
+                autoDialFiredRef.current = true
+                doPstnDial()
+              }, autoDialAfterMs)
+            }
           }
           if (ev.type === 'stopped')       { setStatus('ended'); if (!endedRef.current) { endedRef.current = true; onEnded?.() } }
           if (ev.type === 'connection-poor') setNetwork('poor')
@@ -110,6 +138,11 @@ export default function ChimeCall({
             if (!patientHereFiredRef.current) {
               patientHereFiredRef.current = true
               try { onPatientHere?.() } catch {}
+            }
+            // Patient joined — kill the auto-dial timer if still pending.
+            if (autoDialTimerRef.current) {
+              clearTimeout(autoDialTimerRef.current)
+              autoDialTimerRef.current = null
             }
           }
         },
@@ -134,6 +167,7 @@ export default function ChimeCall({
       const h = sessionRef.current
       if (h) { h.leave().catch(() => {}); sessionRef.current = null }
       if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null }
+      if (autoDialTimerRef.current) { clearTimeout(autoDialTimerRef.current); autoDialTimerRef.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [consultationId, role, providerReady])
@@ -156,6 +190,30 @@ export default function ChimeCall({
     if (sharing) { await stopScreenShare(h.session); setSharing(false) }
     else         { const ok = await startScreenShare(h.session); setSharing(ok) }
   }, [sharing])
+
+  // PSTN dial. Called manually by the 📱 button and automatically by the
+  // 10s timer if the patient hasn't joined. Idempotent — autoDialFiredRef
+  // + dialState guard against firing twice. Server returns 500 when the
+  // SMA env vars aren't set; we surface that as an inline error so the
+  // provider can fall back to SMS or dialling directly from their own phone.
+  const doPstnDial = useCallback(async () => {
+    if (!consultationId || dialState === 'dialling') return
+    setDialState('dialling')
+    setDialError(null)
+    try {
+      const r = await apiFetch('/api/chime-dial', {
+        method: 'POST',
+        body: JSON.stringify({ consultationId }),
+      })
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(body.error || `Dial failed (${r.status})`)
+      setDialState('idle')
+    } catch (e) {
+      console.error('[chime-dial] failed:', e?.message)
+      setDialState('error')
+      setDialError(e?.message || 'Could not dial patient')
+    }
+  }, [consultationId, dialState])
 
   const doLeave = useCallback(async () => {
     const h = sessionRef.current
@@ -190,6 +248,26 @@ export default function ChimeCall({
         autoPlay playsInline
         style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover' }}
       />
+      {/* PSTN dial error toast — surfaces when /api/chime-dial fails.
+          Most common cause pre-launch: SMA env vars not set → server
+          returns 500. Provider dismisses by tapping X. Auto-clears
+          when a new dial attempt starts. */}
+      {dialState === 'error' && dialError && (
+        <div style={{
+          position: 'absolute', top: 12, left: 12, right: 12, zIndex: 6,
+          background: 'rgba(220,38,38,.95)', color: 'white',
+          padding: '10px 12px', borderRadius: 10,
+          fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.8125rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+        }}>
+          <span>📱 <strong>Couldn't ring phone:</strong> {dialError}</span>
+          <button
+            onClick={() => { setDialState('idle'); setDialError(null) }}
+            style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1rem' }}>
+            ✕
+          </button>
+        </div>
+      )}
       {/* Network-poor banner — surfaces Chime's connection-poor observer
           event on both sides so the provider knows to switch to phone or
           the patient knows why the video is stuttering. Auto-hides when
@@ -301,6 +379,22 @@ export default function ChimeCall({
               style={sharing ? activeBtn : btn}
               title={sharing ? 'Stop sharing screen' : 'Share screen (show wound-care, discharge instructions, etc.)'}>
               {sharing ? '🖥 Sharing ✓' : '🖥 Share'}
+            </button>
+          )}
+          {role === 'provider' && patientPhone && (
+            <button
+              onClick={doPstnDial}
+              disabled={dialState === 'dialling'}
+              style={{
+                ...(dialState === 'dialling' ? activeBtn : btn),
+                opacity: dialState === 'dialling' ? .7 : 1,
+              }}
+              title={
+                dialState === 'dialling' ? 'Dialling patient\'s phone…' :
+                dialState === 'error'    ? `Dial failed: ${dialError || 'unknown'}` :
+                'Ring the patient\'s phone (bridges into this call)'
+              }>
+              {dialState === 'dialling' ? '📱 Ringing…' : '📱 Ring phone'}
             </button>
           )}
           {typeof onToggleSubtitles === 'function' && (
