@@ -282,11 +282,11 @@ export default function ChimeCall({
               {subtitlesOn ? '💬 Subtitles ✓' : '💬 Subtitles'}
             </button>
           )}
-          {subtitlesAvailable && subtitlesOn && subtitleLanguages.length > 0 && typeof onChangeSubtitleLang === 'function' && (
+          {subtitleLanguages.length > 0 && typeof onChangeSubtitleLang === 'function' && (
             <select
-              value={currentSubtitleLang || ''}
+              value={currentSubtitleLang || 'en'}
               onChange={(e) => onChangeSubtitleLang(e.target.value)}
-              title="Patient's spoken language (source for subtitles)"
+              title="Patient's spoken language (source for subtitles). Pick a non-English language to enable subtitles."
               style={{
                 background: 'rgba(255,255,255,.12)', color: 'white',
                 border: '1px solid rgba(255,255,255,.25)',
@@ -295,6 +295,9 @@ export default function ChimeCall({
                 cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
               }}
             >
+              {/* English default lets the provider revert an accidental
+                  override without leaving the call. */}
+              <option value="en" style={{ background: '#0D1117' }}>🇬🇧 English</option>
               {subtitleLanguages.map(l => (
                 <option key={l.code} value={l.code} style={{ background: '#0D1117' }}>
                   {l.flag} {l.name}
