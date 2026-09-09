@@ -69,5 +69,33 @@ export default async function handler(req, res) {
       .eq('id', r.id)
   }
 
+  // ── Test meetings sweep ─────────────────────────────────────────────
+  // Provider device-check flow (see ProviderTestCall.jsx). These have no
+  // consultation row so the main sweep above misses them. Anything alive
+  // >15min is zombified — the flow caps itself at 5min, so 15min gives a
+  // clock-skew + retry buffer.
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+  const { data: testRows, error: tErr } = await supabase
+    .from('test_chime_meetings')
+    .select('meeting_id, region, created_at')
+    .lt('created_at', fifteenMinAgo)
+    .limit(100)
+
+  if (tErr) {
+    console.error('[cron-chime-cleanup] test fetch failed:', tErr)
+  } else {
+    for (const r of testRows || []) {
+      const region = r.region || 'ap-southeast-2'
+      try {
+        await meetingsClient(region).send(new DeleteMeetingCommand({ MeetingId: r.meeting_id }))
+        results.swept++
+      } catch (e) {
+        const msg = String(e?.message || '')
+        if (!/NotFound/i.test(msg)) { results.failed++; console.error('[cron-chime-cleanup] test', r.meeting_id, msg); continue }
+      }
+      await supabase.from('test_chime_meetings').delete().eq('meeting_id', r.meeting_id)
+    }
+  }
+
   return res.status(200).json({ ok: true, ...results })
 }

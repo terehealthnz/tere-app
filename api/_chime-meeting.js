@@ -237,5 +237,80 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
+  // ── create-test ─────────────────────────────────────────────────────────
+  // Solo test meeting for provider device/network verification. No consult
+  // row involved. Provider is the only attendee. Chime auto-reaps on last
+  // attendee leaving; the cron in _cron-chime-cleanup.js sweeps zombies.
+  //
+  // TTL: capped at 15 minutes so a browser crash mid-test can't leak $$$
+  // of idle attendee-minutes. Cron picks up anything the browser missed.
+  if (action === 'create-test') {
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+
+    const region = 'ap-southeast-2'
+    const client = chimeClient(region)
+    const ttlMinutes = Math.min(15, Math.max(1, Number(req.body?.ttl_minutes) || 5))
+
+    let meeting = null
+    try {
+      const created = await client.send(new CreateMeetingCommand({
+        ClientRequestToken: randomUUID(),
+        MediaRegion: region,
+        ExternalMeetingId: `tere-test-${auth.provider.id}`.slice(0, 64),
+      }))
+      meeting = created.Meeting
+    } catch (e) {
+      console.error('[chime-meeting] CreateMeeting (test) failed:', e)
+      return res.status(500).json({ error: 'Failed to create test meeting', detail: e?.message })
+    }
+
+    let attendee = null
+    try {
+      const att = await client.send(new CreateAttendeeCommand({
+        MeetingId: meeting.MeetingId,
+        ExternalUserId: `provider-test-${auth.provider.id}`.slice(0, 64),
+      }))
+      attendee = att.Attendee
+    } catch (e) {
+      console.error('[chime-meeting] CreateAttendee (test) failed:', e)
+      return res.status(500).json({ error: 'Failed to create test attendee', detail: e?.message })
+    }
+
+    // Persist so the cron can sweep if the browser crashes before End Test
+    // fires DeleteMeeting. Best-effort — a supabase outage shouldn't block
+    // the test call itself, so we log-and-swallow.
+    try {
+      await supabase.from('test_chime_meetings').insert({
+        meeting_id: meeting.MeetingId,
+        region,
+        provider_id: auth.provider.id,
+        ttl_minutes: ttlMinutes,
+      })
+    } catch (e) {
+      console.warn('[chime-meeting] test-meeting persist failed (non-fatal):', e?.message)
+    }
+
+    return res.status(200).json({ ok: true, ...joinInfo(meeting, attendee), region, ttl_minutes: ttlMinutes })
+  }
+
+  // ── end-test ─────────────────────────────────────────────────────────
+  // Client calls this when the provider ends the test proactively. Cron
+  // sweeps anything they leave behind.
+  if (action === 'end-test') {
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+    const meetingId = String(req.body?.meetingId || '')
+    if (!meetingId) return res.status(400).json({ error: 'meetingId required' })
+    const region = String(req.body?.region || 'ap-southeast-2')
+    try {
+      await chimeClient(region).send(new DeleteMeetingCommand({ MeetingId: meetingId }))
+    } catch (e) {
+      if (e?.name !== 'NotFoundException') console.error('[chime-meeting] end-test failed:', e?.message)
+    }
+    try { await supabase.from('test_chime_meetings').delete().eq('meeting_id', meetingId) } catch {}
+    return res.status(200).json({ ok: true })
+  }
+
   return res.status(400).json({ error: 'Unknown action' })
 }

@@ -104,6 +104,7 @@ const ClinicianPatient    = lazy(() => import('./pages/clinician/ClinicianPatien
 const ProviderConsult     = lazy(() => import('./pages/clinician/ProviderConsult'))
 const ProviderNotes       = lazy(() => import('./pages/clinician/ProviderNotes'))
 const ProviderEarnings    = lazy(() => import('./pages/clinician/ProviderEarnings'))
+const ProviderTestCall    = lazy(() => import('./pages/clinician/ProviderTestCall'))
 const AdminApp            = lazy(() => import('./pages/clinician/AdminApp'))
 const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
@@ -268,6 +269,7 @@ export default function App() {
         <Route path="/admin"                  element={<AdminApp />} />
         <Route path="/admin/payroll"          element={<AdminPayroll />} />
         <Route path="/provider/earnings"      element={<ProviderEarnings embedded={false} />} />
+        <Route path="/provider/test-call"     element={<ProviderTestCall />} />
         <Route path="/clinician"              element={<ClinicianLogin />} />
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
         <Route path="/clinician/profile"      element={<MyProfile />} />
