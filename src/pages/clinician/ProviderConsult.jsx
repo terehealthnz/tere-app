@@ -642,31 +642,35 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           borderRadius:14, overflow:'hidden', boxShadow:'0 12px 32px rgba(0,0,0,.35)',
           zIndex:150, background:'#000',
         }}>
-          <ChimeCall
-            role="provider" consultationId={id} compact
-            onEnded={endCall}
-            onPatientHere={markPatientHere}
-            onAudioElReady={chimeAudioReady}
-            overlay={(() => {
-              const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
-              const activeLang = subtitleLangOverride || patientLang
-              const activeMeta = getLangMeta(activeLang)
-              const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
-                (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
-              if (!subtitlesAvailable || !chimeRemoteStream) return null
-              return (
-                <ChimeCallSubtitles
-                  viewerRole="provider"
-                  viewerLang="en"
-                  speakerLang={activeLang}
-                  enabled={subtitlesOn}
-                  modalOpen={showNotes}
-                  consultationId={id}
-                  remoteStream={chimeRemoteStream}
-                />
-              )
-            })()}
-          />
+          {(() => {
+            const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+            const activeLang = subtitleLangOverride || patientLang
+            const activeMeta = getLangMeta(activeLang)
+            const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+              (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+            return (
+              <ChimeCall
+                role="provider" consultationId={id} compact
+                onEnded={endCall}
+                onPatientHere={markPatientHere}
+                onAudioElReady={chimeAudioReady}
+                subtitlesAvailable={subtitlesAvailable}
+                subtitlesOn={subtitlesOn}
+                onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                overlay={subtitlesAvailable && chimeRemoteStream ? (
+                  <ChimeCallSubtitles
+                    viewerRole="provider"
+                    viewerLang="en"
+                    speakerLang={activeLang}
+                    enabled={subtitlesOn}
+                    modalOpen={showNotes}
+                    consultationId={id}
+                    remoteStream={chimeRemoteStream}
+                  />
+                ) : null}
+              />
+            )
+          })()}
         </div>
       )}
       {!chimeMode && lkToken && lkUrl && (
@@ -786,31 +790,35 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           will re-wire scribe + subtitles onto Chime's audioVideo observer). */}
       {chimeMode && id && (
         <div style={{ position:'fixed', inset:0, zIndex:100 }}>
-          <ChimeCall
-            role="provider" consultationId={id}
-            onEnded={endCall}
-            onPatientHere={markPatientHere}
-            onAudioElReady={chimeAudioReady}
-            overlay={(() => {
-              const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
-              const activeLang = subtitleLangOverride || patientLang
-              const activeMeta = getLangMeta(activeLang)
-              const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
-                (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
-              if (!subtitlesAvailable || !chimeRemoteStream) return null
-              return (
-                <ChimeCallSubtitles
-                  viewerRole="provider"
-                  viewerLang="en"
-                  speakerLang={activeLang}
-                  enabled={subtitlesOn}
-                  modalOpen={showNotes}
-                  consultationId={id}
-                  remoteStream={chimeRemoteStream}
-                />
-              )
-            })()}
-          />
+          {(() => {
+            const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
+            const activeLang = subtitleLangOverride || patientLang
+            const activeMeta = getLangMeta(activeLang)
+            const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+              (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
+            return (
+              <ChimeCall
+                role="provider" consultationId={id}
+                onEnded={endCall}
+                onPatientHere={markPatientHere}
+                onAudioElReady={chimeAudioReady}
+                subtitlesAvailable={subtitlesAvailable}
+                subtitlesOn={subtitlesOn}
+                onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+                overlay={subtitlesAvailable && chimeRemoteStream ? (
+                  <ChimeCallSubtitles
+                    viewerRole="provider"
+                    viewerLang="en"
+                    speakerLang={activeLang}
+                    enabled={subtitlesOn}
+                    modalOpen={showNotes}
+                    consultationId={id}
+                    remoteStream={chimeRemoteStream}
+                  />
+                ) : null}
+              />
+            )
+          })()}
         </div>
       )}
       {/* LiveKit room wrapper — provides context for the FloatingCallWidget below.

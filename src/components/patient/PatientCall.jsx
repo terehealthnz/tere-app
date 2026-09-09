@@ -258,28 +258,33 @@ export default function PatientCall() {
   if (chimeMode) {
     return (
       <div style={{ position: 'relative', height: '100dvh' }}>
-        <ChimeCall
-          role="patient"
-          consultationId={consultationId}
-          onEnded={() => navigate('/done')}
-          onAudioElReady={chimeAudioReady}
-          overlay={(() => {
-            const patientLang = sessionStorage.getItem('patient_language') || 'en'
-            // Provider speaks English. If patient reads a supported non-English
-            // language and has toggled subtitles on, render ChimeCallSubtitles.
-            if (!subtitlesOn || patientLang === 'en' || !chimeRemoteStream) return null
-            return (
-              <ChimeCallSubtitles
-                viewerRole="patient"
-                viewerLang={patientLang}
-                speakerLang="en"
-                enabled={subtitlesOn}
-                consultationId={consultationId}
-                remoteStream={chimeRemoteStream}
-              />
-            )
-          })()}
-        />
+        {(() => {
+          const patientLang = sessionStorage.getItem('patient_language') || 'en'
+          // Provider speaks English. Subtitles are only useful when the
+          // patient reads a non-English supported language.
+          const subtitlesAvailable = patientLang !== 'en'
+          return (
+            <ChimeCall
+              role="patient"
+              consultationId={consultationId}
+              onEnded={() => navigate('/done')}
+              onAudioElReady={chimeAudioReady}
+              subtitlesAvailable={subtitlesAvailable}
+              subtitlesOn={subtitlesOn}
+              onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+              overlay={subtitlesAvailable && subtitlesOn && chimeRemoteStream ? (
+                <ChimeCallSubtitles
+                  viewerRole="patient"
+                  viewerLang={patientLang}
+                  speakerLang="en"
+                  enabled={subtitlesOn}
+                  consultationId={consultationId}
+                  remoteStream={chimeRemoteStream}
+                />
+              ) : null}
+            />
+          )
+        })()}
         {consultationId && (
           <div style={{ position: 'absolute', bottom: 0, right: 0, top: 0, pointerEvents: 'none' }}>
             <div style={{ position: 'relative', height: '100%', pointerEvents: 'auto' }}>

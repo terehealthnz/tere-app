@@ -22,7 +22,15 @@ import { apiFetch } from '../../lib/api'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 
-export default function ChimeCall({ role, consultationId, onEnded, onPatientHere, onAudioElReady, overlay, compact = false }) {
+export default function ChimeCall({
+  role, consultationId,
+  onEnded, onPatientHere, onAudioElReady,
+  overlay,
+  compact = false,
+  subtitlesAvailable = false,
+  subtitlesOn = false,
+  onToggleSubtitles,
+}) {
   const localVideoRef  = useRef(null)
   const remoteVideoRef = useRef(null)
   const audioRef       = useRef(null)
@@ -225,6 +233,14 @@ export default function ChimeCall({ role, consultationId, onEnded, onPatientHere
           <button onClick={doVideo}   style={videoOn ? btn : activeBtn}  title={videoOn ? 'Turn off camera' : 'Turn on camera'}>
             {videoOn ? '📷 Camera' : '📷 Off'}
           </button>
+          {subtitlesAvailable && typeof onToggleSubtitles === 'function' && (
+            <button
+              onClick={() => onToggleSubtitles()}
+              style={subtitlesOn ? activeBtn : btn}
+              title={subtitlesOn ? 'Hide subtitles' : 'Show subtitles'}>
+              {subtitlesOn ? '💬 Subtitles ✓' : '💬 Subtitles'}
+            </button>
+          )}
           <button onClick={doLeave}   style={dangerBtn}                  title="Leave call">
             {role === 'provider' ? '⛔ End call' : '⛔ Leave'}
           </button>
