@@ -1,9 +1,10 @@
 /* Tere Health Service Worker — push notifications + offline shell */
 
-// Bumped v6 → v7 to force provider dashboards to pick up the 'My
-// profile' header button (was serving stale shell to already-cached
-// admins). Also carries the 60→65 patient price update.
-const CACHE = 'tere-v7'
+// Bump the version any time the cache-shape or fetch handler changes so
+// activate() nukes the previous cache. v7→v8: this SW now aggressively
+// skips HTML/JS/CSS from the cache entirely (see shouldSkipCache) so
+// stale shells can't hand out dead chunk hashes after a deploy.
+const CACHE = 'tere-v8'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 
