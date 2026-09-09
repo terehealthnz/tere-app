@@ -39,7 +39,7 @@
       "has": [{ "type": "host", "value": "tere.co.nz" }],
       "destination": "/corporate.html"
     },
-    { "source": "/((?!manifest\\.json|sw\\.js|tere-logo\\..+|tere-preview\\..+|corporate\\.html).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|assets/|icons/|manifest\\.json|sw\\.js|tere-logo\\..+|tere-preview\\..+|corporate\\.html|pharmacies\\.json|.*\\.(?:js|css|map|png|jpg|jpeg|webp|svg|ico|json|txt|woff2?|ttf)).*)", "destination": "/index.html" }
   ],
   "functions": {
     "api/handler.js": { "maxDuration": 60 }
