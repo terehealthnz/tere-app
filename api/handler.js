@@ -264,6 +264,7 @@ const ROUTES = {
   'practice-seed':             () => import('./_practice-seed.js'),
   'practice-reset':            () => import('./_practice-reset.js'),
   'chime-meeting':             () => import('./_chime-meeting.js'),
+  'chime-dial':                () => import('./_chime-dial.js'),
   'cron-unlock-reminders':     () => import('./_cron-unlock-reminders.js'),
   'geo-check':                 () => import('./_geo-check.js'),
   'provider-reset-request':    () => import('./_provider-reset-request.js'),
