@@ -68,7 +68,6 @@ function Hero() {
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
-          <span style={{ color: 'rgba(212,238,240,.45)', fontSize: '.875rem' }}>· 7 days a week · 8am–8pm</span>
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
@@ -138,7 +137,7 @@ function Pricing() {
   const plans = [
     {
       icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
-      price: 60, accPrice: 20,
+      price: 60, accPrice: 25,
       features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor — video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
     },
@@ -150,7 +149,7 @@ function Pricing() {
           One clear price
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Just a NZ$20 admin fee — ACC covers your consultation.
+          ACC-eligible injury? Just a NZ$25 co-payment — ACC covers your consultation.
         </p>
         <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
           Prices in NZD · Patients located outside Aotearoa New Zealand pay a flat NZ$100 consultation fee.
@@ -291,7 +290,7 @@ function FAQ() {
   const faqs = [
     {
       q: 'Is this ACC-funded?',
-      a: 'Yes. If your condition is the result of an accident or injury, ACC covers most of the cost. You pay a small co-payment: NZ$25 for video, NZ$15 for phone. We handle the ACC claim for you.',
+      a: 'Yes. If your condition is the result of an accident or injury, ACC covers most of the cost. You pay a flat NZ$25 co-payment. We handle the ACC claim for you.',
     },
     {
       q: 'What can Tere Health treat?',
