@@ -98,6 +98,21 @@ def slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+# Known-wrong district tags in the Medsafe register. Keys are lowercased
+# premises_name; values are the correct HealthNZ district. Applied after
+# the register is parsed so future re-runs stay corrected.
+#
+# Provenance: patient E2E smoke test 2026-09-10 flagged Chemist Warehouse
+# Blenheim Square as tagged "Canterbury" (Blenheim is in Nelson
+# Marlborough). King Medicine Management (also Blenheim) had the same
+# mis-tag. Add new entries here as they surface — do not edit
+# pharmacies.json by hand.
+DISTRICT_OVERRIDES = {
+    "chemist warehouse blenheim square": "Nelson Marlborough",
+    "king medicine management":          "Nelson Marlborough",
+}
+
+
 def build_records(rows, header_idx, cols):
     records, seen = [], set()
     for row in rows[header_idx + 1:]:
@@ -118,13 +133,15 @@ def build_records(rows, header_idx, cols):
             continue
         seen.add(key)
 
-        rec_id = slugify(f"{premises}-{town}") or slugify(premises) or str(len(records))
+        # Apply district override if this premises is on the known-wrong list.
+        town_final = DISTRICT_OVERRIDES.get(premises.lower(), town)
+        rec_id = slugify(f"{premises}-{town_final}") or slugify(premises) or str(len(records))
         records.append({
             "id": rec_id,
             "premises_name": premises,
             "legal_entity": get("legal_entity"),
             "address": address,
-            "town": town,
+            "town": town_final,
             "region": get("region"),
         })
     records.sort(key=lambda r: (r["region"].lower(), r["premises_name"].lower()))

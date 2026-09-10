@@ -6760,11 +6760,11 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "chemist-warehouse-blenheim-square-canterbury",
+    "id": "chemist-warehouse-blenheim-square-nelson-marlborough",
     "premises_name": "Chemist Warehouse Blenheim Square",
     "legal_entity": "Pharmacy Investments 21 Limited",
     "address": "Shop 1, Blenheim Square 217 Blenheim Road Riccarton Christchurch 8041, Canterbury",
-    "town": "Canterbury",
+    "town": "Nelson Marlborough",
     "region": "South Island | Te Waipounamu"
   },
   {
@@ -7176,11 +7176,11 @@
     "region": "South Island | Te Waipounamu"
   },
   {
-    "id": "king-medicine-management-canterbury",
+    "id": "king-medicine-management-nelson-marlborough",
     "premises_name": "King Medicine Management",
     "legal_entity": "Tower Junction Pharmacy Limited",
     "address": "Unit B, Level 2, 20/295 Blenheim Road, Upper Riccarton, Christchurch, 8041, Canterbury",
-    "town": "Canterbury",
+    "town": "Nelson Marlborough",
     "region": "South Island | Te Waipounamu"
   },
   {
