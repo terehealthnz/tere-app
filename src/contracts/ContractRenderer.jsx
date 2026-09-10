@@ -35,15 +35,29 @@ export function listContractVersions() {
 // new field is needed on the contractor object.
 function substitute(text, contractor) {
   if (!contractor || !text) return text
+  const today = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+  // Signature-time fields don't have a value at render — show a legally
+  // clear "will be dated on signing" placeholder rather than raw `{{}}`.
+  const AT_SIGN = '__________________________ (to be completed on signing)'
   const map = {
-    contractor_full_name: contractor.full_name || contractor.name || '',
-    contractor_address:   contractor.address   || '',
-    contractor_mcnz:      contractor.mcnz      || contractor.mcnz_registration_number || '',
-    contractor_cpn:       contractor.cpn       || contractor.hpi_cpn || '',
-    contractor_acc_id:    contractor.acc_id    || contractor.acc_provider_number || '',
-    contractor_hpi_number: contractor.hpi_number || '',
-    contractor_email:     contractor.email     || '',
-    agreement_date:       contractor.agreement_date || new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }),
+    contractor_full_name:  contractor.full_name || contractor.name || AT_SIGN,
+    contractor_address:    contractor.address   || AT_SIGN,
+    contractor_mcnz:       contractor.mcnz      || contractor.mcnz_registration_number || AT_SIGN,
+    contractor_cpn:        contractor.cpn       || contractor.hpi_cpn || AT_SIGN,
+    contractor_acc_id:     contractor.acc_id    || contractor.acc_provider_number || AT_SIGN,
+    contractor_hpi_number: contractor.hpi_number || AT_SIGN,
+    contractor_email:      contractor.email     || AT_SIGN,
+    contractor_ird:        contractor.ird       || AT_SIGN,
+    contractor_notice_email: contractor.notice_email || contractor.email || AT_SIGN,
+    contractor_gst_optional: contractor.gst_number ? `GST # ${contractor.gst_number}` : '(GST-registered? Please add GST number when signing.)',
+    agreement_date:        contractor.agreement_date || today,
+    commencement_date:     contractor.commencement_date || 'as agreed with Tere Health',
+    signer_name:           contractor.signer_name || 'Tere Health Limited',
+    signer_title:          contractor.signer_title || 'Director',
+    // These are the DATE fields on the signature block itself — filled by
+    // the signing/countersigning action, not the render.
+    contractor_signed_date: AT_SIGN,
+    signer_date:            AT_SIGN,
   }
   return text.replace(/\{\{(\w+)\}\}/g, (m, k) => (k in map ? map[k] : m))
 }

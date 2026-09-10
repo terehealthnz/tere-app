@@ -2506,7 +2506,7 @@ export default async function handler(req, res) {
 
     const { data: prov } = await supabase
       .from('providers')
-      .select('id, first_name, last_name, email, mcnz_registration_number, cpn, hpi_number, acc_provider_number, credential')
+      .select('id, first_name, last_name, email, mcnz_registration_number, cpn, hpi_number, acc_provider_number, credential, ird_number')
       .eq('id', providerId)
       .maybeSingle()
     if (!prov) return res.status(404).json({ error: 'Provider not found' })
@@ -2536,6 +2536,13 @@ export default async function handler(req, res) {
       hpi_number: prov.hpi_number || null,
       email:     prov.email || null,
       credential: prov.credential || null,
+      ird:       prov.ird_number || null,
+      notice_email: prov.email || null,
+      // signer = the Tere admin sending this contract. Snapshot so the
+      // countersignature block on the applicant view shows a real name
+      // rather than a placeholder.
+      signer_name:  [auth.provider?.first_name, auth.provider?.last_name].filter(Boolean).join(' ') || 'Tere Health Limited',
+      signer_title: auth.provider?.credential ? `${auth.provider.credential}, Director` : 'Director',
     }
 
     // Synthetic job_application so the offer flow slots in unchanged. Status
