@@ -12,13 +12,20 @@ export const RESERVATION_FEE = 15
 // video vs audio inside the call, patient sees "consult"). Historical rows
 // with consultation_type='video'/'phone' still resolve to the consult price.
 // 'message' is the async product and priced separately.
+//
+// Must stay in sync with:
+//   - src/components/patient/Payment.jsx BASE_PRICES
+//   - api/_create-payment-intent.js PRICES (values × 100 for cents)
+// The server is the source of truth for what's actually charged. If these
+// three drift again, the pre-payment page shows a different number to the
+// payment page — bait-and-switch UX and existing pricing-audit item.
 export const CONSULT_PRICES = {
-  consult: { private: 60, acc: 0 },
-  message: { private: 25 },
+  consult: { private: 65, acc: 25 },
+  message: { private: 25, acc: 25 },
   // Retained so legacy references (historical consults, admin views) still
   // resolve rather than throwing. New bookings should not use these.
-  video:   { private: 60, acc: 0 },
-  phone:   { private: 60, acc: 0 },
+  video:   { private: 65, acc: 25 },
+  phone:   { private: 65, acc: 25 },
 }
 
 export const CONSULT_TYPE_LABELS = {
