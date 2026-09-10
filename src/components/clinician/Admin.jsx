@@ -831,7 +831,6 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     is_provider: true,
     is_admin: false,
     is_supervisor: false,
-    is_authorised_signer: false,
     signer_title: '',
     can_prescribe: true,
     can_refer: true,
@@ -1048,20 +1047,19 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
               <label style={pill(form.is_provider)}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
               <label style={pill(form.is_admin)}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
               <label style={pill(form.is_supervisor)}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
-              <label style={pill(!!form.is_authorised_signer)}><input type="checkbox" checked={!!form.is_authorised_signer} onChange={e => set('is_authorised_signer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Authorised signer (contracts)</span></label>
             </div>
             <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:'.5rem', fontStyle:'italic' }}>Tick as many as apply — a person can be both a clinician and an admin.</div>
-            {form.is_authorised_signer && (
+            {form.is_admin && (
               <div style={{ marginTop:'.75rem' }}>
-                <div style={labelStyle}>Legal signing title (shown on contracts)</div>
+                <div style={labelStyle}>Signing title on contracts (optional)</div>
                 <input
                   value={form.signer_title || ''}
                   onChange={e => set('signer_title', e.target.value)}
-                  placeholder="e.g. Chief Business Officer"
+                  placeholder="e.g. Chief Business Officer, Director"
                   style={inputStyle}
                 />
                 <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:4, fontStyle:'italic' }}>
-                  This person may countersign contractor agreements for Tere Health — except their own. Never grant this role to a person who will themselves be a contractor.
+                  Shown on the countersignature block when this admin countersigns a contractor agreement. Any admin can countersign — except their own contract.
                 </div>
               </div>
             )}
@@ -1263,7 +1261,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     is_provider: !!provider.is_provider,
     is_admin: !!provider.is_admin,
     is_supervisor: !!provider.is_supervisor,
-    is_authorised_signer: !!provider.is_authorised_signer,
     signer_title: provider.signer_title || '',
     can_prescribe: !!provider.can_prescribe,
     can_refer: !!provider.can_refer,
@@ -1371,20 +1368,19 @@ function EditProviderModal({ provider, onClose, onSaved }) {
               <label style={pill(form.is_provider)}><input type="checkbox" checked={form.is_provider} onChange={e => set('is_provider', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Clinical provider</span></label>
               <label style={pill(form.is_admin)}><input type="checkbox" checked={form.is_admin} onChange={e => set('is_admin', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Admin</span></label>
               <label style={pill(form.is_supervisor)}><input type="checkbox" checked={form.is_supervisor} onChange={e => set('is_supervisor', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Supervisor</span></label>
-              <label style={pill(!!form.is_authorised_signer)}><input type="checkbox" checked={!!form.is_authorised_signer} onChange={e => set('is_authorised_signer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Authorised signer (contracts)</span></label>
             </div>
             <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:'.5rem', fontStyle:'italic' }}>Tick as many as apply — a person can be both a clinician and an admin.</div>
-            {form.is_authorised_signer && (
+            {form.is_admin && (
               <div style={{ marginTop:'.75rem' }}>
-                <div style={labelStyle}>Legal signing title (shown on contracts)</div>
+                <div style={labelStyle}>Signing title on contracts (optional)</div>
                 <input
                   value={form.signer_title || ''}
                   onChange={e => set('signer_title', e.target.value)}
-                  placeholder="e.g. Chief Business Officer"
+                  placeholder="e.g. Chief Business Officer, Director"
                   style={inputStyle}
                 />
                 <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:4, fontStyle:'italic' }}>
-                  This person may countersign contractor agreements for Tere Health — except their own. Never grant this role to a person who will themselves be a contractor.
+                  Shown on the countersignature block when this admin countersigns a contractor agreement. Any admin can countersign — except their own contract.
                 </div>
               </div>
             )}
@@ -4584,14 +4580,14 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                     const isApplicantSigned = of.status === 'applicant_signed'
                     const isDone          = of.status === 'countersigned'
                     const isCancelled     = of.status === 'cancelled'
-                    // Governance: only a designated authorised signer may
-                    // countersign, and never their own contract. Hide the
-                    // button when either check fails; server enforces the
-                    // same rule regardless.
-                    const _isAuthorisedSigner = sessionStorage.getItem('providerIsAuthorisedSigner') === 'true'
+                    // Governance: any admin may countersign, but never their
+                    // own contract. Server enforces the same rule; this just
+                    // hides the button so admins don't see an action that'll
+                    // 403 on click.
+                    const _isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
                     const _myEmail = (sessionStorage.getItem('providerEmail') || '').toLowerCase()
                     const _applicantEmail = String(data?.email || '').toLowerCase()
-                    const canCountersign = _isAuthorisedSigner && !!_myEmail && _myEmail !== _applicantEmail
+                    const canCountersign = _isAdmin && !!_myEmail && _myEmail !== _applicantEmail
                     const borderColor     = isDone ? '#065F46' : (isApplicantSigned ? '#B45309' : (isCancelled ? '#E2E8F0' : '#D97706'))
                     const statusLabel     = isDone ? 'FULLY SIGNED' : (isApplicantSigned ? 'AWAITING COUNTERSIGN' : (isCancelled ? 'CANCELLED' : 'AWAITING APPLICANT SIGNATURE'))
                     const statusColor     = isDone ? '#065F46' : (isApplicantSigned ? '#B45309' : (isCancelled ? '#6B7280' : '#D97706'))
@@ -4614,7 +4610,7 @@ function ApplicantDetail({ id, onClose, onChanged }) {
                             )}
                             {isApplicantSigned && !canCountersign && (
                               <span style={{ padding: '4px 10px', fontSize: '.7rem', color: '#92400E', background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 6, alignSelf: 'center', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.03em' }}>
-                                {_myEmail === _applicantEmail ? 'You cannot countersign your own contract' : 'Awaiting authorised signer'}
+                                {_myEmail === _applicantEmail ? 'You cannot countersign your own contract' : 'Awaiting another admin'}
                               </span>
                             )}
                             {(isSent || isApplicantSigned) && (

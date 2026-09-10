@@ -1829,20 +1829,18 @@ export default async function handler(req, res) {
 
     const [{ data: app }, { data: signer }] = await Promise.all([
       supabase.from('job_applications').select('first_name, last_name, email').eq('id', offer.application_id).maybeSingle(),
-      supabase.from('providers').select('id, first_name, last_name, email, signature_url, specialty, signer_title, is_authorised_signer').eq('id', auth.provider?.id).maybeSingle(),
+      supabase.from('providers').select('id, first_name, last_name, email, signature_url, specialty, signer_title, is_admin').eq('id', auth.provider?.id).maybeSingle(),
     ])
 
-    // Governance gate: only authorised signers may countersign, and never
-    // their own contract. Enforced on the server regardless of what the
-    // client UI shows.
-    if (!signer?.is_authorised_signer) {
-      return res.status(403).json({ error: 'Not authorised to countersign contracts. Ask a designated signer.' })
-    }
-    if (offer.signer_provider_id && offer.signer_provider_id !== signer.id) {
-      return res.status(403).json({ error: 'This offer was assigned to a different authorised signer.' })
+    // Governance gate: any admin may countersign, but never their own
+    // contract. Enforced server-side regardless of what the client UI
+    // shows — a director signing their own agreement is a conflict of
+    // interest and fails external audit.
+    if (!signer?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to countersign contracts.' })
     }
     if (app?.email && signer?.email && String(app.email).toLowerCase() === String(signer.email).toLowerCase()) {
-      return res.status(403).json({ error: 'You cannot countersign your own contract. A different authorised signer must sign for Tere Health.' })
+      return res.status(403).json({ error: 'You cannot countersign your own contract. Another admin must sign for Tere Health.' })
     }
 
     // Build the final PDF.
@@ -2568,32 +2566,20 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Template has no contract source — attach a PDF or set a contract version' })
     }
 
-    // Authorised signer resolution. Governance rule: the person signing
-    // FOR Tere Health must be a designated authorised signer AND cannot
-    // be the contractor themselves. Never snapshot the admin sending
-    // this contract as the signer (they may be the contractor, or a
-    // director who shouldn't countersign their own agreement).
-    const { data: signers } = await supabase
-      .from('providers')
-      .select('id, first_name, last_name, email, signer_title')
-      .eq('is_authorised_signer', true)
-      .neq('id', providerId)
-      .order('created_at', { ascending: true })
-    if (!signers || signers.length === 0) {
-      return res.status(400).json({ error: 'No authorised signer available. Tick is_authorised_signer on a provider who is NOT the contractor.' })
-    }
-    // Admin may pick a specific signer; otherwise default to the first.
-    let signer = signers[0]
-    if (b.signerProviderId) {
-      const picked = signers.find(s => s.id === b.signerProviderId)
-      if (!picked) return res.status(400).json({ error: 'Selected signer is not an authorised signer, or is the contractor' })
-      signer = picked
+    // Governance: any admin can countersign, but never their own contract.
+    // Block the sender from sending a contract to themselves — no matter
+    // who ultimately countersigns, the sender picking themselves is a
+    // conflict-of-interest signal we want to catch at the origin.
+    if (String(prov.email || '').toLowerCase() === String(auth.provider?.email || '').toLowerCase()) {
+      return res.status(400).json({ error: 'You cannot send a contract to yourself. Ask another admin to send.' })
     }
 
     // Snapshot the contractor's identifiers at send time so the JSX
     // ContractRenderer + signed-archive regenerator can substitute
     // {{contractor_full_name}} etc. deterministically, even if the
-    // providers row is later edited.
+    // providers row is later edited. Tere Health signer fields are left
+    // generic until countersign — the countersigning admin's real name
+    // + title flow into the archived PDF at that moment.
     const contractorSnapshot = {
       full_name: [prov.first_name, prov.last_name].filter(Boolean).join(' ') || null,
       mcnz:      prov.mcnz_registration_number || null,
@@ -2604,11 +2590,8 @@ export default async function handler(req, res) {
       credential: prov.credential || null,
       ird:       prov.ird_number || null,
       notice_email: prov.email || null,
-      // Tere Health signer, snapshotted from the authorised signer row
-      // so the countersignature block renders a real name (and the
-      // applicant sees who's binding Tere Health) before countersign.
-      signer_name:  [signer.first_name, signer.last_name].filter(Boolean).join(' ') || 'Tere Health Limited',
-      signer_title: signer.signer_title || 'Authorised Signatory',
+      signer_name:  'Tere Health Limited',
+      signer_title: 'Authorised Signatory',
     }
 
     // Synthetic job_application so the offer flow slots in unchanged. Status
@@ -2645,7 +2628,6 @@ export default async function handler(req, res) {
         contract_pdf_name:      tpl.contract_pdf_name || (tpl.contract_version ? `Independent Contractor Agreement ${tpl.contract_version}` : 'Independent Contractor Agreement'),
         contract_version:       tpl.contract_version,
         contractor_snapshot:    contractorSnapshot,
-        signer_provider_id:     signer.id,
         applicant_sign_token:   signToken,
         status:                 'sent',
       })

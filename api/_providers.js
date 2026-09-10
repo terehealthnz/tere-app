@@ -147,10 +147,10 @@ const UPDATE_ALLOWLIST = new Set([
   'email',
   'first_name', 'last_name', 'credential', 'specialty', 'color',
   'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
-  // Contract governance: only ticked-on providers may countersign
-  // contractor agreements. signer_title is the legal signing role
-  // shown on contracts (e.g. "Chief Business Officer").
-  'is_authorised_signer', 'signer_title',
+  // Cosmetic-only: the legal signing title (e.g. "Chief Business Officer")
+  // rendered on the countersignature block. Any admin can countersign a
+  // contractor agreement (except their own) — no separate flag gate.
+  'signer_title',
   'can_prescribe', 'can_refer', 'can_acc',
   'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
   'signature_url',
