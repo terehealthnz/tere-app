@@ -147,6 +147,10 @@ const UPDATE_ALLOWLIST = new Set([
   'email',
   'first_name', 'last_name', 'credential', 'specialty', 'color',
   'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
+  // Contract governance: only ticked-on providers may countersign
+  // contractor agreements. signer_title is the legal signing role
+  // shown on contracts (e.g. "Chief Business Officer").
+  'is_authorised_signer', 'signer_title',
   'can_prescribe', 'can_refer', 'can_acc',
   'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
   'signature_url',
@@ -440,6 +444,7 @@ export default async function handler(req, res) {
     const CREATE_ALLOWLIST = new Set([
       'first_name', 'last_name', 'email', 'credential', 'specialty', 'color',
       'is_active', 'is_admin', 'is_provider', 'is_supervisor', 'is_billing_admin',
+      'is_authorised_signer', 'signer_title',
       'can_prescribe', 'can_refer', 'can_acc',
       'prescriber_number', 'cpn', 'hpi_number', 'acc_provider_number',
       'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',

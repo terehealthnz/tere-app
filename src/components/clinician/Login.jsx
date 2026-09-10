@@ -127,6 +127,12 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerCanPrescribe', String(p.can_prescribe ?? true))
       sessionStorage.setItem('providerCanRefer', String(p.can_refer ?? true))
       sessionStorage.setItem('providerCanAcc', String(p.can_acc ?? true))
+      // Authorised-signer flag (contractor governance): only these providers
+      // may countersign contractor agreements on Tere Health's behalf. The
+      // Admin UI hides the "Countersign" button when this is false — the
+      // server enforces the same rule regardless.
+      sessionStorage.setItem('providerIsAuthorisedSigner', String(p.is_authorised_signer === true))
+      if (p.email) sessionStorage.setItem('providerEmail', p.email)
       sessionStorage.setItem('providerColor', p.color || '#0B6E76')
       if (p.prescriber_number) sessionStorage.setItem('prescriberNumber', p.prescriber_number)
       if (p.cpn) sessionStorage.setItem('providerCpn', p.cpn)
