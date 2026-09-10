@@ -1060,7 +1060,7 @@ export async function buildOfferPdf(data) {
     y = 90
 
     // Title + date
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('Letter of Offer', M, y)
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('Independent Contractor Offer', M, y)
     y += 24
     const issued = offer.created_at ? new Date(offer.created_at) : new Date()
     doc.fillColor('#666').font('Helvetica').fontSize(10)

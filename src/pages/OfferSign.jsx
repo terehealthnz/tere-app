@@ -229,7 +229,7 @@ export default function OfferSign() {
     <div style={S.pageWrap}>
       <div style={S.card}>
         <div style={S.brandChip}>Tere</div>
-        <h1 style={{ ...S.h1, marginTop: 16 }}>Letter of Offer</h1>
+        <h1 style={{ ...S.h1, marginTop: 16 }}>Independent Contractor Offer</h1>
         <p style={{ color: '#6B7280', fontSize: '.9rem', margin: '0 0 24px' }}>
           Kia ora {firstName} — please review the terms and add your signature.
         </p>
