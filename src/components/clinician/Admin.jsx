@@ -324,6 +324,87 @@ function SupportPanel() {
 // the parent surfaces via a green banner. Auto-generates 6-digit PIN if empty.
 const COLOR_SWATCHES = ['#0B6E76','#7C3AED','#DC2626','#059669','#D97706','#0EA5E9','#EC4899','#0D2B45']
 
+// AdminComplianceViewer — read-only summary of another provider's APC +
+// Medical Indemnity compliance state. Loads via the existing
+// provider_compliance endpoint (admin can view any provider's row).
+// Includes a link to each PDF (signed URL, 1h expiry) so admin can
+// eyeball the actual certificate.
+function AdminComplianceViewer({ providerId }) {
+  const [state, setState] = React.useState({ loading: true, compliance: null, err: '' })
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { getProviderCompliance } = await import('../../lib/supabase')
+        const c = await getProviderCompliance(providerId)
+        if (!cancelled) setState({ loading: false, compliance: c, err: '' })
+      } catch (e) {
+        if (!cancelled) setState({ loading: false, compliance: null, err: e.message || 'load failed' })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [providerId])
+
+  function fmt(d) { return d ? new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' }
+  function expiryBadge(iso) {
+    if (!iso) return { bg: '#F3F4F6', fg: '#6B7280', label: 'no expiry' }
+    const days = Math.floor((new Date(iso) - new Date()) / 86_400_000)
+    if (days < 0)   return { bg: '#FEE2E2', fg: '#B91C1C', label: `EXPIRED ${-days}d ago` }
+    if (days <= 30) return { bg: '#FEF3C7', fg: '#B45309', label: `expires in ${days}d` }
+    return { bg: '#D1FAE5', fg: '#065F46', label: `valid until ${fmt(iso)}` }
+  }
+
+  if (state.loading) return <div style={{ fontSize: '.8rem', color: '#6B7280' }}>Loading…</div>
+  if (state.err)     return <div style={{ fontSize: '.8rem', color: '#B91C1C' }}>Error: {state.err}</div>
+  const c = state.compliance || {}
+  const apc = c.apc || {}
+  const mi  = c.medical_indemnity || {}
+  const apcBadge = expiryBadge(apc.expiry_date)
+  const miBadge  = expiryBadge(mi.expiry_date)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: '.75rem', color: c.completed_at ? '#065F46' : '#B45309', fontWeight: 700 }}>
+        {c.completed_at ? `✓ Compliance complete since ${fmt(c.completed_at)}` : '⚠ Compliance not yet complete — provider is blocked from the sandbox until both docs are on file and current.'}
+      </div>
+
+      <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.65rem .8rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, fontSize: '.85rem', color: '#0D2B45' }}>Annual Practising Certificate</div>
+          <span style={{ background: apcBadge.bg, color: apcBadge.fg, padding: '2px 8px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, textTransform: 'uppercase' }}>{apcBadge.label}</span>
+        </div>
+        {apc.uploaded_at ? (
+          <div style={{ fontSize: '.78rem', color: '#374151' }}>
+            APC #{apc.number || '—'} · uploaded {fmt(apc.uploaded_at)}
+            {apc.file_url && <> · <a href={apc.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76', textDecoration: 'underline' }}>view PDF</a></>}
+          </div>
+        ) : (
+          <div style={{ fontSize: '.78rem', color: '#6B7280', fontStyle: 'italic' }}>No APC on file.</div>
+        )}
+      </div>
+
+      <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.65rem .8rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, gap: 8, flexWrap: 'wrap' }}>
+          <div style={{ fontWeight: 700, fontSize: '.85rem', color: '#0D2B45' }}>Medical Indemnity</div>
+          <span style={{ background: miBadge.bg, color: miBadge.fg, padding: '2px 8px', borderRadius: 99, fontSize: '.7rem', fontWeight: 700, textTransform: 'uppercase' }}>{miBadge.label}</span>
+        </div>
+        {mi.uploaded_at ? (
+          <div style={{ fontSize: '.78rem', color: '#374151' }}>
+            {mi.insurer || '—'}{mi.policy_number ? ` · policy #${mi.policy_number}` : ''} · uploaded {fmt(mi.uploaded_at)}
+            {mi.file_url && <> · <a href={mi.file_url} target="_blank" rel="noopener noreferrer" style={{ color: '#0B6E76', textDecoration: 'underline' }}>view PDF</a></>}
+          </div>
+        ) : (
+          <div style={{ fontSize: '.78rem', color: '#6B7280', fontStyle: 'italic' }}>No Medical Indemnity on file.</div>
+        )}
+      </div>
+
+      <div style={{ fontSize: '.7rem', color: '#6B7280', fontStyle: 'italic' }}>
+        Provider uploads these self-service via /clinician/profile or the first-login compliance gate. Nightly cron flags expiries.
+      </div>
+    </div>
+  )
+}
+
 // SignaturePad — canvas the provider draws their signature into during
 // onboarding. Uploads the resulting PNG to Supabase Storage on demand and
 // returns the public URL via the onSaved callback. Uses pointer events so
@@ -1447,6 +1528,13 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                   </button>
                 )}
               </div>
+            </div>
+          )}
+
+          {form.is_provider && (
+            <div style={sectionStyle}>
+              <div style={sectionTitle}>Compliance documents (APC + Medical Indemnity)</div>
+              <AdminComplianceViewer providerId={provider.id} />
             </div>
           )}
 
