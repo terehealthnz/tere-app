@@ -1,20 +1,40 @@
 /**
  * Tere Scribe
  * Proprietary AI clinical documentation engine.
- * Deepgram Nova-3 Medical → transcript → Claude (Anthropic) → structured SOAP notes
+ * AWS Transcribe (ap-southeast-2) → transcript → Claude (Bedrock) → structured SOAP notes
  */
 import { apiFetch } from './api'
 
-// ── Transcription via Deepgram ────────────────────────────────────────────────
+// ── Transcription via AWS Transcribe (batch) ─────────────────────────────────
+// POSTs the recording to /api/transcribe which uploads to S3 and starts a
+// TranscriptionJob. We then poll /api/transcribe-status until COMPLETED (or
+// FAILED / timeout) — Transcribe usually finishes in roughly 0.3-0.5× the
+// audio duration, so a 10-min consult transcribes in ~3-5 min. Timeout cap
+// is generous to handle the occasional slow batch under queue pressure.
+const POLL_INTERVAL_MS = 4000
+const MAX_WAIT_MS      = 10 * 60 * 1000    // 10 minutes
+
 export async function transcribeAudio(audioBlob) {
-  const res = await apiFetch('/api/transcribe', {
+  const startRes = await apiFetch('/api/transcribe', {
     method: 'POST',
     headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
     body: audioBlob,
   })
-  if (!res.ok) throw new Error('Transcription failed')
-  const { text } = await res.json()
-  return text
+  if (!startRes.ok) throw new Error('Transcription start failed')
+  const { jobName } = await startRes.json()
+  if (!jobName) throw new Error('Transcription: no jobName returned')
+
+  const deadline = Date.now() + MAX_WAIT_MS
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+    const r = await apiFetch(`/api/transcribe-status?jobName=${encodeURIComponent(jobName)}`)
+    if (!r.ok) throw new Error(`Transcription status ${r.status}`)
+    const body = await r.json()
+    if (body.status === 'completed') return body.text || ''
+    if (body.status === 'failed')    throw new Error(`Transcription failed: ${body.error || 'unknown'}`)
+    // in_progress / queued / unknown → keep polling
+  }
+  throw new Error('Transcription timed out')
 }
 
 // ── Note generation via Claude ────────────────────────────────────────────────

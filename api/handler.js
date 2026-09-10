@@ -275,6 +275,7 @@ const ROUTES = {
   'au-waitlist':               () => import('./_au-waitlist.js'),
   'send-to-gp':                () => import('./_send-to-gp.js'),
   'transcribe':                () => import('./_transcribe.js'),
+  'transcribe-status':         () => import('./_transcribe-status.js'),
   'translate':                 () => import('./_translate.js'),
   'verify-acc':                () => import('./_verify-acc.js'),
   'schedule':                  () => import('./_schedule.js'),
