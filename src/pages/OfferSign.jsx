@@ -101,6 +101,8 @@ export default function OfferSign() {
   const [offer, setOffer] = useState(null)
   const [applicant, setApplicant] = useState(null)
   const [typedName, setTypedName] = useState('')
+  const [noticeAddress, setNoticeAddress] = useState('')
+  const [noticeEmail,   setNoticeEmail]   = useState('')
   const [sigPng,    setSigPng]    = useState(null)
   const [ackContract, setAckContract] = useState(false)   // ticked when applicant confirms attached PDF read
   const [errorMsg,  setErrorMsg]  = useState('')
@@ -125,7 +127,13 @@ export default function OfferSign() {
         }
         setOffer(body.offer)
         setApplicant(body.applicant)
-        setTypedName([body.applicant?.first_name, body.applicant?.last_name].filter(Boolean).join(' '))
+        // Pre-fill from what the server already knows. Any field left blank
+        // will render as the "to be completed on signing" placeholder in
+        // the contract text — updated live as the applicant types.
+        const snap = body.offer?.contractor_snapshot || {}
+        setTypedName(snap.full_name || [body.applicant?.first_name, body.applicant?.last_name].filter(Boolean).join(' '))
+        setNoticeAddress(snap.address || '')
+        setNoticeEmail(snap.notice_email || snap.email || body.applicant?.email || '')
         setState('ready')
       } catch (e) {
         if (!cancelled) { setErrorMsg(e.message || 'Network error'); setState('error') }
@@ -136,7 +144,15 @@ export default function OfferSign() {
 
   async function submit() {
     if (typedName.trim().length < 2) {
-      setErrorMsg('Please type your full name.')
+      setErrorMsg('Please type your full legal name.')
+      return
+    }
+    if (noticeAddress.trim().length < 5) {
+      setErrorMsg('Please enter your postal address for legal notices.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(noticeEmail.trim())) {
+      setErrorMsg('Please enter a valid email for legal notices.')
       return
     }
     const hasContractDoc = !!offer?.contract_pdf_url || !!offer?.contract_version
@@ -154,6 +170,11 @@ export default function OfferSign() {
           typedName: typedName.trim(),
           signaturePng: sigPng,
           acknowledgedContract: (offer?.contract_pdf_url || offer?.contract_version) ? ackContract : undefined,
+          signingDetails: {
+            full_name:    typedName.trim(),
+            address:      noticeAddress.trim(),
+            notice_email: noticeEmail.trim(),
+          },
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -247,18 +268,77 @@ export default function OfferSign() {
           <div style={S.termsBody}>{offer?.contract_terms}</div>
         </div>
 
+        {offer?.contract_version && (
+          <div style={{ marginTop: 24, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '16px 18px' }}>
+            <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+              Step 1 — Your contract details
+            </div>
+            <p style={{ fontSize: '.85rem', color: '#78350F', lineHeight: 1.5, margin: '0 0 14px' }}>
+              These are the only identity details we need in the contract itself. Your MCNZ, CPN, ACC and IRD details are captured separately during onboarding — they're not embedded in this agreement.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '.75rem', color: '#78350F', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                  Full legal name (as on your APC / passport)
+                </label>
+                <input
+                  type="text"
+                  value={typedName}
+                  onChange={e => setTypedName(e.target.value)}
+                  disabled={state === 'submitting'}
+                  placeholder="e.g. Dr Jane Elizabeth Cook"
+                  style={{ ...S.input, background: 'white' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '.75rem', color: '#78350F', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                  Postal address (for legal notices)
+                </label>
+                <input
+                  type="text"
+                  value={noticeAddress}
+                  onChange={e => setNoticeAddress(e.target.value)}
+                  disabled={state === 'submitting'}
+                  placeholder="e.g. 12 Example Street, Newtown, Wellington 6021"
+                  style={{ ...S.input, background: 'white' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '.75rem', color: '#78350F', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
+                  Notice email
+                </label>
+                <input
+                  type="email"
+                  value={noticeEmail}
+                  onChange={e => setNoticeEmail(e.target.value)}
+                  disabled={state === 'submitting'}
+                  placeholder="you@example.com"
+                  style={{ ...S.input, background: 'white' }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {offer?.contract_version && (() => {
           const ContractRenderer = React.lazy(() => import('../contracts/ContractRenderer'))
+          const liveContractor = {
+            ...(offer.contractor_snapshot || {}),
+            full_name:    typedName.trim() || (offer.contractor_snapshot || {}).full_name,
+            address:      noticeAddress.trim() || (offer.contractor_snapshot || {}).address,
+            notice_email: noticeEmail.trim() || (offer.contractor_snapshot || {}).notice_email,
+            email:        noticeEmail.trim() || (offer.contractor_snapshot || {}).email,
+          }
           return (
-            <div style={{ marginTop: 24, border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ marginTop: 16, border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
               <div style={{ background: '#F0F9FA', padding: '10px 16px', borderBottom: '1px solid #C7EAEC', fontSize: '.85rem', color: '#0D2B45', fontWeight: 700 }}>
-                Independent Contractor Agreement — read below, tick the box, then sign
+                Step 2 — Read the agreement (your details are inserted live), tick the box, then sign
               </div>
               <div style={{ maxHeight: 480, overflowY: 'auto', background: 'white' }}>
                 <React.Suspense fallback={<div style={{ padding: 20, color: '#6B7280' }}>Loading contract…</div>}>
                   <ContractRenderer
                     version={offer.contract_version}
-                    contractor={offer.contractor_snapshot || {}}
+                    contractor={liveContractor}
                   />
                 </React.Suspense>
               </div>
@@ -323,21 +403,11 @@ export default function OfferSign() {
         )}
 
         <div style={{ marginTop: 32, borderTop: '1px solid #E2E8F0', paddingTop: 24 }}>
-          <div style={S.sectionTitle}>Your signature</div>
-          <label style={{ display: 'block', fontSize: '.8rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
-            Type your full name
-          </label>
-          <input
-            type="text"
-            value={typedName}
-            onChange={e => setTypedName(e.target.value)}
-            disabled={busy}
-            placeholder="e.g. Jane Cook"
-            style={S.input}
-          />
-          <div style={{ marginTop: 16 }}>
-            <InlineSignaturePad onChange={setSigPng} disabled={busy} />
-          </div>
+          <div style={S.sectionTitle}>Step 3 — Your signature</div>
+          <p style={{ color: '#6B7280', fontSize: '.85rem', margin: '0 0 12px' }}>
+            Your legal name from Step 1 above (<strong>{typedName || '—'}</strong>) will be recorded as your electronic signature. Optionally draw a handwritten mark below.
+          </p>
+          <InlineSignaturePad onChange={setSigPng} disabled={busy} />
           <p style={{ color: '#9CA3AF', fontSize: '.75rem', margin: '12px 0 0' }}>
             By clicking "Sign and submit", you agree to be bound by the terms above. Your typed name serves as your legal electronic signature.
           </p>
@@ -347,8 +417,14 @@ export default function OfferSign() {
           )}
 
           {(() => {
-            const needsAck = !!offer?.contract_pdf_url || !!offer?.contract_version
-            const disabled = busy || typedName.trim().length < 2 || (needsAck && !ackContract)
+            const hasContract = !!offer?.contract_pdf_url || !!offer?.contract_version
+            const needsIdentity = !!offer?.contract_version   // slim v8.1+ path
+            const disabled =
+              busy
+              || typedName.trim().length < 2
+              || (needsIdentity && noticeAddress.trim().length < 5)
+              || (needsIdentity && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(noticeEmail.trim()))
+              || (hasContract && !ackContract)
             return (
               <button
                 onClick={submit}

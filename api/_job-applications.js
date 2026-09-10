@@ -619,7 +619,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST' && action === 'sign_offer') {
     const supabase = admin()
-    const { token, typedName, signaturePng, acknowledgedContract } = req.body || {}
+    const { token, typedName, signaturePng, acknowledgedContract, signingDetails } = req.body || {}
     const cleanToken = String(token || '').trim()
     const cleanName  = String(typedName || '').trim()
     if (!cleanToken || cleanToken.length < 20) return res.status(400).json({ error: 'invalid token' })
@@ -636,7 +636,7 @@ export default async function handler(req, res) {
 
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
-      .select('id, application_id, status, contract_pdf_key, contract_version')
+      .select('id, application_id, status, contract_pdf_key, contract_version, contractor_snapshot')
       .eq('applicant_sign_token', cleanToken)
       .maybeSingle()
     if (oErr) { console.error('[offer] sign lookup failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
@@ -654,6 +654,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Please tick the box confirming you have read and agree to the agreement.' })
     }
 
+    // Slim v8.1+ path: the sign page collects the three identity fields
+    // that appear inline in the contract (full name / address / notice
+    // email). Merge them into the snapshot so the archived PDF renders
+    // with real values. Server-side is authoritative — reject a signing
+    // attempt without an address on any contract-versioned offer.
+    let mergedSnapshot = offer.contractor_snapshot || null
+    if (offer.contract_version) {
+      const det = signingDetails && typeof signingDetails === 'object' ? signingDetails : {}
+      const address     = String(det.address || '').trim()
+      const noticeEmail = String(det.notice_email || '').trim()
+      const detFullName = String(det.full_name || cleanName || '').trim()
+      if (address.length < 5) {
+        return res.status(400).json({ error: 'Please enter your postal address for legal notices.' })
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(noticeEmail)) {
+        return res.status(400).json({ error: 'Please enter a valid email for legal notices.' })
+      }
+      mergedSnapshot = {
+        ...(offer.contractor_snapshot || {}),
+        full_name:    detFullName,
+        address,
+        notice_email: noticeEmail,
+        email:        noticeEmail,
+        contractor_signed_date: new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }),
+      }
+    }
+
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
     const ua = String(req.headers['user-agent'] || '').slice(0, 400)
 
@@ -668,6 +695,7 @@ export default async function handler(req, res) {
         applicant_signed_user_agent: ua,
         applicant_signed_at:         new Date().toISOString(),
         applicant_acknowledged_contract_at: hasContractDoc ? new Date().toISOString() : null,
+        contractor_snapshot:         mergedSnapshot,
       })
       .eq('id', offer.id)
       .eq('status', 'sent')

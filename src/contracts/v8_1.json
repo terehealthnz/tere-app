@@ -22,9 +22,9 @@
       "text": "Doctor"
     },
     {
-      "type": "para",
-      "text": "PRINCIPALTere Health LimitedNZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201andCONTRACTOR{{contractor_full_name}}{{contractor_address}}MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID{{contractor_acc_id}}PRINCIPALTere Health LimitedNZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201andCONTRACTOR{{contractor_full_name}}{{contractor_address}}MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID{{contractor_acc_id}}",
-      "bold": true
+      "type": "heading",
+      "level": 2,
+      "text": "Parties"
     },
     {
       "type": "para",
@@ -33,16 +33,20 @@
     },
     {
       "type": "para",
-      "text": "Tere Health Limited",
+      "text": "Tere Health Limited"
+    },
+    {
+      "type": "para",
+      "text": "NZBN 9429053723413 | Registered in New Zealand"
+    },
+    {
+      "type": "para",
+      "text": "41 Adams Lane, Springlands, Blenheim 7201"
+    },
+    {
+      "type": "para",
+      "text": "and",
       "bold": true
-    },
-    {
-      "type": "para",
-      "text": "NZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201"
-    },
-    {
-      "type": "para",
-      "text": "and"
     },
     {
       "type": "para",
@@ -51,66 +55,15 @@
     },
     {
       "type": "para",
-      "text": "{{contractor_full_name}}",
-      "bold": true
+      "text": "{{contractor_full_name}}"
     },
     {
       "type": "para",
-      "text": "{{contractor_address}}",
-      "bold": true
+      "text": "{{contractor_address}}"
     },
     {
       "type": "para",
-      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_acc_id}}",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "PRINCIPAL",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "Tere Health Limited",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "NZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201"
-    },
-    {
-      "type": "para",
-      "text": "and"
-    },
-    {
-      "type": "para",
-      "text": "CONTRACTOR",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_full_name}}",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_address}}",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_acc_id}}",
-      "bold": true
+      "text": "Professional registration details (MCNZ registration and scope, HPI-CPN, ACC Provider ID, IRD number, and GST registration status) are as recorded in Tere Health's provider profile from time to time. The Contractor is responsible for keeping those details current and notifying Tere Health of any material change (see clause 4.4)."
     },
     {
       "type": "para",
@@ -1123,13 +1076,12 @@
     },
     {
       "type": "para",
-      "text": "{{contractor_full_name}}{{contractor_full_name}}",
+      "text": "{{contractor_full_name}}",
       "bold": true
     },
     {
       "type": "para",
-      "text": "{{contractor_full_name}}",
-      "bold": true
+      "text": "Professional registration details (MCNZ registration and scope, HPI-CPN, ACC Provider ID, IRD number, and GST registration status) are as recorded in Tere Health's provider profile from time to time. The Contractor is responsible for keeping those details current and notifying Tere Health of any material change (see clause 4.4)."
     },
     {
       "type": "para",
@@ -1196,31 +1148,6 @@
     {
       "type": "para",
       "text": "Contractor",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_full_name}}",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_cpn}} · ACC Provider ID",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_acc_id}} · IRD {{contractor_ird}}",
-      "bold": true
-    },
-    {
-      "type": "para",
-      "text": "{{contractor_gst_optional}}",
       "bold": true
     },
     {
