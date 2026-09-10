@@ -3116,7 +3116,7 @@ function OfferTemplatesSection() {
   const [templates, setTemplates] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [editing, setEditing] = React.useState(null)   // null | 'new' | <id>
-  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0 })
+  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false })
   const [msg, setMsg] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
@@ -3131,7 +3131,7 @@ function OfferTemplatesSection() {
   React.useEffect(() => { load() }, [])
 
   function startNew() {
-    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10 })
+    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false })
     setEditing('new'); setMsg('')
   }
   function startEdit(t) {
@@ -3141,20 +3141,47 @@ function OfferTemplatesSection() {
       compensationDefault: t.compensation_default,
       contractTerms: t.contract_terms,
       sortOrder: t.sort_order,
+      contractPdfBase64: null,
+      contractPdfName: null,
+      existingPdfName: t.contract_pdf_name || null,
+      clearPdf: false,
     })
     setEditing(t.id); setMsg('')
   }
   function cancel() { setEditing(null); setMsg('') }
 
+  async function handlePdfFile(file) {
+    if (!file) return
+    if (file.type !== 'application/pdf') { setMsg('Only PDF files accepted.'); return }
+    if (file.size > 4 * 1024 * 1024) { setMsg('PDF exceeds 4MB limit.'); return }
+    try {
+      const { fileToBase64 } = await import('../../lib/supabase')
+      const b64 = await fileToBase64(file)
+      setForm(f => ({ ...f, contractPdfBase64: b64, contractPdfName: file.name, clearPdf: false }))
+      setMsg('PDF ready to upload on save.')
+    } catch (e) { setMsg('Could not read PDF: ' + (e.message || 'read error')) }
+  }
+
   async function save() {
     setSaving(true); setMsg('')
     try {
       const { createOfferTemplate, updateOfferTemplate } = await import('../../lib/supabase')
+      const payload = {
+        name: form.name,
+        roleTitleDefault: form.roleTitleDefault,
+        compensationDefault: form.compensationDefault,
+        contractTerms: form.contractTerms,
+        sortOrder: form.sortOrder,
+        // Only include PDF fields when there's a change — server treats
+        // absence as "leave PDF untouched".
+        ...(form.contractPdfBase64 ? { contractPdfBase64: form.contractPdfBase64, contractPdfName: form.contractPdfName } : {}),
+        ...(form.clearPdf ? { clearPdf: true } : {}),
+      }
       if (editing === 'new') {
-        await createOfferTemplate(form)
+        await createOfferTemplate(payload)
         setMsg('Template created.')
       } else {
-        await updateOfferTemplate(editing, form)
+        await updateOfferTemplate(editing, payload)
         setMsg('Template updated.')
       }
       setEditing(null)
@@ -3221,10 +3248,44 @@ function OfferTemplatesSection() {
                 <input type="number" value={form.sortOrder} onChange={e => setForm(f => ({ ...f, sortOrder: Number(e.target.value) || 0 }))} style={input} disabled={saving} />
               </div>
             </div>
-            <label style={label}>Contract terms (renders in the offer PDF verbatim)</label>
-            <textarea rows={10} value={form.contractTerms} onChange={e => setForm(f => ({ ...f, contractTerms: e.target.value }))}
-              placeholder="Hours, scope, notice period, confidentiality, IP, DR clause…"
+            <label style={label}>Contract terms (short summary — full agreement can be attached as a PDF below)</label>
+            <textarea rows={6} value={form.contractTerms} onChange={e => setForm(f => ({ ...f, contractTerms: e.target.value }))}
+              placeholder="Short summary paragraph — renders in the offer wrapper PDF above the applicant's signature block. If no PDF is attached, this is the full terms body."
               style={{ ...input, lineHeight: 1.55, resize: 'vertical' }} disabled={saving} />
+
+            <label style={label}>Attached agreement PDF (optional — recommended for formal contracts)</label>
+            <div style={{ background: 'white', border: '1px dashed #CBD5E1', borderRadius: 6, padding: '10px 12px', marginBottom: 12 }}>
+              {(form.contractPdfName || (form.existingPdfName && !form.clearPdf)) ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontSize: '.85rem', color: '#0D2B45' }}>
+                    <span style={{ color: '#0B6E76', fontWeight: 700, marginRight: 6 }}>📎</span>
+                    {form.contractPdfName || form.existingPdfName}
+                    {form.contractPdfName && <span style={{ color: '#0B6E76', fontSize: '.72rem', marginLeft: 8 }}>NEW — will replace on save</span>}
+                    {!form.contractPdfName && form.existingPdfName && <span style={{ color: '#6B7280', fontSize: '.72rem', marginLeft: 8 }}>currently attached</span>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, contractPdfBase64: null, contractPdfName: null, clearPdf: !!f.existingPdfName }))}
+                    style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '.72rem' }}
+                    disabled={saving}
+                  >Remove</button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={e => handlePdfFile(e.target.files?.[0])}
+                    disabled={saving}
+                    style={{ fontSize: '.85rem' }}
+                  />
+                  <div style={{ fontSize: '.72rem', color: '#6B7280', marginTop: 4 }}>
+                    Max 4MB. When attached, the offer wrapper links to this PDF and the applicant must acknowledge it before signing.
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={save} disabled={saving || form.name.trim().length < 2} style={btn('primary')}>
                 {saving ? 'Saving…' : (editing === 'new' ? 'Create template' : 'Save changes')}
@@ -3248,6 +3309,11 @@ function OfferTemplatesSection() {
                     <div style={{ color: '#6B7280', fontSize: '.8rem', marginTop: 2 }}>
                       {t.role_title_default} · {t.compensation_default}
                     </div>
+                    {t.contract_pdf_name && (
+                      <div style={{ color: '#0B6E76', fontSize: '.72rem', marginTop: 4, fontWeight: 600 }}>
+                        📎 {t.contract_pdf_name}
+                      </div>
+                    )}
                     <div style={{ color: '#9CA3AF', fontSize: '.72rem', marginTop: 6, whiteSpace: 'pre-wrap', maxHeight: 60, overflow: 'hidden' }}>
                       {t.contract_terms.length > 200 ? t.contract_terms.slice(0, 200) + '…' : t.contract_terms}
                     </div>
@@ -3844,6 +3910,11 @@ function ApplicantDetail({ id, onClose, onChanged }) {
         compensation: compensation.trim(),
         startDate: startDate || null,
         contractTerms: contractTerms.trim(),
+        // Pass templateId so server can snapshot the attached contract PDF
+        // (if the template has one) onto this offer row. The wrapper PDF
+        // then renders as a short letter with a "read the attached
+        // agreement" pointer instead of a wall of text.
+        templateId: selectedTemplateId || null,
       })
       setOfferMsg(`Offer emailed to applicant. Sign link: ${body.signUrl}`)
       setShowCreateOffer(false)

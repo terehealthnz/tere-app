@@ -1093,13 +1093,27 @@ export async function buildOfferPdf(data) {
     doc.font('Helvetica').fontSize(10.5).fillColor('#1A2A33').text('Tere Health Limited', M + 100, y + 78, { width: W - M * 2 - 110 })
     y += 110
 
-    // Terms body
+    // Terms body — when a contract PDF is attached, render a short
+    // reference paragraph instead of the wall-of-text `contract_terms`.
+    // The formatted agreement itself (v8.x etc.) lives in the attached
+    // PDF and preserves its own headings, numbered clauses, Schedule
+    // tables — none of which pdfkit's plain .text() can reproduce.
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12).text('Terms of engagement', M, y)
     y += 18
     doc.moveTo(M, y - 2).lineTo(W - M, y - 2).strokeColor('#0B6E76').lineWidth(1).stroke()
     y += 4
-    doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
-      .text(offer.contract_terms || '', M, y, { width: W - M * 2, lineGap: 3 })
+    if (offer.contract_pdf_name) {
+      const attachmentBlurb =
+        `The full terms of this engagement are set out in the attached document "${offer.contract_pdf_name}", ` +
+        `which forms part of this offer. By signing below, you confirm that you have read, understood, and agree ` +
+        `to be bound by that agreement.\n\n` +
+        (offer.contract_terms || '')
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
+        .text(attachmentBlurb, M, y, { width: W - M * 2, lineGap: 3 })
+    } else {
+      doc.fillColor('#1A2A33').font('Helvetica').fontSize(10)
+        .text(offer.contract_terms || '', M, y, { width: W - M * 2, lineGap: 3 })
+    }
     y = doc.y + 20
 
     // Signature blocks — page-break if we're low.

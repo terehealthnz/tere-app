@@ -102,6 +102,7 @@ export default function OfferSign() {
   const [applicant, setApplicant] = useState(null)
   const [typedName, setTypedName] = useState('')
   const [sigPng,    setSigPng]    = useState(null)
+  const [ackContract, setAckContract] = useState(false)   // ticked when applicant confirms attached PDF read
   const [errorMsg,  setErrorMsg]  = useState('')
 
   useEffect(() => {
@@ -138,12 +139,21 @@ export default function OfferSign() {
       setErrorMsg('Please type your full name.')
       return
     }
+    if (offer?.contract_pdf_url && !ackContract) {
+      setErrorMsg('Please tick the box confirming you have read and agree to the attached agreement.')
+      return
+    }
     setState('submitting'); setErrorMsg('')
     try {
       const res = await fetch('/api/job-applications?action=sign_offer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, typedName: typedName.trim(), signaturePng: sigPng }),
+        body: JSON.stringify({
+          token,
+          typedName: typedName.trim(),
+          signaturePng: sigPng,
+          acknowledgedContract: offer?.contract_pdf_url ? ackContract : undefined,
+        }),
       })
       const body = await res.json().catch(() => ({}))
       if (res.status === 409) { setState('already'); return }
@@ -236,6 +246,50 @@ export default function OfferSign() {
           <div style={S.termsBody}>{offer?.contract_terms}</div>
         </div>
 
+        {offer?.contract_pdf_url && (
+          <div style={{
+            marginTop: 20,
+            background: '#F0F9FA',
+            border: '1px solid #C7EAEC',
+            borderRadius: 10,
+            padding: '16px 18px',
+          }}>
+            <div style={{ fontSize: '.95rem', fontWeight: 700, color: '#0D2B45', marginBottom: 6 }}>
+              📎 Attached: {offer.contract_pdf_name || 'Independent Contractor Agreement'}
+            </div>
+            <p style={{ fontSize: '.85rem', color: '#374151', lineHeight: 1.6, margin: '0 0 12px' }}>
+              The full terms of this engagement are set out in the attached agreement. Please open, read, and download a copy for your records before signing.
+            </p>
+            <a
+              href={offer.contract_pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'inline-block',
+                background: '#0B6E76',
+                color: 'white',
+                textDecoration: 'none',
+                padding: '10px 18px',
+                borderRadius: 8,
+                fontSize: '.9rem',
+                fontWeight: 700,
+              }}
+            >Open the agreement (PDF)</a>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 16, cursor: 'pointer', fontSize: '.9rem', color: '#0D2B45', lineHeight: 1.5 }}>
+              <input
+                type="checkbox"
+                checked={ackContract}
+                onChange={e => setAckContract(e.target.checked)}
+                disabled={busy}
+                style={{ marginTop: 3, width: 16, height: 16, flexShrink: 0 }}
+              />
+              <span>
+                I have read the attached <strong>{offer.contract_pdf_name || 'Independent Contractor Agreement'}</strong> and agree to be bound by it.
+              </span>
+            </label>
+          </div>
+        )}
+
         <div style={{ marginTop: 32, borderTop: '1px solid #E2E8F0', paddingTop: 24 }}>
           <div style={S.sectionTitle}>Your signature</div>
           <label style={{ display: 'block', fontSize: '.8rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>
@@ -260,20 +314,26 @@ export default function OfferSign() {
             <div style={{ color: '#991B1B', fontSize: '.85rem', marginTop: 12 }}>{errorMsg}</div>
           )}
 
-          <button
-            onClick={submit}
-            disabled={busy || typedName.trim().length < 2}
-            style={{
-              display: 'block', width: '100%', marginTop: 20,
-              background: (busy || typedName.trim().length < 2) ? '#94A3B8' : '#0B6E76',
-              color: 'white', border: 'none',
-              padding: '14px 32px', borderRadius: 12,
-              fontSize: '1rem', fontWeight: 700,
-              cursor: (busy || typedName.trim().length < 2) ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit',
-            }}>
-            {busy ? 'Signing…' : 'Sign and submit'}
-          </button>
+          {(() => {
+            const needsAck = !!offer?.contract_pdf_url
+            const disabled = busy || typedName.trim().length < 2 || (needsAck && !ackContract)
+            return (
+              <button
+                onClick={submit}
+                disabled={disabled}
+                style={{
+                  display: 'block', width: '100%', marginTop: 20,
+                  background: disabled ? '#94A3B8' : '#0B6E76',
+                  color: 'white', border: 'none',
+                  padding: '14px 32px', borderRadius: 12,
+                  fontSize: '1rem', fontWeight: 700,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                }}>
+                {busy ? 'Signing…' : 'Sign and submit'}
+              </button>
+            )
+          })()}
         </div>
       </div>
     </div>

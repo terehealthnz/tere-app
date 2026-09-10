@@ -84,6 +84,48 @@ const APPLY_ALLOWLIST = new Set([
   'nz_eligibility_confirmed',
 ])
 
+// Upload a base64-encoded contract PDF to the `offer-contracts` storage
+// bucket. Caller passes a raw base64 string OR a data URL. Returns
+// { key, name } on success or { error } on validation failure. Used by
+// both create/update template endpoints so the surface is consistent.
+//
+// Size cap: 4 MB. That's generous for a 20-30 page contract with logo +
+// signature imagery. Anything bigger is almost certainly a scanned image
+// PDF and should be re-exported as text-based.
+const MAX_CONTRACT_PDF_BYTES = 4 * 1024 * 1024
+async function uploadOfferContractPdf(supabase, base64OrDataUrl, filename) {
+  if (typeof base64OrDataUrl !== 'string' || !base64OrDataUrl) {
+    return { error: 'contractPdfBase64 required' }
+  }
+  const raw = base64OrDataUrl.startsWith('data:')
+    ? base64OrDataUrl.slice(base64OrDataUrl.indexOf(',') + 1)
+    : base64OrDataUrl
+  let buf
+  try { buf = Buffer.from(raw, 'base64') }
+  catch { return { error: 'contractPdfBase64 not valid base64' } }
+  if (buf.byteLength < 500) return { error: 'contract PDF too small — did the upload get truncated?' }
+  if (buf.byteLength > MAX_CONTRACT_PDF_BYTES) return { error: `contract PDF exceeds ${(MAX_CONTRACT_PDF_BYTES / 1024 / 1024).toFixed(0)}MB` }
+  // Header check: %PDF at byte 0.
+  if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) {
+    return { error: 'file is not a PDF' }
+  }
+
+  // Storage key: templates/YYYYMMDD-<random>.pdf. Random component avoids
+  // filename-based collision when admin uploads multiple versions rapidly.
+  const day = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const rand = randomBytes(8).toString('hex')
+  const key = `templates/${day}-${rand}.pdf`
+  const safeName = (String(filename || 'contract.pdf').replace(/[\r\n\0]/g, '').slice(0, 200)) || 'contract.pdf'
+
+  const { error: upErr } = await supabase.storage.from('offer-contracts')
+    .upload(key, buf, { contentType: 'application/pdf', upsert: false, cacheControl: '31536000' })
+  if (upErr) {
+    console.error('[offer_templates] pdf upload failed:', upErr)
+    return { error: 'contract PDF upload failed' }
+  }
+  return { key, name: safeName }
+}
+
 // Extract 2-letter country code from Vercel / Cloudflare geo headers. Vercel
 // sets x-vercel-ip-country on every edge request; Cloudflare sets cf-ipcountry.
 // Returns 'XX' when neither header is present (local dev / unknown proxy).
@@ -533,7 +575,7 @@ export default async function handler(req, res) {
 
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
-      .select('id, application_id, role_title, compensation, start_date, contract_terms, status, applicant_signed_at, countersigned_at, created_at')
+      .select('id, application_id, role_title, compensation, start_date, contract_terms, contract_pdf_key, contract_pdf_name, status, applicant_signed_at, countersigned_at, created_at')
       .eq('applicant_sign_token', token)
       .maybeSingle()
     if (oErr) { console.error('[offer] get failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
@@ -553,20 +595,31 @@ export default async function handler(req, res) {
       })
     }
 
+    // Issue a 1hr signed URL for the attached agreement PDF if there is
+    // one. Applicant sees a "View attached agreement" link and must tick
+    // an acknowledgement before submitting their signature.
+    let contractPdfUrl = null
+    if (offer.contract_pdf_key) {
+      const { data: signed, error: sErr } = await supabase.storage
+        .from('offer-contracts')
+        .createSignedUrl(offer.contract_pdf_key, 3600)
+      if (!sErr && signed?.signedUrl) contractPdfUrl = signed.signedUrl
+    }
+
     const { data: app } = await supabase
       .from('job_applications')
       .select('first_name, last_name, email')
       .eq('id', offer.application_id)
       .maybeSingle()
     return res.status(200).json({
-      offer,
+      offer: { ...offer, contract_pdf_url: contractPdfUrl },
       applicant: app ? { first_name: app.first_name, last_name: app.last_name, email: app.email } : null,
     })
   }
 
   if (req.method === 'POST' && action === 'sign_offer') {
     const supabase = admin()
-    const { token, typedName, signaturePng } = req.body || {}
+    const { token, typedName, signaturePng, acknowledgedContract } = req.body || {}
     const cleanToken = String(token || '').trim()
     const cleanName  = String(typedName || '').trim()
     if (!cleanToken || cleanToken.length < 20) return res.status(400).json({ error: 'invalid token' })
@@ -583,13 +636,20 @@ export default async function handler(req, res) {
 
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
-      .select('id, application_id, status')
+      .select('id, application_id, status, contract_pdf_key')
       .eq('applicant_sign_token', cleanToken)
       .maybeSingle()
     if (oErr) { console.error('[offer] sign lookup failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
     if (!offer) return res.status(404).json({ error: 'Offer not found' })
     if (offer.status !== 'sent') {
       return res.status(409).json({ error: 'This offer is no longer awaiting your signature.', status: offer.status })
+    }
+
+    // Enforce contract acknowledgement when an agreement PDF is attached.
+    // The applicant must have ticked the "I have read and agree to be
+    // bound by the attached Independent Contractor Agreement" checkbox.
+    if (offer.contract_pdf_key && acknowledgedContract !== true) {
+      return res.status(400).json({ error: 'Please tick the box confirming you have read and agree to the attached agreement.' })
     }
 
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
@@ -605,6 +665,7 @@ export default async function handler(req, res) {
         applicant_signed_ip:         ip,
         applicant_signed_user_agent: ua,
         applicant_signed_at:         new Date().toISOString(),
+        applicant_acknowledged_contract_at: offer.contract_pdf_key ? new Date().toISOString() : null,
       })
       .eq('id', offer.id)
       .eq('status', 'sent')
@@ -1574,7 +1635,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST' && action === 'create_offer') {
     if (!id) return res.status(400).json({ error: 'id (application_id) required' })
-    const { roleTitle, compensation, startDate, contractTerms } = req.body || {}
+    const { roleTitle, compensation, startDate, contractTerms, templateId } = req.body || {}
     const rt = String(roleTitle    || '').trim()
     const cp = String(compensation || '').trim()
     const ct = String(contractTerms|| '').trim()
@@ -1591,6 +1652,24 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (appErr || !app) return res.status(404).json({ error: 'Application not found' })
 
+    // If admin picked a template with an attached contract PDF, snapshot
+    // the pdf key + display name onto the offer row. Snapshotting protects
+    // this offer from later template edits — the applicant always signs
+    // against exactly the PDF version we sent them.
+    let contractPdfKey  = null
+    let contractPdfName = null
+    if (templateId) {
+      const { data: tpl } = await supabase
+        .from('offer_templates')
+        .select('contract_pdf_key, contract_pdf_name')
+        .eq('id', templateId)
+        .maybeSingle()
+      if (tpl?.contract_pdf_key) {
+        contractPdfKey  = tpl.contract_pdf_key
+        contractPdfName = tpl.contract_pdf_name || 'contract.pdf'
+      }
+    }
+
     const signToken = randomBytes(24).toString('base64url')
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
@@ -1601,6 +1680,8 @@ export default async function handler(req, res) {
         compensation:            cp,
         start_date:              sd || null,
         contract_terms:          ct,
+        contract_pdf_key:        contractPdfKey,
+        contract_pdf_name:       contractPdfName,
         applicant_sign_token:    signToken,
         status:                  'sent',
       })
@@ -2172,7 +2253,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && action === 'offer_templates') {
     const { data, error } = await supabase
       .from('offer_templates')
-      .select('id, name, role_title_default, compensation_default, contract_terms, is_active, sort_order')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, is_active, sort_order')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
@@ -2192,6 +2273,18 @@ export default async function handler(req, res) {
     if (comp.length < 2 || comp.length > 200)  return res.status(400).json({ error: 'compensationDefault 2-200 chars required' })
     if (terms.length < 20 || terms.length > 20_000) return res.status(400).json({ error: 'contractTerms 20-20000 chars required' })
 
+    // Optional contract-PDF attachment. When present, the wrapper "Letter
+    // of Offer" PDF still uses `contract_terms` as a short summary; the
+    // full agreement (e.g. v8.1) lives in the attached PDF.
+    let pdfKey = null
+    let pdfName = null
+    if (typeof b.contractPdfBase64 === 'string' && b.contractPdfBase64) {
+      const uploaded = await uploadOfferContractPdf(supabase, b.contractPdfBase64, b.contractPdfName)
+      if (uploaded.error) return res.status(400).json({ error: uploaded.error })
+      pdfKey  = uploaded.key
+      pdfName = uploaded.name
+    }
+
     const { data, error } = await supabase
       .from('offer_templates')
       .insert({
@@ -2199,6 +2292,8 @@ export default async function handler(req, res) {
         role_title_default:     role,
         compensation_default:   comp,
         contract_terms:         terms,
+        contract_pdf_key:       pdfKey,
+        contract_pdf_name:      pdfName,
         sort_order:             Number.isInteger(b.sortOrder) ? b.sortOrder : 0,
         created_by_provider_id: auth.provider?.id || null,
       })
@@ -2219,6 +2314,22 @@ export default async function handler(req, res) {
     if (typeof b.contractTerms === 'string')         patch.contract_terms = b.contractTerms.trim().slice(0, 20_000)
     if (typeof b.isActive === 'boolean')             patch.is_active = b.isActive
     if (Number.isInteger(b.sortOrder))               patch.sort_order = b.sortOrder
+
+    // Contract PDF: three modes
+    //   contractPdfBase64 present  → new upload, replace whatever's there
+    //   clearPdf === true          → null both fields (leaves the old file in
+    //                                 storage as an orphan — cheap enough)
+    //   both absent                → PDF untouched
+    if (typeof b.contractPdfBase64 === 'string' && b.contractPdfBase64) {
+      const uploaded = await uploadOfferContractPdf(supabase, b.contractPdfBase64, b.contractPdfName)
+      if (uploaded.error) return res.status(400).json({ error: uploaded.error })
+      patch.contract_pdf_key  = uploaded.key
+      patch.contract_pdf_name = uploaded.name
+    } else if (b.clearPdf === true) {
+      patch.contract_pdf_key  = null
+      patch.contract_pdf_name = null
+    }
+
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
 
     const { error } = await supabase.from('offer_templates').update(patch).eq('id', id)

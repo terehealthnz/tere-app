@@ -1244,10 +1244,10 @@ export async function listOffers(applicationId) {
   return body.offers || []
 }
 
-export async function createOffer(applicationId, { roleTitle, compensation, startDate, contractTerms } = {}) {
+export async function createOffer(applicationId, { roleTitle, compensation, startDate, contractTerms, templateId } = {}) {
   const res = await apiFetch(`/api/job-applications?action=create_offer&id=${encodeURIComponent(applicationId)}`, {
     method: 'POST',
-    body: JSON.stringify({ roleTitle, compensation, startDate, contractTerms }),
+    body: JSON.stringify({ roleTitle, compensation, startDate, contractTerms, templateId }),
   })
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Offer create failed')
   return await res.json()
@@ -1378,10 +1378,10 @@ export async function listOfferTemplates() {
   return body.templates || []
 }
 
-export async function createOfferTemplate({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder } = {}) {
+export async function createOfferTemplate({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName } = {}) {
   const res = await apiFetch('/api/job-applications?action=create_offer_template', {
     method: 'POST',
-    body: JSON.stringify({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder }),
+    body: JSON.stringify({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName }),
   })
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Template create failed')
   return await res.json()
@@ -1394,6 +1394,25 @@ export async function updateOfferTemplate(templateId, patch = {}) {
   })
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Template update failed')
   return await res.json()
+}
+
+/**
+ * Read a File (from an <input type="file">) as base64 for POSTing to the
+ * offer-template PDF upload endpoint. Strips the `data:...;base64,` prefix
+ * that FileReader.readAsDataURL prepends so the server just gets the raw
+ * b64 payload it can Buffer.from().
+ */
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => {
+      const s = String(r.result || '')
+      const i = s.indexOf(',')
+      resolve(i >= 0 ? s.slice(i + 1) : s)
+    }
+    r.onerror = () => reject(new Error('file read failed'))
+    r.readAsDataURL(file)
+  })
 }
 
 export async function deleteOfferTemplate(templateId) {
