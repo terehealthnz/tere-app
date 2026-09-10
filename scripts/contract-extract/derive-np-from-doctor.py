@@ -50,8 +50,10 @@ REPLACEMENTS = [
     (re.compile(r'Medical Practitioner'), 'Nurse Practitioner'),
     # Bare MCNZ (last, after the specific standards names)
     (re.compile(r'MCNZ'), 'NCNZ'),
-    # Fee change
-    (re.compile(r'NZ\$25'), 'NZ$20'),
+    # Fee: doctor JSON is already {{fee_per_consult}}, so this is a
+    # no-op after 2026-09-10 fee parameterization. Kept for the case
+    # where a raw doctor JSON is fed in.
+    (re.compile(r'NZ\$25'), '{{fee_per_consult}}'),
     # Cover-page role marker
     (re.compile(r'^Doctor$'), 'Nurse Practitioner'),
 ]

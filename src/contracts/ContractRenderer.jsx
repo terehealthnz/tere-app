@@ -59,6 +59,10 @@ function substitute(text, contractor) {
     commencement_date:       contractor.commencement_date || 'as agreed with Tere Health',
     signer_name:             contractor.signer_name || 'Tere Health Limited',
     signer_title:            contractor.signer_title || 'Director',
+    // Per-template fee snapshotted from offer_templates.fee_per_consult
+    // (e.g. "NZ$25", "NZ$20"). Empty template = obvious blank so it's
+    // caught before the applicant signs.
+    fee_per_consult:         contractor.fee_per_consult || '[FEE PER CONSULT — NOT SET]',
     // Date fields on the signature blocks — filled at the signing /
     // countersigning event, never at render time.
     contractor_signed_date:  AT_SIGN,

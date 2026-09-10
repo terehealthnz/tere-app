@@ -3272,7 +3272,7 @@ function OfferTemplatesSection() {
   const [templates, setTemplates] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [editing, setEditing] = React.useState(null)   // null | 'new' | <id>
-  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '' })
+  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '', feePerConsult: '' })
   const [msg, setMsg] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
@@ -3287,7 +3287,7 @@ function OfferTemplatesSection() {
   React.useEffect(() => { load() }, [])
 
   function startNew() {
-    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '' })
+    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '', feePerConsult: '' })
     setEditing('new'); setMsg('')
   }
   function startEdit(t) {
@@ -3302,6 +3302,7 @@ function OfferTemplatesSection() {
       existingPdfName: t.contract_pdf_name || null,
       clearPdf: false,
       contractVersion: t.contract_version || '',
+      feePerConsult: t.fee_per_consult || '',
     })
     setEditing(t.id); setMsg('')
   }
@@ -3330,6 +3331,7 @@ function OfferTemplatesSection() {
         contractTerms: form.contractTerms,
         sortOrder: form.sortOrder,
         contractVersion: form.contractVersion || null,
+        feePerConsult:   form.feePerConsult || null,
         // Only include PDF fields when there's a change — server treats
         // absence as "leave PDF untouched".
         ...(form.contractPdfBase64 ? { contractPdfBase64: form.contractPdfBase64, contractPdfName: form.contractPdfName } : {}),
@@ -3411,16 +3413,33 @@ function OfferTemplatesSection() {
               placeholder="Short summary paragraph — renders in the offer wrapper PDF above the applicant's signature block. If no PDF is attached, this is the full terms body."
               style={{ ...input, lineHeight: 1.55, resize: 'vertical' }} disabled={saving} />
 
-            <label style={label}>In-code contract version (recommended — supersedes PDF)</label>
-            <input
-              value={form.contractVersion}
-              onChange={e => setForm(f => ({ ...f, contractVersion: e.target.value }))}
-              placeholder='e.g. "v8.1" (must exist in src/contracts/)'
-              style={{ ...input, marginBottom: 4 }}
-              disabled={saving}
-            />
-            <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: 12 }}>
-              When set, the applicant reads the contract on the sign page (with their name, address, MCNZ etc. substituted inline) instead of downloading a static PDF. Leave blank to fall back to the attached PDF below.
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={label}>In-code contract version (recommended — supersedes PDF)</label>
+                <input
+                  value={form.contractVersion}
+                  onChange={e => setForm(f => ({ ...f, contractVersion: e.target.value }))}
+                  placeholder='e.g. "v8.1" (must exist in src/contracts/)'
+                  style={{ ...input, marginBottom: 4 }}
+                  disabled={saving}
+                />
+                <div style={{ fontSize: '.72rem', color: '#6B7280' }}>
+                  When set, the applicant reads the contract on the sign page (with their name, address etc. substituted inline) instead of downloading a static PDF.
+                </div>
+              </div>
+              <div style={{ flex: '0 0 180px' }}>
+                <label style={label}>Fee per consultation</label>
+                <input
+                  value={form.feePerConsult}
+                  onChange={e => setForm(f => ({ ...f, feePerConsult: e.target.value }))}
+                  placeholder='e.g. "NZ$25", "NZ$20"'
+                  style={{ ...input, marginBottom: 4 }}
+                  disabled={saving}
+                />
+                <div style={{ fontSize: '.72rem', color: '#6B7280' }}>
+                  Substituted into {'{{'}fee_per_consult{'}}'} in the v8.1 contract text (Schedule Item 7).
+                </div>
+              </div>
             </div>
 
             <label style={label}>Attached agreement PDF (fallback — only used if no in-code version above)</label>

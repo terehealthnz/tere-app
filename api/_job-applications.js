@@ -2301,7 +2301,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && action === 'offer_templates') {
     const { data, error } = await supabase
       .from('offer_templates')
-      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, is_active, sort_order')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, fee_per_consult, is_active, sort_order')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
@@ -2338,6 +2338,10 @@ export default async function handler(req, res) {
     // linking out to the attached PDF. Both can coexist on one template
     // — precedence at render time is version > pdf > terms-only.
     const contractVersion = typeof b.contractVersion === 'string' && b.contractVersion.trim() ? b.contractVersion.trim().slice(0, 20) : null
+    // Per-template fee (e.g. "NZ$25", "NZ$20"). Free-form text so we can
+    // carry currency prefix + qualifier ("NZ$18 rural") without extra
+    // columns. Substituted into {{fee_per_consult}} in the JSON contract.
+    const feePerConsult = typeof b.feePerConsult === 'string' && b.feePerConsult.trim() ? b.feePerConsult.trim().slice(0, 60) : null
 
     const { data, error } = await supabase
       .from('offer_templates')
@@ -2349,6 +2353,7 @@ export default async function handler(req, res) {
         contract_pdf_key:       pdfKey,
         contract_pdf_name:      pdfName,
         contract_version:       contractVersion,
+        fee_per_consult:        feePerConsult,
         sort_order:             Number.isInteger(b.sortOrder) ? b.sortOrder : 0,
         is_active:              true,
         created_by_provider_id: auth.provider?.id || null,
@@ -2387,6 +2392,9 @@ export default async function handler(req, res) {
     }
     if (typeof b.contractVersion === 'string') {
       patch.contract_version = b.contractVersion.trim() ? b.contractVersion.trim().slice(0, 20) : null
+    }
+    if (typeof b.feePerConsult === 'string') {
+      patch.fee_per_consult = b.feePerConsult.trim() ? b.feePerConsult.trim().slice(0, 60) : null
     }
 
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
@@ -2578,7 +2586,7 @@ export default async function handler(req, res) {
 
     const { data: tpl } = await supabase
       .from('offer_templates')
-      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, is_active')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, fee_per_consult, is_active')
       .eq('id', templateId)
       .maybeSingle()
     if (!tpl) return res.status(404).json({ error: 'Template not found' })
@@ -2614,6 +2622,11 @@ export default async function handler(req, res) {
       notice_email: prov.email || null,
       signer_name:  'Tere Health Limited',
       signer_title: 'Authorised Signatory',
+      // Per-template fee (e.g. "NZ$25", "NZ$20"). Contract JSON uses
+      // {{fee_per_consult}} — the placeholder resolves to a hard-to-miss
+      // "[FEE PER CONSULT — NOT SET]" if this template hasn't had its
+      // fee configured yet.
+      fee_per_consult: tpl.fee_per_consult || null,
     }
 
     // Synthetic job_application so the offer flow slots in unchanged. Status

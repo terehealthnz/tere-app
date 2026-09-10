@@ -1229,7 +1229,7 @@
     },
     {
       "type": "para",
-      "text": "NZ$20 per completed Consultation (GST-inclusive if GST-registered; GST-exclusive if not). Payable fortnightly in arrears by direct bank transfer.",
+      "text": "{{fee_per_consult}} per completed Consultation (GST-inclusive if GST-registered; GST-exclusive if not). Payable fortnightly in arrears by direct bank transfer.",
       "bold": true
     },
     {
