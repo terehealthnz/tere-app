@@ -2304,6 +2304,7 @@ export default async function handler(req, res) {
         contract_pdf_name:      pdfName,
         contract_version:       contractVersion,
         sort_order:             Number.isInteger(b.sortOrder) ? b.sortOrder : 0,
+        is_active:              true,
         created_by_provider_id: auth.provider?.id || null,
       })
       .select('*')
