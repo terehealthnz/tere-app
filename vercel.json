@@ -58,6 +58,7 @@
     { "path": "/api/cron-compliance-expiry",    "schedule": "30 20 * * *" },
     { "path": "/api/cron-results-reconciliation","schedule": "45 20 * * *" },
     { "path": "/api/cron-clinical-anomalies",   "schedule": "0 21 * * *" },
-    { "path": "/api/cron-chime-cleanup",        "schedule": "0 15 * * *" }
+    { "path": "/api/cron-chime-cleanup",        "schedule": "0 15 * * *" },
+    { "path": "/api/cron-pretriage-cleanup",    "schedule": "15 4 * * *" }
   ]
 }
