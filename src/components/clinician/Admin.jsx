@@ -2222,7 +2222,14 @@ function ProvidersPanel() {
                       style={{ background:'#F0F9FA', color:'#0B6E76', border:'none', padding:'4px 12px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
                       Edit
                     </button>
-                    {p.email && (
+                    {p.email && (() => {
+                      // Governance: an admin cannot send a contract to
+                      // themselves. Server rejects with 400; hide the
+                      // button too so it never gets clicked.
+                      const _myEmail = (sessionStorage.getItem('providerEmail') || '').toLowerCase()
+                      const isSelf = _myEmail && _myEmail === String(p.email).toLowerCase()
+                      if (isSelf) return null
+                      return (
                       <button onClick={async () => {
                         // Send v8.x Independent Contractor Agreement to an
                         // existing provider. Fetch active PDF-attached templates,
@@ -2251,7 +2258,8 @@ function ProvidersPanel() {
                         style={{ background:'#EEF2FF', color:'#3730A3', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
                         {saving === p.id ? '…' : '📝 Send contract'}
                       </button>
-                    )}
+                      )
+                    })()}
                     {p.email && (
                       <button onClick={async () => {
                         const confirmed = window.confirm(`Rotate ${displayName}'s PIN and re-send welcome email to ${p.email}?\n\nTheir current PIN will stop working immediately.`)
