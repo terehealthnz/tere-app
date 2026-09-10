@@ -173,6 +173,29 @@ export default async function handler(req, res) {
 
   const supabase = admin()
 
+  // Payment gate — advancing to 'waiting' pages providers, so refuse unless
+  // payment has actually landed. Accepts any of:
+  //   - payment_status = 'authorised' | 'captured' (Windcave FPRN confirmed)
+  //   - payment_intent_id set (Stripe intent created + confirmed client-side)
+  //   - employer_paid = true (verified employer benefit — payment_amount=0)
+  // Without this, the client could PATCH status='waiting' without paying and
+  // paging providers.
+  if (patch.status === 'waiting') {
+    const { data: existing } = await supabase
+      .from('consultations')
+      .select('payment_status, payment_intent_id, employer_paid')
+      .eq('id', id)
+      .maybeSingle()
+    if (!existing) return res.status(404).json({ error: 'Consultation not found' })
+    const paymentOk =
+      ['authorised', 'captured'].includes(existing.payment_status) ||
+      !!existing.payment_intent_id ||
+      existing.employer_paid === true
+    if (!paymentOk) {
+      return res.status(402).json({ error: 'Payment required before entering the provider queue.' })
+    }
+  }
+
   // Handle the employer-paid path server-side. Client sends employer_id as a
   // *claim*; we verify against the employers table and, if it's a real active
   // employer, populate employer_id + employer_name + employer_paid + payment_amount

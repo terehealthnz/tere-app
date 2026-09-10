@@ -1667,7 +1667,7 @@ export default function AITriage() {
                 value={gpQuery}
                 onChange={e => setGpQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && gpQuery.trim()) { handleSendValue(gpQuery.trim()); setGpQuery(''); setGpResults([]) } }}
-                placeholder="GP name (e.g. Herling)"
+                placeholder="GP name"
                 autoFocus
                 style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
               />
