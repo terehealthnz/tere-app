@@ -154,14 +154,16 @@ export default function ClinicianLogin() {
       // Compliance gate: APC + Medical Indemnity must be on file with
       // future expiries before any sandbox / patient access. Server
       // auto-stamps compliance_completed_at when the trailing upload
-      // lands.
-      const complianceDone = !!p.compliance_completed_at
-      sessionStorage.setItem('providerComplianceCompleted', String(complianceDone))
+      // lands. Only clinical providers hit this gate — non-clinical
+      // admins (e.g. business ops) have no APC to upload and would
+      // otherwise be stuck here indefinitely.
+      const needsCompliance = p.is_provider === true && !p.compliance_completed_at
+      sessionStorage.setItem('providerComplianceCompleted', String(!!p.compliance_completed_at))
       if (p.must_change_password) {
         navigate('/clinician/change-password')
       } else if (!p.mfa_enabled) {
         navigate('/clinician/mfa-required')
-      } else if (!complianceDone) {
+      } else if (needsCompliance) {
         navigate('/clinician/compliance-required')
       } else {
         // Offer to save device if not already saved for this provider
