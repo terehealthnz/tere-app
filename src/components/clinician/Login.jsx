@@ -151,10 +151,18 @@ export default function ClinicianLogin() {
       // before any dashboard. Server-side guardProvider ALSO rejects PHI
       // endpoints for un-enrolled providers, so this is belt-and-braces.
       sessionStorage.setItem('providerMfaEnabled', String(p.mfa_enabled === true))
+      // Compliance gate: APC + Medical Indemnity must be on file with
+      // future expiries before any sandbox / patient access. Server
+      // auto-stamps compliance_completed_at when the trailing upload
+      // lands.
+      const complianceDone = !!p.compliance_completed_at
+      sessionStorage.setItem('providerComplianceCompleted', String(complianceDone))
       if (p.must_change_password) {
         navigate('/clinician/change-password')
       } else if (!p.mfa_enabled) {
         navigate('/clinician/mfa-required')
+      } else if (!complianceDone) {
+        navigate('/clinician/compliance-required')
       } else {
         // Offer to save device if not already saved for this provider
         const existing = getSaved()

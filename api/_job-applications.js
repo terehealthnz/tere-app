@@ -2428,7 +2428,7 @@ export default async function handler(req, res) {
     }
     const { data: prov, error: pErr } = await supabase
       .from('providers')
-      .select('id, first_name, last_name, email, apc_number, apc_expiry_date, apc_storage_key, apc_uploaded_at, mi_insurer, mi_policy_number, mi_expiry_date, mi_storage_key, mi_uploaded_at, active_contract_offer_id')
+      .select('id, first_name, last_name, email, apc_number, apc_expiry_date, apc_storage_key, apc_uploaded_at, mi_insurer, mi_policy_number, mi_expiry_date, mi_storage_key, mi_uploaded_at, active_contract_offer_id, compliance_completed_at')
       .eq('id', targetId)
       .maybeSingle()
     if (pErr || !prov) return res.status(404).json({ error: 'Provider not found' })
@@ -2470,6 +2470,7 @@ export default async function handler(req, res) {
       compliance: {
         provider_id: prov.id,
         provider_name: [prov.first_name, prov.last_name].filter(Boolean).join(' '),
+        completed_at:  prov.compliance_completed_at || null,
         apc: {
           number:      prov.apc_number      || null,
           expiry_date: prov.apc_expiry_date || null,
@@ -2536,6 +2537,27 @@ export default async function handler(req, res) {
     }
     const { error: updErr } = await supabase.from('providers').update(patch).eq('id', targetId)
     if (updErr) { console.error('[compliance] provider update failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
+
+    // Compliance gate: if this upload just landed the trailing doc and
+    // BOTH APC + MI are present with future expiries, stamp
+    // compliance_completed_at so the login-gate lets the provider into
+    // the sandbox. Read AFTER the patch so we see the fresh state.
+    const { data: after } = await supabase
+      .from('providers')
+      .select('apc_storage_key, apc_expiry_date, mi_storage_key, mi_expiry_date, compliance_completed_at')
+      .eq('id', targetId)
+      .maybeSingle()
+    if (after && !after.compliance_completed_at) {
+      const today = new Date().toISOString().slice(0, 10)  // YYYY-MM-DD
+      const bothPresent = !!after.apc_storage_key && !!after.mi_storage_key
+      const bothCurrent = !!after.apc_expiry_date && !!after.mi_expiry_date
+                          && after.apc_expiry_date >= today && after.mi_expiry_date >= today
+      if (bothPresent && bothCurrent) {
+        await supabase.from('providers')
+          .update({ compliance_completed_at: new Date().toISOString() })
+          .eq('id', targetId)
+      }
+    }
     return res.status(200).json({ ok: true, kind, key })
   }
 
