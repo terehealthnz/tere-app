@@ -301,7 +301,7 @@ function FAQ() {
     },
     {
       q: 'How do I pay?',
-      a: 'Credit or debit card online, processed securely via Stripe. Payment is taken when your consultation is confirmed. ACC co-payments are charged at the same time.',
+      a: 'Credit or debit card online, processed securely via Windcave. Payment is taken after your consultation is complete. ACC co-payments are charged at the same time.',
     },
     {
       q: 'Where in NZ do you cover?',
