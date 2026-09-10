@@ -2539,18 +2539,19 @@ export default async function handler(req, res) {
     }
 
     // Synthetic job_application so the offer flow slots in unchanged. Status
-    // 'hired' keeps this out of the active interview queue. `notes` marks
-    // the row as internal onboarding for audit trail.
+    // 'hired' keeps this out of the active interview queue. Column shape
+    // matches create_manual — job_applications doesn't have a `role` or
+    // `notes` column (application notes live in application_notes table).
     const { data: app, error: appErr } = await supabase
       .from('job_applications')
       .insert({
         first_name: prov.first_name || null,
         last_name:  prov.last_name  || null,
         email:      prov.email,
-        role:       tpl.role_title_default || 'Independent Contractor',
         status:     'hired',
-        source:     'internal_onboarding',
-        notes:      `Internal onboarding: sending v${tpl.name} to existing provider ${providerId}`,
+        source:     `Internal onboarding — ${tpl.name}`,
+        nz_eligibility_confirmed: true,
+        applicant_country_code:   'NZ',
       })
       .select('id')
       .maybeSingle()
