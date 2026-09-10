@@ -9,7 +9,7 @@
 //      countersign. Applicant page shows a "thanks — we'll email the fully
 //      signed copy" success screen.
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 function fmtDate(d) {
