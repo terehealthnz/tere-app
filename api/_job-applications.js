@@ -2676,9 +2676,10 @@ export default async function handler(req, res) {
 
     const siteOrigin = getSiteOriginFor(req)
     const signUrl    = `${siteOrigin}/offer/sign/${signToken}`
+    let emailError = null
     try {
       const firstName = prov.first_name || 'there'
-      await sendEmail({
+      const emailResult = await sendEmail({
         from:    'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to:      [prov.email],
@@ -2692,9 +2693,17 @@ export default async function handler(req, res) {
           <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
         text: `Kia ora ${firstName},\n\nPlease review and sign your Tere Health Independent Contractor Agreement:\n${signUrl}\n\nNgā mihi,\nThe Tere Health team`,
       })
-    } catch (e) { console.error('[contract-to-provider] email failed:', e.message) }
+      console.log(`[contract-to-provider] email sent OK to=${prov.email} messageId=${emailResult?.MessageId || emailResult?.messageId || 'unknown'} offer=${offer.id}`)
+    } catch (e) {
+      console.error(`[contract-to-provider] email failed to=${prov.email} offer=${offer.id} err=${e.message}`)
+      emailError = e.message || 'unknown email error'
+    }
 
-    return res.status(200).json({ ok: true, offerId: offer.id, signUrl })
+    // Surface email failure in the response so the admin sees "row created
+    // but email failed" instead of a silent success. Offer row exists
+    // either way — signUrl can be copied out manually if the email path
+    // is broken (e.g. SES suppression from a prior bounce).
+    return res.status(200).json({ ok: true, offerId: offer.id, signUrl, emailError })
   }
 
   return res.status(405).json({ error: 'Method not allowed' })

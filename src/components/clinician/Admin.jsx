@@ -2248,7 +2248,11 @@ function ProvidersPanel() {
                           if (!tpl) { alert('Invalid choice.'); return }
                           if (!window.confirm(`Send "${tpl.name}" to ${displayName} (${p.email}) for signing?`)) return
                           const r = await sendContractToProvider(p.id, tpl.id)
-                          alert(`Contract sent to ${p.email}.\n\nSign link (for reference):\n${r.signUrl}`)
+                          if (r.emailError) {
+                            alert(`⚠ Contract row created but the email to ${p.email} FAILED.\n\nReason: ${r.emailError}\n\nSign link (copy manually):\n${r.signUrl}\n\nCheck AWS SES suppression list — most common cause is a prior bounce/complaint on this address.`)
+                          } else {
+                            alert(`Contract sent to ${p.email}.\n\nSign link (for reference):\n${r.signUrl}`)
+                          }
                         } catch (e) { alert(`Send failed: ${e.message}`) }
                         finally { setSaving(null) }
                       }} disabled={saving === p.id}
