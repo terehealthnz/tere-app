@@ -2,11 +2,12 @@
 //
 // One-off test referral to Pacific Radiology (Wellington/Manawatū region)
 // per Holly Johnson's request 2026-08-17. Uses the exact same buildReferralPdf
-// + Resend send + radiology_referrals insert as the production endpoint —
+// + sendEmail helper + radiology_referrals insert as the production endpoint —
 // no shortcuts, so this test also validates the real code path.
 //
-// Runs with your local .env (RESEND_API_KEY, VITE_SUPABASE_URL,
-// SUPABASE_SERVICE_ROLE_KEY). Reads them the same way vercel dev does.
+// Runs with your local .env (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+// VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, EMAIL_PROVIDER=ses).
+// Reads them the same way vercel dev does.
 //
 // Usage:
 //   node --env-file=.env scripts/send-rhcnz-test-referral.mjs
@@ -17,7 +18,7 @@
 //       and inserts the row in radiology_referrals
 
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
+import { sendEmail, hasEmailProvider } from '../api/_email-client.js'
 import { buildReferralPdf } from '../api/_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
 
@@ -94,7 +95,12 @@ if (!SEND) {
   process.exit(0)
 }
 
-if (!process.env.RESEND_API_KEY) { console.error('RESEND_API_KEY missing from env'); process.exit(1) }
+if (!hasEmailProvider()) {
+  console.error(`Email provider not configured. With EMAIL_PROVIDER=${process.env.EMAIL_PROVIDER || 'resend'} you need `
+    + (process.env.EMAIL_PROVIDER === 'ses' ? 'AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY' : 'RESEND_API_KEY')
+    + ' in .env')
+  process.exit(1)
+}
 
 // ─── Build PDF ────────────────────────────────────────────────────────────
 const pdfBuffer = await buildReferralPdf({
@@ -108,28 +114,26 @@ const pdfBase64 = pdfBuffer.toString('base64')
 console.log(`  PDF built:     ${(pdfBuffer.length / 1024).toFixed(1)} KB`)
 
 // ─── Send email to Pacific Radiology (Wellington/Manawatū intake) ─────────
-const resend = new Resend(process.env.RESEND_API_KEY)
 const subject = `[TEST] URGENT — Tere Health eReferral — ${referral.patientName} (${finalUrgency})`
-try {
-  await resend.emails.send({
-    from: 'Tere Health <hello@terehealth.co.nz>',
-    replyTo: 'terehealthnz@gmail.com',
-    to: finalFacilityEmail,
-    subject,
-    html: `<p><strong>THIS IS A TEST REFERRAL</strong> — sent as part of the Tere Health x RHCNZ integration test per Holly Johnson's request 2026-08-17. Please ignore or auto-process for testing purposes; no clinical action required.</p>
-           <p><strong>Patient:</strong> ${referral.patientName} (NHI ${referral.patientNhi})<br>
-              <strong>Investigation:</strong> ${referral.investigation} — ${referral.bodyPart}<br>
-              <strong>Urgency:</strong> ${finalUrgency}<br>
-              <strong>Clinician:</strong> ${referral.providerName} (MCNZ ${referral.providerMcnz})</p>
-           <p style="color:#6B7280;font-size:12px">Tere Health Limited · HPI-O G11238-E · terehealth.co.nz</p>`,
-    attachments: [{ filename: `TEST-referral-${referral.patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
-  })
-  console.log(`  ✅ Email sent to ${finalFacilityEmail}`)
-  console.log(`     Subject: ${subject}`)
-} catch (e) {
-  console.error(`  ❌ Email send failed: ${e.message}`)
+const sendResult = await sendEmail({
+  from: 'Tere Health <hello@terehealth.co.nz>',
+  replyTo: 'terehealthnz@gmail.com',
+  to: finalFacilityEmail,
+  subject,
+  html: `<p><strong>THIS IS A TEST REFERRAL</strong> — sent as part of the Tere Health x RHCNZ integration test per Holly Johnson's request 2026-08-17. Please ignore or auto-process for testing purposes; no clinical action required.</p>
+         <p><strong>Patient:</strong> ${referral.patientName} (NHI ${referral.patientNhi})<br>
+            <strong>Investigation:</strong> ${referral.investigation} — ${referral.bodyPart}<br>
+            <strong>Urgency:</strong> ${finalUrgency}<br>
+            <strong>Clinician:</strong> ${referral.providerName} (MCNZ ${referral.providerMcnz})</p>
+         <p style="color:#6B7280;font-size:12px">Tere Health Limited · HPI-O G11238-E · terehealth.co.nz</p>`,
+  attachments: [{ filename: `TEST-referral-${referral.patientName.replace(/ /g, '-')}.pdf`, content: pdfBase64 }],
+})
+if (!sendResult.ok) {
+  console.error(`  ❌ Email send failed (${sendResult.provider}): ${sendResult.error}`)
   process.exit(1)
 }
+console.log(`  ✅ Email sent via ${sendResult.provider} to ${finalFacilityEmail}`)
+console.log(`     Subject: ${subject}`)
 
 // ─── Insert row in radiology_referrals (audit trail) ──────────────────────
 if (process.env.VITE_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
