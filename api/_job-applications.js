@@ -2677,26 +2677,28 @@ export default async function handler(req, res) {
     const siteOrigin = getSiteOriginFor(req)
     const signUrl    = `${siteOrigin}/offer/sign/${signToken}`
     let emailError = null
-    try {
-      const firstName = prov.first_name || 'there'
-      const emailResult = await sendEmail({
-        from:    'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to:      [prov.email],
-        subject: 'Please sign your Tere Health Independent Contractor Agreement',
-        html: emailShell(`
-          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Please review and sign your Independent Contractor Agreement with Tere Health. This is a one-time step to get you on our register of executed agreements.</p>
-          <div style="text-align:center;margin:28px 0"><a href="${signUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Review &amp; sign →</a></div>
-          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or open this link:</p>
-          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${signUrl}</p>
-          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
-        text: `Kia ora ${firstName},\n\nPlease review and sign your Tere Health Independent Contractor Agreement:\n${signUrl}\n\nNgā mihi,\nThe Tere Health team`,
-      })
-      console.log(`[contract-to-provider] email sent OK to=${prov.email} messageId=${emailResult?.MessageId || emailResult?.messageId || 'unknown'} offer=${offer.id}`)
-    } catch (e) {
-      console.error(`[contract-to-provider] email failed to=${prov.email} offer=${offer.id} err=${e.message}`)
-      emailError = e.message || 'unknown email error'
+    const firstName = prov.first_name || 'there'
+    // sendEmail() returns { ok, error } on failure — it does NOT throw.
+    // Check ok explicitly.
+    const emailResult = await sendEmail({
+      from:    'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to:      [prov.email],
+      subject: 'Please sign your Tere Health Independent Contractor Agreement',
+      html: emailShell(`
+        <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Please review and sign your Independent Contractor Agreement with Tere Health. This is a one-time step to get you on our register of executed agreements.</p>
+        <div style="text-align:center;margin:28px 0"><a href="${signUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Review &amp; sign →</a></div>
+        <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or open this link:</p>
+        <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${signUrl}</p>
+        <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+      text: `Kia ora ${firstName},\n\nPlease review and sign your Tere Health Independent Contractor Agreement:\n${signUrl}\n\nNgā mihi,\nThe Tere Health team`,
+    }).catch(e => ({ ok: false, error: e?.message || 'send threw' }))
+    if (emailResult && emailResult.ok === false) {
+      console.error(`[contract-to-provider] email failed to=${prov.email} offer=${offer.id} provider=${emailResult.provider} err=${emailResult.error}`)
+      emailError = emailResult.error || 'unknown email error'
+    } else {
+      console.log(`[contract-to-provider] email sent OK to=${prov.email} id=${emailResult?.id || 'unknown'} offer=${offer.id}`)
     }
 
     // Surface email failure in the response so the admin sees "row created
