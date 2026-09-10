@@ -575,7 +575,7 @@ export default async function handler(req, res) {
 
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
-      .select('id, application_id, role_title, compensation, start_date, contract_terms, contract_pdf_key, contract_pdf_name, status, applicant_signed_at, countersigned_at, created_at')
+      .select('id, application_id, role_title, compensation, start_date, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, contractor_snapshot, status, applicant_signed_at, countersigned_at, created_at')
       .eq('applicant_sign_token', token)
       .maybeSingle()
     if (oErr) { console.error('[offer] get failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
@@ -636,7 +636,7 @@ export default async function handler(req, res) {
 
     const { data: offer, error: oErr } = await supabase
       .from('job_offers')
-      .select('id, application_id, status, contract_pdf_key')
+      .select('id, application_id, status, contract_pdf_key, contract_version')
       .eq('applicant_sign_token', cleanToken)
       .maybeSingle()
     if (oErr) { console.error('[offer] sign lookup failed:', oErr); return res.status(500).json({ error: 'Server error' }) }
@@ -645,11 +645,13 @@ export default async function handler(req, res) {
       return res.status(409).json({ error: 'This offer is no longer awaiting your signature.', status: offer.status })
     }
 
-    // Enforce contract acknowledgement when an agreement PDF is attached.
-    // The applicant must have ticked the "I have read and agree to be
-    // bound by the attached Independent Contractor Agreement" checkbox.
-    if (offer.contract_pdf_key && acknowledgedContract !== true) {
-      return res.status(400).json({ error: 'Please tick the box confirming you have read and agree to the attached agreement.' })
+    // Enforce contract acknowledgement when an agreement PDF or in-code
+    // version is bundled. The applicant must have ticked the "I have read
+    // and agree to be bound by the ... Independent Contractor Agreement"
+    // checkbox before we take their signature.
+    const hasContractDoc = !!offer.contract_pdf_key || !!offer.contract_version
+    if (hasContractDoc && acknowledgedContract !== true) {
+      return res.status(400).json({ error: 'Please tick the box confirming you have read and agree to the agreement.' })
     }
 
     const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
@@ -665,7 +667,7 @@ export default async function handler(req, res) {
         applicant_signed_ip:         ip,
         applicant_signed_user_agent: ua,
         applicant_signed_at:         new Date().toISOString(),
-        applicant_acknowledged_contract_at: offer.contract_pdf_key ? new Date().toISOString() : null,
+        applicant_acknowledged_contract_at: hasContractDoc ? new Date().toISOString() : null,
       })
       .eq('id', offer.id)
       .eq('status', 'sent')
@@ -2253,7 +2255,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && action === 'offer_templates') {
     const { data, error } = await supabase
       .from('offer_templates')
-      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, is_active, sort_order')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, is_active, sort_order')
       .eq('is_active', true)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
@@ -2285,6 +2287,12 @@ export default async function handler(req, res) {
       pdfName = uploaded.name
     }
 
+    // Optional in-code contract version (see src/contracts/). When set,
+    // the OfferSign page renders the JSX ContractRenderer instead of
+    // linking out to the attached PDF. Both can coexist on one template
+    // — precedence at render time is version > pdf > terms-only.
+    const contractVersion = typeof b.contractVersion === 'string' && b.contractVersion.trim() ? b.contractVersion.trim().slice(0, 20) : null
+
     const { data, error } = await supabase
       .from('offer_templates')
       .insert({
@@ -2294,6 +2302,7 @@ export default async function handler(req, res) {
         contract_terms:         terms,
         contract_pdf_key:       pdfKey,
         contract_pdf_name:      pdfName,
+        contract_version:       contractVersion,
         sort_order:             Number.isInteger(b.sortOrder) ? b.sortOrder : 0,
         created_by_provider_id: auth.provider?.id || null,
       })
@@ -2328,6 +2337,9 @@ export default async function handler(req, res) {
     } else if (b.clearPdf === true) {
       patch.contract_pdf_key  = null
       patch.contract_pdf_name = null
+    }
+    if (typeof b.contractVersion === 'string') {
+      patch.contract_version = b.contractVersion.trim() ? b.contractVersion.trim().slice(0, 20) : null
     }
 
     if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'nothing to update' })
@@ -2489,7 +2501,7 @@ export default async function handler(req, res) {
 
     const { data: prov } = await supabase
       .from('providers')
-      .select('id, first_name, last_name, email')
+      .select('id, first_name, last_name, email, mcnz_registration_number, cpn, hpi_number, acc_provider_number, credential')
       .eq('id', providerId)
       .maybeSingle()
     if (!prov) return res.status(404).json({ error: 'Provider not found' })
@@ -2497,12 +2509,29 @@ export default async function handler(req, res) {
 
     const { data: tpl } = await supabase
       .from('offer_templates')
-      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, is_active')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, contract_version, is_active')
       .eq('id', templateId)
       .maybeSingle()
     if (!tpl) return res.status(404).json({ error: 'Template not found' })
     if (!tpl.is_active) return res.status(400).json({ error: 'Template is not active' })
-    if (!tpl.contract_pdf_key) return res.status(400).json({ error: 'Template has no attached PDF — attach the agreement first' })
+    // Template must carry either an attached PDF or an in-code version.
+    if (!tpl.contract_pdf_key && !tpl.contract_version) {
+      return res.status(400).json({ error: 'Template has no contract source — attach a PDF or set a contract version' })
+    }
+
+    // Snapshot the contractor's identifiers at send time so the JSX
+    // ContractRenderer + signed-archive regenerator can substitute
+    // {{contractor_full_name}} etc. deterministically, even if the
+    // providers row is later edited.
+    const contractorSnapshot = {
+      full_name: [prov.first_name, prov.last_name].filter(Boolean).join(' ') || null,
+      mcnz:      prov.mcnz_registration_number || null,
+      cpn:       prov.cpn || null,
+      acc_id:    prov.acc_provider_number || null,
+      hpi_number: prov.hpi_number || null,
+      email:     prov.email || null,
+      credential: prov.credential || null,
+    }
 
     // Synthetic job_application so the offer flow slots in unchanged. Status
     // 'hired' keeps this out of the active interview queue. `notes` marks
@@ -2534,7 +2563,9 @@ export default async function handler(req, res) {
         compensation:           tpl.compensation_default || 'Per Independent Contractor Agreement',
         contract_terms:         tpl.contract_terms || 'See attached Independent Contractor Agreement.',
         contract_pdf_key:       tpl.contract_pdf_key,
-        contract_pdf_name:      tpl.contract_pdf_name || 'Independent Contractor Agreement',
+        contract_pdf_name:      tpl.contract_pdf_name || (tpl.contract_version ? `Independent Contractor Agreement ${tpl.contract_version}` : 'Independent Contractor Agreement'),
+        contract_version:       tpl.contract_version,
+        contractor_snapshot:    contractorSnapshot,
         applicant_sign_token:   signToken,
         status:                 'sent',
       })

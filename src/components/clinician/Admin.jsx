@@ -2115,9 +2115,9 @@ function ProvidersPanel() {
                         setSaving(p.id)
                         try {
                           const { listOfferTemplates, sendContractToProvider } = await import('../../lib/supabase')
-                          const tpls = (await listOfferTemplates()).filter(t => t.is_active && t.contract_pdf_key)
-                          if (!tpls.length) { alert('No active contract templates with an attached PDF. Upload a template first (Careers → Offer templates).'); return }
-                          const menu = tpls.map((t, i) => `${i + 1}. ${t.name}${t.contract_pdf_name ? ' — ' + t.contract_pdf_name : ''}`).join('\n')
+                          const tpls = (await listOfferTemplates()).filter(t => t.is_active && (t.contract_version || t.contract_pdf_key))
+                          if (!tpls.length) { alert('No active contract templates. Create one (Careers → Offer templates) with either an in-code version (e.g. v8.1) or an attached PDF.'); return }
+                          const menu = tpls.map((t, i) => `${i + 1}. ${t.name}${t.contract_version ? ' — in-code ' + t.contract_version : t.contract_pdf_name ? ' — ' + t.contract_pdf_name : ''}`).join('\n')
                           const pick = window.prompt(`Send contract to ${displayName} (${p.email}).\n\nWhich template?\n\n${menu}\n\nEnter number (1-${tpls.length}):`)
                           if (!pick) return
                           const idx = parseInt(pick, 10) - 1
@@ -3146,7 +3146,7 @@ function OfferTemplatesSection() {
   const [templates, setTemplates] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [editing, setEditing] = React.useState(null)   // null | 'new' | <id>
-  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false })
+  const [form, setForm] = React.useState({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: 0, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '' })
   const [msg, setMsg] = React.useState('')
   const [saving, setSaving] = React.useState(false)
 
@@ -3161,7 +3161,7 @@ function OfferTemplatesSection() {
   React.useEffect(() => { load() }, [])
 
   function startNew() {
-    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false })
+    setForm({ name: '', roleTitleDefault: '', compensationDefault: '', contractTerms: '', sortOrder: (templates[templates.length - 1]?.sort_order ?? 0) + 10, contractPdfBase64: null, contractPdfName: null, existingPdfName: null, clearPdf: false, contractVersion: '' })
     setEditing('new'); setMsg('')
   }
   function startEdit(t) {
@@ -3175,6 +3175,7 @@ function OfferTemplatesSection() {
       contractPdfName: null,
       existingPdfName: t.contract_pdf_name || null,
       clearPdf: false,
+      contractVersion: t.contract_version || '',
     })
     setEditing(t.id); setMsg('')
   }
@@ -3202,6 +3203,7 @@ function OfferTemplatesSection() {
         compensationDefault: form.compensationDefault,
         contractTerms: form.contractTerms,
         sortOrder: form.sortOrder,
+        contractVersion: form.contractVersion || null,
         // Only include PDF fields when there's a change — server treats
         // absence as "leave PDF untouched".
         ...(form.contractPdfBase64 ? { contractPdfBase64: form.contractPdfBase64, contractPdfName: form.contractPdfName } : {}),
@@ -3283,7 +3285,19 @@ function OfferTemplatesSection() {
               placeholder="Short summary paragraph — renders in the offer wrapper PDF above the applicant's signature block. If no PDF is attached, this is the full terms body."
               style={{ ...input, lineHeight: 1.55, resize: 'vertical' }} disabled={saving} />
 
-            <label style={label}>Attached agreement PDF (optional — recommended for formal contracts)</label>
+            <label style={label}>In-code contract version (recommended — supersedes PDF)</label>
+            <input
+              value={form.contractVersion}
+              onChange={e => setForm(f => ({ ...f, contractVersion: e.target.value }))}
+              placeholder='e.g. "v8.1" (must exist in src/contracts/)'
+              style={{ ...input, marginBottom: 4 }}
+              disabled={saving}
+            />
+            <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: 12 }}>
+              When set, the applicant reads the contract on the sign page (with their name, address, MCNZ etc. substituted inline) instead of downloading a static PDF. Leave blank to fall back to the attached PDF below.
+            </div>
+
+            <label style={label}>Attached agreement PDF (fallback — only used if no in-code version above)</label>
             <div style={{ background: 'white', border: '1px dashed #CBD5E1', borderRadius: 6, padding: '10px 12px', marginBottom: 12 }}>
               {(form.contractPdfName || (form.existingPdfName && !form.clearPdf)) ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -3339,7 +3353,12 @@ function OfferTemplatesSection() {
                     <div style={{ color: '#6B7280', fontSize: '.8rem', marginTop: 2 }}>
                       {t.role_title_default} · {t.compensation_default}
                     </div>
-                    {t.contract_pdf_name && (
+                    {t.contract_version && (
+                      <div style={{ color: '#3730A3', fontSize: '.72rem', marginTop: 4, fontWeight: 600 }}>
+                        📝 in-code contract {t.contract_version}
+                      </div>
+                    )}
+                    {t.contract_pdf_name && !t.contract_version && (
                       <div style={{ color: '#0B6E76', fontSize: '.72rem', marginTop: 4, fontWeight: 600 }}>
                         📎 {t.contract_pdf_name}
                       </div>

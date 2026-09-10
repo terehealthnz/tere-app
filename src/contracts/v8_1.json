@@ -1,0 +1,1531 @@
+{
+  "version": "v8.1",
+  "title": "Independent Contractor Services Agreement — Doctor",
+  "source_docx": "Tere_Doctor_Contractor_Offer_v8.1 -  Final.docx",
+  "nodes": [
+    {
+      "type": "heading",
+      "level": 0,
+      "text": "Tere"
+    },
+    {
+      "type": "para",
+      "text": "T E R E H E A LT H L I M I T E D · N Z B N 9 4 2 9 0 5 3 7 2 3 4 1 3"
+    },
+    {
+      "type": "para",
+      "text": "Independent Contractor Services Agreement",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Doctor"
+    },
+    {
+      "type": "para",
+      "text": "PRINCIPALTere Health LimitedNZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201andCONTRACTOR{{contractor_full_name}}{{contractor_address}}MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID{{contractor_acc_id}}PRINCIPALTere Health LimitedNZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201andCONTRACTOR{{contractor_full_name}}{{contractor_address}}MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID{{contractor_acc_id}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "PRINCIPAL",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere Health Limited",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "NZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201"
+    },
+    {
+      "type": "para",
+      "text": "and"
+    },
+    {
+      "type": "para",
+      "text": "CONTRACTOR",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_full_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_address}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_acc_id}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "PRINCIPAL",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere Health Limited",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "NZBN 9429053723413 · Registered in New Zealand 41 Adams Lane, Springlands, Blenheim 7201"
+    },
+    {
+      "type": "para",
+      "text": "and"
+    },
+    {
+      "type": "para",
+      "text": "CONTRACTOR",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_full_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_address}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN {{contractor_cpn}} · ACC Provider ID",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_acc_id}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{agreement_date}}{{agreement_date}}This Agreement is made on",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{agreement_date}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere HealthINDEPENDENT CONTRACTOR SERVICES  AGREEMENT  ·  DOCTOR"
+    },
+    {
+      "type": "para",
+      "text": "BACKGROUND",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Tere Health Limited (\"Tere Health\", \"we\", \"us\") operates a nationwide telehealth platform in New Zealand under the trading name \"Tere\" (terehealth.co.nz) and is a registered ACC vendor.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "The Contractor operates an independent professional medical practice on their own account and is free to accept clinical work from any provider of their choosing."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health wishes to engage the Contractor on a business-to-business basis to provide clinical services through the Platform, and the Contractor wishes to be engaged on that basis."
+    },
+    {
+      "type": "item",
+      "text": "The parties expressly intend and record that the Contractor is engaged as an independent contractor and not as an employee, worker, agent, or partner of Tere Health, except as a worker for the purposes of the Health and Safety at Work Act 2015 (HSWA) only (see clauses 2.2 and 19). Tere Health has provided the Contractor with a draft of this Agreement not less than ﬁve (5) working days before signature and has expressly recommended that the Contractor obtain independent legal, tax, and accounting advice before signing (see clause 2.5)."
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "The Contractor and Tere Health agree that:"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "DEFINITIONS"
+    },
+    {
+      "type": "para",
+      "text": "In this Agreement, unless the context requires otherwise:"
+    },
+    {
+      "type": "item",
+      "text": "\"ACC\" means the Accident Compensation Corporation established under the Accident Compensation Act 2001.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"ACC45\" means the injury claim form lodged with ACC under the Accident Compensation Act 2001.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Agreement\" means this independent contractor services agreement, including the Schedule and Appendices.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Applicable Law\" includes the Accident Compensation Act 2001, the Contract and Commercial Law Act 2017, the Health and Safety at Work Act 2015 (HSWA), the Health (Retention of Health Information) Regulations 1996, the Privacy Act 2020, the Health Information Privacy Code 2020 (HIPC), the Health and Disability Commissioner Act 1994, the Code of Health and Disability Services Consumers' Rights, the Health Practitioners Competence Assurance Act 2003, the Medicines Act 1981, the Misuse of Drugs Act 1975, the Goods and Services Tax Act 1985, the Income Tax Act 2007, and any other statute or regulation from time to time in force applicable to the Services.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"APC\" means an Annual Practising Certiﬁcate issued by the Medical Council of New Zealand.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Conﬁdential Information\" means all information Tere Health treats as conﬁdential, including without limitation: patient health information, clinical protocols, business plans, product roadmaps, source code, marketing plans, supplier and provider contact information, ﬁnancial information, remuneration details, patient lists, and any information marked or reasonably understood to be",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "conﬁdential. It does not include information already in the public domain other than by breach of this Agreement."
+    },
+    {
+      "type": "item",
+      "text": "\"Consultation\" means a completed patient interaction on the Platform where (i) the patient joined the consultation, (ii) the Contractor conducted the consultation, and (iii) clinical notes were ﬁnalised in accordance with the Contractor's own MCNZ Good Medical Practice obligations.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "“Contractor” means the person identified in Item 2 of the Schedule."
+    },
+    {
+      "type": "item",
+      "text": "\"Intellectual Property\" means all present and future copyright, registered and unregistered trademarks, patents, designs, moral rights and any other intellectual or industrial property rights, whether arising by statute, at common law, or in equity.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"MCNZ\" means the Medical Council of New Zealand.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Medical Indemnity\" means current medical indemnity — whether by way of insurance or discretionary indemnity — through Medical Protection Society (MPS) or an equivalent NZ-recognised provider, in a membership category appropriate to the Contractor's scope of practice.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Platform\" means the Tere Health software application, website, and provider tools through which clinical services are delivered.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Platform Policies\" means the technical, security, access-control, competence-to-roster, and clinical-governance policies applicable to any person using the Platform, as amended by Tere Health from time to time.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "“Principal” means Tere Health Limited identified in Item 1 of the Schedule."
+    },
+    {
+      "type": "item",
+      "text": "\"Services\" means the clinical services described in Item 3 of the Schedule and further described in Appendix A which the Contractor agrees to make available to patients through the Platform..",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Sub-contractor\" means an MCNZ-registered medical practitioner nominated by the Contractor under clause 15.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "\"Telehealth Standards\" means the standards for telehealth practice published by MCNZ (Statement on Telehealth) and by ACC (telehealth clinical appropriateness, risk assessment, and consent requirements) as amended from time to time.",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "COMMENCEMENT, NATURE OF ENGAGEMENT, WARRANTIES, AND INDEPENDENT ADVICE"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor's engagement commences on the date at Item 4 of the Schedule and continues until terminated in accordance with clause 16."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor is engaged on a business-to-business basis as an independent contractor and not as an employee, worker, partner, or agent of Tere Health for any purpose, except as a worker for the purposes of the Health and Safety at Work Act 2015 (HSWA) only, as set out in clause 19.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "The Contractor acknowledges that they:"
+    },
+    {
+      "type": "item",
+      "text": "operate their own independent professional medical practice, and bear their own risk of proﬁt and loss;"
+    },
+    {
+      "type": "item",
+      "text": "provide their own workspace, equipment, and internet connection;"
+    },
+    {
+      "type": "item",
+      "text": "hold their own Medical Indemnity, MCNZ registration, APC, and ACC Provider ID in their own name;"
+    },
+    {
+      "type": "item",
+      "text": "are responsible for their own taxes, levies, premiums, PAYE, ACC levies, GST registration and GST returns as well as the provision of any other taxes, revenue or expenditure required by law and all other expenses related to its business;"
+    },
+    {
+      "type": "item",
+      "text": "are free to accept clinical work from other providers, including providers who directly compete with Tere Health, subject only to clauses 11 (Conﬁdentiality), 12 (IP), and 13 (Non-solicitation) of this Agreement;"
+    },
+    {
+      "type": "item",
+      "text": "are not required to provide any minimum quantity of Services, and may accept or decline any Consultation oﬀered without adverse consequence to this Agreement (see clause 16.5);"
+    },
+    {
+      "type": "item",
+      "text": "may perform the Services personally or through a Sub-contractor in accordance with clause 15; and"
+    },
+    {
+      "type": "item",
+      "text": "have taken (or had the opportunity to take) independent legal, tax, and accounting advice before signing this Agreement."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor warrants that:"
+    },
+    {
+      "type": "item",
+      "text": "they hold current MCNZ registration in a scope of practice within which the Services fall, and a current APC;"
+    },
+    {
+      "type": "item",
+      "text": "they hold current Medical Indemnity, and will supply evidence of current membership and category to Tere Health at commencement and annually thereafter (or on request);"
+    },
+    {
+      "type": "item",
+      "text": "the Medical Indemnity maintained by the Contractor is, and will remain throughout the engagement, at a level reasonably satisfactory to Tere Health having regard to the nature of the Services. The Contractor will provide such evidence of the scope, nature and currency of that Medical Indemnity as Tere Health reasonably requests from time to time."
+    },
+    {
+      "type": "item",
+      "text": "they hold, and will maintain throughout the engagement, a current ACC Provider ID;"
+    },
+    {
+      "type": "item",
+      "text": "they enter into this Agreement voluntarily and without coercion;"
+    },
+    {
+      "type": "item",
+      "text": "they are legally entitled to work in New Zealand as an independent contractor;"
+    },
+    {
+      "type": "item",
+      "text": "they meet the professional standards set out in Appendix B; and"
+    },
+    {
+      "type": "item",
+      "text": "they have disclosed to Tere Health any restraint, restriction, or condition of practice which may aﬀect the Services."
+    },
+    {
+      "type": "item",
+      "text": "Independent advice. Tere Health provided this Agreement to the Contractor in draft not less than ﬁve (5) working days before the date of signature, and expressly recommended that the Contractor obtain independent legal, tax, and accounting advice before signing. The Contractor conﬁrms they had a reasonable opportunity to obtain that advice.",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "CONSEQUENCES OF CONTRACTOR STATUS"
+    },
+    {
+      "type": "para",
+      "text": "Please read carefully. Being an independent contractor rather than an employee has signiﬁcant legal and ﬁnancial consequences.Please read carefully. Being an independent contractor rather than an employee has signiﬁcant legal and ﬁnancial consequences.",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Please read carefully. Being an independent contractor rather than an employee has signiﬁcant legal and ﬁnancial consequences.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "The following legislation which applies to employees does not apply to the Contractor's engagement under this Agreement: the Holidays Act 2003, the KiwiSaver Act 2006 (in respect of any employer contribution), the Parental Leave and Employment Protection Act 1987, the Minimum Wage Act 1983, and Part 6A of the Employment Relations Act 2000. The Health and Safety at Work Act 2015 (HSWA) does apply — see clause 19.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "The Contractor has no entitlement to: paid annual leave, paid sick leave, paid bereavement leave, statutory public holiday pay, KiwiSaver employer contribution, redundancy compensation, or any other allowance or bonus, except as expressly set out in this Agreement."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor is responsible for their own taxes, levies, premiums, PAYE, ACC levies, GST registration and GST returns as well as the provision of any other taxes, revenue or expenditure required by law and all other expenses related to its business. Tere Health will not deduct PAYE. The Contractor will provide a valid IRD number and, if GST-registered, a valid GST number, before submitting the ﬁrst invoice. Where schedular payment rules apply, the parties will co-operate to give eﬀect to them."
+    },
+    {
+      "type": "item",
+      "text": "The parties intend and record that the Contractor is engaged on a business-to-business basis. If any court or tribunal later determines the relationship to be one of employment for any purpose, the parties will act in good faith to reconcile the terms of this Agreement with the legal consequences of that determination, and no provision of this Agreement is intended to contract out of any statutory entitlement that cannot lawfully be contracted out of."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SERVICES, PROFESSIONAL STANDARDS, AND TELEHEALTH STANDARDS"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor will provide the Services described in Item 3 of the Schedule and Appendix A, as an independent professional exercising their own clinical judgement."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor may accept or decline any Consultation oﬀered. The Contractor is not obliged to accept any minimum quantity of Consultations, and Tere Health does not guarantee any minimum volume of Consultations."
+    },
+    {
+      "type": "item",
+      "text": "In providing the Services, the Contractor will meet the standards expected of a registered medical practitioner in New Zealand, including:"
+    },
+    {
+      "type": "item",
+      "text": "the reasonable care, skill, and diligence expected of a registered medical practitioner in the Contractor's scope of practice;"
+    },
+    {
+      "type": "item",
+      "text": "compliance with all Applicable Law, MCNZ standards (including Good Medical Practice, the Statement on Cultural Safety, and the Telehealth Standards), and any ACC standards applicable to ACC-billed care;"
+    },
+    {
+      "type": "item",
+      "text": "honesty and good faith in dealings with patients, Tere Health, and third parties;"
+    },
+    {
+      "type": "item",
+      "text": "maintenance of clinical records in line with MCNZ good-practice standards and the retention requirements of the Health (Retention of Health Information) Regulations 1996;"
+    },
+    {
+      "type": "item",
+      "text": "responding to any complaint the Contractor is named in within the timeframes required by Right 10 of the Code of Health and Disability Services Consumers' Rights (including acknowledgement, decision on action, and periodic updates if the matter cannot be resolved within twenty (20) working days); and"
+    },
+    {
+      "type": "item",
+      "text": "immediate notiﬁcation to Tere Health of any material change to the Contractor's ﬁtness to practise, MCNZ status, APC, ACC Provider ID, indemnity cover, or scope conditions."
+    },
+    {
+      "type": "item",
+      "text": "Nothing in this Agreement gives Tere Health control over the Contractor's clinical judgement in any individual patient encounter. Tere Health publishes two distinct classes of material through the Platform Policies:"
+    },
+    {
+      "type": "item",
+      "text": "Access and safety controls — including triage divert lists, competence-to-roster credentialling gates, controlled-drug prohibitions (see clause 4.6), and technical/security controls — bind the Contractor as conditions of Platform access under clause 6. These operate at the platform level, not at the level of the individual clinical encounter.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Clinical guidelines, decision aids, and reference materials — are provided as guidance to support the Contractor's own clinical judgement. The Contractor may depart from any such guideline or decision aid where the clinical presentation in front of them requires it, provided the Contractor's reasoning is documented in the clinical record.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Telehealth Standards. The Contractor will comply with the Telehealth Standards on every Consultation, including (without limitation): assessing whether telehealth is clinically appropriate for the presentation; documenting the risk assessment; obtaining and recording the patient's consent to the telehealth modality; conﬁrming both parties are located in New Zealand; and using only Platform interfaces that meet the applicable technical and security requirements.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Controlled drugs. The Contractor will not prescribe any controlled drug within the meaning of the Misuse of Drugs Act 1975 through the Platform, except to the extent (and only to the extent) that the Platform Policies from time to time speciﬁcally authorise a limited exception for a particular presentation or medication. This clause operates as an access and safety control under clause 4.4(a).",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "POLICE VETTING"
+    },
+    {
+      "type": "item",
+      "text": "As a condition of accessing the Platform, the Contractor consents to a NZ Police Vetting check under the Children's Act 2014. Tere Health may facilitate the check with the Contractor's written consent, or the Contractor may arrange it themselves."
+    },
+    {
+      "type": "item",
+      "text": "If the Contractor has lived outside New Zealand for 12 months or more in the past 10 years, they will supply an overseas police check from each such country."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor consents to periodic re-vetting throughout the engagement."
+    },
+    {
+      "type": "item",
+      "text": "A satisfactory Police Vetting result, and where applicable satisfactory overseas police-check results, are conditions of the Contractor's access to the Platform and continued engagement under this Agreement. If Tere Health reasonably determines that any Police Vetting result, overseas police-check result, or information disclosed through any re-vetting process gives rise to concerns regarding patient safety, safeguarding obligations, platform integrity, or the suitability of the Contractor to provide Services through the Platform, Tere Health may immediately suspend the Contractor's access to the Platform and may terminate this Agreement immediately by written notice."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "PLATFORM ACCESS AND PLATFORM POLICIES"
+    },
+    {
+      "type": "item",
+      "text": "As a condition of accessing the Platform, the Contractor will comply with the Platform Policies, which govern technical access controls, information security, safeguarding, and competence-to-roster credentialling standards applicable to all Platform users."
+    },
+    {
+      "type": "item",
+      "text": "Current Platform Policies are provided at onboarding and thereafter available in the provider portal. Tere Health may amend Platform Policies at its discretion, subject to any obligation of good faith. The speciﬁc detail of the Platform Policies does not form a term of this Agreement except to the extent expressly incorporated by this clause."
+    },
+    {
+      "type": "item",
+      "text": "Version control. Platform Policies bind the Contractor as at the version notiﬁed in writing (or via the provider portal notiﬁcation stream) to the Contractor. Where Tere Health makes a material change to a Platform Policy, Tere Health will give the Contractor not less than fourteen (14) days' written notice of the change and its eﬀective date. If the Contractor does not wish to be bound by the material change, the Contractor may terminate this Agreement by notice given before the change takes eﬀect, and no further Consultations will be routed to the Contractor after the eﬀective date. Tere Health will maintain an archive of all Platform Policy versions with eﬀective dates.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Failure to comply with the Platform Policies may result in the Contractor's Platform access being suspended or revoked, and (if the breach is serious or persistent) in this Agreement being terminated under clause 16."
+    },
+    {
+      "type": "item",
+      "text": "Competence-to-roster. Before providing Services, the Contractor will complete Platform familiarisation, sandbox certiﬁcation, safeguarding training, and any other competence-to-roster credentialling gates speciﬁed in the Platform Policies from time to time. These gates apply equally to any Sub-contractor nominated by the Contractor under clause 15.1(c). The speciﬁc curriculum, method, and pass standards are matters for Tere Health's clinical governance.",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "PLACE AND CONDITIONS OF WORK"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor provides the Services remotely from a location within New Zealand of the Contractor's own choosing, as recorded at Item 5 of the Schedule."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor provides and maintains, at their own cost, a suitable working environment: reliable internet, a quiet private space that meets patient conﬁdentiality requirements, adequate lighting and audio, and a device meeting the technical speciﬁcations published in the Platform Policies."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health does not reimburse the Contractor for home internet, electricity, workspace, equipment, or other operating costs, which are ordinary costs of the Contractor's business."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "AVAILABILITY AND SCHEDULING"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor’s availability is entirely at their discretion, provided that Consultations are conducted within the Platform hours of operation set out in Item 6 of the Schedule. The Contractor may publish availability windows on the provider dashboard and may withdraw them at any time."
+    },
+    {
+      "type": "item",
+      "text": "Where the Contractor wishes to receive priority for Consultation routing, they may (but are not required to):"
+    },
+    {
+      "type": "item",
+      "text": "nominate one or more recurring session blocks per week;"
+    },
+    {
+      "type": "item",
+      "text": "publish availability seven (7) days in advance; and"
+    },
+    {
+      "type": "item",
+      "text": "respond to on-demand Consultation requests within their published windows."
+    },
+    {
+      "type": "item",
+      "text": "If the Contractor completes no Consultations for a continuous period of 60 days, their active-roster status will pause. The Contractor may resume at any time by re-aﬃrming their APC, ACC Provider ID, and indemnity status."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SERVICE RECORDING"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor's activity through the Platform is recorded automatically. The Contractor will use the Platform's tools honestly to record start / end times, patient interaction, and clinical outcome."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor is responsible for the accuracy of their own recording. Recording activity in another practitioner's name, or permitting another to do so on the Contractor's behalf (except for an approved Sub-contractor under clause 15), is grounds for termination under clause 16 and may be reported to MCNZ."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "FEES AND PAYMENT"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Contractor's fee is the amount at Item 7 of the Schedule per completed Consultation. The fee is GST-inclusive where the Contractor is GST-registered, and GST-exclusive where the Contractor is not."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor invoices Tere Health fortnightly for Consultations completed in the preceding period. Payment is made by direct bank transfer from Tere Health's business bank account into the NZ bank account nominated by the Contractor. The invoice submission process is provided at onboarding."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health will pay each properly-submitted invoice within seven (7) working days of receipt."
+    },
+    {
+      "type": "item",
+      "text": "The per-Consultation fee includes: (a) result review for investigations the Contractor ordered as part of that Consultation, provided the review is completed within thirty (30) days of the result being available on the Platform — where a result lands after that period, or after the Contractor has ceased providing Services, Tere Health will on the Contractor's request reassign follow-up to another practitioner, and the Contractor's continuing obligation under clause 14.3 ceases on that reassignment; (b) any ACC45 lodgement, referral letter, or prescription generated as part of that Consultation; and (c) reasonable safety-netting communications with the patient in the 24 hours following the Consultation."
+    },
+    {
+      "type": "item",
+      "text": "The following are not included in the per-Consultation fee, and are the Contractor's own cost:"
+    },
+    {
+      "type": "item",
+      "text": "Continuing Medical Education (CME);"
+    },
+    {
+      "type": "item",
+      "text": "Medical Indemnity subscription or premiums;"
+    },
+    {
+      "type": "item",
+      "text": "MCNZ APC fees, ACC Provider ID fees, College membership, and professional body dues;"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor's income tax, ACC levies, and any GST liability;"
+    },
+    {
+      "type": "item",
+      "text": "Home internet, workspace, equipment, or other operating costs."
+    },
+    {
+      "type": "item",
+      "text": "Peer review, Clinical Governance Meetings, and other collegial activities oﬀered through the Platform are made available to the Contractor at no charge as a courtesy. Attendance and participation are entirely at the Contractor's discretion and form part of the Contractor's own MCNZ peer-review and continuing-competence obligations."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "CONFIDENTIALITY,  PRIVACY,  AND  BREACH  NOTIFICATION"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor agrees, at all times during and after this Agreement:"
+    },
+    {
+      "type": "item",
+      "text": "not to disclose Conﬁdential Information to any third party except in the proper course of providing the Services or as required by Applicable Law;"
+    },
+    {
+      "type": "item",
+      "text": "not to use Conﬁdential Information for any purpose other than providing the Services;"
+    },
+    {
+      "type": "item",
+      "text": "to comply with the Privacy Act 2020, the HIPC 2020, and their own obligations as a health agency holding health information; and"
+    },
+    {
+      "type": "item",
+      "text": "not to store patient information on personal devices, in personal email, or in unmanaged cloud storage. The Contractor will use only Platform-provided systems for storage of patient information."
+    },
+    {
+      "type": "item",
+      "text": "All clinical records generated during the Contractor's Consultations and other patient information will be held, stored, managed, disclosed, accessed, corrected and retained in accordance with the Privacy Act 2020, the Health Information Privacy Code 2020, and the Health (Retention of Health Information) Regulations 1996."
+    },
+    {
+      "type": "item",
+      "text": "For the purposes of the Health Information Privacy Code 2020, Tere Health Limited is the health agency holding, managing and storing the health information generated through Consultations."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor has a professional right of access to notes they authored for the purposes of their own defence, audit, MCNZ inquiry, or HDC inquiry, for so long as those records are retained, and for any longer period required by an active MCNZ, HDC, ACC, or coronial matter."
+    },
+    {
+      "type": "item",
+      "text": "Where the Contractor has ceased to have Platform access (whether following termination or otherwise) and reasonably requires a copy of notes they authored for a bona ﬁde regulatory, professional-body, coronial, ACC, HDC, or legal defence purpose, Tere Health will, on written request to hello@terehealth.co.nz, provide a copy of the relevant records within:"
+    },
+    {
+      "type": "item",
+      "text": "ﬁve (5) working days for a routine defence or audit request; or"
+    },
+    {
+      "type": "item",
+      "text": "forty-eight (48) hours where the Contractor certiﬁes in the request that the material is required to meet an HDC, coronial, ACC, or MCNZ deadline."
+    },
+    {
+      "type": "para",
+      "text": "This obligation is provided at no charge, survives termination of this Agreement, and binds any successor in title, purchaser, or liquidator of Tere Health under clause 20.2."
+    },
+    {
+      "type": "item",
+      "text": "Breach notiﬁcation. Where the Contractor becomes aware of an actual or suspected privacy breach involving Conﬁdential Information or patient information (including loss of device, unauthorised access, misdirected disclosure, or exﬁltration), the Contractor will notify Tere Health at hello@terehealth.co.nz as soon as reasonably practicable and in any event within twenty-four (24) hours of becoming aware. The Contractor will cooperate fully with Tere Health's privacy-breach runbook (which triggers Tere Health's obligations under the Privacy Act 2020 and, where applicable, mandatory notiﬁcation to the Oﬃce of the Privacy Commissioner and aﬀected individuals). The Contractor will not independently notify aﬀected individuals, regulators, or the media without Tere Health's prior written coordination, unless Applicable Law requires the Contractor to do so.",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "INTELLECTUAL PROPERTY"
+    },
+    {
+      "type": "item",
+      "text": "All Intellectual Property in any documentation, protocols, templates, clinical decision aids, workﬂows, training material, code contribution, or other works created or developed by the Contractor in the course of providing the Services (\"Tere Works\") vests in Tere Health on creation, and the Contractor assigns to Tere Health all present and future Intellectual Property rights in the Tere Works. Clinical records generated during Consultations are excluded from this clause 12 and are governed by clause 11.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "To the extent the assignment in clause 12.1 does not take eﬀect on creation, the Contractor holds those rights on trust for Tere Health and will do all things necessary to perfect the assignment."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health grants the Contractor a personal, non-exclusive, non-transferable, royalty-free licence to use the Tere Works solely for the following limited purposes:",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "the Contractor's own defence in any MCNZ, HDC, ACC, coronial, or other regulatory or professional inquiry relating to a Consultation the Contractor conducted;"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor's own audit of Consultations they conducted;"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor's own continuing professional development."
+    },
+    {
+      "type": "item",
+      "text": "The licence does not permit the Contractor to use the Tere Works for any commercial purpose, or to make the Tere Works available to any other person, or to use the Tere Works in providing services to any other provider or platform."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor's pre-existing intellectual property (owned or licensed by the Contractor before commencement, or created outside the scope of the Services) remains the Contractor's property. Where the Contractor incorporates any pre-existing IP into Tere Works, the Contractor grants Tere Health a perpetual, worldwide, royalty-free, sublicensable licence to use, copy, modify, and distribute that pre-existing IP as part of the Tere Works."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor consents to any and all acts or omissions in relation to Tere Works which might otherwise infringe the Contractor's moral rights (including the right of attribution and the right of integrity), for the beneﬁt of Tere Health and its assignees."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor warrants that they own or have the right to license all materials they contribute to the Services, and that those materials do not infringe any third party's rights."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "NON-SOLICITATION  AND  CONFLICT  OF  INTEREST"
+    },
+    {
+      "type": "item",
+      "text": "During the engagement and for six (6) months after termination, the Contractor will not directly or indirectly initiate contact with, or actively solicit, any patient for whom the Contractor was the primary treating provider through Tere Health, for the purpose of drawing that patient's clinical work away from Tere Health. This restriction is limited to Contractor-initiated contact; it does not restrict a patient's right to choose their own practitioner, and it does not prevent the Contractor from accepting a patient who independently and unprompted approaches the Contractor for care.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "The Contractor may practice medicine anywhere in New Zealand, for any provider, and market their own practice generally, throughout and after this engagement."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor will disclose to Tere Health any actual, potential, or perceived conﬂict of interest promptly."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "CONTINUITY OF CARE IN TERMINATION OR TRANSITION"
+    },
+    {
+      "type": "item",
+      "text": "Where a patient's care has been transferred to another Tere Health-aﬃliated practitioner, or a follow-up review is scheduled, the outgoing Contractor will provide suﬃcient handover information (including outstanding results, planned follow-up, and any safety-netting advice given) to enable continuity of care."
+    },
+    {
+      "type": "item",
+      "text": "If this Agreement terminates while the Contractor has an in-ﬂight Consultation, the Contractor will complete that Consultation and ﬁnalise its clinical notes before ceasing to provide Services."
+    },
+    {
+      "type": "item",
+      "text": "Where the Contractor has ordered investigations or referrals for a patient prior to termination, the Contractor will notify Tere Health so that follow-up can be reassigned; the Contractor's professional obligation to close the loop on results they ordered continues until Tere Health has conﬁrmed reassignment."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SUBSTITUTION"
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "The Contractor may nominate another MCNZ-registered medical practitioner to provide any Consultation or block of Consultations on the Contractor's behalf, subject to:"
+    },
+    {
+      "type": "item",
+      "text": "the Sub-contractor holding current MCNZ registration in a scope covering the Services oﬀered;"
+    },
+    {
+      "type": "item",
+      "text": "the Sub-contractor holding current APC, current Medical Indemnity, and their own current ACC Provider ID;"
+    },
+    {
+      "type": "item",
+      "text": "the Sub-contractor meeting the same competence-to-roster standard under clause 6.5 as the Contractor, before touching a patient through the Platform;",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "the Sub-contractor passing Tere Health's onboarding checks (police vetting, right to work, and identity veriﬁcation); and"
+    },
+    {
+      "type": "item",
+      "text": "Tere Health's prior written approval, which will not be unreasonably withheld."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor is responsible for paying the Sub-contractor directly. Tere Health continues to invoice and pay the Contractor for Consultations provided by an approved Sub-contractor, unless the parties agree otherwise in writing."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor remains responsible under this Agreement for the acts and omissions of any Sub-contractor in providing the Services."
+    },
+    {
+      "type": "item",
+      "text": "Where a Sub-contractor provides a Consultation, the Platform will record the Sub-contractor as the acting practitioner (for clinical accountability, note authorship, and audit purposes) and the Contractor as the responsible practitioner. Recording activity in the Contractor's name where a Sub-contractor in fact provided the Consultation is treated as recording in another practitioner's name under clause 9.2."
+    },
+    {
+      "type": "item",
+      "text": "ACC billing by Sub-contractor. Any ACC-billed Consultation provided by a Sub-contractor must be lodged with ACC under the Sub-contractor's own ACC Provider ID, not the Contractor's. The Contractor will ensure this occurs, and will not permit ACC45 lodgement under the Contractor's ACC Provider ID for any Consultation the Contractor did not personally conduct.",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "TERMINATION"
+    },
+    {
+      "type": "item",
+      "text": "Either party may terminate this Agreement by giving seven (7) days' written notice to the other, without reason.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Tere Health may terminate this Agreement immediately without notice if the Contractor:",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "commits any serious or persistent breach of this Agreement;"
+    },
+    {
+      "type": "item",
+      "text": "is guilty of dishonesty, serious misconduct, or serious neglect in providing the Services;"
+    },
+    {
+      "type": "item",
+      "text": "loses their MCNZ registration or APC, or has conditions of practice imposed that Tere Health cannot reasonably accommodate;"
+    },
+    {
+      "type": "item",
+      "text": "loses, fails to maintain, or fails to notify Tere Health of the loss, suspension, cancellation, non-renewal, or material restriction to their Medical Indemnity;"
+    },
+    {
+      "type": "item",
+      "text": "is convicted of any criminal oﬀence relevant to the Services or to Tere Health's reputation;"
+    },
+    {
+      "type": "item",
+      "text": "commits a serious patient-safety event or gross clinical error, as determined by a formal Serious Event Review conducted for this purpose. A Serious Event Review is distinct from, and will not use the output of, any protected quality-assurance peer-review activity (including any Clinical Governance Meeting under clause 10.6). A Serious Event Review will not be conducted by, or take material input from, any senior clinician who has acted as the Contractor's MCNZ supervisor during the six (6) months preceding the event under review; where Tere Health cannot identify an appropriately independent reviewer internally, Tere Health will nominate an external MCNZ-registered senior clinician whose scope of practice covers the Services to conduct the Serious Event Review, and the Contractor may object to a speciﬁc nominee within ﬁve (5) working days of notiﬁcation and propose an alternative, with the parties acting in good faith to agree the reviewer;",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "becomes insolvent, bankrupt, or makes any assignment or arrangement with creditors;"
+    },
+    {
+      "type": "item",
+      "text": "engages in physical abuse or unreasonable verbal aggression toward any Tere Health team member, patient, or third party; or"
+    },
+    {
+      "type": "item",
+      "text": "engages in conduct reasonably likely to cause material reputational harm to Tere Health."
+    },
+    {
+      "type": "item",
+      "text": "receives a Police Vetting result, overseas police-check result, or re-vetting outcome that Tere Health reasonably determines is unsatisfactory under clause 5.4"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor may terminate immediately if Tere Health commits a serious or persistent breach of this Agreement that is not remedied within fourteen (14) days of written notice from the Contractor. Absent such a breach, the Contractor may terminate on seven (7) days' notice under clause 16.1."
+    },
+    {
+      "type": "item",
+      "text": "During any notice period, Tere Health is under no obligation to route Consultations to the Contractor."
+    },
+    {
+      "type": "item",
+      "text": "Declining work; good-faith routing."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health will not terminate this Agreement, and will not suspend the Contractor's active-roster status, by reason of the Contractor declining any individual Consultation, session, or oﬀer of additional work. The 60-day inactivity pause in clause 8.3 is administrative only, does not terminate this Agreement, and does not require any explanation from the Contractor."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health will route Consultations to available Contractors on a good-faith basis using the published criteria in the Platform Policies, and will not use routing discretion under clause 8 to penalise a Contractor for declining previous oﬀers of work."
+    },
+    {
+      "type": "item",
+      "text": "On termination for any reason, the Contractor will:"
+    },
+    {
+      "type": "item",
+      "text": "immediately return to Tere Health all property, documents, and items relating to Tere Health that are in the Contractor's possession or control;"
+    },
+    {
+      "type": "item",
+      "text": "irretrievably delete any Conﬁdential Information stored on personal devices, cloud storage, or any other location outside Platform systems;"
+    },
+    {
+      "type": "item",
+      "text": "submit a ﬁnal invoice for Consultations completed prior to termination within 14 days; and"
+    },
+    {
+      "type": "item",
+      "text": "meet their continuity-of-care obligations under clause 14."
+    },
+    {
+      "type": "item",
+      "text": "Clauses 11 (Conﬁdentiality, Privacy, and Breach Notiﬁcation), 12 (IP), 13 (Non-solicitation), 14 (Continuity of Care), 17 (Indemnity), 18 (ACC), 22 (Governing Law), and 26 (Dispute Resolution) survive termination."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "INDEMNITY POSITION"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor holds their own Medical Indemnity as required by clause 2.4. That cover is the primary indemnity in respect of any claim arising from the Contractor's clinical acts or omissions in providing the Services."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health's own corporate insurance sits behind that primary cover as a matter of Tere Health's own risk management; Tere Health does not indemnify the Contractor for the Contractor's own clinical acts or omissions."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor will supply written evidence of their Medical Indemnity (membership number and category) at commencement and annually thereafter (or on Tere Health's reasonable request), and will notify Tere Health promptly of any claim, complaint, or notice of potential claim relating to a Consultation the Contractor conducted."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor must maintain Medical Indemnity continuously throughout the term of this Agreement. The Contractor must notify Tere Health in writing immediately, and in any event within two (2) working days, if:"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor's Medical Indemnity lapses, expires, is cancelled, suspended, withdrawn, or not renewed;"
+    },
+    {
+      "type": "item",
+      "text": "any exclusion, limitation, or restriction, condition, reservation of rights or other change to the Contractor’s Medical Indemnity arises or is imposed which materially affects or may materially affect the availability, scope or adequacy of that Medical Indemnity in relation to the Services;"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor becomes aware of any circumstance that may result in the withdrawal or reduction of their Medical Indemnity; or"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor ceases to meet the requirements of clause 2.4."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health may immediately suspend the Contractor's access to the Platform pending satisfactory evidence that Medical Indemnity which satisfies the requirements of clause 2.4 is in place."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ACC COMPLIANCE"
+    },
+    {
+      "type": "item",
+      "text": "Tere Health is a registered ACC vendor. The Contractor is the treating provider for ACC purposes on Consultations they personally conduct."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor will:"
+    },
+    {
+      "type": "item",
+      "text": "hold and maintain their own current ACC Provider ID, disclosed at Item 2 of the Schedule. Loss or lapse of the ACC Provider ID does not terminate this Agreement, but suspends the Contractor from providing any ACC-billed Consultation until the ID is reinstated; the Contractor may continue to provide non-ACC Consultations subject to the Contractor's other obligations under this Agreement;"
+    },
+    {
+      "type": "item",
+      "text": "lodge each ACC45 for an ACC-billed Consultation under their own ACC Provider ID (Sub-contractor lodgement is governed by clause 15.5);"
+    },
+    {
+      "type": "item",
+      "text": "lodge only where the Contractor is satisﬁed, on the information available to them, that (i) an accident within the meaning of the Accident Compensation Act 2001 occurred, (ii) that accident caused the presenting problem, and (iii) causation can be adequately assessed via the telehealth modality for the particular presentation, or divert the patient to in-person care where it cannot;"
+    },
+    {
+      "type": "item",
+      "text": "meet the Telehealth Standards on every ACC-billed Consultation, including documented clinical appropriateness assessment, documented risk assessment, and recorded patient consent to the telehealth modality;"
+    },
+    {
+      "type": "item",
+      "text": "document causation, mechanism of injury, and clinical reasoning to a standard that supports ACC audit; and"
+    },
+    {
+      "type": "item",
+      "text": "cooperate fully with any ACC audit or claims review relating to Consultations the Contractor conducted, including providing records, responses, and clariﬁcations within the timeframes ACC requests."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health invoices ACC for Consultations conducted through the Platform under Tere Health's vendor arrangement, and pays the Contractor at the per-Consultation fee in clause 10. The Contractor's fee entitlement is not contingent on ACC payment to Tere Health, except as expressly provided in clause 18.4."
+    },
+    {
+      "type": "item",
+      "text": "ACC recoupment. Where ACC recoups a payment from Tere Health relating to a speciﬁc Consultation on the ground that Contractor conduct (misclaiming, causation error, or documentation failure attributable solely to the Contractor) caused the recoupment, Tere Health may recover from the Contractor an amount capped at the fee Tere Health paid the Contractor for that Consultation. This clause 18.4 is an express exception to clause 18.3. Before any recovery:",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Tere Health will notify the Contractor in writing setting out the recouped amount, the reasons ACC gave, and Tere Health's analysis of attribution;"
+    },
+    {
+      "type": "item",
+      "text": "the Contractor has fourteen (14) working days to respond;"
+    },
+    {
+      "type": "item",
+      "text": "if the Contractor disputes attribution, the matter is referred to clause 26 dispute resolution before any set-oﬀ, invoice, or debt claim is raised."
+    },
+    {
+      "type": "para",
+      "text": "Where future fees are available, Tere Health may set oﬀ the capped amount against future fees. Where no future fees are available (including on or after termination), Tere Health may invoice the capped amount as a debt payable on 30 days' terms. This clause does not aﬀect the Contractor's separate professional obligations to MCNZ, ACC, or the patient."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "HEALTH AND SAFETY (HSWA)"
+    },
+    {
+      "type": "item",
+      "text": "Tere Health acknowledges that it is a Person Conducting a Business or Undertaking (PCBU) under HSWA and that the Contractor is a worker of Tere Health for the purposes of HSWA only. Worker status under HSWA does not aﬀect the characterisation of the parties under clause 2 (independent contractor, not an employee for any other purpose). Tere Health owes the Contractor the primary duty of care under section 36 of HSWA so far as is reasonably practicable.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Tere Health provides safe systems for using the Platform, published guidance on home-alone working and fatigue management, escalation pathways for abusive or threatening patient interactions, and an incident-reporting workﬂow."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor will:"
+    },
+    {
+      "type": "item",
+      "text": "take reasonable care for their own health and safety and that of others while providing the Services;"
+    },
+    {
+      "type": "item",
+      "text": "comply with Tere Health's reasonable health-and-safety instructions and published guidance;"
+    },
+    {
+      "type": "item",
+      "text": "report to Tere Health any hazard, incident, or near-miss arising in the course of providing the Services within twenty-four (24) hours; and"
+    },
+    {
+      "type": "item",
+      "text": "cooperate with Tere Health in any WorkSafe notiﬁcation or incident investigation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ASSIGNMENT"
+    },
+    {
+      "type": "item",
+      "text": "The Contractor may not assign or transfer their rights or obligations under this Agreement without Tere Health's prior written consent. The Contractor may nominate a Sub-contractor under clause 15."
+    },
+    {
+      "type": "item",
+      "text": "Tere Health may assign its rights and obligations under this Agreement to any related company, successor in title, or purchaser of its business, without the Contractor's consent, provided the assignee agrees in writing to be bound by this Agreement, expressly including the record-custodian and retrieval obligations in clause 11.2 and clause 11.3. Any liquidator, administrator, or receiver of Tere Health remains bound by clauses 11.2 and 11.3 to the extent permitted by law."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "NOTICES"
+    },
+    {
+      "type": "item",
+      "text": "Any notice, request, consent, approval or other communication  under this Agreement must be in writing and delivered by email to the party's nominated email address. Tere Health's address for notices is hello@terehealth.co.nz."
+    },
+    {
+      "type": "item",
+      "text": "The Contractor's address for notices is recorded at Item 9 of the Schedule (or as later updated by written notice to Tere Health). A notice is deemed received on the next working day after it is sent, unless a bounce or delivery-failure message is received by the sender."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "GOVERNING LAW AND JURISDICTION"
+    },
+    {
+      "type": "item",
+      "text": "This Agreement is governed by the laws of New Zealand  as specified in Item 8 of the Schedule. The parties submit to the exclusive jurisdiction of the courts of New Zealand."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "VARIATION"
+    },
+    {
+      "type": "para",
+      "text": "This Agreement may only be varied by written agreement signed by both parties. No oral variation is eﬀective."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "SEVERABILITY"
+    },
+    {
+      "type": "para",
+      "text": "If any provision of this Agreement is or becomes void, illegal, or unenforceable under any Applicable Law, that provision is severed and the remaining provisions continue in full force and eﬀect."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "WAIVER"
+    },
+    {
+      "type": "para",
+      "text": "A failure or delay by either party to exercise any right under this Agreement is not a waiver of that right, nor does it prevent the exercise of that right at any later time."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "DISPUTE RESOLUTION"
+    },
+    {
+      "type": "item",
+      "text": "If any dispute arises under this Agreement, the parties will ﬁrst attempt to resolve the dispute by good-faith discussion."
+    },
+    {
+      "type": "item",
+      "text": "If the dispute is not resolved within 20 working days, either party may refer the matter to mediation, with a mediator agreed between the parties or, failing agreement, appointed by the Chair of LEADR NZ Inc."
+    },
+    {
+      "type": "item",
+      "text": "If mediation does not resolve the dispute within 60 days of referral, either party may commence proceedings in the courts of New Zealand."
+    },
+    {
+      "type": "item",
+      "text": "Nothing in this clause prevents either party from seeking urgent interim relief from the courts."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ENTIRE AGREEMENT"
+    },
+    {
+      "type": "para",
+      "text": "This Agreement, including the Schedule and Appendices, constitutes the entire agreement between the parties in relation to its subject matter and supersedes all prior negotiations, agreements, and understandings, whether written or oral."
+    },
+    {
+      "type": "para",
+      "text": "SIGNED FOR AND ON BEHALF OF TERE HEALTH LIMITED",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "SIGNED BY THE CONTRACTOR",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_full_name}}{{contractor_full_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_full_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Independent Contractor"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Date:"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "{{signer_date}}{{signer_date}}{{signer_name}}{{signer_title}}{{signer_name}}{{signer_title}}{{contractor_signed_date}}{{contractor_signed_date}}Date:"
+    },
+    {
+      "type": "para",
+      "text": "{{signer_date}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{signer_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{signer_title}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_signed_date}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere HealthSCHEDULE  ·  INDEPENDENT  CONTRACTOR  SERVICES  AGREEMENT"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Schedule"
+    },
+    {
+      "type": "para",
+      "text": "Item 1",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Principal",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere Health Limited (NZBN 9429053723413), 41 Adams Lane, Springlands, Blenheim 7201"
+    },
+    {
+      "type": "para",
+      "text": "Item 2",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Contractor",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_full_name}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "MCNZ Reg. {{contractor_mcnz}} · HPI-CPN",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_cpn}} · ACC Provider ID",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_acc_id}} · IRD {{contractor_ird}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_gst_optional}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Item 3",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Services",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Telehealth medical consultations for patients located in New Zealand, within the Contractor's own MCNZ scope of practice. Typical patient population: adults, and paediatric patients aged 2 years and above, subject to the Platform's published triage divert rules from time to time. Prescribing, ordering investigations, referral, and safety-netting within the Contractor's scope. See Appendix A.",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Item 4",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Commencement date",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{commencement_date}}",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Item 5",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Place of Services",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Remote — any location within New Zealand meeting the technical and conﬁdentiality requirements in the Platform Policies."
+    },
+    {
+      "type": "para",
+      "text": "Nominated primary location:"
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_address}} .",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Item 6",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Platform hours of operation",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Monday to Sunday, 7:00 am to 11:00 pm NZST/NZDT. Contractor availability is at the Contractor's discretion within these hours."
+    },
+    {
+      "type": "para",
+      "text": "Item 7",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Fee",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "NZ$25 per completed Consultation (GST-inclusive if GST-registered; GST-exclusive if not). Payable fortnightly in arrears by direct bank transfer.",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Item 8",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Governing law",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "New Zealand"
+    },
+    {
+      "type": "para",
+      "text": "Item 9",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Contractor notice address",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "{{contractor_notice_email}} (updatable by written notice to hello@terehealth.co.nz)",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere HealthAPPENDIX A · SERVICES DESCRIPTION"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Appendix A — Services Description"
+    },
+    {
+      "type": "para",
+      "text": "This Appendix describes the clinical services the Contractor makes available through the Platform. It is provided as a description of the work-type only; it does not create a position or role within Tere Health."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "NATURE OF SERVICES"
+    },
+    {
+      "type": "para",
+      "text": "Telehealth consultations delivered by video, for patients across New Zealand. The Contractor exercises independent clinical judgement within their MCNZ scope of practice and indemnity cover. The Contractor may:"
+    },
+    {
+      "type": "item",
+      "text": "Assess, diagnose, and treat presentations within their scope, and divert to in-person care where scope, safety, or the need for physical examination requires;"
+    },
+    {
+      "type": "item",
+      "text": "Prescribe medications within their scope, subject to the controlled-drug restriction in clause 4.6 and to any other limits imposed by law or the Platform Policies;"
+    },
+    {
+      "type": "item",
+      "text": "Order and interpret diagnostic tests appropriate to the presentation, and close the loop on results through the Platform's follow-up workﬂow;"
+    },
+    {
+      "type": "item",
+      "text": "Initiate referrals to specialist care, imaging, or emergency services when clinically indicated;"
+    },
+    {
+      "type": "item",
+      "text": "Lodge ACC45 for injury presentations within the Telehealth Standards set out in clause 18;"
+    },
+    {
+      "type": "item",
+      "text": "Divert to in-person care where the Platform's published triage divert list, or the Contractor's own clinical judgement, indicates."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "TYPICAL PATIENT POPULATION"
+    },
+    {
+      "type": "para",
+      "text": "Adults and paediatric patients aged 2 years and above, subject to the Platform's current triage divert rules (which exclude certain presentations — including but not limited to certain paediatric age-bands and acute emergencies — from telehealth pathways).",
+      "bold": true
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "COMMUNICATION AND CONTINUITY"
+    },
+    {
+      "type": "para",
+      "text": "The Contractor communicates clearly and compassionately with patients and their whānau, veriﬁes understanding of diagnosis, treatment, safety-netting and follow-up, and supports continuity of care by liaising with the patient's usual GP where appropriate. Where interpreter services are required, the Contractor uses certiﬁed interpreters (not family members) in accordance with HDC Right 5."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "DOCUMENTATION"
+    },
+    {
+      "type": "para",
+      "text": "The Contractor maintains accurate, timely, and conﬁdential patient records in line with MCNZ Good Medical Practice standards and the retention requirements of the Health (Retention of Health Information) Regulations 1996."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "ESCALATION AND PEER SUPPORT"
+    },
+    {
+      "type": "para",
+      "text": "Tere Health's Clinical Director and its wider senior clinical group are available to the Contractor as peer colleagues for clinical discussion. The Contractor is not professionally accountable to any Tere Health oﬃcer; the Contractor is professionally accountable to MCNZ and to the patients they treat."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "VALUES (INFORMATIONAL)"
+    },
+    {
+      "type": "para",
+      "text": "The following values describe the culture Tere Health encourages among the practitioners who provide Services through the Platform. They are not terms of this Agreement."
+    },
+    {
+      "type": "item",
+      "text": "Manaakitanga — care for the patient in front of you.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Whakawhanaungatanga — build trust with colleagues; peer review makes us safer.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Pono — be honest about what you know and don't know; escalate rather than guess.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Kaitiakitanga — guard the systems that keep patients safe.",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "Tere Health"
+    },
+    {
+      "type": "para",
+      "text": "APPENDIX B · CONTRACTOR WARRANTIES — STATUTORY & PROFESSIONAL STANDARDS"
+    },
+    {
+      "type": "heading",
+      "level": 1,
+      "text": "Appendix B — Contractor Warranties: Statutory & Professional Standards"
+    },
+    {
+      "type": "para",
+      "text": "The Contractor warrants that they hold, and will maintain throughout the engagement, each of the following. Any lapse will be notiﬁed to Tere Health immediately."
+    },
+    {
+      "type": "item",
+      "text": "MCNZ registration in a scope of practice within which the Services fall.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Current Annual Practising Certiﬁcate (APC) from the Medical Council of New Zealand.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Medical Indemnity as deﬁned in clause 1. Written evidence of current membership and category will be supplied at commencement and annually thereafter.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Current ACC Provider ID in the Contractor's own name.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "NZ Police Vetting under the Children's Act 2014, satisfactory to Tere Health. Overseas police checks where the Contractor has lived outside NZ for 12 months or more in the last 10 years.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Legal right to work in New Zealand as an independent contractor.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Valid IRD number, and where GST-registered, a valid GST number, before the ﬁrst invoice.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Nominated NZ bank account for fee payment.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Competence-to-roster credentials speciﬁed in the Platform Policies for the speciﬁc Services the Contractor oﬀers, including Platform familiarisation, sandbox certiﬁcation, safeguarding training, and any resuscitation or occupational-immunity credentials the Platform Policies require for the Contractor's chosen scope.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Annual cultural safety competency in accordance with the MCNZ Statement on Cultural Safety.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Compliance with the Health Practitioners Competence Assurance Act 2003, MCNZ Good Medical Practice, MCNZ Statement on Telehealth, HDC Code of Rights, Privacy Act 2020, HIPC 2020, and any other statute or regulation applicable to the Contractor's practice.",
+      "bold": true
+    },
+    {
+      "type": "item",
+      "text": "Where the Contractor holds provisional or general scope only: a ﬁled MCNZ supervision plan naming a suitable MCNZ-approved supervisor, with a deﬁned mechanism giving the supervisor real visibility of the Contractor's Consultations (including regular case review and access to clinical documentation). Tere Health can propose Dr Rachel Thomas (FACEM, MCNZ 93606) as the standing supervisor, subject to MCNZ approval of the speciﬁc plan.",
+      "bold": true
+    },
+    {
+      "type": "para",
+      "text": "The standards in this Appendix reﬂect the Contractor's own professional obligations, existing legal requirements, and the Platform Policies' competence-to-roster gates. Nothing in this Appendix creates an obligation the Contractor did not already owe as a registered medical practitioner in New Zealand practising through the Platform."
+    }
+  ]
+}

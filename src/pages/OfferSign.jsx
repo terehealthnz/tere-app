@@ -139,8 +139,9 @@ export default function OfferSign() {
       setErrorMsg('Please type your full name.')
       return
     }
-    if (offer?.contract_pdf_url && !ackContract) {
-      setErrorMsg('Please tick the box confirming you have read and agree to the attached agreement.')
+    const hasContractDoc = !!offer?.contract_pdf_url || !!offer?.contract_version
+    if (hasContractDoc && !ackContract) {
+      setErrorMsg('Please tick the box confirming you have read and agree to the agreement.')
       return
     }
     setState('submitting'); setErrorMsg('')
@@ -152,7 +153,7 @@ export default function OfferSign() {
           token,
           typedName: typedName.trim(),
           signaturePng: sigPng,
-          acknowledgedContract: offer?.contract_pdf_url ? ackContract : undefined,
+          acknowledgedContract: (offer?.contract_pdf_url || offer?.contract_version) ? ackContract : undefined,
         }),
       })
       const body = await res.json().catch(() => ({}))
@@ -246,7 +247,38 @@ export default function OfferSign() {
           <div style={S.termsBody}>{offer?.contract_terms}</div>
         </div>
 
-        {offer?.contract_pdf_url && (
+        {offer?.contract_version && (() => {
+          const ContractRenderer = React.lazy(() => import('../contracts/ContractRenderer'))
+          return (
+            <div style={{ marginTop: 24, border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ background: '#F0F9FA', padding: '10px 16px', borderBottom: '1px solid #C7EAEC', fontSize: '.85rem', color: '#0D2B45', fontWeight: 700 }}>
+                Independent Contractor Agreement — read below, tick the box, then sign
+              </div>
+              <div style={{ maxHeight: 480, overflowY: 'auto', background: 'white' }}>
+                <React.Suspense fallback={<div style={{ padding: 20, color: '#6B7280' }}>Loading contract…</div>}>
+                  <ContractRenderer
+                    version={offer.contract_version}
+                    contractor={offer.contractor_snapshot || {}}
+                  />
+                </React.Suspense>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 16px', background: '#F8FAFC', borderTop: '1px solid #E2E8F0', cursor: 'pointer', fontSize: '.9rem', color: '#0D2B45', lineHeight: 1.5 }}>
+                <input
+                  type="checkbox"
+                  checked={ackContract}
+                  onChange={e => setAckContract(e.target.checked)}
+                  disabled={busy}
+                  style={{ marginTop: 3, width: 16, height: 16, flexShrink: 0 }}
+                />
+                <span>
+                  I have read the above <strong>Independent Contractor Agreement (version {offer.contract_version})</strong> and agree to be bound by it.
+                </span>
+              </label>
+            </div>
+          )
+        })()}
+
+        {!offer?.contract_version && offer?.contract_pdf_url && (
           <div style={{
             marginTop: 20,
             background: '#F0F9FA',
@@ -315,7 +347,7 @@ export default function OfferSign() {
           )}
 
           {(() => {
-            const needsAck = !!offer?.contract_pdf_url
+            const needsAck = !!offer?.contract_pdf_url || !!offer?.contract_version
             const disabled = busy || typedName.trim().length < 2 || (needsAck && !ackContract)
             return (
               <button

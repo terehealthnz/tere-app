@@ -1378,10 +1378,10 @@ export async function listOfferTemplates() {
   return body.templates || []
 }
 
-export async function createOfferTemplate({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName } = {}) {
+export async function createOfferTemplate({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName, contractVersion } = {}) {
   const res = await apiFetch('/api/job-applications?action=create_offer_template', {
     method: 'POST',
-    body: JSON.stringify({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName }),
+    body: JSON.stringify({ name, roleTitleDefault, compensationDefault, contractTerms, sortOrder, contractPdfBase64, contractPdfName, contractVersion }),
   })
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Template create failed')
   return await res.json()
