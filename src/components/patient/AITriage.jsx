@@ -83,8 +83,27 @@ const DIVERT_KEYWORDS = [
   'new numbness','new weakness','new vision loss','sudden numbness','sudden weakness',
 ]
 
+// Strip negated symptom spans before keyword matching. Patient text like
+// "sore throat, no fever, no difficulty breathing" was tripping the ED
+// divert because "difficulty breathing" matched despite the "no" prefix.
+// Remove any "no X" / "not X" / "without X" / "denies X" span up to the
+// next punctuation, so the downstream keyword check only sees genuinely
+// declared symptoms.
+//
+// Deliberately NOT applied to mental-health, addiction or controlled-med
+// checks — false-negative on those is a much worse outcome than a false
+// positive, and negated phrasings like "I don't want to die" are edge
+// cases best handled by the AI triage classifier + the always-visible
+// "I'm worried" catch-all (task #431).
+function stripNegatedSpans(text) {
+  return String(text || '').replace(
+    /\b(?:no|not|without|denies?|absent|isn'?t|doesn'?t\s+have)\s+[a-z][^.,;!?\n]*/gi,
+    ' ',
+  )
+}
+
 function checkDivert(text) {
-  const lower = text.toLowerCase()
+  const lower = stripNegatedSpans(text).toLowerCase()
   return DIVERT_KEYWORDS.some(kw => lower.includes(kw))
 }
 
@@ -148,7 +167,7 @@ function checkControlledMed(text) {
 }
 
 function checkPhysicalEmergency(text) {
-  const lower = text.toLowerCase()
+  const lower = stripNegatedSpans(text).toLowerCase()
   return PHYSICAL_EMERGENCY_KEYWORDS.some(kw => lower.includes(kw))
 }
 
@@ -976,25 +995,27 @@ export default function AITriage() {
       })
       sessionStorage.setItem('consultationId', consultation.id)
 
-      // Re-link pre-triage consent records to the real consultation
+      // Re-link pre-triage consent state to the real consultation. We
+      // only need the timestamps here — the consents table itself is
+      // repopulated below (see /api/consents POSTs) against the real
+      // consultation id, so the pre-triage consent rows become orphans
+      // that the retention cron (task #360) later garbage-collects. The
+      // previous direct-Supabase UPDATE was 401'ing after the RLS
+      // lockdown; server-mediation gets us the same result via already-
+      // authed patient endpoints.
       const preTriageId = sessionStorage.getItem('consultation_id')
       if (preTriageId && preTriageId !== consultation.id) {
         try {
-          const { supabase: sb, patientDeletePreTriage } = await import('../../lib/supabase')
-          // Get consent timestamps set during /consent and /prescribing-limits screens
+          const { patientDeletePreTriage } = await import('../../lib/supabase')
           const pt = await patientGetConsultation(preTriageId)
-          // Move all pre-triage consent records to the real consultation
-          await sb.from('consents').update({ consultation_id: consultation.id }).eq('consultation_id', preTriageId)
-          // Copy consent timestamps to the real consultation record
           if (pt?.hdc_consent_at || pt?.prescribing_consent_at) {
             await patientUpdateConsultation(consultation.id, {
               hdc_consent_at: pt.hdc_consent_at,
               prescribing_consent_at: pt.prescribing_consent_at,
             })
           }
-          // Delete the now-redundant pre_triage stub (server enforces
-          // status='pre_triage' filter so we can't accidentally delete real
-          // consults).
+          // Server enforces status='pre_triage' filter so we can't
+          // accidentally delete a real consult.
           await patientDeletePreTriage(preTriageId)
           sessionStorage.removeItem('consultation_id')
         } catch {}
