@@ -213,6 +213,13 @@ export async function joinMeeting({ meetingResponse, localVideoEl, remoteVideoEl
   // startLocalVideoTile) — matches the "consult defaults to phone" UX.
   if (!audioOnly) {
     try {
+      // Reduce encoder work to tighten A/V sync — Chime default is
+      // 960×540 @ 15fps which encodes slowly enough on mid-range laptops
+      // that video drifts ~200-400ms behind audio. 640×480 @ 15fps roughly
+      // halves the encode load and pulls sync back under 100ms. Bandwidth
+      // cap prevents the encoder hoarding buffer under network jitter.
+      try { session.audioVideo.chooseVideoInputQuality(640, 480, 15) } catch {}
+      try { session.audioVideo.setVideoMaxBandwidthKbps(600) } catch {}
       const videoInputs = await session.audioVideo.listVideoInputDevices()
       if (videoInputs.length) await session.audioVideo.startVideoInput(videoInputs[0].deviceId)
     } catch (e) { console.warn('[chime] video input:', e?.message) }

@@ -57,7 +57,7 @@ function Hero() {
     }}>
       <div style={{ maxWidth: 640 }}>
         <div style={{ display: 'inline-block', background: 'rgba(11,110,118,.3)', border: '1px solid rgba(212,238,240,.2)', borderRadius: 99, padding: '5px 14px', fontSize: '.8rem', color: BRAND.tealLight, letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Marlborough Sounds, New Zealand
+          Aotearoa New Zealand
         </div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
           Tele-emergency care.<br />Anywhere in Aotearoa.
@@ -65,9 +65,12 @@ function Hero() {
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
         </p>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
+        </div>
+        <div style={{ fontSize: '.8125rem', color: 'rgba(212,238,240,.7)', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontStyle: 'italic' }}>
+          Submit any time — after-hours goes to the top of the morning queue.
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
@@ -99,8 +102,8 @@ function HowItWorks() {
   const steps = [
     { n: '1', icon: '💬', title: 'Triage chat', desc: 'Our AI health assistant gathers your symptoms and history in minutes.' },
     { n: '2', icon: '📏', title: 'Vitals check', desc: 'Share a quick photo of any visible issue. Optional guided vitals if needed.' },
-    { n: '3', icon: '👨‍⚕️', title: 'See the doctor', desc: 'A doctor calls you within 2 hours. Video optional — you or the doctor can turn on the camera whenever it helps.' },
-    { n: '4', icon: '✅', title: 'All sorted', desc: 'Prescriptions sent to your pharmacy. Referrals organised. ACC filed.' },
+    { n: '3', icon: '👨‍⚕️', title: 'See the doctor', desc: 'A doctor calls you within 2 hours during opening hours. Submit after 8pm and expect a callback from 8am. Video optional.' },
+    { n: '4', icon: '✅', title: 'All sorted', desc: 'Prescriptions to any NZ pharmacy. X-ray or ultrasound arranged anywhere in the country. Referrals and ACC filed.' },
   ]
   return (
     <section id="how-it-works" style={{ background: 'white', padding: '5rem 1.5rem' }}>
@@ -270,7 +273,7 @@ function About() {
             Emergency medicine. Wherever you are.
           </h2>
           <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 560, margin: '0 auto' }}>
-            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings specialist emergency medicine to wherever you are — on the water, on the farm, or deep in the Sounds.
+            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings specialist emergency medicine to wherever you are in Aotearoa — on the water, on the farm, in the bush, or in town.
           </p>
         </div>
         <div style={{ background: 'rgba(11,110,118,.06)', border: '1px solid rgba(11,110,118,.2)', borderRadius: 12, padding: '1.5rem 1.75rem', fontSize: '.875rem', color: '#374151', lineHeight: 1.8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
@@ -299,6 +302,14 @@ function FAQ() {
     {
       q: 'How do I pay?',
       a: 'Credit or debit card online, processed securely via Stripe. Payment is taken when your consultation is confirmed. ACC co-payments are charged at the same time.',
+    },
+    {
+      q: 'Where in NZ do you cover?',
+      a: 'All of Aotearoa. We send prescriptions electronically to any community pharmacy in New Zealand — you choose the one closest to you at booking. For imaging (X-ray or ultrasound), your Tere doctor can arrange a referral to a clinic in your region as part of the consultation.',
+    },
+    {
+      q: 'What if I submit after 8pm?',
+      a: 'You can still submit any time. After-hours submissions go to the top of the queue and receive a callback from 8am the next morning. If you have an emergency, call 111 immediately — don\'t wait.',
     },
     {
       q: 'What if it\'s an emergency?',
@@ -344,7 +355,7 @@ function Footer() {
     <footer style={{ background: BRAND.navy, padding: '2.5rem 1.5rem', textAlign: 'center' }}>
       <div style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.3rem', marginBottom: '.75rem' }}>Tere Health</div>
       <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.55)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>
-        Tere Health Limited · Marlborough Sounds, New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: '#D4EEF0', textDecoration: 'underline' }}>terehealthnz@gmail.com</a>
+        Tere Health Limited · Aotearoa New Zealand · <a href="mailto:terehealthnz@gmail.com" style={{ color: '#D4EEF0', textDecoration: 'underline' }}>terehealthnz@gmail.com</a>
       </div>
       <div style={{ display: 'flex', gap: '1.25rem', justifyContent: 'center', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
         {[['Privacy', '/privacy'], ['Terms', '/terms'], ['My record', '/patient/portal'], ['Complaints', '/complaints'], ['Accessibility', '/accessibility'], ['Careers', '/careers'], ['Employers', '/employers']].map(([label, href]) => (
