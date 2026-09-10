@@ -2346,5 +2346,228 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
+  // ── Provider compliance documents ──────────────────────────────────────
+  //
+  // GET   ?action=provider_compliance                       → own row
+  // GET   ?action=provider_compliance&id=<providerId>       → other (admin)
+  // POST  ?action=upload_provider_compliance
+  //         Body: { kind: 'apc'|'mi', pdfBase64, pdfName?, ...fields }
+  // POST  ?action=send_contract_to_provider  (admin only)
+  //         Body: { providerId, templateId }
+  //
+  // Provider profile page and admin providers list both drive off the
+  // same read endpoint. Uploads go to `provider-compliance` storage
+  // bucket at <provider_id>/<kind>-<uuid>.pdf. Compliance-expiry cron
+  // (task #413) reads the *_expiry_date columns directly.
+
+  if (req.method === 'GET' && action === 'provider_compliance') {
+    const targetId = String(req.query?.id || '').trim() || auth.provider?.id
+    if (!targetId) return res.status(400).json({ error: 'providerId required' })
+    // Non-admins can only see their own record.
+    if (targetId !== auth.provider?.id && !auth.provider?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to view another provider\'s compliance' })
+    }
+    const { data: prov, error: pErr } = await supabase
+      .from('providers')
+      .select('id, first_name, last_name, email, apc_number, apc_expiry_date, apc_storage_key, apc_uploaded_at, mi_insurer, mi_policy_number, mi_expiry_date, mi_storage_key, mi_uploaded_at, active_contract_offer_id')
+      .eq('id', targetId)
+      .maybeSingle()
+    if (pErr || !prov) return res.status(404).json({ error: 'Provider not found' })
+
+    async function signIfPresent(key) {
+      if (!key) return null
+      const { data, error } = await supabase.storage.from('provider-compliance').createSignedUrl(key, 3600)
+      return error ? null : data?.signedUrl || null
+    }
+    const apcUrl = await signIfPresent(prov.apc_storage_key)
+    const miUrl  = await signIfPresent(prov.mi_storage_key)
+
+    // Fetch active contract offer (if any) to include status + signed PDF URL.
+    let contract = null
+    if (prov.active_contract_offer_id) {
+      const { data: off } = await supabase
+        .from('job_offers')
+        .select('id, contract_pdf_name, applicant_signed_at, countersigned_at, pdf_storage_key, status')
+        .eq('id', prov.active_contract_offer_id)
+        .maybeSingle()
+      if (off) {
+        let signedPdfUrl = null
+        if (off.pdf_storage_key) {
+          const { data: sig } = await supabase.storage.from('offers').createSignedUrl(off.pdf_storage_key, 3600)
+          signedPdfUrl = sig?.signedUrl || null
+        }
+        contract = {
+          id: off.id,
+          template_name: off.contract_pdf_name,
+          applicant_signed_at: off.applicant_signed_at,
+          countersigned_at: off.countersigned_at,
+          status: off.status,
+          signed_pdf_url: signedPdfUrl,
+        }
+      }
+    }
+
+    return res.status(200).json({
+      compliance: {
+        provider_id: prov.id,
+        provider_name: [prov.first_name, prov.last_name].filter(Boolean).join(' '),
+        apc: {
+          number:      prov.apc_number      || null,
+          expiry_date: prov.apc_expiry_date || null,
+          uploaded_at: prov.apc_uploaded_at || null,
+          file_url:    apcUrl,
+        },
+        medical_indemnity: {
+          insurer:       prov.mi_insurer       || null,
+          policy_number: prov.mi_policy_number || null,
+          expiry_date:   prov.mi_expiry_date   || null,
+          uploaded_at:   prov.mi_uploaded_at   || null,
+          file_url:      miUrl,
+        },
+        contract,
+      },
+    })
+  }
+
+  if (req.method === 'POST' && action === 'upload_provider_compliance') {
+    const b = req.body || {}
+    const kind = b.kind === 'mi' ? 'mi' : b.kind === 'apc' ? 'apc' : null
+    if (!kind) return res.status(400).json({ error: 'kind must be "apc" or "mi"' })
+    // Provider uploads own; admin can upload for anyone (rare — recovery).
+    const targetId = String(b.providerId || '').trim() || auth.provider?.id
+    if (!targetId) return res.status(400).json({ error: 'providerId required' })
+    if (targetId !== auth.provider?.id && !auth.provider?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to upload for another provider' })
+    }
+    if (typeof b.pdfBase64 !== 'string' || !b.pdfBase64) return res.status(400).json({ error: 'pdfBase64 required' })
+
+    // Validate + decode
+    const raw = b.pdfBase64.startsWith('data:')
+      ? b.pdfBase64.slice(b.pdfBase64.indexOf(',') + 1)
+      : b.pdfBase64
+    let buf
+    try { buf = Buffer.from(raw, 'base64') }
+    catch { return res.status(400).json({ error: 'pdfBase64 not valid base64' }) }
+    if (buf.byteLength < 500) return res.status(400).json({ error: 'PDF too small' })
+    if (buf.byteLength > 4 * 1024 * 1024) return res.status(400).json({ error: 'PDF exceeds 4MB' })
+    if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) {
+      return res.status(400).json({ error: 'file is not a PDF' })
+    }
+
+    const rand = randomBytes(6).toString('hex')
+    const key = `${targetId}/${kind}-${rand}.pdf`
+    const { error: upErr } = await supabase.storage.from('provider-compliance')
+      .upload(key, buf, { contentType: 'application/pdf', upsert: false, cacheControl: '31536000' })
+    if (upErr) { console.error('[compliance] upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
+
+    // Update provider row with the metadata for whichever doc was uploaded.
+    const patch = { }
+    const now = new Date().toISOString()
+    if (kind === 'apc') {
+      patch.apc_storage_key  = key
+      patch.apc_uploaded_at  = now
+      if (typeof b.apcNumber === 'string')     patch.apc_number      = b.apcNumber.trim().slice(0, 60) || null
+      if (typeof b.apcExpiryDate === 'string') patch.apc_expiry_date = b.apcExpiryDate.slice(0, 10) || null
+    } else {
+      patch.mi_storage_key  = key
+      patch.mi_uploaded_at  = now
+      if (typeof b.miInsurer === 'string')      patch.mi_insurer       = b.miInsurer.trim().slice(0, 120) || null
+      if (typeof b.miPolicyNumber === 'string') patch.mi_policy_number = b.miPolicyNumber.trim().slice(0, 60) || null
+      if (typeof b.miExpiryDate === 'string')   patch.mi_expiry_date   = b.miExpiryDate.slice(0, 10) || null
+    }
+    const { error: updErr } = await supabase.from('providers').update(patch).eq('id', targetId)
+    if (updErr) { console.error('[compliance] provider update failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ ok: true, kind, key })
+  }
+
+  if (req.method === 'POST' && action === 'send_contract_to_provider') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    const b = req.body || {}
+    const providerId = String(b.providerId || '').trim()
+    const templateId = String(b.templateId || '').trim()
+    if (!providerId || !templateId) return res.status(400).json({ error: 'providerId + templateId required' })
+
+    const { data: prov } = await supabase
+      .from('providers')
+      .select('id, first_name, last_name, email')
+      .eq('id', providerId)
+      .maybeSingle()
+    if (!prov) return res.status(404).json({ error: 'Provider not found' })
+    if (!prov.email) return res.status(400).json({ error: 'Provider has no email on file' })
+
+    const { data: tpl } = await supabase
+      .from('offer_templates')
+      .select('id, name, role_title_default, compensation_default, contract_terms, contract_pdf_key, contract_pdf_name, is_active')
+      .eq('id', templateId)
+      .maybeSingle()
+    if (!tpl) return res.status(404).json({ error: 'Template not found' })
+    if (!tpl.is_active) return res.status(400).json({ error: 'Template is not active' })
+    if (!tpl.contract_pdf_key) return res.status(400).json({ error: 'Template has no attached PDF — attach the agreement first' })
+
+    // Synthetic job_application so the offer flow slots in unchanged. Status
+    // 'hired' keeps this out of the active interview queue. `notes` marks
+    // the row as internal onboarding for audit trail.
+    const { data: app, error: appErr } = await supabase
+      .from('job_applications')
+      .insert({
+        first_name: prov.first_name || null,
+        last_name:  prov.last_name  || null,
+        email:      prov.email,
+        role:       tpl.role_title_default || 'Independent Contractor',
+        status:     'hired',
+        source:     'internal_onboarding',
+        notes:      `Internal onboarding: sending v${tpl.name} to existing provider ${providerId}`,
+      })
+      .select('id')
+      .maybeSingle()
+    if (appErr || !app) { console.error('[contract-to-provider] app insert failed:', appErr); return res.status(500).json({ error: 'Server error (application seed)' }) }
+
+    // Insert the offer row directly (mirrors create_offer logic — inlined so
+    // we can persist the provider snapshot in the same call).
+    const signToken = randomBytes(24).toString('base64url')
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .insert({
+        application_id:         app.id,
+        created_by_provider_id: auth.provider?.id || null,
+        role_title:             tpl.role_title_default || 'Independent Contractor',
+        compensation:           tpl.compensation_default || 'Per Independent Contractor Agreement',
+        contract_terms:         tpl.contract_terms || 'See attached Independent Contractor Agreement.',
+        contract_pdf_key:       tpl.contract_pdf_key,
+        contract_pdf_name:      tpl.contract_pdf_name || 'Independent Contractor Agreement',
+        applicant_sign_token:   signToken,
+        status:                 'sent',
+      })
+      .select('id')
+      .maybeSingle()
+    if (oErr || !offer) { console.error('[contract-to-provider] offer insert failed:', oErr); return res.status(500).json({ error: 'Server error (offer seed)' }) }
+
+    // Point the provider at their active contract offer so the compliance
+    // read endpoint returns it in the "contract" section next time.
+    await supabase.from('providers').update({ active_contract_offer_id: offer.id }).eq('id', providerId)
+
+    const siteOrigin = getSiteOriginFor(req)
+    const signUrl    = `${siteOrigin}/offer/sign/${signToken}`
+    try {
+      const firstName = prov.first_name || 'there'
+      await sendEmail({
+        from:    'Tere Health <hello@terehealth.co.nz>',
+        replyTo: 'terehealthnz@gmail.com',
+        to:      [prov.email],
+        subject: 'Please sign your Tere Health Independent Contractor Agreement',
+        html: emailShell(`
+          <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">Please review and sign your Independent Contractor Agreement with Tere Health. This is a one-time step to get you on our register of executed agreements.</p>
+          <div style="text-align:center;margin:28px 0"><a href="${signUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:15px;font-weight:700">Review &amp; sign →</a></div>
+          <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0 0 8px">Or open this link:</p>
+          <p style="font-size:12px;color:#0B6E76;word-break:break-all;margin:0 0 24px">${signUrl}</p>
+          <p style="font-size:15px;line-height:1.7;color:#374151;margin:24px 0 0">Ngā mihi,<br>The Tere Health team</p>`),
+        text: `Kia ora ${firstName},\n\nPlease review and sign your Tere Health Independent Contractor Agreement:\n${signUrl}\n\nNgā mihi,\nThe Tere Health team`,
+      })
+    } catch (e) { console.error('[contract-to-provider] email failed:', e.message) }
+
+    return res.status(200).json({ ok: true, offerId: offer.id, signUrl })
+  }
+
   return res.status(405).json({ error: 'Method not allowed' })
 }

@@ -168,6 +168,8 @@ export default function MyProfile() {
 
         <SignatureSection me={me} onUpdated={url => setMe({ ...me, signature_url: url })} />
 
+        <ComplianceSection me={me} />
+
         <div style={{ position: 'sticky', bottom: 12, background: 'white', borderRadius: 12, padding: '.85rem 1rem', border: '1px solid #E2E8F0', marginTop: '1rem', display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 4px 16px rgba(0,0,0,.06)' }}>
           <div style={{ fontSize: '.85rem', color: success ? '#059669' : error ? '#DC2626' : '#6B7280', flex: 1 }}>
             {success || error || 'Changes save to your provider record.'}
@@ -266,5 +268,166 @@ function SignatureSection({ me, onUpdated }) {
         <div style={{ fontSize: '.8rem', color: msg.startsWith('Error') ? '#DC2626' : '#059669', flex: 1 }}>{msg}</div>
       </div>
     </section>
+  )
+}
+
+// ── Compliance documents ────────────────────────────────────────────────────
+// APC (Annual Practising Certificate) + Medical Indemnity + active contract.
+// Reads compliance state on mount; provider can upload/replace each PDF +
+// set expiry metadata. Contract is read-only here — admin sends the sign
+// link from the providers list in Admin.
+function ComplianceSection({ me }) {
+  const [state, setState] = useState({ loading: true, compliance: null, msg: '' })
+  async function reload() {
+    try {
+      const { getProviderCompliance } = await import('../../lib/supabase')
+      const c = await getProviderCompliance()
+      setState(s => ({ ...s, loading: false, compliance: c }))
+    } catch (e) { setState(s => ({ ...s, loading: false, msg: 'Error: ' + e.message })) }
+  }
+  useEffect(() => { reload() }, [])
+
+  if (state.loading) {
+    return (
+      <section style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #E2E8F0', marginBottom: '1rem' }}>
+        <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .5rem' }}>Compliance documents</h3>
+        <div style={{ fontSize: '.8rem', color: '#6B7280' }}>Loading…</div>
+      </section>
+    )
+  }
+  const c = state.compliance || {}
+  return (
+    <section style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #E2E8F0', marginBottom: '1rem' }}>
+      <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .35rem' }}>Compliance documents</h3>
+      <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.85rem' }}>
+        Keep your Annual Practising Certificate and Medical Indemnity current. Tere admin sees expiry dates and gets reminders 60/30/7 days before they lapse.
+      </div>
+
+      <ComplianceDocCard
+        title="Annual Practising Certificate (APC)"
+        kind="apc"
+        fields={[
+          { key: 'apcNumber',     label: 'APC number',   placeholder: 'e.g. 12345' },
+          { key: 'apcExpiryDate', label: 'Expiry date',  type: 'date', required: true },
+        ]}
+        currentMeta={c.apc}
+        onDone={reload}
+      />
+
+      <ComplianceDocCard
+        title="Medical Indemnity"
+        kind="mi"
+        fields={[
+          { key: 'miInsurer',      label: 'Insurer',        placeholder: 'MPS, Medico Legal Society NZ, etc.' },
+          { key: 'miPolicyNumber', label: 'Policy number',  placeholder: 'e.g. MPS-123456' },
+          { key: 'miExpiryDate',   label: 'Expiry date',    type: 'date', required: true },
+        ]}
+        currentMeta={c.medical_indemnity}
+        onDone={reload}
+      />
+
+      <div style={{ marginTop: '1rem', padding: '.85rem 1rem', background: c.contract?.countersigned_at ? '#ECFDF5' : c.contract ? '#FFFBEB' : '#F8FAFC', border: `1px solid ${c.contract?.countersigned_at ? '#A7F3D0' : c.contract ? '#FDE68A' : '#E2E8F0'}`, borderRadius: 10 }}>
+        <div style={{ fontWeight: 700, color: NAVY, fontSize: '.85rem', marginBottom: 4 }}>Independent Contractor Agreement</div>
+        {c.contract?.countersigned_at ? (
+          <div style={{ fontSize: '.8rem', color: '#065F46' }}>
+            ✓ Signed &amp; countersigned {new Date(c.contract.countersigned_at).toLocaleDateString('en-NZ')}
+            {c.contract.signed_pdf_url && (
+              <> — <a href={c.contract.signed_pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: TEAL, textDecoration: 'underline' }}>download signed PDF</a></>
+            )}
+          </div>
+        ) : c.contract?.applicant_signed_at ? (
+          <div style={{ fontSize: '.8rem', color: '#92400E' }}>You've signed — waiting for Tere Health to countersign.</div>
+        ) : c.contract ? (
+          <div style={{ fontSize: '.8rem', color: '#92400E' }}>Contract awaiting your signature — check your email for the sign link.</div>
+        ) : (
+          <div style={{ fontSize: '.8rem', color: '#6B7280' }}>No contract on file yet. Contact admin if you should have one.</div>
+        )}
+      </div>
+
+      {state.msg && <div style={{ fontSize: '.8rem', color: '#DC2626', marginTop: 8 }}>{state.msg}</div>}
+    </section>
+  )
+}
+
+function ComplianceDocCard({ title, kind, fields, currentMeta, onDone }) {
+  const [form, setForm] = useState({})
+  const [pdfB64, setPdfB64] = useState(null)
+  const [pdfName, setPdfName] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+
+  async function pickPdf(file) {
+    if (!file) return
+    if (file.type !== 'application/pdf') { setMsg('PDF only.'); return }
+    if (file.size > 4 * 1024 * 1024)   { setMsg('4MB max.'); return }
+    const { fileToBase64 } = await import('../../lib/supabase')
+    setPdfB64(await fileToBase64(file))
+    setPdfName(file.name)
+    setMsg('')
+  }
+  async function submit() {
+    if (!pdfB64) { setMsg('Attach a PDF first.'); return }
+    const expiryKey = kind === 'apc' ? 'apcExpiryDate' : 'miExpiryDate'
+    if (!form[expiryKey]) { setMsg('Expiry date required.'); return }
+    setSaving(true); setMsg('')
+    try {
+      const { uploadProviderCompliancePdf } = await import('../../lib/supabase')
+      await uploadProviderCompliancePdf({ kind, pdfBase64: pdfB64, pdfName, ...form })
+      setPdfB64(null); setPdfName(null); setForm({})
+      setMsg('Saved.')
+      await onDone?.()
+    } catch (e) { setMsg('Error: ' + e.message) }
+    finally { setSaving(false) }
+  }
+
+  const currentExpiry = currentMeta?.expiry_date
+  const expiryStatus = (() => {
+    if (!currentExpiry) return { color: '#6B7280', label: 'no date on file' }
+    const days = Math.floor((new Date(currentExpiry) - new Date()) / 86_400_000)
+    if (days < 0)   return { color: '#DC2626', label: `expired ${-days}d ago` }
+    if (days <= 30) return { color: '#B45309', label: `expires in ${days}d` }
+    return { color: '#059669', label: `valid until ${new Date(currentExpiry).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}` }
+  })()
+
+  return (
+    <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '.85rem 1rem', marginBottom: '.85rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+        <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9rem' }}>{title}</div>
+        <div style={{ fontSize: '.72rem', color: expiryStatus.color, fontWeight: 600 }}>{expiryStatus.label}</div>
+      </div>
+
+      {currentMeta?.file_url && (
+        <div style={{ fontSize: '.78rem', color: '#374151', marginBottom: 8 }}>
+          📎 <a href={currentMeta.file_url} target="_blank" rel="noopener noreferrer" style={{ color: TEAL, textDecoration: 'underline' }}>current PDF on file</a>
+          {kind === 'apc' && currentMeta.number && <> · APC #{currentMeta.number}</>}
+          {kind === 'mi' && currentMeta.insurer && <> · {currentMeta.insurer}{currentMeta.policy_number ? ` (${currentMeta.policy_number})` : ''}</>}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '.5rem', marginBottom: '.5rem' }}>
+        {fields.map(f => (
+          <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: '.75rem', color: '#4B5563' }}>
+            {f.label}{f.required && <span style={{ color: '#DC2626' }}> *</span>}
+            <input
+              type={f.type || 'text'}
+              value={form[f.key] ?? ''}
+              placeholder={f.placeholder || ''}
+              onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+              style={{ padding: '.4rem .6rem', border: '1.5px solid #E2E8F0', borderRadius: 6, fontFamily: FF, fontSize: '.85rem' }}
+            />
+          </label>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <input type="file" accept="application/pdf" onChange={e => pickPdf(e.target.files?.[0])} style={{ fontSize: '.8rem' }} disabled={saving} />
+        {pdfName && <span style={{ fontSize: '.75rem', color: '#0B6E76' }}>📎 {pdfName}</span>}
+        <button onClick={submit} disabled={saving || !pdfB64}
+          style={{ marginLeft: 'auto', background: TEAL, color: 'white', border: 'none', padding: '.4rem .9rem', borderRadius: 6, fontWeight: 700, fontFamily: FF, fontSize: '.8rem', cursor: (saving || !pdfB64) ? 'not-allowed' : 'pointer', opacity: (saving || !pdfB64) ? .6 : 1 }}>
+          {saving ? 'Saving…' : (currentMeta?.file_url ? 'Replace' : 'Upload')}
+        </button>
+      </div>
+      {msg && <div style={{ fontSize: '.75rem', color: msg.startsWith('Error') ? '#DC2626' : '#059669', marginTop: 6 }}>{msg}</div>}
+    </div>
   )
 }

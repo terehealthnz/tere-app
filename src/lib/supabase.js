@@ -1431,6 +1431,41 @@ export async function updateInterview(interviewId, patch) {
   return res.ok
 }
 
+// ── Provider compliance documents ────────────────────────────────────────
+// APC (Annual Practising Certificate) + Medical Indemnity + active
+// signed contract snapshot. Called from MyProfile.jsx (self) and the
+// admin providers list (via id, admin-only).
+
+export async function getProviderCompliance(providerId) {
+  const q = providerId ? `&id=${encodeURIComponent(providerId)}` : ''
+  const res = await apiFetch(`/api/job-applications?action=provider_compliance${q}`)
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Compliance load failed')
+  return (await res.json()).compliance
+}
+
+// kind: 'apc' | 'mi'. For 'apc' pass { apcNumber, apcExpiryDate }. For 'mi'
+// pass { miInsurer, miPolicyNumber, miExpiryDate }. providerId is optional
+// (admin uploading on behalf of someone else).
+export async function uploadProviderCompliancePdf({ kind, pdfBase64, pdfName, providerId, ...rest } = {}) {
+  const res = await apiFetch('/api/job-applications?action=upload_provider_compliance', {
+    method: 'POST',
+    body: JSON.stringify({ kind, pdfBase64, pdfName, providerId, ...rest }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Compliance upload failed')
+  return await res.json()
+}
+
+// Admin: fabricate a synthetic application + offer using an existing
+// provider's email so we can send them the v8.x contract sign link.
+export async function sendContractToProvider(providerId, templateId) {
+  const res = await apiFetch('/api/job-applications?action=send_contract_to_provider', {
+    method: 'POST',
+    body: JSON.stringify({ providerId, templateId }),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Contract send failed')
+  return await res.json()
+}
+
 // Interviewer joins — returns { token, serverUrl, roomName } for LiveKit.
 export async function startInterview(interviewId) {
   const res = await apiFetch(`/api/job-applications?action=start_interview&id=${encodeURIComponent(interviewId)}`, {

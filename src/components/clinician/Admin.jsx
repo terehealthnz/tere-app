@@ -2106,6 +2106,36 @@ function ProvidersPanel() {
                     </button>
                     {p.email && (
                       <button onClick={async () => {
+                        // Send v8.x Independent Contractor Agreement to an
+                        // existing provider. Fetch active PDF-attached templates,
+                        // let admin pick by number (native prompt keeps this
+                        // simple for a low-frequency admin action), then fire
+                        // the send endpoint which fabricates a synthetic
+                        // job_application + offer under the hood.
+                        setSaving(p.id)
+                        try {
+                          const { listOfferTemplates, sendContractToProvider } = await import('../../lib/supabase')
+                          const tpls = (await listOfferTemplates()).filter(t => t.is_active && t.contract_pdf_key)
+                          if (!tpls.length) { alert('No active contract templates with an attached PDF. Upload a template first (Careers → Offer templates).'); return }
+                          const menu = tpls.map((t, i) => `${i + 1}. ${t.name}${t.contract_pdf_name ? ' — ' + t.contract_pdf_name : ''}`).join('\n')
+                          const pick = window.prompt(`Send contract to ${displayName} (${p.email}).\n\nWhich template?\n\n${menu}\n\nEnter number (1-${tpls.length}):`)
+                          if (!pick) return
+                          const idx = parseInt(pick, 10) - 1
+                          const tpl = tpls[idx]
+                          if (!tpl) { alert('Invalid choice.'); return }
+                          if (!window.confirm(`Send "${tpl.name}" to ${displayName} (${p.email}) for signing?`)) return
+                          const r = await sendContractToProvider(p.id, tpl.id)
+                          alert(`Contract sent to ${p.email}.\n\nSign link (for reference):\n${r.signUrl}`)
+                        } catch (e) { alert(`Send failed: ${e.message}`) }
+                        finally { setSaving(null) }
+                      }} disabled={saving === p.id}
+                        title="Email this provider a link to sign the Independent Contractor Agreement"
+                        style={{ background:'#EEF2FF', color:'#3730A3', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
+                        {saving === p.id ? '…' : '📝 Send contract'}
+                      </button>
+                    )}
+                    {p.email && (
+                      <button onClick={async () => {
                         const confirmed = window.confirm(`Rotate ${displayName}'s PIN and re-send welcome email to ${p.email}?\n\nTheir current PIN will stop working immediately.`)
                         if (!confirmed) return
                         setSaving(p.id)
