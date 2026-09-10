@@ -1236,7 +1236,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, id: data?.id, application: data })
   }
 
-  if (req.method === 'GET') {
+  // Catch-all GET for applications list / single application. Gated on
+  // !action so action-based GET routes further down (offer_templates,
+  // provider_compliance, etc.) can be reached. Without this gate, any
+  // GET falls through here first and returns the applications list.
+  if (req.method === 'GET' && !action) {
     if (id) {
       const [{ data: app, error: appErr }, { data: notes }, { data: steps }] = await Promise.all([
         supabase.from('job_applications').select('*, job_listing:job_listings(id, title, location)').eq('id', id).maybeSingle(),
