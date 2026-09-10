@@ -237,14 +237,17 @@ function SignatureSection({ me, onUpdated }) {
 
   return (
     <section style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #E2E8F0', marginBottom: '1rem' }}>
-      <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .35rem' }}>Prescribing signature</h3>
+      <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .35rem' }}>Signature</h3>
+      <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.5rem' }}>
+        Used on prescriptions (for clinical prescribers) and on countersigned contracts (for authorised signers).
+      </div>
       {me.signature_url ? (
         <div style={{ marginBottom: '.75rem' }}>
           <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: 4 }}>Current signature on file:</div>
           <img src={me.signature_url} alt="current signature" style={{ maxHeight: 80, background: 'white', border: '1px solid #E2E8F0', borderRadius: 6, padding: 4 }} />
         </div>
       ) : (
-        <div style={{ fontSize: '.8125rem', color: '#B45309', marginBottom: '.75rem' }}>No signature on file. Sign below to add one — needed for prescriptions.</div>
+        <div style={{ fontSize: '.8125rem', color: '#B45309', marginBottom: '.75rem' }}>No signature on file. Draw one below to add it.</div>
       )}
       <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: 6 }}>Draw below to replace the current signature. Leaving it blank keeps the existing one.</div>
       <canvas
