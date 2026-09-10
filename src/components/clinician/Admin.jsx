@@ -319,6 +319,128 @@ function SupportPanel() {
   )
 }
 
+// Friendly labels + descriptions for the built-in template slugs. Anything
+// not in the map falls back to the template's own `name`. Keeps the picker
+// human-readable without forcing admins to rename every offer_template.
+const CONTRACT_LABELS = {
+  'v8.1':    { label: 'Doctor — Independent Contractor',            note: 'Standard MCNZ-registered medical practitioner' },
+  'v8.1-np': { label: 'Nurse Practitioner — Independent Contractor', note: 'NCNZ-registered NP — pending legal review' },
+}
+
+function SendContractModal({ provider, onClose, onSent }) {
+  const [templates, setTemplates] = React.useState(null)   // null = loading, [] = none
+  const [busy, setBusy] = React.useState(false)
+  const [err, setErr]   = React.useState('')
+
+  React.useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { listOfferTemplates } = await import('../../lib/supabase')
+        const all = await listOfferTemplates()
+        const usable = all.filter(t => t.is_active && (t.contract_version || t.contract_pdf_key))
+        if (!cancelled) setTemplates(usable)
+      } catch (e) {
+        if (!cancelled) { setTemplates([]); setErr(e.message || 'Could not load templates') }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  async function send(tpl) {
+    if (busy) return
+    setBusy(true); setErr('')
+    try {
+      const { sendContractToProvider } = await import('../../lib/supabase')
+      const r = await sendContractToProvider(provider.id, tpl.id)
+      if (r.emailError) {
+        alert(`⚠ Contract row created but the email to ${provider.email} FAILED.\n\nReason: ${r.emailError}\n\nSign link (copy manually):\n${r.signUrl}`)
+      } else {
+        alert(`Contract sent to ${provider.email}.\n\nSign link (for reference):\n${r.signUrl}`)
+      }
+      onSent?.()
+    } catch (e) {
+      setErr(e.message || 'Send failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const displayName = [provider.first_name, provider.last_name].filter(Boolean).join(' ') || 'this provider'
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(13,43,69,.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 100, padding: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'white', borderRadius: 14, padding: '1.75rem', width: '100%',
+        maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,.35)',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '.75rem' }}>
+          <div>
+            <div style={{ fontSize: '.7rem', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.06em', fontWeight: 700 }}>Send contract</div>
+            <div style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0D2B45', marginTop: 2 }}>{displayName}</div>
+            <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: 1 }}>{provider.email}</div>
+          </div>
+          <button onClick={onClose} disabled={busy}
+            style={{ background: 'none', border: 'none', color: '#94A3B8', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}
+            aria-label="Close">×</button>
+        </div>
+        <div style={{ fontSize: '.85rem', color: '#374151', marginBottom: '1rem' }}>
+          Pick the contract to email for e-signature.
+        </div>
+
+        {templates === null && (
+          <div style={{ color: '#6B7280', fontSize: '.9rem', padding: '1.5rem', textAlign: 'center' }}>Loading templates…</div>
+        )}
+        {templates && templates.length === 0 && (
+          <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', color: '#92400E', padding: '.85rem 1rem', borderRadius: 8, fontSize: '.85rem' }}>
+            No active contract templates. Add one under Careers → Offer templates first.
+          </div>
+        )}
+        {templates && templates.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {templates.map(tpl => {
+              const meta = CONTRACT_LABELS[tpl.contract_version] || { label: tpl.name, note: tpl.contract_pdf_name || tpl.contract_version || '' }
+              const fee = tpl.fee_per_consult || tpl.compensation_default || ''
+              return (
+                <button key={tpl.id} onClick={() => send(tpl)} disabled={busy}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left',
+                    background: 'white', border: '1.5px solid #E2E8F0', borderRadius: 10,
+                    padding: '.9rem 1rem', cursor: busy ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit', color: '#0D2B45',
+                    transition: 'border-color .15s, background .15s',
+                  }}
+                  onMouseEnter={e => { if (!busy) { e.currentTarget.style.borderColor = '#0B6E76'; e.currentTarget.style.background = '#F0F9FA' } }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.background = 'white' }}>
+                  <div style={{ fontSize: '1.5rem' }}>📝</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: '.95rem' }}>{meta.label}</div>
+                    {meta.note && <div style={{ fontSize: '.78rem', color: '#6B7280', marginTop: 2 }}>{meta.note}</div>}
+                  </div>
+                  {fee && (
+                    <div style={{ fontSize: '.78rem', color: '#0B6E76', fontWeight: 700, whiteSpace: 'nowrap' }}>{fee}</div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {err && (
+          <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '.6rem .8rem', borderRadius: 8, marginTop: 12, fontSize: '.85rem' }}>{err}</div>
+        )}
+        {busy && (
+          <div style={{ color: '#0B6E76', fontSize: '.85rem', marginTop: 12, textAlign: 'center' }}>Sending…</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // AddProviderModal — full onboarding form for a new clinician / admin user.
 // Posts to /api/providers with admin auth. Returns a plain initial PIN which
 // the parent surfaces via a green banner. Auto-generates 6-digit PIN if empty.
@@ -2023,6 +2145,7 @@ function ProvidersPanel() {
   const [saving, setSaving] = React.useState(null)
   const [addOpen, setAddOpen] = React.useState(false)
   const [editing, setEditing] = React.useState(null)
+  const [sendContractFor, setSendContractFor] = React.useState(null)  // provider row when picker is open
   const [createdNotice, setCreatedNotice] = React.useState(null)
   // Track current user's sandbox state so the per-row toggle re-renders on flip.
   const [sandboxOn, setSandboxOn] = React.useState(() => {
@@ -2119,6 +2242,13 @@ function ProvidersPanel() {
           provider={editing}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load() }}
+        />
+      )}
+      {sendContractFor && (
+        <SendContractModal
+          provider={sendContractFor}
+          onClose={() => setSendContractFor(null)}
+          onSent={() => { setSendContractFor(null); load() }}
         />
       )}
       {loading ? (
@@ -2223,39 +2353,7 @@ function ProvidersPanel() {
                       Edit
                     </button>
                     {p.email && (p.id !== currentProviderId) && (
-                      // Governance: an admin cannot send a contract to
-                      // themselves. Server rejects with 400; hide the
-                      // button on the current admin's own row too so it
-                      // never gets clicked. Use provider id (definitive)
-                      // rather than email (may be null / mismatched).
-                      <button onClick={async () => {
-                        // Send v8.x Independent Contractor Agreement to an
-                        // existing provider. Fetch active PDF-attached templates,
-                        // let admin pick by number (native prompt keeps this
-                        // simple for a low-frequency admin action), then fire
-                        // the send endpoint which fabricates a synthetic
-                        // job_application + offer under the hood.
-                        setSaving(p.id)
-                        try {
-                          const { listOfferTemplates, sendContractToProvider } = await import('../../lib/supabase')
-                          const tpls = (await listOfferTemplates()).filter(t => t.is_active && (t.contract_version || t.contract_pdf_key))
-                          if (!tpls.length) { alert('No active contract templates. Create one (Careers → Offer templates) with either an in-code version (e.g. v8.1) or an attached PDF.'); return }
-                          const menu = tpls.map((t, i) => `${i + 1}. ${t.name}${t.contract_version ? ' — in-code ' + t.contract_version : t.contract_pdf_name ? ' — ' + t.contract_pdf_name : ''}`).join('\n')
-                          const pick = window.prompt(`Send contract to ${displayName} (${p.email}).\n\nWhich template?\n\n${menu}\n\nEnter number (1-${tpls.length}):`)
-                          if (!pick) return
-                          const idx = parseInt(pick, 10) - 1
-                          const tpl = tpls[idx]
-                          if (!tpl) { alert('Invalid choice.'); return }
-                          if (!window.confirm(`Send "${tpl.name}" to ${displayName} (${p.email}) for signing?`)) return
-                          const r = await sendContractToProvider(p.id, tpl.id)
-                          if (r.emailError) {
-                            alert(`⚠ Contract row created but the email to ${p.email} FAILED.\n\nReason: ${r.emailError}\n\nSign link (copy manually):\n${r.signUrl}\n\nCheck AWS SES suppression list — most common cause is a prior bounce/complaint on this address.`)
-                          } else {
-                            alert(`Contract sent to ${p.email}.\n\nSign link (for reference):\n${r.signUrl}`)
-                          }
-                        } catch (e) { alert(`Send failed: ${e.message}`) }
-                        finally { setSaving(null) }
-                      }} disabled={saving === p.id}
+                      <button onClick={() => setSendContractFor(p)} disabled={saving === p.id}
                         title="Email this provider a link to sign the Independent Contractor Agreement"
                         style={{ background:'#EEF2FF', color:'#3730A3', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
                         {saving === p.id ? '…' : '📝 Send contract'}
