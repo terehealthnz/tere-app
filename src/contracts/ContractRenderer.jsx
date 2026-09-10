@@ -16,10 +16,16 @@ import React from 'react'
 
 // Static import — small file, always shipped with the client bundle. Adding
 // a new version = new .json import + new entry here.
-import v81 from './v8_1.json'
+import v81    from './v8_1.json'
+import v81np  from './v8_1_np.json'
 
 const REGISTRY = {
-  'v8.1': v81,
+  'v8.1':    v81,     // Doctor contractor agreement (MCNZ, $25/consult)
+  'v8.1-np': v81np,   // Nurse Practitioner contractor agreement (NCNZ,
+                      // $20/consult). Derived from v8.1 via
+                      // scripts/contract-extract/derive-np-from-doctor.py.
+                      // Pending Heather Collins review — safe for staging;
+                      // final sign-off before sending to any real NP.
 }
 
 export function getContractByVersion(version) {
