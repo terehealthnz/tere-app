@@ -157,12 +157,18 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       is_practice:        true,
       cooldown_until:     null,
     }
+    // Match whatever the unique index consultations_one_open_per_patient_idx
+    // considers "open" (see supabase/2026-07-24_one_open_consult_per_patient
+    // .sql: WHERE status NOT IN ('complete', 'cancelled')). Positive-list
+    // .in() is safer than negation — the previous
+    // .not('status', 'in', '(complete,cancelled)') syntax failed to match
+    // and we tripped the unique index on insert instead of updating.
     let existingConsultId = null
     {
       const { data: existing } = await supabase.from('consultations').select('id')
         .eq('patient_id', usedPatientId)
         .eq('is_practice', true)
-        .not('status', 'in', '(complete,cancelled)')
+        .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing', 'no_show'])
         .limit(1).maybeSingle()
       if (existing?.id) existingConsultId = existing.id
     }
