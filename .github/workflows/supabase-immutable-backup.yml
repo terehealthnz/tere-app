@@ -55,6 +55,11 @@ jobs:
           #   into a scratch project doesn't need identical roles.
           # We do NOT exclude schemas; pg_dump will politely skip any it
           # can't read (e.g. pgsodium.key, vault.secrets are RLS-protected).
+          #
+          # Trap ensures we always print pg_dump.stderr — otherwise a failed
+          # dump exits before we get to see why.
+          trap 'echo "─── pg_dump stderr ───"; cat pg_dump.stderr 2>/dev/null || echo "(no stderr captured)"' EXIT
+
           pg_dump \
             --format=custom \
             --no-owner \
@@ -66,7 +71,6 @@ jobs:
 
           echo "→ dump complete"
           ls -lh "${FILE}"
-          tail -30 pg_dump.stderr
 
           # Expose for later steps
           {
