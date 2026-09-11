@@ -1,0 +1,130 @@
+name: Supabase immutable backup
+
+# Anti-ransomware backup that cannot be deleted — even by AWS root — until
+# retention expires. Runs daily, uploads pg_dump to an S3 bucket in a separate
+# AWS account with Object Lock in Compliance mode, 7-year retention.
+#
+# Setup runbook: docs/security/immutable-backup-setup.md
+#
+# Required GitHub Actions secrets:
+#   SUPABASE_DB_URL              postgresql://... direct connection (NOT pooler)
+#   BACKUP_AWS_ACCESS_KEY_ID     IAM user in backup account, s3:PutObject scoped
+#   BACKUP_AWS_SECRET_ACCESS_KEY paired secret
+#   BACKUP_S3_BUCKET             bucket name in backup account
+#
+# Object Lock retention starts at upload; every object is independently locked.
+
+on:
+  schedule:
+    - cron: '30 15 * * *'   # 03:30 NZST daily (15:30 UTC year-round; NZ shifts DST but we accept the 1h drift)
+  workflow_dispatch:         # manual trigger for testing + first run
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    steps:
+      - name: Install PostgreSQL 17 client
+        # Ubuntu default is PG16; Supabase runs PG17. pg_dump version must be
+        # ≥ server version, so pull from the PGDG repo.
+        run: |
+          set -euo pipefail
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+
+      - name: pg_dump → gzip
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          TS_UTC=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          YYYY=$(date -u +%Y)
+          MM=$(date -u +%m)
+          DD=$(date -u +%d)
+          FILE="dump-${TS_UTC}.pgc.gz"
+
+          echo "→ pg_dump starting at ${TS_UTC}"
+          # --format=custom: portable, compressed, restorable with pg_restore
+          # --no-owner + --no-privileges: strip owner/GRANT lines so restore
+          #   into a scratch project doesn't need identical roles.
+          # We do NOT exclude schemas; pg_dump will politely skip any it
+          # can't read (e.g. pgsodium.key, vault.secrets are RLS-protected).
+          pg_dump \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            --verbose \
+            "${SUPABASE_DB_URL}" \
+            2> pg_dump.stderr \
+          | gzip -9 > "${FILE}"
+
+          echo "→ dump complete"
+          ls -lh "${FILE}"
+          tail -30 pg_dump.stderr
+
+          # Expose for later steps
+          {
+            echo "DUMP_FILE=${FILE}"
+            echo "DUMP_KEY=supabase/${YYYY}/${MM}/${DD}/${FILE}"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Upload to S3 with Object Lock (7-year Compliance retention)
+        env:
+          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          # 7 years from now, ISO 8601 UTC. Compliance mode means this date
+          # CANNOT be shortened by any principal — not even AWS root.
+          RETAIN_UNTIL=$(date -u -d '+7 years' +%Y-%m-%dT%H:%M:%SZ)
+
+          echo "→ uploading s3://${BUCKET}/${DUMP_KEY}"
+          echo "→ retain-until (Compliance): ${RETAIN_UNTIL}"
+
+          aws s3api put-object \
+            --bucket "${BUCKET}" \
+            --key   "${DUMP_KEY}" \
+            --body  "${DUMP_FILE}" \
+            --object-lock-mode COMPLIANCE \
+            --object-lock-retain-until-date "${RETAIN_UNTIL}" \
+            --server-side-encryption AES256 \
+            --storage-class STANDARD_IA \
+            --metadata "source=supabase,generator=github-actions,repo=${GITHUB_REPOSITORY},sha=${GITHUB_SHA}"
+
+          echo "→ upload OK"
+
+      - name: Verify object retention was applied
+        env:
+          BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          # Confirm the object is actually locked. If this step fails, the
+          # bucket policy is misconfigured and yesterday's upload wasn't
+          # protected either — treat as a P1.
+          RETENTION_JSON=$(aws s3api get-object-retention --bucket "${BUCKET}" --key "${DUMP_KEY}")
+          echo "${RETENTION_JSON}"
+          MODE=$(echo "${RETENTION_JSON}" | jq -r '.Retention.Mode')
+          if [ "${MODE}" != "COMPLIANCE" ]; then
+            echo "::error::Object was uploaded WITHOUT Compliance lock (mode=${MODE}). Bucket policy is wrong."
+            exit 1
+          fi
+          echo "→ object is Compliance-locked ✓"
+
+      - name: Log success summary
+        run: |
+          echo "### Backup succeeded" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Key:** \`${DUMP_KEY}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Size:** $(du -h "${DUMP_FILE}" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Retention:** 7 years (Compliance)" >> "$GITHUB_STEP_SUMMARY"
