@@ -41,7 +41,7 @@ export default function PostConsult() {
 
           {/* Billing summary — always shown once the consult record loads.
               For ACC-covered consults the patient sees $0 explicitly with the
-              claim reference; for private consults they see the $60 with the
+              claim reference; for private consults they see the $65 with the
               card last-4 if available. Silent charges break HDC Right 6. */}
           {!loading && consult && (
             <div style={{
@@ -128,10 +128,10 @@ function deriveBilling(consult) {
   if (!consult) {
     return { feeDollars: 0, paidDollars: 0, adminFeeDollars: 0, isAcc: false, reasoning: null, claimNumber: null }
   }
-  const feeCents = 6000
+  const feeCents = 6500
   const isAcc = consult.is_acc === true
   const feeDollars = feeCents / 100
-  const adminFeeDollars = isAcc ? 20 : 0
+  const adminFeeDollars = isAcc ? 25 : 0
   const paidDollars = isAcc
     ? adminFeeDollars
     : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)

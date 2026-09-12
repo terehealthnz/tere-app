@@ -56,13 +56,13 @@ export default async function handler(req, res) {
   const type = consultationType || 'consult'
   const isAcc = accEligible === 'yes'
   const isIntl = isInternational === true
-  // Mirrors _create-payment-intent.js — flat $60 consult, $20 ACC admin
+  // Mirrors _create-payment-intent.js — flat $65 consult, $25 ACC admin
   // fee, $25 message, $100 international (visitor) video/phone. Any change
   // here must land there too.
   const PRICES = {
-    consult: { private: 6000, acc: 2000, international: 10000 },
-    video:   { private: 6000, acc: 2000, international: 10000 },
-    phone:   { private: 6000, acc: 2000, international: 10000 },
+    consult: { private: 6500, acc: 2500, international: 10000 },
+    video:   { private: 6500, acc: 2500, international: 10000 },
+    phone:   { private: 6500, acc: 2500, international: 10000 },
     message: { private: 2500, acc: 2500, international: 4000 },
     // Post-consult insurance-receipt upsell — see _create-payment-intent.js.
     // No international bump — receipt cost is admin, not clinical.

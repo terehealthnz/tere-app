@@ -24,7 +24,7 @@ const CARD_STYLE = {
 
 const STRIPE_OPTIONS = { locale: 'en-NZ' }
 
-// Flat $60 consult across every live-consult type (video and phone are the
+// Flat $65 consult across every live-consult type (video and phone are the
 // same price — patient picks whichever suits them, provider decides on the
 // call). ACC-eligible consults charge only the $25 administrative fee — the
 // consultation itself is billed direct to ACC (see docs/security-compliance.md
@@ -234,7 +234,7 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
           </div>
         )}
 
-        {/* Billing country — drives NZ ($60) vs international ($100) pricing.
+        {/* Billing country — drives NZ ($65) vs international ($100) pricing.
             Presented as a normal billing-address field, not a "tourist" flag,
             so it doesn't feel like a paywall trap. */}
         {accEligible !== 'yes' && (

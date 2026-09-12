@@ -510,7 +510,7 @@ function AsyncMessageInner() {
           <div style={{ fontSize: '2.25rem', marginBottom: '.75rem' }}>💬</div>
           <h2 style={{ color: 'white', fontWeight: 700, marginBottom: '.75rem' }}>Message consultations paused</h2>
           <p style={{ color: 'rgba(212,238,240,.65)', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-            We're upgrading our payment system. Please <a href="/triage" style={{ color: TEAL_L, fontWeight: 700 }}>start a live consultation</a> instead — flat $60, seen within minutes.
+            We're upgrading our payment system. Please <a href="/triage" style={{ color: TEAL_L, fontWeight: 700 }}>start a live consultation</a> instead — flat $65, seen within minutes.
           </p>
           <a href="/" style={{ display: 'inline-block', background: TEAL, color: 'white', padding: '10px 22px', borderRadius: 99, fontWeight: 700, textDecoration: 'none' }}>Back to home</a>
         </div>

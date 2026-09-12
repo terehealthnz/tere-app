@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   // 1) Verify the payment. The Stripe PaymentIntent must be succeeded (i.e.
   // captured, since receipt PIs use capture_method=automatic), must belong
   // to this consult, and must be tagged as consultationType=receipt in its
-  // metadata so a scraper can't reuse the $60 consult PI for a free receipt.
+  // metadata so a scraper can't reuse the $65 consult PI for a free receipt.
   let intent
   try {
     intent = await getStripe().paymentIntents.retrieve(paymentIntentId, { expand: ['latest_charge.payment_method_details'] })

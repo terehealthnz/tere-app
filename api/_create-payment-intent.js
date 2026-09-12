@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   const type = consultationType || 'consult'
   const isAcc = accEligible === 'yes'
   // Flat pricing — 'consult' replaces the video/phone split. Legacy
-  // 'video'/'phone' rows resolve to the same $60. Message stays $25 as an
+  // 'video'/'phone' rows resolve to the same $65. Message stays $25 as an
   // async product.
   //
   // ACC-eligible consults: patient pays a $25 administrative co-payment

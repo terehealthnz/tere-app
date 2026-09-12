@@ -821,11 +821,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     if (!canFinalise) return
     setFinalising(true)
 
-    // Flat pricing — 'consult' unified type is $60; legacy video/phone rows
-    // resolve to the same $60. Message stays $25 as an async product. ACC
+    // Flat pricing — 'consult' unified type is $65; legacy video/phone rows
+    // resolve to the same $65. Message stays $25 as an async product. ACC
     // retains the $25 co-pay pending the ACC-billing overhaul.
-    const METHOD_PRICES = { consult: 6000, video: 6000, phone: 6000, message: 2500 }
-    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6000)
+    const METHOD_PRICES = { consult: 6500, video: 6500, phone: 6500, message: 2500 }
+    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
 
     const steps = [
       { label: 'Saving clinical notes',    status: 'pending' },
@@ -1851,7 +1851,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   Patient fee tier
                 </div>
                 <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45' }}>
-                  {actualMethod === 'international' ? '🌍 International — $100' : '🇳🇿 NZ resident — $60'}
+                  {actualMethod === 'international' ? '🌍 International — $100' : '🇳🇿 NZ resident — $65'}
                 </div>
                 <div style={{ fontSize:'.6875rem', color:'#065F46', marginTop:2, fontWeight:600 }}>
                   {billingCountry
@@ -1868,7 +1868,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
               <>
                 <div style={{ display:'flex', gap:8, marginTop:10 }}>
                   {[
-                    { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 60 },
+                    { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 65 },
                     { val:'international', label:'🌍 International', price: 100 },
                   ].map(o => (
                     <button key={o.val} onClick={() => { setActualMethod(o.val); setShowFeeTierOverride(false) }}
