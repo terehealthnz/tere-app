@@ -17,6 +17,14 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+// Lazy-load the contract renderer ONCE at module level. Previously this was
+// inside the render function (`React.lazy(() => import(...))` called on every
+// render), which created a fresh lazy component on every keystroke → Suspense
+// re-triggered → contract remounted → the scrollable contract div's scroll
+// position jumped, effectively blocking the user from reaching the sign
+// button as it kept resetting to the top of the contract preview.
+const LazyContractRenderer = React.lazy(() => import('../contracts/ContractRenderer'))
+
 // Minimal in-page signature pad — no upload dependency. Emits a data-URL PNG
 // via onChange whenever the canvas is dirty. Kept simple: pointer events so
 // mouse/trackpad/touch/stylus all work; white background so the PNG is opaque.
@@ -321,7 +329,6 @@ export default function OfferSign() {
         )}
 
         {offer?.contract_version && (() => {
-          const ContractRenderer = React.lazy(() => import('../contracts/ContractRenderer'))
           const liveContractor = {
             ...(offer.contractor_snapshot || {}),
             full_name:    typedName.trim() || (offer.contractor_snapshot || {}).full_name,
@@ -336,7 +343,7 @@ export default function OfferSign() {
               </div>
               <div style={{ maxHeight: 480, overflowY: 'auto', background: 'white' }}>
                 <React.Suspense fallback={<div style={{ padding: 20, color: '#6B7280' }}>Loading contract…</div>}>
-                  <ContractRenderer
+                  <LazyContractRenderer
                     version={offer.contract_version}
                     contractor={liveContractor}
                   />
