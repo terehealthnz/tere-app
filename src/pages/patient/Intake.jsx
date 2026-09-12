@@ -155,6 +155,7 @@ export default function Intake() {
                 </label>
                 <input type="tel" className="form-input" value={form.patient_phone}
                   onChange={e => set('patient_phone', e.target.value)}
+                  autoComplete="tel"
                   placeholder="021 000 0000" autoComplete="tel" />
               </div>
             </div>
@@ -257,7 +258,8 @@ export default function Intake() {
                         <input className={`form-input ${errors.acc_employer ? 'error' : ''}`}
                           value={form.acc_employer}
                           onChange={e => set('acc_employer', e.target.value)}
-                          placeholder="Company name" />
+                          placeholder="Company name"
+                          autoComplete="section-work organization" />
                         {errors.acc_employer && <p className="form-error">{errors.acc_employer}</p>}
                       </div>
                       <div className="form-group" style={{ marginBottom: '0.875rem' }}>
@@ -265,7 +267,8 @@ export default function Intake() {
                         <input className={`form-input ${errors.acc_employer_address ? 'error' : ''}`}
                           value={form.acc_employer_address}
                           onChange={e => set('acc_employer_address', e.target.value)}
-                          placeholder="Street address, suburb, city, postcode" />
+                          placeholder="Street address, suburb, city, postcode"
+                          autoComplete="section-work street-address" />
                         {errors.acc_employer_address && <p className="form-error">{errors.acc_employer_address}</p>}
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -273,7 +276,8 @@ export default function Intake() {
                         <input type="tel" className={`form-input ${errors.acc_employer_phone ? 'error' : ''}`}
                           value={form.acc_employer_phone}
                           onChange={e => set('acc_employer_phone', e.target.value)}
-                          placeholder="03 000 0000" />
+                          placeholder="03 000 0000"
+                          autoComplete="section-work tel" />
                         {errors.acc_employer_phone && <p className="form-error">{errors.acc_employer_phone}</p>}
                       </div>
                     </>
