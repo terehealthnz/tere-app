@@ -319,12 +319,12 @@ function SupportPanel() {
   )
 }
 
-// Friendly labels + descriptions for the built-in template slugs. Anything
-// not in the map falls back to the template's own `name`. Keeps the picker
-// human-readable without forcing admins to rename every offer_template.
+// Short, unmistakable labels — visual distinction matters more than accuracy
+// here because the wrong click sends the wrong contract. Anything not in
+// the map falls back to the template's own `name`.
 const CONTRACT_LABELS = {
-  'v8.1':    { label: 'Doctor — Independent Contractor',            note: 'Standard MCNZ-registered medical practitioner' },
-  'v8.1-np': { label: 'Nurse Practitioner — Independent Contractor', note: 'NCNZ-registered NP — pending legal review' },
+  'v8.1':    { label: 'Doctor',              note: 'MCNZ-registered medical practitioner · NZ$25 / consult' },
+  'v8.1-np': { label: 'Nurse Practitioner',  note: 'NCNZ-registered NP · NZ$20 / consult · pending legal review' },
 }
 
 function SendContractModal({ provider, onClose, onSent }) {
