@@ -21,6 +21,7 @@ export default function Intake() {
     chief_complaint: '',
     is_acc: false, is_work_injury: false,
     acc_injury_description: '', acc_injury_date: '',
+    acc_employment_status: '',
     acc_employer: '', acc_employer_address: '', acc_employer_phone: '',
     patient_weight_kg: '',
     recording_consent: false,
@@ -47,6 +48,8 @@ export default function Intake() {
                                        e.patient_address = 'Required for ACC claims when NHI is not provided'
     if (form.is_acc && !form.acc_injury_description.trim())
                                        e.acc_injury_description = 'Required for ACC claims'
+    if (form.is_acc && !form.acc_employment_status)
+                                       e.acc_employment_status = 'Required for ACC claims'
     // Work injuries need enough employer detail for ACC to contact the
     // employer to verify the claim (Sched 1 of Accident Compensation Act).
     if (form.is_acc && form.is_work_injury) {
@@ -241,6 +244,24 @@ export default function Intake() {
                     <input type="date" className="form-input" value={form.acc_injury_date}
                       onChange={e => set('acc_injury_date', e.target.value)}
                       max={new Date().toISOString().split('T')[0]} />
+                  </div>
+
+                  {/* ACC needs employment context to certify weekly compensation
+                      or a fit-for-work cert. Required whenever this is an ACC
+                      claim, not just for work-related injuries. */}
+                  <div className="form-group" style={{ marginBottom: '0.875rem' }}>
+                    <label className="form-label">Employment status</label>
+                    <select className={`form-input ${errors.acc_employment_status ? 'error' : ''}`}
+                      value={form.acc_employment_status}
+                      onChange={e => set('acc_employment_status', e.target.value)}>
+                      <option value="">Select…</option>
+                      <option value="employed">Employed</option>
+                      <option value="self_employed">Self-employed</option>
+                      <option value="not_employed">Not currently employed</option>
+                      <option value="student">Student</option>
+                      <option value="retired">Retired</option>
+                    </select>
+                    {errors.acc_employment_status && <p className="form-error">{errors.acc_employment_status}</p>}
                   </div>
 
                   <label className="form-check" style={{ marginBottom: form.is_work_injury ? '1rem' : 0 }}>
