@@ -704,18 +704,35 @@ export default async function handler(req, res) {
     if (upErr) { console.error('[offer] sign update failed:', upErr); return res.status(500).json({ error: 'Server error' }) }
     if (!updated) return res.status(409).json({ error: 'Offer state changed — please refresh.' })
 
-    // Nudge the internal team to countersign. Best-effort; doesn't block the applicant's 200.
+    // Nudge admin(s) to countersign. Best-effort; doesn't block the applicant's 200.
+    //
+    // Route the ping to every admin who is NOT the applicant — self-signing
+    // is blocked by countersign_offer, so pinging the applicant themself is
+    // useless noise. Falls back to the shared inbox if no non-applicant
+    // admins are found (edge case: single-admin setup, or applicant is the
+    // only admin on file).
     try {
       const { data: app } = await supabase
         .from('job_applications')
         .select('first_name, last_name, email')
         .eq('id', updated.application_id)
         .maybeSingle()
-      const applicantName = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'the applicant'
+      const applicantName  = [app?.first_name, app?.last_name].filter(Boolean).join(' ') || 'the applicant'
+      const applicantEmail = String(app?.email || '').toLowerCase()
+
+      const { data: admins } = await supabase
+        .from('providers')
+        .select('email')
+        .eq('is_admin', true)
+      const adminEmails = (admins || [])
+        .map(a => String(a.email || '').trim())
+        .filter(e => e && e.toLowerCase() !== applicantEmail)
+
+      const to = adminEmails.length ? adminEmails : ['terehealthnz@gmail.com']
       await sendEmail({
         from:    'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
-        to:      ['terehealthnz@gmail.com'],
+        to,
         subject: `Offer signed by ${applicantName} — needs countersign`,
         html: emailShell(`
           <p style="font-size:15px;margin:0 0 16px"><strong>${applicantName}</strong> has signed their offer letter.</p>
@@ -2648,6 +2665,19 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (appErr || !app) { console.error('[contract-to-provider] app insert failed:', appErr); return res.status(500).json({ error: 'Server error (application seed)' }) }
 
+    // Compensation display: prefer the template's explicit compensation_default,
+    // otherwise derive from fee_per_consult (e.g. "NZ$25 per consultation").
+    // Falls back to a generic phrase if neither is set — but every real
+    // template should have at least one of these populated.
+    const compensationText =
+      tpl.compensation_default ||
+      (tpl.fee_per_consult ? `${tpl.fee_per_consult} per consultation` : 'Per Independent Contractor Agreement')
+
+    // Start date defaults to today for internal onboarding — providers begin
+    // as soon as compliance is complete, so "today" is the honest ready-to-work
+    // date rather than the deprecated "To be agreed" placeholder.
+    const startDateISO = new Date().toISOString().slice(0, 10)
+
     // Insert the offer row directly (mirrors create_offer logic — inlined so
     // we can persist the provider snapshot in the same call).
     const signToken = randomBytes(24).toString('base64url')
@@ -2657,7 +2687,8 @@ export default async function handler(req, res) {
         application_id:         app.id,
         created_by_provider_id: auth.provider?.id || null,
         role_title:             tpl.role_title_default || 'Independent Contractor',
-        compensation:           tpl.compensation_default || 'Per Independent Contractor Agreement',
+        compensation:           compensationText,
+        start_date:             startDateISO,
         contract_terms:         tpl.contract_terms || 'See attached Independent Contractor Agreement.',
         contract_pdf_key:       tpl.contract_pdf_key,
         contract_pdf_name:      tpl.contract_pdf_name || (tpl.contract_version ? `Independent Contractor Agreement ${tpl.contract_version}` : 'Independent Contractor Agreement'),
