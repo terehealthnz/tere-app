@@ -140,7 +140,7 @@ function Pricing() {
   const plans = [
     {
       icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
-      price: 60, accPrice: 25,
+      price: 65, accPrice: 25,
       features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor — video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
     },
@@ -204,7 +204,7 @@ function Pricing() {
         </div>
         {/* Support pointer — patients with a prescription error, referral
             question, ACC follow-up, or billing query shouldn't feel forced
-            into a $60 consultation booking for a $0 admin issue. */}
+            into a $65 consultation booking for a $0 admin issue. */}
         <div style={{
           background: 'white', borderRadius: 12, padding: '1rem 1.25rem',
           marginTop: '1.25rem', border: '1px solid #E2E8F0',
