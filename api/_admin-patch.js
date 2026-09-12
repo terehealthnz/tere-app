@@ -7,6 +7,7 @@
 // Every write is now audit_logs-tracked (pen test 2026-08-23 M-6).
 
 import { createClient } from '@supabase/supabase-js'
+import { getClientIp } from './_client-ip.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -54,7 +55,7 @@ export default async function handler(req, res) {
       reason:        reason || 'other',
       reason_notes:  reason ? null : 'admin-patch called without reason (legacy TERE_API_KEY path)',
       metadata:      { patch, diff },
-      ip:            req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null,
+      ip:            getClientIp(req),
       user_agent:    req.headers['user-agent'] || null,
     })
   } catch (e) {

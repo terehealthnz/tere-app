@@ -7,6 +7,13 @@
       ]
     },
     {
+      "source": "/robots.txt",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "https://terehealth.co.nz" },
+        { "key": "Vary",                        "value": "Origin" }
+      ]
+    },
+    {
       "source": "/((?!api/|assets/).*)",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },

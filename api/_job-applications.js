@@ -40,6 +40,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildInterviewIcs } from './_ics.js'
 import { buildOfferPdf } from './_pdf-builders.js'
 import { encryptForStorage, decryptFromStorage, maskForSummary } from './_onboarding-crypto.js'
+import { getClientIp } from './_client-ip.js'
 
 function admin() {
   return createClient(
@@ -681,7 +682,7 @@ export default async function handler(req, res) {
       }
     }
 
-    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
+    const ip = (getClientIp(req) || '').slice(0, 64)
     const ua = String(req.headers['user-agent'] || '').slice(0, 400)
 
     // CAS: only advance if still 'sent'.
@@ -816,7 +817,7 @@ export default async function handler(req, res) {
     const patch = {
       status:                  'responded',
       responded_at:            new Date().toISOString(),
-      responded_ip:            String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64),
+      responded_ip:            (getClientIp(req) || '').slice(0, 64),
       responded_user_agent:    String(req.headers['user-agent'] || '').slice(0, 400),
       confirmed_relationship:  clean(b.confirmedRelationship, 400),
       confirmed_dates:         clean(b.confirmedDates, 200),
@@ -961,7 +962,7 @@ export default async function handler(req, res) {
     }
 
     // CAS: only advance from pending → submitted.
-    const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 64)
+    const ip = (getClientIp(req) || '').slice(0, 64)
     const ua = String(req.headers['user-agent'] || '').slice(0, 400)
     const { data: updated, error: upErr } = await supabase
       .from('applicant_reference_intakes')
