@@ -74,6 +74,8 @@ export default async function handler(req, res) {
   const start = Date.now()
   let httpStatus = null
   let networkError = null
+  let responseBody = null
+  let responseHeaders = {}
   try {
     const ctl = new AbortController()
     const to  = setTimeout(() => ctl.abort(), 5000)
@@ -84,6 +86,18 @@ export default async function handler(req, res) {
     })
     clearTimeout(to)
     httpStatus = r.status
+    // Capture full response body on 4xx/5xx for diagnosis (limited to first 2KB)
+    try {
+      const text = await r.text()
+      responseBody = text ? text.slice(0, 2048) : null
+    } catch {}
+    // Capture selected headers (WWW-Authenticate is what Basic auth challenges use)
+    responseHeaders = {
+      'content-type':      r.headers.get('content-type'),
+      'www-authenticate':  r.headers.get('www-authenticate'),
+      'x-request-id':      r.headers.get('x-request-id'),
+      'x-windcave-region': r.headers.get('x-windcave-region'),
+    }
   } catch (e) {
     networkError = e.message || 'network error'
   }
@@ -127,5 +141,9 @@ export default async function handler(req, res) {
     http_status:        httpStatus,
     latency_ms:         latencyMs,
     interpretation,
+    // Raw diagnostic — Windcave's actual response body + headers so we can
+    // see WHY they rejected (e.g. "IP not allowed", "REST access disabled").
+    windcave_response_body:    responseBody,
+    windcave_response_headers: responseHeaders,
   })
 }
