@@ -445,14 +445,16 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             <option key={c.code} value={c.code}>{c.name}</option>
           ))}
         </select>
-        {isInternational ? (
+        {isInternational && accEligible === 'yes' ? (
+          <div style={{ fontSize:'.875rem', color:'#991B1B', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'.875rem 1rem', marginBottom:'.75rem', lineHeight:1.6 }}>
+            <strong style={{display:'block',marginBottom:'.4rem'}}>ACC is only available to NZ residents.</strong>
+            You selected ACC-eligible during triage. Please either change your billing country
+            to <strong>New Zealand</strong>, or go back and update your ACC answer if you're
+            paying privately as a visitor.
+          </div>
+        ) : isInternational ? (
           <div style={{ fontSize:'.8125rem', color:'#6B7280', lineHeight:1.55, marginBottom:'.75rem' }}>
             International visitor rate: <strong>NZ${priceSet.international}</strong>. Includes an itemised receipt suitable for travel-insurance claims.
-            {accEligible === 'yes' && (
-              <div style={{ marginTop:'.5rem', fontSize:'.75rem', color:'#B45309', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.5rem .625rem' }}>
-                <strong>Injury from an accident in NZ?</strong> ACC covers visitors at the standard NZ$25 rate — please go back and update your ACC answer during triage if this applies.
-              </div>
-            )}
           </div>
         ) : (
           <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.75rem' }}>
@@ -460,9 +462,20 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             {accEligible === 'yes' ? ' — ACC covers the consultation itself.' : '.'}
           </div>
         )}
-        <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full" style={{marginTop:'.5rem'}}>
-          Continue — NZ${amount}
+        <button type="button"
+          onClick={confirmBilling}
+          disabled={isInternational && accEligible === 'yes'}
+          className="btn btn-primary btn-full"
+          style={{marginTop:'.5rem', opacity: (isInternational && accEligible === 'yes') ? 0.5 : 1, cursor: (isInternational && accEligible === 'yes') ? 'not-allowed' : 'pointer'}}>
+          {isInternational && accEligible === 'yes' ? 'Choose New Zealand or update ACC answer' : `Continue — NZ$${amount}`}
         </button>
+        {isInternational && accEligible === 'yes' && (
+          <button type="button"
+            onClick={() => navigate('/triage')}
+            style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline',display:'block',margin:'.75rem auto 0'}}>
+            ← Go back to triage
+          </button>
+        )}
       </div>
     </div>
   )
