@@ -122,6 +122,42 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
     }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for postMessage from the iframe's callback page.
+  // MUST be declared before any conditional returns — React's Rules of Hooks
+  // require the same number of hook calls on every render. Previously this
+  // hook lived after `if (phase === 'billing') return ...` which caused
+  // React error #310 when phase transitioned from 'billing' → 'ready'.
+  useEffect(() => {
+    if (phase !== 'ready' || !session) return
+    async function onMessage(e) {
+      if (e.origin !== window.location.origin) return
+      if (e.data?.type !== 'tere-windcave') return
+      const { status } = e.data
+      if (status === 'approved') {
+        setPhase('verifying')
+        try {
+          const r = await apiFetch(`/api/windcave-query?sessionId=${encodeURIComponent(session.sessionId)}`)
+          const q = await r.json()
+          if (q.approved) {
+            setPhase('approved')
+            setTimeout(() => navigate('/waiting', { replace: true }), 900)
+          } else {
+            setError('Payment could not be verified. Please try again.')
+            setPhase('declined')
+          }
+        } catch {
+          setError('Could not verify payment. If you were charged, please contact support.')
+          setPhase('declined')
+        }
+      } else {
+        setError(status === 'cancelled' ? 'Payment cancelled.' : 'Payment was not approved. Please try again with a different card.')
+        setPhase('declined')
+      }
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [phase, session, navigate])
+
   if (phase === 'billing') return (
     <div>
       <div className="card" style={{padding:'1.5rem'}}>
@@ -160,38 +196,6 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
       </div>
     </div>
   )
-
-  // Listen for postMessage from the iframe's callback page.
-  useEffect(() => {
-    if (phase !== 'ready' || !session) return
-    async function onMessage(e) {
-      if (e.origin !== window.location.origin) return
-      if (e.data?.type !== 'tere-windcave') return
-      const { status } = e.data
-      if (status === 'approved') {
-        setPhase('verifying')
-        try {
-          const r = await apiFetch(`/api/windcave-query?sessionId=${encodeURIComponent(session.sessionId)}`)
-          const q = await r.json()
-          if (q.approved) {
-            setPhase('approved')
-            setTimeout(() => navigate('/waiting', { replace: true }), 900)
-          } else {
-            setError('Payment could not be verified. Please try again.')
-            setPhase('declined')
-          }
-        } catch {
-          setError('Could not verify payment. If you were charged, please contact support.')
-          setPhase('declined')
-        }
-      } else {
-        setError(status === 'cancelled' ? 'Payment cancelled.' : 'Payment was not approved. Please try again with a different card.')
-        setPhase('declined')
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [phase, session, navigate])
 
   if (phase === 'loading') return (
     <div style={{ textAlign: 'center', padding: '2rem 0' }}>
