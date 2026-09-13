@@ -5,7 +5,7 @@ import { Elements, CardElement, useStripe, useElements } from '@stripe/react-str
 import { apiFetch } from '../../lib/api'
 import { patientUpdateConsultation } from '../../lib/supabase'
 import { detectNzAddress } from '../../lib/nzAddress'
-import { useFeatureFlag } from '../../lib/featureFlags'
+import { useFeatureFlagWithLoading } from '../../lib/featureFlags'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
@@ -496,7 +496,7 @@ export default function Payment() {
   const consultationId   = sessionStorage.getItem('consultationId')
   const accEligible      = sessionStorage.getItem('accEligible') || 'no'
   const consultationType = sessionStorage.getItem('consultationType') || 'consult'
-  const useWindcave      = useFeatureFlag('use_windcave')
+  const [useWindcave, flagsLoaded] = useFeatureFlagWithLoading('use_windcave')
   useEffect(() => {
     if (!consultationId) { navigate('/start'); return }
     // Back-button guard: if the patient already paid for THIS
@@ -533,7 +533,11 @@ export default function Payment() {
         </div>
       </nav>
       <div className="container" style={{paddingTop:'2rem',paddingBottom:'3rem',maxWidth:480}}>
-        {useWindcave ? (
+        {!flagsLoaded ? (
+          <div style={{ minHeight: 320, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)' }}>
+            Loading payment…
+          </div>
+        ) : useWindcave ? (
           <WindcavePayment consultationId={consultationId} accEligible={accEligible} consultationType={consultationType} />
         ) : (
           <Elements stripe={stripePromise} options={STRIPE_OPTIONS}>

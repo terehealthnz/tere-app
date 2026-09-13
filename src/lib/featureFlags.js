@@ -101,6 +101,29 @@ export function useFeatureFlag(key) {
   return enabled
 }
 
+/**
+ * Companion hook — returns [enabled, loaded]. Use when the initial-render
+ * default (false) would cause a visible flicker (e.g. rendering Stripe UI,
+ * then swapping to Windcave once the flag resolves). Callers should gate
+ * their UI on `loaded` before deciding what to render.
+ */
+export function useFeatureFlagWithLoading(key) {
+  const [enabled, setEnabled] = useState(() => isEnabled(key))
+  const [loaded, setLoaded]   = useState(() => cache !== null)
+  useEffect(() => {
+    let cancelled = false
+    const update = () => {
+      if (cancelled) return
+      setEnabled(isEnabled(key))
+      setLoaded(true)
+    }
+    subscribers.add(update)
+    loadFlags().then(update)
+    return () => { cancelled = true; subscribers.delete(update) }
+  }, [key])
+  return [enabled, loaded]
+}
+
 /** Explicit refresh (call after admin toggles a flag so UIs update immediately). */
 export function invalidateFlags() {
   cache = null

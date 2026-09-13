@@ -4,7 +4,7 @@ import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getConsultation, supabase } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import { useFeatureFlag } from '../../lib/featureFlags'
+import { useFeatureFlagWithLoading } from '../../lib/featureFlags'
 import { useConsultId } from '../../lib/consultUrl'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
@@ -157,7 +157,7 @@ function PaymentStep({ consultationId, onSuccess, onBack }) {
 function AsyncMessageInner() {
   const id = useConsultId()
   const navigate = useNavigate()
-  const useWindcave = useFeatureFlag('use_windcave')
+  const [useWindcave, flagsLoaded] = useFeatureFlagWithLoading('use_windcave')
   const [phase, setPhase] = useState('loading')
   const [consult, setConsult] = useState(null)
   const [confirmedDeadline, setConfirmedDeadline] = useState(null)
@@ -499,6 +499,13 @@ function AsyncMessageInner() {
 
   // ── Payment ────────────────────────────────────────────────────────────────
   if (phase === 'payment') {
+    // Hold render until feature flag resolves — prevents flashing the Stripe
+    // form and then swapping to the Windcave-paused notice.
+    if (!flagsLoaded) return (
+      <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: FF, color: 'rgba(212,238,240,.6)' }}>
+        Loading…
+      </div>
+    )
     // Windcave path: no async-consult+Windcave endpoint yet — no
     // /api/windcave-create-session for async messages. Restored 2026-08-27
     // with the Windcave reinstate; will be removed when the async-message
