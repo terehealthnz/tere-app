@@ -1,25 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadStripe } from '@stripe/stripe-js'
-import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { getConsultation, supabase } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
-import { useFeatureFlagWithLoading } from '../../lib/featureFlags'
 import { useConsultId } from '../../lib/consultUrl'
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 
 const NAVY  = '#0D2B45'
 const TEAL  = '#0B6E76'
 const TEAL_L = '#D4EEF0'
 const FF    = 'Plus Jakarta Sans, sans-serif'
-
-const CARD_STYLE = {
-  style: {
-    base: { fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '16px', color: '#1A2A33', '::placeholder': { color: '#9CA3AF' } },
-    invalid: { color: '#DC2626' },
-  },
-}
 
 const REQUEST_OPTIONS = [
   'Medical advice and information',
@@ -45,119 +33,12 @@ function formatDeadline(iso) {
   return `By ${t} ${d.toLocaleDateString('en-NZ', { timeZone: TZ, weekday: 'long' })}`
 }
 
-// ── Payment step (Stripe Elements hooks require this to be a child of Elements) ──
-
-function PaymentStep({ consultationId, onSuccess, onBack }) {
-  const stripe   = useStripe()
-  const elements = useElements()
-  const [acknowledged, setAcknowledged] = useState(false)
-  const [paying, setPaying] = useState(false)
-  const [payError, setPayError] = useState('')
-  const clientSecretRef = useRef(null)
-  const [csReady, setCsReady] = useState(false)
-
-  useEffect(() => {
-    apiFetch('/api/async-consult', {
-      method: 'POST',
-      body: JSON.stringify({ action: 'create_intent', consultationId }),
-    })
-      .then(r => r.json())
-      .then(d => { if (d.clientSecret) { clientSecretRef.current = d.clientSecret; setCsReady(true) } else setPayError('Could not initialise payment. Please try again.') })
-      .catch(() => setPayError('Could not initialise payment. Please try again.'))
-  }, [consultationId])
-
-  async function handlePay(e) {
-    e.preventDefault()
-    if (!acknowledged || !stripe || !elements || !clientSecretRef.current) return
-    setPaying(true); setPayError('')
-    const card = elements.getElement(CardElement)
-    const { error, paymentIntent } = await stripe.confirmCardPayment(
-      clientSecretRef.current,
-      { payment_method: { card } }
-    )
-    if (error) { setPayError(error.message); setPaying(false); return }
-    onSuccess(paymentIntent.id)
-  }
-
-  const email = sessionStorage.getItem('triage_email') || ''
-
-  return (
-    <div style={{ background: NAVY, minHeight: '100dvh', fontFamily: FF, padding: 'calc(2rem + env(safe-area-inset-top)) 1.25rem 2rem' }}>
-      <div style={{ maxWidth: 460, margin: '0 auto' }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: TEAL_L, cursor: 'pointer', fontSize: '.875rem', padding: 0, marginBottom: '1.5rem', fontFamily: FF }}>
-          ← Back
-        </button>
-        <h2 style={{ color: 'white', fontWeight: 800, fontSize: '1.375rem', margin: '0 0 .5rem' }}>Review and pay</h2>
-        <p style={{ color: 'rgba(212,238,240,.6)', fontSize: '.875rem', margin: '0 0 1.5rem' }}>Your card will be saved now but <strong style={{ color: 'rgba(212,238,240,.9)' }}>not charged until your provider responds</strong>.</p>
-
-        {/* Payment notice */}
-        <div style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.12)', borderRadius: 16, padding: '1.25rem', marginBottom: '1.25rem', fontSize: '.875rem', color: 'rgba(212,238,240,.8)', lineHeight: 1.7 }}>
-          <div style={{ fontWeight: 700, color: 'white', marginBottom: '.75rem', fontSize: '.9375rem' }}>📋 How message consultations work</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '.625rem' }}>
-            {[
-              ['💳', 'Consultation fee: $25', 'Your card is saved now and charged only when your provider sends their response. No charge if they don\'t respond.'],
-              ['📞', 'Your provider may request a call', 'If your concern needs a live assessment, they\'ll contact you. An additional fee applies for video ($65) or phone ($45) — you\'ll always confirm first.'],
-              ['⏱️', 'Response time', 'We aim to respond within 24 hours. During business hours (Mon–Fri 8am–6pm NZ time) responses are often faster.'],
-              ['⚠️', 'Not for emergencies', 'If your condition worsens while waiting, call 111 or visit your nearest emergency department immediately.'],
-              ['🏥', 'ACC-eligible injury?', 'If your concern is injury-related and ACC-eligible, your provider will lodge an ACC claim. Your $25 message fee counts as your ACC co-payment — total Tere charges: $62.50 ($37.50 ACC + $25 co-payment).'],
-            ].map(([icon, title, desc]) => (
-              <div key={title} style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 2 }}>{icon}</span>
-                <div><strong style={{ color: 'white' }}>{title}.</strong> {desc}</div>
-              </div>
-            ))}
-          </div>
-          {email && (
-            <div style={{ marginTop: '.875rem', paddingTop: '.875rem', borderTop: '1px solid rgba(255,255,255,.1)', color: 'rgba(212,238,240,.6)', fontSize: '.8125rem' }}>
-              📧 Your response will be sent to <strong style={{ color: TEAL_L }}>{email}</strong>
-            </div>
-          )}
-        </div>
-
-        {/* Card input */}
-        <div style={{ background: 'white', borderRadius: 14, padding: '1rem 1.25rem', marginBottom: '1rem' }}>
-          {csReady ? (
-            <CardElement options={CARD_STYLE} />
-          ) : payError ? (
-            <div style={{ color: '#DC2626', fontSize: '.875rem' }}>{payError}</div>
-          ) : (
-            <div style={{ color: '#9CA3AF', fontSize: '.875rem' }}>Loading payment…</div>
-          )}
-        </div>
-
-        {/* Acknowledgement */}
-        <label style={{ display: 'flex', gap: '.75rem', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '1.25rem' }}>
-          <input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)}
-            style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0, accentColor: TEAL }} />
-          <span style={{ color: 'rgba(212,238,240,.75)', fontSize: '.8125rem', lineHeight: 1.6 }}>
-            I understand my card will be saved now and charged $25 only when my provider responds, that they may request a video or phone call, and that this service is not for emergencies.
-          </span>
-        </label>
-
-        {payError && <div style={{ color: '#FCA5A5', fontSize: '.875rem', marginBottom: '.75rem' }}>{payError}</div>}
-
-        <button
-          onClick={handlePay}
-          disabled={!acknowledged || paying || !csReady}
-          style={{ width: '100%', background: acknowledged && csReady ? TEAL : 'rgba(255,255,255,.15)', color: 'white', border: 'none', borderRadius: 14, padding: '16px', fontWeight: 700, fontSize: '1.0625rem', cursor: acknowledged && csReady ? 'pointer' : 'not-allowed', fontFamily: FF, opacity: paying ? 0.7 : 1, marginBottom: '1rem' }}
-        >
-          {paying ? 'Processing…' : 'Save card and send message →'}
-        </button>
-
-        <button onClick={onBack} style={{ width: '100%', background: 'none', border: '1px solid rgba(255,255,255,.2)', color: 'rgba(212,238,240,.6)', borderRadius: 14, padding: '12px', fontFamily: FF, cursor: 'pointer', fontSize: '.875rem' }}>
-          Cancel — go back
-        </button>
-      </div>
-    </div>
-  )
-}
 
 // ── Main inner component ───────────────────────────────────────────────────────
 
 function AsyncMessageInner() {
   const id = useConsultId()
   const navigate = useNavigate()
-  const [useWindcave, flagsLoaded] = useFeatureFlagWithLoading('use_windcave')
   const [phase, setPhase] = useState('loading')
   const [consult, setConsult] = useState(null)
   const [confirmedDeadline, setConfirmedDeadline] = useState(null)
@@ -499,19 +380,10 @@ function AsyncMessageInner() {
 
   // ── Payment ────────────────────────────────────────────────────────────────
   if (phase === 'payment') {
-    // Hold render until feature flag resolves — prevents flashing the Stripe
-    // form and then swapping to the Windcave-paused notice.
-    if (!flagsLoaded) return (
-      <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: FF, color: 'rgba(212,238,240,.6)' }}>
-        Loading…
-      </div>
-    )
-    // Windcave path: no async-consult+Windcave endpoint yet — no
-    // /api/windcave-create-session for async messages. Restored 2026-08-27
-    // with the Windcave reinstate; will be removed when the async-message
-    // Windcave path is built. Existing message threads still work — only
-    // NEW async payments are gated.
-    if (useWindcave) return (
+    // Async message payments not supported on Windcave yet — no
+    // /api/windcave-create-session variant for async consults. New async
+    // payments are gated to the live-consult flow.
+    return (
       <div style={{ background: NAVY, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', fontFamily: FF }}>
         <div style={{ maxWidth: 420, textAlign: 'center', color: 'rgba(212,238,240,.8)' }}>
           <div style={{ fontSize: '2.25rem', marginBottom: '.75rem' }}>💬</div>
@@ -522,13 +394,6 @@ function AsyncMessageInner() {
           <a href="/" style={{ display: 'inline-block', background: TEAL, color: 'white', padding: '10px 22px', borderRadius: 99, fontWeight: 700, textDecoration: 'none' }}>Back to home</a>
         </div>
       </div>
-    )
-    return (
-      <PaymentStep
-        consultationId={id}
-        onSuccess={handlePaymentSuccess}
-        onBack={() => setPhase('form')}
-      />
     )
   }
 
@@ -773,9 +638,5 @@ function AsyncMessageInner() {
 }
 
 export default function AsyncMessage() {
-  return (
-    <Elements stripe={stripePromise}>
-      <AsyncMessageInner />
-    </Elements>
-  )
+  return <AsyncMessageInner />
 }
