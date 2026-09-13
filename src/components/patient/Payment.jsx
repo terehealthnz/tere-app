@@ -467,26 +467,71 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   // phase === 'ready' or 'verifying'
   return (
     <div>
-      <h2 style={{ color: '#0D2B45', fontWeight: 700, marginBottom: '.25rem' }}>Payment</h2>
-      <p style={{ color: '#374151', marginBottom: '1rem', fontSize: '.9375rem' }}>
-        <strong>${amount}.00 NZD</strong>{accEligible === 'yes' && consultationType !== 'message' ? ' — $20 administrative fee (ACC covers the consultation itself)' : ''}
-      </p>
-      {phase === 'verifying' && (
-        <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.8125rem', color: '#0B4F5A', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
-          <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, margin: 0, flexShrink: 0 }} />
-          Confirming payment with Windcave…
+      <div className="card" style={{padding:'1.5rem',marginBottom:'1rem'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1.25rem'}}>
+          <div>
+            <h2 style={{marginBottom:'.25rem'}}>Consultation fee</h2>
+            <p style={{fontSize:'.9375rem'}}>
+              Consultation with an Emergency Medicine physician
+              {accEligible === 'yes' ? ' — ACC co-payment' : ''}
+            </p>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:'2rem',fontWeight:700,color:'var(--navy)'}}>
+              ${amount}
+            </div>
+          </div>
         </div>
-      )}
-      <iframe
-        src={session?.hppUrl}
-        title="Windcave secure payment"
-        style={{ width: '100%', height: 720, border: '1px solid #E5E7EB', borderRadius: 12, background: 'white', display: 'block' }}
-        scrolling="auto"
-        allow="payment"
-      />
-      <p style={{ fontSize: '.75rem', color: '#9CA3AF', textAlign: 'center', marginTop: '.5rem' }}>
-        🔒 Card entry is hosted securely by <strong>Windcave</strong> — Tere never sees your card details.
-      </p>
+
+        {accEligible === 'yes' ? (
+          <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
+            <div style={{display:'flex',alignItems:'center',gap:'.625rem',marginBottom:'.5rem'}}>
+              <span style={{fontSize:'1.1rem'}}>✓</span>
+              <strong style={{color:'#065F46'}}>ACC covering — you only owe $25</strong>
+            </div>
+            <div style={{fontSize:'.8125rem',color:'#065F46'}}>ACC covers your consultation for injury presentations. The $25 co-payment is the regulated patient contribution under the ACC Act 2001. Tere lodges your claim during the consultation.</div>
+          </div>
+        ) : (
+          <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
+            <strong style={{display:'block',marginBottom:'.5rem',color:'#0D2B45'}}>About this fee</strong>
+            <div style={{fontSize:'.8125rem',color:'#6B7280',marginBottom:'.5rem'}}>
+              This is a private telehealth consultation with an Emergency Medicine physician. Prescriptions and referrals are included.
+            </div>
+            <div style={{fontSize:'.8125rem',color:'#6B7280'}}>If your condition turns out to be ACC-eligible during the consultation, your clinician will lodge a claim and the difference will be refunded to your card.</div>
+          </div>
+        )}
+
+        <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'.875rem',marginBottom:'1.25rem',fontSize:'.8125rem',lineHeight:1.7,color:'#6B7280'}}>
+          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>${amount}</strong> but <strong>not charged</strong> until your consultation is complete. Cancel before it starts and the hold is released automatically.
+        </div>
+
+        {phase === 'verifying' && (
+          <div style={{ background: '#F0F9FA', border: '1px solid #BAE6E9', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem', fontSize: '.8125rem', color: '#0B4F5A', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, margin: 0, flexShrink: 0 }} />
+            Confirming payment with Windcave…
+          </div>
+        )}
+
+        <iframe
+          src={session?.hppUrl}
+          title="Windcave secure payment"
+          style={{ width: '100%', height: 720, border: '1px solid #E5E7EB', borderRadius: 12, background: 'white', display: 'block' }}
+          scrolling="auto"
+          allow="payment"
+        />
+      </div>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontSize:'.75rem',color:'var(--muted)',marginBottom:'.5rem'}}>
+          🔒 Card entry is hosted securely by <strong>Windcave</strong> — Tere never sees your card details.
+        </div>
+        <div style={{display:'flex',justifyContent:'center',gap:'1.25rem',flexWrap:'wrap'}}>
+          <button type="button"
+            onClick={() => navigate('/')}
+            style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>
+            Cancel and start over
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
