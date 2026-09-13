@@ -99,6 +99,8 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'hpi',
   // Windcave money-movement — only providers/admin may capture or refund
   'windcave-complete', 'windcave-refund',
+  // Windcave live-cred smoke test (admin-only, checks env + auth against Windcave)
+  'windcave-health',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
@@ -221,6 +223,7 @@ const ROUTES = {
   'windcave-complete':         () => import('./_windcave-complete.js'),
   'windcave-refund':           () => import('./_windcave-refund.js'),
   'windcave-fprn':             () => import('./_windcave-fprn.js'),
+  'windcave-health':           () => import('./_windcave-health.js'),
   'create-room':               () => import('./_create-room.js'),
   'employer-check':            () => import('./_employer-check.js'),
   'generate-med-cert':         () => import('./_generate-med-cert.js'),
