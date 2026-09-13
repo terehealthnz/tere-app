@@ -371,18 +371,35 @@ function PaymentForm({ consultationId, accEligible, consultationType }) {
 // in prod until Vercel WINDCAVE_* live creds are set + flag flipped on.
 function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const navigate = useNavigate()
-  const [phase, setPhase] = useState('loading')  // loading | ready | verifying | approved | declined
+  const [phase, setPhase] = useState('billing')  // billing | loading | ready | verifying | approved | declined
   const [session, setSession] = useState(null)
   const [error, setError]     = useState(null)
-  const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
-  const amount = accEligible === 'yes' ? priceSet.acc : priceSet.private
 
-  async function startSession() {
+  // Billing country — same detection logic as Stripe PaymentForm. Persisted
+  // to sessionStorage so back/forward keeps the choice. NZ default when
+  // triage address is ambiguous or clearly NZ. If the choice is already in
+  // sessionStorage (e.g., user came back after a decline), skip the modal.
+  const [billingCountry, setBillingCountry] = useState(() => {
+    const stored = sessionStorage.getItem('billing_country')
+    if (stored) return stored
+    const address = sessionStorage.getItem('patient_address') || ''
+    const detected = detectNzAddress(address)
+    if (detected.nz === false) return 'OTHER'
+    return 'NZ'
+  })
+  const isInternational = billingCountry !== 'NZ'
+  const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
+  const amount = isInternational
+    ? priceSet.international
+    : (accEligible === 'yes' ? priceSet.acc : priceSet.private)
+
+  async function startSession(intlOverride) {
     setPhase('loading'); setError(null)
+    const intl = typeof intlOverride === 'boolean' ? intlOverride : isInternational
     try {
       const r = await apiFetch('/api/windcave-create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId, accEligible, consultationType }),
+        body: JSON.stringify({ consultationId, accEligible, consultationType, isInternational: intl }),
       })
       const data = await r.json()
       if (!r.ok || !data.hppUrl) {
@@ -398,7 +415,57 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
     }
   }
 
-  useEffect(() => { startSession() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  function confirmBilling() {
+    sessionStorage.setItem('billing_country', billingCountry)
+    startSession(billingCountry !== 'NZ')
+  }
+
+  // If the country was already chosen in a prior visit (sessionStorage hit
+  // in the initial state), skip straight to starting the session.
+  useEffect(() => {
+    if (sessionStorage.getItem('billing_country')) {
+      startSession()
+    }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (phase === 'billing') return (
+    <div>
+      <div className="card" style={{padding:'1.5rem'}}>
+        <h2 style={{marginBottom:'.5rem'}}>Where will you be paying from?</h2>
+        <p style={{fontSize:'.9375rem',color:'#6B7280',marginBottom:'1.25rem'}}>
+          This sets your consultation price. NZ residents pay the local rate; international
+          visitors pay a flat NZ$100.
+        </p>
+        <label style={{ display:'block', fontSize:'.8125rem', fontWeight:700, color:'#0D2B45', marginBottom:'.4rem' }}>
+          Billing country
+        </label>
+        <select value={billingCountry} onChange={e => setBillingCountry(e.target.value)}
+          style={{ width:'100%', padding:'.65rem .7rem', fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', color:'#1A2A33', background:'white', border:'1.5px solid #E2E8F0', borderRadius:8, cursor:'pointer', marginBottom:'.75rem' }}>
+          {BILLING_COUNTRIES.map(c => (
+            <option key={c.code} value={c.code}>{c.name}</option>
+          ))}
+        </select>
+        {isInternational ? (
+          <div style={{ fontSize:'.8125rem', color:'#6B7280', lineHeight:1.55, marginBottom:'.75rem' }}>
+            International visitor rate: <strong>NZ${priceSet.international}</strong>. Includes an itemised receipt suitable for travel-insurance claims.
+            {accEligible === 'yes' && (
+              <div style={{ marginTop:'.5rem', fontSize:'.75rem', color:'#B45309', background:'rgba(254,215,170,.35)', border:'1px solid rgba(180,83,9,.15)', borderRadius:6, padding:'.5rem .625rem' }}>
+                <strong>Injury from an accident in NZ?</strong> ACC covers visitors at the standard NZ$25 rate — please go back and update your ACC answer during triage if this applies.
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.75rem' }}>
+            New Zealand resident rate: <strong>NZ${accEligible === 'yes' ? priceSet.acc : priceSet.private}</strong>
+            {accEligible === 'yes' ? ' — ACC covers the consultation itself.' : '.'}
+          </div>
+        )}
+        <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full" style={{marginTop:'.5rem'}}>
+          Continue — NZ${amount}
+        </button>
+      </div>
+    </div>
+  )
 
   // Listen for postMessage from the iframe's callback page.
   useEffect(() => {
