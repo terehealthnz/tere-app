@@ -39,11 +39,23 @@ export default async function handler(req, res) {
   }
   if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
 
-  const hasUser = !!process.env.WINDCAVE_USERNAME
-  const hasKey  = !!process.env.WINDCAVE_API_KEY
+  const rawUser = process.env.WINDCAVE_USERNAME || ''
+  const rawKey  = process.env.WINDCAVE_API_KEY  || ''
+  const hasUser = !!rawUser
+  const hasKey  = !!rawKey
   const url     = baseUrl()
   const host    = hostOf(url)
   const isLive  = host === 'sec.windcave.com'
+
+  // Whitespace/newline diagnostics — a common 403 cause.
+  const usernameTrimmed = rawUser.trim()
+  const apiKeyTrimmed   = rawKey.trim()
+  const usernameHasEdgeWhitespace = hasUser && rawUser !== usernameTrimmed
+  const apiKeyHasEdgeWhitespace   = hasKey  && rawKey  !== apiKeyTrimmed
+  const usernameLength = rawUser.length
+  const apiKeyLength   = rawKey.length
+  const usernamePreview = hasUser ? `${rawUser.slice(0, 3)}…${rawUser.slice(-3)}` : null
+  const apiKeyLastFour  = hasKey  ? rawKey.slice(-4) : null
 
   if (!hasUser || !hasKey) {
     return res.status(200).json({
@@ -94,14 +106,26 @@ export default async function handler(req, res) {
     interpretation = `Unexpected HTTP ${httpStatus} from Windcave. Check credentials + base URL.`
   }
 
+  // Prepend whitespace warning to interpretation if we spotted it.
+  const warnings = []
+  if (usernameHasEdgeWhitespace) warnings.push('WINDCAVE_USERNAME has leading/trailing whitespace — retype in Vercel.')
+  if (apiKeyHasEdgeWhitespace)   warnings.push('WINDCAVE_API_KEY has leading/trailing whitespace — retype in Vercel.')
+
   return res.status(200).json({
     ok,
-    base_url_host:   host,
-    is_live_url:     isLive,
-    has_username:    hasUser,
-    has_api_key:     hasKey,
-    http_status:     httpStatus,
-    latency_ms:      latencyMs,
+    base_url_host:      host,
+    is_live_url:        isLive,
+    has_username:       hasUser,
+    has_api_key:        hasKey,
+    username_preview:   usernamePreview,   // e.g. "Ter…est" — sanity-check against Payline
+    username_length:    usernameLength,
+    api_key_last_four:  apiKeyLastFour,    // last 4 chars only — compare to Payline UI
+    api_key_length:     apiKeyLength,      // compare to Payline UI key length
+    username_whitespace_issue: usernameHasEdgeWhitespace,
+    api_key_whitespace_issue:  apiKeyHasEdgeWhitespace,
+    warnings:           warnings.length ? warnings : undefined,
+    http_status:        httpStatus,
+    latency_ms:         latencyMs,
     interpretation,
   })
 }
