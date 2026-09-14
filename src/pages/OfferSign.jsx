@@ -276,10 +276,16 @@ export default function OfferSign() {
           <div style={S.termsBody}>{offer?.contract_terms}</div>
         </div>
 
-        {offer?.contract_version && (
+        {/* Identity + notice-address block. Was originally gated on
+            offer.contract_version so it only showed for JSON-templated
+            contracts, but submit() ALWAYS validates these three fields —
+            legacy offers (no contract_version) would fail with "please
+            enter your postal address" and no field to fill. Show the
+            block for every offer instead. */}
+        {(
           <div style={{ marginTop: 24, background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 12, padding: '16px 18px' }}>
             <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>
-              Step 1 — Your contract details
+              {offer?.contract_version ? 'Step 1 — Your contract details' : 'Your contract details'}
             </div>
             <p style={{ fontSize: '.85rem', color: '#78350F', lineHeight: 1.5, margin: '0 0 14px' }}>
               These are the only identity details we need in the contract itself. Your MCNZ, CPN, ACC and IRD details are captured separately during onboarding — they're not embedded in this agreement.
