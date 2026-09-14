@@ -160,7 +160,11 @@ export default function IntakeForm() {
   )
 
   async function verifyACC() {
-    if (form.accEligible !== 'yes') return
+    // Patients can't reliably answer "is this ACC?" — the classifier
+    // reads the chief complaint and decides. Provider confirms during
+    // the consult. Fires automatically on entering step 3 (see
+    // useEffect below) so we know before showing injury-detail fields.
+    if (!form.complaint) return
     setAccVerifying(true)
     try {
       const res = await apiFetch('/api/verify-acc', {
@@ -180,32 +184,46 @@ export default function IntakeForm() {
     setAccVerifying(false)
   }
 
+  // Auto-run the ACC classifier when the patient reaches step 3 — no
+  // longer gated on a patient-declared "is this ACC?" answer.
+  useEffect(() => {
+    if (step === 3 && form.complaint && !accResult && !accVerifying) {
+      verifyACC()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, form.complaint])
+
   async function handleSubmit(e) {
     e.preventDefault()
-    await verifyACC()
     if (!form.recordingConsent) { setError('Please confirm recording consent to continue.'); return }
     if (!form.capacityConfirmedBySelf) { setError('Please confirm you are at least 16 and making this decision yourself (HDC Right 7).'); return }
     setLoading(true); setError('')
+    // Derive accEligible from the classifier verdict — patient no longer
+    // self-declares. Provider makes the final call in the consult.
+    const derivedAccEligible = accResult?.verdict === 'ELIGIBLE' ? 'yes'
+                              : accResult?.verdict === 'FLAGGED' ? 'unsure'
+                              : 'no'
+    const submission = { ...form, accEligible: derivedAccEligible }
     try {
-      const consult = await createConsultation(form)
+      const consult = await createConsultation(submission)
       sessionStorage.setItem('consultationId', consult.id)
-      sessionStorage.setItem('consultationData', JSON.stringify(form))
-      sessionStorage.setItem('accEligible', form.accEligible)
+      sessionStorage.setItem('consultationData', JSON.stringify(submission))
+      sessionStorage.setItem('accEligible', derivedAccEligible)
       navigate('/payment')
     } catch (err) {
       console.error(err)
       // For dev/demo without Supabase: store locally and continue
       const mockId = 'demo-' + Date.now()
       sessionStorage.setItem('consultationId', mockId)
-      sessionStorage.setItem('consultationData', JSON.stringify(form))
-      sessionStorage.setItem('accEligible', form.accEligible)
+      sessionStorage.setItem('consultationData', JSON.stringify(submission))
+      sessionStorage.setItem('accEligible', derivedAccEligible)
       navigate('/payment')
     } finally {
       setLoading(false)
     }
   }
 
-  const steps = ['Your details','Chief complaint','ACC details','Consent']
+  const steps = ['Your details','Chief complaint','Injury details','Consent']
 
   return (
     <div className="page">
@@ -332,55 +350,54 @@ export default function IntakeForm() {
             </>}
 
             {step === 3 && <>
-              <div className="form-group">
-                <label>Is this an injury or accident?</label>
-                <select name="accEligible" value={form.accEligible} onChange={val} required>
-                  <option value="">Select…</option>
-                  <option value="yes">Yes — injury or accident (ACC may apply)</option>
-                  <option value="no">No — illness or other concern</option>
-                  <option value="unsure">Not sure</option>
-                </select>
-              </div>
+              {/* Patients can't reliably answer "is this ACC?" — the AI
+                  classifier reads the chief complaint, and the provider
+                  makes the final call in-consult. This step is skipped
+                  visually if not injury-related and just captures optional
+                  metadata (date, mechanism, employer) if it is. */}
               {accVerifying && (
-                <div style={{padding:'.875rem',background:'#F0F9FA',borderRadius:'var(--radius-sm)',border:'1px solid var(--teal-light)',marginBottom:'1rem',fontSize:'.9375rem',color:'var(--teal)'}}>
-                  🔍 Verifying ACC eligibility…
+                <div style={{padding:'1rem',background:'#F0F9FA',borderRadius:'var(--radius-sm)',border:'1px solid var(--teal-light)',marginBottom:'1rem',fontSize:'.9375rem',color:'var(--teal)',textAlign:'center'}}>
+                  🔍 Checking whether ACC applies…
                 </div>
               )}
-              {accResult && (
+              {!accVerifying && accResult && (accResult.verdict === 'ELIGIBLE' || accResult.verdict === 'FLAGGED') && <>
                 <div style={{padding:'.875rem',borderRadius:'var(--radius-sm)',marginBottom:'1rem',fontSize:'.875rem',
-                  background: accResult.verdict==='ELIGIBLE'?'#F0FDF4':accResult.verdict==='FLAGGED'?'#FEF2F2':'#FEF3C7',
-                  border: accResult.verdict==='ELIGIBLE'?'1px solid #BBF7D0':accResult.verdict==='FLAGGED'?'1px solid #FECACA':'1px solid #FDE68A'
+                  background: accResult.verdict==='ELIGIBLE' ? '#F0FDF4' : '#FEF2F2',
+                  border:     accResult.verdict==='ELIGIBLE' ? '1px solid #BBF7D0' : '1px solid #FECACA'
                 }}>
                   <div style={{fontWeight:700,marginBottom:'.25rem',
-                    color: accResult.verdict==='ELIGIBLE'?'#065F46':accResult.verdict==='FLAGGED'?'#991B1B':'#92400E'
+                    color: accResult.verdict==='ELIGIBLE' ? '#065F46' : '#991B1B'
                   }}>
-                    {accResult.verdict==='ELIGIBLE'?'✓ Likely ACC-eligible':accResult.verdict==='FLAGGED'?'⚠ Possible eligibility concern':'ℹ Further assessment needed'}
+                    {accResult.verdict==='ELIGIBLE' ? '✓ This looks injury-related — ACC may apply' : '⚠ Possible ACC eligibility — your doctor will confirm'}
                   </div>
                   <div style={{lineHeight:1.6}}>{accResult.reasoning}</div>
                 </div>
-              )}
-              {form.accEligible === 'yes' && <>
-                <div className="alert alert-success">
-                  <strong>ACC eligible</strong>
-                  Your consultation and related imaging may be funded by ACC. We will lodge the claim for you.
+                <div style={{fontSize:'.875rem',color:'var(--muted)',marginBottom:'1rem'}}>
+                  A few optional details help your doctor lodge the ACC claim quickly. Skip any you're not sure about — your doctor will fill in the rest during the consult.
+                </div>
+                <div className="form-group">
+                  <label>Date of injury <span className="label-opt">(optional)</span></label>
+                  <input name="injuryDate" type="date" value={form.injuryDate} onChange={val} />
+                </div>
+                <div className="form-group">
+                  <label>How did the injury happen? <span className="label-opt">(optional)</span></label>
+                  <textarea name="injuryDetails" value={form.injuryDetails} onChange={val} rows={2}
+                    placeholder="e.g. Fell from ladder on boat..." />
                 </div>
                 <div className="form-group">
                   <label>Employer <span className="label-opt">(if work-related)</span></label>
                   <input name="employer" value={form.employer} onChange={val} placeholder="Company name" />
                 </div>
-                <div className="form-group">
-                  <label>Date of injury</label>
-                  <input name="injuryDate" type="date" value={form.injuryDate} onChange={val} />
-                </div>
-                <div className="form-group">
-                  <label>How did the injury happen?</label>
-                  <textarea name="injuryDetails" value={form.injuryDetails} onChange={val} rows={2}
-                    placeholder="e.g. Fell from ladder on boat..." />
-                </div>
                 <div className="alert alert-info">
                   Your doctor will obtain your formal ACC45 consent at the start of your consultation.
                 </div>
               </>}
+              {!accVerifying && accResult && accResult.verdict !== 'ELIGIBLE' && accResult.verdict !== 'FLAGGED' && (
+                <div style={{padding:'1rem',background:'#F0F9FA',borderRadius:'var(--radius-sm)',border:'1px solid var(--teal-light)',fontSize:'.9375rem',color:'var(--teal)'}}>
+                  <strong>Not injury-related</strong><br />
+                  Doesn't look like an ACC claim — no injury details needed. Continue to consent.
+                </div>
+              )}
             </>}
 
             {step === 4 && <>
