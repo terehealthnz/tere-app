@@ -1376,12 +1376,14 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
             </div>
           )}
 
-          {/* Signature — drawn during onboarding, uploaded on Save */}
-          {form.is_provider && form.can_prescribe && (
+          {/* Signature — drawn during onboarding, uploaded on Save.
+              Rendered on prescription PDFs (prescribers) and on
+              countersigned contract archives (authorised signers). */}
+          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer) && (
             <div style={sectionStyle}>
-              <div style={sectionTitle}>Prescriber signature</div>
+              <div style={sectionTitle}>Signature</div>
               <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
-                The provider signs directly here — draw with mouse, trackpad, stylus, or finger (touchscreen). Click <strong>Save signature</strong> when it looks right, then <strong>Clear</strong> and redraw if needed. Rendered on prescription PDFs.
+                Signs directly here — draw with mouse, trackpad, stylus, or finger (touchscreen). Click <strong>Save signature</strong> when it looks right, then <strong>Clear</strong> and redraw if needed. Used on prescription PDFs (for prescribers) and countersigned contract archives (for authorised signers).
               </div>
               <SignaturePad onSaved={url => set('signature_url', url)} />
             </div>
@@ -1610,9 +1612,12 @@ function EditProviderModal({ provider, onClose, onSaved }) {
             </div>
           )}
 
-          {form.is_provider && form.can_prescribe && (
+          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer) && (
             <div style={sectionStyle}>
-              <div style={sectionTitle}>Prescriber signature</div>
+              <div style={sectionTitle}>Signature</div>
+              <div style={{ fontSize:'.7rem', color:'#6B7280', marginBottom:'.5rem' }}>
+                Used on prescriptions (for prescribers) and countersigned contracts (for authorised signers).
+              </div>
               {form.signature_url && (
                 <div style={{ marginBottom:'.75rem', padding:'.5rem', background:'white', border:'1px solid #E2E8F0', borderRadius:6 }}>
                   <div style={{ fontSize:'.7rem', color:'#6B7280', marginBottom:4, fontWeight:600 }}>Current signature on file:</div>
