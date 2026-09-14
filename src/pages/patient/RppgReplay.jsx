@@ -153,26 +153,31 @@ export default function RppgReplay() {
   //   - Zero (algorithm rejected — expected for very noisy scans)
   //   - Outside physiological range (should be near-empty)
   // Also track how closely the replay reproduces the stored RR pipeline.
-  const rrMetrics = useMemo(() => {
-    const storedRrs = readings.map(r => r.tere_rr).filter(v => v != null)
-    const replayRrs = Object.values(replayResults).map(r => r?.rr).filter(v => v != null && v > 0)
-    const pinned30 = storedRrs.filter(v => v >= 28 && v <= 30).length
-    const zeros    = readings.filter(r => r.tere_rr === 0).length
-    const physio   = storedRrs.filter(v => v >= 10 && v <= 20).length
-    const tooLow   = storedRrs.filter(v => v > 0 && v < 10).length
-    const tooHigh  = storedRrs.filter(v => v > 20 && v < 28).length
-    const sorted   = [...storedRrs].filter(v => v > 0).sort((a, b) => a - b)
-    const median   = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null
-    // Agreement: replay RR within ±2 bpm of stored RR (harness consistency check).
-    let agree = 0, disagree = 0
-    for (const r of readings) {
-      const rep = replayResults[r.id]
-      if (r.tere_rr != null && rep?.rr != null && r.tere_rr > 0 && rep.rr > 0) {
-        if (Math.abs(r.tere_rr - rep.rr) <= 2) agree++
-        else disagree++
-      }
+  // Helper: bucket a set of RR values into distribution counts.
+  function bucket(values) {
+    const nz = values.filter(v => v != null && v > 0)
+    return {
+      n:        values.length,
+      physio:   nz.filter(v => v >= 10 && v <= 20).length,
+      tooLow:   nz.filter(v => v < 10).length,
+      tooHigh:  nz.filter(v => v > 20 && v < 28).length,
+      pinned30: nz.filter(v => v >= 28).length,
+      zeros:    values.filter(v => v === 0 || v == null).length,
+      median:   (() => {
+        if (!nz.length) return null
+        const s = [...nz].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+      })(),
     }
-    return { storedRrs, replayRrs, pinned30, zeros, physio, tooLow, tooHigh, median, agree, disagree }
+  }
+  const rrMetrics = useMemo(() => {
+    const storedRrs = readings.map(r => r.tere_rr)
+    // For replay: only readings we actually replayed (not the full set,
+    // otherwise "zero / rejected" gets polluted by not-yet-processed rows).
+    const replayRrs = readings
+      .filter(r => replayResults[r.id])
+      .map(r => replayResults[r.id]?.rr ?? null)
+    return { stored: bucket(storedRrs), replay: bucket(replayRrs) }
   }, [readings, replayResults])
 
   if (authed !== true) {
@@ -221,21 +226,31 @@ export default function RppgReplay() {
           </div>
 
           <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
-            <div style={{fontSize:'.75rem',fontWeight:700,color:'#92400E',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>
-              Respiratory rate (no manual ground truth — distribution + regression check only)
+            <div style={{fontSize:'.75rem',fontWeight:700,color:'#92400E',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.75rem'}}>
+              Respiratory rate — stored (historical) vs replay (candidate)
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:'.75rem'}}>
-              <Stat label="Physiological (10–20)" value={rrMetrics.physio} />
-              <Stat label="Below 10" value={rrMetrics.tooLow} />
-              <Stat label="Above 20 (<28)" value={rrMetrics.tooHigh} />
-              <Stat label="Pinned near 30 ⚠" value={rrMetrics.pinned30} />
-              <Stat label="Zero / rejected" value={rrMetrics.zeros} />
-              <Stat label="Stored RR — median" value={rrMetrics.median ?? '—'} unit="bpm" />
-              <Stat label="Replay agrees ±2" value={rrMetrics.agree} />
-              <Stat label="Replay disagrees" value={rrMetrics.disagree} />
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.85rem'}}>
+                <thead>
+                  <tr style={{color:'#78350F'}}>
+                    <th style={{textAlign:'left',padding:'.3rem .5rem',fontWeight:700}}>Distribution</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>Stored (DB)</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>Replay (current algo)</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700,color:'#059669'}}>Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <RrRow label="Physiological (10–20)" a={rrMetrics.stored.physio} b={rrMetrics.replay.physio} higherIsBetter />
+                  <RrRow label="Below 10 (implausible)" a={rrMetrics.stored.tooLow} b={rrMetrics.replay.tooLow} />
+                  <RrRow label="Above 20, below 28" a={rrMetrics.stored.tooHigh} b={rrMetrics.replay.tooHigh} />
+                  <RrRow label="Pinned near 30 ⚠ (ceiling artefact)" a={rrMetrics.stored.pinned30} b={rrMetrics.replay.pinned30} />
+                  <RrRow label="Zero / rejected (SNR gate)" a={rrMetrics.stored.zeros} b={rrMetrics.replay.zeros} />
+                  <RrRow label="Median (of non-zero)" a={rrMetrics.stored.median ?? '—'} b={rrMetrics.replay.median ?? '—'} unit="bpm" />
+                </tbody>
+              </table>
             </div>
-            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.5rem',fontStyle:'italic'}}>
-              A cluster near 30 bpm is the historical ceiling-artefact bug (fixed in 1ee0089) — should be near-zero.
+            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.75rem',fontStyle:'italic'}}>
+              Stored is historical — won't change on re-run. Replay reflects the currently-shipping algorithm. "Physiological up + Pinned/BelowLow down" is the fix-worked pattern.
             </div>
           </div>
 
@@ -310,6 +325,28 @@ function Stat({ label, value, unit }) {
       <div style={{fontSize:'.7rem',color:'#6B7280',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:2}}>{label}</div>
       <div style={{fontSize:'1.15rem',fontWeight:700,color:'#111827'}}>{value}{unit ? <span style={{fontSize:'.75rem',fontWeight:500,color:'#6B7280',marginLeft:3}}>{unit}</span> : null}</div>
     </div>
+  )
+}
+
+function RrRow({ label, a, b, unit, higherIsBetter = false }) {
+  const aNum = typeof a === 'number' ? a : null
+  const bNum = typeof b === 'number' ? b : null
+  let deltaText = '—'
+  let color = '#6B7280'
+  if (aNum != null && bNum != null) {
+    const d = bNum - aNum
+    deltaText = (d >= 0 ? '+' : '') + d
+    const good = higherIsBetter ? d > 0 : d < 0
+    const bad  = higherIsBetter ? d < 0 : d > 0
+    if (d !== 0) color = good ? '#059669' : bad ? '#B91C1C' : '#6B7280'
+  }
+  return (
+    <tr style={{borderTop:'1px solid #FDE68A'}}>
+      <td style={{padding:'.35rem .5rem',color:'#78350F'}}>{label}</td>
+      <td style={{padding:'.35rem .5rem',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{a}{unit ? <span style={{color:'#9CA3AF',fontSize:'.7rem',marginLeft:2}}>{unit}</span> : null}</td>
+      <td style={{padding:'.35rem .5rem',textAlign:'right',fontVariantNumeric:'tabular-nums',fontWeight:600}}>{b}{unit ? <span style={{color:'#9CA3AF',fontSize:'.7rem',marginLeft:2}}>{unit}</span> : null}</td>
+      <td style={{padding:'.35rem .5rem',textAlign:'right',fontVariantNumeric:'tabular-nums',color,fontWeight:600}}>{deltaText}</td>
+    </tr>
   )
 }
 
