@@ -39,6 +39,7 @@ import { guardProvider } from './_auth.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildInterviewIcs } from './_ics.js'
 import { buildOfferPdf } from './_pdf-builders.js'
+import { renderContractToPdf, getContractByVersion } from './_contract-pdf-render.js'
 import { encryptForStorage, decryptFromStorage, maskForSummary } from './_onboarding-crypto.js'
 import { getClientIp } from './_client-ip.js'
 
@@ -1868,6 +1869,21 @@ export default async function handler(req, res) {
         console.error('[offer rebuild] attachment fetch failed:', e?.message || e)
       }
     }
+    if (!attachmentBuffer && offer.contract_version) {
+      const contractJson = getContractByVersion(offer.contract_version)
+      if (contractJson) {
+        try {
+          attachmentBuffer = await renderContractToPdf({
+            contract:   contractJson,
+            contractor: offer.contractor_snapshot || {},
+          })
+        } catch (e) {
+          console.error('[offer rebuild] agreement render failed:', e?.message || e)
+        }
+      } else {
+        console.error('[offer rebuild] contract_version', offer.contract_version, 'not in server registry')
+      }
+    }
 
     let pdfBuffer
     try {
@@ -1956,10 +1972,15 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'You cannot countersign your own contract. Another admin must sign for Tere Health.' })
     }
 
-    // Fetch the v8.x agreement PDF attached to this offer, so the final
-    // artifact is one document (wrapper + full agreement) instead of the
-    // wrapper's "attached" language pointing nowhere. Falls back to
-    // wrapper-only if the attachment is missing or unreadable.
+    // Fetch or render the v8.x agreement PDF so the final artifact is one
+    // document (wrapper + full agreement) instead of the wrapper's
+    // "attached" language pointing nowhere.
+    //   Path A — offer.contract_pdf_key set: static PDF in offer-contracts
+    //     bucket (legacy templates with a hand-uploaded agreement).
+    //   Path B — offer.contract_version set: JSON-templated (v8.x). Render
+    //     from src/contracts/<version>.json with the same substitute()
+    //     rules ContractRenderer uses in the browser.
+    // Falls back to wrapper-only if both paths fail.
     let attachmentBuffer = null
     if (offer.contract_pdf_key) {
       try {
@@ -1970,7 +1991,22 @@ export default async function handler(req, res) {
         const arr = await file.arrayBuffer()
         attachmentBuffer = Buffer.from(arr)
       } catch (e) {
-        console.error('[offer] agreement attachment fetch failed (will produce wrapper-only PDF):', e?.message || e)
+        console.error('[offer] agreement attachment fetch failed:', e?.message || e)
+      }
+    }
+    if (!attachmentBuffer && offer.contract_version) {
+      const contractJson = getContractByVersion(offer.contract_version)
+      if (contractJson) {
+        try {
+          attachmentBuffer = await renderContractToPdf({
+            contract:   contractJson,
+            contractor: offer.contractor_snapshot || {},
+          })
+        } catch (e) {
+          console.error('[offer] agreement render failed:', e?.message || e)
+        }
+      } else {
+        console.error('[offer] contract_version', offer.contract_version, 'not in server registry')
       }
     }
 
