@@ -1379,7 +1379,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
           {/* Signature — drawn during onboarding, uploaded on Save.
               Rendered on prescription PDFs (prescribers) and on
               countersigned contract archives (authorised signers). */}
-          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer) && (
+          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer || form.is_admin) && (
             <div style={sectionStyle}>
               <div style={sectionTitle}>Signature</div>
               <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.75rem' }}>
@@ -1466,6 +1466,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     is_provider: !!provider.is_provider,
     is_admin: !!provider.is_admin,
     is_supervisor: !!provider.is_supervisor,
+    is_authorised_signer: !!provider.is_authorised_signer,
     signer_title: provider.signer_title || '',
     can_prescribe: !!provider.can_prescribe,
     can_refer: !!provider.can_refer,
@@ -1612,7 +1613,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
             </div>
           )}
 
-          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer) && (
+          {((form.is_provider && form.can_prescribe) || form.is_authorised_signer || form.is_admin) && (
             <div style={sectionStyle}>
               <div style={sectionTitle}>Signature</div>
               <div style={{ fontSize:'.7rem', color:'#6B7280', marginBottom:'.5rem' }}>
