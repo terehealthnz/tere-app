@@ -6,6 +6,7 @@ import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinic
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
 import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
+import { getRrDisplay } from '../../lib/rrDisplay'
 
 const FF    = 'Plus Jakarta Sans, sans-serif'
 const TEAL  = '#0B6E76'
@@ -119,7 +120,8 @@ function buildNZNote(data, consult, actions) {
     const vParts = []
     const hr   = vitals.heart_rate || vitals.hr
     const bp   = vitals.blood_pressure || vitals.bp
-    const rr   = vitals.respiratory_rate || vitals.rr
+    const rrDisp = getRrDisplay(vitals)
+    const rr   = rrDisp.show ? rrDisp.value : (vitals.respiratory_rate && !vitals.rr_source ? vitals.respiratory_rate : null)
     const spo2 = vitals.spo2
     const temp = vitals.temperature
     const gcs  = vitals.gcs

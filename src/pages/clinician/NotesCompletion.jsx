@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { getRrDisplay } from '../../lib/rrDisplay'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -91,9 +92,10 @@ function formatTimer(sec) {
 
 function formatVitals(vitals) {
   if (!vitals) return 'No vitals recorded via Tere Vitals'
+  const rrDisp = getRrDisplay(vitals)
   return [
     vitals.hr    ? `HR: ${vitals.hr} bpm`   : null,
-    vitals.rr    ? `RR: ${vitals.rr} brpm`  : null,
+    rrDisp.show  ? `RR: ${rrDisp.value} brpm` : null,
     vitals.spo2  ? `SpO2: ${vitals.spo2}%`  : null,
     vitals.bp    ? `BP: ${vitals.bp} mmHg`  : null,
     vitals.temp  ? `Temp: ${vitals.temp}°C` : null,

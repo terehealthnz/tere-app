@@ -13,6 +13,7 @@ import { CONSULT_TYPE_LABELS } from '../../lib/consultationType'
 import { getLangMeta } from '../../lib/i18n'
 import MaoriFlagIcon from '../MaoriFlagIcon'
 import { apiFetch } from '../../lib/api'
+import { getRrDisplay } from '../../lib/rrDisplay'
 import { isNZ } from '../../lib/region'
 import { Modal, PrescribeModal, XrayModal, ACCModal } from './ClinicalActionModals'
 
@@ -190,7 +191,10 @@ export default function ConsultView() {
         } catch (e) { console.error('Token fetch error:', e) }
 
         if (data?.vitals) {
-          setNotes(n => ({...n, O: `Vitals (Tere rPPG): HR ${data.vitals.hr||'—'} bpm, RR ${data.vitals.rr||'—'} br/min${data.vitals.spo2?`, SpO₂ ${data.vitals.spo2}%`:''}${data.vitals.bp?`, BP ${data.vitals.bp}`:''}. `}))
+          {
+            const rrDisp = getRrDisplay(data.vitals)
+            setNotes(n => ({...n, O: `Vitals (Tere rPPG): HR ${data.vitals.hr||'—'} bpm, RR ${rrDisp.show ? rrDisp.value : '—'} br/min${data.vitals.spo2?`, SpO₂ ${data.vitals.spo2}%`:''}${data.vitals.bp?`, BP ${data.vitals.bp}`:''}. `}))
+          }
         }
         // Load patient flags if NHI available
         if (data?.patient_nhi) {
@@ -229,7 +233,10 @@ export default function ConsultView() {
         })
         // Populate O notes once when vitals first arrive
         if (data?.vitals && !data.vitals.skipped) {
-          setNotes(n => n.O ? n : ({...n, O: `Vitals (Tere rPPG): HR ${data.vitals.hr||'—'} bpm, RR ${data.vitals.rr||'—'} br/min${data.vitals.spo2?`, SpO₂ ${data.vitals.spo2}%`:''}${data.vitals.bp?`, BP ${data.vitals.bp}`:''}. `}))
+          {
+            const rrDisp = getRrDisplay(data.vitals)
+            setNotes(n => n.O ? n : ({...n, O: `Vitals (Tere rPPG): HR ${data.vitals.hr||'—'} bpm, RR ${rrDisp.show ? rrDisp.value : '—'} br/min${data.vitals.spo2?`, SpO₂ ${data.vitals.spo2}%`:''}${data.vitals.bp?`, BP ${data.vitals.bp}`:''}. `}))
+          }
         }
       } catch {}
     }, 4000)

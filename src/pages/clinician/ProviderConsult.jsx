@@ -13,6 +13,7 @@ import ChimeCallSubtitles from '../../components/clinical/ChimeCallSubtitles'
 import ChimeCall from '../../components/call/ChimeCall'
 import { useChimeSdk } from '../../lib/chime'
 import ChatPanel from '../../components/ChatPanel'
+import { getRrDisplay } from '../../lib/rrDisplay'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -79,16 +80,42 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
   return null
 }
 
+// RR-specific badge — tiered display driven by fusion metadata (rr_source)
+// via getRrDisplay(). Shows a small caption when confidence is medium/low
+// so providers know which readings to weight more carefully. See
+// src/lib/rrDisplay.js for the policy details.
+function RrBadge({ vitals }) {
+  const disp = getRrDisplay(vitals)
+  const status = disp.show && disp.value != null && (disp.value < 12 || disp.value > 20) ? 'warning' : 'normal'
+  const colors = { normal:'#059669', warning:'#D97706', danger:'#DC2626' }
+  const bgs    = { normal:'#F0FDF4', warning:'#FFFBEB', danger:'#FEF2F2' }
+  const c  = disp.show ? colors[status] : '#9CA3AF'
+  const bg = disp.show ? bgs[status]    : '#F8FAFC'
+  const captionColor = disp.tier === 'low' || disp.tier === 'clamped' || disp.tier === 'suppressed'
+    ? '#B45309' : '#6B7280'
+  return (
+    <div style={{ background:bg, borderRadius:10, padding:'10px 14px', flex:1, textAlign:'center', minWidth:0 }}>
+      <div style={{ fontSize:'.625rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#9CA3AF', marginBottom:2 }}>RR</div>
+      <div style={{ fontSize:'1.5rem', fontWeight:700, color:c, lineHeight:1 }}>{disp.show ? disp.value : '—'}</div>
+      {disp.show && <div style={{ fontSize:'.625rem', color:'#9CA3AF' }}>br/min</div>}
+      {disp.caption && (
+        <div style={{ fontSize:'.55rem', color:captionColor, marginTop:2, lineHeight:1.2 }}>
+          {disp.caption}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VitalsRow({ vitals }) {
   if (!vitals || vitals.skipped) return (
     <div style={{ fontSize:'.875rem', color:'#9CA3AF', textAlign:'center', padding:'10px' }}>No vitals captured</div>
   )
   const hrS = vitals.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : ''
-  const rrS = vitals.rr ? (vitals.rr < 12 || vitals.rr > 20 ? 'warning' : 'normal') : ''
   return (
     <div style={{ display:'flex', gap:8 }}>
       {vitals.hr  && <VitalBadge label="HR"   value={vitals.hr}   unit="bpm"      status={hrS} />}
-      {vitals.rr  && <VitalBadge label="RR"   value={vitals.rr}   unit="br/min"   status={rrS} />}
+      <RrBadge vitals={vitals} />
       {vitals.spo2 && <VitalBadge label="SpO₂" value={`${vitals.spo2}%`} unit="" status="normal" />}
       {vitals.bp  && <VitalBadge label="BP"   value={vitals.bp}   unit="mmHg"     status="" />}
     </div>
