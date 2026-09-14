@@ -1856,6 +1856,18 @@ export default async function handler(req, res) {
       signer = s
     }
 
+    // Diagnostic breadcrumbs — returned in the response so we can see
+    // exactly why a rebuild fell back to wrapper-only without needing
+    // Vercel logs. Rip this out once the flow is stable.
+    const diag = {
+      contract_pdf_key:      offer.contract_pdf_key || null,
+      contract_version:      offer.contract_version || null,
+      json_registry_hit:     null,
+      json_render_error:     null,
+      pdf_key_fetch_error:   null,
+      contractor_snapshot_keys: Object.keys(offer.contractor_snapshot || {}),
+    }
+
     let attachmentBuffer = null
     if (offer.contract_pdf_key) {
       try {
@@ -1866,11 +1878,13 @@ export default async function handler(req, res) {
         const arr = await file.arrayBuffer()
         attachmentBuffer = Buffer.from(arr)
       } catch (e) {
+        diag.pdf_key_fetch_error = e?.message || String(e)
         console.error('[offer rebuild] attachment fetch failed:', e?.message || e)
       }
     }
     if (!attachmentBuffer && offer.contract_version) {
       const contractJson = getContractByVersion(offer.contract_version)
+      diag.json_registry_hit = !!contractJson
       if (contractJson) {
         try {
           attachmentBuffer = await renderContractToPdf({
@@ -1878,6 +1892,7 @@ export default async function handler(req, res) {
             contractor: offer.contractor_snapshot || {},
           })
         } catch (e) {
+          diag.json_render_error = e?.message || String(e)
           console.error('[offer rebuild] agreement render failed:', e?.message || e)
         }
       } else {
@@ -1910,7 +1925,7 @@ export default async function handler(req, res) {
     if (!offer.pdf_storage_key) {
       await supabase.from('job_offers').update({ pdf_storage_key: path }).eq('id', offer.id)
     }
-    return res.status(200).json({ ok: true, page_count_merged: !!attachmentBuffer })
+    return res.status(200).json({ ok: true, page_count_merged: !!attachmentBuffer, diag })
   }
 
   if (req.method === 'GET' && action === 'offer_pdf') {

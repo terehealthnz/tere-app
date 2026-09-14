@@ -3457,7 +3457,17 @@ function ContractsSection() {
     try {
       const { rebuildOfferPdf } = await import('../../lib/supabase')
       const r = await rebuildOfferPdf(offerId)
-      setMsg(r.page_count_merged ? 'Rebuilt — full agreement is now included.' : 'Rebuilt (no agreement attachment on record — wrapper only).')
+      if (r.page_count_merged) {
+        setMsg('Rebuilt — full agreement is now included.')
+      } else {
+        const d = r.diag || {}
+        setMsg('Wrapper only. ' +
+          `pdf_key=${d.contract_pdf_key || 'null'}, ` +
+          `version=${d.contract_version || 'null'}, ` +
+          `json_hit=${d.json_registry_hit}, ` +
+          `render_err=${d.json_render_error || 'none'}, ` +
+          `key_err=${d.pdf_key_fetch_error || 'none'}`)
+      }
     } catch (e) {
       setMsg('Error: ' + (e.message || 'rebuild failed'))
     } finally { setBusy(false) }
