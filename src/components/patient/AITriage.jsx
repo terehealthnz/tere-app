@@ -7,6 +7,7 @@ import { isClinicOpen } from '../../lib/clinicHours'
 import { findFaceRegion } from '../../lib/rppg'
 import { isNZ } from '../../lib/region'
 import { makeConsultUrl } from '../../lib/consultUrl'
+import AddressAutocomplete from '../AddressAutocomplete'
 
 // NHI is a NZ-only identifier — skip the NHI question on non-NZ surfaces
 // (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
@@ -218,7 +219,7 @@ const STEPS = [
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
-  { id:'address', message:"What's your home address? Include street, town, and postcode.", field:'patient_address', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
+  { id:'address', message:"What's your home address? Start typing and pick from the list, or just type it out.", field:'patient_address', type:'address_picker', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
   { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
   // Returning-patient shortcut: show what's on file, ask if anything has changed.
@@ -1377,9 +1378,16 @@ export default function AITriage() {
       <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',color:'#78350F',padding:'.75rem .875rem',borderRadius:10,fontSize:'.8125rem',marginBottom:12,textAlign:'left'}}>
         <div style={{fontWeight:700,marginBottom:6}}>📍 Where are you right now?</div>
         <div style={{fontSize:'.75rem',marginBottom:8,lineHeight:1.5}}>We couldn't get your location automatically. If you can, tell us — it helps 111 find you.</div>
-        <div style={{display:'flex',gap:6}}>
-          <input value={text} onChange={e=>setText(e.target.value)} placeholder="Address or landmark"
-            style={{flex:1,padding:'.5rem .625rem',border:'1px solid #FDE68A',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem'}} />
+        <div style={{display:'flex',gap:6,alignItems:'flex-start'}}>
+          <div style={{flex:1}}>
+            <AddressAutocomplete
+              value={text}
+              onChange={v=>setText(v)}
+              onSelect={s=>setText(s.display_name)}
+              placeholder="Address or landmark"
+              inputStyle={{padding:'.5rem .625rem',border:'1px solid #FDE68A',borderRadius:6,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem'}}
+            />
+          </div>
           <button onClick={async () => {
             if (!text.trim()) return
             const ok = await updateEscalationLocation(escalationInfo.id, text)
@@ -1755,6 +1763,18 @@ export default function AITriage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {step?.type==='address_picker' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <AddressAutocomplete
+            value={input}
+            onChange={v => setInput(v)}
+            onSelect={s => { handleSendValue(s.display_name); setInput('') }}
+            placeholder="Start typing your address…"
+            inputStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem'}}
+          />
         </div>
       )}
 

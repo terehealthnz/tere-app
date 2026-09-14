@@ -115,6 +115,8 @@ export default function VitalsCapture() {
   const [spo2Estimate, setSpo2Estimate] = useState(null)
   const [scanMode,     setScanMode]     = useState('face') // 'face' | 'finger'
   const [faceBox,      setFaceBox]      = useState(null)   // normalised { x,y,w,h } from FaceMesh
+  const [attemptCount,   setAttemptCount]   = useState(0)     // Increments each DONE. Abnormal-retake gate uses this: first abnormal blocks Continue, second attempt lets it through so genuinely sick patients aren't looped forever.
+  const [showAbnormalGate, setShowAbnormalGate] = useState(false)
   const rearStreamRef  = useRef(null)
   const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
 
@@ -289,6 +291,7 @@ export default function VitalsCapture() {
     setLiveHR(null)
     setFaceBox(null)
     setError('')
+    setShowAbnormalGate(false)
     // Re-open camera if closed
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -406,6 +409,49 @@ export default function VitalsCapture() {
 
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
   const rrStatus = vitals?.rr ? (vitals.rr < 12 || vitals.rr > 20 ? 'warning' : 'normal') : 'normal'
+
+  // Any-vital-abnormal detector. Bands intentionally err on the wider
+  // side of typical adult reference ranges — we only want to flag things
+  // a provider would care to double-check, not every borderline reading.
+  //   HR:    < 60 or > 100  (bradycardia / tachycardia)
+  //   RR:    < 12 or > 20   (bradypnoea / tachypnoea)
+  //   SpO2:  < 95            (hypoxia)
+  //   Temp:  < 35.5 or > 37.8 (hypo/fever)
+  //   BP:    sys < 90 or > 160 (hypo/severe hypertension)
+  function detectAbnormal(v) {
+    if (!v || v.skipped) return { abnormal: false, reasons: [] }
+    const reasons = []
+    if (v.hr   != null && (v.hr < 60 || v.hr > 100))          reasons.push(`heart rate ${v.hr} bpm`)
+    if (v.rr   != null && (v.rr < 12 || v.rr > 20))           reasons.push(`respiratory rate ${v.rr}`)
+    if (v.spo2 != null && v.spo2 > 0 && v.spo2 < 95)          reasons.push(`SpO₂ ${v.spo2}%`)
+    if (v.temperature != null && (v.temperature < 35.5 || v.temperature > 37.8)) reasons.push(`temperature ${v.temperature}°C`)
+    if (typeof v.bp === 'string' && /^\d+\/\d+$/.test(v.bp)) {
+      const sys = parseInt(v.bp.split('/')[0], 10)
+      if (sys && (sys < 90 || sys > 160)) reasons.push(`blood pressure ${v.bp}`)
+    }
+    return { abnormal: reasons.length > 0, reasons }
+  }
+  const abnormalCheck = detectAbnormal(vitals)
+
+  // On each transition into DONE with a fresh reading, bump the attempt
+  // counter and — if this was the FIRST attempt and readings are
+  // abnormal — open the retake gate. Second attempt lets Continue
+  // through regardless (see rationale on state decl above).
+  //
+  // countedRef guards against double-firing (StrictMode dev, or any
+  // future refactor that changes deps) by keying on the vitals object
+  // identity — we only count a given `vitals` reference once.
+  const countedRef = useRef(null)
+  useEffect(() => {
+    if (uiState !== STATES.DONE || !vitals || vitals.skipped) return
+    if (countedRef.current === vitals) return
+    countedRef.current = vitals
+    const nextCount = attemptCount + 1
+    setAttemptCount(nextCount)
+    if (nextCount === 1 && abnormalCheck.abnormal) setShowAbnormalGate(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uiState, vitals])
+
   const isInspecting = uiState === STATES.INSPECTING
   const isMeasuring  = uiState === STATES.MEASURING
 
@@ -697,7 +743,23 @@ export default function VitalsCapture() {
 
               {uiState === STATES.DONE && (
                 <>
-                  <button className="btn btn-primary btn-full" onClick={() => navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))}>
+                  <button className="btn btn-primary btn-full" onClick={async () => {
+                    if (abnormalCheck.abnormal && attemptCount < 2) {
+                      setShowAbnormalGate(true)
+                      return
+                    }
+                    // Second attempt (or first-attempt normal) — attach retake
+                    // metadata so the provider sees the persistence pattern.
+                    if (attemptCount > 1 && vitals) {
+                      try {
+                        const cId = sessionStorage.getItem('consultationId')
+                        if (cId && !cId.startsWith('demo')) {
+                          await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
+                        }
+                      } catch {}
+                    }
+                    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
+                  }}>
                     Continue to consultation
                   </button>
                   {vitals?.numericConfidence < 50 && (
@@ -782,6 +844,36 @@ export default function VitalsCapture() {
         <span>Emergency? Call <strong>111</strong></span>
         <span>Mental health crisis? Call or text <strong>1737</strong></span>
       </div>
+
+      {showAbnormalGate && (
+        <div role="dialog" aria-modal="true" aria-labelledby="abnormal-gate-title"
+          style={{position:'fixed',inset:0,background:'rgba(15,23,42,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem',zIndex:1000}}>
+          <div style={{background:'white',borderRadius:14,maxWidth:440,width:'100%',padding:'1.5rem',boxShadow:'0 20px 40px rgba(0,0,0,.2)'}}>
+            <div style={{fontSize:'1.75rem',marginBottom:'.5rem'}}>🔁</div>
+            <h2 id="abnormal-gate-title" style={{fontSize:'1.2rem',marginBottom:'.5rem',color:'#111827'}}>Let's try that once more</h2>
+            <p style={{color:'#374151',lineHeight:1.5,fontSize:'.95rem',marginBottom:'.75rem'}}>
+              Your <strong>{abnormalCheck.reasons.join(', ')}</strong> looks outside the usual range.
+              This is often a measurement error — small movements or lighting can throw the reading off.
+              A second scan helps your provider see the real trend.
+            </p>
+            <p style={{color:'#6B7280',fontSize:'.8125rem',marginBottom:'1.25rem'}}>
+              If you already know your readings from a pulse oximeter or BP cuff, you can enter them instead.
+            </p>
+            <div style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
+              <button
+                className="btn btn-primary btn-full"
+                onClick={() => { setShowAbnormalGate(false); retake() }}>
+                Retake scan
+              </button>
+              <button
+                className="btn btn-secondary btn-full"
+                onClick={() => { setShowAbnormalGate(false); setManualMode(true) }}>
+                I've got my own readings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
