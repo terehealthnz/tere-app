@@ -3441,12 +3441,21 @@ function ContractsSection() {
   }
 
   async function handleOpenPdf(offerId) {
+    // Open the tab SYNCHRONOUSLY on click so Chrome doesn't attribute
+    // the eventual window.open to a background async — otherwise the
+    // popup blocker silently kills it and the click looks like a no-op.
+    const win = window.open('about:blank', '_blank')
+    if (!win) {
+      alert('Popup blocked — allow popups for terehealth.co.nz and try again.')
+      return
+    }
     try {
       const { getOfferPdfUrl } = await import('../../lib/supabase')
       const url = await getOfferPdfUrl(offerId)
-      if (!url) { alert('PDF not available yet.'); return }
-      window.open(url, '_blank', 'noopener')
+      if (!url) { win.close(); alert('PDF not available yet.'); return }
+      win.location.href = url
     } catch (e) {
+      try { win.close() } catch {}
       alert('Could not open PDF: ' + (e.message || 'unknown'))
     }
   }
