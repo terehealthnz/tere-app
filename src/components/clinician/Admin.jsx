@@ -3441,23 +3441,29 @@ function ContractsSection() {
   }
 
   async function handleDownloadPdf(offerId) {
-    // Anchor + download attribute is popup-blocker-safe and gives the
-    // user a proper file save flow — better UX than opening in a tab
-    // for a legal artifact anyway.
-    setMsg('')
+    // Chrome silently ignores the `download` attribute for cross-origin
+    // URLs (Supabase is cross-origin from terehealth.co.nz), so we
+    // fetch the PDF ourselves and hand the browser a same-origin blob
+    // URL — download attr works on that reliably.
+    setMsg('Downloading…')
     try {
       const { getOfferPdfUrl } = await import('../../lib/supabase')
       const r = await getOfferPdfUrl(offerId, { download: true })
-      if (!r?.url) { alert('PDF not available yet.'); return }
+      if (!r?.url) { setMsg('PDF not available yet — try Rebuild first.'); return }
+      const resp = await fetch(r.url)
+      if (!resp.ok) throw new Error(`fetch ${resp.status}`)
+      const blob = await resp.blob()
+      const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = r.url
+      a.href = objectUrl
       a.download = r.filename
-      a.rel = 'noopener'
       document.body.appendChild(a)
       a.click()
       a.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 2000)
+      setMsg(`Downloaded ${r.filename} (${Math.round(blob.size / 1024)} KB)`)
     } catch (e) {
-      alert('Could not download PDF: ' + (e.message || 'unknown'))
+      setMsg('Download failed: ' + (e.message || 'unknown'))
     }
   }
 
