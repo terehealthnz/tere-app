@@ -20,7 +20,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, getValidationReadings } from '../../lib/supabase'
-import { processStoredFrames } from '../../lib/rppg'
+import { processStoredFramesMultiPass, processStoredFrames } from '../../lib/rppg'
 
 function fmtHr(v) {
   if (v == null || Number.isNaN(v)) return '—'
@@ -79,8 +79,11 @@ export default function RppgReplay() {
       const rows = await getValidationReadings()
       // Only keep rows where both ground-truth HR and stored signal exist —
       // everything else can't participate in the comparison anyway.
+      // Filter physiologically-implausible manual entries (typos like 589)
+      // that would otherwise inflate MAE/RMSE while telling us nothing.
       const usable = (rows || []).filter(r =>
         r.manual_hr != null &&
+        r.manual_hr >= 30 && r.manual_hr <= 200 &&
         r.raw_rppg_signal &&
         Array.isArray(r.raw_rppg_signal.frames) &&
         r.raw_rppg_signal.frames.length > 60
@@ -106,7 +109,11 @@ export default function RppgReplay() {
         // Yield to the UI thread every 5 items so the progress bar can paint
         // and the tab stays responsive during long batches.
         if (i > 0 && i % 5 === 0) await new Promise(r => setTimeout(r, 0))
-        const out = processStoredFrames(frames, fps)
+        // Use multi-pass aggregation — the live pipeline runs 3 passes and
+        // robust-medians the results, so this is the only fair reproduction
+        // of what shipped. Single-pass processStoredFrames() reports 3× the
+        // MAE because it's a different algorithm.
+        const out = processStoredFramesMultiPass(frames, fps) || processStoredFrames(frames, fps)
         results[r.id] = out ? { hr: out.hr, rr: out.rr, numericConfidence: out.numericConfidence, ok: true }
                             : { hr: null, rr: null, ok: false, reason: 'no result' }
       } catch (e) {
@@ -151,9 +158,10 @@ export default function RppgReplay() {
         </button>
       </div>
       <p style={{color:'#6B7280',fontSize:'.9rem',marginBottom:'1.25rem',lineHeight:1.5}}>
-        Re-runs the current rPPG pipeline against every stored VitalsValidate scan that has a paired
-        manual (ground-truth) HR. Baseline for testing candidate algorithms — a candidate is worth
-        shipping only if it beats the <em>replay MAE</em> shown below (not the benchmark from a paper).
+        Re-runs the current multi-pass rPPG pipeline against every stored VitalsValidate scan that has
+        a paired manual (ground-truth) HR. Baseline for testing candidate algorithms — a candidate is
+        worth shipping only if it beats the <em>replay MAE</em> shown below (not the benchmark from a
+        paper). Excludes rows with implausible manual HR (&lt;30 or &gt;200 — data-entry typos).
       </p>
 
       {loading && <div style={{padding:'1rem',color:'#6B7280'}}>Loading readings…</div>}
