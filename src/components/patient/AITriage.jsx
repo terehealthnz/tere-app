@@ -1801,20 +1801,23 @@ export default function AITriage() {
           />
           <button onClick={handleSend} disabled={!input.trim()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'white',fontWeight:700,fontSize:'1rem',opacity:!input.trim()?0.5:1}}>↑</button>
         </div>
-        {/* Task #431 — catch-all "I'm worried" divert trigger. Always visible
-            below the chat input. Fires the divert screen regardless of
-            keyword match. Closes the gap where atypical phrasing ("something
-            feels wrong", "I feel like something's wrong") would silently
-            miss keyword detection. */}
-        <button
-          onClick={() => {
-            logEscalation({ escalation_type: 'divert_ed', matched_flags: ['patient_worried'], consultationId: data.consultation_id })
-              .then(r => setEscalationInfo(r))
-            setEmergency('divert')
-          }}
-          style={{marginTop:8,width:'100%',background:'#FFFBEB',border:'1px solid #FDE68A',color:'#78350F',borderRadius:10,padding:'.625rem .875rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.8125rem',fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-          <span>⚠</span> Something feels wrong — get me help now
-        </button>
+        {/* Task #431 — catch-all "I'm worried" divert trigger. Kept as a
+            subtle text link (not a loud amber banner) so the chat UX
+            doesn't feel emergency-flavored on every question. Still
+            one-click reachable — closes the gap where atypical
+            phrasing ("something feels wrong", "I feel like something's
+            wrong") would miss keyword detection. */}
+        <div style={{marginTop:6,textAlign:'center'}}>
+          <button
+            onClick={() => {
+              logEscalation({ escalation_type: 'divert_ed', matched_flags: ['patient_worried'], consultationId: data.consultation_id })
+                .then(r => setEscalationInfo(r))
+              setEmergency('divert')
+            }}
+            style={{background:'transparent',border:'none',color:'#78350F',padding:'.25rem .5rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.75rem',fontWeight:500,textDecoration:'underline',textDecorationStyle:'dotted',textUnderlineOffset:3}}>
+            Something feels wrong? Get help now
+          </button>
+        </div>
       </div>
 </div>
   )
