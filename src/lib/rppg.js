@@ -1318,7 +1318,16 @@ export function processStoredFrames(frames, fps) {
     const agreement = hrFftBpm && hrAutoBpm ? Math.abs(hrFftBpm - hrAutoBpm) : 99
     const numericConfidence = Math.max(0, Math.min(100, 100 - (snr < 2 ? 20 : 0) - (agreement > 10 ? 15 : 0)))
 
-    const afDetection = detectAF(cleanDet, RESAMPLE_FPS) || AF_INSUFFICIENT()
+    // Extract beat intervals from peaks REGARDLESS of AF detection's 60s
+    // duration gate, so short-chunk callers (e.g. multi-pass replay/live
+    // aggregation) can still get rrIntervals for FM-based RR extraction.
+    // AF detection stays gated for its own clinical safety reasons.
+    const rawPeaks = findPeaksBasic(cleanDet, RESAMPLE_FPS)
+    const rawRRIntervals = rawPeaks.length >= 2
+      ? rawPeaks.slice(1).map((p, i) => (p - rawPeaks[i]) / RESAMPLE_FPS * 1000)
+      : []
+
+    const afDetection = detectAF(cleanDet, RESAMPLE_FPS) || AF_INSUFFICIENT(rawRRIntervals)
     const hrv    = calculateHRVScore(afDetection.rrIntervals)
     const stress = calculateStressScore(afDetection.rrIntervals, finalHR || 70)
 
