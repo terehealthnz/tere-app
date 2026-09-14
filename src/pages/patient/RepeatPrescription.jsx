@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
+import DobPicker from '../../components/DobPicker'
 
 export default function RepeatPrescription() {
   const [step, setStep] = useState(1)
@@ -90,7 +91,7 @@ export default function RepeatPrescription() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
                 <div>
                   <label style={labelStyle}>Date of birth *</label>
-                  <input type="date" value={dob} onChange={e => setDob(e.target.value)} style={inputStyle} />
+                  <DobPicker value={dob} onChange={setDob} required inputStyle={inputStyle} selectStyle={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>NHI number</label>

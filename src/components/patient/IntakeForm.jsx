@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import DobPicker from '../DobPicker'
 
 const RED_FLAGS = [
   'Chest pain or pressure',
@@ -258,7 +259,7 @@ export default function IntakeForm() {
                 </div>
                 <div className="form-group">
                   <label>Date of birth</label>
-                  <input name="dob" type="date" value={form.dob} onChange={val} required />
+                  <DobPicker value={form.dob} onChange={v => val({ target: { name: 'dob', value: v } })} required />
                 </div>
               </div>
               <div className="form-row">

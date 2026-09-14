@@ -12,6 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import DobPicker from '../components/DobPicker'
 
 const KIWISAVER_OPTIONS = [
   { value: '3',       label: '3% (default)' },
@@ -211,7 +212,7 @@ function Section1({ intake, onSaved, saveSection }) {
         <input value={form.preferred_name} onChange={e => u('preferred_name')(e.target.value)} style={S.input} disabled={busy} />
       </Field>
       <Field label="Date of birth">
-        <input type="date" value={form.date_of_birth || ''} onChange={e => u('date_of_birth')(e.target.value)} style={S.input} disabled={busy} />
+        <DobPicker value={form.date_of_birth || ''} onChange={u('date_of_birth')} disabled={busy} inputStyle={S.input} selectStyle={S.input} />
       </Field>
       <Field label="Home address" required>
         <textarea rows={2} value={form.home_address} onChange={e => u('home_address')(e.target.value)} style={S.textarea} disabled={busy} />

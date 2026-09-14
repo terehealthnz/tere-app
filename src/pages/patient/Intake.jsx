@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../lib/supabase'
+import DobPicker from '../../components/DobPicker'
 
 const LOCATIONS = [
   'Havelock', 'Pelorus Sound', 'Queen Charlotte Sound',
@@ -136,9 +137,7 @@ export default function Intake() {
               </div>
               <div className="form-group">
                 <label className="form-label">Date of birth</label>
-                <input type="date" className={`form-input ${errors.patient_dob ? 'error' : ''}`}
-                  value={form.patient_dob} onChange={e => set('patient_dob', e.target.value)}
-                  max={new Date().toISOString().split('T')[0]} />
+                <DobPicker value={form.patient_dob} onChange={v => set('patient_dob', v)} />
                 {errors.patient_dob && <p className="form-error">{errors.patient_dob}</p>}
               </div>
             </div>

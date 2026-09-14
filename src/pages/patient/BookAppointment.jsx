@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { apiFetch } from '../../lib/api'
+import DobPicker from '../../components/DobPicker'
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
 const FF = 'Plus Jakarta Sans, sans-serif'
@@ -359,7 +360,7 @@ export default function BookAppointment() {
                 </div>
                 <div>
                   <label style={labelStyle}>Date of birth</label>
-                  <input value={dob} onChange={e => setDob(e.target.value)} type="date" style={inputStyle} />
+                  <DobPicker value={dob} onChange={setDob} inputStyle={inputStyle} selectStyle={inputStyle} />
                 </div>
                 <div>
                   <label style={labelStyle}>Reason for visit</label>

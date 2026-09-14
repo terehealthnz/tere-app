@@ -4,6 +4,7 @@ import { getRegionConfig, REGIONS } from '../../lib/region'
 import { US_STATES, stateName, detectStateFromIP } from '../../lib/usStates'
 import { LANGUAGES, t } from '../../lib/i18n'
 import { makeConsultUrl } from '../../lib/consultUrl'
+import DobPicker from '../../components/DobPicker'
 
 // Small hook so all downstream screens re-render when the LanguagePicker
 // writes a new value to sessionStorage. The native 'storage' event only
@@ -657,11 +658,9 @@ function IntakeForm({ state, hipaa, onBack }) {
             value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label htmlFor="us-dob" style={labelStyle}>Date of birth</label>
-          <input id="us-dob" type="date" required autoComplete="bday"
-            value={dob} onChange={(e) => setDob(e.target.value)}
-            max={new Date().toISOString().slice(0, 10)}
-            style={inputStyle} />
+          <label htmlFor="us-dob-month" style={labelStyle}>Date of birth</label>
+          <DobPicker id="us-dob" value={dob} onChange={setDob} required
+            inputStyle={inputStyle} selectStyle={inputStyle} />
         </div>
         <div>
           <label htmlFor="us-email" style={labelStyle}>{t('us_intake_email_label', lang)}</label>
