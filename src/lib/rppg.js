@@ -565,6 +565,67 @@ function respiratoryFreqHz(cardiacSignal, fs) {
   return snr >= 1.5 ? rrHz : 0
 }
 
+// ── FM: respiratory rate from beat-to-beat interval variability (RSA) ────────
+// Second, INDEPENDENT respiratory rate estimator to fuse with the AM-based
+// respiratoryFreqHz() above. Rationale: physiology gives us three respiratory
+// modulations on the same PPG (BW, AM, FM — Charlton et al. 2016). AM (what
+// respiratoryFreqHz uses) is fragile on short windows and noisy signals.
+// FM — respiration modulating heart rate via RSA — is measured directly on
+// discrete beat intervals rather than spectral envelope, so it's immune to
+// the FFT-bin-resolution problem that plagues AM at 20s windows.
+//
+// Method (Task Force 1996 HRV standard, adapted):
+//   1. Take rrIntervals (ms between beats)
+//   2. Reconstruct beat-time series and interpolate to uniform 4 Hz
+//   3. Detrend, then FFT peak-pick in the RR band (0.13-0.5 Hz)
+//   4. SNR gate; return 0 if noisy
+//
+// Needs ≥30s of beats (~30 beats at rest HR) for a stable estimate. Won't
+// work on subjects with weak RSA (older adults, autonomic dysfunction) —
+// hence fused with AM rather than replacing it.
+function respiratoryFreqFromIBI(rrIntervals) {
+  if (!rrIntervals || rrIntervals.length < 20) return 0
+  const cumTimes = [0]
+  for (let i = 0; i < rrIntervals.length; i++) cumTimes.push(cumTimes[i] + rrIntervals[i])
+  const totalMs = cumTimes[cumTimes.length - 1]
+  if (totalMs < 30000) return 0 // <30s of beats → not enough for reliable RR
+
+  const targetFs = 4
+  const nSamples = Math.floor((totalMs / 1000) * targetFs)
+  if (nSamples < 60) return 0
+  const resampled = new Float32Array(nSamples)
+  for (let i = 0; i < nSamples; i++) {
+    const tMs = (i / targetFs) * 1000
+    // Locate beat interval containing time tMs (step-function interpolation —
+    // linear would be marginally sharper but adds complexity for ≤1% gain on
+    // the sample counts we have).
+    let idx = 0
+    while (idx < rrIntervals.length && cumTimes[idx + 1] < tMs) idx++
+    if (idx >= rrIntervals.length) idx = rrIntervals.length - 1
+    resampled[i] = rrIntervals[idx]
+  }
+  const detrended = detrend(resampled)
+  const rrHz = dominantFreq(detrended, RR_LOW_HZ, RR_HIGH_HZ, targetFs)
+  if (rrHz <= 0) return 0
+  const snr = signalSNR(detrended, rrHz, targetFs)
+  return snr >= 1.5 ? rrHz : 0
+}
+
+// Fuse AM and FM RR estimates. Both agree → confident, average them.
+// Disagree by >4 bpm → suppress (better nothing than wrong). One-sided → use it.
+// Returns {rr, source, rrAm, rrFm} — the metadata is for the harness.
+function fuseRR(rrAmBpm, rrFmBpm) {
+  const rrAm = rrAmBpm != null && rrAmBpm > 0 ? rrAmBpm : null
+  const rrFm = rrFmBpm != null && rrFmBpm > 0 ? rrFmBpm : null
+  if (rrAm != null && rrFm != null) {
+    if (Math.abs(rrAm - rrFm) <= 4) return { rr: Math.round((rrAm + rrFm) / 2), source: 'am+fm', rrAm, rrFm }
+    return { rr: null, source: 'disagree', rrAm, rrFm }
+  }
+  if (rrAm != null) return { rr: rrAm, source: 'am-only', rrAm, rrFm: null }
+  if (rrFm != null) return { rr: rrFm, source: 'fm-only', rrAm: null, rrFm }
+  return { rr: null, source: 'none', rrAm: null, rrFm: null }
+}
+
 function signalSNR(signal, peakFreq, fs) {
   if (!peakFreq) return 0
   const {mags,n}=fftMagnitudes(signal)
@@ -1104,9 +1165,18 @@ export class MultiPassMeasurement {
 
   _aggregate(results) {
     const hrs = results.map(r => r.hr)
-    const rrs = results.map(r => r.rr)
+    const rrs = results.map(r => r.rr)  // per-pass AM estimates (from respiratoryFreqHz)
     const hr  = getRobustAverage(hrs.filter(Boolean))
-    const rr  = getRobustAverage(rrs.filter(Boolean))
+    // AM: robust median across per-pass estimates (unchanged — HR-band FFT is fine per-pass).
+    const rrAm = getRobustAverage(rrs.filter(Boolean))
+    // FM: RSA from combined beat intervals across all passes. IBI is discrete-
+    // event data, immune to the FFT-bin-resolution and boundary-concatenation
+    // problems that made an earlier attempt (see revert of f2522a0) backfire.
+    const allRRIntervals = results.flatMap(r => r.rrIntervals || [])
+    const rrHzFm = respiratoryFreqFromIBI(allRRIntervals)
+    const rrFmBpm = rrHzFm > 0 ? Math.round(rrHzFm * 60) : null
+    const fused = fuseRR(rrAm, rrFmBpm)
+    const rr = fused.rr
     const avgFps  = results.reduce((s, r) => s + (r.actualFps||0), 0) / results.length
     const avgConf = results.reduce((s, r) => s + (r.numericConfidence||70), 0) / results.length
 
@@ -1121,7 +1191,7 @@ export class MultiPassMeasurement {
 
     console.log('=== MULTI-PASS RESULT ===')
     console.log('Pass HR:', hrs, '→', hr)
-    console.log('Pass RR:', rrs, '→', rr)
+    console.log(`RR: AM=${rrAm ?? '—'} FM=${rrFmBpm ?? '—'} fused=${rr ?? '—'} (${fused.source})`)
     console.log('Avg confidence:', Math.round(avgConf))
     if (hrv) console.log('HRV (combined):', hrv.sdnn + 'ms SDNN,', hrv.interpretation)
     if (bestAF?.possible) console.log('AF flag:', bestAF.likelihood, bestAF.score)
@@ -1133,6 +1203,9 @@ export class MultiPassMeasurement {
 
     return {
       hr, rr,
+      // Per-source RR metadata — for the harness + admin telemetry so we can
+      // see when AM and FM agree vs when we're suppressing on disagreement.
+      rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_source: fused.source,
       confidence: avgConf >= 80 ? 'high' : avgConf >= 60 ? 'moderate' : 'low',
       numericConfidence: Math.round(avgConf),
       passes: results.length,
@@ -1179,7 +1252,7 @@ export function processStoredFramesMultiPass(frames, fps) {
       chunks.push(frames.slice(start, end))
     }
   }
-  const hrs = [], rrs = [], confs = []
+  const hrs = [], rrs = [], confs = [], allRRIntervals = []
   for (const chunk of chunks) {
     if (chunk.length < 30) continue
     const r = processStoredFrames(chunk, fps)
@@ -1187,12 +1260,24 @@ export function processStoredFramesMultiPass(frames, fps) {
       if (r.hr != null) hrs.push(r.hr)
       if (r.rr != null) rrs.push(r.rr)
       confs.push(r.numericConfidence || 0)
+      if (r.afDetection?.rrIntervals) allRRIntervals.push(...r.afDetection.rrIntervals)
     }
   }
-  if (hrs.length === 0 && rrs.length === 0) return null
+
+  // Multi-source RR fusion: AM from per-chunk median + FM from combined
+  // beat intervals across all chunks. See respiratoryFreqFromIBI() for
+  // rationale and fuseRR() for the disagreement suppression policy. Same
+  // fusion shape as the live pipeline aggregation.
+  const rrAm = getRobustAverage(rrs.filter(Boolean))
+  const rrHzFm = respiratoryFreqFromIBI(allRRIntervals)
+  const rrFmBpm = rrHzFm > 0 ? Math.round(rrHzFm * 60) : null
+  const fused = fuseRR(rrAm, rrFmBpm)
+
+  if (hrs.length === 0 && fused.rr == null) return null
   return {
     hr: getRobustAverage(hrs),
-    rr: getRobustAverage(rrs),
+    rr: fused.rr,
+    rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_source: fused.source,
     numericConfidence: confs.length ? Math.round(confs.reduce((a,b)=>a+b,0) / confs.length) : 0,
     passResults: hrs.map((h, i) => ({ hr: h, rr: rrs[i] })),
   }

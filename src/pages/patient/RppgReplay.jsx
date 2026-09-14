@@ -267,6 +267,7 @@ export default function RppgReplay() {
                   <Th title="Replay HR − Manual HR">Δ replay</Th>
                   <Th title="Respiratory rate stored at scan time. No manual ground truth — flag values ≥28 (ceiling artefact) or ≤8">Stored RR</Th>
                   <Th title="Replayed respiratory rate — should track Stored RR closely">Replay RR</Th>
+                  <Th title="AM (spectral envelope) / FM (RSA from beat intervals) / fusion source">RR source</Th>
                   <Th>Confidence</Th>
                   <Th>Quality</Th>
                 </tr>
@@ -302,13 +303,18 @@ export default function RppgReplay() {
                              : '#374151',
                         fontWeight: replay?.rr >= 28 ? 700 : 400,
                       }}>{replay?.rr != null ? Math.round(replay.rr) : '—'}</Td>
+                      <Td style={{color:'#6B7280',fontSize:'.7rem'}}>
+                        {replay?.rr_source
+                          ? <span title={`AM=${replay.rr_am ?? '—'}, FM=${replay.rr_fm ?? '—'}`}>{replay.rr_source}</span>
+                          : '—'}
+                      </Td>
                       <Td style={{color:'#6B7280'}}>{replay?.numericConfidence != null ? Math.round(replay.numericConfidence) : (r.raw_rppg_signal?.numericConfidence != null ? Math.round(r.raw_rppg_signal.numericConfidence) : '—')}</Td>
                       <Td style={{color:'#6B7280'}}>{r.hr_quality || '—'}</Td>
                     </tr>
                   )
                 })}
                 {readings.length === 0 && (
-                  <tr><Td colSpan={11} style={{textAlign:'center',color:'#6B7280',padding:'2rem'}}>No readings with both a paired manual HR and a stored raw signal yet.</Td></tr>
+                  <tr><Td colSpan={12} style={{textAlign:'center',color:'#6B7280',padding:'2rem'}}>No readings with both a paired manual HR and a stored raw signal yet.</Td></tr>
                 )}
               </tbody>
             </table>
