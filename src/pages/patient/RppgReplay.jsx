@@ -114,8 +114,12 @@ export default function RppgReplay() {
         // of what shipped. Single-pass processStoredFrames() reports 3× the
         // MAE because it's a different algorithm.
         const out = processStoredFramesMultiPass(frames, fps) || processStoredFrames(frames, fps)
-        results[r.id] = out ? { hr: out.hr, rr: out.rr, numericConfidence: out.numericConfidence, ok: true }
-                            : { hr: null, rr: null, ok: false, reason: 'no result' }
+        results[r.id] = out ? {
+          hr: out.hr, rr: out.rr,
+          rr_am: out.rr_am, rr_fm: out.rr_fm, rr_source: out.rr_source,
+          numericConfidence: out.numericConfidence,
+          ok: true,
+        } : { hr: null, rr: null, ok: false, reason: 'no result' }
       } catch (e) {
         results[r.id] = { hr: null, rr: null, ok: false, reason: e?.message || 'error' }
       }
@@ -172,12 +176,16 @@ export default function RppgReplay() {
   }
   const rrMetrics = useMemo(() => {
     const storedRrs = readings.map(r => r.tere_rr)
-    // For replay: only readings we actually replayed (not the full set,
-    // otherwise "zero / rejected" gets polluted by not-yet-processed rows).
-    const replayRrs = readings
-      .filter(r => replayResults[r.id])
-      .map(r => replayResults[r.id]?.rr ?? null)
-    return { stored: bucket(storedRrs), replay: bucket(replayRrs) }
+    const replayed = readings.filter(r => replayResults[r.id])
+    const replayRrs = replayed.map(r => replayResults[r.id]?.rr ?? null)
+    // Source breakdown — tells us whether fusion is actually agreeing or
+    // if we're falling back to one source or suppressing on disagreement.
+    const sources = { 'am+fm': 0, 'am-only': 0, 'fm-only': 0, 'disagree': 0, 'none': 0 }
+    for (const r of replayed) {
+      const src = replayResults[r.id]?.rr_source || 'none'
+      if (sources[src] !== undefined) sources[src]++
+    }
+    return { stored: bucket(storedRrs), replay: bucket(replayRrs), sources }
   }, [readings, replayResults])
 
   if (authed !== true) {
@@ -249,8 +257,15 @@ export default function RppgReplay() {
                 </tbody>
               </table>
             </div>
-            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.75rem',fontStyle:'italic'}}>
-              Stored is historical — won't change on re-run. Replay reflects the currently-shipping algorithm. "Physiological up + Pinned/BelowLow down" is the fix-worked pattern.
+            <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px dashed #FDE68A',display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem'}}>
+              <SrcStat label="AM+FM fused" value={rrMetrics.sources['am+fm']} tone="good" />
+              <SrcStat label="AM only" value={rrMetrics.sources['am-only']} />
+              <SrcStat label="FM only" value={rrMetrics.sources['fm-only']} />
+              <SrcStat label="Disagreement (suppressed)" value={rrMetrics.sources['disagree']} tone="bad" />
+              <SrcStat label="No RR at all" value={rrMetrics.sources['none']} />
+            </div>
+            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.5rem',fontStyle:'italic'}}>
+              Stored is historical — won't change on re-run. High "AM+FM fused" = both estimators agree = confident. High "AM-only" means FM (RSA) isn't firing → check whether beat detection is stable enough.
             </div>
           </div>
 
@@ -330,6 +345,16 @@ function Stat({ label, value, unit }) {
     <div>
       <div style={{fontSize:'.7rem',color:'#6B7280',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:2}}>{label}</div>
       <div style={{fontSize:'1.15rem',fontWeight:700,color:'#111827'}}>{value}{unit ? <span style={{fontSize:'.75rem',fontWeight:500,color:'#6B7280',marginLeft:3}}>{unit}</span> : null}</div>
+    </div>
+  )
+}
+
+function SrcStat({ label, value, tone }) {
+  const color = tone === 'good' ? '#059669' : tone === 'bad' ? '#B91C1C' : '#78350F'
+  return (
+    <div>
+      <div style={{fontSize:'.65rem',color:'#92400E',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:2}}>{label}</div>
+      <div style={{fontSize:'1.05rem',fontWeight:700,color}}>{value ?? 0}</div>
     </div>
   )
 }
