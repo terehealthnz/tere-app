@@ -9,24 +9,36 @@
 // contract_pdf_key is null but contract_version is set).
 
 import PDFDocument from 'pdfkit'
-import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 
 // Contract JSON lives here (api/_contracts/) so Vercel's serverless
-// bundler guarantees inclusion. The client bundle imports the same data
-// from src/contracts/ (ContractRenderer.jsx) — the two copies are kept
-// in lockstep by scripts/sync-contracts-to-api.sh. If you edit v8_1.json,
-// re-run that script before committing so the browser view and archived
-// PDF don't drift.
-const require = createRequire(import.meta.url)
+// bundler (@vercel/ncc) can statically trace and include them. Client
+// bundle imports the same data from src/contracts/ (ContractRenderer)
+// — the two copies are kept in lockstep by scripts/sync-contracts-to-api.sh.
+//
+// Why readFileSync + join(__dirname, …) instead of createRequire or an
+// import assertion: ncc's static analysis traces this exact pattern
+// (literal path.join with __dirname), so the JSON is guaranteed to
+// ship with the function. createRequire's dynamic require() cannot be
+// traced, so files never make it into the bundle.
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = dirname(__filename)
 
-function loadContract(rel) {
-  try { return require(rel) }
-  catch (e) { console.error('[contract-pdf] failed to load', rel, e?.message); return null }
+function loadContract(name) {
+  try {
+    const p = join(__dirname, '_contracts', name)
+    return JSON.parse(readFileSync(p, 'utf8'))
+  } catch (e) {
+    console.error('[contract-pdf] failed to load', name, e?.message)
+    return null
+  }
 }
 
 const REGISTRY = {
-  'v8.1':    loadContract('./_contracts/v8_1.json'),
-  'v8.1-np': loadContract('./_contracts/v8_1_np.json'),
+  'v8.1':    loadContract('v8_1.json'),
+  'v8.1-np': loadContract('v8_1_np.json'),
 }
 
 export function getContractByVersion(version) {
