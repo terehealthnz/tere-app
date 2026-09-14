@@ -44,7 +44,7 @@
     { "source": "/((?!api/|assets/|icons/|manifest\\.json|sw\\.js|tere-logo\\..+|tere-preview\\..+|corporate\\.html|pharmacies\\.json|.*\\.(?:js|css|map|png|jpg|jpeg|webp|svg|ico|json|txt|woff2?|ttf)).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/handler.js": { "maxDuration": 60 }
+    "api/handler.js": { "maxDuration": 60, "memory": 2048 }
   },
   "crons": [
     { "path": "/api/cron-availability",         "schedule": "*/5 * * * *" },

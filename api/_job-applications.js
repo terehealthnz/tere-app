@@ -40,6 +40,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { buildInterviewIcs } from './_ics.js'
 import { buildOfferPdf } from './_pdf-builders.js'
 import { renderContractToPdf, getContractByVersion } from './_contract-pdf-render.js'
+import { renderContractToPdfViaChrome } from './_contract-html-render.js'
 import { encryptForStorage, decryptFromStorage, maskForSummary } from './_onboarding-crypto.js'
 import { getClientIp } from './_client-ip.js'
 
@@ -1886,22 +1887,35 @@ export default async function handler(req, res) {
       const contractJson = getContractByVersion(offer.contract_version)
       diag.json_registry_hit = !!contractJson
       if (contractJson) {
+        const fmtNZ = (iso) => iso ? new Date(iso).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
+        const contractorMerged = {
+          ...(offer.contractor_snapshot || {}),
+          contractor_signed_date: fmtNZ(offer.applicant_signed_at),
+          signer_date:            fmtNZ(offer.countersigned_at),
+        }
+        // Try headless Chrome first (pixel-perfect, matches browser).
+        // Fall back to pdfkit if Chrome fails to launch or times out —
+        // countersign should never break on aesthetic infra issues.
         try {
-          const fmtNZ = (iso) => iso ? new Date(iso).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
-          attachmentBuffer = await renderContractToPdf({
+          attachmentBuffer = await renderContractToPdfViaChrome({
             contract:   contractJson,
-            contractor: {
-              ...(offer.contractor_snapshot || {}),
-              // Post-signing artifact — fill in the two date fields the
-              // browser view leaves blank (they're always signed in the
-              // future at browser-render time).
-              contractor_signed_date: fmtNZ(offer.applicant_signed_at),
-              signer_date:            fmtNZ(offer.countersigned_at),
-            },
+            contractor: contractorMerged,
           })
+          diag.chrome_render_ok = true
         } catch (e) {
-          diag.json_render_error = e?.message || String(e)
-          console.error('[offer rebuild] agreement render failed:', e?.message || e)
+          diag.chrome_render_error = e?.message || String(e)
+          console.error('[offer rebuild] chrome render failed, falling back to pdfkit:', e?.message || e)
+        }
+        if (!attachmentBuffer) {
+          try {
+            attachmentBuffer = await renderContractToPdf({
+              contract:   contractJson,
+              contractor: contractorMerged,
+            })
+          } catch (e) {
+            diag.json_render_error = e?.message || String(e)
+            console.error('[offer rebuild] pdfkit fallback also failed:', e?.message || e)
+          }
         }
       } else {
         console.error('[offer rebuild] contract_version', offer.contract_version, 'not in server registry')
@@ -2025,13 +2039,30 @@ export default async function handler(req, res) {
     if (!attachmentBuffer && offer.contract_version) {
       const contractJson = getContractByVersion(offer.contract_version)
       if (contractJson) {
+        const fmtNZ = (iso) => iso ? new Date(iso).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
+        const contractorMerged = {
+          ...(offer.contractor_snapshot || {}),
+          contractor_signed_date: fmtNZ(offer.applicant_signed_at),
+          signer_date:            fmtNZ(offer.countersigned_at || new Date().toISOString()),
+        }
+        // Chrome-first, pdfkit fallback — same reasoning as the rebuild path.
         try {
-          attachmentBuffer = await renderContractToPdf({
+          attachmentBuffer = await renderContractToPdfViaChrome({
             contract:   contractJson,
-            contractor: offer.contractor_snapshot || {},
+            contractor: contractorMerged,
           })
         } catch (e) {
-          console.error('[offer] agreement render failed:', e?.message || e)
+          console.error('[offer countersign] chrome render failed, falling back to pdfkit:', e?.message || e)
+        }
+        if (!attachmentBuffer) {
+          try {
+            attachmentBuffer = await renderContractToPdf({
+              contract:   contractJson,
+              contractor: contractorMerged,
+            })
+          } catch (e) {
+            console.error('[offer countersign] pdfkit fallback failed:', e?.message || e)
+          }
         }
       } else {
         console.error('[offer] contract_version', offer.contract_version, 'not in server registry')
