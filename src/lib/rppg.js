@@ -1036,11 +1036,6 @@ export class RppgMeasurement {
         frames:this.rgbBuffer.length, actualFps:parseFloat(actualFps.toFixed(1)),
         faceWarning: this.missedFrames/(this.rgbBuffer.length+this.missedFrames) > 0.3,
         rawFrames: this.captureRaw ? this.rawFrames : undefined,
-        // Preserve the pass's denoised, detrended, resampled signal so
-        // MultiPassMeasurement._aggregate() can concatenate across passes
-        // and compute RR on the full 80s window (see comment there).
-        // ~2.4 KB per 20s pass — negligible memory cost.
-        cleanDet, cleanDetFs: RESAMPLE_FPS,
         afDetection, hrv, stress, rrIntervals: afDetection.rrIntervals,
         note:'Indicative screening only — not a substitute for medical-grade devices.',
       })
@@ -1109,35 +1104,9 @@ export class MultiPassMeasurement {
 
   _aggregate(results) {
     const hrs = results.map(r => r.hr)
+    const rrs = results.map(r => r.rr)
     const hr  = getRobustAverage(hrs.filter(Boolean))
-
-    // ── RR: extract from CONCATENATED signal, not per-pass median ─────────
-    // Per-pass RR (20s each) has only 4-7 breath cycles at typical adult
-    // RR — FFT bin resolution (~3 bpm at fs=5/N=100) is coarser than the
-    // clinical differences we're trying to resolve. Medianing 4 unreliable
-    // estimates converges to noise. Concatenating gives ~16-27 cycles over
-    // 80s at 0.75 bpm resolution — solid ground for spectral estimation.
-    // Falls back to old per-pass median if cleanDet wasn't preserved
-    // (backward compat for any caller not using the current pass shape).
-    let rr = null
-    if (results.length && results.every(r => r.cleanDet && r.cleanDetFs)) {
-      const fs = results[0].cleanDetFs
-      const totalLen = results.reduce((s, r) => s + r.cleanDet.length, 0)
-      const combined = new Float32Array(totalLen)
-      let offset = 0
-      for (const r of results) { combined.set(r.cleanDet, offset); offset += r.cleanDet.length }
-      const rrHz = respiratoryFreqHz(combined, fs)
-      if (rrHz > 0) {
-        const rrBpm = Math.round(rrHz * 60)
-        if (rrBpm >= 8 && rrBpm <= 35) rr = rrBpm
-      }
-      console.log(`RR: full-signal (${totalLen} samples over ${(totalLen/fs).toFixed(1)}s) → ${rr ?? 'null'}`)
-    } else {
-      const rrs = results.map(r => r.rr)
-      rr = getRobustAverage(rrs.filter(Boolean))
-      console.log(`RR: per-pass fallback (${rrs.filter(Boolean).length} valid passes) → ${rr ?? 'null'}`)
-    }
-
+    const rr  = getRobustAverage(rrs.filter(Boolean))
     const avgFps  = results.reduce((s, r) => s + (r.actualFps||0), 0) / results.length
     const avgConf = results.reduce((s, r) => s + (r.numericConfidence||70), 0) / results.length
 
@@ -1152,7 +1121,7 @@ export class MultiPassMeasurement {
 
     console.log('=== MULTI-PASS RESULT ===')
     console.log('Pass HR:', hrs, '→', hr)
-    console.log('RR (full-signal):', rr)
+    console.log('Pass RR:', rrs, '→', rr)
     console.log('Avg confidence:', Math.round(avgConf))
     if (hrv) console.log('HRV (combined):', hrv.sdnn + 'ms SDNN,', hrv.interpretation)
     if (bestAF?.possible) console.log('AF flag:', bestAF.likelihood, bestAF.score)
@@ -1210,31 +1179,22 @@ export function processStoredFramesMultiPass(frames, fps) {
       chunks.push(frames.slice(start, end))
     }
   }
-  const hrs = [], confs = []
+  const hrs = [], rrs = [], confs = []
   for (const chunk of chunks) {
     if (chunk.length < 30) continue
     const r = processStoredFrames(chunk, fps)
     if (r) {
       if (r.hr != null) hrs.push(r.hr)
+      if (r.rr != null) rrs.push(r.rr)
       confs.push(r.numericConfidence || 0)
     }
   }
-
-  // RR from FULL frame array, not per-chunk. Per-chunk 20s windows have
-  // FFT resolution ~3 bpm at RR frequency ranges — coarser than clinical
-  // differences (12 vs 15 vs 18 bpm). Aggregating 4 unreliable per-chunk
-  // estimates converges to noise. Running the extractor on the full 80s
-  // signal gives ~0.75 bpm resolution and 16-27 breath cycles to lock on.
-  let rr = null
-  const full = processStoredFrames(frames, fps)
-  if (full?.rr != null && full.rr >= 8 && full.rr <= 35) rr = full.rr
-
-  if (hrs.length === 0 && rr == null) return null
+  if (hrs.length === 0 && rrs.length === 0) return null
   return {
     hr: getRobustAverage(hrs),
-    rr,
+    rr: getRobustAverage(rrs),
     numericConfidence: confs.length ? Math.round(confs.reduce((a,b)=>a+b,0) / confs.length) : 0,
-    passResults: hrs.map(h => ({ hr: h })),
+    passResults: hrs.map((h, i) => ({ hr: h, rr: rrs[i] })),
   }
 }
 
