@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit'
+import { PDFDocument as PDFLibDocument } from 'pdf-lib'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -1023,9 +1024,10 @@ export async function buildSupervisionPlanPdf(data) {
 // Called at countersign time — before that the offer PDF doesn't exist yet.
 export async function buildOfferPdf(data) {
   const {
-    application = {},
-    offer       = {},
-    tereSigner  = {},   // { first_name, last_name, title, signature_url }
+    application     = {},
+    offer           = {},
+    tereSigner      = {},   // { first_name, last_name, title, signature_url }
+    attachmentBuffer = null, // v8.x agreement PDF (from offer-contracts bucket) to concatenate onto the wrapper
   } = data
 
   const tereSigBuf = await fetchSignatureBuffer(tereSigner.signature_url)
@@ -1042,7 +1044,7 @@ export async function buildOfferPdf(data) {
     } catch { /* leave null */ }
   }
 
-  return new Promise((resolve, reject) => {
+  const wrapperBuffer = await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
     doc.on('data', c => chunks.push(c))
@@ -1168,6 +1170,30 @@ export async function buildOfferPdf(data) {
 
     doc.end()
   })
+
+  // No attachment → return the wrapper letter alone (older offers).
+  if (!attachmentBuffer || attachmentBuffer.byteLength === 0) {
+    return wrapperBuffer
+  }
+
+  // Merge: wrapper pages first, then the full v8.x agreement. pdfkit
+  // can't merge existing PDFs — pdf-lib copies pages between docs.
+  // If the attachment is unreadable (corrupt, encrypted, non-PDF)
+  // fall back to wrapper-only rather than failing the countersign.
+  try {
+    const merged  = await PDFLibDocument.create()
+    const wrapper = await PDFLibDocument.load(wrapperBuffer)
+    const wrapperPages = await merged.copyPages(wrapper, wrapper.getPageIndices())
+    for (const p of wrapperPages) merged.addPage(p)
+    const attachment = await PDFLibDocument.load(attachmentBuffer)
+    const attachmentPages = await merged.copyPages(attachment, attachment.getPageIndices())
+    for (const p of attachmentPages) merged.addPage(p)
+    const bytes = await merged.save()
+    return Buffer.from(bytes)
+  } catch (e) {
+    console.error('[offer PDF] agreement merge failed, falling back to wrapper only:', e?.message || e)
+    return wrapperBuffer
+  }
 }
 
 // ACC audit evidence bundle — single-deliverable PDF handed to an ACC

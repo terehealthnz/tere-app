@@ -3451,6 +3451,18 @@ function ContractsSection() {
     }
   }
 
+  async function handleRebuildPdf(offerId) {
+    if (!confirm('Regenerate this signed PDF with the full agreement attached? Overwrites the stored file.')) return
+    setBusy(true); setMsg('')
+    try {
+      const { rebuildOfferPdf } = await import('../../lib/supabase')
+      const r = await rebuildOfferPdf(offerId)
+      setMsg(r.page_count_merged ? 'Rebuilt — full agreement is now included.' : 'Rebuilt (no agreement attachment on record — wrapper only).')
+    } catch (e) {
+      setMsg('Error: ' + (e.message || 'rebuild failed'))
+    } finally { setBusy(false) }
+  }
+
   const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
   const chip = (active) => ({
     background: active ? '#0D2B45' : '#F1F5F9', color: active ? 'white' : '#6B7280',
@@ -3531,6 +3543,11 @@ function ContractsSection() {
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {o.pdf_storage_key && (
                       <button onClick={() => handleOpenPdf(o.id)} style={btn()} disabled={busy}>View PDF</button>
+                    )}
+                    {isAdmin && o.status === 'countersigned' && o.pdf_storage_key && (
+                      <button onClick={() => handleRebuildPdf(o.id)} style={btn()} disabled={busy} title="Regenerate merged PDF with full v8.x agreement attached (for contracts signed before this feature shipped)">
+                        Rebuild PDF
+                      </button>
                     )}
                     {canCountersign && countersignId !== o.id && (
                       <button onClick={() => { setCountersignId(o.id); setCountersignName('') }} style={btn('primary')} disabled={busy}>

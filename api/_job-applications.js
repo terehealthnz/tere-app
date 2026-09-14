@@ -1825,6 +1825,78 @@ export default async function handler(req, res) {
     return res.status(200).json({ offers: data || [] })
   }
 
+  // Admin: rebuild the final signed PDF (wrapper + attached agreement)
+  // for an already-countersigned offer. Useful for offers signed before
+  // the merged-PDF feature shipped (their pdf_storage_key points at a
+  // wrapper-only file). Overwrites the same storage key.
+  if (req.method === 'POST' && action === 'rebuild_offer_pdf') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
+    const { data: offer, error: oErr } = await supabase
+      .from('job_offers')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (oErr || !offer) return res.status(404).json({ error: 'Offer not found' })
+    if (offer.status !== 'countersigned') {
+      return res.status(409).json({ error: `Rebuild requires countersigned status (got ${offer.status})` })
+    }
+
+    const { data: app } = await supabase.from('job_applications')
+      .select('first_name, last_name, email').eq('id', offer.application_id).maybeSingle()
+
+    // Prefer the original countersigner's signature if we still have it;
+    // fall back to any admin's signature so the wrapper still renders.
+    let signer = null
+    if (offer.countersigned_by_provider_id) {
+      const { data: s } = await supabase.from('providers')
+        .select('first_name, last_name, signature_url, specialty, signer_title')
+        .eq('id', offer.countersigned_by_provider_id).maybeSingle()
+      signer = s
+    }
+
+    let attachmentBuffer = null
+    if (offer.contract_pdf_key) {
+      try {
+        const { data: file, error: dErr } = await supabase.storage
+          .from('offer-contracts')
+          .download(offer.contract_pdf_key)
+        if (dErr) throw dErr
+        const arr = await file.arrayBuffer()
+        attachmentBuffer = Buffer.from(arr)
+      } catch (e) {
+        console.error('[offer rebuild] attachment fetch failed:', e?.message || e)
+      }
+    }
+
+    let pdfBuffer
+    try {
+      pdfBuffer = await buildOfferPdf({
+        application: app || {},
+        offer,
+        tereSigner: {
+          first_name:    signer?.first_name,
+          last_name:     signer?.last_name,
+          title:         signer?.signer_title || signer?.specialty || 'Authorised Signatory',
+          signature_url: signer?.signature_url || null,
+        },
+        attachmentBuffer,
+      })
+    } catch (e) {
+      console.error('[offer rebuild] PDF build failed:', e.message)
+      return res.status(500).json({ error: 'PDF build failed' })
+    }
+
+    const path = offer.pdf_storage_key || `${offer.id}.pdf`
+    const { error: upErr } = await supabase.storage.from('offers')
+      .upload(path, pdfBuffer, { contentType: 'application/pdf', upsert: true, cacheControl: '0' })
+    if (upErr) { console.error('[offer rebuild] upload failed:', upErr); return res.status(500).json({ error: 'Upload failed' }) }
+    if (!offer.pdf_storage_key) {
+      await supabase.from('job_offers').update({ pdf_storage_key: path }).eq('id', offer.id)
+    }
+    return res.status(200).json({ ok: true, page_count_merged: !!attachmentBuffer })
+  }
+
   if (req.method === 'GET' && action === 'offer_pdf') {
     if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
     const { data: offer } = await supabase
@@ -1884,6 +1956,24 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'You cannot countersign your own contract. Another admin must sign for Tere Health.' })
     }
 
+    // Fetch the v8.x agreement PDF attached to this offer, so the final
+    // artifact is one document (wrapper + full agreement) instead of the
+    // wrapper's "attached" language pointing nowhere. Falls back to
+    // wrapper-only if the attachment is missing or unreadable.
+    let attachmentBuffer = null
+    if (offer.contract_pdf_key) {
+      try {
+        const { data: file, error: dErr } = await supabase.storage
+          .from('offer-contracts')
+          .download(offer.contract_pdf_key)
+        if (dErr) throw dErr
+        const arr = await file.arrayBuffer()
+        attachmentBuffer = Buffer.from(arr)
+      } catch (e) {
+        console.error('[offer] agreement attachment fetch failed (will produce wrapper-only PDF):', e?.message || e)
+      }
+    }
+
     // Build the final PDF.
     let pdfBuffer
     try {
@@ -1899,6 +1989,7 @@ export default async function handler(req, res) {
           title:         signer?.signer_title || signer?.specialty || 'Authorised Signatory',
           signature_url: signer?.signature_url || null,
         },
+        attachmentBuffer,
       })
     } catch (e) {
       console.error('[offer] PDF build failed:', e.message)

@@ -1287,6 +1287,17 @@ export async function getOfferPdfUrl(offerId) {
   return body.signedUrl || null
 }
 
+// Admin: regenerate the final signed PDF (wrapper + attached v8.x agreement)
+// for an already-countersigned offer whose stored PDF is wrapper-only.
+export async function rebuildOfferPdf(offerId) {
+  const res = await apiFetch(`/api/job-applications?action=rebuild_offer_pdf&id=${encodeURIComponent(offerId)}`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Rebuild failed')
+  return await res.json()
+}
+
 // ── References ─────────────────────────────────────────────────────────
 export async function listReferences(applicationId) {
   const res = await apiFetch(`/api/job-applications?action=references&id=${encodeURIComponent(applicationId)}`)
