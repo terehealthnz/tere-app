@@ -178,12 +178,28 @@ export default function RppgReplay() {
     const storedRrs = readings.map(r => r.tere_rr)
     const replayed = readings.filter(r => replayResults[r.id])
     const replayRrs = replayed.map(r => replayResults[r.id]?.rr ?? null)
-    // Source breakdown — tells us whether fusion is actually agreeing or
-    // if we're falling back to one source or suppressing on disagreement.
-    const sources = { 'am+fm': 0, 'am-only': 0, 'fm-only': 0, 'disagree': 0, 'none': 0 }
+    // Source breakdown — track EVERY label fuseRR() can emit so we don't
+    // silently drop rows into an "unknown" bucket. Grouped for the UI:
+    // 3-agree (best), 2-of-3 agree (rescued outlier), 2-source only,
+    // 1-source only, suppressed, no signal.
+    const sources = {
+      // "3 valid sources, all within 4 bpm — take median"
+      'am+fm+bw': 0,
+      // "3 valid, 2 of them agree — outlier tolerated" (any pair)
+      'am+fm': 0, 'am+bw': 0, 'fm+bw': 0,
+      // "2 valid, agreed" (BW was null → old 2-source path)
+      // (same 'am+fm'/'am+bw'/'fm+bw' labels — safe merge, source only fires once)
+      // "1 valid" (2 of 3 rejected)
+      'am-only': 0, 'fm-only': 0, 'bw-only': 0,
+      // Suppressed
+      'disagree2': 0, 'disagree3': 0,
+      // No RR at all
+      'none': 0,
+    }
     for (const r of replayed) {
       const src = replayResults[r.id]?.rr_source || 'none'
       if (sources[src] !== undefined) sources[src]++
+      else sources['none']++  // catch-all for any label we didn't anticipate
     }
     return { stored: bucket(storedRrs), replay: bucket(replayRrs), sources }
   }, [readings, replayResults])
@@ -257,15 +273,32 @@ export default function RppgReplay() {
                 </tbody>
               </table>
             </div>
-            <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px dashed #FDE68A',display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem'}}>
-              <SrcStat label="AM+FM fused" value={rrMetrics.sources['am+fm']} tone="good" />
-              <SrcStat label="AM only" value={rrMetrics.sources['am-only']} />
-              <SrcStat label="FM only" value={rrMetrics.sources['fm-only']} />
-              <SrcStat label="Disagreement (suppressed)" value={rrMetrics.sources['disagree']} tone="bad" />
-              <SrcStat label="No RR at all" value={rrMetrics.sources['none']} />
+            <div style={{marginTop:'.75rem',paddingTop:'.75rem',borderTop:'1px dashed #FDE68A'}}>
+              <div style={{fontSize:'.65rem',color:'#92400E',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:'.4rem',fontWeight:700}}>All 3 agree — highest confidence</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem',marginBottom:'.75rem'}}>
+                <SrcStat label="AM+FM+BW" value={rrMetrics.sources['am+fm+bw']} tone="good" />
+              </div>
+              <div style={{fontSize:'.65rem',color:'#92400E',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:'.4rem',fontWeight:700}}>2 of 3 agree (rescued) or only 2 valid</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem',marginBottom:'.75rem'}}>
+                <SrcStat label="AM+FM" value={rrMetrics.sources['am+fm']} />
+                <SrcStat label="AM+BW" value={rrMetrics.sources['am+bw']} />
+                <SrcStat label="FM+BW" value={rrMetrics.sources['fm+bw']} />
+              </div>
+              <div style={{fontSize:'.65rem',color:'#92400E',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:'.4rem',fontWeight:700}}>Only 1 valid source (lowest confidence)</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem',marginBottom:'.75rem'}}>
+                <SrcStat label="AM only" value={rrMetrics.sources['am-only']} />
+                <SrcStat label="FM only" value={rrMetrics.sources['fm-only']} />
+                <SrcStat label="BW only" value={rrMetrics.sources['bw-only']} />
+              </div>
+              <div style={{fontSize:'.65rem',color:'#92400E',textTransform:'uppercase',letterSpacing:'.03em',marginBottom:'.4rem',fontWeight:700}}>Suppressed / no signal</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))',gap:'.5rem'}}>
+                <SrcStat label="Disagree (2 valid)" value={rrMetrics.sources['disagree2']} tone="bad" />
+                <SrcStat label="Disagree (3 valid)" value={rrMetrics.sources['disagree3']} tone="bad" />
+                <SrcStat label="No RR at all" value={rrMetrics.sources['none']} />
+              </div>
             </div>
-            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.5rem',fontStyle:'italic'}}>
-              Stored is historical — won't change on re-run. High "AM+FM fused" = both estimators agree = confident. High "AM-only" means FM (RSA) isn't firing → check whether beat detection is stable enough.
+            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.75rem',fontStyle:'italic'}}>
+              Stored is historical — won't change on re-run. All-3-agree readings are the highest-confidence set. 2-of-3 rescues would previously have been suppressed under the 2-source policy.
             </div>
           </div>
 
