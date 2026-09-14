@@ -145,6 +145,36 @@ export default function RppgReplay() {
     }
   }, [readings, replayResults])
 
+  // RR-specific metrics. No ground truth in validation_readings (no manual_rr
+  // column — RR is hard to self-measure), so we can't do a MAE. Instead we
+  // watch for the historical failure modes:
+  //   - Pinned at 30 bpm (the ceiling-artefact bug fixed in 1ee0089;
+  //     regression signal if it starts appearing again)
+  //   - Zero (algorithm rejected — expected for very noisy scans)
+  //   - Outside physiological range (should be near-empty)
+  // Also track how closely the replay reproduces the stored RR pipeline.
+  const rrMetrics = useMemo(() => {
+    const storedRrs = readings.map(r => r.tere_rr).filter(v => v != null)
+    const replayRrs = Object.values(replayResults).map(r => r?.rr).filter(v => v != null && v > 0)
+    const pinned30 = storedRrs.filter(v => v >= 28 && v <= 30).length
+    const zeros    = readings.filter(r => r.tere_rr === 0).length
+    const physio   = storedRrs.filter(v => v >= 10 && v <= 20).length
+    const tooLow   = storedRrs.filter(v => v > 0 && v < 10).length
+    const tooHigh  = storedRrs.filter(v => v > 20 && v < 28).length
+    const sorted   = [...storedRrs].filter(v => v > 0).sort((a, b) => a - b)
+    const median   = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null
+    // Agreement: replay RR within ±2 bpm of stored RR (harness consistency check).
+    let agree = 0, disagree = 0
+    for (const r of readings) {
+      const rep = replayResults[r.id]
+      if (r.tere_rr != null && rep?.rr != null && r.tere_rr > 0 && rep.rr > 0) {
+        if (Math.abs(r.tere_rr - rep.rr) <= 2) agree++
+        else disagree++
+      }
+    }
+    return { storedRrs, replayRrs, pinned30, zeros, physio, tooLow, tooHigh, median, agree, disagree }
+  }, [readings, replayResults])
+
   if (authed !== true) {
     return <div style={{padding:'2rem',textAlign:'center',color:'#6B7280'}}>Checking authentication…</div>
   }
@@ -181,13 +211,32 @@ export default function RppgReplay() {
             </button>
           </div>
 
-          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem',display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))',gap:'.75rem'}}>
+          <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'.75rem',display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))',gap:'.75rem'}}>
             <Stat label="Readings" value={metrics.n} />
             <Stat label="Replayed" value={metrics.nReplayed} />
             <Stat label="Stored HR — MAE"  value={metrics.storedMae?.toFixed(2) ?? '—'} unit="bpm" />
             <Stat label="Stored HR — RMSE" value={metrics.storedRmse?.toFixed(2) ?? '—'} unit="bpm" />
             <Stat label="Replay HR — MAE"  value={metrics.replayMae?.toFixed(2) ?? '—'} unit="bpm" />
             <Stat label="Replay HR — RMSE" value={metrics.replayRmse?.toFixed(2) ?? '—'} unit="bpm" />
+          </div>
+
+          <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
+            <div style={{fontSize:'.75rem',fontWeight:700,color:'#92400E',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.5rem'}}>
+              Respiratory rate (no manual ground truth — distribution + regression check only)
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))',gap:'.75rem'}}>
+              <Stat label="Physiological (10–20)" value={rrMetrics.physio} />
+              <Stat label="Below 10" value={rrMetrics.tooLow} />
+              <Stat label="Above 20 (<28)" value={rrMetrics.tooHigh} />
+              <Stat label="Pinned near 30 ⚠" value={rrMetrics.pinned30} />
+              <Stat label="Zero / rejected" value={rrMetrics.zeros} />
+              <Stat label="Stored RR — median" value={rrMetrics.median ?? '—'} unit="bpm" />
+              <Stat label="Replay agrees ±2" value={rrMetrics.agree} />
+              <Stat label="Replay disagrees" value={rrMetrics.disagree} />
+            </div>
+            <div style={{fontSize:'.7rem',color:'#78350F',marginTop:'.5rem',fontStyle:'italic'}}>
+              A cluster near 30 bpm is the historical ceiling-artefact bug (fixed in 1ee0089) — should be near-zero.
+            </div>
           </div>
 
           <div style={{overflowX:'auto',border:'1px solid #E5E7EB',borderRadius:10}}>
@@ -201,6 +250,8 @@ export default function RppgReplay() {
                   <Th title="Re-run of the current pipeline against the stored signal">Replay HR</Th>
                   <Th title="Stored HR − Manual HR">Δ stored</Th>
                   <Th title="Replay HR − Manual HR">Δ replay</Th>
+                  <Th title="Respiratory rate stored at scan time. No manual ground truth — flag values ≥28 (ceiling artefact) or ≤8">Stored RR</Th>
+                  <Th title="Replayed respiratory rate — should track Stored RR closely">Replay RR</Th>
                   <Th>Confidence</Th>
                   <Th>Quality</Th>
                 </tr>
@@ -219,13 +270,30 @@ export default function RppgReplay() {
                       <Td style={{background:replay?'#F0F9FA':'transparent'}}>{replay ? fmtHr(replay.hr) : '—'}</Td>
                       <Td style={{color: dStored != null && Math.abs(dStored) > 5 ? '#B45309' : '#374151'}}>{fmtDelta(r.tere_hr, r.manual_hr)}</Td>
                       <Td style={{color: dReplay != null && Math.abs(dReplay) > 5 ? '#B45309' : '#374151'}}>{fmtDelta(replay?.hr, r.manual_hr)}</Td>
+                      <Td style={{
+                        // Highlight the two failure signals we care about:
+                        // pinned near ceiling (≥28) or outside physiology (<10, >20).
+                        color: r.tere_rr == null ? '#9CA3AF'
+                             : r.tere_rr >= 28 ? '#B91C1C'
+                             : (r.tere_rr < 10 || r.tere_rr > 20) ? '#B45309'
+                             : '#374151',
+                        fontWeight: r.tere_rr >= 28 ? 700 : 400,
+                      }}>{r.tere_rr ?? '—'}</Td>
+                      <Td style={{
+                        background: replay?.rr != null ? '#F0F9FA' : 'transparent',
+                        color: replay?.rr == null ? '#9CA3AF'
+                             : replay.rr >= 28 ? '#B91C1C'
+                             : (replay.rr < 10 || replay.rr > 20) ? '#B45309'
+                             : '#374151',
+                        fontWeight: replay?.rr >= 28 ? 700 : 400,
+                      }}>{replay?.rr != null ? Math.round(replay.rr) : '—'}</Td>
                       <Td style={{color:'#6B7280'}}>{replay?.numericConfidence != null ? Math.round(replay.numericConfidence) : (r.raw_rppg_signal?.numericConfidence != null ? Math.round(r.raw_rppg_signal.numericConfidence) : '—')}</Td>
                       <Td style={{color:'#6B7280'}}>{r.hr_quality || '—'}</Td>
                     </tr>
                   )
                 })}
                 {readings.length === 0 && (
-                  <tr><Td colSpan={9} style={{textAlign:'center',color:'#6B7280',padding:'2rem'}}>No readings with both a paired manual HR and a stored raw signal yet.</Td></tr>
+                  <tr><Td colSpan={11} style={{textAlign:'center',color:'#6B7280',padding:'2rem'}}>No readings with both a paired manual HR and a stored raw signal yet.</Td></tr>
                 )}
               </tbody>
             </table>
