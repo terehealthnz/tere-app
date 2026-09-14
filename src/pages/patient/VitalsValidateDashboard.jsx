@@ -1008,7 +1008,10 @@ export default function VitalsValidateDashboard() {
             <div style={{ fontWeight: 800, color: NAVY, fontSize: '1.05rem' }}>Vitals Validation Dashboard</div>
             <div style={{ fontSize: '.75rem', color: '#6B7280' }}>Clinical data collection</div>
           </div>
-          <Link to="/vitals-validate" style={{ marginLeft: 'auto', fontSize: '.85rem', color: TEAL, fontWeight: 700, textDecoration: 'none', background: TEAL + '15', borderRadius: 99, padding: '.4rem 1rem' }}>
+          <Link to="/rppg-replay" style={{ marginLeft: 'auto', fontSize: '.85rem', color: NAVY, fontWeight: 600, textDecoration: 'none', background: 'white', border: '1.5px solid #E5E7EB', borderRadius: 99, padding: '.4rem 1rem' }}>
+            rPPG replay
+          </Link>
+          <Link to="/vitals-validate" style={{ fontSize: '.85rem', color: TEAL, fontWeight: 700, textDecoration: 'none', background: TEAL + '15', borderRadius: 99, padding: '.4rem 1rem' }}>
             + New reading
           </Link>
         </div>

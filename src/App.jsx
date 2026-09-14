@@ -141,6 +141,7 @@ const DemoAdmin           = lazy(() => import('./pages/demo/DemoAdmin'))
 const AsyncMessage        = lazy(() => import('./pages/patient/AsyncMessage'))
 const VitalsValidate      = lazy(() => import('./pages/patient/VitalsValidate'))
 const VitalsValidateDash  = lazy(() => import('./pages/patient/VitalsValidateDashboard'))
+const RppgReplay          = lazy(() => import('./pages/patient/RppgReplay'))
 const VitalsValidatePIS   = lazy(() => import('./pages/patient/VitalsValidateParticipantInfo'))
 const ConsentPage         = lazy(() => import('./pages/patient/ConsentPage'))
 const USLanding           = lazy(() => import('./pages/us/USLanding'))
@@ -312,6 +313,7 @@ export default function App() {
         <Route path="/async-message/:id"          element={<AsyncMessage />} />
         <Route path="/vitals-validate"                     element={<VitalsValidate />} />
         <Route path="/vitals-validate/dashboard"           element={<VitalsValidateDash />} />
+        <Route path="/rppg-replay"                         element={<RppgReplay />} />
         <Route path="/vitals-validate/participant-info"    element={<VitalsValidatePIS />} />
         <Route path="*"                           element={<Navigate to="/" replace />} />
       </Routes>
