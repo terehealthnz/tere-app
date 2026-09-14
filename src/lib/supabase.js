@@ -1280,11 +1280,12 @@ export async function cancelOffer(offerId) {
   return res.ok
 }
 
-export async function getOfferPdfUrl(offerId) {
-  const res = await apiFetch(`/api/job-applications?action=offer_pdf&id=${encodeURIComponent(offerId)}`)
+export async function getOfferPdfUrl(offerId, { download = false } = {}) {
+  const qs = download ? '&download=1' : ''
+  const res = await apiFetch(`/api/job-applications?action=offer_pdf&id=${encodeURIComponent(offerId)}${qs}`)
   if (!res.ok) return null
   const body = await res.json()
-  return body.signedUrl || null
+  return { url: body.signedUrl || null, filename: body.filename || `contract-${offerId}.pdf` }
 }
 
 // Admin: regenerate the final signed PDF (wrapper + attached v8.x agreement)

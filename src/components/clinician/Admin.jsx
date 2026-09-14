@@ -3440,23 +3440,24 @@ function ContractsSection() {
     } finally { setBusy(false) }
   }
 
-  async function handleOpenPdf(offerId) {
-    // Open the tab SYNCHRONOUSLY on click so Chrome doesn't attribute
-    // the eventual window.open to a background async — otherwise the
-    // popup blocker silently kills it and the click looks like a no-op.
-    const win = window.open('about:blank', '_blank')
-    if (!win) {
-      alert('Popup blocked — allow popups for terehealth.co.nz and try again.')
-      return
-    }
+  async function handleDownloadPdf(offerId) {
+    // Anchor + download attribute is popup-blocker-safe and gives the
+    // user a proper file save flow — better UX than opening in a tab
+    // for a legal artifact anyway.
+    setMsg('')
     try {
       const { getOfferPdfUrl } = await import('../../lib/supabase')
-      const url = await getOfferPdfUrl(offerId)
-      if (!url) { win.close(); alert('PDF not available yet.'); return }
-      win.location.href = url
+      const r = await getOfferPdfUrl(offerId, { download: true })
+      if (!r?.url) { alert('PDF not available yet.'); return }
+      const a = document.createElement('a')
+      a.href = r.url
+      a.download = r.filename
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
     } catch (e) {
-      try { win.close() } catch {}
-      alert('Could not open PDF: ' + (e.message || 'unknown'))
+      alert('Could not download PDF: ' + (e.message || 'unknown'))
     }
   }
 
@@ -3561,7 +3562,7 @@ function ContractsSection() {
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {o.pdf_storage_key && (
-                      <button onClick={() => handleOpenPdf(o.id)} style={btn()} disabled={busy}>View PDF</button>
+                      <button onClick={() => handleDownloadPdf(o.id)} style={btn()} disabled={busy}>Download PDF</button>
                     )}
                     {isAdmin && o.status === 'countersigned' && o.pdf_storage_key && (
                       <button onClick={() => handleRebuildPdf(o.id)} style={btn()} disabled={busy} title="Regenerate merged PDF with full v8.x agreement attached (for contracts signed before this feature shipped)">
@@ -4496,11 +4497,17 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   async function handleOpenOfferPdf(offerId) {
     try {
       const { getOfferPdfUrl } = await import('../../lib/supabase')
-      const url = await getOfferPdfUrl(offerId)
-      if (!url) { alert('PDF not available yet.'); return }
-      window.open(url, '_blank', 'noopener')
+      const r = await getOfferPdfUrl(offerId, { download: true })
+      if (!r?.url) { alert('PDF not available yet.'); return }
+      const a = document.createElement('a')
+      a.href = r.url
+      a.download = r.filename
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
     } catch (e) {
-      alert('Could not open PDF: ' + (e.message || 'unknown'))
+      alert('Could not download PDF: ' + (e.message || 'unknown'))
     }
   }
 

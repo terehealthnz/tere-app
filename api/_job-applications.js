@@ -1932,14 +1932,19 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
     const { data: offer } = await supabase
       .from('job_offers')
-      .select('pdf_storage_key')
+      .select('pdf_storage_key, contract_version')
       .eq('id', id)
       .maybeSingle()
     if (!offer?.pdf_storage_key) return res.status(404).json({ error: 'PDF not generated yet' })
+    // ?download=1 makes Supabase attach Content-Disposition: attachment
+    // so the browser saves the file instead of opening in a viewer tab.
+    // Used by the Download PDF button; View PDF omits it to open inline.
+    const wantsDownload = req.query?.download === '1' || req.query?.download === 'true'
+    const filename = `Tere-Contract-${offer.contract_version || 'signed'}-${id}.pdf`
     const { data: signed, error: sErr } = await supabase.storage.from('offers')
-      .createSignedUrl(offer.pdf_storage_key, 300)   // 5-min window; admin viewer only
+      .createSignedUrl(offer.pdf_storage_key, 300, wantsDownload ? { download: filename } : undefined)
     if (sErr || !signed?.signedUrl) { console.error('[offer] sign PDF failed:', sErr); return res.status(500).json({ error: 'Sign failed' }) }
-    return res.status(200).json({ signedUrl: signed.signedUrl })
+    return res.status(200).json({ signedUrl: signed.signedUrl, filename })
   }
 
   if (req.method === 'POST' && action === 'cancel_offer') {
