@@ -3091,11 +3091,13 @@ function CareersPanel() {
       <div style={{ display: 'flex', gap: 6, marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button onClick={() => setSubTab('listings')}   style={tabBtn(subTab === 'listings')}>📋 Job listings</button>
         <button onClick={() => setSubTab('applicants')} style={tabBtn(subTab === 'applicants')}>👤 Applicants</button>
+        <button onClick={() => setSubTab('contracts')}  style={tabBtn(subTab === 'contracts')}>📝 Contracts</button>
         <button onClick={() => setSubTab('interviews')} style={tabBtn(subTab === 'interviews')}>📹 Interviews</button>
         <button onClick={() => setSubTab('templates')}  style={tabBtn(subTab === 'templates')}>✍️ Offer templates</button>
       </div>
       {subTab === 'listings'   && <JobListingsSection />}
       {subTab === 'applicants' && <ApplicantsSection />}
+      {subTab === 'contracts'  && <ContractsSection />}
       {subTab === 'interviews' && <InterviewsQueueSection />}
       {subTab === 'templates'  && <OfferTemplatesSection />}
     </div>
@@ -3362,6 +3364,212 @@ function StatusPill({ status }) {
     <span style={{ background: s.bg, color: s.color, fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
       {s.label}
     </span>
+  )
+}
+
+// ── Contracts (cross-applicant offer roster) ───────────────────────────
+//
+// Justin's countersign path. Without this, an admin has to open each
+// applicant one-by-one to find contracts sitting in `applicant_signed`
+// waiting for their signature. Defaults to "Awaiting countersign" so
+// the first thing you see is what needs doing.
+
+const OFFER_STATUS_META = {
+  sent:              { label: 'Sent',              color: '#0369A1', bg: '#E0F2FE' },
+  applicant_signed:  { label: 'Awaiting countersign', color: '#92400E', bg: '#FEF3C7' },
+  countersigned:     { label: 'Countersigned',     color: '#065F46', bg: '#D1FAE5' },
+  cancelled:         { label: 'Cancelled',         color: '#7F1D1D', bg: '#FEE2E2' },
+}
+
+function OfferStatusPill({ status }) {
+  const s = OFFER_STATUS_META[status] || { label: status, color: '#6B7280', bg: '#F3F4F6' }
+  return (
+    <span style={{ background: s.bg, color: s.color, fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+      {s.label}
+    </span>
+  )
+}
+
+function ContractsSection() {
+  const [offers, setOffers] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [filter, setFilter] = React.useState('awaiting_countersign')
+  const [countersignId, setCountersignId] = React.useState(null)
+  const [countersignName, setCountersignName] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [msg, setMsg] = React.useState('')
+
+  const myEmail = React.useMemo(() => (sessionStorage.getItem('providerEmail') || '').toLowerCase(), [])
+  const isAdmin = React.useMemo(() => sessionStorage.getItem('providerIsAdmin') === 'true', [])
+
+  async function load() {
+    setLoading(true)
+    try {
+      const { listAllJobOffers } = await import('../../lib/supabase')
+      setOffers(await listAllJobOffers({ status: filter }))
+    } catch { setOffers([]) }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [filter])
+
+  async function handleCountersign(offerId) {
+    if (countersignName.trim().length < 2) {
+      setMsg('Type your full name to countersign.')
+      return
+    }
+    setBusy(true); setMsg('')
+    try {
+      const { countersignOffer } = await import('../../lib/supabase')
+      await countersignOffer(offerId, { signerName: countersignName.trim() })
+      setMsg('Countersigned. Final PDF is on its way to the applicant.')
+      setCountersignId(null)
+      setCountersignName('')
+      await load()
+    } catch (e) {
+      setMsg('Error: ' + (e.message || 'countersign failed'))
+    } finally { setBusy(false) }
+  }
+
+  async function handleCancel(offerId) {
+    if (!confirm('Cancel this offer? The applicant will see it as withdrawn if they open the link.')) return
+    setBusy(true); setMsg('')
+    try {
+      const { cancelOffer } = await import('../../lib/supabase')
+      await cancelOffer(offerId)
+      await load()
+    } finally { setBusy(false) }
+  }
+
+  async function handleOpenPdf(offerId) {
+    try {
+      const { getOfferPdfUrl } = await import('../../lib/supabase')
+      const url = await getOfferPdfUrl(offerId)
+      if (!url) { alert('PDF not available yet.'); return }
+      window.open(url, '_blank', 'noopener')
+    } catch (e) {
+      alert('Could not open PDF: ' + (e.message || 'unknown'))
+    }
+  }
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const chip = (active) => ({
+    background: active ? '#0D2B45' : '#F1F5F9', color: active ? 'white' : '#6B7280',
+    border: 'none', padding: '5px 12px', borderRadius: 99, cursor: 'pointer',
+    fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', fontWeight: 700,
+  })
+  const btn = (variant) => ({
+    background: variant === 'primary' ? '#0B6E76' : variant === 'danger' ? '#FEE2E2' : '#F0F9FA',
+    color:      variant === 'primary' ? 'white'   : variant === 'danger' ? '#7F1D1D' : '#0B6E76',
+    border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+    fontSize: '.75rem', fontWeight: 700,
+  })
+
+  const FILTERS = [
+    { key: 'awaiting_countersign', label: 'Awaiting countersign' },
+    { key: 'sent',                 label: 'Sent (awaiting applicant)' },
+    { key: 'countersigned',        label: 'Countersigned' },
+    { key: 'cancelled',            label: 'Cancelled' },
+    { key: 'all',                  label: 'All' },
+  ]
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Contracts</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Cross-applicant offer roster. Default view: contracts waiting for admin countersign.</div>
+        </div>
+        <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {FILTERS.map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)} style={chip(filter === f.key)}>{f.label}</button>
+        ))}
+      </div>
+
+      {msg && (
+        <div style={{ background: '#FEF9F1', border: '1px solid #FDE1B9', color: '#92400E', padding: '.5rem .625rem', borderRadius: 6, fontSize: '.8rem', marginBottom: '.75rem' }}>
+          {msg}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+      ) : offers.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF', fontStyle: 'italic' }}>
+          {filter === 'awaiting_countersign' ? 'Nothing waiting for countersign — you\'re clear.' : 'No contracts in this bucket.'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+          {offers.map(o => {
+            const applicantEmail = String(o.application?.email || '').toLowerCase()
+            const applicantName  = [o.application?.first_name, o.application?.last_name].filter(Boolean).join(' ') || applicantEmail || '(unknown applicant)'
+            const isOwnContract  = !!myEmail && myEmail === applicantEmail
+            const canCountersign = isAdmin && !isOwnContract && o.status === 'applicant_signed'
+            const canCancel      = isAdmin && (o.status === 'sent' || o.status === 'applicant_signed')
+            return (
+              <div key={o.id} style={{
+                background: '#F8FAFC', borderRadius: 8, padding: '.75rem 1rem', border: '1px solid #E2E8F0',
+                display: 'flex', flexDirection: 'column', gap: '.5rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.125rem', flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45' }}>{applicantName}</span>
+                      <OfferStatusPill status={o.status} />
+                    </div>
+                    <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                      {applicantEmail}{o.role_title ? ` · ${o.role_title}` : ''}{o.compensation ? ` · ${o.compensation}` : ''}
+                    </div>
+                    <div style={{ fontSize: '.7rem', color: '#9CA3AF', marginTop: '.125rem' }}>
+                      Sent {new Date(o.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {o.applicant_signed_at && ` · Applicant signed ${new Date(o.applicant_signed_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} (${o.applicant_signed_name || 'unnamed'})`}
+                      {o.countersigned_at && ` · Countersigned ${new Date(o.countersigned_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })} (${o.countersigned_name || 'unnamed'})`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {o.pdf_storage_key && (
+                      <button onClick={() => handleOpenPdf(o.id)} style={btn()} disabled={busy}>View PDF</button>
+                    )}
+                    {canCountersign && countersignId !== o.id && (
+                      <button onClick={() => { setCountersignId(o.id); setCountersignName('') }} style={btn('primary')} disabled={busy}>
+                        Countersign
+                      </button>
+                    )}
+                    {canCancel && (
+                      <button onClick={() => handleCancel(o.id)} style={btn('danger')} disabled={busy}>Cancel</button>
+                    )}
+                    {o.status === 'applicant_signed' && !canCountersign && (
+                      <span style={{ fontSize: '.7rem', color: '#9CA3AF', fontStyle: 'italic', alignSelf: 'center' }}>
+                        {isOwnContract ? 'You cannot countersign your own contract' : 'Admin only'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {countersignId === o.id && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', background: '#F0FDF4', border: '1px solid #A7F3D0', padding: '.625rem .75rem', borderRadius: 6 }}>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <label style={{ fontSize: '.7rem', color: '#065F46', fontWeight: 700, textTransform: 'uppercase' }}>Your full name (countersigning for Tere Health)</label>
+                      <input
+                        value={countersignName}
+                        onChange={e => setCountersignName(e.target.value)}
+                        placeholder="e.g. Justin Herling"
+                        style={{ display: 'block', width: '100%', marginTop: 4, border: '1.5px solid #86EFAC', borderRadius: 6, padding: '6px 10px', fontSize: '.875rem', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <button onClick={() => handleCountersign(o.id)} disabled={busy || countersignName.trim().length < 2} style={btn('primary')}>
+                      Confirm countersign
+                    </button>
+                    <button onClick={() => { setCountersignId(null); setCountersignName('') }} style={btn()} disabled={busy}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

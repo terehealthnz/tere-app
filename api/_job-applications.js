@@ -1802,6 +1802,29 @@ export default async function handler(req, res) {
     return res.status(200).json({ offers: data || [] })
   }
 
+  // Cross-applicant offer roster for the "Contracts" admin tab so admins
+  // don't have to open each applicant to find contracts awaiting their
+  // countersignature. status filter values: 'awaiting_countersign' →
+  // status='applicant_signed'; 'sent'; 'countersigned'; 'cancelled';
+  // otherwise all statuses are returned.
+  if (req.method === 'GET' && action === 'all_offers') {
+    if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin role required' })
+    const statusFilter = String(req.query?.status || '').trim()
+    let query = supabase
+      .from('job_offers')
+      .select('id, application_id, role_title, compensation, start_date, status, applicant_signed_name, applicant_signed_at, countersigned_name, countersigned_at, pdf_storage_key, created_at, application:job_applications(id, first_name, last_name, email)')
+      .order('created_at', { ascending: false })
+      .limit(500)
+    if (statusFilter === 'awaiting_countersign') {
+      query = query.eq('status', 'applicant_signed')
+    } else if (statusFilter && statusFilter !== 'all') {
+      query = query.eq('status', statusFilter)
+    }
+    const { data, error } = await query
+    if (error) { console.error('[offer] list-all failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ offers: data || [] })
+  }
+
   if (req.method === 'GET' && action === 'offer_pdf') {
     if (!id) return res.status(400).json({ error: 'id (offer_id) required' })
     const { data: offer } = await supabase

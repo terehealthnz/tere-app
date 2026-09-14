@@ -1244,6 +1244,16 @@ export async function listOffers(applicationId) {
   return body.offers || []
 }
 
+// Cross-applicant roster for the admin Contracts tab.
+// statusFilter: 'awaiting_countersign' | 'sent' | 'countersigned' | 'cancelled' | 'all'
+export async function listAllJobOffers({ status } = {}) {
+  const qs = status ? `&status=${encodeURIComponent(status)}` : ''
+  const res = await apiFetch(`/api/job-applications?action=all_offers${qs}`)
+  if (!res.ok) return []
+  const body = await res.json()
+  return body.offers || []
+}
+
 export async function createOffer(applicationId, { roleTitle, compensation, startDate, contractTerms, templateId } = {}) {
   const res = await apiFetch(`/api/job-applications?action=create_offer&id=${encodeURIComponent(applicationId)}`, {
     method: 'POST',
