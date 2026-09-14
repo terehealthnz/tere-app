@@ -116,7 +116,7 @@ export default function RppgReplay() {
         const out = processStoredFramesMultiPass(frames, fps) || processStoredFrames(frames, fps)
         results[r.id] = out ? {
           hr: out.hr, rr: out.rr,
-          rr_am: out.rr_am, rr_fm: out.rr_fm, rr_source: out.rr_source,
+          rr_am: out.rr_am, rr_fm: out.rr_fm, rr_bw: out.rr_bw, rr_source: out.rr_source,
           numericConfidence: out.numericConfidence,
           ok: true,
         } : { hr: null, rr: null, ok: false, reason: 'no result' }
@@ -320,7 +320,7 @@ export default function RppgReplay() {
                       }}>{replay?.rr != null ? Math.round(replay.rr) : '—'}</Td>
                       <Td style={{color:'#6B7280',fontSize:'.7rem'}}>
                         {replay?.rr_source
-                          ? <span title={`AM=${replay.rr_am ?? '—'}, FM=${replay.rr_fm ?? '—'}`}>{replay.rr_source}</span>
+                          ? <span title={`AM=${replay.rr_am ?? '—'}, FM=${replay.rr_fm ?? '—'}, BW=${replay.rr_bw ?? '—'}`}>{replay.rr_source}</span>
                           : '—'}
                       </Td>
                       <Td style={{color:'#6B7280'}}>{replay?.numericConfidence != null ? Math.round(replay.numericConfidence) : (r.raw_rppg_signal?.numericConfidence != null ? Math.round(r.raw_rppg_signal.numericConfidence) : '—')}</Td>

@@ -611,19 +611,67 @@ function respiratoryFreqFromIBI(rrIntervals) {
   return snr >= 1.5 ? rrHz : 0
 }
 
-// Fuse AM and FM RR estimates. Both agree → confident, average them.
-// Disagree by >4 bpm → suppress (better nothing than wrong). One-sided → use it.
-// Returns {rr, source, rrAm, rrFm} — the metadata is for the harness.
-function fuseRR(rrAmBpm, rrFmBpm) {
-  const rrAm = rrAmBpm != null && rrAmBpm > 0 ? rrAmBpm : null
-  const rrFm = rrFmBpm != null && rrFmBpm > 0 ? rrFmBpm : null
-  if (rrAm != null && rrFm != null) {
-    if (Math.abs(rrAm - rrFm) <= 4) return { rr: Math.round((rrAm + rrFm) / 2), source: 'am+fm', rrAm, rrFm }
-    return { rr: null, source: 'disagree', rrAm, rrFm }
+// BW: respiratory rate from baseline wander (slow amplitude drift of the
+// pulse signal via chest expansion → venous return → PPG DC modulation).
+// Third INDEPENDENT source per Charlton et al. 2016. Failure modes differ
+// from AM (breath-holding, weak breathing) and FM (autonomic dysfunction,
+// arrhythmia) — BW fails on lighting AGC drift and posture changes. That
+// independence is why median-of-3 recovers readings any single pair
+// disagrees on.
+//
+// Method:
+//   1. Take the detrended-but-NOT-denoised signal — still contains BW
+//      because denoiseSignal bandpasses to HR (0.5-4 Hz) and strips it.
+//   2. Bandpass to a wider RR-adjacent band (0.08-0.6 Hz) to remove
+//      residual HR + DC drift.
+//   3. FFT peak-pick in RR band with SNR gate + ceiling guard.
+function respiratoryFreqFromBW(detSignal, fs) {
+  if (!detSignal || detSignal.length < fs * 20) return 0
+  const bwBand = bandpassFilter(detSignal, fs, 0.08, 0.6)
+  const rrHz = dominantFreq(bwBand, RR_LOW_HZ, RR_HIGH_HZ, fs)
+  if (rrHz <= 0) return 0
+  if (rrHz >= RR_HIGH_HZ * 0.95) return 0
+  const snr = signalSNR(bwBand, rrHz, fs)
+  return snr >= 1.5 ? rrHz : 0
+}
+
+// Median-of-three RR fusion (AM + FM + BW). Robust to one-source outliers.
+// Policy:
+//   3 valid, spread ≤4 → very confident, take median (source='am+fm+bw')
+//   3 valid, 2 of them agree → outlier tolerance, average the agreeing pair
+//   2 valid, agree ≤4 → average (source='am+fm' style)
+//   2 valid, disagree → suppress
+//   1 valid → use it, mark 'X-only'
+//   0 valid → null
+// The 4 bpm agreement threshold matches the earlier 2-source policy —
+// tune here if we ever want to trade coverage for accuracy.
+function fuseRR(rrAmBpm, rrFmBpm, rrBwBpm) {
+  const meta = {
+    rrAm: rrAmBpm != null && rrAmBpm > 0 ? rrAmBpm : null,
+    rrFm: rrFmBpm != null && rrFmBpm > 0 ? rrFmBpm : null,
+    rrBw: rrBwBpm != null && rrBwBpm > 0 ? rrBwBpm : null,
   }
-  if (rrAm != null) return { rr: rrAm, source: 'am-only', rrAm, rrFm: null }
-  if (rrFm != null) return { rr: rrFm, source: 'fm-only', rrAm: null, rrFm }
-  return { rr: null, source: 'none', rrAm: null, rrFm: null }
+  const parts = []
+  if (meta.rrAm != null) parts.push({ src: 'am', v: meta.rrAm })
+  if (meta.rrFm != null) parts.push({ src: 'fm', v: meta.rrFm })
+  if (meta.rrBw != null) parts.push({ src: 'bw', v: meta.rrBw })
+
+  if (parts.length === 0) return { rr: null, source: 'none', ...meta }
+  if (parts.length === 1) return { rr: parts[0].v, source: `${parts[0].src}-only`, ...meta }
+  if (parts.length === 2) {
+    const [a, b] = parts
+    if (Math.abs(a.v - b.v) <= 4) return { rr: Math.round((a.v + b.v) / 2), source: `${a.src}+${b.src}`, ...meta }
+    return { rr: null, source: 'disagree2', ...meta }
+  }
+  // 3 sources
+  const sorted = [...parts].sort((a, b) => a.v - b.v)
+  const spread = sorted[2].v - sorted[0].v
+  if (spread <= 4) return { rr: sorted[1].v, source: 'am+fm+bw', ...meta }
+  const lowMid  = sorted[1].v - sorted[0].v
+  const midHigh = sorted[2].v - sorted[1].v
+  if (lowMid <= 4 && midHigh > 4)  return { rr: Math.round((sorted[0].v + sorted[1].v) / 2), source: `${sorted[0].src}+${sorted[1].src}`, ...meta }
+  if (midHigh <= 4 && lowMid > 4)  return { rr: Math.round((sorted[1].v + sorted[2].v) / 2), source: `${sorted[1].src}+${sorted[2].src}`, ...meta }
+  return { rr: null, source: 'disagree3', ...meta }
 }
 
 function signalSNR(signal, peakFreq, fs) {
@@ -1067,6 +1115,12 @@ export class RppgMeasurement {
       const rrHz = respiratoryFreqHz(cleanDet, RESAMPLE_FPS)
       let rr = rrHz > 0 ? Math.round(rrHz * 60) : null
 
+      // BW estimate for multi-source fusion in MultiPassMeasurement._aggregate.
+      // Same reasoning as processStoredFrames — use `det` (pre-denoise) since
+      // denoiseSignal strips the BW frequency band.
+      const rrBwHz = respiratoryFreqFromBW(det, RESAMPLE_FPS)
+      const rrBw = rrBwHz > 0 ? Math.round(rrBwHz * 60) : null
+
       let finalHR = hr && hr >= 40 && hr <= 200 ? hr : null
       let finalRR = rr && rr >= 8  && rr <= 35  ? rr  : null
       if (!finalHR && hr && hr < 40 && hr*2 >= 40 && hr*2 <= 200) { console.warn('HR ×2 correction:', hr, '→', hr*2); finalHR = hr*2 }
@@ -1094,6 +1148,10 @@ export class RppgMeasurement {
 
       this.onComplete({
         hr:finalHR, rr:finalRR, confidence, numericConfidence,
+        // rr is the per-pass AM value; rr_bw_pass is the per-pass BW value.
+        // MultiPassMeasurement._aggregate takes robust-medians of each across
+        // passes then feeds AM+FM+BW into fuseRR().
+        rr_bw_pass: rrBw,
         frames:this.rgbBuffer.length, actualFps:parseFloat(actualFps.toFixed(1)),
         faceWarning: this.missedFrames/(this.rgbBuffer.length+this.missedFrames) > 0.3,
         rawFrames: this.captureRaw ? this.rawFrames : undefined,
@@ -1169,13 +1227,18 @@ export class MultiPassMeasurement {
     const hr  = getRobustAverage(hrs.filter(Boolean))
     // AM: robust median across per-pass estimates (unchanged — HR-band FFT is fine per-pass).
     const rrAm = getRobustAverage(rrs.filter(Boolean))
+    // BW: robust median across per-pass baseline-wander estimates. Independent
+    // failure modes from AM (breath-holding) and FM (autonomic dysfunction) —
+    // BW fails on lighting drift + posture changes instead.
+    const bws = results.map(r => r.rr_bw_pass).filter(v => v != null && v > 0)
+    const rrBw = bws.length ? getRobustAverage(bws) : null
     // FM: RSA from combined beat intervals across all passes. IBI is discrete-
     // event data, immune to the FFT-bin-resolution and boundary-concatenation
     // problems that made an earlier attempt (see revert of f2522a0) backfire.
     const allRRIntervals = results.flatMap(r => r.rrIntervals || [])
     const rrHzFm = respiratoryFreqFromIBI(allRRIntervals)
     const rrFmBpm = rrHzFm > 0 ? Math.round(rrHzFm * 60) : null
-    const fused = fuseRR(rrAm, rrFmBpm)
+    const fused = fuseRR(rrAm, rrFmBpm, rrBw)
     const rr = fused.rr
     const avgFps  = results.reduce((s, r) => s + (r.actualFps||0), 0) / results.length
     const avgConf = results.reduce((s, r) => s + (r.numericConfidence||70), 0) / results.length
@@ -1191,7 +1254,7 @@ export class MultiPassMeasurement {
 
     console.log('=== MULTI-PASS RESULT ===')
     console.log('Pass HR:', hrs, '→', hr)
-    console.log(`RR: AM=${rrAm ?? '—'} FM=${rrFmBpm ?? '—'} fused=${rr ?? '—'} (${fused.source})`)
+    console.log(`RR: AM=${rrAm ?? '—'} FM=${rrFmBpm ?? '—'} BW=${rrBw ?? '—'} fused=${rr ?? '—'} (${fused.source})`)
     console.log('Avg confidence:', Math.round(avgConf))
     if (hrv) console.log('HRV (combined):', hrv.sdnn + 'ms SDNN,', hrv.interpretation)
     if (bestAF?.possible) console.log('AF flag:', bestAF.likelihood, bestAF.score)
@@ -1204,8 +1267,10 @@ export class MultiPassMeasurement {
     return {
       hr, rr,
       // Per-source RR metadata — for the harness + admin telemetry so we can
-      // see when AM and FM agree vs when we're suppressing on disagreement.
-      rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_source: fused.source,
+      // see which of AM/FM/BW are agreeing vs when we're suppressing on
+      // disagreement. Downstream (VitalsCapture UI, provider chart) can show
+      // "—" for null rr and "signal quality unreliable" for source='disagreeN'.
+      rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_bw: fused.rrBw, rr_source: fused.source,
       confidence: avgConf >= 80 ? 'high' : avgConf >= 60 ? 'moderate' : 'low',
       numericConfidence: Math.round(avgConf),
       passes: results.length,
@@ -1252,32 +1317,36 @@ export function processStoredFramesMultiPass(frames, fps) {
       chunks.push(frames.slice(start, end))
     }
   }
-  const hrs = [], rrs = [], confs = [], allRRIntervals = []
+  const hrs = [], rrs = [], bws = [], confs = [], allRRIntervals = []
   for (const chunk of chunks) {
     if (chunk.length < 30) continue
     const r = processStoredFrames(chunk, fps)
     if (r) {
       if (r.hr != null) hrs.push(r.hr)
       if (r.rr != null) rrs.push(r.rr)
+      if (r.rr_bw_chunk != null) bws.push(r.rr_bw_chunk)
       confs.push(r.numericConfidence || 0)
       if (r.afDetection?.rrIntervals) allRRIntervals.push(...r.afDetection.rrIntervals)
     }
   }
 
-  // Multi-source RR fusion: AM from per-chunk median + FM from combined
-  // beat intervals across all chunks. See respiratoryFreqFromIBI() for
-  // rationale and fuseRR() for the disagreement suppression policy. Same
-  // fusion shape as the live pipeline aggregation.
+  // Median-of-3 RR fusion: AM from per-chunk median, FM from combined
+  // beat intervals across chunks, BW from per-chunk baseline-wander
+  // spectral estimate. See fuseRR() for the disagreement suppression
+  // policy. Three independent sources with mostly-independent failure
+  // modes give the outlier-tolerance that unlocks readings a strict
+  // 2-source policy suppresses.
   const rrAm = getRobustAverage(rrs.filter(Boolean))
+  const rrBw = getRobustAverage(bws.filter(Boolean))
   const rrHzFm = respiratoryFreqFromIBI(allRRIntervals)
   const rrFmBpm = rrHzFm > 0 ? Math.round(rrHzFm * 60) : null
-  const fused = fuseRR(rrAm, rrFmBpm)
+  const fused = fuseRR(rrAm, rrFmBpm, rrBw)
 
   if (hrs.length === 0 && fused.rr == null) return null
   return {
     hr: getRobustAverage(hrs),
     rr: fused.rr,
-    rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_source: fused.source,
+    rr_am: fused.rrAm, rr_fm: fused.rrFm, rr_bw: fused.rrBw, rr_source: fused.source,
     numericConfidence: confs.length ? Math.round(confs.reduce((a,b)=>a+b,0) / confs.length) : 0,
     passResults: hrs.map((h, i) => ({ hr: h, rr: rrs[i] })),
   }
@@ -1308,6 +1377,11 @@ export function processStoredFrames(frames, fps) {
 
     const rrHz = respiratoryFreqHz(cleanDet, RESAMPLE_FPS)
     let rr = rrHz > 0 ? Math.round(rrHz * 60) : null
+
+    // BW estimate for multi-source fusion. Uses `det` (pre-denoise) because
+    // denoiseSignal's bandpass to 0.5-4 Hz strips the BW signal entirely.
+    const rrBwHz = respiratoryFreqFromBW(det, RESAMPLE_FPS)
+    const rrBw = rrBwHz > 0 ? Math.round(rrBwHz * 60) : null
 
     let finalHR = hr && hr >= 40 && hr <= 200 ? hr : null
     let finalRR = rr && rr >= 8  && rr <= 35  ? rr  : null
@@ -1343,6 +1417,9 @@ export function processStoredFrames(frames, fps) {
 
     return {
       hr: finalHR, rr: finalRR,
+      // Per-source RR from this chunk — the multi-pass aggregator needs
+      // both AM (finalRR/rr) and BW to feed fusion.
+      rr_am_chunk: rr, rr_bw_chunk: rrBw,
       confidence: agreement < 5 ? 'high' : agreement < 10 ? 'moderate' : 'low',
       numericConfidence,
       frames: frames.length,
