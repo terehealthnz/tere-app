@@ -1887,9 +1887,17 @@ export default async function handler(req, res) {
       diag.json_registry_hit = !!contractJson
       if (contractJson) {
         try {
+          const fmtNZ = (iso) => iso ? new Date(iso).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
           attachmentBuffer = await renderContractToPdf({
             contract:   contractJson,
-            contractor: offer.contractor_snapshot || {},
+            contractor: {
+              ...(offer.contractor_snapshot || {}),
+              // Post-signing artifact — fill in the two date fields the
+              // browser view leaves blank (they're always signed in the
+              // future at browser-render time).
+              contractor_signed_date: fmtNZ(offer.applicant_signed_at),
+              signer_date:            fmtNZ(offer.countersigned_at),
+            },
           })
         } catch (e) {
           diag.json_render_error = e?.message || String(e)

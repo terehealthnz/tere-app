@@ -66,10 +66,12 @@ function normalizeForPdfkit(text) {
     .replace(/ /g, ' ')   // non-breaking space
 }
 
-// Placeholder substitution — kept 1:1 with ContractRenderer.jsx substitute().
-// Reason: if these drift, the archived PDF will disagree with what the
-// applicant saw in the browser at signing, which is exactly the kind of
-// thing that torpedoes an e-signature challenge.
+// Placeholder substitution — kept close to ContractRenderer.jsx but with
+// one deliberate divergence: the two date fields (contractor_signed_date,
+// signer_date) are hardcoded to AT_SIGN in the browser view because
+// signature happens client-side after render. When we regenerate the
+// PDF post-countersign we know both dates, so accept them from the
+// contractor object if provided.
 function substitute(text, contractor) {
   if (!contractor || !text) return normalizeForPdfkit(text)
   const today = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -83,8 +85,8 @@ function substitute(text, contractor) {
     signer_name:             contractor.signer_name || 'Tere Health Limited',
     signer_title:            contractor.signer_title || 'Director',
     fee_per_consult:         contractor.fee_per_consult || '[FEE PER CONSULT — NOT SET]',
-    contractor_signed_date:  AT_SIGN,
-    signer_date:             AT_SIGN,
+    contractor_signed_date:  contractor.contractor_signed_date || AT_SIGN,
+    signer_date:             contractor.signer_date || AT_SIGN,
   }
   return normalizeForPdfkit(
     String(text).replace(/\{\{(\w+)\}\}/g, (m, k) => (k in map ? map[k] : m))
@@ -99,7 +101,11 @@ export async function renderContractToPdf({ contract, contractor = {} } = {}) {
   }
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 56, size: 'A4', bufferPages: true })
+    // No bufferPages — the previous bufferPages + switchToPage footer
+    // loop was creating 15 blank pages at the end because switchToPage
+    // + doc.text past the bottom margin was triggering fresh page
+    // adds. Draw content only; footer removed.
+    const doc = new PDFDocument({ margin: 56, size: 'A4' })
     const chunks = []
     doc.on('data', c => chunks.push(c))
     doc.on('end',  () => resolve(Buffer.concat(chunks)))
@@ -177,18 +183,6 @@ export async function renderContractToPdf({ contract, contractor = {} } = {}) {
         // A single malformed node shouldn't kill the whole document.
         console.error('[contract-pdf] node render failed, skipping:', e?.message || e, node)
       }
-    }
-
-    // Footer with version + generation timestamp on every page — audit
-    // trail so a printed/emailed copy is provably tied to this system.
-    const range = doc.bufferedPageRange()
-    const now = new Date().toISOString()
-    for (let i = 0; i < range.count; i++) {
-      doc.switchToPage(range.start + i)
-      const footY = doc.page.height - 34
-      doc.font('Helvetica').fontSize(7.5).fillColor('#9CA3AF')
-        .text(`${contract.title || 'Contract'} · ${contract.version || ''} · Page ${i + 1} of ${range.count} · Generated ${now}`,
-          M, footY, { width: CONTENT_W, align: 'center' })
     }
 
     doc.end()
