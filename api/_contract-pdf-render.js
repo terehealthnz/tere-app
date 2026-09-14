@@ -11,10 +11,12 @@
 import PDFDocument from 'pdfkit'
 import { createRequire } from 'node:module'
 
-// Contract JSON is authored under src/contracts/ so the client bundle
-// picks it up for ContractRenderer. Reuse the same files server-side via
-// createRequire so Vercel's node-file-trace includes them in the
-// serverless bundle — one contract, one truth for browser + PDF.
+// Contract JSON lives here (api/_contracts/) so Vercel's serverless
+// bundler guarantees inclusion. The client bundle imports the same data
+// from src/contracts/ (ContractRenderer.jsx) — the two copies are kept
+// in lockstep by scripts/sync-contracts-to-api.sh. If you edit v8_1.json,
+// re-run that script before committing so the browser view and archived
+// PDF don't drift.
 const require = createRequire(import.meta.url)
 
 function loadContract(rel) {
@@ -23,8 +25,8 @@ function loadContract(rel) {
 }
 
 const REGISTRY = {
-  'v8.1':    loadContract('../src/contracts/v8_1.json'),
-  'v8.1-np': loadContract('../src/contracts/v8_1_np.json'),
+  'v8.1':    loadContract('./_contracts/v8_1.json'),
+  'v8.1-np': loadContract('./_contracts/v8_1_np.json'),
 }
 
 export function getContractByVersion(version) {
