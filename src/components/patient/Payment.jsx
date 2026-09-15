@@ -158,7 +158,13 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           const q = await r.json()
           if (q.approved) {
             setPhase('approved')
-            setTimeout(() => navigate('/waiting', { replace: true }), 900)
+            // Route mirrors the back-button guard below — video/phone/consult
+            // go to /vitals so the patient records vitals before the doctor
+            // picks up; async message skips vitals and lands on the sent-page.
+            const forwardTo = consultationType === 'message'
+              ? '/message-sent'
+              : `/vitals/${consultationId}`
+            setTimeout(() => navigate(forwardTo, { replace: true }), 900)
           } else {
             setError('Payment could not be verified. Please try again.')
             setPhase('declined')

@@ -75,7 +75,17 @@ export default function PaymentReturn() {
         if (cancelled) return
         if (data.approved) {
           setState({ loading: false, approved: true, error: null, embedded: false })
-          setTimeout(() => navigate('/waiting', { replace: true }), 1500)
+          // Mirror Payment.jsx post-approval routing: video/phone/consult →
+          // vitals, message → sent-page. Falls back to /waiting if we can't
+          // read consultation_type (rare — top-level PaymentReturn happens
+          // when the iframe path broke).
+          const consultationType = consult?.consultation_type || sessionStorage.getItem('consultationType')
+          const forwardTo = consultationType === 'message'
+            ? '/message-sent'
+            : consultationType
+              ? `/vitals/${consultationId}`
+              : '/waiting'
+          setTimeout(() => navigate(forwardTo, { replace: true }), 1500)
         } else {
           setState({ loading: false, approved: false, error: hintedStatus === 'cancelled' ? 'Payment cancelled.' : 'Payment was not approved. Please try again with a different card.', embedded: false })
         }
