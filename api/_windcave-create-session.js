@@ -79,10 +79,15 @@ export default async function handler(req, res) {
   // earnings / ACC / payroll reports can filter these out. Client-side never
   // gets to set the amount — that stays server-authoritative.
   let isTestMode = false
-  const expectedTest = process.env.PAYMENT_TEST_PASSWORD
-  if (typeof testPassword === 'string' && testPassword && expectedTest) {
+  // Trim both sides — Vercel UI paste can smuggle a trailing \n into env
+  // values, and browser autofill can inject   (non-breaking space) into
+  // typed input. Either would make timingSafeEqual fail silently and the
+  // client would see "did not match" with the exact-looking password.
+  const expectedTest = (process.env.PAYMENT_TEST_PASSWORD || '').trim()
+  const typedTest    = typeof testPassword === 'string' ? testPassword.trim() : ''
+  if (typedTest && expectedTest) {
     try {
-      const a = Buffer.from(testPassword)
+      const a = Buffer.from(typedTest)
       const b = Buffer.from(expectedTest)
       if (a.length === b.length && timingSafeEqual(a, b)) {
         isTestMode = true
