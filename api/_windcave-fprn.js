@@ -129,6 +129,20 @@ export default async function handler(req, res) {
   const { error } = await supabase.from('consultations').update(patch).eq('id', consultationId)
   if (error) console.error('[windcave-fprn] consultation update error:', error.message)
 
+  // Promote draft → waiting only when Windcave has authorised the funds.
+  // AITriage creates the consult as 'draft' (task #524) so providers can't
+  // be paged with no card on file. This webhook is the authoritative signal
+  // that payment succeeded — filter on status='draft' so we never regress
+  // a consult that's already progressed past waiting.
+  if (approved) {
+    const { error: promoteErr } = await supabase
+      .from('consultations')
+      .update({ status: 'waiting', updated_at: new Date().toISOString() })
+      .eq('id', consultationId)
+      .eq('status', 'draft')
+    if (promoteErr) console.error('[windcave-fprn] draft→waiting promotion error:', promoteErr.message)
+  }
+
   // Always 200 to Windcave so they don't retry indefinitely.
   return res.status(200).json({ ok: true, state, approved, consultationId })
 }

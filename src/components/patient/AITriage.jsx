@@ -993,7 +993,10 @@ export default function AITriage() {
         tobaccoAmount: data.tobacco_amount || null,
         alcoholUse: data.alcohol_use_raw === 'yes' ? 'yes' : (data.alcohol_use_raw === 'no' ? 'no' : null),
         alcoholAmount: data.alcohol_amount || null,
-        status: 'waiting',
+        // status stays 'draft' until Windcave FPRN confirms payment auth
+        // (see api/_windcave-fprn.js). 'waiting' is what pages providers,
+        // so setting it here bypasses payment — see task #524.
+        status: 'draft',
       })
       sessionStorage.setItem('consultationId', consultation.id)
 

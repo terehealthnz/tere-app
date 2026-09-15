@@ -21,23 +21,31 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
     )
 
-    // Promote waitlisted → waiting only if payment has been taken
-    // (guards against a patient calling this before paying)
+    // Promote waitlisted or draft → waiting only when payment has been
+    // taken. 'draft' is the new pre-payment resting state (task #524);
+    // Windcave FPRN normally promotes it on auth, this branch is the
+    // safety net when the browser lands on /waiting before the webhook
+    // fires. Both promotions require payment_status='authorised' so a
+    // scraper can't call this endpoint to page providers unpaid.
     const { data: consult } = await supabase
       .from('consultations')
-      .select('status, payment_intent_id')
+      .select('status, payment_intent_id, payment_status')
       .eq('id', consultationId)
       .single()
 
     if (!consult) return res.status(404).json({ error: 'Not found' })
-    if (consult.status !== 'waitlisted') return res.status(200).json({ ok: true, status: consult.status })
-    if (!consult.payment_intent_id) return res.status(400).json({ error: 'Payment not taken' })
+    if (consult.status !== 'waitlisted' && consult.status !== 'draft') {
+      return res.status(200).json({ ok: true, status: consult.status })
+    }
+    if (!consult.payment_intent_id || consult.payment_status !== 'authorised') {
+      return res.status(400).json({ error: 'Payment not taken' })
+    }
 
     const { error } = await supabase
       .from('consultations')
       .update({ status: 'waiting', updated_at: new Date().toISOString() })
       .eq('id', consultationId)
-      .eq('status', 'waitlisted')
+      .in('status', ['waitlisted', 'draft'])
 
     if (error) throw error
 
