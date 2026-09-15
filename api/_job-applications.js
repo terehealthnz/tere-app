@@ -42,6 +42,9 @@ import { buildOfferPdf } from './_pdf-builders.js'
 import { renderContractToPdf, getContractByVersion } from './_contract-pdf-render.js'
 import { renderContractToPdfViaChrome } from './_contract-html-render.js'
 import { encryptForStorage, decryptFromStorage, maskForSummary } from './_onboarding-crypto.js'
+import { sendProviderWelcomeEmail } from './_providers.js'
+import bcrypt from 'bcryptjs'
+import { randomInt } from 'node:crypto'
 import { getClientIp } from './_client-ip.js'
 
 function admin() {
@@ -2136,6 +2139,99 @@ export default async function handler(req, res) {
       }
     } catch (e) {
       console.error('[offer] final PDF email failed:', e.message)
+    }
+
+    // ── Auto-provision a provisional provider row ─────────────────────────
+    //
+    // Once both signatures are on the contract, seed a `providers` row so
+    // the person is technically on the team the moment they countersign.
+    // Row is intentionally provisional: is_active=false hides them from
+    // dropdowns, all can_* capability flags default false, no patient
+    // access. Admin still has to fill in credential/MCNZ/HPI/prescriber-
+    // number/signature and flip is_active=true from the edit modal before
+    // the account can do anything. But the provider gets their PIN
+    // immediately (welcome email), can log in and see the "your account
+    // is being finalised" state instead of waiting on us to click a button
+    // in a queue we might forget.
+    //
+    // Idempotent — skips if a row already exists for this email (e.g. admin
+    // already used the manual "Create provider" flow, or a re-countersign
+    // happened for the same offer). We identify by email since job_offers
+    // and providers aren't otherwise linked.
+    try {
+      if (app?.email) {
+        const emailLc = String(app.email).toLowerCase().trim()
+        const { data: existing } = await supabase
+          .from('providers')
+          .select('id')
+          .ilike('email', emailLc)
+          .maybeSingle()
+
+        if (!existing) {
+          const initialPin = String(randomInt(100000, 1000000))
+          const pin_hash   = await bcrypt.hash(initialPin, 12)
+          const { data: created, error: createErr } = await supabase
+            .from('providers')
+            .insert({
+              first_name:            (app.first_name || '').trim() || 'New',
+              last_name:             (app.last_name  || '').trim() || 'Provider',
+              email:                 emailLc,
+              pin_hash,
+              must_change_password:  true,
+              // Provisional gates — the row exists but does nothing until
+              // admin flips is_active and fills capability flags.
+              is_active:             false,
+              is_provider:           true,
+              can_prescribe:         false,
+              can_refer:             false,
+              can_acc:               false,
+              // Match the offer's countersign timestamp so payroll + contract
+              // tooling can find the contract-signed date without cross-table
+              // lookups.
+              contract_signed_at:    new Date().toISOString(),
+            })
+            .select('id, first_name, last_name, email')
+            .maybeSingle()
+
+          if (createErr) {
+            console.error('[offer] provisional provider insert failed:', createErr)
+          } else if (created) {
+            // Move the application to 'hired' + seed the onboarding
+            // checklist if it hasn't been seeded already. Both signatures
+            // on the contract IS the definition of hired — everything
+            // downstream (payroll, RHCNZ notification cron, welcome
+            // sequence) keys off this status.
+            try {
+              await supabase.from('job_applications')
+                .update({ status: 'hired', hired_at: new Date().toISOString() })
+                .eq('id', offer.application_id)
+                .neq('status', 'hired')
+              await seedOnboardingIfNeeded(supabase, offer.application_id)
+            } catch (e) {
+              console.error('[offer] hire status flip failed:', e.message)
+            }
+
+            // Auto-tick the checklist steps we've already satisfied —
+            // contract_signed (both sigs are on it) and provider_row
+            // (we just created it). Best-effort; missing rows are fine.
+            supabase.from('onboarding_steps')
+              .update({
+                done: true,
+                done_at: new Date().toISOString(),
+                done_by_name: 'System (offer countersign)',
+              })
+              .eq('application_id', offer.application_id)
+              .in('step_key', ['contract_signed', 'provider_row'])
+              .then(() => {}, () => {})
+
+            // Welcome email with initial PIN — reuses the existing
+            // provider-created flow so wording stays consistent.
+            sendProviderWelcomeEmail(created, initialPin)
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[offer] auto-provision provider failed:', e.message)
     }
 
     return res.status(200).json({ ok: true, offerId: offer.id })

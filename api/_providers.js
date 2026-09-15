@@ -76,7 +76,7 @@ async function notifyRhcnzOfProvider(provider, { changeType = 'new' } = {}) {
 // POST response so admin can share it manually if the email bounces or
 // the provider hasn't given us their address yet. Best-effort — logs on
 // failure but never breaks the create call.
-async function sendProviderWelcomeEmail(provider, initialPin) {
+export async function sendProviderWelcomeEmail(provider, initialPin) {
   const canEmail = hasEmailProvider()
   if (!canEmail) return
   if (!provider?.email) return  // no address on file — admin will share PIN out-of-band
