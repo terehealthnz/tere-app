@@ -269,7 +269,15 @@ export default function VitalsCapture() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ type:'vitals_ready', consultationId:id }),
             }).catch(() => {})
-          } catch {}
+          } catch (e) {
+            // Bug hunt (task #526): vitals were silently dropped when the
+            // PATCH failed (typically a stale patient_access_token from an
+            // earlier consult attempt in the same tab, returning 403). Log
+            // and surface a warning so the patient knows to retry rather
+            // than presenting an empty vitals row to the provider queue.
+            console.error('[vitals] save failed:', e?.message || e, { consultationId: id })
+            setError(`Vitals didn't save — ${e?.message || 'server error'}. Try retake or continue without vitals.`)
+          }
         } else {
           sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
         }
@@ -384,7 +392,11 @@ export default function VitalsCapture() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ type:'vitals_ready', consultationId:cId }),
         }).catch(() => {})
-      } catch {}
+      } catch (e) {
+        console.error('[vitals] manual save failed:', e?.message || e, { consultationId: cId })
+        setError(`Vitals didn't save — ${e?.message || 'server error'}. Fix and try again.`)
+        return
+      }
     } else {
       sessionStorage.setItem('vitals', JSON.stringify(result))
     }
