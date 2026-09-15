@@ -134,13 +134,11 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
     startSession(billingCountry !== 'NZ')
   }
 
-  // If the country was already chosen in a prior visit (sessionStorage hit
-  // in the initial state), skip straight to starting the session.
-  useEffect(() => {
-    if (sessionStorage.getItem('billing_country')) {
-      startSession()
-    }
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // Always show the billing picker on landing. Earlier build auto-skipped
+  // when sessionStorage.billing_country was set (declined-payment retry
+  // convenience) but that also hides the Test-patient toggle. The dropdown
+  // pre-selects from sessionStorage anyway, so the retry cost is one extra
+  // click — worth it to keep the test-mode link reachable on every visit.
 
   // Listen for postMessage from the iframe's callback page.
   // MUST be declared before any conditional returns — React's Rules of Hooks
