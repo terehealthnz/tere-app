@@ -69,10 +69,13 @@ export default async function handler(req, res) {
       id, created_at, chief_complaint, acc_read_code, notes_final,
       payment_amount, patient_first_name, patient_last_name, patient_email,
       patient_nhi, patient_dob,
-      provider_id, insurance_receipt_purchased_at
+      provider_id, insurance_receipt_purchased_at, payment_test_mode
     `)
     .eq('id', consultationId).single()
   if (cErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
+  if (consult.payment_test_mode) {
+    return res.status(400).json({ error: 'Insurance receipt not available for test-mode consultations' })
+  }
 
   // Idempotency: if we've already emailed a receipt for this consult, don't
   // double-charge to a new PDF — but we still return success so the UI can

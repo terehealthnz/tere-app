@@ -12,9 +12,10 @@ export async function sendBasicReceipt(consultationId) {
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   const { data: row } = await supabase.from('consultations')
-    .select('id, created_at, provider_display_name, payment_amount, patient_first_name, patient_email, basic_receipt_sent_at, payment_intent_id')
+    .select('id, created_at, provider_display_name, payment_amount, patient_first_name, patient_email, basic_receipt_sent_at, payment_intent_id, payment_test_mode')
     .eq('id', consultationId).single()
   if (!row) return { sent: false, skipped: 'not_found' }
+  if (row.payment_test_mode) return { sent: false, skipped: 'test_mode' }
   if (row.basic_receipt_sent_at) return { sent: false, skipped: 'already_sent' }
   if (!row.patient_email) return { sent: false, skipped: 'no_email' }
 

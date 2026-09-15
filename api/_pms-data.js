@@ -15,10 +15,12 @@ export default async function handler(req, res) {
 
   try {
     const [consultsRes, claimsRes, rxRes, referralsRes] = await Promise.allSettled([
-      // Today's completed consultations for this provider
+      // Today's completed consultations for this provider (exclude
+      // password-gated $0.10 test payments so dashboard revenue is real).
       supabase.from('consultations')
         .select('id,status,consultation_type,is_acc,payment_amount_nzd,notes_finalised,created_at,patient_first_name,patient_last_name,chief_complaint,acc_claim_number,acc_claim_status,outcome')
         .eq('status', 'complete')
+        .eq('payment_test_mode', false)
         .gte('created_at', todayStart)
         .eq(providerId ? 'provider_id' : 'status', providerId || 'complete')
         .order('created_at', { ascending: false }),

@@ -153,6 +153,11 @@ export default async function handler(req, res) {
       .eq('id', consultationId)
       .single()
     if (cErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
+    // Refuse to lodge an ACC claim / invoice for a $0.10 test-mode consult —
+    // ACC billing must reflect real clinical care, never our payment drills.
+    if (consult.payment_test_mode) {
+      return res.status(400).json({ error: 'Test-mode consultation cannot be submitted to ACC' })
+    }
 
     // MST1 (initial) vs MST3 (follow-up) — key on patient NHI + injury.
     // If ANY prior acc_claim exists for this patient and this injury date,
