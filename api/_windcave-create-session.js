@@ -19,7 +19,7 @@
 // patient closes the browser mid-flow.
 
 import { createClient } from '@supabase/supabase-js'
-import { randomUUID } from 'node:crypto'
+import { randomUUID, timingSafeEqual } from 'node:crypto'
 
 function admin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -46,7 +46,7 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational, testPassword } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   // Session type: 'auth' (hold, then explicit complete/capture later — default)
@@ -71,8 +71,29 @@ export default async function handler(req, res) {
   const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
   const baseAmount = (PRICES[type] || PRICES.consult)[tier]
   const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
-  const amountCents = baseAmount - discountCents
+
+  // Test-mode override: server validates password against PAYMENT_TEST_PASSWORD
+  // env var (timing-safe). If it matches, amount collapses to NZ$0.10 so we
+  // can exercise live Windcave auth/capture/refund on prod without burning a
+  // real consult fee. Also stamps consultations.payment_test_mode so downstream
+  // earnings / ACC / payroll reports can filter these out. Client-side never
+  // gets to set the amount — that stays server-authoritative.
+  let isTestMode = false
+  const expectedTest = process.env.PAYMENT_TEST_PASSWORD
+  if (typeof testPassword === 'string' && testPassword && expectedTest) {
+    try {
+      const a = Buffer.from(testPassword)
+      const b = Buffer.from(expectedTest)
+      if (a.length === b.length && timingSafeEqual(a, b)) {
+        isTestMode = true
+      }
+    } catch { /* fall through — treat as non-test */ }
+  }
+  const amountCents = isTestMode ? 10 : (baseAmount - discountCents)
   const amountDollars = (amountCents / 100).toFixed(2)
+  if (isTestMode) {
+    console.log('[windcave] TEST-MODE payment session', { consultationId, amountCents })
+  }
 
   const origin = siteOrigin(req)
 
@@ -157,6 +178,7 @@ export default async function handler(req, res) {
   await supabase.from('consultations').update({
     payment_intent_id: sessionData.id,   // reuse existing column; Windcave session id lives here
     payment_amount: amountCents,
+    ...(isTestMode ? { payment_test_mode: true } : {}),
   }).eq('id', consultationId)
 
   return res.status(200).json({

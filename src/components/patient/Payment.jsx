@@ -81,25 +81,45 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
     if (detected.nz === false) return 'OTHER'
     return 'NZ'
   })
+  // Password-gated test mode. Ops path: enter shared password → server
+  // validates PAYMENT_TEST_PASSWORD env var and drops amount to NZ$0.10 so
+  // we can run live Windcave auth/capture/refund on prod. Never persisted —
+  // never touches sessionStorage — so a real patient can never inherit the
+  // toggle from a prior session on a shared device.
+  const [testPanelOpen, setTestPanelOpen] = useState(false)
+  const [testPassword, setTestPassword] = useState('')
+  const [testUnlocked, setTestUnlocked] = useState(false)
+  const [testError, setTestError] = useState(null)
   const isInternational = billingCountry !== 'NZ'
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
-  const amount = isInternational
+  const normalAmount = isInternational
     ? priceSet.international
     : (accEligible === 'yes' ? priceSet.acc : priceSet.private)
+  const amount = testUnlocked ? 0.10 : normalAmount
 
   async function startSession(intlOverride) {
-    setPhase('loading'); setError(null)
+    setPhase('loading'); setError(null); setTestError(null)
     const intl = typeof intlOverride === 'boolean' ? intlOverride : isInternational
     try {
       const r = await apiFetch('/api/windcave-create-session', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId, accEligible, consultationType, isInternational: intl }),
+        body: JSON.stringify({
+          consultationId, accEligible, consultationType,
+          isInternational: intl,
+          ...(testUnlocked && testPassword ? { testPassword } : {}),
+        }),
       })
       const data = await r.json()
       if (!r.ok || !data.hppUrl) {
         setError(data.error || 'Could not start payment. Please try again.')
         setPhase('declined')
         return
+      }
+      // Server is authoritative on the amount. If we asked for test mode but
+      // came back with the full price, the password was wrong — surface it
+      // so the operator isn't accidentally about to charge a real card.
+      if (testUnlocked && data.amount !== 10) {
+        setTestError('Test password did not match on the server — full price returned. Cancel and try again.')
       }
       setSession(data)
       setPhase('ready')
@@ -190,8 +210,45 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             {accEligible === 'yes' ? ' — ACC covers the consultation itself.' : '.'}
           </div>
         )}
-        <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full" style={{marginTop:'.5rem'}}>
-          Continue — NZ${amount}
+        {testUnlocked ? (
+          <div style={{ background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:8, padding:'.6rem .75rem', marginBottom:'.75rem', fontSize:'.8125rem', color:'#92400E' }}>
+            <strong>Test mode ON</strong> — this session will charge NZ$0.10 for live payment/refund testing.
+            <button type="button" onClick={() => { setTestUnlocked(false); setTestPassword('') }}
+              style={{ marginLeft:'.5rem', background:'none', border:'none', color:'#92400E', textDecoration:'underline', cursor:'pointer', fontSize:'.75rem' }}>
+              turn off
+            </button>
+          </div>
+        ) : testPanelOpen ? (
+          <div style={{ background:'#F9FAFB', border:'1px solid #E5E7EB', borderRadius:8, padding:'.75rem', marginBottom:'.75rem' }}>
+            <label style={{ display:'block', fontSize:'.75rem', fontWeight:600, color:'#374151', marginBottom:'.35rem' }}>Test-patient password</label>
+            <div style={{ display:'flex', gap:'.4rem' }}>
+              <input type="password" value={testPassword} onChange={e => setTestPassword(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && testPassword) { setTestUnlocked(true) } }}
+                autoFocus
+                style={{ flex:1, padding:'.45rem .55rem', fontSize:'.875rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontFamily:'inherit' }} />
+              <button type="button" disabled={!testPassword}
+                onClick={() => setTestUnlocked(true)}
+                style={{ background:'#0B6E76', color:'white', border:'none', padding:'.45rem .8rem', borderRadius:6, fontSize:'.8125rem', fontWeight:600, cursor: testPassword ? 'pointer' : 'not-allowed', opacity: testPassword ? 1 : 0.5 }}>
+                Apply
+              </button>
+              <button type="button" onClick={() => { setTestPanelOpen(false); setTestPassword('') }}
+                style={{ background:'none', border:'none', color:'#6B7280', fontSize:'.75rem', cursor:'pointer' }}>
+                cancel
+              </button>
+            </div>
+            <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:'.35rem' }}>
+              The server validates the password — a wrong password will charge the full price. Verify the $0.10 preview before continuing.
+            </div>
+          </div>
+        ) : (
+          <button type="button" onClick={() => setTestPanelOpen(true)}
+            style={{ display:'block', background:'none', border:'none', color:'#9CA3AF', fontSize:'.6875rem', textDecoration:'underline', cursor:'pointer', padding:0, marginBottom:'.5rem' }}>
+            Test patient
+          </button>
+        )}
+        <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full"
+          style={{marginTop:'.5rem', ...(testUnlocked ? { background:'#B45309', borderColor:'#B45309' } : {})}}>
+          {testUnlocked ? `Continue — NZ$0.10 (TEST)` : `Continue — NZ$${amount}`}
         </button>
       </div>
     </div>
@@ -230,8 +287,19 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   )
 
   // phase === 'ready' or 'verifying'
+  const displayAmount = session?.amount != null ? (session.amount / 100).toFixed(2) : amount
   return (
     <div>
+      {testUnlocked && !testError && (
+        <div style={{ background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:8, padding:'.6rem .75rem', marginBottom:'.75rem', fontSize:'.8125rem', color:'#92400E' }}>
+          <strong>TEST MODE</strong> — this iframe will charge NZ$0.10 to a live card. Refundable via admin.
+        </div>
+      )}
+      {testError && (
+        <div style={{ background:'#FEF2F2', border:'1px solid #FCA5A5', borderRadius:8, padding:'.6rem .75rem', marginBottom:'.75rem', fontSize:'.8125rem', color:'#991B1B' }}>
+          <strong>Test password rejected.</strong> {testError}
+        </div>
+      )}
       <div className="card" style={{padding:'1.5rem',marginBottom:'1rem'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'1.25rem'}}>
           <div>
@@ -243,7 +311,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           </div>
           <div style={{textAlign:'right'}}>
             <div style={{fontSize:'2rem',fontWeight:700,color:'var(--navy)'}}>
-              ${amount}
+              ${displayAmount}
             </div>
           </div>
         </div>
@@ -267,7 +335,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
         )}
 
         <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'.875rem',marginBottom:'1.25rem',fontSize:'.8125rem',lineHeight:1.7,color:'#6B7280'}}>
-          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>${amount}</strong> but <strong>not charged</strong> until your consultation is complete. Cancel before it starts and the hold is released automatically.
+          🔒 <strong>Card hold:</strong> Your card is held at up to <strong>${displayAmount}</strong> but <strong>not charged</strong> until your consultation is complete. Cancel before it starts and the hold is released automatically.
         </div>
 
         {phase === 'verifying' && (
