@@ -646,10 +646,21 @@ function respiratoryFreqFromBW(detSignal, fs) {
 // The 4 bpm agreement threshold matches the earlier 2-source policy —
 // tune here if we ever want to trade coverage for accuracy.
 function fuseRR(rrAmBpm, rrFmBpm, rrBwBpm) {
+  // Physiological pre-gate: adult RR normal 12-20 bpm, clinical acceptable
+  // band 10-24. Values outside that band represent artefact (envelope
+  // demodulation picking up a slow motion cycle, FM peaked on aliased HR,
+  // BW capturing a lighting drift) and should NOT enter the fusion vote.
+  // Otherwise an out-of-band AM=9 vs plausible BW=19 gets tagged
+  // "disagree2" and suppresses a perfectly good BW reading — see the
+  // 2026-09-15 diagnosis where Patrick was showing "—" on live RR.
+  const clamp = v => (v != null && v >= 10 && v <= 24) ? v : null
   const meta = {
-    rrAm: rrAmBpm != null && rrAmBpm > 0 ? rrAmBpm : null,
-    rrFm: rrFmBpm != null && rrFmBpm > 0 ? rrFmBpm : null,
-    rrBw: rrBwBpm != null && rrBwBpm > 0 ? rrBwBpm : null,
+    rrAm: clamp(rrAmBpm),
+    rrFm: clamp(rrFmBpm),
+    rrBw: clamp(rrBwBpm),
+    rrAmRaw: rrAmBpm != null && rrAmBpm > 0 ? rrAmBpm : null,
+    rrFmRaw: rrFmBpm != null && rrFmBpm > 0 ? rrFmBpm : null,
+    rrBwRaw: rrBwBpm != null && rrBwBpm > 0 ? rrBwBpm : null,
   }
   const parts = []
   if (meta.rrAm != null) parts.push({ src: 'am', v: meta.rrAm })
