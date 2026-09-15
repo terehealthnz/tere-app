@@ -54,10 +54,15 @@ function VitalBadge({ label, value, unit, status }) {
 // the underlying Room instance into a parent-owned ref via useRoomContext.
 // Needed because tereScribe wants to pull audio tracks directly from the
 // Room, but the Room only exists in React context — parents can't read it
-// without this bridge.
-function RoomCapture({ roomRef }) {
+// without this bridge. `onReady` fires when the Room instance is available
+// so the parent can gate scribe auto-start on it (fixes the race where
+// inCall flips true before <LiveKitRoom> has connected).
+function RoomCapture({ roomRef, onReady }) {
   const room = useRoomContext()
-  useEffect(() => { if (roomRef && room) roomRef.current = room }, [room, roomRef])
+  useEffect(() => {
+    if (roomRef && room) roomRef.current = room
+    if (room && onReady) onReady()
+  }, [room, roomRef, onReady])
   return null
 }
 
@@ -203,8 +208,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // Captured LiveKit Room instance — populated by <RoomCapture> below when
   // <LiveKitRoom> connects. tereScribe uses it to pull the local + remote
   // audio tracks directly (avoids the empty-blob bug from grabbing a second
-  // getUserMedia stream).
+  // getUserMedia stream). scribeRoomReady is the state twin that triggers
+  // re-render — refs alone don't wake the auto-start effect below.
   const scribeRoomRef = useRef(null)
+  const [scribeRoomReady, setScribeRoomReady] = useState(false)
   // Chime path equivalent: ChimeCall exposes its bound <audio> element via
   // onAudioElReady. tereScribe captureStream()s the remote mix from it and
   // grabs a parallel getUserMedia for local mic.
@@ -444,10 +451,28 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     return () => clearInterval(interval)
   }, [id, phoneCallState])
 
-  // Auto-start scribe when entering in-call state
+  // Auto-start scribe when entering in-call state.
+  //
+  // Bug fix: previously depended only on [inCall]. On the LiveKit path,
+  // scribeRoomRef.current is populated asynchronously by <RoomCapture> once
+  // LiveKitRoom connects — but inCall flips true the moment the provider
+  // clicks Start Call, BEFORE the room is connected. ConsultationRecorder
+  // then got { room: null }, silently produced no audio, and the transcript
+  // was empty. Now we wait on scribeRoomReady (or chimeAudioElRef for the
+  // Chime path) so we only kick off scribe when we actually have audio.
   useEffect(() => {
-    if (inCall && scribeState === 'idle') startScribe()
-  }, [inCall])
+    if (!inCall || scribeState !== 'idle') return
+    if (chimeMode) {
+      // Chime path — chimeAudioElRef is populated via ChimeCall's
+      // onAudioElReady prop. If it's still null we can't scribe yet.
+      if (!chimeAudioElRef.current) return
+    } else {
+      // LiveKit path — wait for RoomCapture to signal ready.
+      if (!scribeRoomReady) return
+    }
+    startScribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inCall, scribeRoomReady, chimeMode, scribeState])
 
   // Auto-fallback to phone if patient hasn't joined LiveKit by AUTO_FALLBACK_S
   // seconds. Fires POST /api/initiate-call with forcePhone:true — SIP dials the
@@ -732,7 +757,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           data-lk-theme="default"
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
-          <RoomCapture roomRef={scribeRoomRef} />
+          <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />
           {(() => {
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             // Languages we can offer as override sources = all with real
