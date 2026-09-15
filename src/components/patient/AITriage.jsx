@@ -8,6 +8,7 @@ import { findFaceRegion } from '../../lib/rppg'
 import { isNZ } from '../../lib/region'
 import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
+import DobPicker from '../DobPicker'
 
 // NHI is a NZ-only identifier — skip the NHI question on non-NZ surfaces
 // (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
@@ -216,7 +217,7 @@ function summarizeOnFile(d) {
 
 const STEPS = [
   { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
-  { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}? (e.g. 14 March 1986)`, field:'patient_dob_raw', validate:v=>v.trim().length>3, error:"Can you give me your date of birth? (e.g. 14 March 1986)", next:'phone' },
+  { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}?`, field:'patient_dob_raw', type:'dob_picker', validate:v=>/^\d{4}-\d{2}-\d{2}$/.test(v||''), error:"Please pick your date of birth from the fields.", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
   { id:'address', message:"What's your home address? Start typing and pick from the list, or just type it out.", field:'patient_address', type:'address_picker', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
@@ -1773,8 +1774,30 @@ export default function AITriage() {
             onChange={v => setInput(v)}
             onSelect={s => { handleSendValue(s.display_name); setInput('') }}
             placeholder="Start typing your address…"
+            autoFocus
             inputStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem'}}
           />
+          <button type="button" onClick={() => { if (input.trim().length > 4) handleSendValue(input.trim()) }}
+            disabled={!(input.trim().length > 4)}
+            style={{width:'100%',marginTop:8,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:input.trim().length>4?'pointer':'not-allowed',opacity:input.trim().length>4?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            Continue
+          </button>
+        </div>
+      )}
+
+      {step?.type==='dob_picker' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <DobPicker
+            value={/^\d{4}-\d{2}-\d{2}$/.test(input) ? input : ''}
+            onChange={v => setInput(v)}
+            inputStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.95rem'}}
+            selectStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.95rem'}}
+          />
+          <button type="button" onClick={() => { if (/^\d{4}-\d{2}-\d{2}$/.test(input)) handleSendValue(input) }}
+            disabled={!/^\d{4}-\d{2}-\d{2}$/.test(input)}
+            style={{width:'100%',marginTop:10,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:/^\d{4}-\d{2}-\d{2}$/.test(input)?'pointer':'not-allowed',opacity:/^\d{4}-\d{2}-\d{2}$/.test(input)?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            Continue
+          </button>
         </div>
       )}
 
@@ -1803,6 +1826,10 @@ export default function AITriage() {
             </button>
           </div>
         )}
+        {/* Chat-style free-text bar. Hidden on picker steps so patients
+            can't sidestep the dropdown by typing here — the picker's
+            own Continue/Send button is the only path forward. */}
+        {!(step?.type === 'dob_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker') && (
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
@@ -1821,6 +1848,7 @@ export default function AITriage() {
           />
           <button onClick={handleSend} disabled={!input.trim()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'white',fontWeight:700,fontSize:'1rem',opacity:!input.trim()?0.5:1}}>↑</button>
         </div>
+        )}
         {/* Task #431 — catch-all "I'm worried" divert trigger. Kept as a
             subtle text link (not a loud amber banner) so the chat UX
             doesn't feel emergency-flavored on every question. Still

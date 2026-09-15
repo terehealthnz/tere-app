@@ -17,6 +17,7 @@ export default function AddressAutocomplete({
   placeholder = 'Start typing your address…',
   disabled = false,
   required = false,
+  autoFocus = false,
   id,
   style,
   inputStyle,
@@ -113,6 +114,7 @@ export default function AddressAutocomplete({
         required={required}
         placeholder={placeholder}
         autoComplete="street-address"
+        autoFocus={autoFocus}
         style={baseInputStyle}
       />
       {open && (loading || suggestions.length > 0) && (
