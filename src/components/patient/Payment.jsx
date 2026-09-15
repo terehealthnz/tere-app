@@ -240,8 +240,8 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           </div>
         ) : (
           <button type="button" onClick={() => setTestPanelOpen(true)}
-            style={{ display:'block', background:'none', border:'none', color:'#9CA3AF', fontSize:'.6875rem', textDecoration:'underline', cursor:'pointer', padding:0, marginBottom:'.5rem' }}>
-            Test patient
+            style={{ display:'block', width:'100%', background:'#FFFBEB', border:'1.5px dashed #F59E0B', color:'#92400E', fontSize:'.8125rem', fontWeight:600, padding:'.55rem .75rem', borderRadius:8, cursor:'pointer', marginBottom:'.6rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+            🧪 Test patient — NZ$0.10 (staff only)
           </button>
         )}
         <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full"
