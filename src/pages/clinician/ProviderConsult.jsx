@@ -674,12 +674,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             const activeLang = subtitleLangOverride || patientLang
             const activeMeta = getLangMeta(activeLang)
-            const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+            const subtitlesAvailable = activeMeta &&
               (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
-            // Non-English languages with strong AWS Transcribe streaming
-            // coverage — same filter as the LiveKit FloatingCallWidget path.
+            // Languages with strong AWS Transcribe streaming coverage,
+            // including English (accessibility — deaf patient reads captions).
             const supportedLangs = LANGUAGES
-              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .filter(l => l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good')
               .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
             return (
               <ChimeCall
@@ -738,12 +738,15 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             // Languages we can offer as override sources = all with real
             // AWS Transcribe streaming coverage (excellent/very_good) except
             // English (provider always sees English). Sorted for stable UI.
+            // Always include English in the picker too — accessibility use
+            // case where the provider wants to caption an English-speaking
+            // patient for a deaf/HoH viewer, or as a QA aid.
             const supportedLangs = LANGUAGES
-              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .filter(l => l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good')
               .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
             const activeLang = subtitleLangOverride || patientLang
             const activeMeta = getLangMeta(activeLang)
-            const subtitlesAvailable = supportedLangs.length > 0 && activeLang !== 'en' &&
+            const subtitlesAvailable = supportedLangs.length > 0 &&
               activeMeta && (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
             return (
               <>
@@ -844,10 +847,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             const activeLang = subtitleLangOverride || patientLang
             const activeMeta = getLangMeta(activeLang)
-            const subtitlesAvailable = activeLang !== 'en' && activeMeta &&
+            const subtitlesAvailable = activeMeta &&
               (activeMeta.subtitleSupport === 'excellent' || activeMeta.subtitleSupport === 'very_good')
             const supportedLangs = LANGUAGES
-              .filter(l => (l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good') && l.code !== 'en')
+              .filter(l => l.subtitleSupport === 'excellent' || l.subtitleSupport === 'very_good')
               .map(l => ({ code: l.code, name: l.name, flag: l.flag }))
             return (
               <>

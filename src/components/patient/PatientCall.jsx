@@ -365,7 +365,11 @@ export default function PatientCall() {
           const patientLang = sessionStorage.getItem('patient_language') || 'en'
           const meta = getLangMeta(patientLang)
           const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-          if (patientLang === 'en' || !supported) return null
+          // Always render the offer pill — English patients may still want
+          // captions for accessibility (deaf or hard-of-hearing). Only bail
+          // if the language has poor STT support, since captions in that case
+          // are more misleading than helpful.
+          if (!supported) return null
           // Subtitles component only renders when enabled; when the patient
           // Hides them (subtitlesOn=false) the offer pill comes back so they
           // can turn them on again mid-call.
