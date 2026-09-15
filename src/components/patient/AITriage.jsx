@@ -1780,7 +1780,7 @@ export default function AITriage() {
             autoFocus
             inputStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem'}}
           />
-          <button type="button" onClick={() => { if (input.trim().length > 4) handleSendValue(input.trim()) }}
+          <button type="button" onClick={() => { if (input.trim().length > 4) { const v = input.trim(); setInput(''); handleSendValue(v) } }}
             disabled={!(input.trim().length > 4)}
             style={{width:'100%',marginTop:8,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:input.trim().length>4?'pointer':'not-allowed',opacity:input.trim().length>4?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
             Continue
@@ -1796,7 +1796,7 @@ export default function AITriage() {
             inputStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.95rem'}}
             selectStyle={{padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.95rem'}}
           />
-          <button type="button" onClick={() => { if (/^\d{4}-\d{2}-\d{2}$/.test(input)) handleSendValue(input) }}
+          <button type="button" onClick={() => { if (/^\d{4}-\d{2}-\d{2}$/.test(input)) { const v = input; setInput(''); handleSendValue(v) } }}
             disabled={!/^\d{4}-\d{2}-\d{2}$/.test(input)}
             style={{width:'100%',marginTop:10,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:/^\d{4}-\d{2}-\d{2}$/.test(input)?'pointer':'not-allowed',opacity:/^\d{4}-\d{2}-\d{2}$/.test(input)?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
             Continue
