@@ -28,27 +28,32 @@ import {
 import { apiFetch } from './api'
 
 /**
- * Chime is the default video/audio path. LiveKit stays as a dead
- * fallback that can be re-enabled with ?chime=0 for one-off debug.
- * Pre-launch — no real users to protect from breakage — so no build-time
- * env flag; the switch is unconditional.
+ * LiveKit is the default video/audio path (reverted 2026-09-15 —
+ * AWS Chime not ready for prime time yet; call quality regressions on
+ * live tests). Chime code stays wired behind ?chime=1 so we can pick
+ * back up when AWS work resumes; nothing here is deleted.
+ *
+ * Precedence:
+ *   ?chime=1  → Chime for this tab (opt-in, persisted in sessionStorage)
+ *   ?chime=0  → LiveKit (redundant since it's the default, kept for symmetry)
+ *   default   → LiveKit
  */
 export function useChimeSdk() {
   try {
     if (typeof window !== 'undefined') {
       const qp = new URLSearchParams(window.location.search).get('chime')
-      if (qp === '0') {
-        try { sessionStorage.setItem('tere_chime', '0') } catch {}
-        return false
-      }
       if (qp === '1') {
-        try { sessionStorage.removeItem('tere_chime') } catch {}
+        try { sessionStorage.setItem('tere_chime', '1') } catch {}
         return true
       }
-      try { if (sessionStorage.getItem('tere_chime') === '0') return false } catch {}
+      if (qp === '0') {
+        try { sessionStorage.removeItem('tere_chime') } catch {}
+        return false
+      }
+      try { if (sessionStorage.getItem('tere_chime') === '1') return true } catch {}
     }
   } catch {}
-  return true
+  return false
 }
 
 /**
