@@ -243,6 +243,7 @@ const ROUTES = {
   'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
   'nhi-lookup':                () => import('./_nhi-lookup.js'),
+  'gp-directory':              () => import('./_gp-directory.js'),
   'nhi':                       () => import('./_nhi.js'),
   'hpi':                       () => import('./_hpi.js'),
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),

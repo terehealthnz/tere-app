@@ -8,6 +8,62 @@ import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
 import { getRrDisplay } from '../../lib/rrDisplay'
 
+// Continuity-of-care GP autocomplete — hits /api/gp-directory as provider
+// types the GP's name. Selecting a hit fills name+practice+email in one
+// click. Falls back to plain typed value if no directory hit (rural GPs
+// not yet in the seeded roster still get manual entry).
+function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
+  const [open,        setOpen]        = useState(false)
+  const [loading,     setLoading]     = useState(false)
+  const [results,     setResults]     = useState([])
+  const timerRef = useRef(null)
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    const q = String(value || '').trim()
+    if (q.length < 2) { setResults([]); return }
+    setLoading(true)
+    timerRef.current = setTimeout(async () => {
+      try {
+        const r = await apiFetch(`/api/gp-directory?q=${encodeURIComponent(q)}`)
+        const body = await r.json().catch(() => ({}))
+        setResults(Array.isArray(body.providers) ? body.providers : [])
+      } catch { setResults([]) }
+      setLoading(false)
+    }, 250)
+    return () => clearTimeout(timerRef.current)
+  }, [value])
+  return (
+    <div style={{ position:'relative' }}>
+      <input
+        value={value || ''}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        placeholder={placeholder}
+        style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', width:'100%', boxSizing:'border-box' }} />
+      {open && (loading || results.length > 0) && (
+        <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:2, background:'white', border:'1px solid #E2E8F0', borderRadius:6, boxShadow:'0 4px 14px rgba(0,0,0,0.10)', zIndex:100, maxHeight:280, overflowY:'auto' }}>
+          {loading && results.length === 0 && (
+            <div style={{ padding:'.5rem .75rem', color:'#6B7280', fontSize:'.8125rem' }}>Searching…</div>
+          )}
+          {results.map(p => (
+            <div
+              key={p.id}
+              onMouseDown={(e) => { e.preventDefault(); onSelect(p); setOpen(false) }}
+              style={{ padding:'.55rem .75rem', fontSize:'.8125rem', cursor:'pointer', borderBottom:'1px solid #F1F5F9', lineHeight:1.4 }}
+            >
+              <div style={{ fontWeight:600, color:'#0D2B45' }}>{p.title} {p.given_name} {p.family_name}</div>
+              {p.practice && (
+                <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{p.practice.name}{p.practice.email ? ` · ${p.practice.email}` : ''}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const FF    = 'Plus Jakarta Sans, sans-serif'
 const TEAL  = '#0B6E76'
 const NAVY  = '#0D2B45'
@@ -1815,7 +1871,19 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                           Recipient details {consult?.gp_name && <span style={{ fontWeight:400, color:'#6B7280' }}>· pre-filled from triage</span>}
                         </div>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                          <input value={contGpName} onChange={e => setContGpName(e.target.value)} placeholder="GP or specialist name" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
+                          <GpDirectoryPicker
+                            value={contGpName}
+                            onChange={setContGpName}
+                            onSelect={p => {
+                              // One-click fill: name → "Dr Thomas Bongaerts",
+                              // practice → "Renwick Medical Centre",
+                              // email → "info@renwickmedical.co.nz".
+                              const fullName = [p.title, p.given_name, p.family_name].filter(Boolean).join(' ')
+                              setContGpName(fullName)
+                              if (p.practice?.name)  setContGpPractice(p.practice.name)
+                              if (p.practice?.email) setContGpEmail(p.practice.email)
+                            }}
+                            placeholder="GP or specialist name (type to search directory)" />
                           <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                         </div>
                         <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"

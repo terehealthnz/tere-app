@@ -1,0 +1,139 @@
+{
+  "source": "nmdhb_2026_01_16",
+  "source_note": "Nelson Marlborough District Health Board — Marlborough GP Practices list, updated 2026-01-16. Compiled by NMDHB Admin Training Team from PHO Information. Changes: admintrainingteam@nmdhb.govt.nz",
+  "region": "marlborough",
+  "practices": [
+    {
+      "name": "Civic Family Health Care",
+      "address": "22 Arthur Street",
+      "phone": "578 0199",
+      "email": "reception@civichealth.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Mandy",    "family_name": "Chadwick"   },
+        { "title": "Dr", "given_name": "Alex",     "family_name": "Dunn"       },
+        { "title": "Dr", "given_name": "Ros",      "family_name": "Gellatly"   },
+        { "title": "Dr", "given_name": "Emily",    "family_name": "Marfell"    },
+        { "title": "Dr", "given_name": "Henry",    "family_name": "McKee"      },
+        { "title": "Dr", "given_name": "Tomi",     "family_name": "Moore"      },
+        { "title": "Dr", "given_name": "Anne",     "family_name": "Musters"    },
+        { "title": "Dr", "given_name": "Victoria", "family_name": "Samuels"    },
+        { "title": "Dr", "given_name": "Rhondda",  "family_name": "Turner"     },
+        { "title": "Dr", "given_name": "Kitty",    "family_name": "van Bekkum" }
+      ]
+    },
+    {
+      "name": "Manu Ora",
+      "address": "219 Howick Road",
+      "phone": "577 5810",
+      "email": "info@manuora.org.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Christina", "family_name": "Frost"     },
+        { "title": "Dr", "given_name": "Sophie",    "family_name": "Hart"      },
+        { "title": "Dr", "given_name": "Rachel",    "family_name": "Inder"     },
+        { "title": "Dr", "given_name": "Sara",      "family_name": "Simmons"   },
+        { "title": "Dr", "given_name": "Mary",      "family_name": "McWatters" }
+      ]
+    },
+    {
+      "name": "Marlborough Health Centre",
+      "address": "47 Scott Street",
+      "phone": "577 8757",
+      "email": "office@marlboroughhealth.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Loren", "family_name": "Young" }
+      ]
+    },
+    {
+      "name": "Omaka Medical Centre",
+      "address": "4 Richardson Ave",
+      "phone": "578 5252",
+      "email": "fsmc.admin@southlinkgp.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Abigail",  "family_name": "Gee"       },
+        { "title": "Dr", "given_name": "Yvette",   "family_name": "Geels"     },
+        { "title": "Dr", "given_name": "Ian",      "family_name": "Henderson" },
+        { "title": "Dr", "given_name": "Ruth",     "family_name": "Moore"     },
+        { "title": "Dr", "given_name": "Jacobus",  "family_name": "Richter"   }
+      ]
+    },
+    {
+      "name": "Picton Medical Centre",
+      "address": "114 High Street, Picton",
+      "phone": "520 3222",
+      "email": "info@pictonmedical.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Beata",   "family_name": "Danielek"  },
+        { "title": "Dr", "given_name": "Richard", "family_name": "Kennedy"   },
+        { "title": "Dr", "given_name": "Sarah",   "family_name": "Perano"    },
+        { "title": "Dr", "given_name": "Jacobus", "family_name": "Richter"   },
+        { "title": "Dr", "given_name": "Brian",   "family_name": "Scrimshaw" }
+      ]
+    },
+    {
+      "name": "Redwoodtown Medical Centre",
+      "address": "93 Weld Street",
+      "phone": "578 0470",
+      "email": "reception@redwoodtownmedical.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Guy",     "family_name": "Gardiner"  },
+        { "title": "Dr", "given_name": "Hitesh",  "family_name": "Kothari"   },
+        { "title": "Dr", "given_name": "Catrina", "family_name": "Traini"    },
+        { "title": "Dr", "given_name": "Penny",   "family_name": "Wytenburg" },
+        { "title": "Dr", "given_name": "LJ",      "family_name": "Jani"      }
+      ]
+    },
+    {
+      "name": "Renwick Medical Centre",
+      "address": "52 High Street, Renwick",
+      "phone": "572 8838",
+      "email": "info@renwickmedical.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Sophie",  "family_name": "Bonarius"      },
+        { "title": "Dr", "given_name": "Thomas",  "family_name": "Bongaerts"     },
+        { "title": "Dr", "given_name": "Aurelie", "family_name": "Cabou"         },
+        { "title": "Dr", "given_name": "Bart",    "family_name": "Vangronsvelt"  }
+      ]
+    },
+    {
+      "name": "Springlands Health / Havelock MC",
+      "address": "Springlands, Blenheim / Havelock",
+      "phone": "578 0979",
+      "email": "drs@springlandshealth.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Jordan",  "family_name": "Gibbs"     },
+        { "title": "Dr", "given_name": "Matt",    "family_name": "Lewis"     },
+        { "title": "Dr", "given_name": "Helen",   "family_name": "Pike"      },
+        { "title": "Dr", "given_name": "Kirsten", "family_name": "Tucker"    },
+        { "title": "Dr", "given_name": "Naomi",   "family_name": "Whitehead" }
+      ]
+    },
+    {
+      "name": "The Practice",
+      "address": "16 Francis St, Blenheim",
+      "phone": "577 1911",
+      "email": "office@thepractice.org.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Eric", "family_name": "Wegener" }
+      ]
+    },
+    {
+      "name": "Urgent Care Centre",
+      "address": "Hospital Road, Blenheim",
+      "phone": "520 6377",
+      "email": "admin@urgentcare.org.nz",
+      "providers": []
+    },
+    {
+      "name": "Wairau Community Clinic",
+      "address": "16 Francis Street, Blenheim",
+      "phone": "579 3626",
+      "email": "admin@wairaucommunityclinic.co.nz",
+      "providers": [
+        { "title": "Dr", "given_name": "Olivia",  "family_name": "Bandi"        },
+        { "title": "Dr", "given_name": "Scott",   "family_name": "Cameron"      },
+        { "title": "Dr", "given_name": "Justin",  "family_name": "Tweeddale"    },
+        { "title": "Dr", "given_name": "Bart",    "family_name": "Vangronsvelt" }
+      ]
+    }
+  ]
+}
