@@ -639,6 +639,17 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
     const norm = JSON.parse(localStorage.getItem(NORM_KEY) || 'null')
     if (!norm) return null
 
+    // Variance guard: if the model's training labels had almost no
+    // variance (systolic std < 5 mmHg), the network mathematically
+    // predicts the mean regardless of input — you get a constant BP
+    // (typically ~120/80 since that's the population mean). Refuse to
+    // publish BP in that case rather than serving a placebo reading.
+    // Task fix from Patrick 2026-09-15 (Justin always reading 120/80).
+    if (!norm.std || norm.std[0] < 5 || norm.std[1] < 3) {
+      console.warn('[vitalsModel] variance too low — refusing to publish (sysStd=' + norm.std?.[0] + ' diaStd=' + norm.std?.[1] + '). Need more diverse manual BP entries to train.')
+      return null
+    }
+
     const fv    = extractFeatures(rppgSignal, subject, devInfo)
     console.log('[vitalsModel] features (30):', fv.map(v => +v.toFixed(3)))
 
@@ -657,6 +668,16 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
     const rawSpo2 = spo2N * norm.std[3] + norm.mean[3]
 
     console.log('[vitalsModel] raw:', { rawSys: +rawSys.toFixed(1), rawDia: +rawDia.toFixed(1), rawHr: +rawHr.toFixed(1), rawSpo2: +rawSpo2.toFixed(1) })
+
+    // Mean-collapse guard: even with adequate label variance, if the
+    // model output lands within ±2 mmHg of the training mean the
+    // network has effectively learned nothing about this input (it's
+    // just returning the bias). Refuse rather than showing a bogus
+    // "always the same" reading across every patient.
+    if (Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2) {
+      console.warn('[vitalsModel] output collapsed to training mean — refusing to publish. Model needs retraining with more signal-dependent features or more diverse labels.')
+      return null
+    }
 
     const { systolic, diastolic } = clampBP(rawSys, rawDia)
     const hr   = Math.max(40, Math.min(200, Math.round(rawHr)))
