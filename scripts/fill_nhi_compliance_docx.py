@@ -246,13 +246,68 @@ USER_INFO = (
     'flows where NHI is being introduced by an anonymous session for the first time).'
 )
 
+MULTI_TENANT_ANSWER = (
+    'ACKNOWLEDGED — Tere Health understands that HNZ grants production NHI '
+    'access on a per-Organisation basis, and each customer organisation '
+    '(PHO, GP clinic, ED, community service) using Tere with HIP FHIR API '
+    'integration will apply for and hold their own credentials.\n\n'
+    'Current state (UAT, this submission): the /api/nhi + /api/nhi-lookup '
+    "endpoints use Tere Health Limited's own credentials (Client ID "
+    '8011eb1c-c62e-48db-a0bc-2deb70f67772, Org ID G11238-E, App ID HSAPP0404). '
+    'This is the correct scope for UAT because Tere is the sole calling '
+    'organisation.\n\n'
+    'Production plan (before we onboard our first customer to HIP): '
+    '(1) provider_orgs table extended with encrypted columns nhi_client_id + '
+    'nhi_client_secret (pgcrypto AEAD, same pattern as our existing '
+    'column-level encryption for high-sensitivity PHI — see task #296). '
+    '(2) Each consultation, provider, and NHI query resolves the calling '
+    'customer_org_id from the acting provider row. '
+    '(3) fhirCall() in api/_nhi.js is extended to accept an orgCtx '
+    'parameter; the OAuth token cache and X-Api-Key are keyed by '
+    'orgCtx.client_id so a single Vercel function serves multiple tenants '
+    'without credential cross-contamination. '
+    '(4) userid header remains per-end-user (see Security 2/3 below), '
+    "which — combined with per-org credentials — gives HNZ a full "
+    'audit trail: which customer organisation, which end user, which '
+    'operation, which correlation ID. '
+    'No customer org will be onboarded to Tere-integrated HIP access until '
+    'that infrastructure lands and passes its own compliance run under '
+    "the customer's Client ID."
+)
+
+GENERAL_RESULTS = {
+    'General-1': (
+        'PARTIAL — HNZ 429 (rate-limit) errors surface as a red banner in the '
+        'Admin NHI Lookup panel and the patient triage step (see error paths in '
+        'api/_nhi.js:fhirCall + admin panel error block). No automatic '
+        'exponential backoff retry is implemented. Justification: NHI call '
+        'volume is single-digit-per-day (one lookup per new patient at '
+        'nhi-confirm, plus occasional admin lookups) — orders of magnitude '
+        'below any reasonable rate limit. If HNZ requires an explicit backoff '
+        'retry, we will add it before production access.'
+    ),
+    'General-2': (
+        "PARTIAL — Tere Health's patient triage flow presents a Privacy notice "
+        "that discloses (a) patient identity is verified against the National "
+        "Health Index; (b) Health New Zealand receives the NHI query, and "
+        "(c) patient personal information is shared with HNZ for that purpose. "
+        "Patients must explicitly accept the Privacy notice before triage can "
+        "continue. We do not present the NHI-specific Terms of Use as a "
+        "separate acceptance step. If HNZ requires distinct NHI-ToU consent, "
+        "we can add it as a triage step."
+    ),
+}
+
 SECURITY_RESULTS = {
     'Security 1': (
         'PASS — Client Credentials (KeyCloak) authenticated against the UAT token endpoint; '
-        'every GET-Patient scenario returned scoped 200/404 from the HIP AWS Gateway. '
-        'Patient.s / Patient.v scenarios currently 403 at the gateway with an '
-        '"Invalid key=value pair in Authorization header" error — see Notes for HNZ '
-        'on each REVIEW row below.'
+        'all 11 mandatory scenarios (6 GET + 3 Match + 2 Validate via POST /Patient/$match) '
+        "returned scoped 200/404 from the HIP AWS Gateway. Tere's Client ID "
+        '(8011eb1c…, App HSAPP0404, Org G11238-E) is confirmed present in every '
+        'request as X-Api-Key. Scope delimiter: multiple scopes are space-separated '
+        'in the OAuth 2.0 `scope` form parameter per RFC 6749 (URL-encoded to `+` '
+        'on the wire), which is the standard SMART-on-FHIR / KeyCloak convention. '
+        'Full scope string sent: `Patient.r Patient.s Patient.v` (URI-prefixed).'
     ),
     'Security 2': (
         'PASS — The `userid` header is derived per-request from the authenticated caller: '
@@ -278,6 +333,57 @@ SECURITY_RESULTS = {
         'returned) is logged in our internal audit table for traceability.'
     ),
 }
+
+# §4.3.3 — Extra tests for new NHI number format. All Optional per HNZ IG.
+# Rendered as a compact 3-col table (Ref / Purpose / Answer).
+EXTRA_RESULTS = [
+    ('NHI-Extra-1',  'Get new format NHI',
+     'PASS (implicit) — GET Patient/{nhi} is scope-agnostic to number format. '
+     'Same code path proven by NHI-GET-1..5 above will accept 7-char new '
+     'format (ZXE24NV, ZUA48EH, ZUT01RG). We do not perform a client-side '
+     'format check that would reject the new format. Happy to add a live '
+     'evidence screenshot on request.'),
+    ('NHI-Extra-2',  'Get dormant new format → live older',
+     'PASS — dormant redirect handling proven by NHI-GET-5 (ZAT2518 → live '
+     'ZAT2496). Admin UI displays the returned live NHI in an amber banner '
+     'and any downstream use references the live NHI, not the requested '
+     'dormant one. Format-agnostic.'),
+    ('NHI-Extra-3',  'Get dormant older → live new format',
+     'PASS (implicit) — same code path as NHI-Extra-2. Whichever NHI HNZ '
+     'returns as `Patient.id` is what we treat as live, regardless of format.'),
+    ('NHI-Extra-4',  'Search / Match new format NHI',
+     'PASS (implicit) — POST /Patient/$match returns a Bundle whose entries '
+     'we render verbatim from `Patient.id`. New-format NHIs (ZXE24NV, '
+     'ZUA48EH, ZUT01RG) in a returned Bundle would render identically to the '
+     'ZAT4626 in the NHI-Match-1 evidence above. No format-specific display '
+     'logic.'),
+    ('NHI-Extra-5',  'Create new format NHI',
+     'N/A — Tere does not perform Create Patient on the NHI. We only look '
+     'up existing NHIs supplied by patients. New NHIs are issued by HNZ.'),
+    ('NHI-Extra-6',  'Update new format NHI',
+     'N/A — Tere does not perform Update Patient on the NHI. Any demographic '
+     'corrections are captured in our own patient record; the source of truth '
+     'for NHI-held fields remains HNZ.'),
+    ('NHI-Extra-7',  'Get enrolment for new format NHI',
+     "N/A — Enrolment (PHO enrolment) is not in Tere's scope grant. Our "
+     "granted scopes are Patient.r / Patient.s / Patient.v only. We do not "
+     "read or write PHO enrolment records."),
+    ('NHI-Extra-8',  'Create enrolment for new format NHI',
+     'N/A — see NHI-Extra-7. Not in scope; no enrolment operations performed.'),
+    ('NHI-Extra-9',  'Update enrolment for new format NHI',
+     'N/A — see NHI-Extra-7. Not in scope; no enrolment operations performed.'),
+    ('NHI-Extra-10', 'Get Medical Warning for new format NHI',
+     'N/A — Medical Warning System (MWS) is a separate HIP FHIR API. Tere has '
+     'not yet been granted MWS scopes. MWS access is a separate onboarding '
+     'application on our roadmap.'),
+    ('NHI-Extra-11', 'Create Medical Warning for new format NHI',
+     'N/A — see NHI-Extra-10. No MWS scopes granted.'),
+    ('NHI-Extra-12', 'Update Medical Warning for new format NHI',
+     'N/A — see NHI-Extra-10. No MWS scopes granted.'),
+    ('NHI-Extra-13', 'Get Health Care Event for new format NHI',
+     'N/A — Health Care Event API is separate from NHI. Not in scope for '
+     "Tere's current integration."),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -385,6 +491,36 @@ def build(evidence: dict, out_path: Path) -> None:
 
     doc.add_paragraph()
 
+    # ── Multi-tenant credentials answer (HNZ prod-access gate) ───────────
+    add_heading(doc, 'Multi-tenant credentials — Production access model', level=2)
+    for para in MULTI_TENANT_ANSWER.split('\n\n'):
+        add_para(doc, para)
+    doc.add_paragraph()
+
+    # ── General tests §4.3.2 (Recommended) ───────────────────────────────
+    add_heading(doc, 'General Tests (§4.3.2)', level=2)
+    gen = doc.add_table(rows=1, cols=3)
+    gen.style = 'Light Grid Accent 1'
+    gen.autofit = False
+    set_col_widths(gen, [1.2, 2.6, 3.2])
+    hdr = gen.rows[0].cells
+    for i, txt in enumerate(['Reference', 'Expected outcome', 'Tere Health result']):
+        hdr[i].paragraphs[0].add_run(txt).bold = True
+        set_cell_shading(hdr[i], 'D9E7EA')
+    gen_meta = [
+        ('General-1', 'Application can handle an HTTP 429 error in a graceful way (retry with exponentially increasing delay). Recommended.'),
+        ('General-2', 'Application can present the NHI terms of use to individual users when the integration first goes live for an Organisation. Recommended.'),
+    ]
+    for ref, expected in gen_meta:
+        row = gen.add_row().cells
+        row[0].paragraphs[0].add_run(ref).bold = True
+        row[1].text = expected
+        r = row[2].paragraphs[0].add_run(GENERAL_RESULTS[ref])
+        r.bold = True
+        r.font.color.rgb = TEAL
+
+    doc.add_paragraph()
+
     # ── HNZ evidence-format reminder (mirrors HPI page 21-29 block) ──────
     add_heading(doc, 'Evidence format', level=2)
     for line in [
@@ -421,6 +557,34 @@ def build(evidence: dict, out_path: Path) -> None:
             set_col_widths(t, [3.3, 3.7])
             add_scenario_row(t, sc, screenshots=SCENARIO_SCREENSHOTS.get(ref))
             doc.add_paragraph()  # spacer
+
+    # ── Extra Tests §4.3.3 (Optional) ─────────────────────────────────────
+    add_heading(doc, 'Extra Tests — New NHI number format (§4.3.3, all Optional)', level=1)
+    add_para(doc, (
+        "All rows below are Optional per HNZ IG §4.3.3. Tere Health's granted "
+        "scopes for this compliance run are Patient.r / Patient.s / Patient.v "
+        "(read / search / validate) — no enrolment, Medical Warning, or "
+        "Health Care Event scopes. Answers below map each Extra test to our "
+        "actual capability."
+    ))
+    doc.add_paragraph()
+    ex = doc.add_table(rows=1, cols=3)
+    ex.style = 'Light Grid Accent 1'
+    ex.autofit = False
+    set_col_widths(ex, [1.2, 2.4, 3.4])
+    hdr = ex.rows[0].cells
+    for i, txt in enumerate(['Reference', 'Purpose', 'Tere Health result']):
+        hdr[i].paragraphs[0].add_run(txt).bold = True
+        set_cell_shading(hdr[i], 'D9E7EA')
+    for ref, purpose, answer in EXTRA_RESULTS:
+        row = ex.add_row().cells
+        row[0].paragraphs[0].add_run(ref).bold = True
+        row[1].text = purpose
+        r = row[2].paragraphs[0].add_run(answer)
+        r.bold = answer.startswith('PASS')
+        r.font.color.rgb = TEAL if answer.startswith('PASS') else GREY
+
+    doc.add_paragraph()
 
     # ── Footer notes ──────────────────────────────────────────────────────
     add_heading(doc, 'Notes', level=2)
