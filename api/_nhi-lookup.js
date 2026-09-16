@@ -226,7 +226,14 @@ async function callMatch(token, { nhi, given, family, birthdate, address, onlyCe
   const base = NHI_FHIR_BASE.replace(/\/+$/, '')
   const patient = { resourceType: 'Patient' }
   if (nhi) patient.identifier = [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi }]
-  if (given || family) patient.name = [{ family: family || undefined, given: given ? [given] : undefined }]
+  if (given || family) {
+    // Send given names as separate array elements — FHIR stores name.given
+    // as an array where each element is one given name. "Jamie Susan" needs
+    // to be ['Jamie', 'Susan'], not ['Jamie Susan'], or HNZ's element-wise
+    // matching won't recognise a middle-name'd patient.
+    const givenParts = given ? String(given).trim().split(/\s+/).filter(Boolean) : []
+    patient.name = [{ family: family || undefined, given: givenParts.length ? givenParts : undefined }]
+  }
   if (birthdate) patient.birthDate = birthdate
   if (address && (address.line || address.city || address.postalCode)) {
     patient.address = [{
