@@ -97,6 +97,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'practice-seed', 'practice-reset',
   // Te Whatu Ora HPI FHIR proxy (admin-only, PII lookup on clinicians/facilities)
   'hpi',
+  // Te Whatu Ora NHI FHIR admin/diag surface (admin-only). Patient-facing
+  // /api/nhi-lookup stays anon; this endpoint carries the compliance-pack
+  // and OAuth probe actions that must be admin-gated.
+  'nhi',
   // Windcave money-movement — only providers/admin may capture or refund
   'windcave-complete', 'windcave-refund',
   // Windcave live-cred smoke test (admin-only, checks env + auth against Windcave)
@@ -238,6 +242,7 @@ const ROUTES = {
   'supervision':               () => import('./_supervision.js'),
   'hpi-search':                () => import('./_hpi-search.js'),
   'nhi-lookup':                () => import('./_nhi-lookup.js'),
+  'nhi':                       () => import('./_nhi.js'),
   'hpi':                       () => import('./_hpi.js'),
   'pharmacy-contacts':         () => import('./_pharmacy-contacts.js'),
   'patient-heartbeat':         () => import('./_patient-heartbeat.js'),
