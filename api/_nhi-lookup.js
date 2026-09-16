@@ -183,12 +183,38 @@ function splitName(raw) {
   return { given: toks.slice(0, -1).join(' '), family: toks[toks.length - 1] }
 }
 
-async function callMatch(token, { nhi, given, family, birthdate, onlyCertain }) {
+// Parse a freeform NZ address ("2 Tennyson Street, Napier, 4110" or an OSM
+// display_name) into { line, city, postalCode } for FHIR. Naive but good
+// enough — we grab any 4-digit run as postcode, use the last non-postcode
+// comma segment as city, and everything before that as the street line.
+function parseNzAddress(raw) {
+  if (!raw) return null
+  const s = String(raw).trim()
+  const pcMatch = s.match(/\b(\d{4})\b/)
+  const postalCode = pcMatch ? pcMatch[1] : null
+  const parts = s.split(',').map(x => x.trim()).filter(Boolean)
+    .filter(x => !/^\d{4}$/.test(x))  // drop the bare postcode segment
+    .filter(x => !/^new zealand$/i.test(x))
+  const line = parts[0] || null
+  const city = parts.length > 1 ? parts[parts.length - 1] : null
+  return { line, city, postalCode }
+}
+
+async function callMatch(token, { nhi, given, family, birthdate, address, onlyCertain }) {
   const base = NHI_FHIR_BASE.replace(/\/+$/, '')
   const patient = { resourceType: 'Patient' }
   if (nhi) patient.identifier = [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi }]
   if (given || family) patient.name = [{ family: family || undefined, given: given ? [given] : undefined }]
   if (birthdate) patient.birthDate = birthdate
+  if (address && (address.line || address.city || address.postalCode)) {
+    patient.address = [{
+      use: 'home',
+      line: address.line ? [address.line] : undefined,
+      city: address.city || undefined,
+      postalCode: address.postalCode || undefined,
+      country: 'NZ',
+    }]
+  }
   const body = {
     resourceType: 'Parameters',
     parameter: [
@@ -245,26 +271,71 @@ export default async function handler(req, res) {
       return res.status(400).json({ enabled: true, error: 'nhi OR (patientName + patientDob) required' })
     }
 
-    const { status, body } = await callMatch(token, {
+    // Parse the typed address into structured line/city/postalCode so we can
+    // send it to HNZ as part of the FHIR Patient — richer identifying data
+    // gives HNZ better odds of returning a certain match for demographic-only
+    // lookups (which otherwise almost always fall back to typed-then-trust).
+    const parsedAddress = parseNzAddress(patientAddress)
+
+    // Attempt 1 — trust HNZ's certainty. If they say certain, we're done.
+    let { status, body } = await callMatch(token, {
       nhi: cleanNhi || undefined,
       given, family,
       birthdate: dobIso || undefined,
+      address: parsedAddress,
       onlyCertain: true,
     })
+    let matchMode = 'certain'
 
     // 404 on the $match route means "operation not found" — treat as unavailable.
     if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
-    // 4xx (typically 422 for bad input) — surface as no match, benign.
-    if (status >= 400 && status !== 429) {
-      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found' })
-    }
     if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
 
-    const entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
+    let entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
+
+    // Attempt 2 — demographic-only fallback. If HNZ returned no certain match
+    // on the first attempt AND the caller didn't supply an NHI (so we're in
+    // auto-discovery mode), rerun without onlyCertainMatches. HNZ then returns
+    // ranked candidates; we accept exactly one candidate WHOSE stored address
+    // matches what the patient typed. That gives us receptionist-grade recall
+    // without trusting a single name+DOB match blindly.
+    if (!cleanNhi && entries.length === 0 && status < 400 && (parsedAddress?.line || parsedAddress?.postalCode)) {
+      const attempt2 = await callMatch(token, {
+        given, family,
+        birthdate: dobIso || undefined,
+        address: parsedAddress,
+        onlyCertain: false,
+      })
+      status = attempt2.status
+      body = attempt2.body
+      matchMode = 'address_verified'
+      if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
+      if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
+      entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
+
+      // Filter candidates to those whose stored address matches what the
+      // patient typed (street-line OR postcode+area). Multiple hits without
+      // a clear address winner → refuse, fall to manual.
+      const scored = entries
+        .map(e => ({ resource: e.resource, patient: parseFhirPatient(e.resource) }))
+        .filter(x => x.patient && !x.patient.deceased)
+        .map(x => ({ ...x, addr: addressMatches(patientAddress, x.patient.address_parts) }))
+        .filter(x => x.addr && (x.addr.strength === 'strong' || x.addr.strength === 'moderate'))
+
+      if (scored.length !== 1) {
+        return res.status(200).json({ enabled: true, matched: false, reason: 'not_found' })
+      }
+      // Overwrite entries with the single address-verified candidate so the
+      // rest of the response builder just reads entries[0].
+      entries = [{ resource: scored[0].resource }]
+    }
+
+    // 4xx (typically 422 for bad input) — surface as no match, benign.
+    if (status >= 400) {
+      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found' })
+    }
+
     if (entries.length === 0) {
-      // No certain match. Distinguish: NHI-supplied → likely name/DOB
-      // typo; NHI-unsupplied → we couldn't auto-find them (fall back to
-      // manual entry).
       return res.status(200).json({
         enabled: true,
         matched: false,
