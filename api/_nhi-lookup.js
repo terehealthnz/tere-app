@@ -200,6 +200,28 @@ function parseNzAddress(raw) {
   return { line, city, postalCode }
 }
 
+// GET Patient/{nhi} — the Read (Patient.r) scope. Used after a successful
+// $match to fetch full demographics (name/DOB) because HNZ redacts those
+// from $match responses. Without this, the "Found X — is that you?" prompt
+// would render as "Found a match, born  — is that you?".
+async function callGetPatient(token, nhi) {
+  const base = NHI_FHIR_BASE.replace(/\/+$/, '')
+  const r = await globalThis.fetch(`${base}/Patient/${encodeURIComponent(nhi)}`, {
+    method: 'GET',
+    headers: {
+      Authorization:      `Bearer ${token}`,
+      Accept:             'application/fhir+json',
+      'x-api-key':        NHI_CLIENT_ID,
+      userid:             'tere-triage',
+      'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
+    },
+  })
+  const text = await r.text()
+  let parsed
+  try { parsed = text ? JSON.parse(text) : {} } catch { parsed = null }
+  return { status: r.status, body: parsed }
+}
+
 async function callMatch(token, { nhi, given, family, birthdate, address, onlyCertain }) {
   const base = NHI_FHIR_BASE.replace(/\/+$/, '')
   const patient = { resourceType: 'Patient' }
@@ -293,13 +315,15 @@ export default async function handler(req, res) {
 
     let entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
 
-    // Attempt 2 — demographic-only fallback. If HNZ returned no certain match
-    // on the first attempt AND the caller didn't supply an NHI (so we're in
-    // auto-discovery mode), rerun without onlyCertainMatches. HNZ then returns
-    // ranked candidates; we accept exactly one candidate WHOSE stored address
-    // matches what the patient typed. That gives us receptionist-grade recall
-    // without trusting a single name+DOB match blindly.
-    if (!cleanNhi && entries.length === 0 && status < 400 && (parsedAddress?.line || parsedAddress?.postalCode)) {
+    // Attempt 2 — Search fallback (Patient.s scope). If Validate didn't
+    // return a certain match AND the caller is in auto-discovery mode (no
+    // NHI supplied), rerun with onlyCertainMatches=false to use HNZ's Search
+    // operation. HNZ returns ranked candidates. Trust HNZ's scoring: if
+    // exactly one candidate, treat it as a receptionist-grade lookup and
+    // gate on a human "is that you?" confirmation on the front-end. If
+    // multiple candidates, use the patient's typed address to disambiguate;
+    // if still ambiguous, refuse and fall through to manual entry.
+    if (!cleanNhi && entries.length === 0 && status < 400) {
       const attempt2 = await callMatch(token, {
         given, family,
         birthdate: dobIso || undefined,
@@ -308,26 +332,26 @@ export default async function handler(req, res) {
       })
       status = attempt2.status
       body = attempt2.body
-      matchMode = 'address_verified'
+      matchMode = 'searched'
       if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
       if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
       entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
 
-      // Filter candidates to those whose stored address matches what the
-      // patient typed (street-line OR postcode+area). Multiple hits without
-      // a clear address winner → refuse, fall to manual.
-      const scored = entries
-        .map(e => ({ resource: e.resource, patient: parseFhirPatient(e.resource) }))
-        .filter(x => x.patient && !x.patient.deceased)
-        .map(x => ({ ...x, addr: addressMatches(patientAddress, x.patient.address_parts) }))
-        .filter(x => x.addr && (x.addr.strength === 'strong' || x.addr.strength === 'moderate'))
-
-      if (scored.length !== 1) {
-        return res.status(200).json({ enabled: true, matched: false, reason: 'not_found' })
+      // Multiple hits — try to disambiguate with address. If exactly one
+      // candidate matches the typed address strongly/moderately, that's our
+      // person. Otherwise ambiguous → fall through to manual entry.
+      if (entries.length > 1) {
+        const withAddr = entries
+          .map(e => ({ resource: e.resource, patient: parseFhirPatient(e.resource) }))
+          .filter(x => x.patient && !x.patient.deceased)
+          .map(x => ({ ...x, addr: addressMatches(patientAddress, x.patient.address_parts) }))
+          .filter(x => x.addr && (x.addr.strength === 'strong' || x.addr.strength === 'moderate'))
+        if (withAddr.length === 1) {
+          entries = [{ resource: withAddr[0].resource }]
+        } else {
+          return res.status(200).json({ enabled: true, matched: false, reason: 'ambiguous' })
+        }
       }
-      // Overwrite entries with the single address-verified candidate so the
-      // rest of the response builder just reads entries[0].
-      entries = [{ resource: scored[0].resource }]
     }
 
     // 4xx (typically 422 for bad input) — surface as no match, benign.
@@ -345,11 +369,27 @@ export default async function handler(req, res) {
 
     // Take the first (highest-scored) entry. When Validate mode with an
     // NHI supplied, HNZ typically returns exactly one entry.
-    const resource = entries[0].resource
-    const patient = parseFhirPatient(resource)
+    let resource = entries[0].resource
+    let patient = parseFhirPatient(resource)
     if (!patient) {
       return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_failed' })
     }
+
+    // HNZ redacts name/DOB from the $match Bundle response. Without those
+    // we can't render the "Found X, born Y — is that you?" prompt. So if the
+    // match resource is thin, follow up with GET Patient/{nhi} (Patient.r
+    // scope) to fetch full demographics. Skip if we're already in Validate
+    // mode and got the info back (rare) or if there's no NHI to GET on.
+    const returnedNhi = resource?.id || cleanNhi
+    if (returnedNhi && (!patient.name || !patient.dob)) {
+      const getRes = await callGetPatient(token, returnedNhi)
+      if (getRes.status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
+      if (getRes?.body?.resourceType === 'Patient') {
+        resource = getRes.body
+        patient = parseFhirPatient(resource) || patient
+      }
+    }
+
     if (patient.deceased) {
       return res.status(200).json({ enabled: true, matched: false, reason: 'deceased' })
     }
@@ -376,7 +416,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       enabled: true,
       matched: true,
-      reason:  cleanNhi ? 'validated' : 'auto_matched',
+      reason:  cleanNhi ? 'validated' : (matchMode === 'searched' ? 'auto_matched_search' : 'auto_matched'),
       confidence,
       address_match_strength: strength,
       matched_fields,
