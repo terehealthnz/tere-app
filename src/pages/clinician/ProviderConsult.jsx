@@ -14,6 +14,7 @@ import ChimeCall from '../../components/call/ChimeCall'
 import { useChimeSdk } from '../../lib/chime'
 import ChatPanel from '../../components/ChatPanel'
 import { getRrDisplay } from '../../lib/rrDisplay'
+import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -147,6 +148,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // with the effect ready to evaluate immediately.
   const providerId = typeof window !== 'undefined' ? sessionStorage.getItem('providerId') : null
   const displayName = typeof window !== 'undefined' ? (sessionStorage.getItem('providerDisplayName') || 'Provider') : 'Provider'
+  // Prevent the abandoned-consult cron sweep (30-min threshold) from
+  // releasing an active consult during a long phone-call phase where
+  // scribe/notes writes may not fire for extended periods.
+  useConsultHeartbeat(id, true)
 
   const finishSession = useCallback((destination = '/provider') => {
     if (popupMode) {

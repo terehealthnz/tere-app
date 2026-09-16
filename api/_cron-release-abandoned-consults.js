@@ -22,18 +22,24 @@
 //   provider on the queue can pick it up. Write an audit_log row per
 //   release. Email a daily-style summary to admin if any released.
 //
-// Why 90 min:
-//   A legitimate active consult writes to consultations often (scribe
-//   persist every ~30s per task #40, notes debounce on change, payment
-//   capture on admit, status transitions) — updated_at moves naturally
-//   under real use. 90 min is comfortably longer than any legitimate
-//   in_progress phase (typical consult is 5-30 min) but short enough
-//   that a patient re-entering the queue doesn't wait hours.
+// Why 30 min:
+//   A legitimate active consult writes to consultations often — scribe
+//   persist every ~30s (task #40), notes debounce, status transitions,
+//   AND a 60s client heartbeat from ConsultView / ProviderConsult /
+//   ClinicianPatient (see /api/consult-heartbeat). Any surface where the
+//   provider is legitimately working keeps updated_at fresh. 30 min is
+//   a safe buffer over the 60s heartbeat cadence for network hiccups
+//   and short interruptions, while ensuring a truly-abandoned consult
+//   returns to the queue within a reasonable window.
+//
+//   If the provider is on a Twilio phone call with the tab closed
+//   (rare), the row will still be swept — the heartbeat is tab-based.
+//   Adding a Twilio-active check server-side is a follow-up if needed.
 
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from './_email-client.js'
 
-const STALE_MINUTES = 90
+const STALE_MINUTES = 30
 
 function admin() {
   return createClient(

@@ -15,6 +15,7 @@ import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlas
 import { PrescribeModal } from '../../components/clinician/ConsultModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
 import { isNZ } from '../../lib/region'
+import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
 // in popupMode so it renders as the floating widget on top of the chart.
@@ -40,6 +41,9 @@ function InfoRow({ label, value }) {
 export default function ClinicianPatient() {
   const { id } = useParams()
   const navigate = useNavigate()
+  // Prevent the abandoned-consult cron sweep (30-min threshold) from
+  // releasing a consult while the provider has the chart open.
+  useConsultHeartbeat(id, true)
   const [consult, setConsult]     = useState(null)
   const [loading, setLoading]     = useState(true)
   const [starting, setStarting]   = useState(false)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
+import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
 // Live transcription via Deepgram WebSocket — no SDK required
 import { LiveKitRoom, VideoConference, useRoomContext } from '@livekit/components-react'
 import '@livekit/components-styles'
@@ -125,6 +126,9 @@ export default function ConsultView() {
   const { id } = useParams()
   const navigate = useNavigate()
   useEffect(() => { if (id) beacon(id, 'ConsultView MOUNTED') }, [id])
+  // Prevent the abandoned-consult cron sweep (30-min threshold) from
+  // releasing an active consult while this surface is mounted.
+  useConsultHeartbeat(id, true)
   const [consult, setConsult] = useState(null)
   const [tab, setTab] = useState('vitals')
   const [notes, setNotes] = useState({ S:'', O:'', A:'', P:'' })

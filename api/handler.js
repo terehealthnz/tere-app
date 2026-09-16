@@ -49,6 +49,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'drug-interactions', 'dismiss-patient',
   'create-room',
   'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
+  'consult-heartbeat',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'radiology-reports', 'clinic-schedule',
   'supervision',
@@ -338,6 +339,7 @@ const ROUTES = {
   'cron-access-review':        () => import('./_cron-access-review.js'),
   'cron-break-glass-revoke':   () => import('./_cron-break-glass-revoke.js'),
   'cron-release-abandoned-consults': () => import('./_cron-release-abandoned-consults.js'),
+  'consult-heartbeat':         () => import('./_consult-heartbeat.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),
   'cron-results-reconciliation': () => import('./_cron-results-reconciliation.js'),
   'cron-clinical-anomalies':    () => import('./_cron-clinical-anomalies.js'),
