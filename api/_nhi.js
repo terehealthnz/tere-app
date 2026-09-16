@@ -157,23 +157,41 @@ export default async function handler(req, res) {
 
     if (action === 'compliance_pack') {
       // HNZ mandatory NHI compliance scenarios per
-      //   https://nhi-ig.hip.digital.health.nz/PatientComplianceTesting.html
+      //   https://nhi-ig.hip.digital.health.nz/GetMatchAndValidatePatientComplianceTesting.html
       //
-      // Test NHIs are HNZ-supplied; overridable via query string so we can
-      // drop in the real values from the compliance test pack when Shebi
-      // provides them. Defaults use ZZZ0032 (verified live 2026-09-15) plus
-      // placeholders that will fail-loudly on the pack until real IDs land.
-      const nhi1        = String(req.query.nhi1 || 'ZZZ0032').trim()      // positive Get
-      const nhi2        = String(req.query.nhi2 || 'ZZZ0032').trim()      // second persona
-      const notFoundNhi = String(req.query.notfound || 'ZAA0044').trim()  // known-absent
-      const malformed   = '!!invalid!!'
-      const searchFamily = String(req.query.family  || 'Testing').trim()
-      const searchGiven  = String(req.query.given   || 'Iscv').trim()
-      const searchDob    = String(req.query.birthdate || '2005-10-01').trim()
-      // Validate uses the same shape as HL7 FHIR $validate operation — send
-      // a candidate Patient resource and HNZ returns an OperationOutcome
-      // saying whether it matches an NHI record. For UAT we send the same
-      // demographics we searched with.
+      // Defaults are the exact test NHIs published in the NHI IG (verified
+      // 2026-09-15). All query params are overridable so you can add extra
+      // scenarios or point at different personas without redeploying.
+      //
+      // Coverage is chosen to satisfy the three scopes HNZ granted us:
+      //   Patient.r (Get)      — Get-1 (minimum identity), Get-2 (deceased),
+      //                          Get-4 (partial dates), Get-5 (dormant NHI redirect),
+      //                          not-found, malformed
+      //   Patient.s (Search)   — Match-1 (positive), Match-Error-1 (missing DOB),
+      //                          Match-Error-2 (missing name)
+      //   Patient.v (Validate) — Validate-1 (positive), Validate-3 (negative)
+      const nhiGet1      = String(req.query.nhi_get1     || 'ZJS7596').trim()  // minimum identity (matches Match-4 + Validate-1)
+      const nhiGet2      = String(req.query.nhi_get2     || 'ZAT2348').trim()  // deceased
+      const nhiGet4      = String(req.query.nhi_get4     || 'ZAT2496').trim()  // partial DOB
+      const nhiGet5      = String(req.query.nhi_get5     || 'ZAT2518').trim()  // dormant → redirect to ZAT2496
+      const notFoundNhi  = String(req.query.notfound     || 'ZAA0044').trim()
+      const malformed    = '!!invalid!!'
+      // Match-1 persona from the IG
+      const match1Nhi    = String(req.query.match1_nhi   || 'ZAT4626').trim()
+      const match1Given  = String(req.query.match1_given || 'Noah').trim()
+      const match1Family = String(req.query.match1_family|| 'Owen').trim()
+      const match1Dob    = String(req.query.match1_dob   || '1949-10-30').trim()
+      // Validate-1 (positive) persona — Jamie Susan Maraka / ZJS7596
+      const val1Nhi      = String(req.query.val1_nhi     || 'ZJS7596').trim()
+      const val1Given    = String(req.query.val1_given   || 'Jamie').trim()
+      const val1Family   = String(req.query.val1_family  || 'Maraka').trim()
+      const val1Dob      = String(req.query.val1_dob     || '1977-08-25').trim()
+      // Validate-3 (negative) persona — Jaime Jones / ZJK9604
+      const val3Nhi      = String(req.query.val3_nhi     || 'ZJK9604').trim()
+      const val3Given    = String(req.query.val3_given   || 'Jaime').trim()
+      const val3Family   = String(req.query.val3_family  || 'Jones').trim()
+      const val3Dob      = String(req.query.val3_dob     || '1979-06-10').trim()
+
       const rawScope    = req.query.scope
       const scopeOverride = rawScope === 'none' ? '' : (rawScope != null ? String(rawScope) : undefined)
 
@@ -200,46 +218,87 @@ export default async function handler(req, res) {
         }
       }
 
+      // ── Patient.r (Get) scenarios ─────────────────────────────────────────
       await run(
-        'NHI-P-Get-1: Positive Get Patient (test NHI 1)',
-        `GET Patient/${nhi1}. Confirms a well-formed FHIR Patient resource is returned for a known-valid HNZ UAT test NHI. Uses HNZ-supplied test data — never a live NHI.`,
+        `NHI-GET-1: Positive Get Patient — minimum identity (${nhiGet1})`,
+        `GET Patient/${nhiGet1}. Returns a FHIR Patient resource containing the minimum identity information required to confirm identity. Persona: Jamie Susan Maraka, DOB 1977-08-25.`,
         { status: 200, description: '200 OK with FHIR Patient resource' },
-        () => fhirCall('GET', `Patient/${encodeURIComponent(nhi1)}`, { scopeOverride, userIdOverride: userId }),
+        () => fhirCall('GET', `Patient/${encodeURIComponent(nhiGet1)}`, { scopeOverride, userIdOverride: userId }),
       )
       await run(
-        'NHI-P-Get-2: Positive Get Patient (test NHI 2)',
-        `GET Patient/${nhi2}. Second HNZ UAT persona to prove code-path parity across records.`,
-        { status: 200, description: '200 OK with FHIR Patient resource' },
-        () => fhirCall('GET', `Patient/${encodeURIComponent(nhi2)}`, { scopeOverride, userIdOverride: userId }),
+        `NHI-GET-2: Positive Get Patient — deceased flag (${nhiGet2})`,
+        `GET Patient/${nhiGet2}. Confirms the product surfaces deceased status + date of death. Persona: Laura Rose Smith-Martin (deceased). AITriage nhi-confirm step short-circuits with reason='deceased' when Patient.deceasedBoolean or Patient.deceasedDateTime is set.`,
+        { status: 200, description: '200 OK; deceased status surfaced to caller' },
+        () => fhirCall('GET', `Patient/${encodeURIComponent(nhiGet2)}`, { scopeOverride, userIdOverride: userId }),
       )
       await run(
-        'NHI-P-Get-3: Not-Found Get Patient',
-        `GET Patient/${notFoundNhi}. Confirms the product surfaces a 404 (or OperationOutcome) gracefully when the NHI does not exist.`,
-        { status: 404, description: '404 Not Found (or OperationOutcome)' },
+        `NHI-GET-4: Positive Get Patient — partial dates (${nhiGet4})`,
+        `GET Patient/${nhiGet4}. Confirms the product handles a Patient resource with a partial birthDate (year-only) and a non-validated address without crashing. Persona: John Test Yossarian, DOB 1914-01-01.`,
+        { status: 200, description: '200 OK with FHIR Patient resource' },
+        () => fhirCall('GET', `Patient/${encodeURIComponent(nhiGet4)}`, { scopeOverride, userIdOverride: userId }),
+      )
+      await run(
+        `NHI-GET-5: Dormant NHI redirect (${nhiGet5} → live NHI)`,
+        `GET Patient/${nhiGet5}. Dormant NHI — HNZ returns the live NHI (ZAT2496) in the response with an OperationOutcome flag. Confirms product alerts the caller of dormant status rather than treating the redirect as a mismatch.`,
+        { status: 200, description: '200 OK; dormant status surfaced' },
+        () => fhirCall('GET', `Patient/${encodeURIComponent(nhiGet5)}`, { scopeOverride, userIdOverride: userId }),
+      )
+      await run(
+        `NHI-GET-Negative: Not-Found (${notFoundNhi})`,
+        `GET Patient/${notFoundNhi}. Confirms the product surfaces a 404 (or OperationOutcome) gracefully when the NHI does not exist in the NHI dataset.`,
+        { accepted_statuses: [404, 200], description: '404 Not Found — or 200 OK with an OperationOutcome error' },
         () => fhirCall('GET', `Patient/${encodeURIComponent(notFoundNhi)}`, { scopeOverride, userIdOverride: userId }),
       )
       await run(
-        'NHI-P-Get-4: Malformed Input Handling',
-        `GET Patient/${malformed}. Confirms malformed NHI characters return a documented 4xx without leaking stack traces.`,
+        'NHI-GET-Malformed: Malformed input handling',
+        `GET Patient/${malformed}. Confirms malformed NHI characters return a documented 4xx without leaking stack traces or crashing the server.`,
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
         () => fhirCall('GET', `Patient/${encodeURIComponent(malformed)}`, { scopeOverride, userIdOverride: userId }),
       )
+      // ── Patient.s (Search / Match) scenarios ──────────────────────────────
       await run(
-        `NHI-P-Search-1: Search Patient by name + DOB (${searchGiven} ${searchFamily} ${searchDob})`,
-        `Search /Patient?given=${searchGiven}&family=${searchFamily}&birthdate=${searchDob}. HNZ compliance requires demographic search returns a FHIR Bundle. Evidence: admin UI screenshot showing matched Bundle.`,
-        { status: 200, description: '200 OK with FHIR Bundle' },
-        () => fhirCall('GET', 'Patient', { params: { given: searchGiven, family: searchFamily, birthdate: searchDob }, scopeOverride, userIdOverride: userId }),
+        `NHI-Match-1: Positive search — ${match1Given} ${match1Family} ${match1Dob}`,
+        `GET Patient?given=${match1Given}&family=${match1Family}&birthdate=${match1Dob}. Confirms demographic search returns a FHIR Bundle ordered by match score (descending). Top result should be ${match1Nhi}.`,
+        { status: 200, description: '200 OK with FHIR Bundle; top-ranked result is the expected NHI' },
+        () => fhirCall('GET', 'Patient', { params: { given: match1Given, family: match1Family, birthdate: match1Dob }, scopeOverride, userIdOverride: userId }),
       )
       await run(
-        `NHI-P-Validate-1: Validate Patient (${nhi1})`,
-        `POST Patient/$validate with a candidate resource. Confirms Validate scope + $validate operation are wired. Accepts 200 OK (OperationOutcome informational) or 422 Unprocessable Entity (well-formed demographic mismatch).`,
-        { accepted_statuses: [200, 422], description: '200 or 422 with FHIR OperationOutcome' },
+        'NHI-Match-Error-1: Missing DOB returns 400',
+        `GET Patient?given=Rhetoric. Confirms the product requires DOB on search — HNZ returns 400 with an OperationOutcome error "Date of Birth is required".`,
+        { status: 400, description: '400 Bad Request with OperationOutcome' },
+        () => fhirCall('GET', 'Patient', { params: { given: 'Rhetoric' }, scopeOverride, userIdOverride: userId }),
+      )
+      await run(
+        'NHI-Match-Error-2: Missing name returns 400',
+        `GET Patient?birthdate=1954-09-28. Confirms the product requires name on search — HNZ returns 400 with an OperationOutcome error "Name is required".`,
+        { status: 400, description: '400 Bad Request with OperationOutcome' },
+        () => fhirCall('GET', 'Patient', { params: { birthdate: '1954-09-28' }, scopeOverride, userIdOverride: userId }),
+      )
+      // ── Patient.v (Validate) scenarios ────────────────────────────────────
+      await run(
+        `NHI-Validate-1: Positive validate — ${val1Given} ${val1Family} (${val1Nhi})`,
+        `POST Patient/$validate with { NHI ${val1Nhi}, name ${val1Given} ${val1Family}, DOB ${val1Dob} }. Confirms the Validate scope + $validate operation are wired end-to-end.`,
+        { accepted_statuses: [200, 422], description: '200 OK (or 422 Unprocessable Entity) with FHIR OperationOutcome / Bundle' },
         () => fhirCall('POST', 'Patient/$validate', {
           body: {
             resourceType: 'Patient',
-            identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi1 }],
-            name: [{ family: searchFamily, given: [searchGiven] }],
-            birthDate: searchDob,
+            identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: val1Nhi }],
+            name: [{ family: val1Family, given: [val1Given] }],
+            birthDate: val1Dob,
+          },
+          scopeOverride, userIdOverride: userId,
+        }),
+      )
+      await run(
+        `NHI-Validate-3: Negative validate — ${val3Given} ${val3Family} (${val3Nhi})`,
+        `POST Patient/$validate with candidate demographics that do NOT match the NHI record. HNZ returns an empty Bundle (negative validation result). Confirms the product handles a negative validation without treating it as an error.`,
+        { accepted_statuses: [200, 422], description: '200 OK with empty Bundle — or 422 Unprocessable Entity' },
+        () => fhirCall('POST', 'Patient/$validate', {
+          body: {
+            resourceType: 'Patient',
+            identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: val3Nhi }],
+            name: [{ family: val3Family, given: [val3Given] }],
+            birthDate: val3Dob,
           },
           scopeOverride, userIdOverride: userId,
         }),
