@@ -9,25 +9,28 @@ import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNett
 import { getRrDisplay } from '../../lib/rrDisplay'
 
 // Continuity-of-care GP autocomplete — hits /api/gp-directory as provider
-// types the GP's name. Selecting a hit fills name+practice+email in one
-// click. Falls back to plain typed value if no directory hit (rural GPs
-// not yet in the seeded roster still get manual entry).
-function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
+// types. Selecting a GP fills name+practice+email in one click; selecting
+// a practice fills just practice+email (patients often know their clinic
+// but not their specific GP). Falls back to plain typed value if no
+// directory hit (rural GPs not yet in the seeded roster still work).
+function GpDirectoryPicker({ value, onChange, onSelect, onSelectPractice, placeholder }) {
   const [open,        setOpen]        = useState(false)
   const [loading,     setLoading]     = useState(false)
-  const [results,     setResults]     = useState([])
+  const [providers,   setProviders]   = useState([])
+  const [practices,   setPractices]   = useState([])
   const timerRef = useRef(null)
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
     const q = String(value || '').trim()
-    if (q.length < 2) { setResults([]); return }
+    if (q.length < 2) { setProviders([]); setPractices([]); return }
     setLoading(true)
     timerRef.current = setTimeout(async () => {
       try {
         const r = await apiFetch(`/api/gp-directory?q=${encodeURIComponent(q)}`)
         const body = await r.json().catch(() => ({}))
-        setResults(Array.isArray(body.providers) ? body.providers : [])
-      } catch { setResults([]) }
+        setProviders(Array.isArray(body.providers) ? body.providers : [])
+        setPractices(Array.isArray(body.practices) ? body.practices : [])
+      } catch { setProviders([]); setPractices([]) }
       setLoading(false)
     }, 250)
     return () => clearTimeout(timerRef.current)
@@ -41,12 +44,15 @@ function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         placeholder={placeholder}
         style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', width:'100%', boxSizing:'border-box' }} />
-      {open && (loading || results.length > 0 || String(value || '').trim().length >= 2) && (
-        <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:2, background:'white', border:'1px solid #E2E8F0', borderRadius:6, boxShadow:'0 4px 14px rgba(0,0,0,0.10)', zIndex:100, maxHeight:280, overflowY:'auto' }}>
-          {loading && results.length === 0 && (
+      {open && (loading || providers.length > 0 || practices.length > 0 || String(value || '').trim().length >= 2) && (
+        <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:2, background:'white', border:'1px solid #E2E8F0', borderRadius:6, boxShadow:'0 4px 14px rgba(0,0,0,0.10)', zIndex:100, maxHeight:320, overflowY:'auto' }}>
+          {loading && providers.length === 0 && practices.length === 0 && (
             <div style={{ padding:'.5rem .75rem', color:'#6B7280', fontSize:'.8125rem' }}>Searching…</div>
           )}
-          {results.map(p => (
+          {providers.length > 0 && (
+            <div style={{ padding:'.35rem .75rem', fontSize:'.6875rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.5px', background:'#F9FAFB', borderBottom:'1px solid #F1F5F9' }}>GPs</div>
+          )}
+          {providers.map(p => (
             <div
               key={p.id}
               onMouseDown={(e) => { e.preventDefault(); onSelect(p); setOpen(false) }}
@@ -58,13 +64,30 @@ function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
               )}
             </div>
           ))}
+          {/* Practices — patients often know their clinic but not their
+              specific GP. Clicking a practice fills practice+email and
+              leaves the GP name field blank for the provider to fill in
+              (or leave as "GP at Renwick Medical Centre" for the letter). */}
+          {practices.length > 0 && (
+            <div style={{ padding:'.35rem .75rem', fontSize:'.6875rem', fontWeight:700, color:'#9CA3AF', textTransform:'uppercase', letterSpacing:'.5px', background:'#F9FAFB', borderBottom:'1px solid #F1F5F9', borderTop: providers.length > 0 ? '1px solid #E2E8F0' : 'none' }}>Practices</div>
+          )}
+          {practices.map(p => (
+            <div
+              key={p.id}
+              onMouseDown={(e) => { e.preventDefault(); onSelectPractice && onSelectPractice(p); setOpen(false) }}
+              style={{ padding:'.55rem .75rem', fontSize:'.8125rem', cursor:'pointer', borderBottom:'1px solid #F1F5F9', lineHeight:1.4 }}
+            >
+              <div style={{ fontWeight:600, color:'#0D2B45' }}>🏥 {p.name}</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280' }}>{p.email}{p.address ? ` · ${p.address}` : ''}</div>
+            </div>
+          ))}
           {/* Escape hatch — always offer to keep the typed name for GPs
               not yet in the seeded directory. Mirrors the address picker
               behaviour so providers never feel stuck. */}
           {!loading && String(value || '').trim().length >= 2 && (
             <div
               onMouseDown={(e) => { e.preventDefault(); setOpen(false) }}
-              style={{ padding:'.55rem .75rem', fontSize:'.8125rem', cursor:'pointer', background:'#F0F9FA', color:'#0B6E76', lineHeight:1.4, fontWeight:600 }}
+              style={{ padding:'.55rem .75rem', fontSize:'.8125rem', cursor:'pointer', background:'#F0F9FA', color:'#0B6E76', lineHeight:1.4, fontWeight:600, borderTop: (providers.length > 0 || practices.length > 0) ? '1px solid #E2E8F0' : 'none' }}
             >
               ✓ Use what I typed: <span style={{ fontWeight:400 }}>“{value}”</span>
               <div style={{ fontSize:'.6875rem', color:'#6B7280', fontWeight:400, marginTop:2 }}>Fill practice + email manually below</div>
@@ -1895,7 +1918,15 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                               if (p.practice?.name)  setContGpPractice(p.practice.name)
                               if (p.practice?.email) setContGpEmail(p.practice.email)
                             }}
-                            placeholder="GP or specialist name (type to search directory)" />
+                            onSelectPractice={p => {
+                              // Patient knows the clinic but not the GP —
+                              // fill practice+email, leave name generic so
+                              // reception can route the letter internally.
+                              setContGpName(`GP at ${p.name}`)
+                              setContGpPractice(p.name)
+                              if (p.email) setContGpEmail(p.email)
+                            }}
+                            placeholder="GP name or practice (type to search)" />
                           <input value={contGpPractice} onChange={e => setContGpPractice(e.target.value)} placeholder="Practice / clinic" style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:FF, fontSize:'.8125rem' }} />
                         </div>
                         <input value={contGpEmail} onChange={e => setContGpEmail(e.target.value)} type="email"

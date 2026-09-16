@@ -30,7 +30,10 @@ export default async function handler(req, res) {
   const supabase = admin()
 
   // Practices lookup — always returned so the picker can show a "browse
-  // by practice" fallback when no query text is entered.
+  // by practice" fallback when no query text is entered. When q is set,
+  // filter by case-insensitive name substring so typing "renwick" finds
+  // Renwick Medical Centre — many patients know their practice but not
+  // their specific GP.
   let practicesQuery = supabase
     .from('gp_practices')
     .select('id, name, address, phone, email, region')
@@ -38,6 +41,7 @@ export default async function handler(req, res) {
     .order('name', { ascending: true })
     .limit(200)
   if (region) practicesQuery = practicesQuery.eq('region', region)
+  if (q.length >= 2) practicesQuery = practicesQuery.ilike('name', `%${q}%`)
   const { data: practices, error: pErr } = await practicesQuery
   if (pErr) return res.status(500).json({ error: pErr.message })
 
