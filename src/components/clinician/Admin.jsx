@@ -1272,14 +1272,51 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
         </div>
       )}
 
-      {/* Request/correlation metadata */}
+      {/* Input echo — proves in the same frame what was TYPED into the app */}
+      <div style={{ ...panel, background:'#F7F5F0', borderColor:'#E7E1D3' }}>
+        <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+          Input received by the application
+        </div>
+        <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.8125rem', color:'#0D2B45', wordBreak:'break-word' }}>
+          <strong>{result.kind === 'get' ? 'Get Patient (by NHI)' : result.kind === 'match' ? 'Match (POST /Patient/$match, onlyCertainMatches=false)' : 'Validate (POST /Patient/$match, onlyCertainMatches=true)'}</strong>
+          {' — '}
+          {typeof result.requested === 'string'
+            ? <>NHI = <code>{result.requested}</code></>
+            : Object.entries(result.requested || {}).filter(([, v]) => v).map(([k, v], i) => (
+                <span key={k}>{i > 0 && ', '}{k} = <code>{String(v)}</code></span>
+              ))}
+        </div>
+      </div>
+
+      {/* Request/correlation metadata — evidence for HNZ Security 1-4 */}
       <div style={panel}>
-        <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>Request evidence</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'1rem', fontSize:'.8125rem' }}>
-          <div><div style={label}>Endpoint</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.url}</div></div>
+        <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+          Request evidence <span style={{ color:'#9CA3AF', fontWeight:600 }}>(HNZ NHI IG §4.1.2 + Security 1-4)</span>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'1rem', fontSize:'.8125rem' }}>
+          <div><div style={label}>Endpoint</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151', wordBreak:'break-all' }}>{result.method || 'GET'} {result.url}</div></div>
           <div><div style={label}>HTTP status</div><div style={value}>{result.status}</div></div>
           <div><div style={label}>Duration</div><div style={value}>{result.duration_ms} ms</div></div>
-          <div><div style={label}>X-Correlation-Id</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.correlation_id}</div></div>
+          <div>
+            <div style={label}>Requested at (ISO 8601 UTC)</div>
+            <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.requested_at || 'n/a'}</div>
+          </div>
+          <div>
+            <div style={label}>X-Correlation-Id <span style={{ color:'#9CA3AF', fontWeight:600 }}>(Security 4)</span></div>
+            <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.correlation_id}</div>
+          </div>
+          <div>
+            <div style={label}>userid sent <span style={{ color:'#9CA3AF', fontWeight:600 }}>(Security 2/3)</span></div>
+            <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.sent_userid || 'n/a'}</div>
+          </div>
+          <div>
+            <div style={label}>x-api-key sent <span style={{ color:'#9CA3AF', fontWeight:600 }}>(Security 1)</span></div>
+            <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.sent_x_api_key_prefix || 'n/a'}</div>
+          </div>
+          <div style={{ gridColumn:'1 / -1' }}>
+            <div style={label}>OAuth scope(s) requested on Bearer token <span style={{ color:'#9CA3AF', fontWeight:600 }}>(Security 1)</span></div>
+            <div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151', wordBreak:'break-all' }}>{result.sent_scope || 'n/a'}</div>
+          </div>
         </div>
         <div style={{ marginTop:'.75rem' }}>
           <button type="button" onClick={() => setShowRaw(!showRaw)} style={{ background:'transparent', color:'#6B7280', border:'1.5px solid #E2E8F0', padding:'6px 12px', borderRadius:6, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>

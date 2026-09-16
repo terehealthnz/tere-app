@@ -90,11 +90,14 @@ async function fhirCall(method, path, { params, body, scopeOverride, userIdOverr
   }
   const corrId = (globalThis.crypto?.randomUUID?.() || String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10))
   const started = Date.now()
+  const sentUserId = String(userIdOverride || 'tere-service')
+  const sentScope = scopeOverride !== undefined ? scopeOverride : SCOPES
+  const requestedAt = new Date(started).toISOString()
   const headers = {
     Authorization:      `Bearer ${token}`,
     Accept:             'application/fhir+json',
     'x-api-key':        CLIENT_ID,
-    userid:             String(userIdOverride || 'tere-service'),
+    userid:             sentUserId,
     'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
     'X-Correlation-Id': corrId,
   }
@@ -109,10 +112,19 @@ async function fhirCall(method, path, { params, body, scopeOverride, userIdOverr
   try { parsed = text ? JSON.parse(text) : {} } catch { parsed = { raw: text.slice(0, 400) } }
   return {
     url:          url.toString(),
+    method,
     status:       r.status,
     body:         parsed,
     duration_ms:  Date.now() - started,
     correlation_id: corrId,
+    // Surfaced to the admin panel so screenshots can evidence HNZ Security
+    // 1 (org-scoped OAuth), Security 2 (per-user userid), Security 3 (userid
+    // changes per end-user), and Security 4 (unique X-Correlation-Id) in a
+    // single frame.
+    sent_userid: sentUserId,
+    sent_scope: sentScope,
+    sent_x_api_key_prefix: CLIENT_ID ? `${CLIENT_ID.slice(0, 8)}…` : null,
+    requested_at: requestedAt,
   }
 }
 
