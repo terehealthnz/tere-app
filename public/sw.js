@@ -4,7 +4,9 @@
 // activate() nukes the previous cache. v7→v8: this SW now aggressively
 // skips HTML/JS/CSS from the cache entirely (see shouldSkipCache) so
 // stale shells can't hand out dead chunk hashes after a deploy.
-const CACHE = 'tere-v8'
+// v8→v9: forced eviction cycle on 2026-09-16 to clear a stuck AITriage
+// chunk (some clients were serving pre-6032c39 code even after hard-refresh).
+const CACHE = 'tere-v9'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 
