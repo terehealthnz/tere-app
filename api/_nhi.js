@@ -68,6 +68,19 @@ async function getBearer(scopeOverride) {
   return j.access_token
 }
 
+// FHIR Parameters body for POST /Patient/$match. HNZ uses the same endpoint
+// for both Match (fuzzy demographic search, onlyCertainMatches=false) and
+// Validate (strict identity confirmation against a known NHI, onlyCertainMatches=true).
+export function buildMatchBody(patient, onlyCertain) {
+  return {
+    resourceType: 'Parameters',
+    parameter: [
+      { name: 'resource', resource: { resourceType: 'Patient', ...patient } },
+      { name: 'onlyCertainMatches', valueBoolean: !!onlyCertain },
+    ],
+  }
+}
+
 async function fhirCall(method, path, { params, body, scopeOverride, userIdOverride } = {}) {
   if (!FHIR_BASE) throw new Error('NHI env missing: NHI_FHIR_BASE')
   const token = await getBearer(scopeOverride)
@@ -147,11 +160,43 @@ export default async function handler(req, res) {
     const userId = String(req.query.userid || hpiUserIdForProvider(auth.provider))
 
     if (action === 'get_patient') {
-      const nhi = String(req.query.nhi || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-      if (!nhi) return res.status(400).json({ error: 'nhi query param required' })
+      // Allow the malformed compliance persona through the raw-ish path; only
+      // strip pathological control chars. HIP will return a graceful 4xx.
+      const raw = String(req.query.nhi || '').trim()
+      if (!raw) return res.status(400).json({ error: 'nhi query param required' })
+      const nhi = /^[A-Z0-9]+$/i.test(raw) ? raw.toUpperCase() : raw
       const rawScope = req.query.scope
       const scopeOverride = rawScope === 'none' ? '' : (rawScope != null ? String(rawScope) : undefined)
       const r = await fhirCall('GET', `Patient/${encodeURIComponent(nhi)}`, { scopeOverride, userIdOverride: userId })
+      return res.status(200).json(r)
+    }
+
+    // Admin panel — POST /Patient/$match with onlyCertainMatches=false
+    if (action === 'match_patient') {
+      const given = String(req.query.given || '').trim()
+      const family = String(req.query.family || '').trim()
+      const birthdate = String(req.query.birthdate || '').trim()
+      if (!family && !given && !birthdate) return res.status(400).json({ error: 'given/family/birthdate required' })
+      const patient = {}
+      if (family || given) patient.name = [{ family: family || undefined, given: given ? [given] : undefined }]
+      if (birthdate) patient.birthDate = birthdate
+      const r = await fhirCall('POST', 'Patient/$match', { body: buildMatchBody(patient, false), userIdOverride: userId })
+      return res.status(200).json(r)
+    }
+
+    // Admin panel — POST /Patient/$match with onlyCertainMatches=true
+    if (action === 'validate_patient') {
+      const nhi = String(req.query.nhi || '').trim().toUpperCase()
+      const given = String(req.query.given || '').trim()
+      const family = String(req.query.family || '').trim()
+      const birthdate = String(req.query.birthdate || '').trim()
+      if (!nhi) return res.status(400).json({ error: 'nhi required for validate' })
+      const patient = {
+        identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi }],
+        ...(family || given ? { name: [{ family: family || undefined, given: given ? [given] : undefined }] } : {}),
+        ...(birthdate ? { birthDate: birthdate } : {}),
+      }
+      const r = await fhirCall('POST', 'Patient/$match', { body: buildMatchBody(patient, true), userIdOverride: userId })
       return res.status(200).json(r)
     }
 
@@ -255,21 +300,10 @@ export default async function handler(req, res) {
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
         () => fhirCall('GET', `Patient/${encodeURIComponent(malformed)}`, { scopeOverride, userIdOverride: userId }),
       )
-      // HNZ NHI uses a SINGLE operation for both Match (fuzzy search) and
-      // Validate (strict check): POST /Patient/$match with a FHIR Parameters
-      // body. The onlyCertainMatches boolean distinguishes the two modes:
-      //   false → Match (returns Bundle of demographic matches with scores)
-      //   true  → Validate (strict identity confirmation against a known NHI)
-      // There is NO plain FHIR search (GET /Patient?given=...) and NO
-      // separate $validate operation on HIP. Reference:
-      //   https://nhi-ig.hip.digital.health.nz/API.html
-      const buildMatchBody = (patient, onlyCertain) => ({
-        resourceType: 'Parameters',
-        parameter: [
-          { name: 'resource', resource: { resourceType: 'Patient', ...patient } },
-          { name: 'onlyCertainMatches', valueBoolean: !!onlyCertain },
-        ],
-      })
+      // HNZ NHI uses POST /Patient/$match for both Match (fuzzy demographic
+      // search, onlyCertainMatches=false) and Validate (strict identity
+      // confirmation, onlyCertainMatches=true). See buildMatchBody() at
+      // module scope. Ref: https://nhi-ig.hip.digital.health.nz/API.html
 
       // ── Patient.s (Match — fuzzy demographic search) scenarios ────────────
       await run(
@@ -352,7 +386,7 @@ export default async function handler(req, res) {
       })
     }
 
-    return res.status(400).json({ error: `Unknown action "${action}". Valid: ping, token_probe, get_patient, compliance_pack` })
+    return res.status(400).json({ error: `Unknown action "${action}". Valid: ping, token_probe, get_patient, match_patient, validate_patient, compliance_pack` })
   } catch (e) {
     console.error('[nhi] error:', e.message)
     return res.status(500).json({ error: 'Server error', detail: e.message })

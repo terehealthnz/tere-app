@@ -970,6 +970,332 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
   )
 }
 
+// AdminNhiLookupPanel — admin surface for HNZ NHI FHIR API (ticket IN-3439).
+// Renders every field HNZ requires the product surface for NHI compliance:
+//   NHI-GET-1     Positive Get Patient — minimum identity (name, DOB, gender)
+//   NHI-GET-2     Deceased banner + date of death
+//   NHI-GET-4     Partial birthDate rendered without crashing
+//   NHI-GET-5     Dormant NHI → live NHI redirect notice
+//   NHI-GET-Neg   404 OperationOutcome surfaced gracefully
+//   NHI-GET-Mal   Malformed input → graceful 4xx
+//   NHI-Match-1   POST /Patient/$match (fuzzy demographic search) → Bundle
+//   NHI-Validate  POST /Patient/$match with onlyCertainMatches=true → Bundle
+// Each field is a distinct visual element so screenshots can be cited by ref.
+function AdminNhiLookupPanel() {
+  const [mode, setMode] = React.useState('get') // 'get' | 'match' | 'validate'
+  const [nhi, setNhi] = React.useState('')
+  const [given, setGiven] = React.useState('')
+  const [family, setFamily] = React.useState('')
+  const [dob, setDob] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState(null)
+  const [error, setError] = React.useState('')
+  const [showRaw, setShowRaw] = React.useState(false)
+
+  async function runGet(nhiOverride) {
+    const q = String(nhiOverride ?? nhi).trim()
+    if (!q) return
+    setBusy(true); setError(''); setResult(null)
+    try {
+      const r = await apiFetch(`/api/nhi?action=get_patient&nhi=${encodeURIComponent(q)}`)
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setResult({ kind: 'get', requested: q, ...j })
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  async function runMatch(overrides) {
+    const g = String(overrides?.given ?? given).trim()
+    const f = String(overrides?.family ?? family).trim()
+    const d = String(overrides?.birthdate ?? dob).trim()
+    if (!f && !g && !d) return
+    setBusy(true); setError(''); setResult(null); setGiven(g); setFamily(f); setDob(d)
+    try {
+      const qs = new URLSearchParams({ action:'match_patient', given:g, family:f, birthdate:d }).toString()
+      const r = await apiFetch(`/api/nhi?${qs}`)
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setResult({ kind: 'match', requested: { given:g, family:f, birthdate:d }, ...j })
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  async function runValidate(overrides) {
+    const n = String(overrides?.nhi ?? nhi).trim()
+    const g = String(overrides?.given ?? given).trim()
+    const f = String(overrides?.family ?? family).trim()
+    const d = String(overrides?.birthdate ?? dob).trim()
+    if (!n) return
+    setBusy(true); setError(''); setResult(null); setNhi(n); setGiven(g); setFamily(f); setDob(d)
+    try {
+      const qs = new URLSearchParams({ action:'validate_patient', nhi:n, given:g, family:f, birthdate:d }).toString()
+      const r = await apiFetch(`/api/nhi?${qs}`)
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setResult({ kind: 'validate', requested: { nhi:n, given:g, family:f, birthdate:d }, ...j })
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  const panelStyle = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
+  const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
+  const inputStyle = { padding:'8px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', width:'100%' }
+  const btnStyle = { background:'#0B6E76', color:'white', border:'none', padding:'8px 16px', borderRadius:8, fontSize:'.875rem', fontWeight:700, cursor:'pointer' }
+  const modeBtn = (id) => ({ background: mode===id ? '#0B6E76' : 'transparent', color: mode===id ? 'white' : '#0B6E76', border: `1.5px solid #0B6E76`, padding:'6px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' })
+  const scenarioBtn = { background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }
+
+  return (
+    <div>
+      <div style={panelStyle}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>NHI Patient Lookup</div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
+          Live query against Te Whatu Ora NHI FHIR API (UAT). GET Patient/{'{nhi}'} for identity confirmation. POST Patient/$match for demographic search (onlyCertainMatches=false) and strict identity validation (onlyCertainMatches=true). Every request is audit-logged. Ticket IN-3439.
+        </div>
+
+        <div style={{ display:'flex', gap:8, marginBottom:'1rem' }}>
+          <button type="button" onClick={() => { setMode('get'); setResult(null); setError('') }} style={modeBtn('get')}>Get Patient (by NHI)</button>
+          <button type="button" onClick={() => { setMode('match'); setResult(null); setError('') }} style={modeBtn('match')}>Match (demographic search)</button>
+          <button type="button" onClick={() => { setMode('validate'); setResult(null); setError('') }} style={modeBtn('validate')}>Validate (NHI + demographics)</button>
+        </div>
+
+        {mode === 'get' && (
+          <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+            <div style={{ flex:1 }}>
+              <div style={label}>NHI</div>
+              <input value={nhi} onChange={e => setNhi(e.target.value)} placeholder="e.g. ZJS7596" style={inputStyle} onKeyDown={e => e.key === 'Enter' && runGet()} />
+            </div>
+            <button type="button" onClick={() => runGet()} disabled={busy || !nhi.trim()} style={{ ...btnStyle, opacity: busy || !nhi.trim() ? .5 : 1 }}>Get</button>
+          </div>
+        )}
+        {mode === 'match' && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr auto', gap:8, alignItems:'flex-end' }}>
+            <div><div style={label}>Given</div><input value={given} onChange={e => setGiven(e.target.value)} placeholder="Noah" style={inputStyle} /></div>
+            <div><div style={label}>Family</div><input value={family} onChange={e => setFamily(e.target.value)} placeholder="Owen" style={inputStyle} /></div>
+            <div><div style={label}>Birth date</div><input value={dob} onChange={e => setDob(e.target.value)} placeholder="1949-10-30" style={inputStyle} /></div>
+            <button type="button" onClick={() => runMatch()} disabled={busy} style={{ ...btnStyle, opacity: busy ? .5 : 1 }}>Match</button>
+          </div>
+        )}
+        {mode === 'validate' && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr auto', gap:8, alignItems:'flex-end' }}>
+            <div><div style={label}>NHI</div><input value={nhi} onChange={e => setNhi(e.target.value)} placeholder="ZJS7596" style={inputStyle} /></div>
+            <div><div style={label}>Given</div><input value={given} onChange={e => setGiven(e.target.value)} placeholder="Jamie" style={inputStyle} /></div>
+            <div><div style={label}>Family</div><input value={family} onChange={e => setFamily(e.target.value)} placeholder="Maraka" style={inputStyle} /></div>
+            <div><div style={label}>Birth date</div><input value={dob} onChange={e => setDob(e.target.value)} placeholder="1977-08-25" style={inputStyle} /></div>
+            <button type="button" onClick={() => runValidate()} disabled={busy || !nhi.trim()} style={{ ...btnStyle, opacity: busy || !nhi.trim() ? .5 : 1 }}>Validate</button>
+          </div>
+        )}
+
+        <div style={{ marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #F3F4F6' }}>
+          <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+            HNZ compliance scenarios (one-click)
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZJS7596'); runGet('ZJS7596') }}>NHI-GET-1 · ZJS7596 (positive)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2348'); runGet('ZAT2348') }}>NHI-GET-2 · ZAT2348 (deceased)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2496'); runGet('ZAT2496') }}>NHI-GET-4 · ZAT2496 (partial DOB)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2518'); runGet('ZAT2518') }}>NHI-GET-5 · ZAT2518 (dormant)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAA0044'); runGet('ZAA0044') }}>NHI-GET-Neg · ZAA0044 (404)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('!!invalid!!'); runGet('!!invalid!!') }}>NHI-GET-Mal · malformed</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Noah', family:'Owen', birthdate:'1949-10-30' }) }}>NHI-Match-1 · Noah Owen</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('validate'); runValidate({ nhi:'ZJS7596', given:'Jamie', family:'Maraka', birthdate:'1977-08-25' }) }}>NHI-Validate-1 · Jamie Maraka</button>
+          </div>
+        </div>
+
+        {busy && <div style={{ marginTop:'.75rem', fontSize:'.875rem', color:'#6B7280' }}>Querying NHI…</div>}
+        {error && (
+          <div style={{ marginTop:'.75rem', padding:'.75rem 1rem', background:'#FEE2E2', border:'1.5px solid #FCA5A5', borderRadius:8, color:'#7F1D1D', fontSize:'.875rem' }}>
+            ⚠ {error}
+          </div>
+        )}
+      </div>
+
+      {result && <NhiResultCard result={result} showRaw={showRaw} setShowRaw={setShowRaw} />}
+    </div>
+  )
+}
+
+function NhiResultCard({ result, showRaw, setShowRaw }) {
+  const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
+  const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
+  const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
+  const kv = (k, v) => (<div><div style={label}>{k}</div><div style={value}>{v || <span style={{ color:'#9CA3AF', fontWeight:400 }}>—</span>}</div></div>)
+
+  const body = result.body || {}
+  const isOO = body?.resourceType === 'OperationOutcome'
+  const isPatient = body?.resourceType === 'Patient'
+  const isBundle = body?.resourceType === 'Bundle'
+
+  // GET Patient — extract the fields HNZ requires the product surface
+  const shapePatient = (p) => {
+    if (!p || p.resourceType !== 'Patient') return null
+    const off = (p.name || []).find(n => (n.extension || []).some(x => x.url?.includes('iso21090-preferred') && x.valueBoolean === true)) || (p.name || [])[0] || {}
+    const given = (off.given || []).join(' ')
+    const family = off.family || ''
+    const address = (p.address || [])[0] || {}
+    const ethnicities = (p.extension || [])
+      .filter(x => x.url?.includes('nz-ethnicity'))
+      .map(x => x.valueCodeableConcept?.text || x.valueCodeableConcept?.coding?.[0]?.display).filter(Boolean)
+    return {
+      id: p.id, given, family,
+      gender: p.gender || '',
+      birthDate: p.birthDate || '',
+      deceasedDateTime: p.deceasedDateTime || (p.deceasedBoolean ? 'yes (boolean)' : ''),
+      addressLine: (address.line || []).join(', '),
+      addressCity: address.city || '',
+      addressPostal: address.postalCode || '',
+      ethnicity: ethnicities.join(' · '),
+      identifiers: (p.identifier || []).map(id => ({ system: id.system?.split('/').pop() || 'identifier', value: id.value, use: id.use })),
+    }
+  }
+  const shaped = shapePatient(body)
+
+  // Dormant-redirect detection: requested NHI ≠ returned Patient.id
+  const dormantRedirect = result.kind === 'get' && shaped && result.requested && shaped.id && shaped.id.toUpperCase() !== String(result.requested).toUpperCase()
+
+  return (
+    <>
+      {/* Deceased banner (NHI-GET-2) */}
+      {shaped?.deceasedDateTime && (
+        <div style={{ padding:'.875rem 1rem', background:'#1F2937', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>⚠</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Patient marked deceased in NHI</div>
+            <div style={{ fontSize:'.8125rem', opacity:.85 }}>Date of death: {shaped.deceasedDateTime}. Onboarding blocked at triage. (NHI-GET-2)</div>
+          </div>
+        </div>
+      )}
+
+      {/* Dormant NHI redirect (NHI-GET-5) */}
+      {dormantRedirect && (
+        <div style={{ padding:'.875rem 1rem', background:'#F59E0B', color:'#1F2937', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Dormant NHI — live record returned</div>
+          <div style={{ fontSize:'.8125rem' }}>Requested <code>{String(result.requested).toUpperCase()}</code> → NHI redirected to live <code>{shaped.id}</code>. Product uses the live NHI going forward. (NHI-GET-5)</div>
+        </div>
+      )}
+
+      {/* Not-found (NHI-GET-Negative) — OperationOutcome */}
+      {isOO && (
+        <div style={{ padding:'.875rem 1rem', background:'#FEE2E2', color:'#7F1D1D', border:'1.5px solid #FCA5A5', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>NHI request returned an error</div>
+          {(body.issue || []).map((iss, i) => (
+            <div key={i} style={{ fontSize:'.8125rem', marginTop:4 }}>
+              <strong>{iss.severity?.toUpperCase() || 'ERROR'}</strong> · {iss.details?.text || iss.diagnostics || iss.code}
+              {iss.details?.coding?.[0]?.code && <> · code <code>{iss.details.coding[0].code}</code></>}
+            </div>
+          ))}
+          <div style={{ fontSize:'.75rem', marginTop:6, color:'#991B1B' }}>Handled gracefully — no server crash. (NHI-GET-Negative / NHI-GET-Malformed)</div>
+        </div>
+      )}
+
+      {/* Patient card (NHI-GET-1/-2/-4/-5) */}
+      {shaped && (
+        <div style={panel}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', gap:12 }}>
+            <div>
+              <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{given || family ? `${shaped.given} ${shaped.family}` : shaped.id}</div>
+              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>NHI Patient resource · resource id <code>{shaped.id}</code></div>
+            </div>
+            <div style={{ padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap', background: shaped.deceasedDateTime ? '#374151' : '#DCFCE7', color: shaped.deceasedDateTime ? 'white' : '#166534' }}>
+              {shaped.deceasedDateTime ? '✗ DECEASED' : '✓ LIVE'}
+            </div>
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:'1rem', marginBottom:'1rem', paddingBottom:'1rem', borderBottom:'1px solid #F3F4F6' }}>
+            {kv('NHI', shaped.id)}
+            {kv('Given name', shaped.given)}
+            {kv('Family name', shaped.family)}
+            {kv('Birth date', shaped.birthDate)}
+            {kv('Gender', shaped.gender)}
+            {kv('Date of death', shaped.deceasedDateTime || 'not recorded')}
+          </div>
+
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'1rem', marginBottom:'1rem' }}>
+            {kv('Address', [shaped.addressLine, shaped.addressCity, shaped.addressPostal].filter(Boolean).join(', '))}
+            {kv('Ethnicity', shaped.ethnicity)}
+          </div>
+
+          {shaped.identifiers?.length > 0 && (
+            <div style={{ marginBottom:'1rem' }}>
+              <div style={{ fontSize:'.8125rem', fontWeight:800, color:'#0D2B45', marginBottom:'.5rem' }}>Identifiers ({shaped.identifiers.length})</div>
+              <div style={{ display:'grid', gap:'.375rem' }}>
+                {shaped.identifiers.map((id, i) => (
+                  <div key={i} style={{ padding:'.375rem .625rem', background:'#F9FAFB', borderRadius:6, fontSize:'.8125rem', display:'flex', gap:12 }}>
+                    <span style={{ fontWeight:700, color:'#0D2B45', minWidth:110 }}>{id.system}</span>
+                    <code style={{ color:'#374151' }}>{id.value}</code>
+                    {id.use && <span style={{ marginLeft:'auto', color:'#6B7280', fontStyle:'italic' }}>{id.use}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bundle (Match / Validate) — list of Patient entries with match score */}
+      {isBundle && (
+        <div style={panel}>
+          <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45', marginBottom:'.5rem' }}>
+            {result.kind === 'match' ? 'Match' : 'Validate'} results — {(body.entry || []).length} {result.kind === 'match' ? 'candidate match' : 'certain match'}{(body.entry || []).length === 1 ? '' : 'es'}
+            {result.kind === 'validate' && (
+              <span style={{ marginLeft:8, padding:'2px 10px', borderRadius:99, background:(body.entry || []).length > 0 ? '#DCFCE7' : '#FEE2E2', color:(body.entry || []).length > 0 ? '#166534' : '#7F1D1D', fontSize:'.6875rem', fontWeight:800 }}>
+                {(body.entry || []).length > 0 ? '✓ VALIDATED' : '✗ NO CERTAIN MATCH'}
+              </span>
+            )}
+          </div>
+          {(body.entry || []).length === 0 ? (
+            <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>Empty Bundle returned — no {result.kind === 'match' ? 'candidate matches' : 'certain match'} for the supplied demographics. HNZ documents this as a legitimate outcome (not an error).</div>
+          ) : (
+            <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
+              {(body.entry || []).map((e, i) => {
+                const sp = shapePatient(e.resource)
+                const score = e.search?.score
+                return (
+                  <div key={i} style={{ padding:'.75rem 1rem', borderBottom: i < body.entry.length - 1 ? '1px solid #F3F4F6' : 'none', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div>
+                      <div style={{ fontWeight:700, color:'#0D2B45' }}>{sp?.given} {sp?.family} <code style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:500, marginLeft:6 }}>{sp?.id}</code></div>
+                      <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                        DOB {sp?.birthDate || '—'} · {sp?.gender || '—'}
+                        {sp?.deceasedDateTime && <> · <span style={{ color:'#B91C1C' }}>deceased {sp.deceasedDateTime}</span></>}
+                      </div>
+                    </div>
+                    {score != null && (
+                      <div style={{ padding:'4px 10px', borderRadius:99, background:'#F0F9FA', color:'#0B6E76', fontSize:'.6875rem', fontWeight:800 }}>
+                        match score {(score * 100).toFixed(0)}%
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Request/correlation metadata */}
+      <div style={panel}>
+        <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>Request evidence</div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'1rem', fontSize:'.8125rem' }}>
+          <div><div style={label}>Endpoint</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.url}</div></div>
+          <div><div style={label}>HTTP status</div><div style={value}>{result.status}</div></div>
+          <div><div style={label}>Duration</div><div style={value}>{result.duration_ms} ms</div></div>
+          <div><div style={label}>X-Correlation-Id</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151' }}>{result.correlation_id}</div></div>
+        </div>
+        <div style={{ marginTop:'.75rem' }}>
+          <button type="button" onClick={() => setShowRaw(!showRaw)} style={{ background:'transparent', color:'#6B7280', border:'1.5px solid #E2E8F0', padding:'6px 12px', borderRadius:6, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>
+            {showRaw ? 'Hide' : 'Show'} raw FHIR JSON response
+          </button>
+          {showRaw && (
+            <pre style={{ marginTop:'.75rem', padding:'.75rem', background:'#0F172A', color:'#E2E8F0', borderRadius:8, fontSize:'.6875rem', overflow:'auto', maxHeight:400, fontFamily:'ui-monospace, Menlo, monospace' }}>
+{JSON.stringify(body, null, 2)}
+            </pre>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
 // Verifies an HPI-CPN against the Te Whatu Ora HPI FHIR API via
 // /api/hpi?action=get_practitioner. Renders a small button + a result chip
 // underneath the input it sits next to. Fires onFound(practitioner) so the
@@ -6229,6 +6555,7 @@ function AdminBody() {
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
             { id:'hpi',          label:'🩺 HPI Lookup' },
+            { id:'nhi',          label:'🩺 NHI Lookup' },
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
@@ -6300,6 +6627,7 @@ function AdminBody() {
             case 'compliance':
               return <><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><CgmMeetingsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'hpi':        return <AdminHpiLookupPanel />
+            case 'nhi':        return <AdminNhiLookupPanel />
             case 'acc':        return <AccClaimsSection />
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
