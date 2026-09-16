@@ -83,31 +83,50 @@ function parseFhirPatient(r) {
   const city = home.city || null
   const suburb = (home.extension || []).find(x => (x.url || '').includes('suburb'))?.valueString
               || (home.district) || null
+  const line = Array.isArray(home.line) ? home.line.join(' ') : (home.line || null)
   return {
     name,
     dob:      r.birthDate || null,
     gender:   r.gender || null,
     deceased: r.deceasedBoolean === true || Boolean(r.deceasedDateTime),
-    address_parts: { postalCode, city, suburb },
+    address_parts: { line, postalCode, city, suburb },
   }
 }
 
-// Compare a patient's typed address free-text to HNZ's structured address.
-// Returns true if the typed address contains HNZ's postal code OR suburb OR
-// city (case-insensitive substring match). Deliberately permissive — the
-// patient's typed address is a free-text field and may include unit numbers,
-// street name variations, etc. We only need enough signal that this is
-// unlikely to be a stranger typing someone else's name+DOB.
+// Normalise an address string for tolerant comparison: lowercase, strip
+// punctuation (commas / hyphens / slashes), collapse whitespace. Lets us
+// match OSM's "2, Tennyson Street" against HNZ's "2 Tennyson Street".
+function normAddr(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Compare a patient's typed / picked address to HNZ's structured address.
+// The patient's field may be freeform, or an OSM display_name that prefixes
+// landmark names ("Art Deco Masonic Hotel, 2, Tennyson Street, …"). The
+// strength tier is what drives confidence downstream:
+//   strong   — street line matches (specific to the exact residence)
+//   moderate — postcode + (suburb or city) both match (area confirmation)
+//   weak     — only one of postcode/suburb/city matches (broad area)
+//   none     — nothing matches
+// Only 'strong' or 'moderate' warrants skipping the "is this you?" prompt.
 function addressMatches(patientTyped, addressParts) {
   if (!patientTyped || !addressParts) return null
-  const t = String(patientTyped).toLowerCase()
-  const { postalCode, city, suburb } = addressParts
+  const t = normAddr(patientTyped)
+  const { line, postalCode, city, suburb } = addressParts
   const hits = []
-  if (postalCode && t.includes(String(postalCode).toLowerCase())) hits.push('postalCode')
-  if (suburb    && t.includes(String(suburb).toLowerCase()))      hits.push('suburb')
-  if (city      && t.includes(String(city).toLowerCase()))        hits.push('city')
-  if (hits.length > 0) return { matched: true, hits }
-  return { matched: false, hits: [] }
+  if (line && line.length > 4 && t.includes(normAddr(line))) hits.push('street')
+  if (postalCode && new RegExp(`\\b${String(postalCode)}\\b`).test(t)) hits.push('postalCode')
+  if (suburb    && normAddr(suburb).length > 2 && t.includes(normAddr(suburb))) hits.push('suburb')
+  if (city      && normAddr(city).length   > 2 && t.includes(normAddr(city)))   hits.push('city')
+  let strength = 'none'
+  if (hits.includes('street')) strength = 'strong'
+  else if (hits.includes('postalCode') && (hits.includes('suburb') || hits.includes('city'))) strength = 'moderate'
+  else if (hits.length > 0) strength = 'weak'
+  return { matched: hits.length > 0, hits, strength }
 }
 
 function norm(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' ') }
@@ -265,18 +284,20 @@ export default async function handler(req, res) {
     }
 
     // Silent second-factor check — compare HNZ's stored address to the
-    // patient's typed address. If postal code / suburb / city appears in
-    // the patient's typed address, that's independent evidence beyond
-    // the name+DOB we used to match. Never returns HNZ's address to the
-    // client (would leak PII if a malicious caller guessed a name+DOB).
+    // patient's typed address. See addressMatches() for how strength is
+    // scored (street > postcode+area > single component). Never returns
+    // HNZ's address to the client (would leak PII if a malicious caller
+    // guessed a name+DOB).
     const addr = addressMatches(patientAddress, patient.address_parts)
-    // Confidence tiers:
-    //   high   → name+DOB match AND at least one address component matches.
-    //            Enough signal to skip the circular "is that you?" prompt.
-    //   medium → name+DOB match only (no address to compare, or address
-    //            didn't match). Prompt the patient to confirm.
+    // Confidence tiers used to decide whether to prompt "is that you?":
+    //   high   → strength ∈ {strong, moderate} — either street matches or
+    //            postcode + (suburb|city) match. Strong enough to skip
+    //            the circular confirmation prompt.
+    //   medium → name+DOB match only, or weak address hit (single postcode
+    //            or single city). Prompt patient to confirm.
     const matched_fields = ['name', 'dob', ...(addr?.hits || [])]
-    const confidence = addr?.matched ? 'high' : 'medium'
+    const strength = addr?.strength || 'none'
+    const confidence = (strength === 'strong' || strength === 'moderate') ? 'high' : 'medium'
 
     // Success — return NHI + display tuple + confidence. When we
     // auto-discovered the NHI (MODE 2), the frontend needs the NHI to
@@ -286,6 +307,7 @@ export default async function handler(req, res) {
       matched: true,
       reason:  cleanNhi ? 'validated' : 'auto_matched',
       confidence,
+      address_match_strength: strength,
       matched_fields,
       display: { name: patient.name, dob: patient.dob, nhi: resource?.id || cleanNhi || null },
     })
