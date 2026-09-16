@@ -210,19 +210,19 @@ const T = {
   },
 
   nhi: {
-    en: "Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.",
-    mi: "Kei te mōhio koe ki tō nama NHI? Kei runga i tō Kāri Ratonga Hapori, i tētahi reta hōhipera rānei — pēnei i te ABC1234.", // TODO cert
-    sm: "E te iloa lou numera NHI? O lo'o i luga o lau Kata Auaunaga Fa'alenu'u po'o so'o se tusi mai le falema'i — e foliga mai o le ABC1234.", // TODO cert
-    zh: "您知道您的NHI编号吗？它在您的社区服务卡或医院信件上，格式如ABC1234。",
-    yue: "您知道您的NHI編號嗎？它在您的社區服務卡或醫院信件上，格式如ABC1234。",
-    ja: "NHI番号はご存知ですか？コミュニティサービスカードや病院の手紙に記載されています（例：ABC1234）。",
-    ko: "NHI 번호를 알고 계십니까? 커뮤니티 서비스 카드나 병원 편지에 있습니다 (예: ABC1234).",
-    de: "Kennen Sie Ihre NHI-Nummer? Sie steht auf Ihrer Community Services Card oder einem Krankenhausbrief — sieht aus wie ABC1234.",
-    nl: "Kent u uw NHI-nummer? Het staat op uw Community Services Card of op een ziekenhuisbrief — het ziet eruit als ABC1234.",
-    fr: "Connaissez-vous votre numéro NHI ? Il figure sur votre carte de services communautaires ou toute lettre d'hôpital — ressemble à ABC1234.",
-    es: "¿Conoce su número NHI? Está en su Tarjeta de Servicios Comunitarios o en cualquier carta del hospital — parece ABC1234.",
-    ar: "هل تعرف رقم NHI الخاص بك؟ إنه موجود على بطاقة خدمات المجتمع أو أي رسالة مستشفى — يبدو مثل ABC1234.",
-    hi: "क्या आप अपना NHI नंबर जानते हैं? यह आपके कम्युनिटी सर्विसेज कार्ड या किसी अस्पताल पत्र पर होता है — जैसे ABC1234।",
+    en: "We couldn't auto-match you in the NHI by name and date of birth. If you know your NHI number, please enter it (e.g. ABC1234 or ZXE24NV) — otherwise say 'skip' and the consult will still proceed.",
+    mi: "Kāore i taea te taurite aunoa i a koe ki te NHI mā tō ingoa me tō rā whānau. Mēnā kei te mōhio koe ki tō nama NHI, whakauruhia (hei tauira ABC1234 or ZXE24NV) — mēnā kāore, tuhia 'skip', ka haere tonu te uiuinga.", // TODO cert
+    sm: "E le'i mafai ona matou fa'afetauia oe i le NHI e ala i lou igoa ma lou aso fanau. Afai e te iloa lou numera NHI, fa'aulu (fa'ata'ita'iga ABC1234 or ZXE24NV) — a leai, tusi 'skip' ma o le a alu pea le fa'atalanoaga.", // TODO cert
+    zh: "我们无法通过您的姓名和出生日期在NHI中自动匹配您。如果您知道自己的NHI号码，请输入（例如 ABC1234 或 ZXE24NV）— 否则请输入'skip'，问诊仍会继续。",
+    yue: "我哋無法用您嘅姓名同出生日期喺NHI自動配對您。如果您知道自己嘅NHI號碼，請輸入（例如 ABC1234 或 ZXE24NV）— 否則請輸入'skip'，問診仍會繼續。",
+    ja: "お名前と生年月日ではNHIで自動照合できませんでした。NHI番号をご存知でしたらご入力ください（例：ABC1234 または ZXE24NV）。ご不明なら'skip'とご入力いただければ、そのまま診察を続けます。",
+    ko: "성함과 생년월일로 NHI 자동 매칭에 실패했습니다. NHI 번호를 알고 계시면 입력해 주세요 (예: ABC1234 또는 ZXE24NV) — 모르시면 'skip'을 입력하시면 진료가 계속 진행됩니다.",
+    de: "Wir konnten Sie im NHI nicht anhand von Name und Geburtsdatum automatisch zuordnen. Wenn Sie Ihre NHI-Nummer kennen, geben Sie diese bitte ein (z. B. ABC1234 oder ZXE24NV) — andernfalls schreiben Sie 'skip' und die Konsultation läuft weiter.",
+    nl: "We konden u niet automatisch koppelen aan het NHI op basis van naam en geboortedatum. Als u uw NHI-nummer kent, voer het dan in (bijv. ABC1234 of ZXE24NV) — anders typ 'skip' en het consult gaat gewoon door.",
+    fr: "Nous n'avons pas pu vous rapprocher automatiquement du NHI à partir de votre nom et de votre date de naissance. Si vous connaissez votre numéro NHI, saisissez-le (par ex. ABC1234 ou ZXE24NV) — sinon tapez 'skip' et la consultation se poursuivra.",
+    es: "No pudimos vincularlo automáticamente al NHI con su nombre y fecha de nacimiento. Si conoce su número NHI, introdúzcalo (ej. ABC1234 o ZXE24NV) — de lo contrario escriba 'skip' y la consulta continuará.",
+    ar: "لم نتمكن من مطابقتك تلقائياً في NHI بالاسم وتاريخ الميلاد. إذا كنت تعرف رقم NHI الخاص بك، فيرجى إدخاله (مثال ABC1234 أو ZXE24NV) — وإلا اكتب 'skip' وستستمر الاستشارة.",
+    hi: "हम आपके नाम और जन्मतिथि से NHI में आपका ऑटो-मिलान नहीं कर सके। यदि आप अपना NHI नंबर जानते हैं तो कृपया दर्ज करें (जैसे ABC1234 या ZXE24NV) — नहीं तो 'skip' लिखें, परामर्श जारी रहेगा।",
   },
 
   pharmacy: {
