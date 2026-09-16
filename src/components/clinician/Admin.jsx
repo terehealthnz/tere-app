@@ -1050,7 +1050,7 @@ function AdminNhiLookupPanel() {
       <div style={panelStyle}>
         <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>NHI Patient Lookup</div>
         <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
-          Live query against Te Whatu Ora NHI FHIR API (UAT). GET Patient/{'{nhi}'} for identity confirmation. POST Patient/$match for demographic search (onlyCertainMatches=false) and strict identity validation (onlyCertainMatches=true). Every request is audit-logged. Ticket IN-3439.
+          Live query against Te Whatu Ora NHI FHIR API (UAT). GET Patient/{'{nhi}'} for identity confirmation. POST Patient/$match with onlyCertainMatches=false (Match) or true (Validate).
         </div>
 
         <div style={{ display:'flex', gap:8, marginBottom:'1rem' }}>
@@ -1291,7 +1291,7 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
       {/* Request/correlation metadata — evidence for HNZ Security 1-4 */}
       <div style={panel}>
         <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
-          Request evidence <span style={{ color:'#9CA3AF', fontWeight:600 }}>(HNZ NHI IG §4.1.2 + Security 1-4)</span>
+          Request evidence
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'1rem', fontSize:'.8125rem' }}>
           <div><div style={label}>Endpoint</div><div style={{ fontFamily:'ui-monospace, Menlo, monospace', fontSize:'.75rem', color:'#374151', wordBreak:'break-all' }}>{result.method || 'GET'} {result.url}</div></div>
