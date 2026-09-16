@@ -449,21 +449,49 @@ export async function loadModelFromSupabase() {
       .from('model_versions').select('*').order('trained_at', { ascending: false }).limit(1).single()
     if (error || !data) return null
     const meta = { version: data.model_version, samples: data.training_samples, valMae: data.val_mae, finalMae: data.final_mae, trainedAt: data.trained_at }
+
+    // Verify the shared model actually made it into IndexedDB before we
+    // trust the local META cache. Old bug: if a previous mount cached
+    // META_KEY=v15 but the weight restore failed (network flake, TF.js
+    // quirk), later mounts would early-return based on version match
+    // and predictBP would fall back to whatever half-broken local model
+    // was left over — that's what was pinning Justin at a constant 120/80.
+    // Now we always confirm IndexedDB has the artifact for the version
+    // we're about to advertise, and force a restore if it doesn't.
+    let weightsInIdb = false
+    try {
+      const idb = await tf.io.listModels()
+      weightsInIdb = !!idb[MODEL_KEY]
+    } catch {}
+
+    if (data.model_topology && data.weight_specs && data.weight_data_base64) {
+      const cached = getLocalMeta()
+      const needsRestore = !weightsInIdb || !cached || cached.version !== meta.version
+      if (needsRestore) {
+        try {
+          const weightData = base64ToArrayBuffer(data.weight_data_base64)
+          const restored = await tf.loadLayersModel(tf.io.fromMemory(data.model_topology, data.weight_specs, weightData))
+          await restored.save(MODEL_KEY)
+          restored.dispose()
+          console.log('[vitalsModel] restored', meta.version, 'from Supabase (', data.training_samples, 'samples, valMae=', data.val_mae?.toFixed(2), ')')
+        } catch (e) {
+          console.warn('[vitalsModel] weight restore failed:', e.message)
+          // If restore failed we must NOT cache the version — leave the
+          // stale META alone so a later attempt tries again instead of
+          // early-returning on a false "already current" match.
+          return null
+        }
+      }
+    } else if (!weightsInIdb) {
+      // Row has no weight artifacts and we have no local model at all
+      // (legacy row from before 2026-07-04 migration). Nothing to restore.
+      console.warn('[vitalsModel] latest model_versions row has no weight artifacts and no local model cached — BP predictions will be unavailable until someone runs Retrain in Admin.')
+      return null
+    }
+
+    // Only cache metadata AFTER weights are confirmed present.
     localStorage.setItem(NORM_KEY, JSON.stringify({ mean: data.bp_mean, std: data.bp_std }))
     localStorage.setItem(META_KEY, JSON.stringify(meta))
-
-    // Restore the trained model itself if the row has weight artifacts (rows saved before
-    // the 2026-07-04 migration have null topology/specs — those still need retraining).
-    if (data.model_topology && data.weight_specs && data.weight_data_base64) {
-      try {
-        const weightData = base64ToArrayBuffer(data.weight_data_base64)
-        const restored = await tf.loadLayersModel(tf.io.fromMemory(data.model_topology, data.weight_specs, weightData))
-        await restored.save(MODEL_KEY)
-        restored.dispose()
-      } catch (e) {
-        console.warn('[vitalsModel] weight restore failed (metadata still cached):', e.message)
-      }
-    }
     return meta
   } catch (e) { console.warn('[vitalsModel] loadFromSupabase failed:', e.message); return null }
 }

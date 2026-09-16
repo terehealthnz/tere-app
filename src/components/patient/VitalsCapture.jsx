@@ -67,15 +67,14 @@ function ConfidenceBadge({ numericConfidence }) {
 
 export default function VitalsCapture() {
   const navigate = useNavigate()
-  // On mount, ensure the latest trained BP model + SpO2 calibration are cached locally so
-  // BP + SpO2 render calibrated on the summary. Both fetch from Supabase and no-op if local
-  // is already current.
+  // On mount, ensure the latest shared BP model + SpO2 calibration are cached
+  // locally so BP + SpO2 render calibrated on the summary. loadModelFromSupabase
+  // verifies the IndexedDB weights match the latest model_versions row and
+  // re-restores if they don't — fixes the case where Justin's browser kept
+  // predicting 120/80 because a stale local model was overriding the shared
+  // v15 (150-sample) network.
   useEffect(() => {
-    import('../../lib/bpModel').then(async ({ loadModelFromSupabase, getLocalMeta }) => {
-      const local = getLocalMeta()
-      const meta  = await loadModelFromSupabase()
-      if (meta && local && meta.version === local.version) return // already current
-    }).catch(() => {})
+    import('../../lib/bpModel').then(({ loadModelFromSupabase }) => loadModelFromSupabase()).catch(() => {})
     import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
   }, [])
   const videoRef   = useRef(null)
