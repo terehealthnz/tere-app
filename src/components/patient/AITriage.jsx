@@ -753,8 +753,12 @@ export default function AITriage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             // no nhi → server does demographic-only $match
-            patientName: stamped.patient_name,
-            patientDob:  stamped.patient_dob_raw,
+            patientName:    stamped.patient_name,
+            patientDob:     stamped.patient_dob_raw,
+            // Silent second-factor: server compares HNZ's stored address
+            // to what we already collected. If postcode/suburb/city
+            // matches, confidence='high' and we skip the confirmation.
+            patientAddress: stamped.patient_address || '',
           }),
         })
         const body = await res.json().catch(() => ({}))
@@ -764,13 +768,26 @@ export default function AITriage() {
         if (body.matched && body.display?.nhi) {
           const withDisplay = {
             ...stamped,
-            patient_nhi:      body.display.nhi,
-            nhi_display_name: body.display?.name || stamped.patient_name,
-            nhi_display_dob:  body.display?.dob  || stamped.patient_dob_raw,
-            nhi_auto_matched: true,
+            patient_nhi:              body.display.nhi,
+            nhi_display_name:         body.display?.name || stamped.patient_name,
+            nhi_display_dob:          body.display?.dob  || stamped.patient_dob_raw,
+            nhi_auto_matched:         true,
+            nhi_matched_fields:       body.matched_fields || ['name', 'dob'],
+            nhi_confidence:           body.confidence || 'medium',
           }
           setData(withDisplay)
-          advanceToStep('nhi_confirm', withDisplay)
+          if (body.confidence === 'high') {
+            // Name+DOB+address all match → strong enough to skip the
+            // circular "is that you?" prompt. Show a brief chat bubble
+            // so the patient knows verification happened, then proceed.
+            const factors = (body.matched_fields || []).join(', ')
+            setMessages(prev => [...prev, { role:'tere', text:`✓ Identity confirmed with Health New Zealand (matched: ${factors}). NHI on file: ${body.display.nhi}.` }])
+            advanceToStep('pharmacy', withDisplay)
+          } else {
+            // Only name+DOB matched — weaker signal, ask the patient
+            // to confirm before we trust it.
+            advanceToStep('nhi_confirm', withDisplay)
+          }
           return
         }
         // Deceased match → hard stop, do not proceed with an NHI lookup
