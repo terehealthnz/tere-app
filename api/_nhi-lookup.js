@@ -1,18 +1,20 @@
-// /api/nhi-lookup — server-side stub for HNZ NHI (Patient) FHIR lookup.
+// /api/nhi-lookup — server-side NHI (Patient) FHIR lookup via HNZ HIP.
 //
-// PENDING: HNZ NHI API access + UAT credentials (task #166). Until
-// NHI_API_ENABLED=true is set in Vercel AND the NHI_* env vars are
-// populated, this endpoint returns { enabled: false } and the caller
-// (patient triage nhi step) falls back to the current typed-then-trust
-// behaviour.
+// LIVE: HNZ NHI UAT access granted 2026-09-15 (ticket IN-3439). Endpoint
+// activates automatically when NHI_CLIENT_ID + NHI_CLIENT_SECRET +
+// NHI_TOKEN_URL + (NHI_FHIR_BASE or NHI_BASE_URL) are all set. When
+// creds are missing, returns { enabled: false } and the caller falls
+// back to typed-then-trust.
 //
-// Wire-up when access lands:
-//   NHI_API_ENABLED=true
-//   NHI_TOKEN_URL=<keycloak token endpoint>
-//   NHI_BASE_URL=<https://api.hip-uat.digital.health.nz/fhir/nhi/v1>
-//   NHI_CLIENT_ID=<client id>
-//   NHI_CLIENT_SECRET=<secret>
-//   NHI_SCOPES=<space-separated scopes if HNZ requires them>
+// Env vars (as set in Vercel Production):
+//   NHI_CLIENT_ID        — HNZ-issued client id (also serves as X-Api-Key)
+//   NHI_CLIENT_SECRET    — HNZ-issued secret (via SMS)
+//   NHI_TOKEN_URL        — KeyCloak OAuth2 token endpoint
+//   NHI_FHIR_BASE        — FHIR base URL (e.g. .../fhir/nhi/v1)
+//   NHI_BASE_URL         — legacy alias for NHI_FHIR_BASE, still honoured
+//   NHI_SCOPES           — optional override; default is the 3 Patient.r/.s/.v
+//                          scopes HNZ granted at UAT (Get / Search / Validate)
+//   NHI_APP_ID           — optional, currently unused (client creds carry app id)
 //
 // Request:  POST { nhi, patientName, patientDob } (all strings)
 // Response: { enabled, matched, reason, display? }
@@ -23,12 +25,25 @@
 // is server-anon (no provider auth), so a malicious caller who guessed
 // a random NHI shouldn't get name/DOB/address back for free.
 
-const NHI_ENABLED     = String(process.env.NHI_API_ENABLED || '').toLowerCase() === 'true'
 const NHI_TOKEN_URL   = process.env.NHI_TOKEN_URL
-const NHI_BASE_URL    = process.env.NHI_BASE_URL
+// Support both env-var names — my earlier reply told Patrick to use
+// NHI_FHIR_BASE but the original stub used NHI_BASE_URL. Rather than
+// force a rename in Vercel, honour whichever is set.
+const NHI_FHIR_BASE   = process.env.NHI_FHIR_BASE || process.env.NHI_BASE_URL
 const NHI_CLIENT_ID   = process.env.NHI_CLIENT_ID
 const NHI_SECRET      = process.env.NHI_CLIENT_SECRET
-const NHI_SCOPES      = process.env.NHI_SCOPES || ''
+// Default to the three scopes HNZ granted at UAT provisioning
+// (Get Patient, Search Patient, Validate Patient). Space-separated as
+// per OAuth2 spec — HNZ's KeyCloak rejects other delimiters.
+const NHI_SCOPES = process.env.NHI_SCOPES || [
+  'https://api.hip.digital.health.nz/fhir/system/Patient.r',
+  'https://api.hip.digital.health.nz/fhir/system/Patient.s',
+  'https://api.hip.digital.health.nz/fhir/system/Patient.v',
+].join(' ')
+
+// Enabled when all four required creds are present. Drops the
+// NHI_API_ENABLED gate — presence of live secrets means we're live.
+const NHI_ENABLED = !!(NHI_CLIENT_ID && NHI_SECRET && NHI_TOKEN_URL && NHI_FHIR_BASE)
 
 let cachedToken = null
 let tokenExpiry = 0
@@ -110,12 +125,12 @@ export default async function handler(req, res) {
   if (!cleanNhi) return res.status(400).json({ enabled: true, error: 'nhi required' })
 
   const token = await getNhiToken()
-  if (!token || !NHI_BASE_URL) {
+  if (!token || !NHI_FHIR_BASE) {
     return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
   }
 
   try {
-    const base = NHI_BASE_URL.replace(/\/+$/, '')
+    const base = NHI_FHIR_BASE.replace(/\/+$/, '')
     const url = `${base}/Patient/${encodeURIComponent(cleanNhi)}`
     const fhirRes = await globalThis.fetch(url, {
       headers: {
