@@ -27,7 +27,13 @@ export default function AddressAutocomplete({
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [focus, setFocus] = React.useState(-1)
+  // Flip the dropdown above the input when there's not enough room below —
+  // e.g. when the picker sits at the bottom of the triage chat viewport
+  // and the suggestions would otherwise overflow the visible area.
+  const [flipUp, setFlipUp] = React.useState(false)
+  const [maxDropdownHeight, setMaxDropdownHeight] = React.useState(320)
   const wrapRef = React.useRef(null)
+  const inputRef = React.useRef(null)
   const timerRef = React.useRef(null)
 
   // Sync from parent-controlled value
@@ -64,6 +70,29 @@ export default function AddressAutocomplete({
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
+
+  // Auto-flip dropdown up when it would overflow the viewport downward.
+  // Recomputed whenever the dropdown opens or suggestions change so the
+  // decision reflects the current viewport (accounts for on-screen
+  // keyboards + window resizes on mobile).
+  React.useEffect(() => {
+    if (!open) return
+    const el = inputRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const viewportH = window.innerHeight || document.documentElement.clientHeight
+    const spaceBelow = viewportH - rect.bottom
+    const spaceAbove = rect.top
+    const PREFERRED = 320
+    const MIN = 120
+    if (spaceBelow < MIN && spaceAbove > spaceBelow) {
+      setFlipUp(true)
+      setMaxDropdownHeight(Math.max(MIN, Math.min(PREFERRED, spaceAbove - 12)))
+    } else {
+      setFlipUp(false)
+      setMaxDropdownHeight(Math.max(MIN, Math.min(PREFERRED, spaceBelow - 12)))
+    }
+  }, [open, suggestions.length])
 
   function select(s) {
     const display = s.display_name
@@ -104,6 +133,7 @@ export default function AddressAutocomplete({
   return (
     <div ref={wrapRef} style={{ position: 'relative', ...(style || {}) }}>
       <input
+        ref={inputRef}
         id={id}
         type="text"
         value={query}
@@ -120,7 +150,7 @@ export default function AddressAutocomplete({
       {open && (loading || suggestions.length > 0) && (
         <div style={{
           position: 'absolute',
-          top: 'calc(100% + 2px)',
+          ...(flipUp ? { bottom: 'calc(100% + 2px)' } : { top: 'calc(100% + 2px)' }),
           left: 0,
           right: 0,
           background: 'white',
@@ -128,7 +158,7 @@ export default function AddressAutocomplete({
           borderRadius: 6,
           boxShadow: '0 4px 14px rgba(0,0,0,0.10)',
           zIndex: 100,
-          maxHeight: 320,
+          maxHeight: maxDropdownHeight,
           overflowY: 'auto',
         }}>
           {loading && suggestions.length === 0 && (
