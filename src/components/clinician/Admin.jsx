@@ -1261,7 +1261,7 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
                     </div>
                     {score != null && (
                       <div style={{ padding:'4px 10px', borderRadius:99, background:'#F0F9FA', color:'#0B6E76', fontSize:'.6875rem', fontWeight:800 }}>
-                        match score {(score * 100).toFixed(0)}%
+                        match score {score > 1 ? Number(score).toFixed(0) : `${(Number(score) * 100).toFixed(0)}%`}
                       </div>
                     )}
                   </div>
