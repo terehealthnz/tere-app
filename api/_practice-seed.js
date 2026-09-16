@@ -157,18 +157,22 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       is_practice:        true,
       cooldown_until:     null,
     }
-    // Match whatever the unique index consultations_one_open_per_patient_idx
-    // considers "open" (see supabase/2026-07-24_one_open_consult_per_patient
-    // .sql: WHERE status NOT IN ('complete', 'cancelled')). Positive-list
-    // .in() is safer than negation — the previous
-    // .not('status', 'in', '(complete,cancelled)') syntax failed to match
-    // and we tripped the unique index on insert instead of updating.
+    // Must match the unique index consultations_one_open_per_patient_idx
+    // (2026-07-24_one_open_consult_per_patient.sql: WHERE status NOT IN
+    // ('complete', 'cancelled')). If we miss a status the index considers
+    // "open", the seed tries to INSERT and trips the unique. Positive list
+    // instead of negation because Supabase's .not('status','in','(a,b)')
+    // syntax was unreliable at one point — keep the list exhaustive:
+    // any status added to the app that isn't 'complete' or 'cancelled'
+    // needs a row here too. See app-wide status inventory: waiting,
+    // vitals_*, ready, in_progress, reviewing, no_show, draft (payment
+    // pending), waitlisted (paid but not yet promoted).
     let existingConsultId = null
     {
       const { data: existing } = await supabase.from('consultations').select('id')
         .eq('patient_id', usedPatientId)
         .eq('is_practice', true)
-        .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing', 'no_show'])
+        .in('status', ['draft', 'waitlisted', 'waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing', 'no_show'])
         .limit(1).maybeSingle()
       if (existing?.id) existingConsultId = existing.id
     }
