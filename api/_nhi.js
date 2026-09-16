@@ -255,51 +255,80 @@ export default async function handler(req, res) {
         { status_range: 4, description: 'Any 4xx response, handled without crashing' },
         () => fhirCall('GET', `Patient/${encodeURIComponent(malformed)}`, { scopeOverride, userIdOverride: userId }),
       )
-      // ── Patient.s (Search / Match) scenarios ──────────────────────────────
+      // HNZ NHI uses a SINGLE operation for both Match (fuzzy search) and
+      // Validate (strict check): POST /Patient/$match with a FHIR Parameters
+      // body. The onlyCertainMatches boolean distinguishes the two modes:
+      //   false → Match (returns Bundle of demographic matches with scores)
+      //   true  → Validate (strict identity confirmation against a known NHI)
+      // There is NO plain FHIR search (GET /Patient?given=...) and NO
+      // separate $validate operation on HIP. Reference:
+      //   https://nhi-ig.hip.digital.health.nz/API.html
+      const buildMatchBody = (patient, onlyCertain) => ({
+        resourceType: 'Parameters',
+        parameter: [
+          { name: 'resource', resource: { resourceType: 'Patient', ...patient } },
+          { name: 'onlyCertainMatches', valueBoolean: !!onlyCertain },
+        ],
+      })
+
+      // ── Patient.s (Match — fuzzy demographic search) scenarios ────────────
       await run(
-        `NHI-Match-1: Positive search — ${match1Given} ${match1Family} ${match1Dob}`,
-        `GET Patient?given=${match1Given}&family=${match1Family}&birthdate=${match1Dob}. Confirms demographic search returns a FHIR Bundle ordered by match score (descending). Top result should be ${match1Nhi}.`,
+        `NHI-Match-1: Positive match — ${match1Given} ${match1Family} ${match1Dob}`,
+        `POST Patient/$match with { name ${match1Given} ${match1Family}, DOB ${match1Dob}, onlyCertainMatches=false }. Confirms fuzzy demographic search returns a FHIR Bundle ordered by match score (descending). Top result should be ${match1Nhi}.`,
         { status: 200, description: '200 OK with FHIR Bundle; top-ranked result is the expected NHI' },
-        () => fhirCall('GET', 'Patient', { params: { given: match1Given, family: match1Family, birthdate: match1Dob }, scopeOverride, userIdOverride: userId }),
+        () => fhirCall('POST', 'Patient/$match', {
+          body: buildMatchBody({
+            name: [{ family: match1Family, given: [match1Given] }],
+            birthDate: match1Dob,
+          }, false),
+          scopeOverride, userIdOverride: userId,
+        }),
       )
       await run(
-        'NHI-Match-Error-1: Missing DOB returns 400',
-        `GET Patient?given=Rhetoric. Confirms the product requires DOB on search — HNZ returns 400 with an OperationOutcome error "Date of Birth is required".`,
-        { status: 400, description: '400 Bad Request with OperationOutcome' },
-        () => fhirCall('GET', 'Patient', { params: { given: 'Rhetoric' }, scopeOverride, userIdOverride: userId }),
+        'NHI-Match-Error-1: Missing DOB returns 4xx',
+        `POST Patient/$match with name only (no birthDate). Confirms the product surfaces the HNZ error requiring DOB on match.`,
+        { accepted_statuses: [400, 422], description: '400 Bad Request (or 422) with OperationOutcome' },
+        () => fhirCall('POST', 'Patient/$match', {
+          body: buildMatchBody({
+            name: [{ family: 'Rhetoric', given: ['Rhetoric'] }],
+          }, false),
+          scopeOverride, userIdOverride: userId,
+        }),
       )
       await run(
-        'NHI-Match-Error-2: Missing name returns 400',
-        `GET Patient?birthdate=1954-09-28. Confirms the product requires name on search — HNZ returns 400 with an OperationOutcome error "Name is required".`,
-        { status: 400, description: '400 Bad Request with OperationOutcome' },
-        () => fhirCall('GET', 'Patient', { params: { birthdate: '1954-09-28' }, scopeOverride, userIdOverride: userId }),
+        'NHI-Match-Error-2: Missing name returns 4xx',
+        `POST Patient/$match with birthDate only (no name). Confirms the product surfaces the HNZ error requiring name on match.`,
+        { accepted_statuses: [400, 422], description: '400 Bad Request (or 422) with OperationOutcome' },
+        () => fhirCall('POST', 'Patient/$match', {
+          body: buildMatchBody({ birthDate: '1954-09-28' }, false),
+          scopeOverride, userIdOverride: userId,
+        }),
       )
-      // ── Patient.v (Validate) scenarios ────────────────────────────────────
+      // ── Patient.v (Validate — strict identity confirmation) scenarios ────
+      // Same endpoint as Match; onlyCertainMatches=true switches to strict mode.
       await run(
         `NHI-Validate-1: Positive validate — ${val1Given} ${val1Family} (${val1Nhi})`,
-        `POST Patient/$validate with { NHI ${val1Nhi}, name ${val1Given} ${val1Family}, DOB ${val1Dob} }. Confirms the Validate scope + $validate operation are wired end-to-end.`,
-        { accepted_statuses: [200, 422], description: '200 OK (or 422 Unprocessable Entity) with FHIR OperationOutcome / Bundle' },
-        () => fhirCall('POST', 'Patient/$validate', {
-          body: {
-            resourceType: 'Patient',
+        `POST Patient/$match with onlyCertainMatches=true and { NHI ${val1Nhi}, name ${val1Given} ${val1Family}, DOB ${val1Dob} }. Strict validation — should return a Bundle containing the matching Patient.`,
+        { accepted_statuses: [200, 422], description: '200 OK with FHIR Bundle (single certain match) — or 422 Unprocessable Entity' },
+        () => fhirCall('POST', 'Patient/$match', {
+          body: buildMatchBody({
             identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: val1Nhi }],
             name: [{ family: val1Family, given: [val1Given] }],
             birthDate: val1Dob,
-          },
+          }, true),
           scopeOverride, userIdOverride: userId,
         }),
       )
       await run(
         `NHI-Validate-3: Negative validate — ${val3Given} ${val3Family} (${val3Nhi})`,
-        `POST Patient/$validate with candidate demographics that do NOT match the NHI record. HNZ returns an empty Bundle (negative validation result). Confirms the product handles a negative validation without treating it as an error.`,
+        `POST Patient/$match with onlyCertainMatches=true and demographics that do NOT match the NHI record. HNZ returns an empty Bundle (no certain match). Confirms the product handles a negative validation without treating it as an error.`,
         { accepted_statuses: [200, 422], description: '200 OK with empty Bundle — or 422 Unprocessable Entity' },
-        () => fhirCall('POST', 'Patient/$validate', {
-          body: {
-            resourceType: 'Patient',
+        () => fhirCall('POST', 'Patient/$match', {
+          body: buildMatchBody({
             identifier: [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: val3Nhi }],
             name: [{ family: val3Family, given: [val3Given] }],
             birthDate: val3Dob,
-          },
+          }, true),
           scopeOverride, userIdOverride: userId,
         }),
       )
