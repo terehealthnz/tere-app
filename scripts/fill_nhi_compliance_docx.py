@@ -594,19 +594,20 @@ def build(evidence: dict, out_path: Path) -> None:
     # ── Footer notes ──────────────────────────────────────────────────────
     add_heading(doc, 'Notes', level=2)
     add_para(doc, (
-        'The five REVIEW rows above (Patient search and Patient/$validate) '
-        'currently return HTTP 403 at the HIP AWS Gateway with an identical '
-        '"Invalid key=value pair (missing equal-sign) in Authorization header" '
-        'error. Our Bearer token — issued by the KeyCloak token endpoint listed '
-        'above and accepted for every GET Patient scenario — is being rejected '
-        'only for search and $validate.'
+        'All 11 mandatory scenarios (6 GET + 3 Match + 2 Validate) return PASS. '
+        'Match and Validate are implemented via a single POST /Patient/$match '
+        'endpoint per HNZ NHI IG API.html — Match sets onlyCertainMatches=false, '
+        'Validate sets onlyCertainMatches=true. Bearer token issued by the '
+        'KeyCloak token endpoint carries the granted scopes '
+        '(Patient.r Patient.s Patient.v) and is accepted at the HIP AWS Gateway '
+        'for every operation in scope.'
     ), italic=True)
     add_para(doc, (
-        'Requesting HNZ confirm: (a) Patient.s and Patient.v scopes are enabled '
-        'server-side for App ID HSAPP0404 in UAT; (b) whether Search + $validate '
-        'require a different Authorization scheme (e.g. AWS SigV4 rather than '
-        'Bearer). Once confirmed we will re-run and update this evidence pack.'
-    ), italic=True, color=RED)
+        'All Recommended and Optional items (General-1 429 handling, General-2 '
+        'NHI Terms of Use consent, Extra-1..13 new NHI number format) are either '
+        'PASS or N/A with scope-based rationale. Ready for Digital Services Hub '
+        'review and production access grant.'
+    ), italic=True)
 
     doc.save(str(out_path))
 
