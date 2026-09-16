@@ -387,8 +387,13 @@ export default function Dashboard() {
         ...(providerId ? { provider_id: providerId } : {}),
         ...(providerDisplay ? { provider_display_name: providerDisplay } : {}),
       })
-      navigate('/clinician/consult/' + consult.id)
-    } catch { navigate('/clinician/consult/' + consult.id) }
+      // Route to the modern ClinicianPatient chart — floating call widget
+      // (task #216) + notes modal (task #218) live there. The old
+      // /clinician/consult/:id ConsultView is deprecated (task #219 tracks
+      // its removal); it renders as a mobile-phone-style layout that looks
+      // wrong on desktop.
+      navigate('/clinician/patient/' + consult.id)
+    } catch { navigate('/clinician/patient/' + consult.id) }
     finally { setJoiningId(null) }
   }
 
