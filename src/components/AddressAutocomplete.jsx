@@ -104,16 +104,26 @@ export default function AddressAutocomplete({
   }
 
   function onKeyDown(e) {
-    if (!open || suggestions.length === 0) return
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown' && open && suggestions.length > 0) {
       e.preventDefault()
       setFocus(f => Math.min(f + 1, suggestions.length - 1))
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && open && suggestions.length > 0) {
       e.preventDefault()
       setFocus(f => Math.max(f - 1, -1))
-    } else if (e.key === 'Enter' && focus >= 0) {
-      e.preventDefault()
-      select(suggestions[focus])
+    } else if (e.key === 'Enter') {
+      // Enter with a highlighted suggestion → pick it. Enter with no
+      // highlight → submit whatever the patient has typed (so they can
+      // just type and press return without hunting through a dropdown).
+      if (open && focus >= 0 && suggestions[focus]) {
+        e.preventDefault()
+        select(suggestions[focus])
+      } else if (query.trim().length > 4) {
+        e.preventDefault()
+        setOpen(false)
+        setFocus(-1)
+        onChange?.(query)
+        onSelect?.({ display_name: query, freeform: true })
+      }
     } else if (e.key === 'Escape') {
       setOpen(false)
     }
@@ -163,6 +173,30 @@ export default function AddressAutocomplete({
         }}>
           {loading && suggestions.length === 0 && (
             <div style={{ padding: '.6rem .75rem', color: '#6B7280', fontSize: '.85rem' }}>Searching…</div>
+          )}
+          {/* Always offer "use what I typed" as an escape hatch so the patient
+              doesn't have to pick from OSM suggestions — some addresses (new
+              subdivisions, apartments) don't match cleanly. */}
+          {query.trim().length > 4 && (
+            <div
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setOpen(false); setFocus(-1)
+                onChange?.(query)
+                onSelect?.({ display_name: query, freeform: true })
+              }}
+              style={{
+                padding: '.55rem .75rem',
+                fontSize: '.875rem',
+                cursor: 'pointer',
+                background: '#F0F9FA',
+                borderBottom: '1px solid #E2E8F0',
+                lineHeight: 1.4,
+                fontWeight: 600,
+                color: '#0B6E76',
+              }}>
+              ✓ Use what I typed: <span style={{ fontWeight: 400 }}>“{query}”</span>
+            </div>
           )}
           {suggestions.map((s, i) => (
             <div
