@@ -157,32 +157,19 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       is_practice:        true,
       cooldown_until:     null,
     }
-    // Must match the unique index consultations_one_open_per_patient_idx
-    // (2026-07-24_one_open_consult_per_patient.sql: WHERE status NOT IN
-    // ('complete', 'cancelled')). If we miss a status the index considers
-    // "open", the seed tries to INSERT and trips the unique. Positive list
-    // instead of negation because Supabase's .not('status','in','(a,b)')
-    // syntax was unreliable at one point — keep the list exhaustive:
-    // any status added to the app that isn't 'complete' or 'cancelled'
-    // needs a row here too. See app-wide status inventory: waiting,
-    // vitals_*, ready, in_progress, reviewing, no_show, draft (payment
-    // pending), waitlisted (paid but not yet promoted).
-    let existingConsultId = null
-    {
-      const { data: existing } = await supabase.from('consultations').select('id')
-        .eq('patient_id', usedPatientId)
-        .eq('is_practice', true)
-        .in('status', ['draft', 'waitlisted', 'waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress', 'reviewing', 'no_show'])
-        .limit(1).maybeSingle()
-      if (existing?.id) existingConsultId = existing.id
-    }
-    if (existingConsultId) {
-      const { error: uErr } = await supabase.from('consultations').update(consultFields).eq('id', existingConsultId)
-      if (uErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult update: ${uErr.message}` }); continue }
-    } else {
-      const { error: iErr } = await supabase.from('consultations').insert({ id: consultId, ...consultFields })
-      if (iErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult insert: ${iErr.message}` }); continue }
-    }
+    // Deterministic upsert on the seed's fixed consult id. Safe because
+    // the unique index consultations_one_open_per_patient_idx (as of
+    // 2026-09-16_sandbox_isolation.sql) is scoped to is_practice=false
+    // rows only — sandbox rows can freely coexist, so we don't need
+    // status-list lookup gymnastics anymore.
+    //
+    // Upsert semantics: any existing row with the same UUID gets its
+    // status reset to 'waiting' and provider_id refreshed. Any orphans
+    // from prior sessions (in whatever state) get overwritten in place.
+    const { error: uErr } = await supabase.from('consultations')
+      .upsert({ id: consultId, ...consultFields }, { onConflict: 'id' })
+    if (uErr) { results.push({ ok: false, name: `${p.first_name} ${p.last_name}`, error: `consult upsert: ${uErr.message}` }); continue }
+    const existingConsultId = consultId
 
     // Wipe + reseed child rows for this patient. Scoped to the used
     // patient_id (may be existing or freshly-inserted) so we never touch
