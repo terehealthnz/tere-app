@@ -337,6 +337,7 @@ const ROUTES = {
   'cron-acc-anomaly':          () => import('./_cron-acc-anomaly.js'),
   'cron-access-review':        () => import('./_cron-access-review.js'),
   'cron-break-glass-revoke':   () => import('./_cron-break-glass-revoke.js'),
+  'cron-release-abandoned-consults': () => import('./_cron-release-abandoned-consults.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),
   'cron-results-reconciliation': () => import('./_cron-results-reconciliation.js'),
   'cron-clinical-anomalies':    () => import('./_cron-clinical-anomalies.js'),
