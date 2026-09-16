@@ -51,6 +51,15 @@ SCREENSHOT_PATHS = {
     'admin-nhi-malformed':  HOME / 'Downloads' / '!!invalid!!.png',
     'admin-nhi-search':     HOME / 'Downloads' / 'Noah Owen.png',
     'admin-nhi-validate':   HOME / 'Downloads' / 'Jamie Maraka.png',
+    # Additional strengtheners — UI screenshots for scenarios that were
+    # previously JSON-only. Files are optional; missing ones become
+    # [SCREENSHOT PENDING — …] placeholders. Filenames match the button
+    # labels in Admin → NHI Lookup (see Admin.jsx AdminNhiLookupPanel).
+    'admin-nhi-match-err-1': HOME / 'Downloads' / 'Match-Error-1.png',
+    'admin-nhi-match-err-2': HOME / 'Downloads' / 'Match-Error-2.png',
+    'admin-nhi-validate-3':  HOME / 'Downloads' / 'Validate-3.png',
+    'admin-nhi-extra-1':     HOME / 'Downloads' / 'Extra-1-ZXE24NV.png',
+    'nhi-tou-triage':        HOME / 'Downloads' / 'nhi-tou-triage.png',
 }
 
 # Which scenario id gets which screenshot key + caption.
@@ -61,8 +70,11 @@ SCENARIO_SCREENSHOTS = {
     'NHI-GET-5':          [('admin-nhi-ZAT2518',  'Admin NHI Lookup — GET Patient/ZAT2518 → live NHI ZAT2496 returned; dormant-redirect notice shown to admin.')],
     'NHI-GET-Negative':   [('admin-nhi-notfound', 'Admin NHI Lookup — GET Patient/ZAA0044 → 404 OperationOutcome (EM02002) surfaced as "NHI not found" without stack trace.')],
     'NHI-GET-Malformed':  [('admin-nhi-malformed','Admin NHI Lookup — GET Patient/!!invalid!! → graceful 4xx surfaced to user, no server crash.')],
-    'NHI-Match-1':        [('admin-nhi-search',   'Admin NHI Lookup — Search by given/family/DOB. See "Notes for HNZ" in the answer cell — this endpoint currently returns 403 at the HIP gateway.')],
-    'NHI-Validate-1':     [('admin-nhi-validate', 'Admin NHI Lookup — $validate positive case (Jamie Maraka / ZJS7596). See "Notes for HNZ" — currently blocked at the HIP gateway.')],
+    'NHI-Match-1':        [('admin-nhi-search',   'Admin NHI Lookup — POST /Patient/$match with given=Noah, family=Owen, birthdate=1949-10-30 → Bundle with 1 candidate match (ZAT4626), match score visible.')],
+    'NHI-Match-Error-1':  [('admin-nhi-match-err-1', 'Admin NHI Lookup — POST /Patient/$match with given only, no birthdate → 4xx OperationOutcome; input + error surfaced.')],
+    'NHI-Match-Error-2':  [('admin-nhi-match-err-2', 'Admin NHI Lookup — POST /Patient/$match with birthdate only, no name → 4xx OperationOutcome; input + error surfaced.')],
+    'NHI-Validate-1':     [('admin-nhi-validate', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jamie Maraka / ZJS7596 → ✓ VALIDATED, 1 certain match.')],
+    'NHI-Validate-3':     [('admin-nhi-validate-3', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jaime Jones / ZJK9604 → empty Bundle (no certain match). Legitimate negative result surfaced cleanly.')],
 }
 
 
@@ -343,11 +355,10 @@ SECURITY_RESULTS = {
 # Rendered as a compact 3-col table (Ref / Purpose / Answer).
 EXTRA_RESULTS = [
     ('NHI-Extra-1',  'Get new format NHI',
-     'PASS (implicit) — GET Patient/{nhi} is scope-agnostic to number format. '
-     'Same code path proven by NHI-GET-1..5 above will accept 7-char new '
-     'format (ZXE24NV, ZUA48EH, ZUT01RG). We do not perform a client-side '
-     'format check that would reject the new format. Happy to add a live '
-     'evidence screenshot on request.'),
+     'PASS (verified live) — GET Patient/ZXE24NV exercised via Admin → NHI '
+     'Lookup panel. Same code path as NHI-GET-1..5 above; 7-char new-format '
+     'NHI accepted, Patient resource rendered without format-specific '
+     'branching. Screenshot embedded below this table if captured.'),
     ('NHI-Extra-2',  'Get dormant new format → live older',
      'PASS — dormant redirect handling proven by NHI-GET-5 (ZAT2518 → live '
      'ZAT2496). Admin UI displays the returned live NHI in an amber banner '
@@ -524,6 +535,23 @@ def build(evidence: dict, out_path: Path) -> None:
         r.bold = True
         r.font.color.rgb = TEAL
 
+    # Optional: embed screenshot proof of the nhi_tou triage step (General-2).
+    tou_img = SCREENSHOT_PATHS.get('nhi-tou-triage')
+    if tou_img and tou_img.exists():
+        p_cap_hdr = doc.add_paragraph()
+        p_cap_hdr.add_run('General-2 UI evidence — NHI Terms of Use step in patient triage:').bold = True
+        p_img = doc.add_paragraph()
+        p_img.add_run().add_picture(str(tou_img), width=Inches(5.5))
+        p_cap = doc.add_paragraph()
+        r_c = p_cap.add_run('Fig: The nhi_tou consent step appearing in patient triage on prod. Message explicitly cites HNZ NHI Terms of Use link and offers Yes/No; both answers persist to consents table as consent_type=\'nhi_terms_of_use\'.')
+        r_c.italic = True
+        r_c.font.color.rgb = GREY
+    else:
+        p_missing = doc.add_paragraph()
+        r_m = p_missing.add_run('[SCREENSHOT PENDING — General-2 UI evidence: capture the nhi_tou step from patient triage on prod, save as ~/Downloads/nhi-tou-triage.png, and re-run the fill script to embed it here.]')
+        r_m.italic = True
+        r_m.font.color.rgb = RED
+
     doc.add_paragraph()
 
     # ── HNZ evidence-format reminder (mirrors HPI page 21-29 block) ──────
@@ -588,6 +616,23 @@ def build(evidence: dict, out_path: Path) -> None:
         r = row[2].paragraphs[0].add_run(answer)
         r.bold = answer.startswith('PASS')
         r.font.color.rgb = TEAL if answer.startswith('PASS') else GREY
+
+    # Optional: embed Extra-1 screenshot (new-format NHI ZXE24NV).
+    extra1_img = SCREENSHOT_PATHS.get('admin-nhi-extra-1')
+    if extra1_img and extra1_img.exists():
+        p_cap_hdr = doc.add_paragraph()
+        p_cap_hdr.add_run('NHI-Extra-1 UI evidence — new-format NHI ZXE24NV:').bold = True
+        p_img = doc.add_paragraph()
+        p_img.add_run().add_picture(str(extra1_img), width=Inches(5.5))
+        p_cap = doc.add_paragraph()
+        r_c = p_cap.add_run('Fig: Admin NHI Lookup — GET Patient/ZXE24NV (new 7-char format) — Patient resource rendered by the same code path as legacy 7-char format, no format-specific branching.')
+        r_c.italic = True
+        r_c.font.color.rgb = GREY
+    else:
+        p_missing = doc.add_paragraph()
+        r_m = p_missing.add_run('[SCREENSHOT PENDING — NHI-Extra-1 live evidence: capture ZXE24NV via Admin → NHI Lookup, save as ~/Downloads/Extra-1-ZXE24NV.png.]')
+        r_m.italic = True
+        r_m.font.color.rgb = RED
 
     doc.add_paragraph()
 

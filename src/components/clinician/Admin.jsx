@@ -1098,7 +1098,11 @@ function AdminNhiLookupPanel() {
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAA0044'); runGet('ZAA0044') }}>NHI-GET-Neg · ZAA0044 (404)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('!!invalid!!'); runGet('!!invalid!!') }}>NHI-GET-Mal · malformed</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Noah', family:'Owen', birthdate:'1949-10-30' }) }}>NHI-Match-1 · Noah Owen</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Rhetoric', family:'', birthdate:'' }) }}>NHI-Match-Err-1 · missing DOB</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'', family:'', birthdate:'1954-09-28' }) }}>NHI-Match-Err-2 · missing name</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('validate'); runValidate({ nhi:'ZJS7596', given:'Jamie', family:'Maraka', birthdate:'1977-08-25' }) }}>NHI-Validate-1 · Jamie Maraka</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('validate'); runValidate({ nhi:'ZJK9604', given:'Jaime', family:'Jones', birthdate:'1979-06-10' }) }}>NHI-Validate-3 · Jaime Jones (negative)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZXE24NV'); runGet('ZXE24NV') }}>NHI-Extra-1 · ZXE24NV (new-format)</button>
           </div>
         </div>
 
