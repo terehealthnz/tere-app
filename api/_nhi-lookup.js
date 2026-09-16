@@ -114,6 +114,63 @@ function nameMatches(patientTyped, fhirName) {
   return lastTyped && f.includes(lastTyped)
 }
 
+// Parse ISO-8601 "1986-03-14" and typed variants ("14 March 1986", "14/03/1986")
+// into "YYYY-MM-DD". Returns null on unparseable input.
+function toIsoDob(raw) {
+  if (!raw) return null
+  const s = String(raw).trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const t = new Date(s).getTime()
+  if (!Number.isFinite(t)) {
+    // dd/mm/yyyy fallback
+    const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
+    if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`
+    return null
+  }
+  const d = new Date(t)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`
+}
+
+// Split "Jamie Susan Maraka" → { given: "Jamie Susan", family: "Maraka" }.
+// If only one token, assume it's the family name (safer for search recall).
+function splitName(raw) {
+  const toks = String(raw || '').trim().split(/\s+/).filter(Boolean)
+  if (toks.length === 0) return { given: '', family: '' }
+  if (toks.length === 1) return { given: '', family: toks[0] }
+  return { given: toks.slice(0, -1).join(' '), family: toks[toks.length - 1] }
+}
+
+async function callMatch(token, { nhi, given, family, birthdate, onlyCertain }) {
+  const base = NHI_FHIR_BASE.replace(/\/+$/, '')
+  const patient = { resourceType: 'Patient' }
+  if (nhi) patient.identifier = [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi }]
+  if (given || family) patient.name = [{ family: family || undefined, given: given ? [given] : undefined }]
+  if (birthdate) patient.birthDate = birthdate
+  const body = {
+    resourceType: 'Parameters',
+    parameter: [
+      { name: 'resource', resource: patient },
+      { name: 'onlyCertainMatches', valueBoolean: !!onlyCertain },
+    ],
+  }
+  const r = await globalThis.fetch(`${base}/Patient/$match`, {
+    method: 'POST',
+    headers: {
+      Authorization:      `Bearer ${token}`,
+      Accept:             'application/fhir+json',
+      'Content-Type':     'application/fhir+json',
+      'x-api-key':        NHI_CLIENT_ID,
+      userid:             'tere-triage',
+      'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
+    },
+    body: JSON.stringify(body),
+  })
+  const text = await r.text()
+  let parsed
+  try { parsed = text ? JSON.parse(text) : {} } catch { parsed = null }
+  return { status: r.status, body: parsed }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -122,7 +179,8 @@ export default async function handler(req, res) {
 
   const { nhi, patientName, patientDob } = req.body || {}
   const cleanNhi = String(nhi || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-  if (!cleanNhi) return res.status(400).json({ enabled: true, error: 'nhi required' })
+  const dobIso = toIsoDob(patientDob)
+  const { given, family } = splitName(patientName)
 
   const token = await getNhiToken()
   if (!token || !NHI_FHIR_BASE) {
@@ -130,24 +188,51 @@ export default async function handler(req, res) {
   }
 
   try {
-    const base = NHI_FHIR_BASE.replace(/\/+$/, '')
-    const url = `${base}/Patient/${encodeURIComponent(cleanNhi)}`
-    const fhirRes = await globalThis.fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept:        'application/fhir+json',
-        'x-api-key':   NHI_CLIENT_ID,
-        userid:        'tere-triage',
-        'User-Agent':  'TereHealth/1.0 (server; NHI FHIR proxy)',
-      },
+    // MODE 1 — patient supplied an NHI. Validate it against their typed
+    // demographics using $match onlyCertainMatches=true. If HNZ agrees
+    // it's a certain match, we've verified their identity. If empty,
+    // the demographics don't match the supplied NHI and we should either
+    // ask again or fall back to demographic search.
+    // MODE 2 — no NHI supplied. Do a demographic-only search
+    // ($match onlyCertainMatches=true with just name + DOB). If HNZ
+    // returns a certain match, we've discovered their NHI without them
+    // having to hunt for their Community Services Card. This is how a
+    // GP receptionist looks patients up.
+    if (!cleanNhi && (!family || !dobIso)) {
+      return res.status(400).json({ enabled: true, error: 'nhi OR (patientName + patientDob) required' })
+    }
+
+    const { status, body } = await callMatch(token, {
+      nhi: cleanNhi || undefined,
+      given, family,
+      birthdate: dobIso || undefined,
+      onlyCertain: true,
     })
-    if (fhirRes.status === 404) {
-      return res.status(200).json({ enabled: true, matched: false, reason: 'not_found' })
+
+    // 404 on the $match route means "operation not found" — treat as unavailable.
+    if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
+    // 4xx (typically 422 for bad input) — surface as no match, benign.
+    if (status >= 400 && status !== 429) {
+      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found' })
     }
-    if (!fhirRes.ok) {
-      return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_failed' })
+    if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
+
+    const entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
+    if (entries.length === 0) {
+      // No certain match. Distinguish: NHI-supplied → likely name/DOB
+      // typo; NHI-unsupplied → we couldn't auto-find them (fall back to
+      // manual entry).
+      return res.status(200).json({
+        enabled: true,
+        matched: false,
+        reason: cleanNhi ? 'name_mismatch' : 'not_found',
+      })
     }
-    const patient = parseFhirPatient(await fhirRes.json())
+
+    // Take the first (highest-scored) entry. When Validate mode with an
+    // NHI supplied, HNZ typically returns exactly one entry.
+    const resource = entries[0].resource
+    const patient = parseFhirPatient(resource)
     if (!patient) {
       return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_failed' })
     }
@@ -155,18 +240,13 @@ export default async function handler(req, res) {
       return res.status(200).json({ enabled: true, matched: false, reason: 'deceased' })
     }
 
-    const nameOk = nameMatches(patientName, patient.name)
-    const dobOk  = dobMatches(patientDob, patient.dob)
-    if (!nameOk) return res.status(200).json({ enabled: true, matched: false, reason: 'name_mismatch' })
-    if (!dobOk)  return res.status(200).json({ enabled: true, matched: false, reason: 'dob_mismatch' })
-
-    // Success — return a minimal display tuple only. Never leak the raw
-    // FHIR record to the browser.
+    // Success — return NHI + display tuple. When we auto-discovered the
+    // NHI (MODE 2), the frontend needs it to save on the consult record.
     return res.status(200).json({
       enabled: true,
       matched: true,
-      reason:  'match',
-      display: { name: patient.name, dob: patient.dob },
+      reason:  cleanNhi ? 'validated' : 'auto_matched',
+      display: { name: patient.name, dob: patient.dob, nhi: resource?.id || cleanNhi || null },
     })
   } catch {
     return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_failed' })

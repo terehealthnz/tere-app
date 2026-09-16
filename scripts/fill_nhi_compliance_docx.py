@@ -239,12 +239,18 @@ def add_scenario_row(table, scenario, screenshots=None):
 
 APP_INFO = (
     'Tere Health is a nationwide New Zealand telehealth clinic (HPI-O G11238-E). '
-    'The NHI FHIR API is used to (a) confirm patient identity during the AI-triage '
-    'nhi-confirm step — the patient enters their NHI, the app calls GET Patient/{nhi} '
-    'server-side and matches name + DOB before proceeding; and (b) let clinicians '
-    'validate an NHI at the chart layer via the Admin → NHI Lookup panel. All calls '
-    'are server-side proxied through Vercel serverless (ap-southeast-2 Sydney); the '
-    'front-end never holds an NHI credential and never invokes NHI directly.'
+    'The NHI FHIR API is used to (a) auto-identify the patient during triage — after '
+    'the patient accepts the NHI Terms of Use, Tere silently POSTs /Patient/$match '
+    'with the name and DOB the patient has already typed (onlyCertainMatches=true, '
+    'the same pattern a GP receptionist uses). If HNZ returns a certain match, we '
+    'show the returned name/DOB/NHI back to the patient for confirmation and skip '
+    'manual NHI entry entirely. If HNZ cannot uniquely identify, we fall back to '
+    'asking the patient for their NHI. (b) Clinicians and admins can also validate '
+    'or look up NHIs directly via the Admin → NHI Lookup panel using GET Patient/{nhi}, '
+    'POST /Patient/$match (Match), or POST /Patient/$match with onlyCertainMatches=true '
+    '(Validate). All calls are server-side proxied through Vercel serverless '
+    '(ap-southeast-2 Sydney); the front-end never holds an NHI credential and never '
+    'invokes NHI directly.'
 )
 
 USER_INFO = (

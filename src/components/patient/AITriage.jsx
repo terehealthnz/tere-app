@@ -241,8 +241,11 @@ const STEPS = [
   // the National Health Index. If declined, we skip the NHI lookup entirely
   // (the consult still proceeds). Acceptance is stored as consent_type
   // 'nhi_terms_of_use' in the consents table (see /api/consents POST below).
-  { id:'nhi_tou', message:"Next we'd like to check your NHI (National Health Index) number with Health New Zealand to confirm your identity. Do you accept HNZ's NHI Terms of Use? (See: https://www.tewhatuora.govt.nz/health-services-and-programmes/digital-health/national-health-index-nhi ). Selecting No is fine — we'll skip the NHI check.", field:'nhi_tou_accepted_raw', type:'yesno', validate:()=>true, next:'nhi' },
-  { id:'nhi', message:"Thanks. Please enter your NHI number — it's on your Community Services Card or any hospital letter. Looks like ABC1234 or newer numbers like ZXE24NV. Say 'skip' if you don't know it.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
+  { id:'nhi_tou', message:"Next we'd like to check your NHI (National Health Index) with Health New Zealand to confirm your identity — same lookup a GP or ED receptionist does. Do you accept HNZ's NHI Terms of Use? (See: https://www.tewhatuora.govt.nz/health-services-and-programmes/digital-health/national-health-index-nhi ). Selecting No is fine — we'll skip the NHI check.", field:'nhi_tou_accepted_raw', type:'yesno', validate:()=>true, next:'nhi' },
+  // Manual NHI entry — fallback only. The nhi_tou 'yes' path first runs a
+  // silent auto-search (see submitAnswer). We ONLY land here if HNZ
+  // couldn't uniquely match the patient by name + DOB.
+  { id:'nhi', message:"We couldn't auto-match you in the NHI by name and date of birth. If you know your NHI number, please enter it (e.g. ABC1234 or ZXE24NV) — otherwise say 'skip' and the consult will still proceed.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'nhi_confirm', message:(d)=>`Found ${d.nhi_display_name || 'a match'}, born ${d.nhi_display_dob || d.patient_dob_raw || ''} — is that you?`, field:'nhi_confirm_raw', type:'yesno', validate:()=>true, next:'pharmacy' },
   { id:'nhi_retry', message:"That NHI number doesn't seem to match your name and date of birth. Would you like to try again or skip?", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:(v)=>!!(v && String(v).trim().length > 0), error:"Please pick a pharmacy from the list — we need this to send any prescription. It also tells the doctor where you can physically get to today.", next:'gp_name' },
@@ -729,14 +732,57 @@ export default function AITriage() {
     }
 
     // NHI Terms of Use acceptance (HNZ NHI IG §4.3.2 General-2). If the
-    // patient declines, we skip the NHI-collection step entirely — the
-    // consult still works, we just can't verify against HNZ. Acceptance is
-    // stamped into newData for downstream /api/consents POST (see below).
+    // patient declines, we skip the NHI check entirely. If accepted, we
+    // do a GP-receptionist-style auto-lookup: silently POST /Patient/$match
+    // (onlyCertainMatches=true) with the name + DOB already typed earlier
+    // in triage. If HNZ uniquely matches, we skip manual NHI entry and
+    // jump straight to nhi_confirm ("Found you: X — right?"). Only fall
+    // through to the legacy 'nhi' step if HNZ can't identify them.
     if (step.id === 'nhi_tou') {
       const accepted = processed === 'yes'
       const stamped = { ...newData, nhi_tou_accepted: accepted, nhi_tou_accepted_at: new Date().toISOString() }
       setData(stamped)
-      advanceToStep(accepted ? 'nhi' : 'pharmacy', stamped)
+      if (!accepted) {
+        advanceToStep('pharmacy', stamped)
+        return
+      }
+      setTereTyping(true)
+      try {
+        const res = await apiFetch('/api/nhi-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            // no nhi → server does demographic-only $match
+            patientName: stamped.patient_name,
+            patientDob:  stamped.patient_dob_raw,
+          }),
+        })
+        const body = await res.json().catch(() => ({}))
+        setTereTyping(false)
+        // Endpoint disabled (no HNZ creds yet) → skip silently.
+        if (body.enabled === false) { advanceToStep('pharmacy', stamped); return }
+        if (body.matched && body.display?.nhi) {
+          const withDisplay = {
+            ...stamped,
+            patient_nhi:      body.display.nhi,
+            nhi_display_name: body.display?.name || stamped.patient_name,
+            nhi_display_dob:  body.display?.dob  || stamped.patient_dob_raw,
+            nhi_auto_matched: true,
+          }
+          setData(withDisplay)
+          advanceToStep('nhi_confirm', withDisplay)
+          return
+        }
+        // Deceased match → hard stop, do not proceed with an NHI lookup
+        // path but let the consult continue without an NHI.
+        if (body.reason === 'deceased') { advanceToStep('pharmacy', stamped); return }
+        // No unique match → fall through to legacy manual entry.
+        advanceToStep('nhi', stamped)
+      } catch {
+        setTereTyping(false)
+        // Any lookup failure → fall through to manual entry.
+        advanceToStep('nhi', stamped)
+      }
       return
     }
 
