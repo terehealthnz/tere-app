@@ -314,16 +314,20 @@ export default async function handler(req, res) {
     // lookups (which otherwise almost always fall back to typed-then-trust).
     const parsedAddress = parseNzAddress(patientAddress)
 
-    // Attempt 1 — trust HNZ's certainty. If they say certain, we're done.
+    // HNZ's $match supports onlyCertainMatches=true only when an NHI is
+    // supplied (Validate/Patient.v flow). For demographic-only search it
+    // returns 501 with "OnlyCertainMatches is only currently supported
+    // when sending an NHI Identifier". So: if the caller has an NHI, use
+    // Validate; otherwise go straight to Search (Patient.s, onlyCertain=false).
     let { status, body } = await callMatch(token, {
       nhi: cleanNhi || undefined,
       given, family,
       birthdate: dobIso || undefined,
       address: parsedAddress,
-      onlyCertain: true,
+      onlyCertain: !!cleanNhi,
     })
-    let matchMode = 'certain'
-    if (diag) diag.attempts.push({ n: 1, onlyCertain: true, status, body, sent: { given, family, dobIso, hasAddress: !!parsedAddress } })
+    let matchMode = cleanNhi ? 'certain' : 'searched'
+    if (diag) diag.attempts.push({ n: 1, onlyCertain: !!cleanNhi, status, body, sent: { given, family, dobIso, hasAddress: !!parsedAddress } })
 
     // 404 on the $match route means "operation not found" — treat as unavailable.
     if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
@@ -331,43 +335,20 @@ export default async function handler(req, res) {
 
     let entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
 
-    // Attempt 2 — Search fallback (Patient.s scope). If Validate didn't
-    // return a certain match AND the caller is in auto-discovery mode (no
-    // NHI supplied), rerun with onlyCertainMatches=false to use HNZ's Search
-    // operation. HNZ returns ranked candidates. Trust HNZ's scoring: if
-    // exactly one candidate, treat it as a receptionist-grade lookup and
-    // gate on a human "is that you?" confirmation on the front-end. If
-    // multiple candidates, use the patient's typed address to disambiguate;
-    // if still ambiguous, refuse and fall through to manual entry.
-    if (!cleanNhi && entries.length === 0 && status < 400) {
-      const attempt2 = await callMatch(token, {
-        given, family,
-        birthdate: dobIso || undefined,
-        address: parsedAddress,
-        onlyCertain: false,
-      })
-      status = attempt2.status
-      body = attempt2.body
-      matchMode = 'searched'
-      if (diag) diag.attempts.push({ n: 2, onlyCertain: false, status, body })
-      if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
-      if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
-      entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
-
-      // Multiple hits — try to disambiguate with address. If exactly one
-      // candidate matches the typed address strongly/moderately, that's our
-      // person. Otherwise ambiguous → fall through to manual entry.
-      if (entries.length > 1) {
-        const withAddr = entries
-          .map(e => ({ resource: e.resource, patient: parseFhirPatient(e.resource) }))
-          .filter(x => x.patient && !x.patient.deceased)
-          .map(x => ({ ...x, addr: addressMatches(patientAddress, x.patient.address_parts) }))
-          .filter(x => x.addr && (x.addr.strength === 'strong' || x.addr.strength === 'moderate'))
-        if (withAddr.length === 1) {
-          entries = [{ resource: withAddr[0].resource }]
-        } else {
-          return res.status(200).json({ enabled: true, matched: false, reason: 'ambiguous' })
-        }
+    // Multiple hits on Search (Patient.s, no NHI supplied) — disambiguate
+    // with the patient's typed address. Exactly one candidate matching at
+    // strong/moderate address strength → that's our person. Otherwise
+    // refuse and fall through to manual entry (safer than guessing).
+    if (!cleanNhi && entries.length > 1) {
+      const withAddr = entries
+        .map(e => ({ resource: e.resource, patient: parseFhirPatient(e.resource) }))
+        .filter(x => x.patient && !x.patient.deceased)
+        .map(x => ({ ...x, addr: addressMatches(patientAddress, x.patient.address_parts) }))
+        .filter(x => x.addr && (x.addr.strength === 'strong' || x.addr.strength === 'moderate'))
+      if (withAddr.length === 1) {
+        entries = [{ resource: withAddr[0].resource }]
+      } else {
+        return res.status(200).json({ enabled: true, matched: false, reason: 'ambiguous', ...(diag ? { diag } : {}) })
       }
     }
 
