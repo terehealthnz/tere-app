@@ -41,7 +41,7 @@ function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
         onBlur={() => setTimeout(() => setOpen(false), 120)}
         placeholder={placeholder}
         style={{ padding:'.5rem .75rem', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', width:'100%', boxSizing:'border-box' }} />
-      {open && (loading || results.length > 0) && (
+      {open && (loading || results.length > 0 || String(value || '').trim().length >= 2) && (
         <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:2, background:'white', border:'1px solid #E2E8F0', borderRadius:6, boxShadow:'0 4px 14px rgba(0,0,0,0.10)', zIndex:100, maxHeight:280, overflowY:'auto' }}>
           {loading && results.length === 0 && (
             <div style={{ padding:'.5rem .75rem', color:'#6B7280', fontSize:'.8125rem' }}>Searching…</div>
@@ -58,6 +58,18 @@ function GpDirectoryPicker({ value, onChange, onSelect, placeholder }) {
               )}
             </div>
           ))}
+          {/* Escape hatch — always offer to keep the typed name for GPs
+              not yet in the seeded directory. Mirrors the address picker
+              behaviour so providers never feel stuck. */}
+          {!loading && String(value || '').trim().length >= 2 && (
+            <div
+              onMouseDown={(e) => { e.preventDefault(); setOpen(false) }}
+              style={{ padding:'.55rem .75rem', fontSize:'.8125rem', cursor:'pointer', background:'#F0F9FA', color:'#0B6E76', lineHeight:1.4, fontWeight:600 }}
+            >
+              ✓ Use what I typed: <span style={{ fontWeight:400 }}>“{value}”</span>
+              <div style={{ fontSize:'.6875rem', color:'#6B7280', fontWeight:400, marginTop:2 }}>Fill practice + email manually below</div>
+            </div>
+          )}
         </div>
       )}
     </div>
