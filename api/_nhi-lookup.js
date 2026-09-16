@@ -280,6 +280,14 @@ export default async function handler(req, res) {
   const dobIso = toIsoDob(patientDob)
   const { given, family } = splitName(patientName)
 
+  // Diagnostic mode: append `?diag=1` to echo raw HNZ status + body from
+  // each $match attempt. Gated on NHI_DIAG_ENABLED so we can flip it off
+  // post-troubleshooting. No PII in echo — just what HNZ returned, which
+  // by design is redacted.
+  const diagRequested = String(req.query?.diag || '') === '1'
+  const diagEnabled = String(process.env.NHI_DIAG_ENABLED || '').toLowerCase() === 'true'
+  const diag = (diagRequested && diagEnabled) ? { attempts: [] } : null
+
   const token = await getNhiToken()
   if (!token || !NHI_FHIR_BASE) {
     return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
@@ -315,6 +323,7 @@ export default async function handler(req, res) {
       onlyCertain: true,
     })
     let matchMode = 'certain'
+    if (diag) diag.attempts.push({ n: 1, onlyCertain: true, status, body, sent: { given, family, dobIso, hasAddress: !!parsedAddress } })
 
     // 404 on the $match route means "operation not found" — treat as unavailable.
     if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
@@ -340,6 +349,7 @@ export default async function handler(req, res) {
       status = attempt2.status
       body = attempt2.body
       matchMode = 'searched'
+      if (diag) diag.attempts.push({ n: 2, onlyCertain: false, status, body })
       if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
       if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
       entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
@@ -363,7 +373,7 @@ export default async function handler(req, res) {
 
     // 4xx (typically 422 for bad input) — surface as no match, benign.
     if (status >= 400) {
-      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found' })
+      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found', ...(diag ? { diag } : {}) })
     }
 
     if (entries.length === 0) {
@@ -371,6 +381,7 @@ export default async function handler(req, res) {
         enabled: true,
         matched: false,
         reason: cleanNhi ? 'name_mismatch' : 'not_found',
+        ...(diag ? { diag } : {}),
       })
     }
 
