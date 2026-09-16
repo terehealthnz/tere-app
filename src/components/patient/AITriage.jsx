@@ -14,7 +14,11 @@ import DobPicker from '../DobPicker'
 // (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
 // becomes 'pharmacy' outside NZ. AU beta will grow a Medicare-card
 // equivalent when the AU intake flow lands (Phase 2).
-const NEXT_AFTER_ALLERGIES = () => isNZ() ? 'nhi' : 'pharmacy'
+// NZ patients get the NHI Terms of Use consent step first (HNZ NHI IG §4.3.2
+// General-2). If they decline the ToU we skip the NHI-collection step entirely
+// and go straight to pharmacy — the consult still works, we just can't verify
+// their identity against HNZ's National Health Index.
+const NEXT_AFTER_ALLERGIES = () => isNZ() ? 'nhi_tou' : 'pharmacy'
 
 // ── Anonymous analytics helper ─────────────────────────────────────────────────
 function trackEvent(event_name, metadata = {}) {
@@ -233,6 +237,11 @@ const STEPS = [
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
+  // HNZ NHI IG §4.3.2 General-2 — explicit ToU acceptance before we query
+  // the National Health Index. If declined, we skip the NHI lookup entirely
+  // (the consult still proceeds). Acceptance is stored as consent_type
+  // 'nhi_terms_of_use' in the consents table (see /api/consents POST below).
+  { id:'nhi_tou', message:"Next we'd like to check your NHI (National Health Index) number with Health New Zealand to confirm your identity. Do you accept HNZ's NHI Terms of Use? (See: https://www.tewhatuora.govt.nz/health-services-and-programmes/digital-health/national-health-index-nhi ). Selecting No is fine — we'll skip the NHI check.", field:'nhi_tou_accepted_raw', type:'yesno', validate:()=>true, next:'nhi' },
   { id:'nhi', message:"Do you know your NHI number? It's on your Community Services Card or any hospital letter — looks like ABC1234.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'nhi_confirm', message:(d)=>`Found ${d.nhi_display_name || 'a match'}, born ${d.nhi_display_dob || d.patient_dob_raw || ''} — is that you?`, field:'nhi_confirm_raw', type:'yesno', validate:()=>true, next:'pharmacy' },
   { id:'nhi_retry', message:"That NHI number doesn't seem to match your name and date of birth. Would you like to try again or skip?", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
@@ -719,6 +728,18 @@ export default function AITriage() {
       return
     }
 
+    // NHI Terms of Use acceptance (HNZ NHI IG §4.3.2 General-2). If the
+    // patient declines, we skip the NHI-collection step entirely — the
+    // consult still works, we just can't verify against HNZ. Acceptance is
+    // stamped into newData for downstream /api/consents POST (see below).
+    if (step.id === 'nhi_tou') {
+      const accepted = processed === 'yes'
+      const stamped = { ...newData, nhi_tou_accepted: accepted, nhi_tou_accepted_at: new Date().toISOString() }
+      setData(stamped)
+      advanceToStep(accepted ? 'nhi' : 'pharmacy', stamped)
+      return
+    }
+
     // NHI — optional HNZ NHI Patient lookup (behind NHI_API_ENABLED flag).
     // When the flag is off (today), the endpoint returns { enabled: false }
     // and we fall straight through to the pharmacy step — same behaviour
@@ -1113,6 +1134,10 @@ export default function AITriage() {
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'privacy_policy', granted:true }) }),
         apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'research_consent', granted: data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes' }) }),
         ...(data.is_acc_raw==='yes' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'acc_three_part_consent', granted:true }) })] : []),
+        // HNZ NHI IG §4.3.2 General-2 — record explicit acceptance of the
+        // NHI Terms of Use for every NZ patient who reached the nhi_tou step.
+        // Store both PASS and REFUSED paths so HNZ can audit either.
+        ...(isNZ() && typeof data.nhi_tou_accepted === 'boolean' ? [apiFetch('/api/consents', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...consentBase, consent_type:'nhi_terms_of_use', granted: data.nhi_tou_accepted }) })] : []),
       ])
       sessionStorage.setItem('accEligible', data.is_acc_raw==='yes'?'yes':'no')
       sessionStorage.setItem('triage_complaint', data.chief_complaint||'')

@@ -277,24 +277,29 @@ MULTI_TENANT_ANSWER = (
 
 GENERAL_RESULTS = {
     'General-1': (
-        'PARTIAL — HNZ 429 (rate-limit) errors surface as a red banner in the '
-        'Admin NHI Lookup panel and the patient triage step (see error paths in '
-        'api/_nhi.js:fhirCall + admin panel error block). No automatic '
-        'exponential backoff retry is implemented. Justification: NHI call '
-        'volume is single-digit-per-day (one lookup per new patient at '
-        'nhi-confirm, plus occasional admin lookups) — orders of magnitude '
-        'below any reasonable rate limit. If HNZ requires an explicit backoff '
-        'retry, we will add it before production access.'
+        'PASS — fhirCall() in api/_nhi.js wraps every outbound NHI call in a '
+        'retry-on-429 loop with exponential backoff: delays of 1s → 2s → 4s '
+        '(±20% jitter) and max 3 retries (initial attempt + 3 backoffs). If '
+        'HNZ returns a Retry-After header (RFC 6585) we honour it verbatim '
+        '(capped at 30s). Retries fire only on HTTP 429 — 5xx and other 4xx '
+        'return immediately so genuine errors surface without artificial '
+        'latency. The response object surfaces `rate_limit_retries` and '
+        '`rate_limit_backoff_ms` for evidence.'
     ),
     'General-2': (
-        "PARTIAL — Tere Health's patient triage flow presents a Privacy notice "
-        "that discloses (a) patient identity is verified against the National "
-        "Health Index; (b) Health New Zealand receives the NHI query, and "
-        "(c) patient personal information is shared with HNZ for that purpose. "
-        "Patients must explicitly accept the Privacy notice before triage can "
-        "continue. We do not present the NHI-specific Terms of Use as a "
-        "separate acceptance step. If HNZ requires distinct NHI-ToU consent, "
-        "we can add it as a triage step."
+        "PASS — Tere's NZ patient triage flow presents a distinct NHI Terms "
+        "of Use acceptance step (`nhi_tou`) immediately before the NHI-collection "
+        "step. See src/components/patient/AITriage.jsx step definition and "
+        "NEXT_AFTER_ALLERGIES branching. Message: \"Next we'd like to check "
+        "your NHI (National Health Index) number with Health New Zealand to "
+        "confirm your identity. Do you accept HNZ's NHI Terms of Use? "
+        "(See: https://www.tewhatuora.govt.nz/health-services-and-programmes/"
+        "digital-health/national-health-index-nhi ). Selecting No is fine — "
+        "we'll skip the NHI check.\" Both accept and decline paths are stored "
+        "in the consents table as consent_type='nhi_terms_of_use' with "
+        "granted=true|false and a timestamp per HIPC Rule 9 retention. If the "
+        "patient declines, the NHI step is skipped and the consult proceeds "
+        "without an NHI lookup."
     ),
 }
 

@@ -81,6 +81,13 @@ export function buildMatchBody(patient, onlyCertain) {
   }
 }
 
+// Sleep with jitter (±20%) to avoid a thundering-herd effect when several
+// callers back off simultaneously.
+function sleepWithJitter(baseMs) {
+  const jitter = baseMs * (0.8 + Math.random() * 0.4)
+  return new Promise(r => setTimeout(r, Math.round(jitter)))
+}
+
 async function fhirCall(method, path, { params, body, scopeOverride, userIdOverride } = {}) {
   if (!FHIR_BASE) throw new Error('NHI env missing: NHI_FHIR_BASE')
   const token = await getBearer(scopeOverride)
@@ -102,12 +109,32 @@ async function fhirCall(method, path, { params, body, scopeOverride, userIdOverr
     'X-Correlation-Id': corrId,
   }
   if (body && method !== 'GET') headers['Content-Type'] = 'application/fhir+json'
-  const r = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  })
-  const text = await r.text()
+
+  // HNZ NHI IG §4.3.2 General-1: handle HTTP 429 with exponential backoff.
+  // Delays: 1s → 2s → 4s with ±20% jitter; max 3 attempts (initial + 3 retries).
+  // Only retry on 429 (real rate-limit) — 5xx and other 4xx return
+  // immediately so genuine errors surface without user-visible latency.
+  // If HNZ sends a Retry-After header (RFC 6585) we honour it verbatim.
+  const MAX_RETRIES = 3
+  const BASE_DELAY_MS = 1000
+  let r, text, attempt = 0, retriedAfterMs = 0
+  while (true) {
+    r = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
+    if (r.status !== 429 || attempt >= MAX_RETRIES) break
+    const retryAfterHeader = r.headers.get('retry-after')
+    let delay
+    if (retryAfterHeader && !isNaN(Number(retryAfterHeader))) {
+      delay = Math.min(Number(retryAfterHeader) * 1000, 30000) // cap at 30s
+    } else {
+      delay = BASE_DELAY_MS * (2 ** attempt) // 1s, 2s, 4s
+    }
+    // Drain the 429 body to release the socket before sleeping.
+    try { await r.text() } catch {}
+    retriedAfterMs += delay
+    await sleepWithJitter(delay)
+    attempt += 1
+  }
+  text = await r.text()
   let parsed
   try { parsed = text ? JSON.parse(text) : {} } catch { parsed = { raw: text.slice(0, 400) } }
   return {
@@ -125,6 +152,9 @@ async function fhirCall(method, path, { params, body, scopeOverride, userIdOverr
     sent_scope: sentScope,
     sent_x_api_key_prefix: CLIENT_ID ? `${CLIENT_ID.slice(0, 8)}…` : null,
     requested_at: requestedAt,
+    // General-1 evidence — surfaces how many 429s we absorbed automatically.
+    rate_limit_retries: attempt,
+    rate_limit_backoff_ms: retriedAfterMs,
   }
 }
 
