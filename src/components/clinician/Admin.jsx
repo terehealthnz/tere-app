@@ -1193,7 +1193,7 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
         <div style={panel}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', gap:12 }}>
             <div>
-              <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{given || family ? `${shaped.given} ${shaped.family}` : shaped.id}</div>
+              <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{shaped.given || shaped.family ? `${shaped.given} ${shaped.family}` : shaped.id}</div>
               <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>NHI Patient resource · resource id <code>{shaped.id}</code></div>
             </div>
             <div style={{ padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap', background: shaped.deceasedDateTime ? '#374151' : '#DCFCE7', color: shaped.deceasedDateTime ? 'white' : '#166534' }}>
