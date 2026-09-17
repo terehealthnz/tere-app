@@ -7,6 +7,7 @@ import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
+import { providerLogout } from '../../lib/providerLogout'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -581,9 +582,7 @@ function SettingsTab({ navigate, displayName }) {
   }
 
   function signOut() {
-    localStorage.removeItem('tere_device')
-    localStorage.removeItem('tere_portal')
-    sessionStorage.clear()
+    providerLogout()
     navigate('/clinician')
   }
 

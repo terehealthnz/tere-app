@@ -119,6 +119,9 @@ export default function ClinicianLogin() {
       const p = data.provider
       sessionStorage.setItem('clinicianAuth', 'true')
       sessionStorage.setItem('providerId', p.id)
+      // Session id from /api/provider-auth — stash for /api/provider-logout
+      // so the provider_sessions row can be closed cleanly on sign-out.
+      if (data.sessionId) sessionStorage.setItem('providerSessionId', data.sessionId)
       sessionStorage.setItem('providerDisplayName', providerDisplayName(p))
       sessionStorage.setItem('providerIsAdmin', String(p.is_admin))
       sessionStorage.setItem('providerIsProvider', String(p.is_provider))

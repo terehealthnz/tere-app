@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import { verifyTotp } from './_totp.js'
 import { raiseSecurityAlert } from './_security-alert.js'
 import { getClientIp } from './_client-ip.js'
+import { startSession } from './_provider-session.js'
+import { writeAuditEvent } from './_audit-write.js'
 
 // Lockout policy: after MAX_FAILS consecutive failures, lock the
 // account for LOCKOUT_MS. State is persisted in the
@@ -186,6 +188,21 @@ export default async function handler(req, res) {
     console.error('[provider-auth] new-IP check failed:', e.message)
   }
 
+  // ── Session tracking + audit trail ───────────────────────────
+  //
+  // Open a provider_sessions row and fire a provider.login.success
+  // audit event. Both are best-effort — a session-insert failure
+  // must not block the login response. session_id is returned to
+  // the client for it to stash and pass back on logout.
+  const mfaUsed = !!(provider.mfa_enabled && provider.mfa_secret_encoded)
+  const sessionId = await startSession(req, providerId, { mfaUsed })
+  writeAuditEvent(req, { provider }, {
+    event_type:  'provider.login.success',
+    resource_type: 'provider_session',
+    resource_id:   sessionId,
+    metadata:      { mfa_used: mfaUsed, new_ip_alerted: false },
+  }).catch(() => {})
+
   const { pin: _pin, pin_hash: _hash, mfa_secret_encoded: _sec, ...safe } = provider
-  res.json({ provider: safe })
+  res.json({ provider: safe, sessionId })
 }

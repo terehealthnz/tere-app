@@ -35,6 +35,22 @@ export default async function handler(req, res) {
   const now = new Date()
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
+  // Housekeeping: close orphaned provider_sessions rows. Any session with
+  // last_seen_at older than 8h and no ended_at is inferred stale — the
+  // provider almost certainly closed the tab without hitting Sign Out
+  // (sendBeacon can drop under aggressive tab-crash conditions). Marking
+  // end_reason='inferred_stale' distinguishes these from clean logouts in
+  // the audit-log so admin views can see the difference.
+  try {
+    const staleCutoff = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString()
+    await supabase.from('provider_sessions')
+      .update({ ended_at: new Date().toISOString(), end_reason: 'inferred_stale' })
+      .is('ended_at', null)
+      .lt('last_seen_at', staleCutoff)
+  } catch (e) {
+    console.warn('[cron-security-anomalies] session orphan-close failed:', e?.message || e)
+  }
+
   const anomalies = { highVolume: [], offHours: [], authFailuresByIp: [], lockouts: [], failureBursts: [] }
 
   try {

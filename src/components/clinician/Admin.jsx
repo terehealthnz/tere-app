@@ -15,10 +15,12 @@ import ResultsFollowupPanel from './ResultsFollowupPanel'
 import EmergencyEscalationsPanel from './EmergencyEscalationsPanel'
 import PrescribingSurveillancePanel from './PrescribingSurveillancePanel'
 import CgmMeetingsPanel from './CgmMeetingsPanel'
+import ProviderSessionsPanel from './ProviderSessionsPanel'
 import VendorSlaMetrics from './VendorSlaMetrics'
 import PeerReviewPanel from './PeerReviewPanel'
 import NhiLookup from './NhiLookup'
 import { isNZ } from '../../lib/region'
+import { providerLogout } from '../../lib/providerLogout'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -43,8 +45,7 @@ function AdminNavMenu({ navigate }) {
   const go = (path) => { setOpen(false); navigate(path) }
   const signOut = () => {
     setOpen(false)
-    localStorage.removeItem('tere_portal')
-    sessionStorage.clear()
+    providerLogout()
     navigate('/clinician')
   }
 
@@ -6666,7 +6667,7 @@ function AdminBody() {
             case 'quality':
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':
-              return <><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><CgmMeetingsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
+              return <><ProviderSessionsPanel /><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><CgmMeetingsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'hpi':        return <AdminHpiLookupPanel />
             case 'nhi':        return <AdminNhiLookupPanel />
             case 'acc':        return <AccClaimsSection />

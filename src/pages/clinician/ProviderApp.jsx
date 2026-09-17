@@ -10,6 +10,7 @@ import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
 import PracticeModeBanner from '../../components/clinician/PracticeModeBanner.jsx'
 import TrainingBanner from '../../components/clinician/TrainingBanner.jsx'
+import { providerLogout } from '../../lib/providerLogout'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1095,9 +1096,7 @@ function MenuTab({ navigate, displayName, isAdmin }) {
   const [showMfa, setShowMfa] = useState(false)
   const providerId = sessionStorage.getItem('providerId')
   function signOut() {
-    localStorage.removeItem('tere_device')
-    localStorage.removeItem('tere_portal')
-    sessionStorage.clear()
+    providerLogout()
     navigate('/clinician')
   }
   const items = [

@@ -61,6 +61,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'patient-allergens', 'patient-medications', 'patient-conditions',
   // Provider MFA — enroll / verify / disable own TOTP (2026-08-04)
   'provider-mfa',
+  // Admin listing of provider login sessions. NB: provider-logout is deliberately
+  // NOT here — logout must succeed even after the client has already begun
+  // wiping sessionStorage (see api/_provider-logout.js header for details).
+  'provider-sessions',
   // Internal Tere Chat (provider/admin team channel, 2026-08-05)
   'team-messages',
   // NOT here:
@@ -264,6 +268,8 @@ const ROUTES = {
   'push-subscribe':            () => import('./_push-subscribe.js'),
   'push-notify':               () => import('./_push-notify.js'),
   'provider-auth':             () => import('./_provider-auth.js'),
+  'provider-logout':           () => import('./_provider-logout.js'),
+  'provider-sessions':         () => import('./_provider-sessions.js'),
   'provider-list':             () => import('./_provider-list.js'),
   'provider-licenses':         () => import('./_provider-licenses.js'),
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
