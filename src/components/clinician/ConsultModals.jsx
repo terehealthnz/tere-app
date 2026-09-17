@@ -207,6 +207,13 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [showSaveTemplate, setShowSaveTemplate] = useState(false)
+  // Clinic-wide curated templates (task #229). Distinct from `templates`
+  // above, which is per-provider ⭐ favourites. Loaded once per modal open.
+  // Filter is applied client-side so the picker feels responsive; the
+  // set is small (~12 seed rows, admins add sparingly).
+  const [sharedTemplates, setSharedTemplates] = useState([])
+  const [sharedTemplateFilter, setSharedTemplateFilter] = useState('')
+  const [showSharedPicker, setShowSharedPicker] = useState(false)
   const [interactions, setInteractions] = useState(null)
   const [checkingInteractions, setCheckingInteractions] = useState(false)
   const [interactionOverride, setInteractionOverride] = useState(false)
@@ -379,6 +386,15 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
       .then(r => r.json()).then(d => setTemplates(d.templates || [])).catch(() => {})
   }, [open, providerId])
 
+  // Load clinic-wide curated templates (task #229). Anon caller isn't
+  // authed for this endpoint (guardProvider), so we only fire once we
+  // know the provider is signed in.
+  useEffect(() => {
+    if (!open || !providerId) return
+    apiFetch('/api/prescription-templates')
+      .then(r => r.json()).then(d => setSharedTemplates(d.templates || [])).catch(() => {})
+  }, [open, providerId])
+
   function loadTemplate(t) {
     // Legacy templates store `drug` as a compound string — leave what
     // we can't parse in `medication` for the provider to split by hand.
@@ -389,6 +405,41 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
     })
     setIsPaediatric(!!t.paediatric)
     setPaedWeight('')
+  }
+
+  // Apply a clinic-wide curated template (task #229). Shape differs
+  // from favourites — fields are prefixed default_*, plus a distinct
+  // safety_net_text field that we append to notes so the provider sees
+  // it and can copy into their consult safety-net wording.
+  async function loadSharedTemplate(t) {
+    if (!t) return
+    // Compose directions from the structured default_directions + any
+    // safety-net text, separated so the provider can trim as needed.
+    const directions = [t.default_directions, t.safety_net_text ? `Safety-net: ${t.safety_net_text}` : null]
+      .filter(Boolean).join('\n')
+    setRx({
+      medication: t.drug_name || '',
+      strength:   t.default_strength || '',
+      form:       t.default_form || '',
+      dose:       t.default_dose || '',
+      frequency:  t.default_frequency || '',
+      duration:   t.default_duration || '',
+      notes:      directions,
+      qty:        t.default_quantity || '',
+      repeats:    t.default_repeats || 0,
+    })
+    setIsPaediatric(!!t.is_paediatric)
+    setShowSharedPicker(false)
+    setSharedTemplateFilter('')
+    // Fire-and-forget audit — server records template applied to consult
+    // so the audit trail links "template X used on consult Y". Errors
+    // swallowed; audit never blocks the happy path.
+    try {
+      const params = new URLSearchParams({ action: 'apply', id: t.id })
+      if (consult?.id) params.set('consultation_id', consult.id)
+      if (consult?.patient_nhi) params.set('patient_ref', consult.patient_nhi)
+      apiFetch(`/api/prescription-templates?${params.toString()}`).catch(() => {})
+    } catch {}
   }
 
   async function saveTemplate() {
@@ -469,9 +520,61 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         <strong>Prescribing reminder:</strong> Controlled drugs (opioids, benzodiazepines, stimulants) and GLP-1 weight loss injections cannot be prescribed via telehealth under NZ law.
         {consult?.controlled_medication_mentioned && <span style={{display:'block',marginTop:3,fontWeight:700}}>⚠ Patient mentioned a controlled medication during triage.</span>}
       </div>
+      {/* Clinic-wide curated templates (task #229). Distinct from the
+          per-provider ⭐ favourites picker below. Provider clicks
+          "Templates" → search-filterable list → picking one populates
+          the form fields; provider can then tweak before submit.
+          Templates are complementary to favourites, not a replacement. */}
+      {sharedTemplates.length > 0 && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:'.25rem' }}>
+            <label style={{ fontSize:'.75rem', fontWeight:600, color:'var(--muted)' }}>
+              📋 Clinic templates <span style={{ fontWeight:400, color:'#6B7280' }}>· starter rx by condition</span>
+            </label>
+            <button type="button" onClick={() => setShowSharedPicker(v => !v)}
+              style={{ background:'#EFF9F9', color:'#0B6E76', border:'1px solid #C7EAEC', borderRadius:6, padding:'3px 10px', fontSize:'.7rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+              {showSharedPicker ? 'Hide' : `Browse (${sharedTemplates.length})`}
+            </button>
+          </div>
+          {showSharedPicker && (
+            <div style={{ border:'1.5px solid #C7EAEC', borderRadius:8, padding:'.5rem', background:'#F7FCFC' }}>
+              <input type="text" placeholder="Filter by condition or drug (e.g. UTI, cellulitis, otitis, amoxicillin)…"
+                value={sharedTemplateFilter}
+                onChange={e => setSharedTemplateFilter(e.target.value)}
+                style={{ width:'100%', padding:'.375rem .5rem', border:'1px solid #E2E8F0', borderRadius:6, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.8125rem', marginBottom:'.5rem', boxSizing:'border-box' }} />
+              <div style={{ maxHeight:220, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
+                {(() => {
+                  const q = sharedTemplateFilter.trim().toLowerCase()
+                  const rows = !q ? sharedTemplates : sharedTemplates.filter(t => {
+                    return (t.name || '').toLowerCase().includes(q)
+                      || (t.condition || '').toLowerCase().includes(q)
+                      || (t.drug_name || '').toLowerCase().includes(q)
+                  })
+                  if (!rows.length) return <div style={{ fontSize:'.75rem', color:'#9CA3AF', padding:'.5rem .25rem' }}>No templates match "{sharedTemplateFilter}".</div>
+                  return rows.map(t => (
+                    <button key={t.id} type="button" onClick={() => loadSharedTemplate(t)}
+                      style={{ textAlign:'left', background:'white', border:'1px solid #E2E8F0', borderRadius:6, padding:'.5rem .625rem', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                      <div style={{ fontWeight:700, fontSize:'.8125rem', color:'#0D2B45' }}>
+                        {t.name}
+                        {t.is_paediatric && <span style={{ marginLeft:6, background:'#DBEAFE', color:'#1E40AF', fontSize:'.65rem', fontWeight:700, padding:'1px 6px', borderRadius:99 }}>Paeds</span>}
+                      </div>
+                      <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:2 }}>
+                        {t.condition} · <span style={{ color:'#0B6E76', fontWeight:600 }}>{t.drug_name}</span>
+                        {t.default_strength && ` ${t.default_strength}`}
+                        {t.default_frequency && ` · ${t.default_frequency}`}
+                        {t.default_duration && ` · ${t.default_duration}`}
+                      </div>
+                    </button>
+                  ))
+                })()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {templates.length > 0 && (
         <div style={{marginBottom:'1rem'}}>
-          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.25rem'}}>Load template</label>
+          <label style={{fontSize:'.75rem',fontWeight:600,color:'var(--muted)',display:'block',marginBottom:'.25rem'}}>⭐ Your saved defaults</label>
           <select onChange={e => { const t = templates.find(x=>x.id===e.target.value); if(t) loadTemplate(t); e.target.value='' }}
             style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',cursor:'pointer'}}>
             <option value=''>— Select a saved prescription —</option>
