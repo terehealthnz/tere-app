@@ -182,10 +182,13 @@ export default function VitalsCapture() {
                 sessionStorage.setItem('vitals', JSON.stringify(result))
               }
               if (result.rawFrames?.length) {
-                import('../../lib/bpModel').then(({ isBPReliable, predictBP }) => {
-                  if (!isBPReliable()) return
-                  return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-                }).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
+                // BP is shown as an estimate regardless of local calibration
+                // depth — display carries "AI estimate / may vary" chips and
+                // low-confidence colouring. WAND change-notification tracked
+                // separately (memory: project-tere task #260).
+                import('../../lib/bpModel').then(({ predictBP }) =>
+                  predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+                ).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
                 try { const spo2 = calculateSpO2(result.rawFrames); if (spo2) setSpo2Estimate(spo2) } catch {}
               }
               console.log(`Using background frames: ${frames.length} (${result.backgroundDurationSec}s)`)
@@ -238,10 +241,11 @@ export default function VitalsCapture() {
         // only in local React state and never persisted.
         const consultIdForBp = sessionStorage.getItem('consultationId')
         if (result.rawFrames?.length) {
-          import('../../lib/bpModel').then(({ bpModelReady, predictBP, isBPReliable }) => {
-            if (!isBPReliable()) return
-            return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-          }).then(bp => {
+          // BP always attempted — confidence chip communicates uncertainty.
+          // WAND change-notify tracked separately (task #260).
+          import('../../lib/bpModel').then(({ predictBP }) =>
+            predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+          ).then(bp => {
             if (!bp) return
             setBpEstimate(bp)
             if (consultIdForBp && !consultIdForBp.startsWith('demo')) {
