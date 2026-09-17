@@ -1,15 +1,15 @@
 // _mark-no-show.js — fires when the SECOND ring attempt times out without the
-// patient joining. Cancels the Stripe hold so the patient is not charged, sets
+// patient joining. Cancels the card hold so the patient is not charged, sets
 // status=no_show, and emails the patient a friendly "we tried twice — no
 // charge" note.
 //
 // POST /api/mark-no-show
 //   { consultationId }
 
-import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
+import { releaseHold } from './_payment-release.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -35,14 +35,12 @@ export default async function handler(req, res) {
     cooldown_until: null,
   }).eq('id', consultationId)
 
-  // Release Stripe hold so patient is not charged
+  // Release card hold (Stripe or Windcave) so patient is not charged. Any
+  // failure here is non-blocking — the auth expires on its own in ~7 days.
   if (consult.payment_intent_id) {
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY)
-      await stripe.paymentIntents.cancel(consult.payment_intent_id)
-    } catch (e) {
-      console.error('[mark-no-show] Stripe cancel failed:', e.message)
-    }
+    const amountCents = Number(consult.payment_amount) || null
+    const result = await releaseHold(consult.payment_intent_id, amountCents)
+    if (!result.ok) console.error('[mark-no-show] hold release failed:', result.provider, result.message)
   }
 
   // Email patient — we tried twice, no charge

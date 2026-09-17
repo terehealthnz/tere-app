@@ -217,6 +217,29 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'No allowed columns in patch' })
   }
 
+  // Patient cancelled — release the card hold now (Windcave auth or Stripe
+  // intent) instead of leaving it to expire in 7 days. Non-blocking: any
+  // release failure logs but doesn't abort the status flip; the auth will
+  // fall off on its own regardless.
+  if (patch.status === 'cancelled') {
+    try {
+      const { data: existing } = await supabase
+        .from('consultations')
+        .select('payment_intent_id, payment_amount, payment_amount_nzd')
+        .eq('id', id)
+        .maybeSingle()
+      const needsRelease = existing?.payment_intent_id && existing.payment_amount_nzd == null
+      if (needsRelease) {
+        const { releaseHold } = await import('./_payment-release.js')
+        const amountCents = Number(existing.payment_amount) || null
+        const result = await releaseHold(existing.payment_intent_id, amountCents)
+        if (!result.ok) console.error('[patient-consult] hold release on cancel failed:', result.provider, result.message)
+      }
+    } catch (e) {
+      console.error('[patient-consult] release-on-cancel error:', e?.message || e)
+    }
+  }
+
   // Translate any free-text field into English before storing. Provider chart,
   // AI note generation, and downstream audit trail must all read in English.
   // Only chief_complaint is currently on the patient PATCH allowlist — other

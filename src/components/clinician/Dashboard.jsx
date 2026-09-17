@@ -532,6 +532,27 @@ export default function Dashboard() {
                     <div style={{display:'flex',alignItems:'center',gap:4}}>
                       <TypeBadge type={c.consultation_type || 'video'} />
                       {v && !v.skipped && v.hr && <span style={{fontSize:'.75rem',color:'var(--success)',fontWeight:600,marginLeft:4}}>❤️ {v.hr}</span>}
+                      {/* Payment chip: distinguishes an active auth-hold from an
+                          already-captured consult (finalise ran) or an
+                          employer-covered/free consult. Providers see at a
+                          glance whether they still need to hit Finalise to
+                          actually collect. */}
+                      {c.payment_amount_nzd != null ? (
+                        <span title={`Captured $${Number(c.payment_amount_nzd).toFixed(2)}`}
+                              style={{fontSize:'.6875rem',fontWeight:700,color:'#065F46',background:'#D1FAE5',padding:'1px 6px',borderRadius:99,marginLeft:4}}>
+                          💳 Captured
+                        </span>
+                      ) : c.payment_intent_id ? (
+                        <span title="Card authorised — capture on Finalise"
+                              style={{fontSize:'.6875rem',fontWeight:700,color:'#92400E',background:'#FEF3C7',padding:'1px 6px',borderRadius:99,marginLeft:4}}>
+                          🔒 Hold only
+                        </span>
+                      ) : c.employer_paid ? (
+                        <span title="Employer-paid"
+                              style={{fontSize:'.6875rem',fontWeight:700,color:'#1E3A8A',background:'#DBEAFE',padding:'1px 6px',borderRadius:99,marginLeft:4}}>
+                          🏢 Employer
+                        </span>
+                      ) : null}
                     </div>
                     <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>{timeAgo(c.created_at)}</div>
                     <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center' }}>

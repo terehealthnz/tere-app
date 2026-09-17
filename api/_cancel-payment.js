@@ -1,15 +1,18 @@
-// POST /api/cancel-payment — cancel an uncaptured Stripe hold.
+// POST /api/cancel-payment — cancel an uncaptured card hold.
 //
 // Called by patient WaitingRoom when the patient abandons the flow.
 // Stays anonymous (patient may not have any credential mid-triage) but
 // guards against random paymentIntentId spam by requiring the intent id
 // be attached to an existing consultation. Prevents an attacker who
 // somehow learns a paymentIntentId from cancelling arbitrary held funds.
+//
+// Dispatch: paymentIntentId shape decides processor.
+//   - Stripe:   'pi_...'  → Stripe SDK cancel
+//   - Windcave: UUID       → Windcave refund/void (releases the auth)
+// See _payment-release.js for the shared helper.
 
-import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
-
-function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
+import { releaseHold } from './_payment-release.js'
 
 function admin() {
   return createClient(
@@ -31,7 +34,7 @@ export default async function handler(req, res) {
   // belong to a different tenant or that leaked from another integration.
   const { data: consult } = await supabase
     .from('consultations')
-    .select('id, status, payment_intent_id')
+    .select('id, status, payment_intent_id, payment_amount, payment_amount_nzd')
     .eq('payment_intent_id', paymentIntentId)
     .maybeSingle()
   if (!consult) return res.status(404).json({ error: 'No consultation found for this payment intent.' })
@@ -47,11 +50,14 @@ export default async function handler(req, res) {
     return res.status(409).json({ error: 'Payment cannot be cancelled at this stage of the consultation.' })
   }
 
-  try {
-    const intent = await getStripe().paymentIntents.cancel(paymentIntentId)
-    return res.status(200).json({ status: intent.status })
-  } catch (e) {
-    console.error('[cancel-payment]', e?.message || e)
-    return res.status(500).json({ error: 'Payment cancellation failed.' })
+  // Windcave voids need the original auth amount in cents. Stripe ignores.
+  // payment_amount is stored in cents by _windcave-create-session.js.
+  const amountCents = Number(consult.payment_amount) || null
+
+  const result = await releaseHold(paymentIntentId, amountCents)
+  if (!result.ok) {
+    console.error('[cancel-payment]', result.provider, result.message)
+    return res.status(500).json({ error: 'Payment cancellation failed.', detail: result.message })
   }
+  return res.status(200).json({ status: 'cancelled', provider: result.provider })
 }
