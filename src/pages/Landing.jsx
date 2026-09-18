@@ -63,14 +63,14 @@ function Hero() {
           Acute & emergent care.<br />Wherever you are in Aotearoa.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Video or phone consultations with New Zealand-registered doctors trained in emergency medicine — for acute or emergent health problems that need prompt attention. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
+          Video or phone consultations with New Zealand-registered doctors trained in emergency medicine, for acute or emergent health problems that need prompt attention. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
           <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
         </div>
         <div style={{ fontSize: '.8125rem', color: 'rgba(212,238,240,.7)', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontStyle: 'italic' }}>
-          Submit any time — after-hours goes to the top of the morning queue.
+          Submit any time. After-hours goes to the top of the morning queue.
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
@@ -141,7 +141,7 @@ function Pricing() {
     {
       icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
       price: 65, accPrice: 25,
-      features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor — video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
+      features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor, video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
     },
   ]
@@ -152,7 +152,7 @@ function Pricing() {
           One clear price
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Just a NZ$25 co-payment — ACC covers your consultation.
+          ACC-eligible injury? Just a NZ$25 co-payment. ACC covers your consultation.
         </p>
         <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
           Prices in NZD · Patients located outside Aotearoa New Zealand pay a flat NZ$100 consultation fee.
@@ -215,7 +215,7 @@ function Pricing() {
           <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>💬</span>
           <div>
             <strong style={{ color: BRAND.navy, display: 'block', marginBottom: 2 }}>Prescription, referral, or admin question?</strong>
-            <span>No consultation needed. <a href="/contact" style={{ color: BRAND.teal, fontWeight: 700 }}>Message our support team</a> — no charge, we reply within 24 hours.</span>
+            <span>No consultation needed. <a href="/contact" style={{ color: BRAND.teal, fontWeight: 700 }}>Message our support team</a>. No charge, we reply within 24 hours.</span>
           </div>
         </div>
       </div>
@@ -234,7 +234,7 @@ function ForEmployers() {
           Keep your team healthy and working
         </h2>
         <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,.7)', lineHeight: 1.75, marginBottom: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          A monthly per-employee retainer gives your entire workforce unlimited access to Tere Health consultations at no cost to them. Less sick leave, faster recoveries, and a healthier team — all for a fixed, predictable cost.
+          A monthly per-employee retainer gives your entire workforce unlimited access to Tere Health consultations at no cost to them. Less sick leave, faster recoveries, and a healthier team, all for a fixed, predictable cost.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
           {[
@@ -273,12 +273,12 @@ function About() {
             A doctor's opinion, without leaving home.
           </h2>
           <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 620, margin: '0 auto' }}>
-            Not every health worry needs a trip to a clinic — but a lot of them do need a doctor. Tere Health connects you with a New Zealand-registered doctor by video or phone for the everyday health issues that come up: infections, injuries needing an opinion, medication questions, ACC claims, the "should I be worried?" check. If your problem needs hands-on care, we'll tell you and help you get to the right place. <strong>For life-threatening emergencies, always call 111.</strong>
+            Not every health worry needs a trip to a clinic, but a lot of them do need a doctor. Tere Health connects you with a New Zealand-registered doctor by video or phone for the everyday health issues that come up: infections, injuries needing an opinion, medication questions, ACC claims, the "should I be worried?" check. If your problem needs hands-on care, we'll tell you and help you get to the right place. <strong>For life-threatening emergencies, always call 111.</strong>
           </p>
         </div>
         <div style={{ background: 'rgba(11,110,118,.06)', border: '1px solid rgba(11,110,118,.2)', borderRadius: 12, padding: '1.5rem 1.75rem', fontSize: '.875rem', color: '#374151', lineHeight: 1.8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <div style={{ fontWeight: 700, color: BRAND.navy, marginBottom: '.5rem', fontSize: '.9375rem' }}>MCNZ Telehealth Standards</div>
-          <p>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023). All consultations are conducted by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care meets MCNZ Telehealth Standards, within the acknowledged limitations of the telehealth modality — we are not an accredited Urgent Care Clinic or an emergency department, and we do not substitute for either.</p>
+          <p>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023). All consultations are conducted by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care meets MCNZ Telehealth Standards, within the acknowledged limitations of the telehealth modality. We are not an accredited Urgent Care Clinic or an emergency department, and we do not substitute for either.</p>
           <p style={{ marginTop: '.75rem' }}>Tere Health has established pathways for arranging physical examinations when clinically required. If your presentation requires in-person assessment, your Tere provider will advise you of the most appropriate local service and arrange referral. <strong>In an emergency, always call 111.</strong></p>
           <p style={{ marginTop: '.75rem' }}>With your consent, Tere Health will share a summary of your consultation with your regular GP or health provider. If you do not have a regular provider, we will provide you with a written record of your care.</p>
         </div>
@@ -297,7 +297,7 @@ function FAQ() {
     },
     {
       q: 'What can Tere Health treat?',
-      a: 'Tere Health provides tele-emergency care across a broad range of acute presentations: infections, lacerations, sprains and musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. Our team manages the same presentations seen in an emergency department — via your phone. We cannot treat true emergencies — if your life is at risk, call 111.',
+      a: 'Tere Health provides tele-emergency care across a broad range of acute presentations: infections, lacerations, sprains and musculoskeletal injuries, rashes, chest infections, UTIs, mental health concerns, medication queries, and more. Our team manages the same presentations seen in an emergency department, via your phone. We cannot treat true emergencies. If your life is at risk, call 111.',
     },
     {
       q: 'How do I pay?',
@@ -305,11 +305,11 @@ function FAQ() {
     },
     {
       q: 'Where in NZ do you cover?',
-      a: 'All of Aotearoa. We send prescriptions electronically to any community pharmacy in New Zealand — you choose the one closest to you at booking. For imaging (X-ray or ultrasound), your Tere doctor can arrange a referral to a clinic in your region as part of the consultation.',
+      a: 'All of Aotearoa. We send prescriptions electronically to any community pharmacy in New Zealand. You choose the one closest to you at booking. For imaging (X-ray or ultrasound), your Tere doctor can arrange a referral to a clinic in your region as part of the consultation.',
     },
     {
       q: 'What if I submit after 8pm?',
-      a: 'You can still submit any time. After-hours submissions go to the top of the queue and receive a callback from 8am the next morning. If you have an emergency, call 111 immediately — don\'t wait.',
+      a: 'You can still submit any time. After-hours submissions go to the top of the queue and receive a callback from 8am the next morning. If you have an emergency, call 111 immediately. Don\'t wait.',
     },
     {
       q: 'What if it\'s an emergency?',
