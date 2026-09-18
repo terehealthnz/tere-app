@@ -500,7 +500,7 @@ export default function TereCorporate() {
                   'Section 22F Bundle export',
                   'GP handover letter',
                   'MOH new-service notification',
-                  'WAND-registered Tere Vitals (HR, RR, SpO₂; BP amendment filed 17 Sept 2026)',
+                  'WAND-registered Tere Vitals (HR, RR, SpO₂, BP)',
                 ],
               },
               {

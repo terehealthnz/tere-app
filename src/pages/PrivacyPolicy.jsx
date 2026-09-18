@@ -99,7 +99,7 @@ export default function PrivacyPolicy() {
             <li style={{ marginBottom: '.375rem' }}><strong>Health:</strong> Symptoms, medical history, medications, allergies, photos (if provided), vital signs</li>
             <li style={{ marginBottom: '.375rem' }}><strong>ACC:</strong> Employer name, injury details, injury date and mechanism</li>
             <li style={{ marginBottom: '.375rem' }}><strong>Clinical:</strong> Consultation notes, prescriptions, referrals, medical certificates</li>
-            <li style={{ marginBottom: '.375rem' }}><strong>Payment:</strong> Transaction records (card details are held by Stripe — we do not store card numbers)</li>
+            <li style={{ marginBottom: '.375rem' }}><strong>Payment:</strong> Transaction records. Card details are handled by our PCI-DSS certified payment processor (Windcave, a New Zealand-owned provider) — we do not see or store card numbers.</li>
             <li style={{ marginBottom: '.375rem' }}><strong>Technical:</strong> Device type, browser, session ID (anonymised — no IP address linked to health data)</li>
           </ul>
         </Section>
@@ -118,7 +118,7 @@ export default function PrivacyPolicy() {
         <Section title="5. Tere Vitals — Indicative screening only">
           <p>The Tere Vitals camera-based vital signs function uses your smartphone, tablet, or laptop camera to estimate heart rate, respiratory rate, peripheral oxygen saturation (SpO₂), and blood pressure by remote photoplethysmography (rPPG). It is intended as an adjunct to your telehealth consultation, for adults aged 18 and over.</p>
           <p style={{ marginTop: '.75rem', fontSize: '.9rem', color: '#374151' }}>
-            <strong>Regulatory status:</strong> Tere Vitals is a Software as a Medical Device (SaMD) notified to Medsafe under the Medicines Act 1981 — WAND reference <strong>260729-WAND-786DQ9</strong>, GMDN 57960, Class IIa. A 17 September 2026 amendment to include blood pressure in the notified scope is currently before Medsafe. Sponsor / manufacturer: Tere Health Limited.
+            <strong>Regulatory status:</strong> Tere Vitals is a Software as a Medical Device (SaMD) notified to Medsafe under the Medicines Act 1981 — WAND reference <strong>260729-WAND-786DQ9</strong>, GMDN 57960, Class IIa. Notified scope covers heart rate, respiratory rate, peripheral oxygen saturation (SpO₂), and blood pressure. Sponsor / manufacturer: Tere Health Limited.
           </p>
           <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '.875rem 1rem', marginTop: '.75rem' }}>
             <strong style={{ color: '#92400E' }}>Important:</strong>
@@ -129,7 +129,7 @@ export default function PrivacyPolicy() {
 
         <Section title="6. Overseas storage">
           <p>Your health information is stored in Sydney, Australia using Supabase (built on AWS). Australia has comparable privacy protections to New Zealand and is considered an approved jurisdiction under the Privacy Act 2020 for health data storage.</p>
-          <p style={{ marginTop: '.75rem' }}>Data transferred to or processed by third parties (Stripe, LiveKit, Resend) is subject to data processing agreements requiring them to maintain equivalent security and privacy standards.</p>
+          <p style={{ marginTop: '.75rem' }}>Data transferred to or processed by third parties (Windcave for payments, LiveKit for video, AWS SES for email, AWS SNS for SMS, AWS Bedrock for AI) is subject to data processing agreements or Business Associate Addenda requiring them to maintain equivalent security and privacy standards.</p>
         </Section>
 
         <Section title="7. Data retention and deletion">
@@ -167,7 +167,7 @@ export default function PrivacyPolicy() {
             <li style={{ marginBottom: '.5rem' }}><strong>Session storage (not cookies):</strong> We use browser sessionStorage to hold your consultation progress. This is deleted when you close your browser tab. No personal information is stored in sessionStorage.</li>
             <li style={{ marginBottom: '.5rem' }}><strong>Anonymous analytics:</strong> We track anonymised funnel events (e.g., "triage started", "consultation completed") using a random session ID. No name, NHI, or health information is linked to analytics data.</li>
             <li style={{ marginBottom: '.5rem' }}><strong>No advertising cookies:</strong> We do not use advertising, tracking, or third-party analytics cookies.</li>
-            <li style={{ marginBottom: '.5rem' }}><strong>Stripe:</strong> Payment processing may set cookies for fraud prevention. See <a href="https://stripe.com/privacy" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>stripe.com/privacy</a>.</li>
+            <li style={{ marginBottom: '.5rem' }}><strong>Windcave:</strong> Payment processing may set cookies for fraud prevention. See <a href="https://www.windcave.com/privacy-policy" target="_blank" rel="noreferrer" style={{ color: BRAND.teal }}>windcave.com/privacy-policy</a>.</li>
           </ul>
         </Section>
 
