@@ -60,10 +60,10 @@ function Hero() {
           Aotearoa New Zealand
         </div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
-          Tele-emergency care.<br />Anywhere in Aotearoa.
+          Urgent care.<br />Wherever you are in Aotearoa.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Emergency Medicine consultations via video or phone — no travel, no waiting room, no half-day lost. ACC claims, prescriptions, and referrals handled on the spot.
+          Video or phone consultations with New Zealand doctors trained in emergency medicine, for acute-but-not-life-threatening problems. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
@@ -270,15 +270,15 @@ function About() {
       <div style={{ maxWidth: 860, margin: '0 auto' }}>
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-            Emergency medicine. Wherever you are.
+            Emergency-medicine expertise, when a trip to ED isn't the answer.
           </h2>
-          <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 560, margin: '0 auto' }}>
-            When you're hours from the nearest emergency department, a serious injury or acute illness can't wait. Tere Health brings specialist emergency medicine to wherever you are in Aotearoa — on the water, on the farm, in the bush, or in town.
+          <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, fontFamily: 'Plus Jakarta Sans, sans-serif', maxWidth: 620, margin: '0 auto' }}>
+            Most urgent health worries don't need an ambulance and don't fit an in-person emergency department — but they can't wait days for a GP appointment either. Tere Health connects you with New Zealand doctors trained in emergency medicine, via video or phone, for acute-but-not-life-threatening presentations. If your problem needs hands-on care, we'll tell you and help you get to the right place. <strong>If it's a true emergency, call 111.</strong>
           </p>
         </div>
         <div style={{ background: 'rgba(11,110,118,.06)', border: '1px solid rgba(11,110,118,.2)', borderRadius: 12, padding: '1.5rem 1.75rem', fontSize: '.875rem', color: '#374151', lineHeight: 1.8, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <div style={{ fontWeight: 700, color: BRAND.navy, marginBottom: '.5rem', fontSize: '.9375rem' }}>MCNZ Telehealth Standards</div>
-          <p>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023). All consultations are conducted by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care provided via Tere Health is equivalent to an in-person emergency medicine consultation, within the limitations of the telehealth modality.</p>
+          <p>Tere Health operates in accordance with the Medical Council of New Zealand's Statement on Telehealth (August 2023). All consultations are conducted by MCNZ-registered doctors holding current Annual Practising Certificates. The standard of care meets MCNZ Telehealth Standards, within the acknowledged limitations of the telehealth modality — we are not a substitute for a physical emergency department when one is clinically needed.</p>
           <p style={{ marginTop: '.75rem' }}>Tere Health has established pathways for arranging physical examinations when clinically required. If your presentation requires in-person assessment, your Tere provider will advise you of the most appropriate local service and arrange referral. <strong>In an emergency, always call 111.</strong></p>
           <p style={{ marginTop: '.75rem' }}>With your consent, Tere Health will share a summary of your consultation with your regular GP or health provider. If you do not have a regular provider, we will provide you with a written record of your care.</p>
         </div>
