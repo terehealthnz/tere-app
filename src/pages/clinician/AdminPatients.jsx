@@ -13,6 +13,61 @@ function Badge({ children, color = '#6B7280', bg = '#F3F4F6' }) {
   )
 }
 
+// Builds the ordered list of phases a visit passed through, using the
+// timestamps that _are_ set (created_at, patient_joined_at, started_at,
+// notes_finalised_at, completed_at) plus the current status to infer
+// milestones that don't have their own column (e.g. "paid" only exists
+// as a status transition from payment_pending → waiting). If the current
+// status is one of the terminal-abandonment values (`payment_pending`,
+// `abandoned`, `no_show`, `expired`) we tag the last-reached phase as
+// where the patient dropped off.
+function buildJourney(c) {
+  const fmt = (t) => t ? new Date(t).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : null
+  const status = String(c.status || '').toLowerCase()
+  const paid = !!(c.payment_amount && c.payment_amount > 0) || ['waiting','vitals_requested','vitals_complete','ready','in_progress','completed'].includes(status)
+  const steps = [
+    { key: 'triage',    label: 'Triage',    at: fmt(c.created_at) },
+    { key: 'payment',   label: 'Payment',   at: paid ? '✓' : null },
+    { key: 'waiting',   label: 'Waiting',   at: fmt(c.patient_joined_at) || (['waiting','vitals_requested','vitals_complete','ready','in_progress','completed'].includes(status) ? '✓' : null) },
+    { key: 'consult',   label: 'In consult', at: fmt(c.started_at) || (status === 'in_progress' || status === 'completed' ? '✓' : null) },
+    { key: 'completed', label: 'Completed', at: fmt(c.completed_at) || fmt(c.notes_finalised_at) },
+  ]
+  const reached = steps.map(s => !!s.at)
+  const lastReachedIdx = reached.lastIndexOf(true)
+  const isAbandoned = !reached[reached.length - 1] && ['draft','payment_pending','abandoned','no_show','expired'].includes(status)
+  return { steps, lastReachedIdx, isAbandoned, status }
+}
+
+function JourneyTimeline({ consult }) {
+  const { steps, lastReachedIdx, isAbandoned } = buildJourney(consult)
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, flexWrap: 'wrap', margin: '.25rem 0 .5rem' }}>
+      {steps.map((s, i) => {
+        const reached = !!s.at
+        const isStuck = isAbandoned && i === lastReachedIdx
+        const dotColor = reached ? (isStuck ? '#DC2626' : '#0B6E76') : '#E2E8F0'
+        return (
+          <React.Fragment key={s.key}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 64 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, marginBottom: 4 }} />
+              <div style={{ fontSize: '.6875rem', fontWeight: 700, color: reached ? '#374151' : '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.03em' }}>{s.label}</div>
+              <div style={{ fontSize: '.6875rem', color: '#6B7280', marginTop: 1 }}>{s.at || '—'}</div>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ flex: '0 0 24px', height: 2, background: reached && steps[i + 1].at ? '#0B6E76' : '#E2E8F0', marginTop: 4 }} />
+            )}
+          </React.Fragment>
+        )
+      })}
+      {isAbandoned && (
+        <div style={{ fontSize: '.6875rem', fontWeight: 700, color: '#991B1B', background: '#FEE2E2', padding: '2px 7px', borderRadius: 99, alignSelf: 'center', marginLeft: '.5rem' }}>
+          Abandoned at {steps[lastReachedIdx]?.label?.toLowerCase() || 'triage'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EditableField({ label, value, onSave }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value || '')
@@ -103,6 +158,12 @@ function PatientProfile({ patientId, onClose, onMerge }) {
 
   return (
     <div style={{ fontFamily: FF }}>
+      {/* Back button */}
+      <button onClick={onClose}
+        style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.875rem', fontWeight: 600, cursor: 'pointer', fontFamily: FF, padding: '.25rem 0', marginBottom: '.75rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        ← Back to patients
+      </button>
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
         <div>
@@ -115,8 +176,6 @@ function PatientProfile({ patientId, onClose, onMerge }) {
             {patient.total_consultations ? ` · ${patient.total_consultations} visit${patient.total_consultations === 1 ? '' : 's'}` : ''}
           </div>
         </div>
-        <button onClick={onClose}
-          style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#9CA3AF', lineHeight: 1 }}>✕</button>
       </div>
 
       {/* Badges */}
@@ -177,21 +236,24 @@ function PatientProfile({ patientId, onClose, onMerge }) {
             {history.map(c => (
               <div key={c.id} style={{ background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
                 <button onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                  style={{ width: '100%', background: 'none', border: 'none', padding: '.75rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF, display: 'flex', alignItems: 'center', gap: '.75rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '.875rem', fontWeight: 600, color: NAVY, marginBottom: 2 }}>{c.chief_complaint}</div>
-                    <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
-                      {new Date(c.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
-                      {c.acc_read_code ? ` · ${c.acc_read_code}` : ''}
+                  style={{ width: '100%', background: 'none', border: 'none', padding: '.75rem 1rem', cursor: 'pointer', textAlign: 'left', fontFamily: FF }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.75rem', marginBottom: '.5rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '.875rem', fontWeight: 600, color: NAVY, marginBottom: 2 }}>{c.chief_complaint || <span style={{ fontStyle: 'italic', color: '#9CA3AF' }}>No chief complaint captured</span>}</div>
+                      <div style={{ fontSize: '.75rem', color: '#6B7280' }}>
+                        {new Date(c.created_at).toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        {c.provider_display_name ? ` · ${c.provider_display_name}` : ''}
+                        {c.acc_read_code ? ` · ${c.acc_read_code}` : ''}
+                      </div>
                     </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {c.prescription_issued && <Badge color={TEAL} bg="#EFF9F9">Rx</Badge>}
+                      {c.referral_issued && <Badge color="#7C3AED" bg="#F5F3FF">Ref</Badge>}
+                      {c.gp_letter_sent_at && <Badge color="#065F46" bg="#D1FAE5">GP letter</Badge>}
+                    </div>
+                    <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}>{expandedId === c.id ? '▲' : '▼'}</span>
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {c.prescription_issued && <Badge color={TEAL} bg="#EFF9F9">Rx</Badge>}
-                    {c.referral_issued && <Badge color="#7C3AED" bg="#F5F3FF">Ref</Badge>}
-                    {c.gp_letter_sent_at && <Badge color="#065F46" bg="#D1FAE5">GP letter</Badge>}
-                  </div>
-                  <span style={{ color: '#9CA3AF', fontSize: '.75rem' }}>{expandedId === c.id ? '▲' : '▼'}</span>
+                  <JourneyTimeline consult={c} />
                 </button>
                 {expandedId === c.id && c.notes_final && (
                   <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>

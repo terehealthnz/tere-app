@@ -195,7 +195,7 @@ export default async function handler(req, res) {
     if (patientId) {
       const { data, error } = await supabase
         .from('consultations')
-        .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued, vitals')
+        .select('id, created_at, chief_complaint, notes_final, acc_read_code, icd10_code, work_capacity, status, consultation_type, provider_display_name, gp_letter_sent_at, prescription_issued, referral_issued, vitals, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, ring_started_at')
         .eq('patient_id', patientId)
         .eq('is_practice', practice)
         .order('created_at', { ascending: false })
