@@ -139,7 +139,7 @@ function HowItWorks() {
 function Pricing() {
   const plans = [
     {
-      icon: '🚨', title: 'Emergency consultation', subtitle: 'ED specialist within 2 hours',
+      icon: '🚨', title: 'Acute & emergent consultation', subtitle: 'ED specialist within 2 hours',
       price: 65, accPrice: 25,
       features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor, video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
       highlight: true,
