@@ -42,10 +42,10 @@ export default function Watch() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '2.5rem' }}>
           {[
-            { title: 'MCNZ-registered', body: 'Every consult with a New Zealand registered Emergency Medicine physician.' },
-            { title: 'No app', body: 'Works on any phone browser. Open tere.co.nz, no download.' },
+            { title: 'MCNZ-registered', body: 'Every consult with a New Zealand-registered Emergency Medicine physician.' },
             { title: 'ACC-integrated', body: 'Injury claims lodged directly during the consultation.' },
-            { title: 'Prescriptions delivered', body: 'To your chosen NZ pharmacy — electronic or fax.' },
+            { title: 'Prescriptions delivered', body: 'Sent electronically to your chosen NZ pharmacy.' },
+            { title: 'Imaging referrals', body: 'X-ray, ultrasound, and CT arranged during your consult — RHCNZ network across Aotearoa.' },
           ].map(f => (
             <div key={f.title} style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: 12, padding: '1rem 1.25rem' }}>
               <div style={{ fontWeight: 700, color: BRAND.navy, fontSize: '.9375rem', marginBottom: '.25rem' }}>{f.title}</div>
