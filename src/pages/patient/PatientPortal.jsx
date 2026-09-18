@@ -10,6 +10,7 @@
 import React, { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import AccessibilityToggle, { useAccessibilityBoot } from '../../components/patient/AccessibilityToggle'
+import DobPicker from '../../components/DobPicker'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -41,6 +42,7 @@ export default function PatientPortal() {
   const [session, setSession] = useState(null)
 
   const [email, setEmail] = useState('')
+  const [dob, setDob] = useState('')
   const [entries, setEntries] = useState([])
   const [loadingEntries, setLoadingEntries] = useState(false)
 
@@ -80,8 +82,12 @@ export default function PatientPortal() {
   async function requestLink(e) {
     e?.preventDefault?.()
     setError(null)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      setError('Please enter your date of birth so we can confirm it\'s you.')
+      return
+    }
     try {
-      const data = await post('request', { email: email.trim() })
+      const data = await post('request', { email: email.trim(), dob })
       setMessage(data.message)
       setPhase('sent')
     } catch (e) { setError(e.message) }
@@ -161,11 +167,16 @@ export default function PatientPortal() {
           <>
             <h1 style={{ color: NAVY, fontSize: '1.5rem', margin: 0 }}>Access your Tere Health record</h1>
             <p style={{ color: '#374151', fontSize: '.9375rem', lineHeight: 1.6, margin: '1rem 0' }}>
-              Enter the email you gave us. We'll send you a one-time sign-in link that works for 30 minutes.
+              Enter the email you gave us and your date of birth. We'll send you a one-time sign-in link that works for 30 minutes.
             </p>
             <form onSubmit={requestLink}>
               <label style={lbl}>Email</label>
               <input type="email" required value={email} onChange={e => setEmail(e.target.value)} style={inp} placeholder="you@example.com" />
+              <div style={{ marginTop: '1rem' }}>
+                <label style={lbl}>Date of birth</label>
+                <DobPicker value={dob} onChange={setDob} />
+              </div>
+              {error && <div role="alert" style={{ marginTop: '.75rem', fontSize: '.8125rem', color: '#991B1B', background: '#FEE2E2', border: '1px solid #FCA5A5', padding: '.5rem .75rem', borderRadius: 6 }}>{error}</div>}
               <div style={{ marginTop: '1.25rem' }}>
                 <button type="submit" style={btn}>Send my sign-in link</button>
               </div>

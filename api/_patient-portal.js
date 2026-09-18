@@ -47,23 +47,48 @@ export default async function handler(req, res) {
   // ── Action: request magic link ─────────────────────────────────────────────
   if (action === 'request') {
     const email = String(req.body.email || '').trim().toLowerCase()
+    const dob   = String(req.body.dob   || '').trim()   // expect ISO YYYY-MM-DD from DobPicker
     if (!email || !/@/.test(email)) return res.status(400).json({ error: 'Valid email required' })
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) return res.status(400).json({ error: 'Date of birth required' })
 
-    // Resolve to a patient. Also try patient_email on consultations as a fallback.
+    // Resolve to a patient. Also try patient_email on consultations as a fallback,
+    // then hydrate DOB from patients via patient_id.
     let patient = null
     {
-      const { data } = await supabase.from('patients').select('id, nhi, first_name, last_name, email').ilike('email', email).maybeSingle()
+      const { data } = await supabase.from('patients')
+        .select('id, nhi, first_name, last_name, email, dob')
+        .ilike('email', email).maybeSingle()
       if (data) patient = data
     }
     if (!patient) {
       const { data } = await supabase.from('consultations')
         .select('patient_id, patient_nhi, patient_first_name, patient_last_name, patient_email')
         .ilike('patient_email', email).order('created_at', { ascending: false }).limit(1).maybeSingle()
-      if (data) patient = { id: data.patient_id, nhi: data.patient_nhi, first_name: data.patient_first_name, last_name: data.patient_last_name, email }
+      if (data && data.patient_id) {
+        const { data: p } = await supabase.from('patients')
+          .select('id, nhi, first_name, last_name, email, dob').eq('id', data.patient_id).maybeSingle()
+        if (p) patient = p
+        else patient = { id: data.patient_id, nhi: data.patient_nhi, first_name: data.patient_first_name, last_name: data.patient_last_name, email, dob: null }
+      }
     }
-    if (!patient) {
-      // Log the miss for auditing, still return generic success.
-      console.log(JSON.stringify({ ts: new Date().toISOString(), type: 'patient_portal_request_no_match', email_mask: email.replace(/(.{2}).*(@.*)/, '$1***$2'), ip }))
+
+    // Two-factor identity check: email must match AND DOB must match what's
+    // on file. If either fails, we return the SAME generic response — an
+    // attacker who guesses an email can't distinguish "no such patient"
+    // from "wrong DOB", so they can't grind DOBs on a known-valid email.
+    // The failure modes are logged separately so admins can still spot a
+    // burst of DOB-mismatch attempts against the same email.
+    const dobOnFile = patient?.dob ? String(patient.dob).slice(0, 10) : null // Supabase returns YYYY-MM-DD or full ISO
+    const dobMatches = dobOnFile && dobOnFile === dob
+    if (!patient || !dobMatches) {
+      const reason = !patient ? 'no_email_match' : (!dobOnFile ? 'no_dob_on_file' : 'dob_mismatch')
+      console.log(JSON.stringify({
+        ts: new Date().toISOString(),
+        type: 'patient_portal_request_no_match',
+        reason,
+        email_mask: email.replace(/(.{2}).*(@.*)/, '$1***$2'),
+        ip,
+      }))
       return res.status(200).json(GENERIC_REQUEST_OK)
     }
 
