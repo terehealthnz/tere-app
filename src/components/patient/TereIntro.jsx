@@ -6,20 +6,29 @@ import { createConsultation } from '../../lib/supabase'
 import { useFeatureFlag } from '../../lib/featureFlags'
 import GeoGateModal from './GeoGateModal'
 
+// NZ launch date: pre-launch, visitors are bounced to /waitlist. Must match
+// BETA_ACTIVE_UNTIL in src/components/BetaBanner.jsx — bump both together
+// if the launch date slips.
+const BETA_ACTIVE_UNTIL = new Date('2026-10-01T00:00:00+13:00')
+
 export default function TereIntro({ onStart }) {
   const navigate = useNavigate()
   const waitlistMode = useFeatureFlag('waitlist_mode')
   const bypass = typeof window !== 'undefined' && sessionStorage.getItem('tere_beta_bypass') === '1'
+  const beforeLaunch = Date.now() < BETA_ACTIVE_UNTIL.getTime()
   const [v, setV] = useState(false)
   const [starting, setStarting] = useState(false)
   const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
   const [geoOpen, setGeoOpen] = useState(false)
   useEffect(() => { setTimeout(() => setV(true), 100) }, [])
 
-  // While in waitlist mode, redirect visitors to the waitlist form so we
-  // don't take bookings we can't yet deliver. Bypass via ?dev=beta on any
-  // page (the BetaBanner writes tere_beta_bypass=1 to sessionStorage).
-  if (waitlistMode && !bypass) return <Navigate to="/waitlist" replace />
+  // While in waitlist mode OR before the hard-coded launch date, redirect
+  // visitors to the waitlist form so we don't take bookings we can't yet
+  // deliver. Bypass via ?dev=beta on any page (the BetaBanner writes
+  // tere_beta_bypass=1 to sessionStorage). Date is the load-bearing path;
+  // the feature flag stays as a manual override for post-launch temporary
+  // re-enable.
+  if ((waitlistMode || beforeLaunch) && !bypass) return <Navigate to="/waitlist" replace />
 
   // Two-phase entry: opening "Get started" arms the GeoGateModal, which
   // hits /api/geo-check + captures the patient attestation. The modal calls

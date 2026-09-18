@@ -4,13 +4,27 @@ import { useFeatureFlag } from '../lib/featureFlags'
 import { detectRegion, REGIONS } from '../lib/region'
 
 // Small amber banner that shows on public patient-facing pages while the
-// `waitlist_mode` feature flag is on. Hidden for provider/admin routes and
-// for anyone who has set the `?dev=beta` bypass in this session.
+// `waitlist_mode` feature flag is on OR while the hard-coded beta window is
+// still open. Hidden for provider/admin routes and for anyone who has set
+// the `?dev=beta` bypass in this session.
 const HIDDEN_PATH_PREFIXES = [
   '/clinician', '/provider', '/admin',
   '/waitlist',   // don't show it ON the waitlist page itself
   '/careers/apply',
 ]
+
+// NZ launch date: NZ-only beta gating auto-lifts at 00:00 NZDT on this
+// date. Kept as a single const rather than a feature flag because the
+// intent is "ship on this date whether or not I remember to flip the
+// flag". If the launch date slips, bump this and TereIntro.jsx
+// BETA_ACTIVE_UNTIL together.
+//
+// AU stays in full beta indefinitely (AHPRA registration + AU entity —
+// see AULanding.jsx AU BETA PREVIEW banner, which is region-scoped and
+// returns early above the date gate). US stays in full beta indefinitely
+// (US intake queue #241 not built — see USLanding.jsx and USStart.jsx
+// beta positioning). Do not extend this date gate to those branches.
+const BETA_ACTIVE_UNTIL = new Date('2026-10-01T00:00:00+13:00')
 
 export default function BetaBanner() {
   const location = useLocation()
@@ -51,7 +65,11 @@ export default function BetaBanner() {
     )
   }
 
-  if (!waitlistMode) return null
+  // Beta active if either (a) flag is on OR (b) we're still before the
+  // launch date. The date-based path is the load-bearing one — the flag is
+  // kept as a manual override for post-launch temporary re-enable.
+  const betaActive = waitlistMode || Date.now() < BETA_ACTIVE_UNTIL.getTime()
+  if (!betaActive) return null
   if (bypassed) return null
   if (onHiddenPath) return null
   // US (Tere Care) has its own beta positioning (state picker + inline beta
