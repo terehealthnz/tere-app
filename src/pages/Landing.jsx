@@ -236,7 +236,7 @@ function ForEmployers() {
         <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,.7)', lineHeight: 1.75, marginBottom: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           A monthly per-employee retainer gives your entire workforce unlimited access to Tere Health consultations at no cost to them. Less sick leave, faster recoveries, and a healthier team — all for a fixed, predictable cost.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem', marginBottom: '2.5rem' }}>
           {[
             ['Zero co-pay', 'Employees pay nothing per visit'],
             ['Fixed monthly cost', 'Predictable per-employee rate'],
