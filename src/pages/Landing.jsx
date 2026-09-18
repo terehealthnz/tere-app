@@ -60,10 +60,10 @@ function Hero() {
           Aotearoa New Zealand
         </div>
         <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
-          See a doctor by video or phone.<br />Wherever you are in Aotearoa.
+          Acute & emergent care.<br />Wherever you are in Aotearoa.
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Video or phone consultations with New Zealand-registered doctors — often emergency-medicine trained. For everyday health worries that need a doctor's opinion. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
+          Video or phone consultations with New Zealand-registered doctors trained in emergency medicine — for acute or emergent health problems that need prompt attention. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />

@@ -242,7 +242,7 @@ function Hero() {
           lineHeight: 1.1, letterSpacing: '-0.015em',
           margin: '0 0 1.5rem',
         }}>
-          Urgent care, on your phone.<br />
+          Acute & emergent care, on your phone.<br />
           <span style={{ color: C.sage, fontStyle: 'italic' }}>Without the wait.</span>
         </h1>
         <p style={{
