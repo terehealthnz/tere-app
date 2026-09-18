@@ -301,27 +301,27 @@ export default function AdminPatients({ embedded }) {
         ) : (
           <>
             {/* Desktop table header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', padding: '.75rem 1.25rem', borderBottom: '1px solid #F1F5F9', background: '#F8FAFC' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1.1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, .7fr)', columnGap: '1rem', padding: '.75rem 1.25rem', borderBottom: '1px solid #F1F5F9', background: '#F8FAFC' }}>
               {['Name', 'DOB', 'NHI', 'Phone', 'Total visits', 'Last visit', 'Research'].map(h => (
                 <div key={h} style={{ fontSize: '.6875rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</div>
               ))}
             </div>
             {patients.map(p => (
               <button key={p.id} onClick={() => setSelected(p.id)}
-                style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1fr 1fr', padding: '1rem 1.25rem', borderBottom: '1px solid #F1F5F9', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: FF, transition: 'background .1s' }}
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, .9fr) minmax(0, 1.1fr) minmax(0, .8fr) minmax(0, 1fr) minmax(0, .7fr)', columnGap: '1rem', padding: '1rem 1.25rem', borderBottom: '1px solid #F1F5F9', width: '100%', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: FF, transition: 'background .1s' }}
                 onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
                 onMouseLeave={e => e.currentTarget.style.background = 'none'}>
-                <div>
-                  <div style={{ fontWeight: 600, color: NAVY, fontSize: '.9375rem' }}>{p.first_name} {p.last_name}</div>
-                  <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 2 }}>{p.email || '—'}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, color: NAVY, fontSize: '.9375rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.first_name} {p.last_name}</div>
+                  <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email || '—'}</div>
                 </div>
-                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center' }}>
+                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>
                   {p.date_of_birth ? new Date(p.date_of_birth).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
                 </div>
-                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center' }}>{p.nhi || '—'}</div>
-                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center' }}>{p.phone || '—'}</div>
-                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center' }}>{p.total_consultations || 0}</div>
-                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center' }}>
+                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>{p.nhi || '—'}</div>
+                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.phone || '—'}</div>
+                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>{p.total_consultations || 0}</div>
+                <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>
                   {p.last_consultation_at
                     ? new Date(p.last_consultation_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
                     : '—'}
