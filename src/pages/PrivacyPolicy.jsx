@@ -54,7 +54,7 @@ export default function PrivacyPolicy() {
             <li>Only your doctor and authorised Tere staff can see your records — every access is logged</li>
             <li>You can access, correct, or request deletion of your information at any time</li>
             <li>Records are kept for 10 years as required by NZ law, then securely deleted</li>
-            <li>Some processing (AI drafting, email, SMS) happens on AWS Sydney under a Business Associate Agreement — this is an offshore disclosure under IPP12</li>
+            <li>Some processing happens in Australia — AI drafting on AWS Bedrock (Anthropic Claude, ap-southeast-2 Sydney), transactional email on AWS SES (Sydney), SMS on AWS SNS (Sydney), video on LiveKit (Sydney). All under executed AWS Business Associate Addenda. This is an offshore disclosure for the purposes of HIPC Rule 12 / IPP12. No Patient Data is processed in the United States.</li>
             <li>You can complain to us, the Privacy Commissioner, or the HDC at any time</li>
           </ul>
         </div>
@@ -116,10 +116,13 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="5. Tere Vitals — Indicative screening only">
-          <p>The Tere Vitals camera-based vital signs function uses your smartphone camera to estimate heart rate and breathing rate.</p>
+          <p>The Tere Vitals camera-based vital signs function uses your smartphone, tablet, or laptop camera to estimate heart rate, respiratory rate, peripheral oxygen saturation (SpO₂), and blood pressure by remote photoplethysmography (rPPG). It is intended as an adjunct to your telehealth consultation, for adults aged 18 and over.</p>
+          <p style={{ marginTop: '.75rem', fontSize: '.9rem', color: '#374151' }}>
+            <strong>Regulatory status:</strong> Tere Vitals is a Software as a Medical Device (SaMD) notified to Medsafe under the Medicines Act 1981 — WAND reference <strong>260729-WAND-786DQ9</strong>, GMDN 57960, Class IIa. A 17 September 2026 amendment to include blood pressure in the notified scope is currently before Medsafe. Sponsor / manufacturer: Tere Health Limited.
+          </p>
           <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 8, padding: '.875rem 1rem', marginTop: '.75rem' }}>
             <strong style={{ color: '#92400E' }}>Important:</strong>
-            <span style={{ color: '#92400E', fontSize: '.9rem' }}> Tere Vitals provides indicative screening estimates only. Results are not a substitute for medical-grade devices and must be interpreted by a registered clinician. Do not make clinical decisions based solely on Tere Vitals readings.</span>
+            <span style={{ color: '#92400E', fontSize: '.9rem' }}> Tere Vitals provides indicative screening estimates only. Blood pressure estimates in particular are lower confidence than the other readings and are not a substitute for a calibrated blood pressure cuff. All readings must be interpreted by a registered clinician. Do not make clinical decisions based solely on Tere Vitals readings. Not intended for use in paediatric or neonatal populations, for continuous monitoring, or for presentations of physiological instability that require urgent in-person assessment.</span>
           </div>
           <p style={{ marginTop: '.75rem' }}>Vital signs data is used only for your consultation and is stored as part of your clinical record. It is not used for research or benchmarking without your consent.</p>
         </Section>

@@ -444,7 +444,7 @@ export default function TereCorporate() {
           {[
             { label: 'NZ privacy',  value: 'Health Information Privacy Code 2020' },
             { label: 'NZ standards', value: 'Aligned with HISO 10001 (HL7), 10023 (HPI), 10046 (NHI), 10029 (HISF). Independent audit not undertaken.' },
-            { label: 'US privacy',  value: 'HIPAA, BAA-covered, PHI in-region' },
+            { label: 'Data residency', value: 'All Patient Data in AWS Sydney (ap-southeast-2). No US processing for NZ patients.' },
             { label: 'Clinical AI', value: 'Encrypted, not used for model training' },
             { label: 'Audit',       value: 'Every clinical PHI access logged' },
           ].map(c => (
@@ -487,8 +487,8 @@ export default function TereCorporate() {
                   'Privacy Act 2020',
                   'HISO 10029 conformance',
                   'IPP12 offshore notice',
-                  'HIPAA + BAA (AWS Sydney)',
-                  'Bedrock, SES, SNS — all BAA',
+                  'Bedrock (Sydney) under AWS BAA',
+                  'SES, SNS, Supabase, LiveKit — all ap-southeast-2',
                   'Breach runbook',
                 ],
               },
@@ -500,7 +500,7 @@ export default function TereCorporate() {
                   'Section 22F Bundle export',
                   'GP handover letter',
                   'MOH new-service notification',
-                  'WAND-registered rPPG',
+                  'WAND-registered Tere Vitals (HR, RR, SpO₂; BP amendment filed 17 Sept 2026)',
                 ],
               },
               {
