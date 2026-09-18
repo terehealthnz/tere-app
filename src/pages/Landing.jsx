@@ -155,7 +155,7 @@ function Pricing() {
           ACC-eligible injury? Just a NZ$25 co-payment. ACC covers your consultation.
         </p>
         <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
-          Prices in NZD · Patients located outside Aotearoa New Zealand pay a flat NZ$100 consultation fee.
+          Prices in NZD · Non-residents (visitors, tourists, and anyone without NZ residency or citizenship) pay a flat NZ$100 consultation fee.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
           {plans.map(p => (
