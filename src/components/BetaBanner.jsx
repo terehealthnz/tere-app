@@ -88,7 +88,7 @@ export default function BetaBanner() {
       color: '#78350F',
       lineHeight: 1.5,
     }}>
-      <strong>Beta</strong> — bookings open shortly.{' '}
+      <strong>Beta</strong> - opening 1 October.{' '}
       <Link to="/waitlist" style={{ color: '#78350F', fontWeight: 700, textDecoration: 'underline' }}>
         Join the waitlist →
       </Link>
