@@ -175,6 +175,10 @@ export async function createConsultation(data) {
     ...(data.intakeIpHash        !== undefined ? { intake_ip_hash:     data.intakeIpHash }        : {}),
     ...(data.intakeAttestedNz    !== undefined ? { intake_attested_nz: data.intakeAttestedNz }    : {}),
     ...(data.intakeAttestedAt    !== undefined ? { intake_attested_at: data.intakeAttestedAt }    : {}),
+    // Marker for /work/[slug]/intake flow — triggers server-side roster
+    // match against employer_employees and ACC field auto-populate. Server
+    // strips this key before insert so it never lands in the DB.
+    ...(data.workIntake === true ? { __work_intake: true } : {}),
   }
 
   const res = await apiFetch('/api/create-consultation', {

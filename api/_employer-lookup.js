@@ -41,7 +41,7 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active, usage_cap_month')
+    .select('id, company_name, is_active, usage_cap_month, require_employee_match')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -80,6 +80,7 @@ export default async function handler(req, res) {
     employer: {
       id: data.id,
       company_name: data.company_name,
+      require_employee_match: !!data.require_employee_match,
     },
   })
 }

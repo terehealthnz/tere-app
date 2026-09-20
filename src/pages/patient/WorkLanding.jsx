@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { createConsultation } from '../../lib/supabase'
 import { LANGUAGES, t } from '../../lib/i18n'
 import MaoriFlagIcon from '../../components/MaoriFlagIcon'
 
@@ -98,35 +97,13 @@ export default function WorkLanding() {
     return () => { cancelled = true }
   }, [slug])
 
-  async function startConsultation() {
+  function startConsultation() {
     if (!employer) return
-    setPhase('starting')
-
-    // Clear any prior consult from sessionStorage so we don't accidentally
-    // resume a paying-patient consult under an employer wrapper.
-    sessionStorage.removeItem('consultation_id')
-    sessionStorage.removeItem('consultationId')
-    sessionStorage.removeItem('paymentIntentId')
-
-    // Stash employer context so ConsultationType.jsx picks it up and
-    // routes to /waiting (bypasses Payment) after triage completes.
-    sessionStorage.setItem('employer_id', employer.id)
-    sessionStorage.setItem('employer_name', employer.company_name)
-    sessionStorage.setItem('employer_paid', 'true')
-
-    try {
-      const pt = await createConsultation({
-        status: 'pre_triage',
-        patientLanguage: lang,
-        employerId: employer.id,  // server re-verifies and sets employer_paid=true
-      })
-      if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
-    } catch (e) {
-      console.error('[work-landing] createConsultation failed:', e?.message || e)
-      // Don't block the flow — the consult will get created downstream if
-      // AITriage falls back to its own create. But log so we notice.
-    }
-    navigate('/consent')
+    // Navigate to the intake form. Consult creation happens there, so the
+    // roster-match check (Factor 2 of the safeguard) runs on every consult
+    // that comes through this flow. Language is already stashed in
+    // sessionStorage from selectLang().
+    navigate(`/work/${slug}/intake`)
   }
 
   return (

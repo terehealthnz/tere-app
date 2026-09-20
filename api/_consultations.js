@@ -205,11 +205,19 @@ export default async function handler(req, res) {
     }
 
     if (filter === 'active' || filter === 'queue') {
+      // Queue order (2026-09-19): employer-covered consults surface first,
+      // then paying-patient consults in FIFO order within each tier. This
+      // supports the B2B SLA — employers pay a monthly retainer expecting
+      // tight response times for their workers. Paying patients still get
+      // served in the order they arrived; they just wait behind the
+      // covered tier. If paying-patient bounce becomes a problem we can
+      // add a max-wait guard here later.
       const { data, error } = await supabase
         .from('consultations')
         .select('*')
         .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
         .eq('is_practice', practice)
+        .order('employer_paid', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: true })
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })

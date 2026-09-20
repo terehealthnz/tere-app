@@ -85,11 +85,41 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
   if (!claimedEmployerId) return null
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active')
+    .select('id, company_name, is_active, require_employee_match, site_address, site_phone, contact_phone')
     .eq('id', String(claimedEmployerId))
     .maybeSingle()
   if (error || !data || !data.is_active) return null
-  return { employer_id: data.id, employer_name: data.company_name }
+  return {
+    employer_id: data.id,
+    employer_name: data.company_name,
+    require_employee_match: data.require_employee_match,
+    site_address: data.site_address || null,
+    // Fall back to the contract contact_phone if no site_phone is on file.
+    // ACC45 needs a phone number for the employer; better an admin number
+    // than a blank field on the claim.
+    site_phone: data.site_phone || data.contact_phone || null,
+  }
+}
+
+// Roster-match check for the /work/[slug] flow. Case-insensitive first +
+// last name match, exact DOB match, scoped to the employer_id from the
+// verified slug lookup. Returns { matched: true, employee_id } on hit,
+// { matched: false } on miss.
+async function matchEmployerRoster(supabase, employerId, firstName, lastName, dob) {
+  if (!employerId || !firstName || !lastName || !dob) return { matched: false }
+  const { data, error } = await supabase
+    .from('employer_employees')
+    .select('id')
+    .eq('employer_id', String(employerId))
+    .ilike('first_name', String(firstName).trim())
+    .ilike('last_name',  String(lastName).trim())
+    .eq('dob', String(dob).slice(0, 10))
+    .maybeSingle()
+  if (error) {
+    console.error('[create-consultation] roster match failed:', error)
+    return { matched: false }
+  }
+  return data ? { matched: true, employee_id: data.id } : { matched: false }
 }
 
 // Columns explicitly rejected at create time even if the client sends them.
@@ -128,14 +158,49 @@ export default async function handler(req, res) {
   // Server-side employer verification — client-supplied employer_paid /
   // employer_name are always discarded and re-derived from the lookup.
   const claimedEmployerId = payload.employer_id ?? null
+  const workIntake = payload.__work_intake === true  // marker set by /work/[slug]/intake
   delete payload.employer_paid
   delete payload.employer_name
+  delete payload.__work_intake
   if (claimedEmployerId) {
     const verified = await verifyEmployerBenefit(supabase, claimedEmployerId)
     if (verified) {
+      // Factor 2: roster match (only enforced on the /work/[slug]/intake
+      // path, and only if the employer requires it). Public patient flow
+      // that happens to send an employer_id (legacy path) is NOT gated by
+      // roster — keeps that flow unchanged.
+      if (workIntake && verified.require_employee_match) {
+        const rosterMatch = await matchEmployerRoster(
+          supabase,
+          verified.employer_id,
+          payload.patient_first_name,
+          payload.patient_last_name,
+          payload.date_of_birth,
+        )
+        if (!rosterMatch.matched) {
+          return res.status(403).json({
+            error: 'We could not verify you as a team member. Please check with your employer, or continue as a paying patient.',
+            code: 'NO_ROSTER_MATCH',
+          })
+        }
+      }
+
       payload.employer_id   = verified.employer_id
       payload.employer_name = verified.employer_name
       payload.employer_paid = true
+
+      // Auto-populate ACC45 employer fields from the verified employer row.
+      // Only sets fields that are still null on the payload — never
+      // overwrites a client-supplied value (patient might correct address).
+      if (workIntake) {
+        if (!payload.acc_employer)         payload.acc_employer = verified.employer_name
+        if (!payload.acc_employer_address) payload.acc_employer_address = verified.site_address
+        if (!payload.acc_employer_phone)   payload.acc_employer_phone = verified.site_phone
+        // Default is_work_injury=true for employer-covered consults. Worker
+        // can uncheck during the intake if it's a non-work issue (fever
+        // etc.), but the default matches the common case for this flow.
+        if (payload.is_work_injury == null) payload.is_work_injury = true
+      }
     } else {
       payload.employer_id = null
       // employer_paid stays absent → DB default (false)
