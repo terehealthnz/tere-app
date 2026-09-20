@@ -521,9 +521,11 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Cannot modify your own practice_only flag — another admin must do it' })
     }
 
-    // Identifier validation (task #386) — HPI-CPN must be a valid HISO 10046
-    // 7-char ID with Mod-11 check digit. Catches typos before they enter
-    // provider records + prevents propagation to HL7 messages / prescriptions.
+    // Identifier validation (task #386) — HPI-CPN accepts 6-char legacy
+    // (2 digits + 4 letters, no check digit) OR 7-char modern (6 chars +
+    // Mod-11 check digit). Both live in HNZ's registry. Catches typos
+    // before they enter provider records + prevents propagation to HL7 /
+    // prescriptions.
     if (patch.hpi_number) {
       const { validateHpiCpn } = await import('./_nz-identifiers.js')
       const v = validateHpiCpn(patch.hpi_number)

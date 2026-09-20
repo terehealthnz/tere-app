@@ -93,4 +93,24 @@ export function validateNzIdentifier(id, { kind = 'identifier' } = {}) {
 }
 
 export const validateNhi = (id) => validateNzIdentifier(id, { kind: 'NHI' })
-export const validateHpiCpn = (id) => validateNzIdentifier(id, { kind: 'HPI-CPN' })
+
+// HPI-CPN accepts BOTH 6-char legacy format (e.g. 24NSES — 2 digits + 4
+// letters, no check digit) AND 7-char modern format (6 chars + Mod-11 check
+// digit). Both are live in HNZ's registry — Patrick's own CPN is 6 chars.
+// For 7-char input we defer to the full Mod-11 check via validateNzIdentifier;
+// for 6-char we just enforce the character-class rule (A-Z minus I/O, or 0-9).
+export function validateHpiCpn(id) {
+  if (id == null) return { valid: false, reason: 'HPI-CPN required' }
+  const s = String(id).trim().toUpperCase()
+  if (s.length === 7) return validateNzIdentifier(s, { kind: 'HPI-CPN' })
+  if (s.length === 6) {
+    for (let i = 0; i < 6; i++) {
+      const ch = s[i]
+      if (!/[A-HJ-NP-Z0-9]/.test(ch)) {
+        return { valid: false, reason: `HPI-CPN contains invalid character '${ch}' at position ${i + 1} (I and O are not allowed)` }
+      }
+    }
+    return { valid: true }
+  }
+  return { valid: false, reason: `HPI-CPN must be 6 or 7 characters (got ${s.length})` }
+}
