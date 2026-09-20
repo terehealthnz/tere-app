@@ -49,6 +49,12 @@ export default async function handler(req, res) {
   const { data: consult, error: cErr } = await supabase.from('consultations').select('*').eq('id', consultationId).maybeSingle()
   if (cErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
+  // Sandbox suppression — never generate/send an ACC cert on a practice
+  // consult. ACC case managers would otherwise receive test PDFs.
+  if (consult.is_practice) {
+    return res.status(200).json({ sent: false, simulated: true, reason: 'practice_mode' })
+  }
+
   let patient = null
   if (consult.patient_id) {
     const { data } = await supabase.from('patients').select('*').eq('id', consult.patient_id).maybeSingle()

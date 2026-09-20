@@ -132,11 +132,23 @@ export async function sendSms({ to, body }) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { to, message, type } = req.body || {}
+  const { to, message, type, consultationId } = req.body || {}
   if (!to || !message) return res.status(400).json({ error: 'Missing to or message' })
 
   const normalised = normaliseNZNumber(to)
   if (!normalised) return res.status(400).json({ error: 'Invalid phone number' })
+
+  // Sandbox suppression — if the caller passes a consultationId and that
+  // consult is in practice mode, we simulate the send. Callers that don't
+  // pass a consultationId (admin ops, cron reminders) are unaffected.
+  if (consultationId) {
+    const { createClient } = await import('@supabase/supabase-js')
+    const { isPracticeConsult } = await import('./_practice-guard.js')
+    const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (await isPracticeConsult(sb, consultationId)) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
+  }
 
   if (type && !ESSENTIAL_TYPES.has(type)) {
     console.log(JSON.stringify({ ts: new Date().toISOString(), type: 'sms_skipped_non_essential', sms_type: type, to: normalised.slice(-4) }))

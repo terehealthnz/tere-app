@@ -1,6 +1,7 @@
 // api/send-email.js — patient post-consultation summary email + waitlist open notification
 import { aiCall, isConfigured } from './_ai.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 // Fires the FREE plain HTML payment receipt email for a completed consult.
 // Idempotent via consultations.basic_receipt_sent_at — safe to call from
@@ -12,9 +13,11 @@ export async function sendBasicReceipt(consultationId) {
   const { createClient } = await import('@supabase/supabase-js')
   const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
   const { data: row } = await supabase.from('consultations')
-    .select('id, created_at, provider_display_name, payment_amount, patient_first_name, patient_email, basic_receipt_sent_at, payment_intent_id, payment_test_mode')
+    .select('id, created_at, provider_display_name, payment_amount, patient_first_name, patient_email, basic_receipt_sent_at, payment_intent_id, payment_test_mode, is_practice')
     .eq('id', consultationId).single()
   if (!row) return { sent: false, skipped: 'not_found' }
+  // Sandbox suppression — never email a practice-mode consult's patient row.
+  if (row.is_practice) return { sent: false, skipped: 'practice_mode', simulated: true }
   if (row.payment_test_mode) return { sent: false, skipped: 'test_mode' }
   if (row.basic_receipt_sent_at) return { sent: false, skipped: 'already_sent' }
   if (!row.patient_email) return { sent: false, skipped: 'no_email' }
@@ -121,6 +124,17 @@ export default async function handler(req, res) {
     } catch (e) {
       console.error('[send-email] basic receipt failed:', e)
       return res.status(500).json({ error: 'Server error' })
+    }
+  }
+
+  // Sandbox suppression — any consult-tied summary/reminder email is
+  // suppressed when the consult is in practice mode. See _practice-guard.js
+  // and the 2026-09-20 incident for context.
+  if (consultationId) {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (await isPracticeConsult(sb, consultationId)) {
+      return res.status(200).json({ sent: false, simulated: true, reason: 'practice_mode' })
     }
   }
 

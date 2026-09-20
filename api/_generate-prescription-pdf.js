@@ -4,6 +4,7 @@ import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt, classifyDrug } from './_drug-classifications.js'
 import { writeAuditEvent } from './_audit-write.js'
 import { checkPrescribingSafety } from './_prescribing-safety.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -54,6 +55,18 @@ export default async function handler(req, res) {
   if (!patientName || !drug) return res.status(400).json({ error: 'Missing required fields' })
 
   const supabase = supabaseAdmin()
+
+  // Sandbox suppression — never generate/deliver a prescription against a
+  // practice-mode consult. Pharmacies would otherwise receive test scripts.
+  if (consultationId && await isPracticeConsult(supabase, consultationId)) {
+    return res.status(200).json({
+      sent: false,
+      simulated: true,
+      reason: 'practice_mode',
+      pdf_url: null,
+      prescription_id: null,
+    })
+  }
 
   // ── Prescribing safety guards (task #423) ────────────────────────────
   // Cross-provider max-quantity + early-refill + doctor-shopping check.

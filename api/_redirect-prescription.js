@@ -14,6 +14,7 @@ import { buildPrescriptionPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 import { guardProvider } from './_auth.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 function admin() {
   return createClient(
@@ -44,6 +45,12 @@ export default async function handler(req, res) {
     .from('prescriptions').select('*').eq('id', prescriptionId).maybeSingle()
   if (rxErr) { console.error('[redirect-prescription] rxErr failed:', rxErr); return res.status(500).json({ error: 'Server error' }) }
   if (!rx) return res.status(404).json({ error: 'Prescription not found' })
+
+  // Sandbox suppression — a prescription tied to a practice consult must
+  // never re-fax/re-email a pharmacy.
+  if (rx.consultation_id && await isPracticeConsult(supabase, rx.consultation_id)) {
+    return res.status(200).json({ sent: false, simulated: true, reason: 'practice_mode' })
+  }
 
   // Snapshot the original pharmacy for audit trail.
   const originalSnapshot = {

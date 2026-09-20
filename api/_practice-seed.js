@@ -53,16 +53,12 @@ const MOCK_PATIENTS = [
   {
     key: 'aroha-mitchell',
     first_name: 'Aroha',   last_name: 'Mitchell', date_of_birth: '1984-07-05',
-    // Sandbox seed phones use the Auckland unassigned 099-990001..3 range.
-    // NZ has no officially reserved test-mobile range (unlike US 555-01xx),
-    // so the previous 0211234501/2/3 seeds silently overlapped with real
-    // Vodafone-block mobile numbers — 2026-09-20 incident: clicking 'Call
-    // Aroha' in sandbox dialled a real person's phone. Server-side guard
-    // in _make-call.js + _initiate-call.js now blocks outbound calls on
-    // any is_practice=true consult (belt-and-braces), but changing the
-    // seeds too means even if the guard is ever relaxed we're less likely
-    // to hit a live number.
-    phone: '+6499990001', email: 'practice.aroha@example.test',
+    // Sandbox seed phones point to Patrick's personal mobile so if any
+    // outbound-call path ever slips past the sandbox guard (2026-09-20
+    // incident), the ring lands on the founder rather than a stranger.
+    // Server-side guard in _make-call.js + _initiate-call.js remains the
+    // primary defence; this is a fallback safety net.
+    phone: '+6402904323427', email: 'practice.aroha@example.test',
     complaint: 'Fatigue and dizziness for the past week. Concerned about iron levels.',
     allergens: [{ allergen: 'Penicillin', allergen_type: 'drug', reaction: 'Rash', reaction_severity: 'moderate' }],
     medications: [{ drug: 'Ferrous sulphate', dose: '325 mg', frequency: 'BD', indication: 'Iron deficiency' }],
@@ -71,7 +67,7 @@ const MOCK_PATIENTS = [
   {
     key: 'david-chen',
     first_name: 'David',   last_name: 'Chen',     date_of_birth: '1969-02-18',
-    phone: '+6499990002', email: 'practice.david@example.test',
+    phone: '+6402904323427', email: 'practice.david@example.test',
     complaint: 'Sore throat and fever for 3 days. History of tonsillitis.',
     allergens: [],
     medications: [
@@ -86,7 +82,7 @@ const MOCK_PATIENTS = [
   {
     key: 'emily-thompson',
     first_name: 'Emily',   last_name: 'Thompson', date_of_birth: '1991-09-24',
-    phone: '+6499990003', email: 'practice.emily@example.test',
+    phone: '+6402904323427', email: 'practice.emily@example.test',
     complaint: 'UTI symptoms. Sixth episode this year — asks about prophylaxis.',
     allergens: [{ allergen: 'Trimethoprim', allergen_type: 'drug', reaction: 'GI upset', reaction_severity: 'mild' }],
     medications: [],

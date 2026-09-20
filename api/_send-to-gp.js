@@ -2,6 +2,7 @@
 import { hasEmailProvider } from './_email-client.js'
 import { writeAuditEvent } from './_audit-write.js'
 import { recordDisclosure } from './_disclosure.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -21,6 +22,16 @@ export default async function handler(req, res) {
   } = req.body || {}
 
   if (!gpEmail || !consultationId) return res.status(400).json({ error: 'gpEmail and consultationId required' })
+
+  // Sandbox suppression — never fire a GP-letter email if the source consult
+  // is in practice mode. Real GP inboxes would otherwise receive test PDFs.
+  {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (await isPracticeConsult(sb, consultationId)) {
+      return res.status(200).json({ sent: false, simulated: true, reason: 'practice_mode' })
+    }
+  }
 
   const esc = s => (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 
