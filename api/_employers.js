@@ -6,8 +6,15 @@
 //
 // GET   /api/employers                → active employers, alpha-ordered
 // GET   /api/employers?includeInactive=1  → all, inactive included
-// POST  /api/employers                → admin creates an employer
-// PATCH /api/employers?id=<uuid>      → admin updates is_active / details
+// GET   /api/employers?id=<uuid>&action=usage → this-month consult count for
+//                                             billing (admin only)
+// POST  /api/employers                → admin creates an employer; if the body
+//                                       includes generateSlug=true, a random
+//                                       12-char slug is generated for the
+//                                       /work/[slug] URL access flow
+// PATCH /api/employers?id=<uuid>      → admin updates is_active / details;
+//                                       supports slug + usage_cap_month for
+//                                       the URL access flow
 
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
@@ -20,16 +27,35 @@ function admin() {
   )
 }
 
-// Columns admin can PATCH on an employer row.
+// Columns admin can PATCH on an employer row. `slug` and `usage_cap_month`
+// were added 2026-09-19 to support the /work/[slug] URL access flow. See
+// supabase/2026-09-19_employer_slug_url_access.sql for the schema.
 const UPDATE_ALLOWLIST = new Set([
   'company_name', 'is_active', 'contact_name', 'contact_email', 'contact_phone',
   'notes', 'monthly_rate_per_employee', 'contract_start',
+  'slug', 'usage_cap_month',
 ])
 
 const CREATE_ALLOWLIST = new Set([
   'company_name', 'is_active', 'contact_name', 'contact_email', 'contact_phone',
   'notes', 'monthly_rate_per_employee', 'contract_start',
+  'slug', 'usage_cap_month',
 ])
+
+// Generate a non-guessable 12-char lowercase alphanumeric slug for the
+// /work/[slug] URL access flow. Format matches the CHECK constraint on
+// employers.slug (^[a-z0-9]{8,32}$). 12 chars over 36-char alphabet is
+// ~62 bits of entropy — infeasible to guess. Retries on collision.
+async function generateUniqueSlug(supabase) {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  for (let attempt = 0; attempt < 5; attempt++) {
+    let slug = ''
+    for (let i = 0; i < 12; i++) slug += alphabet[Math.floor(Math.random() * alphabet.length)]
+    const { data } = await supabase.from('employers').select('id').eq('slug', slug).maybeSingle()
+    if (!data) return slug
+  }
+  throw new Error('Could not generate unique slug after 5 attempts')
+}
 
 export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
@@ -38,9 +64,27 @@ export default async function handler(req, res) {
   const supabase = admin()
 
   if (req.method === 'GET') {
-    const includeInactive = req.query?.includeInactive === '1'
+    const { id, action, includeInactive } = req.query || {}
+
+    // action=usage → this-calendar-month consult count for this employer.
+    // Used by admin billing report + client-side cap enforcement preview.
+    if (id && action === 'usage') {
+      if (!auth.provider?.is_admin) {
+        return res.status(403).json({ error: 'Admin role required for usage report' })
+      }
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      const { count, error } = await supabase
+        .from('consultations')
+        .select('id', { count: 'exact', head: true })
+        .eq('employer_id', String(id))
+        .gte('created_at', monthStart)
+      if (error) { console.error('[employers] usage failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ employer_id: id, consults_this_month: count || 0, month_start: monthStart })
+    }
+
     let q = supabase.from('employers').select('*').order('company_name')
-    if (!includeInactive) q = q.eq('is_active', true)
+    if (includeInactive !== '1') q = q.eq('is_active', true)
     const { data, error } = await q
     if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
     return res.status(200).json({ employers: data || [] })
@@ -60,8 +104,27 @@ export default async function handler(req, res) {
       if (CREATE_ALLOWLIST.has(k)) payload[k] = v
     }
     payload.is_active = payload.is_active !== false  // default true
+
+    // generateSlug: opt-in slug generation for the /work/[slug] URL access
+    // flow. Admin passes generateSlug=true on create if this employer should
+    // support URL access (as opposed to the legacy email-allowlist flow).
+    // Client-supplied slug is ignored when generateSlug=true.
+    if (raw.generateSlug === true) {
+      try {
+        payload.slug = await generateUniqueSlug(supabase)
+      } catch (e) {
+        console.error('[employers] slug generation failed:', e)
+        return res.status(500).json({ error: 'Could not generate slug, try again' })
+      }
+    }
+
     const { data, error } = await supabase.from('employers').insert(payload).select().single()
-    if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ error: 'A conflict occurred (likely duplicate slug or name)' })
+      if (error.code === '23514') return res.status(400).json({ error: 'Slug must be 8-32 lowercase alphanumeric characters' })
+      console.error('[employers] error failed:', error)
+      return res.status(500).json({ error: 'Server error' })
+    }
     return res.status(200).json({ employer: data })
   }
 
@@ -78,7 +141,12 @@ export default async function handler(req, res) {
     }
     patch.updated_at = new Date().toISOString()
     const { data, error } = await supabase.from('employers').update(patch).eq('id', id).select().maybeSingle()
-    if (error) { console.error('[employers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    if (error) {
+      if (error.code === '23505') return res.status(409).json({ error: 'Slug already in use by another employer' })
+      if (error.code === '23514') return res.status(400).json({ error: 'Slug must be 8-32 lowercase alphanumeric characters' })
+      console.error('[employers] error failed:', error)
+      return res.status(500).json({ error: 'Server error' })
+    }
     return res.status(200).json({ employer: data })
   }
 

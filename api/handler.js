@@ -78,6 +78,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   //   verify-acc      — patient triage verifies ACC injury details
   //   translate       — patient-side i18n (Te Reo triage translation)
   //   hpi-search      — patient uses to look up pharmacy in triage
+  //   employer-lookup — /work/[slug] slug validation before triage starts;
+  //                     only returns non-sensitive company_name + employer_id
+  //                     for a valid, active, under-cap slug (see file header
+  //                     for the leak-model reasoning)
   //   join-room       — patient joins the video call (has consultationId gate)
   //   messages        — dual-mode: patient AND provider chat inserts (server
   //                     forces sender=patient|provider based on presence of
@@ -370,6 +374,7 @@ const ROUTES = {
   'flags':                     () => import('./_flags.js'),
   'employers':                 () => import('./_employers.js'),
   'employer-employees':        () => import('./_employer-employees.js'),
+  'employer-lookup':           () => import('./_employer-lookup.js'),
   'audit-log':                 () => import('./_audit-log.js'),
   'radiology-referrals':       () => import('./_radiology-referrals.js'),
   'radiology-reports':         () => import('./_radiology-reports.js'),
