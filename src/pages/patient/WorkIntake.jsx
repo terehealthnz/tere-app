@@ -159,21 +159,7 @@ export default function WorkIntake() {
           </div>
         )}
 
-        {phase === 'blocked' && (
-          <div style={{ background: 'rgba(255,193,7,.08)', border: '1px solid rgba(255,193,7,.3)', borderRadius: 16, padding: '2rem 1.5rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
-            <div style={{ color: 'white', fontWeight: 700, fontSize: '1.1rem', marginBottom: 8 }}>We could not verify your details</div>
-            <div style={{ color: 'rgba(255,255,255,.75)', fontSize: '.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
-              Your name and date of birth do not match {employer?.company_name || 'the employer'}'s team list. Please check with your HR if you should be added, or continue as a paying patient.
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <button onClick={() => setPhase('ready')} style={{ background: 'none', color: TEAL_LIGHT, border: '1px solid rgba(212,238,240,.3)', padding: '.7rem 1.25rem', borderRadius: 99, fontWeight: 600, cursor: 'pointer', fontFamily: FF }}>Try again</button>
-              <button onClick={() => navigate('/')} style={{ background: TEAL, color: 'white', border: 'none', padding: '.7rem 1.25rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>Continue as paying patient</button>
-            </div>
-          </div>
-        )}
-
-        {(phase === 'ready' || phase === 'submitting') && employer && (
+        {(phase === 'ready' || phase === 'submitting' || phase === 'blocked') && employer && (
           <div style={{ background: 'rgba(11,110,118,.15)', border: '1px solid rgba(11,110,118,.4)', borderRadius: 16, padding: '1.75rem 1.5rem' }}>
             <div style={{ color: 'white', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Your details</div>
             <div style={{ color: 'rgba(212,238,240,.7)', fontSize: '.8125rem', marginBottom: '1.25rem' }}>
@@ -228,6 +214,59 @@ export default function WorkIntake() {
           </div>
         )}
       </div>
+
+      {/* Roster-mismatch modal. Renders as an overlay on top of the intake
+          form so the worker's typed values are preserved — if the mismatch
+          was a typo (wrong DOB, misspelt name), they can dismiss and fix
+          without re-entering everything. Copy directs them to their work
+          administrator (the actual owner of the roster) and to the public
+          Tere Health flow as a fallback for urgent care. */}
+      {phase === 'blocked' && employer && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPhase('ready')}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(13,43,69,.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1.25rem', zIndex: 200, backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#122E4A', border: '1px solid rgba(255,193,7,.4)',
+              borderRadius: 16, padding: '1.75rem 1.5rem',
+              maxWidth: 420, width: '100%', textAlign: 'center',
+              boxShadow: '0 20px 60px rgba(0,0,0,.5)',
+            }}
+          >
+            <div style={{ fontSize: '2.25rem', marginBottom: 10 }}>🔍</div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: '1.15rem', marginBottom: 10 }}>
+              We could not verify your details
+            </div>
+            <div style={{ color: 'rgba(255,255,255,.8)', fontSize: '.9rem', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+              Please contact your work administrator at {employer.company_name} to add you to the team list.
+              <br /><br />
+              If you need to see a doctor now, use the main Tere Health page.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={() => navigate('/')}
+                style={{ background: TEAL, color: 'white', border: 'none', padding: '.85rem 1rem', borderRadius: 12, fontWeight: 700, fontSize: '.95rem', cursor: 'pointer', fontFamily: FF }}
+              >
+                Go to Tere Health main page
+              </button>
+              <button
+                onClick={() => setPhase('ready')}
+                style={{ background: 'none', color: TEAL_LIGHT, border: '1px solid rgba(212,238,240,.3)', padding: '.7rem 1rem', borderRadius: 12, fontWeight: 600, fontSize: '.875rem', cursor: 'pointer', fontFamily: FF }}
+              >
+                Close and check my details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
