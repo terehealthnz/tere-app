@@ -41,6 +41,55 @@ export default async function handler(req, res) {
 
   if (fetchErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
 
+  // Sandbox safety gate — an outbound-to-patient endpoint on a practice
+  // consult must never send email, SMS or place a SIP call. Sandbox seed
+  // phones/emails can collide with real people (2026-09-20 incident: seed
+  // phone +64211234501 dialled a real NZ mobile). We still update ring
+  // bookkeeping fields so the sandbox UX matches live (the provider still
+  // sees ring state on the queue), we just skip every external side effect.
+  if (consult.is_practice) {
+    const startedAt = new Date().toISOString()
+    const attemptNum = (consult.join_attempts || 0) + 1
+    const history = Array.isArray(consult.join_attempt_history) ? consult.join_attempt_history : []
+    history.push({ at: startedAt, attempt: attemptNum, kind: 'ring_start', simulated: true })
+    await supabase
+      .from('consultations')
+      .update({
+        status: 'in_progress',
+        started_at: startedAt,
+        ring_started_at: startedAt,
+        join_attempts: attemptNum,
+        join_attempt_history: history,
+        cooldown_until: null,
+        ...(providerId ? { provider_id: providerId } : {}),
+        ...(providerName ? { provider_display_name: providerName } : {}),
+      })
+      .eq('id', consultationId)
+    // Return a well-formed token so the provider UI still connects to the
+    // LiveKit room for their side of the practice call — the "patient" just
+    // never dials in.
+    const lkUrl = process.env.LIVEKIT_URL
+    const lkApiKey = process.env.LIVEKIT_API_KEY
+    const lkApiSecret = process.env.LIVEKIT_API_SECRET
+    let token = null
+    if (lkUrl && lkApiKey && lkApiSecret) {
+      const at = new AccessToken(lkApiKey, lkApiSecret, {
+        identity: `provider-${providerId || 'sim'}`,
+        name: providerName || 'Provider',
+      })
+      at.addGrant({ roomJoin: true, room: `tere-${consultationId.slice(0, 8)}`, canPublish: true, canSubscribe: true })
+      token = await at.toJwt()
+    }
+    return res.status(200).json({
+      ok: true,
+      simulated: true,
+      reason: 'practice_mode',
+      token,
+      serverUrl: lkUrl,
+      phoneBridge: { ok: false, simulated: true, error: 'Practice mode — outbound call suppressed' },
+    })
+  }
+
   const startedAt = new Date().toISOString()
   const attemptNum = (consult.join_attempts || 0) + 1
   const history = Array.isArray(consult.join_attempt_history) ? consult.join_attempt_history : []

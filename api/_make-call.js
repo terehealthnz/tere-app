@@ -47,11 +47,23 @@ export default async function handler(req, res) {
 
   const { data: consult, error: fetchError } = await supabase
     .from('consultations')
-    .select('id, patient_phone, patient_first_name, call_attempts')
+    .select('id, patient_phone, patient_first_name, call_attempts, is_practice')
     .eq('id', consultationId)
     .single()
 
   if (fetchError || !consult) return res.status(404).json({ error: 'Consultation not found' })
+  // Sandbox safety gate — the seeded sandbox phone numbers can (and did on
+  // 2026-09-20) collide with real assigned NZ mobile ranges. Never place an
+  // outbound SIP call for a practice consult, no matter what number is on
+  // the row. Belt-and-braces alongside the sandbox-safe seed numbers.
+  if (consult.is_practice) {
+    return res.status(200).json({
+      ok: true,
+      simulated: true,
+      reason: 'practice_mode',
+      participantId: `sim-${consultationId.slice(0, 8)}`,
+    })
+  }
   if (!consult.patient_phone) return res.status(400).json({ error: 'No phone number on record for this patient' })
 
   const lkUrl = process.env.LIVEKIT_URL
