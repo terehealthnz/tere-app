@@ -599,31 +599,15 @@ export default function AITriage() {
         const firstName = nameParts[0]
         const lastName = nameParts.slice(1).join(' ') || ''
 
-        // Run patient lookup and employer check in parallel
-        const [patientResult, empResult] = await Promise.allSettled([
-          findPatient(firstName, lastName, dob),
-          apiFetch('/api/employer-check', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ firstName, lastName, dob }),
-          }).then(r => r.json()),
-        ])
+        // Patient lookup only. The old employer-check by name is DISABLED
+        // (2026-09-20) — it matched name+DOB across ALL employers with no
+        // slug scope, which meant anyone who guessed a real employee's
+        // name got employer_paid=true set in sessionStorage. The only
+        // path to employer_paid is now /work/[slug]/intake, which runs
+        // a server-side roster check scoped to the specific employer.
+        const patientResult = await Promise.allSettled([findPatient(firstName, lastName, dob)]).then(r => r[0])
 
-        // Process employer check
         const empData = {}
-        if (empResult.status === 'fulfilled' && empResult.value?.match) {
-          const { employerId, employerName } = empResult.value
-          sessionStorage.setItem('employer_paid', 'true')
-          sessionStorage.setItem('employer_name', employerName)
-          sessionStorage.setItem('employer_id', employerId)
-          empData.employer_paid = true
-          empData.employer_name = employerName
-          empData.employer_id = employerId
-          setTimeout(() => {
-            setMessages(prev => [...prev, { role:'tere', text: `Great news — your consultation is covered by ${employerName}. No payment needed.` }])
-          }, 600)
-        }
-
         const patient = patientResult.status === 'fulfilled' ? patientResult.value : null
 
         if (patient) {
