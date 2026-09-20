@@ -42,19 +42,46 @@ const CREATE_ALLOWLIST = new Set([
   'slug', 'usage_cap_month',
 ])
 
-// Generate a non-guessable 12-char lowercase alphanumeric slug for the
-// /work/[slug] URL access flow. Format matches the CHECK constraint on
-// employers.slug (^[a-z0-9]{8,32}$). 12 chars over 36-char alphabet is
-// ~62 bits of entropy — infeasible to guess. Retries on collision.
-async function generateUniqueSlug(supabase) {
+// Slugify a company name for /work/[slug] URL access. Companies pay for the
+// branded URL (/work/cloudybay, /work/thornhill) so the slug is derived from
+// company_name, not random. Security is enforced by the roster match on
+// name+DOB in _create-consultation.js, so a guessable slug alone doesn't
+// grant employer_paid. Must satisfy the CHECK constraint on employers.slug
+// (^[a-z0-9]{8,32}$) — pad short names, truncate long ones, suffix on
+// collision.
+function slugifyName(name) {
+  const s = String(name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '')
+    .slice(0, 32)
+  return s
+}
+
+async function generateUniqueSlug(supabase, companyName) {
+  const base = slugifyName(companyName)
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  for (let attempt = 0; attempt < 5; attempt++) {
-    let slug = ''
-    for (let i = 0; i < 12; i++) slug += alphabet[Math.floor(Math.random() * alphabet.length)]
+  const randChar = () => alphabet[Math.floor(Math.random() * alphabet.length)]
+  const pad = (s, len) => {
+    let out = s
+    while (out.length < len) out += randChar()
+    return out
+  }
+  const candidates = []
+  if (base.length >= 8) candidates.push(base.slice(0, 32))
+  else if (base.length > 0) candidates.push(pad(base, 8))
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (candidates.length === 0 || attempt > 0) {
+      const suffix = pad('', 4)
+      const stub = base ? base.slice(0, 28) : ''
+      candidates.push((stub + suffix).slice(0, 32).padEnd(8, randChar()))
+    }
+    const slug = candidates[candidates.length - 1]
     const { data } = await supabase.from('employers').select('id').eq('slug', slug).maybeSingle()
     if (!data) return slug
   }
-  throw new Error('Could not generate unique slug after 5 attempts')
+  throw new Error('Could not generate unique slug after 6 attempts')
 }
 
 export default async function handler(req, res) {
@@ -111,7 +138,7 @@ export default async function handler(req, res) {
     // Client-supplied slug is ignored when generateSlug=true.
     if (raw.generateSlug === true) {
       try {
-        payload.slug = await generateUniqueSlug(supabase)
+        payload.slug = await generateUniqueSlug(supabase, payload.company_name)
       } catch (e) {
         console.error('[employers] slug generation failed:', e)
         return res.status(500).json({ error: 'Could not generate slug, try again' })

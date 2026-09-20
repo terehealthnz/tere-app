@@ -5925,7 +5925,7 @@ function EmployersPanel() {
             <input style={inp} type="number" min="0" placeholder="Monthly consult cap (optional)" value={newEmp.usage_cap_month} onChange={e => setNewEmp(n => ({ ...n, usage_cap_month: e.target.value }))} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: '.8125rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <input type="checkbox" checked={newEmp.generateSlug} onChange={e => setNewEmp(n => ({ ...n, generateSlug: e.target.checked }))} />
-              Generate /work/[slug] URL (workers visit link, no roster needed)
+              Generate /work/[company-name] URL (branded — roster still required)
             </label>
           </div>
           <button onClick={addEmployer} disabled={saving || !newEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
