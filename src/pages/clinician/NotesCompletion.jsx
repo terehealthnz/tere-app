@@ -159,6 +159,22 @@ export default function NotesCompletion() {
   const [icd10Code, setIcd10Code]       = useState('')
   const [icd10Label, setIcd10Label]     = useState('')
 
+  // Discharge summary (works for both ACC and non-ACC consults). Persisted
+  // to consultations.discharge_summary JSONB on finalise.
+  const [dsStatus, setDsStatus]         = useState('')          // 'discharged' | 'continuing_care' | 'referred'
+  const [dsDate, setDsDate]             = useState(new Date().toISOString().slice(0, 10))
+  const [dsFollowUp, setDsFollowUp]     = useState('')
+  const [dsNotes, setDsNotes]           = useState('')
+
+  // Note templates (SOAP + discharge). Provider-owned, cross-mode.
+  const [noteTemplates, setNoteTemplates]           = useState([])
+  const [dischargeTemplates, setDischargeTemplates] = useState([])
+  const [tplLoading, setTplLoading]                 = useState(false)
+  const [showLoadTpl, setShowLoadTpl]               = useState(false)
+  const [showSaveTpl, setShowSaveTpl]               = useState(false)
+  const [tplName, setTplName]                       = useState('')
+  const [tplKindToSave, setTplKindToSave]           = useState('consult')
+
   const actionsRef    = useRef([])
   const transcriptRef = useRef('')
   const startTimeRef  = useRef(Date.now())
@@ -254,6 +270,99 @@ export default function NotesCompletion() {
     if (d._additions)   setAdditions(d._additions)
     if (d.icd10Code)    setIcd10Code(d.icd10Code)
     if (d.icd10Label)   setIcd10Label(d.icd10Label)
+
+    // Hydrate discharge summary from server row (set by AccConsultWidgets on
+    // ACC consults; also settable here for non-ACC consults now).
+    const ds = data?.discharge_summary
+    if (ds && typeof ds === 'object') {
+      if (ds.status)         setDsStatus(ds.status)
+      if (ds.discharge_date) setDsDate(String(ds.discharge_date).slice(0, 10))
+      if (ds.follow_up)      setDsFollowUp(ds.follow_up)
+      if (ds.notes)          setDsNotes(ds.notes)
+    }
+  }
+
+  // ── Note templates (SOAP + discharge) ──────────────────────────────────
+  // Provider-owned, cross-mode. Fetch on mount; save / apply via buttons.
+  useEffect(() => {
+    async function loadTemplates() {
+      const providerId = sessionStorage.getItem('providerId')
+      if (!providerId) return
+      try {
+        setTplLoading(true)
+        const [rConsult, rDischarge] = await Promise.all([
+          apiFetch('/api/appointments?action=get_consult_note_templates', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider_id: providerId, kind: 'consult' }),
+          }),
+          apiFetch('/api/appointments?action=get_consult_note_templates', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider_id: providerId, kind: 'discharge' }),
+          }),
+        ])
+        if (rConsult.ok) { const j = await rConsult.json(); setNoteTemplates(j.templates || []) }
+        if (rDischarge.ok) { const j = await rDischarge.json(); setDischargeTemplates(j.templates || []) }
+      } finally { setTplLoading(false) }
+    }
+    loadTemplates()
+  }, [])
+
+  async function applyTemplate(tpl) {
+    if (!tpl?.body) return
+    const b = tpl.body
+    if (tpl.kind === 'discharge') {
+      if (b.status !== undefined)    setDsStatus(b.status)
+      if (b.follow_up !== undefined) setDsFollowUp(b.follow_up)
+      if (b.notes !== undefined)     setDsNotes(b.notes)
+    } else {
+      // Merge non-empty fields onto the current draft — never wipe.
+      if (b.s1)                setS1(prev => prev || b.s1)
+      if (b.medHistory)        setMedHistory(prev => prev || b.medHistory)
+      if (b.mdm)               setMdm(prev => prev || b.mdm)
+      if (b.returnPrecautions) setReturnP(prev => prev || b.returnPrecautions)
+      if (Array.isArray(b.planItems) && b.planItems.length) {
+        setPlanItems(prev => [...prev, ...b.planItems.filter(x => x && !x.locked)])
+      }
+    }
+    setShowLoadTpl(false)
+  }
+
+  async function saveCurrentAsTemplate() {
+    const providerId = sessionStorage.getItem('providerId')
+    if (!providerId || !tplName.trim()) return
+    // Body varies by kind: SOAP saves the reusable narrative fields;
+    // discharge saves the discharge status + follow-up + notes.
+    const body = tplKindToSave === 'discharge'
+      ? { status: dsStatus, follow_up: dsFollowUp, notes: dsNotes }
+      : { s1, medHistory, mdm, returnPrecautions, planItems: planItems.filter(x => !x?.locked) }
+    try {
+      const r = await apiFetch('/api/appointments?action=save_consult_note_template', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider_id: providerId, name: tplName.trim(), body, kind: tplKindToSave }),
+      })
+      if (r.ok) {
+        const j = await r.json()
+        if (tplKindToSave === 'discharge') {
+          setDischargeTemplates(list => [...list.filter(t => t.name !== j.template.name), j.template].sort((a,b) => a.name.localeCompare(b.name)))
+        } else {
+          setNoteTemplates(list => [...list.filter(t => t.name !== j.template.name), j.template].sort((a,b) => a.name.localeCompare(b.name)))
+        }
+        setShowSaveTpl(false); setTplName('')
+      }
+    } catch (e) { console.error(e) }
+  }
+
+  async function deleteTemplate(templateId, kind) {
+    try {
+      const r = await apiFetch('/api/appointments?action=delete_consult_note_template', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: templateId }),
+      })
+      if (r.ok) {
+        if (kind === 'discharge') setDischargeTemplates(list => list.filter(t => t.id !== templateId))
+        else                      setNoteTemplates(list => list.filter(t => t.id !== templateId))
+      }
+    } catch (e) { console.error(e) }
   }
 
   async function runGenerate(consultData, transcript, actions) {
@@ -469,6 +578,19 @@ export default function NotesCompletion() {
           consultation_duration_seconds: durationSec,
           payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6000),
           is_acc:                  consult?.acc_eligible === 'yes',
+          // Discharge summary — only persist if the provider filled it in.
+          // Works for both ACC and non-ACC consults; ACC path also reads/
+          // writes this via AccConsultWidgets, so we don't wipe if empty.
+          ...(dsStatus ? {
+            discharge_summary: {
+              status:         dsStatus,
+              discharge_date: dsDate ? new Date(dsDate + 'T00:00:00').toISOString() : now,
+              follow_up:      dsFollowUp || null,
+              notes:          dsNotes || null,
+              discharged_by:  providerName,
+              discharged_by_provider_id: providerId,
+            },
+          } : {}),
         })
       } catch (updateErr) { throw updateErr }
 
@@ -597,6 +719,75 @@ export default function NotesCompletion() {
             </div>
           )}
         </div>
+
+        {/* ─── Note templates toolbar ─── */}
+        {!isFinalised && (
+          <div style={{ display:'flex', gap:8, marginBottom:'1rem', flexWrap:'wrap', position:'relative' }}>
+            <button
+              onClick={() => { setShowLoadTpl(v => !v); setShowSaveTpl(false) }}
+              style={{ background:'white', border:'1.5px solid #E2E8F0', color:'#374151', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, display:'flex', alignItems:'center', gap:6 }}
+            >
+              📋 Load template {noteTemplates.length + dischargeTemplates.length > 0 && `(${noteTemplates.length + dischargeTemplates.length})`}
+            </button>
+            <button
+              onClick={() => { setShowSaveTpl(v => !v); setShowLoadTpl(false); setTplName('') }}
+              style={{ background:'white', border:'1.5px solid #E2E8F0', color:'#374151', padding:'8px 14px', borderRadius:8, cursor:'pointer', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, display:'flex', alignItems:'center', gap:6 }}
+            >
+              ⭐ Save as template
+            </button>
+
+            {showLoadTpl && (
+              <div style={{ position:'absolute', top:44, left:0, background:'white', border:'1px solid #E2E8F0', borderRadius:10, boxShadow:'0 10px 30px rgba(0,0,0,.08)', padding:'.75rem', minWidth:320, maxWidth:420, zIndex:20 }}>
+                <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:6 }}>Consult templates</div>
+                {noteTemplates.length === 0 ? (
+                  <div style={{ fontSize:'.8rem', color:'#9CA3AF', marginBottom:10 }}>None saved yet.</div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:10 }}>
+                    {noteTemplates.map(t => (
+                      <div key={t.id} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <button onClick={() => applyTemplate(t)} style={{ flex:1, textAlign:'left', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:6, padding:'6px 10px', fontSize:'.8125rem', color:'#374151', cursor:'pointer', fontFamily:FF }}>{t.name}</button>
+                        <button onClick={() => deleteTemplate(t.id, 'consult')} title="Delete" style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'.85rem' }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', marginBottom:6 }}>Discharge templates</div>
+                {dischargeTemplates.length === 0 ? (
+                  <div style={{ fontSize:'.8rem', color:'#9CA3AF' }}>None saved yet.</div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {dischargeTemplates.map(t => (
+                      <div key={t.id} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <button onClick={() => applyTemplate(t)} style={{ flex:1, textAlign:'left', background:'#F8FAFC', border:'1px solid #E2E8F0', borderRadius:6, padding:'6px 10px', fontSize:'.8125rem', color:'#374151', cursor:'pointer', fontFamily:FF }}>{t.name}</button>
+                        <button onClick={() => deleteTemplate(t.id, 'discharge')} title="Delete" style={{ background:'none', border:'none', color:'#DC2626', cursor:'pointer', fontSize:'.85rem' }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {showSaveTpl && (
+              <div style={{ position:'absolute', top:44, left:0, background:'white', border:'1px solid #E2E8F0', borderRadius:10, boxShadow:'0 10px 30px rgba(0,0,0,.08)', padding:'.75rem', minWidth:320, zIndex:20 }}>
+                <div style={{ fontSize:'.75rem', fontWeight:700, color:'#374151', marginBottom:8 }}>Save current note as reusable template</div>
+                <div style={{ display:'flex', gap:8, marginBottom:8 }}>
+                  <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:'.8rem', color:'#374151', cursor:'pointer' }}>
+                    <input type="radio" name="tplkind" value="consult" checked={tplKindToSave === 'consult'} onChange={() => setTplKindToSave('consult')} /> Consult
+                  </label>
+                  <label style={{ display:'flex', alignItems:'center', gap:4, fontSize:'.8rem', color:'#374151', cursor:'pointer' }}>
+                    <input type="radio" name="tplkind" value="discharge" checked={tplKindToSave === 'discharge'} onChange={() => setTplKindToSave('discharge')} /> Discharge
+                  </label>
+                </div>
+                <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder="Template name (e.g. Cellulitis discharge)" style={{ width:'100%', padding:'8px 10px', border:'1px solid #E2E8F0', borderRadius:6, fontSize:'.8125rem', fontFamily:FF, marginBottom:8, boxSizing:'border-box' }} />
+                <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
+                  <button onClick={() => { setShowSaveTpl(false); setTplName('') }} style={{ background:'none', border:'1px solid #E2E8F0', color:'#6B7280', padding:'6px 12px', borderRadius:6, cursor:'pointer', fontFamily:FF, fontSize:'.8rem' }}>Cancel</button>
+                  <button onClick={saveCurrentAsTemplate} disabled={!tplName.trim()} style={{ background:tplName.trim()?'#0B6E76':'#E2E8F0', color:'white', border:'none', padding:'6px 12px', borderRadius:6, cursor:tplName.trim()?'pointer':'not-allowed', fontFamily:FF, fontSize:'.8rem', fontWeight:700 }}>Save</button>
+                </div>
+                <div style={{ fontSize:'.7rem', color:'#9CA3AF', marginTop:8 }}>Templates work across sandbox and live.</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ─── Section 1: Presenting Complaint ─── */}
         <SectionCard num={1} title="Presenting Complaint and History" source={sources.presentingHistory} confidence={confidence.presentingHistory}>
@@ -874,6 +1065,36 @@ export default function NotesCompletion() {
               </label>
             )}
           </div>
+        )}
+
+        {/* ─── Discharge summary (works for both ACC and non-ACC) ─── */}
+        {!isFinalised && (
+          <SectionCard num="D" title="Discharge summary (optional)">
+            <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:10 }}>
+              Captures how this episode was closed. Optional for routine consults, encouraged if you followed up an existing complaint or you're formally discharging the patient from Tere Health.
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:10 }}>
+              <div>
+                <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Status</label>
+                <select value={dsStatus} onChange={e => setDsStatus(e.target.value)}
+                  style={{ width:'100%', padding:'9px 12px', border:`1.5px solid ${dsStatus?'#0B6E76':'#E2E8F0'}`, borderRadius:8, fontFamily:FF, fontSize:'.9rem', outline:'none', background:'white', color:dsStatus?'#1A2A33':'#9CA3AF' }}>
+                  <option value="">— none —</option>
+                  <option value="discharged">Discharged (episode closed)</option>
+                  <option value="continuing_care">Continuing under Tere</option>
+                  <option value="referred">Referred out (GP / ED / specialist)</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:4 }}>Date</label>
+                <input type="date" value={dsDate} onChange={e => setDsDate(e.target.value)}
+                  style={{ width:'100%', padding:'9px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'.9rem', outline:'none', background:'white', color:'#1A2A33', boxSizing:'border-box' }} />
+              </div>
+            </div>
+            <Input label="Follow-up (optional)" value={dsFollowUp} onChange={setDsFollowUp} placeholder="e.g. Review in 2 weeks with GP; return if symptoms worsen" />
+            <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', margin:'10px 0 4px' }}>Discharge notes (optional)</label>
+            <textarea value={dsNotes} onChange={e => setDsNotes(e.target.value)} rows={3} placeholder="Brief summary of resolution and any handover instructions."
+              style={{ width:'100%', padding:'10px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'.9rem', outline:'none', resize:'vertical', boxSizing:'border-box' }} />
+          </SectionCard>
         )}
 
         {/* ─── Section 6: Attestation ─── */}

@@ -350,6 +350,57 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true })
     }
 
+    // ── Consult note templates (SOAP + discharge summary) ────────────────
+    // kind='consult' for full-SOAP; kind='discharge' for discharge-summary
+    // templates. Same table, separate namespaces via unique index.
+    // Cross-mode: no is_practice filter — templates saved in sandbox appear
+    // in live and vice versa.
+
+    if (action === 'save_consult_note_template') {
+      const { provider_id, name, body, kind } = req.body
+      const templateKind = kind === 'discharge' ? 'discharge' : 'consult'
+      if (!provider_id || !name?.trim() || !body || typeof body !== 'object') {
+        return res.status(400).json({ error: 'provider_id + name + body object required' })
+      }
+      const { data: existing } = await supabase.from('consult_note_templates')
+        .select('id')
+        .eq('provider_id', provider_id)
+        .eq('kind', templateKind)
+        .eq('name', name.trim())
+        .maybeSingle()
+      const payload = {
+        provider_id,
+        name: name.trim(),
+        body,
+        kind: templateKind,
+        updated_at: new Date().toISOString(),
+      }
+      const q = existing?.id
+        ? supabase.from('consult_note_templates').update(payload).eq('id', existing.id).select().single()
+        : supabase.from('consult_note_templates').insert(payload).select().single()
+      const { data, error } = await q
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true, template: data })
+    }
+
+    if (action === 'get_consult_note_templates') {
+      const { provider_id, kind } = req.body
+      let q = supabase.from('consult_note_templates')
+        .select('*')
+        .eq('provider_id', provider_id)
+        .order('name')
+      if (kind === 'consult' || kind === 'discharge') q = q.eq('kind', kind)
+      const { data } = await q
+      return res.status(200).json({ templates: data || [] })
+    }
+
+    if (action === 'delete_consult_note_template') {
+      const { template_id } = req.body
+      const { error } = await supabase.from('consult_note_templates').delete().eq('id', template_id)
+      if (error) { console.error('[appointments] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true })
+    }
+
     return res.status(400).json({ error: 'Invalid action' })
   }
 
