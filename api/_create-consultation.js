@@ -165,11 +165,14 @@ export default async function handler(req, res) {
   if (claimedEmployerId) {
     const verified = await verifyEmployerBenefit(supabase, claimedEmployerId)
     if (verified) {
-      // Factor 2: roster match (only enforced on the /work/[slug]/intake
-      // path, and only if the employer requires it). Public patient flow
-      // that happens to send an employer_id (legacy path) is NOT gated by
-      // roster — keeps that flow unchanged.
-      if (workIntake && verified.require_employee_match) {
+      // Factor 2: roster match. Runs whenever the employer row has
+      // require_employee_match=true, REGARDLESS of whether the consult
+      // came in via /work/[slug]/intake or an old cached client that
+      // forgets the marker. If the marker had been the only gate, a stale
+      // browser build could bypass the check by silently omitting it.
+      // Employers that don't want to maintain a roster set
+      // require_employee_match=false (opt-out on the admin plan form).
+      if (verified.require_employee_match) {
         const rosterMatch = await matchEmployerRoster(
           supabase,
           verified.employer_id,
@@ -192,6 +195,9 @@ export default async function handler(req, res) {
       // Auto-populate ACC45 employer fields from the verified employer row.
       // Only sets fields that are still null on the payload — never
       // overwrites a client-supplied value (patient might correct address).
+      // ACC auto-populate stays gated on workIntake because it's an
+      // intake-form-specific default; a legacy allowlist flow that already
+      // collected employer info shouldn't get it overwritten.
       if (workIntake) {
         if (!payload.acc_employer)         payload.acc_employer = verified.employer_name
         if (!payload.acc_employer_address) payload.acc_employer_address = verified.site_address
