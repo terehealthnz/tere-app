@@ -72,6 +72,39 @@ export default function WorkIntake() {
     setPhase('submitting')
     setErrorMsg('')
 
+    // Client-side pre-check against the employer's roster BEFORE creating a
+    // consultation row. If the name+DOB isn't on the roster we surface the
+    // blocked modal here — no consult row created, no downstream cleanup.
+    // The server still re-checks inside /api/create-consultation as the
+    // authoritative gate (defence in depth), but the pre-check gives clean
+    // UX and avoids racing against serverless cold-start staleness.
+    try {
+      const preCheck = await apiFetch('/api/employer-lookup', {
+        method: 'POST',
+        body: JSON.stringify({
+          slug,
+          firstName: firstName.trim(),
+          lastName:  lastName.trim(),
+          dob,
+        }),
+      })
+      if (!preCheck.ok) {
+        setPhase('ready')
+        const err = await preCheck.json().catch(() => ({}))
+        setErrorMsg(err.error || 'Could not verify your details. Please try again.')
+        return
+      }
+      const preBody = await preCheck.json()
+      if (!preBody.matched) {
+        setPhase('blocked')
+        return
+      }
+    } catch {
+      setPhase('ready')
+      setErrorMsg('Could not verify your details. Please try again.')
+      return
+    }
+
     // Clear any prior consult from sessionStorage so we don't accidentally
     // resume a paying-patient consult under an employer wrapper.
     sessionStorage.removeItem('consultation_id')
@@ -79,7 +112,8 @@ export default function WorkIntake() {
     sessionStorage.removeItem('paymentIntentId')
 
     // Stash employer context for downstream screens (waiting room, provider
-    // chart) so they can display "covered by [company]".
+    // chart) so they can display "covered by [company]". Only set AFTER the
+    // roster pre-check has passed — never speculatively.
     sessionStorage.setItem('employer_id', employer.id)
     sessionStorage.setItem('employer_name', employer.company_name)
     sessionStorage.setItem('employer_paid', 'true')

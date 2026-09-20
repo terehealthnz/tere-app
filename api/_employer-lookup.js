@@ -31,9 +31,15 @@ function admin() {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-  const slug = String(req.query?.slug || '').trim().toLowerCase()
+  // Slug comes from ?slug=… on GET, and from body on POST (roster check).
+  const slugRaw = req.method === 'POST'
+    ? (req.body?.slug ?? '')
+    : (req.query?.slug ?? '')
+  const slug = String(slugRaw || '').trim().toLowerCase()
   if (!SLUG_RE.test(slug)) {
     return res.status(400).json({ error: 'Invalid slug format' })
   }
@@ -73,6 +79,50 @@ export default async function handler(req, res) {
     return res.status(429).json({
       error: 'This employer plan has reached its monthly consultation cap. Please contact your employer.',
       code: 'MONTHLY_CAP_REACHED',
+    })
+  }
+
+  // POST branch: roster pre-check for /work/[slug]/intake. Client hits this
+  // with { slug, firstName, lastName, dob } before creating a consult. If the
+  // patient isn't on the roster we short-circuit here with 404 and no
+  // consultations row is ever created — cleaner than waiting for
+  // /api/create-consultation to fail. The server-side check in
+  // _create-consultation.js still runs (defence in depth), so this endpoint
+  // is a UX gate, not the security boundary.
+  //
+  // Scope: query is anchored on the slug's employer_id (verified above), so
+  // an attacker can't enumerate against the full employer_employees table.
+  // The worst you can do is confirm whether a specific name+DOB is on a
+  // specific employer's roster — which requires already knowing the slug.
+  if (req.method === 'POST') {
+    const firstName = String(req.body?.firstName || '').trim()
+    const lastName  = String(req.body?.lastName  || '').trim()
+    const dob       = String(req.body?.dob       || '').slice(0, 10)
+    if (!firstName || !lastName || !dob) {
+      return res.status(400).json({ error: 'firstName, lastName, dob required' })
+    }
+    const { data: rosterRow, error: rosterErr } = await supabase
+      .from('employer_employees')
+      .select('id')
+      .eq('employer_id', String(data.id))
+      .ilike('first_name', firstName)
+      .ilike('last_name',  lastName)
+      .eq('dob', dob)
+      .maybeSingle()
+    if (rosterErr) {
+      console.error('[employer-lookup] roster check failed:', rosterErr)
+      return res.status(500).json({ error: 'Server error' })
+    }
+    if (!rosterRow) {
+      return res.status(200).json({ matched: false })
+    }
+    return res.status(200).json({
+      matched: true,
+      employer: {
+        id: data.id,
+        company_name: data.company_name,
+        require_employee_match: !!data.require_employee_match,
+      },
     })
   }
 
