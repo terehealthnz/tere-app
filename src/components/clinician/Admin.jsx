@@ -5801,7 +5801,7 @@ function EmployersPanel() {
   const [employers, setEmployers] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [showAdd, setShowAdd] = React.useState(false)
-  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '' })
+  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
   const [saving, setSaving] = React.useState(false)
   const [uploadingFor, setUploadingFor] = React.useState(null)
   const [employeeCounts, setEmployeeCounts] = React.useState({})
@@ -5828,9 +5828,11 @@ function EmployersPanel() {
         contact_email: newEmp.contact_email.trim() || null,
         monthly_rate_per_employee: newEmp.monthly_rate_per_employee ? parseFloat(newEmp.monthly_rate_per_employee) : null,
         contract_start: newEmp.contract_start || null,
+        usage_cap_month: newEmp.usage_cap_month ? parseInt(newEmp.usage_cap_month, 10) : null,
         is_active: true,
+        generateSlug: newEmp.generateSlug,
       })
-      setNewEmp({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '' })
+      setNewEmp({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
       setShowAdd(false)
       await load()
     } catch(e) { console.error(e) }
@@ -5920,6 +5922,11 @@ function EmployersPanel() {
             <input style={inp} placeholder="Contact email" value={newEmp.contact_email} onChange={e => setNewEmp(n => ({ ...n, contact_email: e.target.value }))} />
             <input style={inp} placeholder="Monthly rate per employee ($)" value={newEmp.monthly_rate_per_employee} onChange={e => setNewEmp(n => ({ ...n, monthly_rate_per_employee: e.target.value }))} />
             <input style={inp} type="date" placeholder="Contract start" value={newEmp.contract_start} onChange={e => setNewEmp(n => ({ ...n, contract_start: e.target.value }))} />
+            <input style={inp} type="number" min="0" placeholder="Monthly consult cap (optional)" value={newEmp.usage_cap_month} onChange={e => setNewEmp(n => ({ ...n, usage_cap_month: e.target.value }))} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: '.8125rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              <input type="checkbox" checked={newEmp.generateSlug} onChange={e => setNewEmp(n => ({ ...n, generateSlug: e.target.checked }))} />
+              Generate /work/[slug] URL (workers visit link, no roster needed)
+            </label>
           </div>
           <button onClick={addEmployer} disabled={saving || !newEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
             {saving ? 'Saving…' : 'Add employer'}
@@ -5950,7 +5957,18 @@ function EmployersPanel() {
                     {emp.monthly_rate_per_employee && <span>${emp.monthly_rate_per_employee}/employee/month · </span>}
                     <span style={{ fontWeight: 600, color: '#0B6E76' }}>{employeeCounts[emp.id] || 0} employees</span>
                     {emp.contract_start && <span> · Since {new Date(emp.contract_start).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
+                    {emp.usage_cap_month && <span> · Cap {emp.usage_cap_month}/mo</span>}
                   </div>
+                  {emp.slug && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', padding: '6px 10px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                      <span style={{ fontSize: '.75rem', color: '#065F46', fontWeight: 700 }}>URL</span>
+                      <code style={{ fontFamily: 'monospace', fontSize: '.8125rem', color: '#065F46' }}>terehealth.co.nz/work/{emp.slug}</code>
+                      <button onClick={() => { navigator.clipboard?.writeText(`https://terehealth.co.nz/work/${emp.slug}`); }}
+                        style={{ marginLeft: 'auto', background: '#059669', color: 'white', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                        Copy link
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ background: '#EFF6FF', color: '#2563EB', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
