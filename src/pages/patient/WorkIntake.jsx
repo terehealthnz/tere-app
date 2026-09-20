@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
-import DobPicker from '../../components/patient/DobPicker'
+import DobPicker from '../../components/DobPicker'
 
 // /work/[slug]/intake — streamlined B2B intake form.
 //
