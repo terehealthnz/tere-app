@@ -41,13 +41,13 @@ function Hero() {
           For employers
         </div>
         <h1 style={{ fontFamily: SERIF, fontSize: 'clamp(2.25rem, 5vw, 3.5rem)', fontWeight: 700, color: 'white', lineHeight: 1.2, margin: '0 0 1.25rem' }}>
-          Healthcare for your workforce — wherever they work
+          Healthcare for your workforce, wherever they work
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: FF }}>
-          Keep your team healthy and on the job with on-demand tele-emergency care — FACEM-led emergency medicine for rural and maritime New Zealand.
+          Keep your team healthy and on the job with on-demand tele-emergency care. FACEM-led emergency medicine for rural and maritime New Zealand.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href={`mailto:${CONTACT}?subject=Employer enquiry — get a quote`} style={{
+          <a href={`mailto:${CONTACT}?subject=Employer enquiry, get a quote`} style={{
             background: BRAND.teal, color: 'white', textDecoration: 'none',
             padding: '1.1rem 2.75rem', borderRadius: 99, fontSize: '1.125rem', fontWeight: 700,
             fontFamily: FF, boxShadow: '0 6px 32px rgba(11,110,118,.5)', letterSpacing: '.01em',
@@ -75,7 +75,7 @@ function TheProblem() {
     { icon: '⏱️', label: 'Half day lost', value: '$200–300 productivity per trip to the nearest clinic' },
     { icon: '📋', label: 'Unmanaged ACC claim', value: 'Delayed entitlements and incomplete documentation' },
     { icon: '⚠️', label: 'No occupational health coverage', value: 'H&S liability exposure and incident reporting gaps' },
-    { icon: '🏥', label: 'After-hours illness', value: 'ED visit or wait until morning — neither good for anyone' },
+    { icon: '🏥', label: 'After-hours illness', value: 'ED visit or wait until morning. Neither good for anyone.' },
   ]
   return (
     <section style={{ background: 'white', padding: '5rem 1.5rem' }}>
@@ -85,7 +85,7 @@ function TheProblem() {
             Your workers are far from the nearest clinic
           </h2>
           <p style={{ fontSize: '1rem', color: '#6B7280', lineHeight: 1.7, maxWidth: 560, margin: '0 auto', fontFamily: FF }}>
-            When your team works in the Sounds, on farms, or on the water — a routine health issue becomes a half-day event. Here's what that costs.
+            When your team works in the Sounds, on farms, or on the water, a routine health issue becomes a half-day event. Here's what that costs.
           </p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
@@ -106,9 +106,9 @@ function TheProblem() {
 
 function HowItWorks() {
   const steps = [
-    { n: '1', icon: '📱', title: 'Worker opens tere.co.nz', desc: 'No app download. Works on any phone — including on 3G.' },
+    { n: '1', icon: '📱', title: 'Worker opens tere.co.nz', desc: 'No app download. Works on any phone, including on 3G.' },
     { n: '2', icon: '💬', title: 'AI triage in 2 minutes', desc: 'Collects symptoms, history, ACC details, and medications automatically.' },
-    { n: '3', icon: '📏', title: 'Vitals via phone camera', desc: 'Heart rate, respiratory assessment, and injury photos — no equipment needed.' },
+    { n: '3', icon: '📏', title: 'Vitals via phone camera', desc: 'Heart rate, respiratory assessment, and injury photos. No equipment needed.' },
     { n: '4', icon: '👨‍⚕️', title: 'Video or phone with a provider', desc: 'NZ-registered health provider assesses, diagnoses, and treats.' },
     { n: '5', icon: '📄', title: 'ACC lodged, prescription sent', desc: 'Claim filed, prescription sent to nearest pharmacy, medical certificate issued on the spot.' },
     { n: '6', icon: '✅', title: 'Back to work', desc: 'Total time: 15–20 minutes. No travel. No waiting room.' },
@@ -120,7 +120,7 @@ function HowItWorks() {
           How Tere works for employers
         </h2>
         <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '3rem', fontFamily: FF }}>
-          From first symptom to sorted — without leaving the worksite.
+          From first symptom to sorted, without leaving the worksite.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
           {steps.map(s => (
@@ -139,7 +139,7 @@ function HowItWorks() {
 
 function WhatsIncluded() {
   const items = [
-    { icon: '📋', title: 'ACC claims lodged automatically', desc: 'Filed during the consultation — no paperwork for your team.' },
+    { icon: '📋', title: 'ACC claims lodged automatically', desc: 'Filed during the consultation. No paperwork for your team.' },
     { icon: '💊', title: 'Electronic prescriptions', desc: 'Sent directly to the nearest pharmacy. Ready for collection same day.' },
     { icon: '🩻', title: 'Radiology referrals', desc: 'X-rays and imaging ordered remotely where clinically indicated.' },
     { icon: '📄', title: 'Medical certificates on the spot', desc: 'Issued instantly. No follow-up GP visit required.' },
@@ -179,12 +179,12 @@ function Pricing() {
           Pricing tailored to your workforce
         </h2>
         <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '2rem', fontFamily: FF }}>
-          Rates depend on team size, industry, and expected utilisation. We'll build a quote for your specific setup — no generic tiers.
+          Rates depend on team size, industry, and expected utilisation. We build a quote for your specific setup. No generic tiers.
         </p>
         <div style={{ background: 'white', borderRadius: 16, padding: '2rem 1.75rem', boxShadow: '0 2px 12px rgba(0,0,0,.06)', textAlign: 'left', marginBottom: '2.5rem' }}>
           <div style={{ fontSize: '.9375rem', fontWeight: 700, color: BRAND.navy, fontFamily: FF, marginBottom: '.75rem' }}>What we quote for</div>
           <ul style={{ margin: 0, padding: 0, listStyle: 'none', fontSize: '.9375rem', color: '#374151', lineHeight: 1.8, fontFamily: FF }}>
-            <li>• Unlimited employee consultations (or a capped-per-employee plan — your choice)</li>
+            <li>• Unlimited employee consultations, or a capped-per-employee plan, your choice</li>
             <li>• Extended hours, 7 days per week</li>
             <li>• ACC lodgement automatic during the consultation</li>
             <li>• Medical certificates issued on the spot</li>
@@ -270,7 +270,7 @@ function AccAdvantage() {
   const points = [
     { icon: '💰', text: 'ACC pays Tere directly for every injury consultation' },
     { icon: '🤝', text: 'Your workers pay nothing at point of care for ACC-covered injuries' },
-    { icon: '📑', text: 'You pay the monthly retainer — ACC covers the treatment cost' },
+    { icon: '📑', text: 'You pay the monthly retainer. ACC covers the treatment cost.' },
   ]
   return (
     <section style={{ background: `linear-gradient(135deg, ${BRAND.navy} 0%, #0a3d52 100%)`, padding: '5rem 1.5rem' }}>
@@ -279,7 +279,7 @@ function AccAdvantage() {
           The ACC advantage
         </div>
         <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: 'white', marginBottom: '2.5rem' }}>
-          ACC pays — your workers pay nothing
+          ACC pays, your workers pay nothing
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left', marginBottom: '2.5rem' }}>
           {points.map(p => (
@@ -299,9 +299,9 @@ function AccAdvantage() {
 
 function GettingStarted() {
   const steps = [
-    { n: '1', title: 'Sign the agreement', desc: 'We tailor the terms to your workforce — send it, sign it digitally.' },
+    { n: '1', title: 'Sign the agreement', desc: 'We tailor the terms to your workforce, sent and signed digitally.' },
     { n: '2', title: 'Upload your employee list', desc: 'A simple CSV with names and email addresses. Takes 2 minutes.' },
-    { n: '3', title: 'Workers access tere.co.nz', desc: 'Recognised automatically — payment step skipped for enrolled employees.' },
+    { n: '3', title: 'Workers access tere.co.nz', desc: 'Recognised automatically. Payment step skipped for enrolled employees.' },
     { n: '4', title: 'No setup, no training, no IT', desc: "It works in any browser on any phone. Your workers won't need any help." },
   ]
   return (
@@ -342,7 +342,7 @@ function CTA() {
             display: 'inline-block', background: BRAND.teal, color: 'white', textDecoration: 'none',
             padding: '1rem 2.5rem', borderRadius: 99, fontWeight: 700, fontSize: '1.0625rem',
             fontFamily: FF, boxShadow: '0 4px 20px rgba(11,110,118,.4)',
-          }}>Email us — {CONTACT}</a>
+          }}>Email us at {CONTACT}</a>
         </div>
       </div>
     </section>
