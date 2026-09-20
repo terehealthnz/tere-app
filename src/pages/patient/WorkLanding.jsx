@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
+import { LANGUAGES, t } from '../../lib/i18n'
+import MaoriFlagIcon from '../../components/MaoriFlagIcon'
 
 // /work/[slug] — B2B employer-covered consultation entry point.
 //
@@ -37,6 +39,12 @@ export default function WorkLanding() {
   const [phase, setPhase] = useState('checking')  // checking | ready | invalid | capped | starting
   const [employer, setEmployer] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const [lang, setLang] = useState(() => sessionStorage.getItem('patient_language') || 'en')
+
+  function selectLang(code) {
+    setLang(code)
+    sessionStorage.setItem('patient_language', code)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -82,7 +90,7 @@ export default function WorkLanding() {
     try {
       const pt = await createConsultation({
         status: 'pre_triage',
-        patientLanguage: sessionStorage.getItem('patient_language') || 'en',
+        patientLanguage: lang,
         employerId: employer.id,  // server re-verifies and sets employer_paid=true
       })
       if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
@@ -149,6 +157,43 @@ export default function WorkLanding() {
             <div style={{ color: TEAL_LIGHT, fontSize: '.95rem', fontWeight: 600, marginBottom: '1.5rem' }}>
               Your consultation is covered
             </div>
+
+            {/* Language selector — mirrors TereIntro so RSE / Pacific / Māori
+                crew get the same choice on the employer flow. Real-time
+                clinical consultation in EN / MI / SM; other languages get
+                AI subtitles downstream. */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ fontSize: '.65rem', color: 'rgba(212,238,240,.82)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '.1em', marginBottom: '.625rem' }}>
+                {t('choose_language', lang)}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                {LANGUAGES.map(l => (
+                  <button key={l.code} onClick={() => selectLang(l.code)} style={{
+                    background: lang === l.code ? 'rgba(11,110,118,.5)' : 'rgba(255,255,255,.07)',
+                    border: `1.5px solid ${lang === l.code ? TEAL : 'rgba(255,255,255,.12)'}`,
+                    borderRadius: 8, padding: '6px 4px', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                    transition: 'all .15s',
+                  }}>
+                    <span style={{ fontSize: '1.25rem', lineHeight: 1 }}>
+                      {l.customFlag === 'MaoriFlagIcon' ? <MaoriFlagIcon width={22} height={15} /> : l.flag}
+                    </span>
+                    <span style={{ fontSize: '.6rem', color: lang === l.code ? TEAL_LIGHT : 'rgba(212,238,240,.87)', fontFamily: FF, fontWeight: lang === l.code ? 700 : 400 }}>
+                      {l.nativeName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {(() => {
+                const selected = LANGUAGES.find(l => l.code === lang)
+                return selected?.note ? (
+                  <div style={{ fontSize: '.65rem', color: 'rgba(212,238,240,.75)', textAlign: 'center', marginTop: '.5rem', lineHeight: 1.4 }}>
+                    {selected.note}
+                  </div>
+                ) : null
+              })()}
+            </div>
+
             <div style={{ color: 'rgba(255,255,255,.75)', fontSize: '.875rem', lineHeight: 1.6, marginBottom: '2rem' }}>
               An Emergency Medicine specialist will see you on video or phone. No payment needed. ACC claims lodged automatically for injuries.
             </div>
