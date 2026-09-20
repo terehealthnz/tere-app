@@ -751,6 +751,13 @@ export default async function handler(req, res) {
       .select()
       .maybeSingle()
     if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    // No row matched (id doesn't exist OR is_practice mismatch — e.g. trying
+    // to PATCH a live consult while in practice mode). Surface as 404 rather
+    // than 200-with-null, otherwise the client silently thinks the save
+    // worked. Was masking notes-editor bugs in sandbox before 2026-09-20.
+    if (!data) {
+      return res.status(404).json({ error: 'Consultation not found or not accessible in current mode.' })
+    }
     return res.status(200).json({ consultation: redactClinical(data) })
   }
 

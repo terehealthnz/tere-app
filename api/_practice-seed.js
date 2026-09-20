@@ -156,6 +156,25 @@ export async function seedPracticePatientsForProvider(supabase, provider) {
       provider_id:        provider.id,
       is_practice:        true,
       cooldown_until:     null,
+      // Zero out notes state on every seed so a prior training run's
+      // finalised notes don't lock the editor read-only next time the
+      // provider revisits the same seeded consult ID. Without this,
+      // notes_finalised=true persists across upserts → NotesCompletion
+      // sets disabled=true on every input → "can't edit notes in sandbox".
+      notes_draft:        null,
+      notes_final:        null,
+      notes_finalised:    false,
+      notes_finalised_at: null,
+      note_finalised_by:  null,
+      notes_finalised_by: null,
+      note_generated_at:  null,
+      completed_at:       null,
+      started_at:         null,
+      patient_joined_at:  null,
+      ring_started_at:    null,
+      outcome:            null,
+      work_capacity:      null,
+      return_to_work_date: null,
     }
     // Deterministic upsert on the seed's fixed consult id. Safe because
     // the unique index consultations_one_open_per_patient_idx (as of
