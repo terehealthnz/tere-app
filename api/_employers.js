@@ -53,7 +53,7 @@ function slugifyName(name) {
   const s = String(name || '')
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/\p{Diacritic}/gu, '')
     .replace(/[^a-z0-9]+/g, '')
     .slice(0, 32)
   return s
