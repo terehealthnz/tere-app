@@ -165,22 +165,27 @@ export default async function handler(req, res) {
   if (claimedEmployerId) {
     const verified = await verifyEmployerBenefit(supabase, claimedEmployerId)
     if (verified) {
-      // Factor 2: roster match. Runs whenever the employer row has
-      // require_employee_match=true, REGARDLESS of whether the consult
-      // came in via /work/[slug]/intake or an old cached client that
-      // forgets the marker. If the marker had been the only gate, a stale
-      // browser build could bypass the check by silently omitting it.
-      // Employers that don't want to maintain a roster set
-      // require_employee_match=false (opt-out on the admin plan form).
-      if (verified.require_employee_match) {
+      // Factor 2: roster match. Fails closed — if the employer row's
+      // require_employee_match is null/undefined (e.g. because a stale
+      // serverless deploy is reading a schema it doesn't know about), we
+      // enforce the check anyway. Only an explicit `false` on the DB row
+      // (admin opt-out) skips the check. Prior version failed OPEN on
+      // undefined, which combined with a stale deploy let a submission
+      // through with employer_paid=true and no roster verification
+      // (reproduced in prod 2026-09-20 at ~00:16 NZDT).
+      const requireMatch = verified.require_employee_match !== false
+      if (requireMatch) {
         const rosterMatch = await matchEmployerRoster(
           supabase,
           verified.employer_id,
           payload.patient_first_name,
           payload.patient_last_name,
-          payload.date_of_birth,
+          // Payload field is patient_dob (not date_of_birth) — see
+          // src/lib/supabase.js:createConsultation payload builder.
+          payload.patient_dob,
         )
         if (!rosterMatch.matched) {
+          console.log('[create-consultation] roster match failed for employer', verified.employer_id, 'name', payload.patient_first_name, payload.patient_last_name, 'dob', payload.patient_dob)
           return res.status(403).json({
             error: 'We could not verify you as a team member. Please check with your employer, or continue as a paying patient.',
             code: 'NO_ROSTER_MATCH',
