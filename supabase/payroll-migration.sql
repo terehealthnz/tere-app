@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS payroll_periods (
   base_amount         NUMERIC(10,2) NOT NULL DEFAULT 0,
   holiday_pay_amount  NUMERIC(10,2) NOT NULL DEFAULT 0,
   total_amount        NUMERIC(10,2) NOT NULL DEFAULT 0,
+  gst_amount          NUMERIC(10,2) NOT NULL DEFAULT 0,
   status              TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'paid')),
   paid_at             TIMESTAMPTZ,
   notes               TEXT,

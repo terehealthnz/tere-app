@@ -40,8 +40,17 @@ ALTER TABLE job_applications
 -- time payroll was calculated, so the record survives even if the
 -- provider's GST status changes later. total_amount stays as base fees
 -- (what Tere owes for services); actual payable = total_amount + gst_amount.
-ALTER TABLE payroll_periods
-  ADD COLUMN IF NOT EXISTS gst_amount numeric(10,2) NOT NULL DEFAULT 0;
-
-COMMENT ON COLUMN payroll_periods.gst_amount IS
-  'GST uplift for GST-registered contractors (15% of total_amount, frozen at calculate time).';
+--
+-- Wrapped in an existence check because payroll_periods is defined in the
+-- base payroll-migration.sql which may not yet have been run in a given
+-- environment (2026-09-20: prod discovered mid-apply). If the table isn't
+-- there yet, the column will be added when payroll-migration.sql runs.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'payroll_periods') THEN
+    ALTER TABLE payroll_periods
+      ADD COLUMN IF NOT EXISTS gst_amount numeric(10,2) NOT NULL DEFAULT 0;
+    COMMENT ON COLUMN payroll_periods.gst_amount IS
+      'GST uplift for GST-registered contractors (15% of total_amount, frozen at calculate time).';
+  END IF;
+END $$;
