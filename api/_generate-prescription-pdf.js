@@ -13,27 +13,70 @@ function supabaseAdmin() {
   )
 }
 
-async function notifySupervisors(supabase, subject, html) {
+// Route a draft-approval email to the drafter's ASSIGNED supervisor only.
+// Previously fanned to every provider with is_supervisor=true, which meant
+// Rachel got pinged for drafts from providers who aren't under her (or any)
+// supervision. Root cause of the 2026-09-20 wrong-supervisor incident with
+// Ian Mallett's antibiotic + radiology drafts.
+//
+// If the drafter has no supervisor_id set, DO NOT fan to all supervisors —
+// that's a configuration error (either the drafter shouldn't be gated with
+// needsApproval=true, or their supervisor assignment is missing). Log an
+// audit event and skip the notification; server continues to hold the
+// draft so the drafter is unblocked from re-submission, but no random
+// supervisor gets paged.
+async function notifyAssignedSupervisor(supabase, drafterProviderId, subject, html) {
   const canEmail = hasEmailProvider()
   if (!canEmail) return
-  const { data: supervisors } = await supabase
+  if (!drafterProviderId) {
+    console.warn('[notifyAssignedSupervisor] no drafter providerId — skipping')
+    return
+  }
+  const { data: drafter } = await supabase
     .from('providers')
-    .select('email, first_name, last_name')
-    .eq('is_supervisor', true)
-    .eq('is_active', true)
-    .not('email', 'is', null)
-  if (!supervisors?.length) return
-  for (const sup of supervisors) {
+    .select('id, first_name, last_name, supervisor_id, provider_type, can_prescribe, can_refer')
+    .eq('id', drafterProviderId)
+    .maybeSingle()
+  if (!drafter) {
+    console.warn('[notifyAssignedSupervisor] drafter not found:', drafterProviderId)
+    return
+  }
+  if (!drafter.supervisor_id) {
+    // Drafter doesn't have a supervisor. Do NOT broadcast — audit and skip.
+    // Ops needs to either (a) set can_prescribe/can_refer=true on the
+    // drafter or (b) assign a supervisor. Either way, silently blasting
+    // every supervisor is wrong.
+    console.warn('[notifyAssignedSupervisor] drafter has no supervisor_id — no notification sent:', drafterProviderId)
     try {
-      await sendEmail({
-        from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
-        to: sup.email,
-        subject,
-        html,
+      await writeAuditEvent(supabase, {
+        action: 'draft_notification_skipped_no_supervisor',
+        resource_type: 'provider',
+        resource_id: drafterProviderId,
+        metadata: { drafter_name: `${drafter.first_name} ${drafter.last_name}`, provider_type: drafter.provider_type, can_prescribe: drafter.can_prescribe, can_refer: drafter.can_refer },
       })
     } catch {}
+    return
   }
+  const { data: sup } = await supabase
+    .from('providers')
+    .select('email, first_name, last_name')
+    .eq('id', drafter.supervisor_id)
+    .eq('is_active', true)
+    .not('email', 'is', null)
+    .maybeSingle()
+  if (!sup) {
+    console.warn('[notifyAssignedSupervisor] assigned supervisor missing/inactive/no email:', drafter.supervisor_id)
+    return
+  }
+  try {
+    await sendEmail({
+      from: 'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to: sup.email,
+      subject,
+      html,
+    })
+  } catch (e) { console.error('[notifyAssignedSupervisor] send failed:', e?.message) }
 }
 
 export default async function handler(req, res) {
@@ -152,9 +195,10 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to save draft' })
     }
 
-    // Email all supervisors
-    await notifySupervisors(
+    // Email the drafter's assigned supervisor (only). Never blast.
+    await notifyAssignedSupervisor(
       supabase,
+      providerId,
       `Prescription approval needed — ${patientName} (${drug})`,
       `<p><strong>${draftedByName || providerName}</strong> has drafted a prescription requiring your approval.</p>
        <table style="border-collapse:collapse;margin:1rem 0">

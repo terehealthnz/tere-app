@@ -12,21 +12,47 @@ function supabaseAdmin() {
   )
 }
 
-async function notifySupervisors(supabase, subject, html) {
+// See _generate-prescription-pdf.js for the full rationale. Same bug lived
+// on the referral path — draft-approval emails were fanned to every
+// is_supervisor=true provider regardless of the drafter's assigned
+// supervisor. Now scoped to the drafter's supervisor_id only, and skipped
+// entirely if the drafter has no assigned supervisor (config error).
+async function notifyAssignedSupervisor(supabase, drafterProviderId, subject, html) {
   const canEmail = hasEmailProvider()
   if (!canEmail) return
-  const { data: supervisors } = await supabase
+  if (!drafterProviderId) {
+    console.warn('[notifyAssignedSupervisor] no drafter providerId — skipping')
+    return
+  }
+  const { data: drafter } = await supabase
+    .from('providers')
+    .select('id, first_name, last_name, supervisor_id, provider_type, can_prescribe, can_refer')
+    .eq('id', drafterProviderId)
+    .maybeSingle()
+  if (!drafter) return
+  if (!drafter.supervisor_id) {
+    console.warn('[notifyAssignedSupervisor] drafter has no supervisor_id — no notification sent:', drafterProviderId)
+    try {
+      await writeAuditEvent(supabase, {
+        action: 'draft_notification_skipped_no_supervisor',
+        resource_type: 'provider',
+        resource_id: drafterProviderId,
+        metadata: { drafter_name: `${drafter.first_name} ${drafter.last_name}`, provider_type: drafter.provider_type, can_prescribe: drafter.can_prescribe, can_refer: drafter.can_refer },
+      })
+    } catch {}
+    return
+  }
+  const { data: sup } = await supabase
     .from('providers')
     .select('email, first_name, last_name')
-    .eq('is_supervisor', true)
+    .eq('id', drafter.supervisor_id)
     .eq('is_active', true)
     .not('email', 'is', null)
-  if (!supervisors?.length) return
-  for (const sup of supervisors) {
-    try {
-      await sendEmail({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to: sup.email, subject, html })
-    } catch {}
-  }
+    .maybeSingle()
+  if (!sup) return
+  try {
+    await sendEmail({ from: 'Tere Health <hello@terehealth.co.nz>', replyTo: 'terehealthnz@gmail.com', to: sup.email, subject, html })
+  } catch (e) { console.error('[notifyAssignedSupervisor] send failed:', e?.message) }
 }
 
 // Server-side region → intake email lookup. Client never gets to name the
@@ -107,8 +133,9 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to save draft' })
     }
 
-    await notifySupervisors(
+    await notifyAssignedSupervisor(
       supabase,
+      providerId,
       `Referral approval needed — ${patientName} (${investigation})`,
       `<p><strong>${draftedByName || providerName}</strong> has drafted a radiology referral requiring your approval.</p>
        <table style="border-collapse:collapse;margin:1rem 0">
