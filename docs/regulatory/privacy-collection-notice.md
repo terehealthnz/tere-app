@@ -8,7 +8,7 @@ This is the notice we present to patients at the point of collection (Privacy Ac
 
 ## Who we are
 
-Tere Health Limited (NZBN 9429053723413), HPI-O G11238-E, is a private rural telehealth service operating in New Zealand. Registered office: 41 Adams Lane, Blenheim 7201.
+Tere Health Limited (NZBN 9429053723413), HPI-O G11238-E, is a private rural telehealth service operating in New Zealand.
 
 ## What we collect
 
@@ -77,7 +77,7 @@ To exercise any of these rights: email **support@terehealth.co.nz** or use the P
 ## Contact
 
 - **Privacy Officer:** Dr Patrick Herling, Chief Medical Officer · privacy@terehealth.co.nz (or terehealthnz@gmail.com if that address bounces).
-- **Postal:** 41 Adams Lane, Blenheim 7201.
+- **Postal:** email us for a postal address if required for your query.
 - **Phone (queries):** +64 29 043 234 27.
 
 Full privacy statement (technical detail, sub-processors, data flow diagrams): available on request or in `docs/regulatory/privacy-statement-full.md`.

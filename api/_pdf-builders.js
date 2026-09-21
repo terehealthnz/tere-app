@@ -350,7 +350,11 @@ export async function buildReferralPdf(data) {
     row('Referrer Phone', data.providerPhone)
     row('Referrer NZMC', data.providerMcnz || data.providerCpn)
     row('Practice Name', 'Tere Health Limited')
-    row('Practice Address', '41 Adams Lane, Springlands, Blenheim 7201, New Zealand')
+    // Practice postal address deliberately omitted from patient-facing
+    // referral PDFs (2026-09-20). HPI-O + practice name + provider NZMC
+    // uniquely identify the referring practice for regulatory purposes;
+    // the physical address adds no clinical value and creates unnecessary
+    // circulation of a private business address.
     row('Practice Dispatch', data.referrerMoShortcode || 'G11238-E')
     if (data.copyToDoctor) row('Additional Report To', data.copyToDoctor)
 
