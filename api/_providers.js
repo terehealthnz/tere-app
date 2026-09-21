@@ -156,6 +156,7 @@ const UPDATE_ALLOWLIST = new Set([
   'signature_url',
   'base_rate',
   'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
+  'gst_registered', 'gst_number',
   // MCNZ RMO supervision (see supabase-mcnz-supervision-migration.sql)
   'provider_type', 'supervisor_id', 'supervision_start_date', 'supervision_scope',
   // Supervision plan identifiers (see supabase-supervision-plan-fields-migration.sql)
@@ -192,6 +193,7 @@ const SELF_UPDATE_ALLOWLIST = new Set([
   'scope_of_practice', 'pgy_level',
   'signature_url',
   'bank_account', 'ird_number', 'tax_code',
+  'gst_registered', 'gst_number',
 ])
 
 export default async function handler(req, res) {
@@ -454,6 +456,7 @@ export default async function handler(req, res) {
       'signature_url',
       'base_rate',
       'bank_account', 'ird_number', 'tax_code', 'contract_type', 'contract_signed_at',
+  'gst_registered', 'gst_number',
     ])
     const row = { first_name, last_name, email, pin_hash, must_change_password: true }
     for (const [k, v] of Object.entries(raw)) {

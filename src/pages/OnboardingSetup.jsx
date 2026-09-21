@@ -242,6 +242,8 @@ function Section2({ intake, onSaved, saveSection }) {
     ird_number:     '',
     bank_account:   '',
     kiwisaver_rate: intake?.section_2?.kiwisaver_rate || '3',
+    gst_registered: intake?.section_2?.gst_registered || false,
+    gst_number:     intake?.section_2?.gst_number || '',
   })
   const [busy, setBusy]      = useState(false)
   const [errorMsg, setError] = useState('')
@@ -278,6 +280,20 @@ function Section2({ intake, onSaved, saveSection }) {
           {KIWISAVER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </Field>
+      <Field label="GST registered?">
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:'.9rem', color:'#374151', cursor:'pointer' }}>
+          <input type="checkbox" checked={!!form.gst_registered} onChange={e => u('gst_registered')(e.target.checked)} disabled={busy} />
+          I am GST-registered with IRD (tick if annual self-employed turnover is over $60k)
+        </label>
+        <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:6, lineHeight:1.5 }}>
+          Tere covers GST on top of your per-consult rate. If registered, invoices to Tere include an additional 15% GST which you remit to IRD.
+        </div>
+      </Field>
+      {form.gst_registered && (
+        <Field label="GST number" required>
+          <input value={form.gst_number} onChange={e => u('gst_number')(e.target.value.replace(/[^\d-]/g, ''))} placeholder="e.g. 123-456-789" style={S.input} disabled={busy} />
+        </Field>
+      )}
       <SaveRow errorMsg={errorMsg} busy={busy} onSave={save} nextLabel="Save & continue →" />
     </div>
   )

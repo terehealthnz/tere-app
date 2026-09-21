@@ -1152,13 +1152,18 @@ export default async function handler(req, res) {
       const ird  = clean(data.ird_number, 20)
       const bank = clean(data.bank_account, 40)
       const ks   = clean(data.kiwisaver_rate, 10)
+      const gstReg = data.gst_registered === true
+      const gstNum = clean(data.gst_number, 20)
       if (ird.length < 8)   return res.status(400).json({ error: 'IRD number required (8-9 digits)' })
       if (bank.length < 15) return res.status(400).json({ error: 'bank account required (NZ 16-17 digit format)' })
       if (!['3','4','6','8','10','opt_out'].includes(ks)) return res.status(400).json({ error: 'kiwisaver_rate must be 3|4|6|8|10|opt_out' })
+      if (gstReg && gstNum.length < 8) return res.status(400).json({ error: 'GST number required when GST-registered (8-9 digits)' })
       Object.assign(patch, {
         ird_number_enc:         encryptForStorage(ird),
         bank_account_enc:       encryptForStorage(bank),
         kiwisaver_rate:         ks,
+        gst_registered:         gstReg,
+        gst_number:             gstReg ? gstNum : null,
         section_2_completed_at: now,
       })
     }

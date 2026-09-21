@@ -50,7 +50,7 @@ function getPastFortnights(count = 13) {
 
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
-    supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate').eq('is_active', true).order('first_name'),
+    supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number').eq('is_active', true).order('first_name'),
     supabase.from('consultations').select('provider_id').eq('status', 'complete').not('provider_id', 'is', null)
       .eq('payment_test_mode', false)
       .gte('created_at', period_start + 'T00:00:00.000Z')
@@ -70,6 +70,16 @@ async function buildSummaries(supabase, period_start, period_end) {
     const rate  = Number(p.base_rate ?? FALLBACK_RATE)
     const saved = savedMap[p.id]
     const total = parseFloat((count * rate).toFixed(2))
+    // Tere covers GST for GST-registered contractors — additional 15% on
+    // top of the base fee (see Ian Mallett query 2026-09-20; TripleO model).
+    // If a saved payroll row already has a frozen gst_amount, prefer that
+    // (protects against provider toggling GST status after payroll was
+    // calculated). Otherwise compute from current provider state.
+    const gstEligible  = !!p.gst_registered
+    const gstAmount    = saved?.gst_amount != null
+      ? Number(saved.gst_amount)
+      : (gstEligible ? parseFloat((total * 0.15).toFixed(2)) : 0)
+    const totalPayable = parseFloat((total + gstAmount).toFixed(2))
     return {
       id:                 saved?.id || null,
       provider_id:        p.id,
@@ -80,7 +90,11 @@ async function buildSummaries(supabase, period_start, period_end) {
       period_end,
       consultation_count: count,
       base_rate:          rate,
-      total_amount:       total,
+      total_amount:       total,           // base fees only (services)
+      gst_registered:     gstEligible,
+      gst_number:         p.gst_number || null,
+      gst_amount:         gstAmount,       // 15% uplift where applicable
+      total_payable:      totalPayable,    // what Tere actually pays out
       status:             saved?.status || 'draft',
       paid_at:            saved?.paid_at || null,
       notes:              saved?.notes || null,
@@ -178,6 +192,9 @@ export default async function handler(req, res) {
         period_start: s.period_start, period_end: s.period_end, provider_id: s.provider_id,
         consultation_count: s.consultation_count,
         total_amount:       s.total_amount,
+        // Freeze GST uplift at calculate time. If the provider changes GST
+        // status later, this period reflects the state when it was run.
+        gst_amount:         s.gst_amount,
         // Preserve existing status if already approved/paid
         ...(s.status === 'draft' ? {} : { status: s.status }),
       }))
@@ -234,26 +251,36 @@ export default async function handler(req, res) {
       // Non-admin providers may only download their OWN payslip.
       if (!canSeeProvider(auth, pid)) return res.status(403).json({ error: 'Forbidden' })
 
-      const [{ data: prov }, { data: consultations }] = await Promise.all([
-        supabase.from('providers').select('first_name,last_name,credential,email,base_rate').eq('id', pid).single(),
+      const [{ data: prov }, { data: consultations }, { data: savedRow }] = await Promise.all([
+        supabase.from('providers').select('first_name,last_name,credential,email,base_rate,gst_registered,gst_number').eq('id', pid).single(),
         supabase.from('consultations')
           .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
           .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false)
           .gte('created_at', ps + 'T00:00:00.000Z').lte('created_at', pe + 'T23:59:59.999Z')
           .order('created_at'),
+        supabase.from('payroll_periods').select('gst_amount').eq('provider_id', pid).eq('period_start', ps).eq('period_end', pe).maybeSingle(),
       ])
 
       const rows  = consultations || []
       const count = rows.length
       const rate  = Number(prov?.base_rate ?? FALLBACK_RATE)
       const total = parseFloat((count * rate).toFixed(2))
+      // Prefer the frozen gst_amount on the saved payroll row; fall back to
+      // live provider status if this is an ad-hoc payslip request.
+      const gstAmount = savedRow?.gst_amount != null
+        ? Number(savedRow.gst_amount)
+        : (prov?.gst_registered ? parseFloat((total * 0.15).toFixed(2)) : 0)
+      const totalPayable = parseFloat((total + gstAmount).toFixed(2))
 
       const { buildPayslipPdf } = await import('./_pdf-builders.js')
       const pdfBuffer = await buildPayslipPdf({
         provider: prov, period_start: ps, period_end: pe,
         consultations: rows,
         consultation_count: count, base_rate: rate,
-        total_amount: total,
+        total_amount:   total,
+        gst_amount:     gstAmount,
+        gst_number:     prov?.gst_number || null,
+        total_payable:  totalPayable,
       })
 
       return res.status(200).json({
@@ -287,7 +314,8 @@ export default async function handler(req, res) {
     <div style="background:#F0F9FA;border:1px solid #D4EEF0;border-radius:12px;padding:20px 24px;margin-bottom:24px">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <tr><td style="color:#6B7280;padding:4px 0">${s.consultation_count} consultations × $${Number(s.base_rate).toFixed(2)}</td><td style="text-align:right;color:#374151">$${s.total_amount.toFixed(2)}</td></tr>
-        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${s.total_amount.toFixed(2)}</td></tr>
+        ${s.gst_amount > 0 ? `<tr><td style="color:#6B7280;padding:4px 0">GST 15%${s.gst_number ? ` (${s.gst_number})` : ''}</td><td style="text-align:right;color:#374151">$${Number(s.gst_amount).toFixed(2)}</td></tr>` : ''}
+        <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total payable</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${Number(s.total_payable ?? s.total_amount).toFixed(2)}</td></tr>
       </table>
     </div>
     <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>

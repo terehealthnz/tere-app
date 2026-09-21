@@ -48,6 +48,8 @@ const SECTIONS = [
       { key: 'tax_code',    label: 'Tax code',       placeholder: 'M, ME, S…' },
       { key: 'ird_number',  label: 'IRD number',     placeholder: '123-456-789' },
       { key: 'bank_account',label: 'Bank account',   placeholder: '01-0123-4567890-00' },
+      { key: 'gst_registered', label: 'GST registered?', type: 'checkbox' },
+      { key: 'gst_number',  label: 'GST number',     placeholder: '123-456-789' },
     ],
   },
 ]
@@ -66,7 +68,7 @@ export default function MyProfile() {
     if (!providerId) { navigate('/clinician'); return }
     ;(async () => {
       try {
-        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,hpi_number,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,provider_type'
+        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,hpi_number,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type'
         const r = await apiFetch(`/api/providers?id=${providerId}&columns=${encodeURIComponent(cols)}`)
         if (!r.ok) throw new Error(`Load failed (${r.status})`)
         const j = await r.json()
@@ -75,8 +77,11 @@ export default function MyProfile() {
         setMe(row)
         // Prefill form with all editable fields; empty string for null so
         // the inputs are controlled rather than swinging between un/controlled.
+        // Booleans preserve their type so checkbox inputs work.
         const seeded = {}
-        for (const s of SECTIONS) for (const f of s.fields) seeded[f.key] = row[f.key] || ''
+        for (const s of SECTIONS) for (const f of s.fields) {
+          seeded[f.key] = f.type === 'checkbox' ? !!row[f.key] : (row[f.key] || '')
+        }
         setForm(seeded)
       } catch (e) { setError(e.message) }
     })()
@@ -140,6 +145,22 @@ export default function MyProfile() {
                 const canCopyFromMcnz = f.key === 'prescriber_number'
                   && form.mcnz_registration_number
                   && form.prescriber_number !== form.mcnz_registration_number
+                // Fields that depend on a checkbox above them (e.g. gst_number
+                // only makes sense when gst_registered is true).
+                if (f.key === 'gst_number' && !form.gst_registered) return null
+                if (f.type === 'checkbox') {
+                  return (
+                    <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.8125rem', color: '#4B5563', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!form[f.key]}
+                        onChange={e => setForm({ ...form, [f.key]: e.target.checked })}
+                        style={{ width: 16, height: 16, cursor: 'pointer' }}
+                      />
+                      <span>{f.label}{f.required && <span style={{ color: '#DC2626' }}> *</span>}</span>
+                    </label>
+                  )
+                }
                 return (
                   <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '.8125rem', color: '#4B5563' }}>
                     <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
