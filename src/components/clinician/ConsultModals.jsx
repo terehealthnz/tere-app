@@ -327,6 +327,11 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
   }, [open, consult?.id])
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
+  // Single supervision toggle (2026-09-20). When true, drafts route to the
+  // provider's assigned supervisor for countersign instead of dispatching
+  // directly. Replaces the implicit can_prescribe=false trigger which was
+  // too easy to leave unset at onboarding.
+  const requiresSupervision = sessionStorage.getItem('providerRequiresSupervision') === 'true'
   const providerId = sessionStorage.getItem('providerId')
 
   // Pre-fill pharmacy from triage data when modal opens — name + medsafe id
@@ -495,7 +500,7 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
           pharmacyName: pharmacy.name, pharmacyHpiId: pharmacy.hpiId,
           pharmacyEmail: pharmacy.email, pharmacyPhone: pharmacy.phone,
           pharmacyAddress: pharmacy.address,
-          needsApproval: !canPrescribe,
+          needsApproval: requiresSupervision,
           draftedByName: sessionStorage.getItem('providerDisplayName'),
         }),
       })
@@ -983,6 +988,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''
   const canRefer = sessionStorage.getItem('providerCanRefer') !== 'false'
+  const requiresSupervision = sessionStorage.getItem('providerRequiresSupervision') === 'true'
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -1003,7 +1009,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           urgency: xr.urgency, history: xr.history, accClaimNumber: accNum,
           facilityName: facility.name, facilityHpiId: facility.hpiId, facilityEmail: facility.email,
           facilityPhone: facility.phone, facilityAddress: facility.address,
-          needsApproval: !canRefer, draftedByName: sessionStorage.getItem('providerDisplayName'),
+          needsApproval: requiresSupervision, draftedByName: sessionStorage.getItem('providerDisplayName'),
         }),
       })
       const data = await res.json()

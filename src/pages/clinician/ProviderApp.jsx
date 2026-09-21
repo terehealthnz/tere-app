@@ -136,14 +136,14 @@ function getSaved() {
 }
 
 export function saveDevice() {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerRequiresSupervision','providerColor','prescriberNumber','providerCpn']
   const d = { savedAt: Date.now() }
   keys.forEach(k => { const v = sessionStorage.getItem(k); if (v) d[k] = v })
   localStorage.setItem('tere_device', JSON.stringify(d))
 }
 
 function restoreDevice(d) {
-  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+  const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerRequiresSupervision','providerColor','prescriberNumber','providerCpn']
   sessionStorage.setItem('clinicianAuth', 'true')
   keys.forEach(k => { if (d[k]) sessionStorage.setItem(k, d[k]) })
 }

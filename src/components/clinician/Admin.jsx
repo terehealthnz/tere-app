@@ -1407,6 +1407,7 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
     can_prescribe: true,
     can_refer: true,
     can_acc: true,
+    requires_supervision: false,
     prescriber_number: '',
     cpn: '',
     hpi_number: '',
@@ -1645,7 +1646,13 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                 <label style={pill(form.can_prescribe)}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
                 <label style={pill(form.can_refer)}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
                 <label style={pill(form.can_acc)}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+                <label style={pill(form.requires_supervision)}><input type="checkbox" checked={form.requires_supervision} onChange={e => set('requires_supervision', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Requires supervision</span></label>
               </div>
+              {form.requires_supervision && (
+                <div style={{ fontSize:'.75rem', color:'#B45309', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:6, padding:'.5rem .75rem', marginBottom:'.75rem' }}>
+                  Prescriptions and radiology referrals will draft to the assigned supervisor for countersign before dispatch. Set the supervisor in the MCNZ Supervision section below.
+                </div>
+              )}
               <div style={groupStyle}>
                 <div>
                   <div style={labelStyle}>MCNZ prescriber number</div>
@@ -1840,6 +1847,7 @@ function EditProviderModal({ provider, onClose, onSaved }) {
     can_prescribe: !!provider.can_prescribe,
     can_refer: !!provider.can_refer,
     can_acc: !!provider.can_acc,
+    requires_supervision: !!provider.requires_supervision,
     prescriber_number: provider.prescriber_number || '',
     cpn: provider.cpn || '',
     hpi_number: provider.hpi_number || '',
@@ -1968,7 +1976,13 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                 <label style={pill(form.can_prescribe)}><input type="checkbox" checked={form.can_prescribe} onChange={e => set('can_prescribe', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can prescribe</span></label>
                 <label style={pill(form.can_refer)}><input type="checkbox" checked={form.can_refer} onChange={e => set('can_refer', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can refer</span></label>
                 <label style={pill(form.can_acc)}><input type="checkbox" checked={form.can_acc} onChange={e => set('can_acc', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Can lodge ACC</span></label>
+                <label style={pill(form.requires_supervision)}><input type="checkbox" checked={form.requires_supervision} onChange={e => set('requires_supervision', e.target.checked)} /> <span style={{ fontSize:'.875rem' }}>Requires supervision</span></label>
               </div>
+              {form.requires_supervision && (
+                <div style={{ fontSize:'.75rem', color:'#B45309', background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:6, padding:'.5rem .75rem', marginBottom:'.75rem' }}>
+                  Prescriptions and radiology referrals will draft to the assigned supervisor for countersign before dispatch. Set the supervisor in the MCNZ Supervision section below.
+                </div>
+              )}
               <div style={groupStyle}>
                 <div><div style={labelStyle}>MCNZ prescriber number</div><input value={form.prescriber_number} onChange={e => set('prescriber_number', e.target.value)} style={inputStyle} /></div>
                 <div>

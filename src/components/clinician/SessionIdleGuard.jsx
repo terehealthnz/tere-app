@@ -42,7 +42,7 @@ const SESSION_KEYS = [
   'clinicianAuth', 'providerId', 'providerDisplayName',
   'providerIsAdmin', 'providerIsProvider', 'providerIsSupervisor',
   'providerIsBillingAdmin', 'providerCanPrescribe', 'providerCanRefer',
-  'providerCanAcc', 'providerColor', 'prescriberNumber', 'providerCpn',
+  'providerCanAcc','providerRequiresSupervision', 'providerColor', 'prescriberNumber', 'providerCpn',
 ]
 
 export default function SessionIdleGuard() {

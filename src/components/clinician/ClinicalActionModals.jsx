@@ -100,6 +100,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''
   const canRefer = sessionStorage.getItem('providerCanRefer') !== 'false'
+  const requiresSupervision = sessionStorage.getItem('providerRequiresSupervision') === 'true'
   const isRhcnz = !!rhcnzRegionId
 
   async function handleSubmit(e) {
@@ -142,7 +143,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           facilityEmail: isRhcnz ? null : facility.email,
           facilityPhone: isRhcnz ? null : facility.phone,
           facilityAddress: isRhcnz ? null : facility.address,
-          needsApproval: !canRefer,
+          needsApproval: requiresSupervision,
           draftedByName: sessionStorage.getItem('providerDisplayName'),
         }),
       })

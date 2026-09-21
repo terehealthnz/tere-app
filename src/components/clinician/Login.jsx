@@ -130,6 +130,12 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerCanPrescribe', String(p.can_prescribe ?? true))
       sessionStorage.setItem('providerCanRefer', String(p.can_refer ?? true))
       sessionStorage.setItem('providerCanAcc', String(p.can_acc ?? true))
+      // Single-toggle supervision gate (2026-09-20). When true, prescriptions
+      // and radiology referrals draft for countersign by supervisor_id
+      // instead of dispatching directly. See _generate-prescription-pdf.js
+      // notifyAssignedSupervisor. Replaces the ad-hoc can_prescribe=false
+      // trigger which caused Rachel to get Ian's drafts by mistake.
+      sessionStorage.setItem('providerRequiresSupervision', String(p.requires_supervision ?? false))
       // Email is used by the Admin UI to hide the "Countersign" button on
       // an offer whose applicant email matches the logged-in admin — a
       // director signing their own contract is a conflict of interest.
@@ -235,7 +241,7 @@ export default function ClinicianLogin() {
               Stay signed in for 30 days on this device. Protected by your screen lock.
             </div>
             <button onClick={() => {
-              const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerColor','prescriberNumber','providerCpn']
+              const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerRequiresSupervision','providerColor','prescriberNumber','providerCpn']
               const d = { savedAt: Date.now() }
               keys.forEach(k => { const v = sessionStorage.getItem(k); if (v) d[k] = v })
               localStorage.setItem('tere_device', JSON.stringify(d))
