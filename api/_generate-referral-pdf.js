@@ -78,6 +78,23 @@ export default async function handler(req, res) {
 
   const supabase = supabaseAdmin()
 
+  // Sandbox suppression — a radiology referral tied to a practice-mode
+  // consult must never fire to a real imaging clinic (RHCNZ, MMI, Medray).
+  // Missed from the 2026-09-20 sweep because the notification helper was
+  // guarded but the outbound clinic send wasn't.
+  if (consultationId) {
+    const { isPracticeConsult } = await import('./_practice-guard.js')
+    if (await isPracticeConsult(supabase, consultationId)) {
+      return res.status(200).json({
+        ok: true,
+        simulated: true,
+        reason: 'practice_mode',
+        pdf_url: null,
+        referral_id: null,
+      })
+    }
+  }
+
   // RHCNZ region overrides facility name/email — server-side lookup so client
   // can't send a referral to an arbitrary address.
   const rhcnzRegion = rhcnzRegionId ? rhcnzRegionServerSide(rhcnzRegionId) : null
