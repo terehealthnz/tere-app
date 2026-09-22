@@ -101,6 +101,16 @@ export default async function handler(req, res) {
   } catch {}
 
   // 5. Notifications
+  // Sandbox suppression (2026-09-22, Patrick rule): if the source consult is
+  // is_practice=true, skip BOTH admin and patient notifications entirely.
+  // Patient-side was already covered by the earlier sandbox sweep (commit
+  // a805591) via _send-email.js, but the two direct sendEmail() calls below
+  // bypass that helper — they need their own guard. Also silences the admin
+  // ping to hello@terehealth.co.nz so sandbox activity doesn't feel real.
+  if (consult.is_practice) {
+    return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+  }
+
   try {
     const patientName = `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim()
     const shortId = consultationId.slice(0, 8).toUpperCase()
