@@ -196,6 +196,17 @@ const SELF_UPDATE_ALLOWLIST = new Set([
   'gst_registered', 'gst_number',
 ])
 
+// Columns any authenticated provider may read on any provider row via
+// ?id=<uuid>. Everything else (bank_account, ird_number, tax_code, hpi_number,
+// mfa_secret_encoded, prescriber_number, etc.) requires self OR admin.
+// Powers the directory / supervisor-name / signature-preview lookups.
+const PUBLIC_PROVIDER_COLUMNS = new Set([
+  'id', 'first_name', 'last_name', 'credential', 'specialty', 'color',
+  'email', 'is_active', 'is_provider', 'is_admin', 'is_supervisor',
+  'provider_type', 'supervisor_id', 'supervision_plan_url',
+  'signature_url', 'mfa_enabled',
+])
+
 export default async function handler(req, res) {
   const auth = await guardProvider(req, res)
   if (!auth) return
@@ -206,9 +217,37 @@ export default async function handler(req, res) {
     const { id, filter, columns } = req.query || {}
 
     if (id) {
-      const cols = columns
-        ? String(columns).split(',').map(c => c.trim()).filter(Boolean).join(', ')
-        : '*'
+      // Ownership gate — closes Blacklock WEB-0923-0605579961 (IDOR).
+      // Rules:
+      //   - self OR admin → any columns (including bank_account, ird, mfa)
+      //   - anyone else → only PUBLIC_PROVIDER_COLUMNS (name, credential,
+      //     supervisor pointer, signature URL, MFA-on flag). Enough for
+      //     directory + supervisor-name lookups; nothing that reveals PII
+      //     or auth material.
+      const selfId = auth.provider?.id
+      const isAdmin = !!auth.provider?.is_admin
+      const isSelf = String(id) === String(selfId)
+
+      // Restrict to plain identifiers — blocks PostgREST embedded-resource
+      // syntax like `patients(bank_account)` that could pull data from
+      // foreign-key-related tables even under a strict allowlist.
+      const requested = columns
+        ? String(columns).split(',').map(c => c.trim()).filter(c => /^[a-z_][a-z0-9_]*$/i.test(c))
+        : null
+
+      if (!isSelf && !isAdmin) {
+        // Cross-provider read — must explicitly request columns AND all must
+        // be public. No `*` for other providers, ever.
+        if (!requested || requested.length === 0) {
+          return res.status(403).json({ error: 'Not authorised to view full provider record.' })
+        }
+        const disallowed = requested.filter(c => !PUBLIC_PROVIDER_COLUMNS.has(c))
+        if (disallowed.length) {
+          return res.status(403).json({ error: `Not authorised to read column(s): ${disallowed.join(', ')}` })
+        }
+      }
+
+      const cols = requested && requested.length ? requested.join(', ') : '*'
       const { data, error } = await supabase.from('providers').select(cols).eq('id', id).maybeSingle()
       if (error) { console.error('[providers] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data)  return res.status(404).json({ error: 'Provider not found' })
@@ -464,6 +503,16 @@ export default async function handler(req, res) {
         row[k] = v
       }
     }
+    // Numeric range validation (Blacklock WEB-0923-0706338251). Same
+    // guardrails as the PATCH path so a fresh provider can't be created
+    // with a negative rate either.
+    if ('base_rate' in row && row.base_rate !== null && row.base_rate !== '') {
+      const n = Number(row.base_rate)
+      if (!Number.isFinite(n) || n < 0 || n > 500) {
+        return res.status(400).json({ error: 'base_rate must be a number between 0 and 500', field: 'base_rate', validation: 'out_of_range' })
+      }
+      row.base_rate = n
+    }
     if (row.is_active === undefined)   row.is_active = true
     if (row.is_provider === undefined) row.is_provider = true
 
@@ -534,6 +583,31 @@ export default async function handler(req, res) {
       const v = validateHpiCpn(patch.hpi_number)
       if (!v.valid) return res.status(400).json({ error: v.reason, field: 'hpi_number', validation: 'failed' })
       patch.hpi_number = String(patch.hpi_number).trim().toUpperCase()
+    }
+
+    // Numeric range validation (Blacklock WEB-0923-0706338251).
+    // Negative fees / counters were silently accepted, showing "$-111.00/consult"
+    // in the admin UI. Constrain to sensible ranges before write.
+    const NUMERIC_BOUNDS = {
+      base_rate:                        { min: 0, max: 500,  integer: false, label: 'base_rate (NZD per consult)' },
+      pgy_level:                        { min: 1, max: 20,   integer: true,  label: 'pgy_level' },
+      probation_min_supervised_consults:{ min: 0, max: 500,  integer: true,  label: 'probation_min_supervised_consults' },
+      probation_supervised_completed:   { min: 0, max: 5000, integer: true,  label: 'probation_supervised_completed' },
+    }
+    for (const [field, bounds] of Object.entries(NUMERIC_BOUNDS)) {
+      if (!(field in patch)) continue
+      if (patch[field] === null || patch[field] === '') { patch[field] = null; continue }
+      const n = Number(patch[field])
+      if (!Number.isFinite(n)) {
+        return res.status(400).json({ error: `${bounds.label} must be a number`, field, validation: 'not_a_number' })
+      }
+      if (bounds.integer && !Number.isInteger(n)) {
+        return res.status(400).json({ error: `${bounds.label} must be a whole number`, field, validation: 'not_integer' })
+      }
+      if (n < bounds.min || n > bounds.max) {
+        return res.status(400).json({ error: `${bounds.label} must be between ${bounds.min} and ${bounds.max}`, field, validation: 'out_of_range' })
+      }
+      patch[field] = n
     }
 
     patch.updated_at = new Date().toISOString()

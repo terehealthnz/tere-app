@@ -224,7 +224,9 @@ export default function NotesCompletion() {
 
         // Local draft fallback
         try {
-          const local = localStorage.getItem(draftKey)
+          // sessionStorage so PHI-carrying draft dies on tab close.
+          // Blacklock WEB-0923-0708178226.
+          const local = sessionStorage.getItem(draftKey)
           if (local) {
             const d = JSON.parse(local)
             if (d.v === 2) { restoreDraft(d, data); setLoading(false); return }
@@ -476,7 +478,7 @@ export default function NotesCompletion() {
     if (!consult) return
     const t = setInterval(async () => {
       const draft = getDraft()
-      localStorage.setItem(draftKey, JSON.stringify(draft))
+      sessionStorage.setItem(draftKey, JSON.stringify(draft))
       try {
         await updateConsultation(id, { notes_draft: draft })
         setLastSaved(new Date())
@@ -615,7 +617,7 @@ export default function NotesCompletion() {
         }).catch(() => {})
       }
 
-      localStorage.removeItem(draftKey)
+      sessionStorage.removeItem(draftKey)
       navigate('/clinician/dashboard')
     } catch (e) { console.error(e); setFinalising(false) }
   }

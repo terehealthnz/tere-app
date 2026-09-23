@@ -577,7 +577,10 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         actionsRef.current    = rs?.actions || data.notes_draft?.actions || []
         transcriptRef.current = rs?.transcript || data.transcript || ''
 
-        const localDraft = localStorage.getItem(draftKey)
+        // Draft moved to sessionStorage so PHI-carrying note content dies
+        // when the tab closes. Purges after logout survive naturally.
+        // Blacklock WEB-0923-0708178226.
+        const localDraft = sessionStorage.getItem(draftKey)
         if (localDraft) {
           try { restoreDraft(JSON.parse(localDraft)); setLoading(false); return } catch {}
         }
@@ -767,7 +770,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   useEffect(() => {
     if (!id || !consult) return
     const draft = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contGpEmail, contNotes, contPatientTold }
-    localStorage.setItem(draftKey, JSON.stringify(draft))
+    sessionStorage.setItem(draftKey, JSON.stringify(draft))
   }, [noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accMechanism, accBodyPart, outcome, asyncResponse, safetyNetTemplateId, safetyNetText, contDisposition, contGpName, contGpPractice, contNotes, contPatientTold])
 
   // ── Thread handlers ───────────────────────────────────────────────────────────
@@ -855,7 +858,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           })
         } catch {}
       }
-      localStorage.removeItem(draftKey)
+      sessionStorage.removeItem(draftKey)
       finishSession('/provider')
     } catch (e) { console.error(e) }
     setAsyncSending(false)
@@ -878,7 +881,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           body: JSON.stringify({ action:'upgrade_to_live', consultationId:id, consultationType:escalate, message:escalateNote, providerId, providerName }),
         })
       }
-      localStorage.removeItem(draftKey)
+      sessionStorage.removeItem(draftKey)
       finishSession('/provider')
     } catch (e) { console.error(e) }
     setEscalateSending(false)
@@ -1079,7 +1082,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       }
       setStep(emailStepIdx, { status: 'done', detail: consult.patient_email || 'No email on file' })
 
-      localStorage.removeItem(draftKey)
+      sessionStorage.removeItem(draftKey)
       setFinaliseResult({ ...result, steps: currentSteps })
     } catch (e) {
       console.error('finalise error:', e)

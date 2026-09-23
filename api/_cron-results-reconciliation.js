@@ -87,6 +87,26 @@ export default async function handler(req, res) {
     findings.abnormal_unactioned.push({ ...o, unactioned_hours: hoursBetween(o.reviewed_at, nowIso) })
   }
 
+  // Sandbox suppression — drop any finding whose consultation is a practice
+  // row. Sandbox investigation orders shouldn't trigger admin escalation or
+  // security_events noise.
+  const allConsultIds = [
+    ...findings.orders_overdue,
+    ...findings.results_unreviewed,
+    ...findings.abnormal_unactioned,
+  ].map(o => o.consultation_id).filter(Boolean)
+  if (allConsultIds.length) {
+    const uniq = [...new Set(allConsultIds)]
+    const { data: practiceRows } = await supabase.from('consultations')
+      .select('id').eq('is_practice', true).in('id', uniq)
+    const practiceSet = new Set((practiceRows || []).map(r => r.id))
+    if (practiceSet.size) {
+      findings.orders_overdue      = findings.orders_overdue.filter(o => !practiceSet.has(o.consultation_id))
+      findings.results_unreviewed  = findings.results_unreviewed.filter(o => !practiceSet.has(o.consultation_id))
+      findings.abnormal_unactioned = findings.abnormal_unactioned.filter(o => !practiceSet.has(o.consultation_id))
+    }
+  }
+
   // Auto-escalate category 3 — set escalated_at + escalated_to_admin flag
   // + write to security_events so the real-time alerter picks it up too.
   if (findings.abnormal_unactioned.length) {

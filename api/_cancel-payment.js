@@ -34,10 +34,16 @@ export default async function handler(req, res) {
   // belong to a different tenant or that leaked from another integration.
   const { data: consult } = await supabase
     .from('consultations')
-    .select('id, status, payment_intent_id, payment_amount, payment_amount_nzd')
+    .select('id, status, payment_intent_id, payment_amount, payment_amount_nzd, is_practice')
     .eq('payment_intent_id', paymentIntentId)
     .maybeSingle()
   if (!consult) return res.status(404).json({ error: 'No consultation found for this payment intent.' })
+
+  // Sandbox suppression — never call Windcave/Stripe void for a practice
+  // consult (there's no real hold to release).
+  if (consult.is_practice) {
+    return res.status(200).json({ status: 'simulated', simulated: true, reason: 'practice_mode' })
+  }
 
   // Once the encounter is underway or complete, only providers should be
   // cancelling — refuse the patient-flow anonymous cancel. In practice this

@@ -40,13 +40,19 @@ export default async function handler(req, res) {
     // patient_email on the consult row. Case-insensitive.
     const { data: consult, error } = await supabase
       .from('consultations')
-      .select('id, patient_id, patient_email, patient_first_name, patient_last_name, patient_nhi')
+      .select('id, patient_id, patient_email, patient_first_name, patient_last_name, patient_nhi, is_practice')
       .eq('id', consultationId).maybeSingle()
     if (error || !consult) return res.status(404).json({ error: 'Consultation not found' })
     const patientEmailLc = (consult.patient_email || '').toLowerCase().trim()
     const confirmLc = confirmEmail.toLowerCase().trim()
     if (!patientEmailLc || patientEmailLc !== confirmLc) {
       return res.status(403).json({ error: 'Email does not match the consultation record' })
+    }
+    // Sandbox suppression — a practice consult cannot forward records to a
+    // real GP mailbox. Refuse the create so we never persist a fake request
+    // that a real admin might fulfil.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
     }
     // Insert the request. Duplicate submissions land as separate rows —
     // admin can decline dupes. Keeps the flow simple + auditable.
@@ -110,9 +116,21 @@ export default async function handler(req, res) {
     let chiefComplaint = ''
     if (reqRow.consultation_id) {
       const { data: c } = await supabase.from('consultations')
-        .select('created_at, started_at, provider_display_name, chief_complaint, notes_final')
+        .select('created_at, started_at, provider_display_name, chief_complaint, notes_final, is_practice')
         .eq('id', reqRow.consultation_id).maybeSingle()
       if (c) {
+        // Sandbox suppression — refuse to fulfil a forward for a practice
+        // consult. Marks the row declined instead so admin can see why.
+        if (c.is_practice) {
+          await supabase.from('record_forward_requests').update({
+            status: 'declined',
+            fulfilled_at: new Date().toISOString(),
+            fulfilled_by: auth.provider.id,
+            admin_notes: 'Auto-declined: sandbox consult (no real records to forward)',
+            updated_at: new Date().toISOString(),
+          }).eq('id', requestId)
+          return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+        }
         consultationDate = c.started_at || c.created_at
         providerName = c.provider_display_name || ''
         chiefComplaint = c.chief_complaint || ''

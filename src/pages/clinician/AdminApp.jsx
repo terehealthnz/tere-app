@@ -1032,7 +1032,7 @@ function AdminMessagesTab({ setMsgBadge }) {
     try {
       const [tRes, nRes] = await Promise.all([
         apiFetch('/api/patient-support?status=new'),
-        apiFetch('/api/provider-notifications?providerId=' + (providerId || '')),
+        apiFetch('/api/provider-notifications'),
       ])
       const tData = await tRes.json()
       const nData = await nRes.json()
@@ -1152,7 +1152,7 @@ export default function AdminApp() {
       try {
         const [tRes, nRes] = await Promise.all([
           apiFetch('/api/patient-support?status=new'),
-          apiFetch('/api/provider-notifications?providerId=' + providerId),
+          apiFetch('/api/provider-notifications'),
         ])
         const t = (await tRes.json()).tickets || []
         const n = (await nRes.json()).notifications || []

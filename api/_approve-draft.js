@@ -3,6 +3,7 @@ import { sendEmail as sendEmailViaProvider , hasEmailProvider} from './_email-cl
 import { buildPrescriptionPdf, buildReferralPdf } from './_pdf-builders.js'
 import { isSignatureExempt } from './_drug-classifications.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 function supabaseAdmin() {
   return createClient(
@@ -59,6 +60,24 @@ export default async function handler(req, res) {
   if (type === 'prescription') {
     const { data: rx, error } = await supabase.from('prescriptions').select('*').eq('id', id).single()
     if (error || !rx) return res.status(404).json({ error: 'Prescription not found' })
+
+    // Sandbox suppression — either the prescription itself is a practice row
+    // or the parent consult is. Flip approval state so training UI shows the
+    // supervisor did something, but skip every outbound email + PDF path.
+    const rxIsPractice = rx.is_practice === true
+      || (rx.consultation_id ? await isPracticeConsult(supabase, rx.consultation_id) : false)
+    if (rxIsPractice) {
+      await supabase.from('prescriptions').update({
+        approval_status: action === 'reject' ? 'rejected' : 'approved',
+        approved_by: action === 'reject' ? null : supervisorId,
+        approved_at: action === 'reject' ? null : now,
+        rejected_by: action === 'reject' ? supervisorId : null,
+        rejected_at: action === 'reject' ? now : null,
+        rejection_reason: action === 'reject' ? rejectionReason : null,
+        delivery_status: action === 'reject' ? 'rejected' : 'sent',
+      }).eq('id', id)
+      return res.json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
 
     if (action === 'reject') {
       await supabase.from('prescriptions').update({
@@ -218,6 +237,23 @@ export default async function handler(req, res) {
     const { data: ref, error } = await supabase.from('radiology_referrals').select('*').eq('id', id).single()
     if (error || !ref) return res.status(404).json({ error: 'Referral not found' })
 
+    // Sandbox suppression — same pattern as prescriptions.
+    const refIsPractice = ref.is_practice === true
+      || (ref.consultation_id ? await isPracticeConsult(supabase, ref.consultation_id) : false)
+    if (refIsPractice) {
+      await supabase.from('radiology_referrals').update({
+        approval_status: action === 'reject' ? 'rejected' : 'approved',
+        approved_by: action === 'reject' ? null : supervisorId,
+        approved_at: action === 'reject' ? null : now,
+        rejected_by: action === 'reject' ? supervisorId : null,
+        rejected_at: action === 'reject' ? now : null,
+        rejection_reason: action === 'reject' ? rejectionReason : null,
+        referral_status: action === 'reject' ? 'rejected' : 'pending',
+        delivery_status: action === 'reject' ? 'rejected' : 'sent',
+      }).eq('id', id)
+      return res.json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
+
     if (action === 'reject') {
       await supabase.from('radiology_referrals').update({
         approval_status: 'rejected',
@@ -332,9 +368,21 @@ export default async function handler(req, res) {
   if (type === 'acc') {
     // id is consultation_id for ACC
     const { data: consult, error } = await supabase.from('consultations')
-      .select('id, patient_first_name, patient_last_name, patient_email, acc_draft, provider_id')
+      .select('id, patient_first_name, patient_last_name, patient_email, acc_draft, provider_id, is_practice')
       .eq('id', id).single()
     if (error || !consult) return res.status(404).json({ error: 'Consultation not found' })
+
+    // Sandbox suppression — flip state but skip drafter notification.
+    if (consult.is_practice) {
+      await supabase.from('consultations').update({
+        acc_approval_status: action === 'reject' ? 'rejected' : 'approved',
+        acc_approved_by: action === 'reject' ? null : supervisorId,
+        acc_approved_at: action === 'reject' ? null : now,
+        acc_rejected_at: action === 'reject' ? now : null,
+        acc_rejection_reason: action === 'reject' ? rejectionReason : null,
+      }).eq('id', id)
+      return res.json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
 
     if (action === 'reject') {
       await supabase.from('consultations').update({

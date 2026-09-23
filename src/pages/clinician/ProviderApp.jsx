@@ -628,7 +628,9 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
 
   async function load() {
     try {
-      const res = await apiFetch('/api/provider-notifications?providerId=' + (providerId || ''))
+      // Server infers providerId from auth cookie; client no longer sends it
+      // in the URL (task #563, ex-Blacklock hardening).
+      const res = await apiFetch('/api/provider-notifications')
       const data = await res.json()
       // Hide already-resolved routed notifications (support tickets that have been actioned)
       const notifs = (data.notifications || []).filter(n => !n.resolved_at)
@@ -668,7 +670,7 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
     apiFetch('/api/provider-notifications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, providerId }),
+      body: JSON.stringify({ id }),
     }).catch(() => {})
   }
 
@@ -678,7 +680,7 @@ function MessagesTab({ msgBadge, setMsgBadge }) {
     apiFetch('/api/provider-notifications', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markAllRead: true, providerId }),
+      body: JSON.stringify({ markAllRead: true }),
     }).catch(() => {})
   }
 
@@ -1241,7 +1243,7 @@ export default function ProviderApp() {
     let cancelled = false
     async function refresh() {
       try {
-        const res = await apiFetch('/api/provider-notifications?providerId=' + providerId)
+        const res = await apiFetch('/api/provider-notifications')
         const data = await res.json()
         const notifs = (data.notifications || []).filter(n => !n.resolved_at)
         const unread = notifs.filter(n => !n.is_read).length

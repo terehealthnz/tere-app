@@ -54,7 +54,13 @@ export default function TrainingBanner({ providerId }) {
     let cancelled = false
     async function refresh() {
       try {
-        const res = await apiFetch(`/api/providers?action=training_status&provider_id=${encodeURIComponent(providerId)}`, { method: 'POST' })
+        // Provider UUID no longer sent — server infers target from the
+        // authenticated session (auth.provider.id). Blacklock
+        // WEB-0923-0655443636 (Session Token in URL) closed by removing
+        // the UUID from the URL query string entirely.
+        const res = await apiFetch('/api/providers?action=training_status', {
+          method: 'POST',
+        })
         const body = await res.json()
         if (!cancelled && res.ok) {
           setStatus(body)

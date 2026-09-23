@@ -24,6 +24,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { getClientIp } from './_client-ip.js'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 let cachedClient = null
 function admin() {
   if (cachedClient) return cachedClient
@@ -56,12 +58,16 @@ export async function writeAuditEvent(req, auth, event) {
     const role = provider?.is_admin ? 'admin'
                : provider?.is_provider ? 'provider'
                : null
+    // consultation_id is UUID-typed in Postgres — anything non-UUID would
+    // raise 22P02. Guard here so callers don't have to pre-validate.
+    const safeConsultationId = (event.consultation_id && UUID_RE.test(String(event.consultation_id)))
+      ? event.consultation_id : null
     await admin().from('audit_logs').insert({
       event_type:      event.event_type,
       provider_id:     provider?.id || null,
       provider_name:   [provider?.first_name, provider?.last_name].filter(Boolean).join(' ') || provider?.email || null,
       provider_role:   role,
-      consultation_id: event.consultation_id || null,
+      consultation_id: safeConsultationId,
       patient_ref:     event.patient_ref || null,
       resource_type:   event.resource_type || null,
       resource_id:     event.resource_id ? String(event.resource_id).slice(0, 200) : null,

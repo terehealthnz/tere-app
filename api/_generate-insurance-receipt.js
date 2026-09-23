@@ -69,10 +69,13 @@ export default async function handler(req, res) {
       id, created_at, chief_complaint, acc_read_code, notes_final,
       payment_amount, patient_first_name, patient_last_name, patient_email,
       patient_nhi, patient_dob,
-      provider_id, insurance_receipt_purchased_at, payment_test_mode
+      provider_id, insurance_receipt_purchased_at, payment_test_mode, is_practice
     `)
     .eq('id', consultationId).single()
   if (cErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
+  if (consult.is_practice) {
+    return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+  }
   if (consult.payment_test_mode) {
     return res.status(400).json({ error: 'Insurance receipt not available for test-mode consultations' })
   }

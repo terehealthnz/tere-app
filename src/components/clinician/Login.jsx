@@ -40,8 +40,12 @@ function safeRedirect(raw) {
 export default function ClinicianLogin() {
   const navigate = useNavigate()
   const location = useLocation()
-  const [providers, setProviders] = useState(null)
+  // Email-first login (Blacklock WEB-0923-0701117607). The old avatar
+  // picker dumped the full provider directory to any unauth visitor;
+  // replaced with an email input step. `selected` now just holds the
+  // typed/remembered email string, not a provider row.
   const [selected, setSelected] = useState(null)
+  const [emailInput, setEmailInput] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -52,51 +56,40 @@ export default function ClinicianLogin() {
   const [needsMfa, setNeedsMfa] = useState(false)
   const [mfaCode, setMfaCode] = useState('')
 
-  // Check for remembered device on mount
+  // Check for remembered device on mount. Saved blob may be from the old
+  // (providerId-based) or new (email-based) format — accept either.
   useEffect(() => {
     const d = getSaved()
-    if (d?.providerDisplayName) setSavedDevice(d)
+    if (d?.providerDisplayName || d?.providerEmail) setSavedDevice(d)
   }, [])
 
-  // The "remembered device" is a UX convenience: it pre-selects the provider
-  // so the user only has to type their PIN + TOTP code, not pick from the
-  // roster again. It does NOT bypass PIN or MFA — every login goes through
-  // /api/provider-auth with PIN and (if enrolled) TOTP.
-  //
-  // Previously this function auto-logged-in the saved provider by writing
-  // sessionStorage flags directly and navigating to the dashboard. That
-  // bypassed BOTH PIN and MFA and defeated the MFA-mandatory intent of task
-  // #448 for anyone with a valid tere_device localStorage entry (7-day
-  // window). Fixed to force a full re-auth on every login.
+  // The "remembered device" is a UX convenience: it pre-fills the email so
+  // the user only has to type their PIN + TOTP code, not their email again.
+  // It does NOT bypass PIN or MFA — every login goes through /api/provider-auth
+  // with PIN and (if enrolled) TOTP.
   function pickSavedProvider() {
-    const match = (providers || []).find(p => p.id === savedDevice?.providerId)
-    if (match) setSelected(match)
+    if (savedDevice?.providerEmail) {
+      setSelected({ email: savedDevice.providerEmail, displayName: savedDevice.providerDisplayName })
+    }
     setSavedDevice(null)
   }
 
-  useEffect(() => {
-    // Pre-auth login picker uses the server-mediated /api/provider-list
-    // endpoint (anonymous, minimum-fields allowlist) rather than
-    // `supabase.from('providers')` directly — anon reads on the
-    // providers table were revoked in the 2026-08-09 RLS lockdown.
-    async function loadProviders() {
-      try {
-        const res = await apiFetch('/api/provider-list')
-        if (!res.ok) { setProviders([]); return }
-        const { providers: data } = await res.json()
-        setProviders(data || [])
-      } catch {
-        setProviders([])
-      }
+  function submitEmail(e) {
+    e?.preventDefault()
+    const clean = String(emailInput || '').trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+      setError('Please enter a valid email address')
+      return
     }
-    loadProviders()
-  }, [])
+    setError('')
+    setSelected({ email: clean.toLowerCase() })
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true); setError('')
     try {
-      const body = { providerId: selected?.id, pin: password }
+      const body = { email: selected?.email, pin: password }
       if (needsMfa) body.mfaCode = mfaCode
       const res = await apiFetch('/api/provider-auth', {
         method: 'POST',
@@ -177,7 +170,7 @@ export default function ClinicianLogin() {
       } else {
         // Offer to save device if not already saved for this provider
         const existing = getSaved()
-        if (!existing || existing.providerId !== p.id) {
+        if (!existing || (existing.providerEmail || existing.providerId) !== (p.email || p.id)) {
           setShowSavePrompt(true)
           setLoading(false)
           return
@@ -190,12 +183,6 @@ export default function ClinicianLogin() {
     }
     setLoading(false)
   }
-
-  if (providers === null) return (
-    <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',display:'flex',alignItems:'center',justifyContent:'center'}}>
-      <div className="spinner" style={{borderColor:'rgba(255,255,255,.2)',borderTopColor:'var(--teal-light)'}} />
-    </div>
-  )
 
   // "Welcome back" screen — remembered device
   if (savedDevice && !showSavePrompt) return (
@@ -241,7 +228,9 @@ export default function ClinicianLogin() {
               Stay signed in for 30 days on this device. Protected by your screen lock.
             </div>
             <button onClick={() => {
-              const keys = ['providerId','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerRequiresSupervision','providerColor','prescriberNumber','providerCpn']
+              // Cache providerEmail too so the "Welcome back" pre-fill works
+              // with the new email-first login flow (Blacklock WEB-0923-0701117607).
+              const keys = ['providerId','providerEmail','providerDisplayName','providerIsAdmin','providerIsProvider','providerIsSupervisor','providerIsBillingAdmin','providerCanPrescribe','providerCanRefer','providerCanAcc','providerRequiresSupervision','providerColor','prescriberNumber','providerCpn']
               const d = { savedAt: Date.now() }
               keys.forEach(k => { const v = sessionStorage.getItem(k); if (v) d[k] = v })
               localStorage.setItem('tere_device', JSON.stringify(d))
@@ -260,7 +249,7 @@ export default function ClinicianLogin() {
     )
   }
 
-  const showPasswordStep = selected || providers.length === 0
+  const showPasswordStep = !!selected
 
   return (
     <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
@@ -273,39 +262,42 @@ export default function ClinicianLogin() {
         </div>
 
         {!showPasswordStep ? (
-          <div>
-            <div style={{color:'rgba(255,255,255,.6)',fontSize:'.875rem',textAlign:'center',marginBottom:'1.25rem'}}>Who is signing in?</div>
-            <div style={{display:'flex',flexDirection:'column',gap:'.625rem'}}>
-              {providers.map(p => (
-                <button key={p.id} onClick={() => setSelected(p)}
-                  style={{background:'white',border:`2px solid ${p.color || '#0B6E76'}`,borderRadius:12,padding:'1rem 1.25rem',cursor:'pointer',textAlign:'left',fontFamily:'Plus Jakarta Sans, sans-serif',display:'flex',alignItems:'center',gap:'1rem'}}>
-                  <div style={{width:44,height:44,borderRadius:'50%',background:p.color || '#0B6E76',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:'1.125rem',flexShrink:0}}>
-                    {(p.first_name || '?').charAt(0)}{(p.last_name || '?').charAt(0)}
-                  </div>
-                  <div>
-                    <div style={{fontWeight:700,color:'#0D2B45',fontSize:'1rem'}}>{providerDisplayName(p)}</div>
-                    <div style={{fontSize:'.8125rem',color:'#6B7280',marginTop:2}}>
-                      {p.specialty || (p.is_admin && !p.is_provider ? 'Admin' : 'Clinician')}
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+          <div className="card">
+            {/* Email-first login. The old avatar picker enumerated every
+                clinician to any unauthenticated visitor. Blacklock
+                WEB-0923-0701117607. */}
+            <form onSubmit={submitEmail}>
+              <div className="form-group">
+                <label>Email</label>
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={e => setEmailInput(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="username"
+                  autoFocus
+                  required
+                />
+              </div>
+              {error && <div className="alert alert-danger">{error}</div>}
+              <button type="submit" className="btn btn-primary btn-full">
+                Continue
+              </button>
+            </form>
           </div>
         ) : (
           <div className="card">
             {selected && (
               <div style={{display:'flex',alignItems:'center',gap:'.75rem',marginBottom:'1.25rem',padding:'.875rem',background:'var(--bg)',borderRadius:'var(--radius-sm)'}}>
-                <div style={{width:40,height:40,borderRadius:'50%',background:selected.color||'#0B6E76',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700,fontSize:'1rem',flexShrink:0}}>
-                  {selected.first_name[0]}{selected.last_name[0]}
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:'.9375rem'}}>{providerDisplayName(selected)}</div>
-                  <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>
-                    {selected.specialty || (selected.is_admin && !selected.is_provider ? 'Admin' : 'Clinician')}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:'.9375rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                    {selected.displayName || selected.email}
                   </div>
+                  {selected.displayName && (
+                    <div style={{fontSize:'.8125rem',color:'var(--muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{selected.email}</div>
+                  )}
                 </div>
-                <button onClick={() => { setSelected(null); setPassword(''); setError(''); setNeedsMfa(false); setMfaCode('') }}
+                <button onClick={() => { setSelected(null); setEmailInput(''); setPassword(''); setError(''); setNeedsMfa(false); setMfaCode('') }}
                   style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:'.875rem',padding:'.5rem .75rem',margin:'-.5rem -.75rem'}}>
                   Change
                 </button>

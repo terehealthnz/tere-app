@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
 import { resolvePatientAuth } from './_patient-token.js'
+import { verifyTurnstile } from './_turnstile.js'
 
 function admin() {
   return createClient(
@@ -34,7 +35,7 @@ const CATEGORY_ALLOWED = new Set([
 
 const CREATE_ALLOWLIST = new Set([
   'category', 'message', 'patient_name', 'patient_email', 'patient_phone',
-  'consultation_id', 'source', 'hipaa_acknowledged',
+  'consultation_id', 'source', 'hipaa_acknowledged', 'turnstile_token',
 ])
 
 // Cap the free-text message to prevent DB/email blob abuse.
@@ -377,6 +378,16 @@ export default async function handler(req, res) {
     // hipaa_acknowledged doesn't map to a DB column — we surface it in the
     // message body for the human reader instead. Strip before insert.
     delete payload.hipaa_acknowledged
+
+    // Cloudflare Turnstile — human verification on public forms. Runs
+    // after basic input validation (don't burn siteverify calls on bad
+    // JSON). Fails open if TURNSTILE_SECRET_KEY isn't configured yet.
+    // Closes Blacklock WEB-0923-0637079391.
+    const turnstileCheck = await verifyTurnstile(payload.turnstile_token, req)
+    delete payload.turnstile_token
+    if (!turnstileCheck.ok) {
+      return res.status(turnstileCheck.status).json({ error: turnstileCheck.error })
+    }
 
     // Per-email rate limit — prevents an attacker from spamming intakes
     // targeting a real user's inbox with autoresponder emails.

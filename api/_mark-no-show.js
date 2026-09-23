@@ -35,6 +35,12 @@ export default async function handler(req, res) {
     cooldown_until: null,
   }).eq('id', consultationId)
 
+  // Sandbox suppression — status update stays (so admin can see no-show in
+  // the queue), but skip hold release, email, and SMS for practice consults.
+  if (consult.is_practice) {
+    return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+  }
+
   // Release card hold (Stripe or Windcave) so patient is not charged. Any
   // failure here is non-blocking — the auth expires on its own in ~7 days.
   if (consult.payment_intent_id) {

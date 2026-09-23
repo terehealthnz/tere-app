@@ -19,8 +19,9 @@
 // because login predates this change).
 
 import { createClient } from '@supabase/supabase-js'
-import { endSession } from './_provider-session.js'
+import { endSession, revokeSessionByCookie } from './_provider-session.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { SESSION_COOKIE_NAME, readCookie, clearSessionCookie, hashSessionToken } from './_cookie.js'
 
 function admin() {
   return createClient(
@@ -34,13 +35,24 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { sessionId, providerId } = req.body || {}
+  const cookieToken = readCookie(req, SESSION_COOKIE_NAME)
 
-  // Look up the provider for audit-event provenance. If sessionId is
-  // supplied, prefer the provider_id on the session row (defends
-  // against a caller passing a mismatched providerId).
+  // Look up the provider for audit-event provenance. Prefer looking up
+  // by cookie token (current path). Fall back to sessionId (legacy body
+  // path) then providerId (client had neither).
   let auditProvider = null
+  let resolvedSessionId = sessionId || null
   try {
-    if (sessionId) {
+    if (cookieToken) {
+      const hashPg = '\\x' + hashSessionToken(cookieToken).toString('hex')
+      const { data } = await admin()
+        .from('provider_sessions')
+        .select('id, providers ( id, first_name, last_name, email, is_admin, is_provider )')
+        .eq('session_token_hash', hashPg)
+        .maybeSingle()
+      if (data?.id) resolvedSessionId = data.id
+      auditProvider = data?.providers || null
+    } else if (sessionId) {
       const { data } = await admin()
         .from('provider_sessions')
         .select('provider_id, providers ( id, first_name, last_name, email, is_admin, is_provider )')
@@ -57,12 +69,20 @@ export default async function handler(req, res) {
     }
   } catch { /* audit provenance is best-effort */ }
 
-  await endSession(sessionId, 'logout')
+  // Revoke via cookie (preferred) AND close the row by legacy sessionId
+  // (in case the client only knows one of the two). Both idempotent.
+  if (cookieToken) await revokeSessionByCookie(cookieToken, 'logout')
+  await endSession(resolvedSessionId, 'logout')
+
+  // Always clear the cookie, even if there was no active session — a
+  // stale cookie in the browser shouldn't linger after the user hits
+  // Sign Out.
+  clearSessionCookie(res)
 
   writeAuditEvent(req, auditProvider ? { provider: auditProvider } : null, {
     event_type:    'provider.logout',
     resource_type: 'provider_session',
-    resource_id:   sessionId || null,
+    resource_id:   resolvedSessionId,
     metadata:      { source: 'client_signout' },
   }).catch(() => {})
 

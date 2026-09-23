@@ -73,7 +73,7 @@ export default async function handler(req, res) {
   // Verify consult exists AND the caller is entitled to capture on it.
   const { data: consult, error: cErr } = await supabase
     .from('consultations')
-    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd')
+    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd, is_practice')
     .eq('id', consultationId)
     .maybeSingle()
   if (cErr) {
@@ -81,6 +81,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Internal error' })
   }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // Sandbox suppression — never capture a real Stripe/Windcave hold for a
+  // practice-mode consult. Return simulated:true so the UI treats it as
+  // a successful capture without touching the payment provider.
+  if (consult.is_practice) {
+    return res.status(200).json({ status: 'simulated', simulated: true, reason: 'practice_mode', amount_nzd: 0 })
+  }
 
   // Refuse if the consult is in a non-capturable state — no_show or cancelled
   // consults should not have their hold captured (blocks the race where

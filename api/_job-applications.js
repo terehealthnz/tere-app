@@ -37,6 +37,7 @@ import { randomBytes } from 'node:crypto'
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk'
 import { guardProvider } from './_auth.js'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
+import { scanPdfForActiveContent } from './_pdf-sanitise.js'
 import { buildInterviewIcs } from './_ics.js'
 import { buildOfferPdf } from './_pdf-builders.js'
 import { renderContractToPdf, getContractByVersion } from './_contract-pdf-render.js'
@@ -1186,6 +1187,14 @@ export default async function handler(req, res) {
         if (b.apcPngBase64.length > 6_000_000) return res.status(400).json({ error: 'APC PDF too large (max ~4 MB)' })
         const raw = b.apcPngBase64.slice('data:application/pdf;base64,'.length)
         const buf = Buffer.from(raw, 'base64')
+        // Active-content scan — same guard as compliance uploads.
+        // Blacklock WEB-0923-0618186646.
+        const apcSafety = scanPdfForActiveContent(buf)
+        if (!apcSafety.safe) {
+          return res.status(400).json({
+            error: `APC PDF contains active content (${apcSafety.found}). Please export a flat/print copy and re-upload.`,
+          })
+        }
         const key = `${row.id}-apc.pdf`
         const { error: upErr } = await supabase.storage.from('onboarding')
           .upload(key, buf, { contentType: 'application/pdf', upsert: true, cacheControl: '0' })
@@ -2771,7 +2780,14 @@ export default async function handler(req, res) {
 
     async function signIfPresent(key) {
       if (!key) return null
-      const { data, error } = await supabase.storage.from('provider-compliance').createSignedUrl(key, 3600)
+      // download: forces Content-Disposition: attachment so the browser
+      // pdf.js viewer never renders the file inline (belt + braces on the
+      // active-content scan). Filename mirrors the storage key so admins
+      // recognise it after download. Blacklock WEB-0923-0618186646.
+      const downloadName = key.split('/').pop() || 'compliance.pdf'
+      const { data, error } = await supabase.storage
+        .from('provider-compliance')
+        .createSignedUrl(key, 3600, { download: downloadName })
       return error ? null : data?.signedUrl || null
     }
     const apcUrl = await signIfPresent(prov.apc_storage_key)
@@ -2849,6 +2865,15 @@ export default async function handler(req, res) {
     if (!(buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46)) {
       return res.status(400).json({ error: 'file is not a PDF' })
     }
+    // Reject PDFs carrying embedded JS / auto-actions / launch targets /
+    // attached files. Closes Blacklock WEB-0923-0618186646 — Medical
+    // Indemnity Cert upload that exploded pdf.js in the admin viewer.
+    const pdfSafety = scanPdfForActiveContent(buf)
+    if (!pdfSafety.safe) {
+      return res.status(400).json({
+        error: `PDF contains active content (${pdfSafety.found}). Please export a flat/print copy without embedded scripts and re-upload.`,
+      })
+    }
 
     const rand = randomBytes(6).toString('hex')
     const key = `${targetId}/${kind}-${rand}.pdf`
@@ -2911,6 +2936,55 @@ export default async function handler(req, res) {
       .maybeSingle()
     if (!prov) return res.status(404).json({ error: 'Provider not found' })
     if (!prov.email) return res.status(400).json({ error: 'Provider has no email on file' })
+
+    // Rate limit: Blacklock WEB-0923-0648597992. Two guards, both cheap DB reads.
+    //
+    // 1. Same-target dedupe (5 min): a repeat send by the same admin to the
+    //    same provider email in the last 5 min returns the existing signUrl
+    //    instead of creating a duplicate offer + resending the email. Also
+    //    fixes the admin double-click UX bug.
+    // 2. Per-admin hourly cap (20): a single admin can't fire more than
+    //    20 contract emails per hour. Blocks scripted abuse; real
+    //    onboarding pace is nowhere near this.
+    const senderId = auth.provider?.id || null
+    if (senderId) {
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+      const targetEmail = String(prov.email).toLowerCase()
+
+      const { data: recent } = await supabase
+        .from('job_offers')
+        .select('id, applicant_sign_token, contractor_snapshot')
+        .eq('created_by_provider_id', senderId)
+        .gte('created_at', fiveMinAgo)
+        .order('created_at', { ascending: false })
+        .limit(50)
+      const dupe = (recent || []).find(o =>
+        String(o.contractor_snapshot?.email || '').toLowerCase() === targetEmail
+      )
+      if (dupe?.applicant_sign_token) {
+        const siteOrigin = getSiteOriginFor(req)
+        return res.status(200).json({
+          ok: true,
+          offerId: dupe.id,
+          signUrl: `${siteOrigin}/offer/sign/${dupe.applicant_sign_token}`,
+          emailError: null,
+          deduped: true,
+          reason: 'A contract was sent to this provider in the last 5 minutes. Returning the existing sign URL.',
+        })
+      }
+
+      const { count: hourCount } = await supabase
+        .from('job_offers')
+        .select('id', { count: 'exact', head: true })
+        .eq('created_by_provider_id', senderId)
+        .gte('created_at', oneHourAgo)
+      if ((hourCount || 0) >= 20) {
+        return res.status(429).json({
+          error: 'Contract-send rate limit reached (20/hour per admin). Please wait before sending more contracts.',
+        })
+      }
+    }
 
     const { data: tpl } = await supabase
       .from('offer_templates')

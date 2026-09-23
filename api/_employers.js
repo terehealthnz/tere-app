@@ -93,12 +93,16 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const { id, action, includeInactive } = req.query || {}
 
+    // Reads are admin-only. Employer rows carry B2B billing rates + contact
+    // emails + contract dates; only admin surfaces render them. Closes
+    // Blacklock WEB-0923-0547137329 (Broken Access Control).
+    if (!auth.provider?.is_admin) {
+      return res.status(403).json({ error: 'Admin role required to view employers' })
+    }
+
     // action=usage → this-calendar-month consult count for this employer.
     // Used by admin billing report + client-side cap enforcement preview.
     if (id && action === 'usage') {
-      if (!auth.provider?.is_admin) {
-        return res.status(403).json({ error: 'Admin role required for usage report' })
-      }
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
       const { count, error } = await supabase

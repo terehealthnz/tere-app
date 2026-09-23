@@ -58,6 +58,20 @@ export default async function handler(req, res) {
         process.env.VITE_SUPABASE_URL,
         process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY,
       )
+      // Sandbox suppression — never create a real Stripe payment intent for
+      // a practice-mode consult. Return a simulated response the client can
+      // treat as success so the sandbox flow still walks through the
+      // payment screen without touching Stripe.
+      const { isPracticeConsult } = await import('./_practice-guard.js')
+      if (await isPracticeConsult(sb, consultationId)) {
+        return res.status(200).json({
+          clientSecret: 'sim_practice_mode',
+          paymentIntentId: `sim_${consultationId.slice(0, 8)}`,
+          amount: 0,
+          simulated: true,
+          reason: 'practice_mode',
+        })
+      }
       const { data: consult } = await sb.from('consultations')
         .select('patient_address').eq('id', consultationId).maybeSingle()
       const detected = detectNzAddress(consult?.patient_address || '')

@@ -5,6 +5,8 @@
 // only auth mechanism.
 
 import { createClient } from '@supabase/supabase-js'
+import { SESSION_COOKIE_NAME, readCookie } from './_cookie.js'
+import { resolveSessionByCookie } from './_provider-session.js'
 
 let adminCache = null
 function admin() {
@@ -24,26 +26,45 @@ export function extractBearer(req) {
 }
 
 /**
- * Verifies the caller is an active provider. Accepts EITHER:
- *   (a) `Authorization: Bearer <jwt>` — a Supabase auth JWT (future path), or
- *   (b) `x-provider-id: <uuid>` — the provider row id from sessionStorage
- *       (current PIN-based clinician login system).
- *
- * The router-level `x-tere-api-key` check has already run before this — that's
- * the shared secret gate. `x-provider-id` on top of it identifies WHICH
- * provider is calling, and confirms the row is active. It's not stronger than
- * the TERE_API_KEY (which is baked into the client bundle) but it lets us at
- * least do per-provider audit/allowlist logic and matches the existing session
- * storage model. Full migration to Supabase-only auth is task #67.
+ * Verifies the caller is an active provider. Tries in order:
+ *   (A) HttpOnly session cookie (`tere_session`) — the current path.
+ *       Server hashes the cookie value and looks up an active session row.
+ *   (B) `Authorization: Bearer <jwt>` — a Supabase auth JWT (future path,
+ *       not currently used by the clinician login flow).
+ *   (C) `x-provider-id: <uuid>` header — legacy path retained for the
+ *       rollout window. To be removed once every deployed client has
+ *       swapped to the cookie (task #562). Blacklock WEB-0923-0655443636
+ *       flagged this as a bearer credential leaking into URLs and headers.
  *
  * Throws an Error with a `.status` property (401 / 403 / 500) on failure.
- * On success returns { userId?, email?, provider }.
+ * On success returns { userId?, email?, provider, sessionId? }.
  */
 export async function requireProvider(req) {
   const supabase = admin()
+
+  // Path A — session cookie (opaque token, HttpOnly). Preferred.
+  const cookieToken = readCookie(req, SESSION_COOKIE_NAME)
+  if (cookieToken) {
+    const session = await resolveSessionByCookie(cookieToken)
+    if (session) {
+      const { data: provider, error: pErr } = await supabase
+        .from('providers')
+        .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled')
+        .eq('id', session.providerId)
+        .maybeSingle()
+      if (pErr) { console.error('[auth] provider lookup (cookie) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
+      if (!provider) { const e = new Error('Session references a missing provider'); e.status = 403; throw e }
+      if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
+      return { userId: null, email: provider.email, provider, sessionId: session.sessionId }
+    }
+    // Cookie present but not resolvable → fall through to legacy paths.
+    // Old tabs with expired cookies + working x-provider-id can still
+    // reach the app during the rollout window. Removed by task #562.
+  }
+
   const token = extractBearer(req)
 
-  // Path A — Supabase JWT auth (preferred future direction)
+  // Path B — Supabase JWT auth (future direction; not used by clinician login today)
   if (token) {
     const { data: userRes, error: userErr } = await supabase.auth.getUser(token)
     if (userErr || !userRes?.user?.email) {
@@ -61,7 +82,7 @@ export async function requireProvider(req) {
     return { userId: userRes.user.id, email, provider }
   }
 
-  // Path B — sessionStorage-based provider identity (current clinician login)
+  // Path C — legacy x-provider-id header. Removal tracked as task #562.
   const providerId = req.headers['x-provider-id'] || req.headers['X-Provider-Id']
   if (providerId) {
     const { data: provider, error: pErr } = await supabase
@@ -75,7 +96,7 @@ export async function requireProvider(req) {
     return { userId: null, email: provider.email, provider }
   }
 
-  const e = new Error('No provider credential (Authorization Bearer or x-provider-id header required)')
+  const e = new Error('No provider credential (session cookie required)')
   e.status = 401; throw e
 }
 

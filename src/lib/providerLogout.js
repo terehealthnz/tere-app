@@ -42,6 +42,20 @@ function wipeClientAuth() {
   try {
     localStorage.removeItem('tere_device')
     localStorage.removeItem('tere_portal')
+    // Sweep any Tere-prefixed localStorage keys so PHI-carrying drafts,
+    // vitals calibration coefficients, or feature-flag caches don't
+    // outlive the session on shared devices. Blacklock WEB-0923-0708178226.
+    // Note: draft notes are now written to sessionStorage (which the
+    // clear() below already handles); this sweep catches legacy rows
+    // from pre-migration deploys plus any tere-* housekeeping keys.
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      const lc = key.toLowerCase()
+      if (lc.startsWith('tere_') || lc.startsWith('tere-')) {
+        try { localStorage.removeItem(key) } catch {}
+      }
+    }
     sessionStorage.clear()
   } catch { /* ignore quota / privacy-mode errors */ }
 }

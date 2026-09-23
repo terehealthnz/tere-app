@@ -5,6 +5,7 @@ import { raiseSecurityAlert } from './_security-alert.js'
 import { getClientIp } from './_client-ip.js'
 import { startSession } from './_provider-session.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { writeSessionCookie } from './_cookie.js'
 
 // Lockout policy: after MAX_FAILS consecutive failures, lock the
 // account for LOCKOUT_MS. State is persisted in the
@@ -75,10 +76,56 @@ async function clearAttempts(supabase, providerId) {
 }
 
 export default async function handler(req, res) {
-  const { providerId, pin, mfaCode } = req.body || {}
-  if (!providerId || !pin) return res.status(400).json({ error: 'Missing fields' })
+  const { providerId: bodyProviderId, email, pin, mfaCode } = req.body || {}
+  if (!pin) return res.status(400).json({ error: 'Missing fields' })
+  if (!bodyProviderId && !email) return res.status(400).json({ error: 'Email required' })
+  // Shadow-declare so we can reassign to the DB-resolved id after lookup.
+  let providerId = bodyProviderId
 
   const supabase = admin()
+
+  // ── Load provider (by email OR legacy providerId) ──────────────
+  // Email path is preferred going forward — the avatar picker that
+  // exposed the full provider directory to unauth visitors was removed
+  // (Blacklock WEB-0923-0701117607). providerId path retained during
+  // the client rollout window; will be removed once every deployed
+  // client uses the email form.
+  //
+  // Uniform "Invalid credentials" response for missing / inactive
+  // providers so an attacker can't enumerate email addresses via
+  // response-shape or timing differences (we still hash the PIN either
+  // way for constant-time behaviour).
+  let provider = null
+  if (providerId) {
+    const { data } = await supabase
+      .from('providers')
+      .select('*')
+      .eq('id', providerId)
+      .eq('is_active', true)
+      .single()
+    provider = data
+  } else {
+    const cleanEmail = String(email).trim().toLowerCase()
+    const { data } = await supabase
+      .from('providers')
+      .select('*')
+      .ilike('email', cleanEmail)
+      .eq('is_active', true)
+      .maybeSingle()
+    provider = data
+  }
+
+  // Constant-time dummy hash comparison — even if the account doesn't
+  // exist we spend the ~100ms bcrypt cost so timing can't be used to
+  // distinguish "unknown email" from "wrong PIN".
+  if (!provider) {
+    await bcrypt.compare(String(pin), '$2a$10$CwTycUXWue0Thq9StjUM0uJ8b7v2X9wYCz/Nh4M6PjJn5cKzKjLwm')
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
+
+  // Reassign so every downstream reference works whether the caller
+  // supplied an email or the legacy providerId.
+  providerId = provider.id
 
   // ── Lockout check (DB-backed, survives cold starts) ────────────
   const lockout = await readLockout(supabase, providerId)
@@ -86,16 +133,6 @@ export default async function handler(req, res) {
     const remainingMin = Math.ceil((lockout.lockedUntilMs - Date.now()) / 60000)
     return res.status(401).json({ error: `Account locked. Try again in ${remainingMin} minute(s).` })
   }
-
-  // ── Load provider ──────────────────────────────────────────────
-  const { data: provider, error } = await supabase
-    .from('providers')
-    .select('*')
-    .eq('id', providerId)
-    .eq('is_active', true)
-    .single()
-
-  if (error || !provider) return res.status(401).json({ error: 'Invalid credentials' })
 
   const hash = provider.pin_hash
   if (!hash) return res.status(401).json({ error: 'Account not configured. Contact admin.' })
@@ -192,10 +229,15 @@ export default async function handler(req, res) {
   //
   // Open a provider_sessions row and fire a provider.login.success
   // audit event. Both are best-effort — a session-insert failure
-  // must not block the login response. session_id is returned to
-  // the client for it to stash and pass back on logout.
+  // must not block the login response. On success we mint an
+  // HttpOnly cookie holding a random 32-byte token; the DB stores
+  // only its SHA-256 hash. Cookie is the sole authentication factor
+  // going forward — clients still receive sessionId in the response
+  // body so the 48h rollout tolerates old tabs that read sessionStorage
+  // for logout (task #562 removes the fallback).
   const mfaUsed = !!(provider.mfa_enabled && provider.mfa_secret_encoded)
-  const sessionId = await startSession(req, providerId, { mfaUsed })
+  const { sessionId, token } = await startSession(req, providerId, { mfaUsed })
+  if (token) writeSessionCookie(res, token)
   writeAuditEvent(req, { provider }, {
     event_type:  'provider.login.success',
     resource_type: 'provider_session',

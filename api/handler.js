@@ -65,6 +65,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // NOT here — logout must succeed even after the client has already begun
   // wiping sessionStorage (see api/_provider-logout.js header for details).
   'provider-sessions',
+  // Provider inbox: GET returns caller's own broadcasts + targeted notifications,
+  // POST broadcasts (admin only), PATCH marks read. Server infers provider from
+  // auth — client-supplied providerId is ignored (task #563).
+  'provider-notifications',
   // Internal Tere Chat (provider/admin team channel, 2026-08-05)
   'team-messages',
   // NOT here:

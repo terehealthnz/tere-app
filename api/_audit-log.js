@@ -40,6 +40,11 @@ const ALLOWED_REASONS = new Set([
   'other',
 ])
 
+// UUID v1-v5 shape. consultation_id is typed UUID in Postgres, so anything
+// else round-trips as 22P02 and blows up the audit_log_write_failed alert.
+// Blacklock IDOR probes hit this dozens of times per scan.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -54,6 +59,25 @@ export default async function handler(req, res) {
   if (reason && !ALLOWED_REASONS.has(reason)) {
     return res.status(400).json({ error: `reason "${reason}" not in allowlist` })
   }
+  // Validate UUID shape up front — Postgres 22P02 on malformed UUIDs otherwise
+  // trips the audit_log_write_failed critical alert on every IDOR probe.
+  // If a caller passes a garbage consultation_id, drop it (preserving the
+  // attempted value in metadata for forensics) instead of failing the write.
+  let safeConsultationId = null
+  let invalidConsultationId = null
+  if (consultation_id != null) {
+    if (typeof consultation_id === 'string' && UUID_RE.test(consultation_id)) {
+      safeConsultationId = consultation_id
+    } else {
+      invalidConsultationId = String(consultation_id).slice(0, 128)
+    }
+  }
+  let safeResourceId = null
+  if (resource_id != null) {
+    // resource_id is TEXT in the schema so anything serialises, but cap
+    // length to keep the row bounded.
+    safeResourceId = String(resource_id).slice(0, 128)
+  }
 
   const provider = req.auth?.provider || {}
   const provider_id   = provider.id || null
@@ -64,19 +88,22 @@ export default async function handler(req, res) {
   const ip = getClientIp(req)
   const user_agent = req.headers['user-agent'] || null
 
+  const mergedMetadata = metadata && typeof metadata === 'object' ? { ...metadata } : {}
+  if (invalidConsultationId) mergedMetadata.invalid_consultation_id = invalidConsultationId
+
   const supabase = admin()
   const { error } = await supabase.from('audit_logs').insert({
     event_type: action,
     provider_id,
     provider_name,
     provider_role,
-    consultation_id: consultation_id || null,
+    consultation_id: safeConsultationId,
     patient_ref: patient_ref || null,
     resource_type: resource_type || null,
-    resource_id: resource_id || null,
+    resource_id: safeResourceId,
     reason: reason || null,
     reason_notes: reason_notes || null,
-    metadata: metadata && typeof metadata === 'object' ? metadata : null,
+    metadata: Object.keys(mergedMetadata).length ? mergedMetadata : null,
     ip,
     user_agent,
   })

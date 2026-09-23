@@ -40,6 +40,32 @@ export default async function handler(req, res) {
   const xId = randomUUID()
   const providerId = req.headers['x-provider-id'] || null
 
+  // Sandbox suppression — if the sessionId maps back to a practice consult
+  // (payment_intent_id column stores the Windcave session id), never hit
+  // Windcave. There is no real hold to refund.
+  if (sessionId) {
+    try {
+      const supabase = admin()
+      const { data: consult } = await supabase
+        .from('consultations')
+        .select('is_practice')
+        .eq('payment_intent_id', sessionId)
+        .maybeSingle()
+      if (consult?.is_practice) {
+        return res.status(200).json({
+          approved: true,
+          transactionId: null,
+          responseCode: 'sim',
+          responseText: 'Practice mode',
+          amount: amountStr,
+          xId,
+          simulated: true,
+          reason: 'practice_mode',
+        })
+      }
+    } catch { /* fall through to real refund if lookup fails */ }
+  }
+
   // Windcave REST Refund: POST /transactions with sessionId (or the
   // specific transactionId to refund).
   const payload = {

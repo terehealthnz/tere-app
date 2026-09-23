@@ -3,6 +3,7 @@ import Stripe from 'stripe'
 import { aiCall, isConfigured } from './_ai.js'
 import { sendBasicReceipt } from './_send-email.js'
 import { sendEmail } from './_email-client.js'
+import { isPracticeConsult } from './_practice-guard.js'
 
 function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
@@ -111,6 +112,10 @@ export default async function handler(req, res) {
   if (action === 'create_intent') {
     const { consultationId } = req.body
     if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+    // Sandbox suppression — no real Stripe hold for practice consults.
+    if (await isPracticeConsult(supabase, consultationId)) {
+      return res.status(200).json({ clientSecret: 'sim_practice_mode', simulated: true, reason: 'practice_mode' })
+    }
     try {
       const pi = await getStripe().paymentIntents.create({
         amount: 2500, currency: 'nzd', capture_method: 'manual',
@@ -155,6 +160,11 @@ export default async function handler(req, res) {
     }).eq('id', consultationId)
 
     if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+
+    // Sandbox suppression — skip admin push + patient SMS for practice consults.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, deadline, consultationId, simulated: true, reason: 'practice_mode' })
+    }
 
     // Notify admin
     fetch(`${process.env.VITE_APP_URL || 'https://tere.co.nz'}/api/push-notify`, {
@@ -222,6 +232,13 @@ export default async function handler(req, res) {
     const { error } = await supabase.from('consultations').update(updateData).eq('id', consultationId)
 
     if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+
+    // Sandbox suppression — skip Stripe capture, patient email/SMS, payroll,
+    // and receipt for practice consults. Status transitions still stand so
+    // the sandbox flow visibly reaches 'complete'.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
 
     // Capture the authorised payment now that provider has responded
     if (consult.payment_intent_id) {
@@ -379,6 +396,11 @@ ${draft}`
     }).eq('id', consultationId)
     if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
+    // Sandbox suppression — skip Stripe cancel + patient email/SMS.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
+
     // Cancel payment — no charge for in-person referral
     if (consult.payment_intent_id) {
       try {
@@ -461,6 +483,11 @@ ${draft}`
     }).eq('id', consultationId)
     if (error) { console.error('[async-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
 
+    // Sandbox suppression — skip patient email + SMS for practice consults.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
+
     const typeLabel = consultationType === 'phone' ? 'phone call' : 'video call'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
 
@@ -520,8 +547,13 @@ ${draft}`
   if (action === 'notify_question') {
     const { consultationId, providerName, questionText } = req.body
     if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
-    const { data: consult } = await supabase.from('consultations').select('patient_email,patient_first_name,patient_phone').eq('id', consultationId).single()
+    const { data: consult } = await supabase.from('consultations').select('patient_email,patient_first_name,patient_phone,is_practice').eq('id', consultationId).single()
     if (!consult) return res.status(404).json({ error: 'Not found' })
+
+    // Sandbox suppression — no real email/SMS from a practice consult.
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
 
     const firstName = consult.patient_first_name || 'there'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'

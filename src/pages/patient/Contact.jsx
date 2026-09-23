@@ -10,6 +10,26 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 
 const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0' }
+const TURNSTILE_SITE_KEY = import.meta.env?.VITE_TURNSTILE_SITE_KEY || ''
+
+// Load the Turnstile script once per page. Global callback wiring lets us
+// grab the token straight out of the widget instead of round-tripping via
+// window. Idempotent — subsequent mounts reuse the already-loaded script.
+function useTurnstileScript() {
+  const [ready, setReady] = React.useState(() => !!window.turnstile)
+  React.useEffect(() => {
+    if (window.turnstile) { setReady(true); return }
+    if (document.getElementById('cf-turnstile-script')) return
+    const s = document.createElement('script')
+    s.id = 'cf-turnstile-script'
+    s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+    s.async = true
+    s.defer = true
+    s.onload = () => setReady(true)
+    document.head.appendChild(s)
+  }, [])
+  return ready
+}
 
 const CATEGORIES = [
   { value: 'prescription', label: 'Prescription question or follow-up' },
@@ -35,6 +55,29 @@ export default function Contact() {
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState(null)
   const [submitted, setSubmitted] = React.useState(false)
+  const [turnstileToken, setTurnstileToken] = React.useState('')
+  const turnstileReady = useTurnstileScript()
+  const turnstileRef = React.useRef(null)
+  const widgetIdRef = React.useRef(null)
+
+  // Render the Turnstile widget once the script is ready and we have a key.
+  // If the key isn't set yet (pre-Cloudflare-dashboard config), the form
+  // still works — the server helper fails open until the secret lands too.
+  React.useEffect(() => {
+    if (!turnstileReady || !TURNSTILE_SITE_KEY) return
+    if (!turnstileRef.current || widgetIdRef.current) return
+    try {
+      widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        theme: 'dark',
+        callback: (token) => setTurnstileToken(token),
+        'expired-callback': () => setTurnstileToken(''),
+        'error-callback': () => setTurnstileToken(''),
+      })
+    } catch (e) {
+      console.warn('[contact] Turnstile render failed', e)
+    }
+  }, [turnstileReady])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
@@ -48,11 +91,17 @@ export default function Contact() {
     if (!form.message.trim() || form.message.trim().length < 10) {
       setError('Please tell us a bit more so we can help'); return
     }
+    // Gate on Turnstile if the widget is configured. If VITE_TURNSTILE_SITE_KEY
+    // isn't set yet, the widget never renders and we skip the check — the
+    // server helper matches this behaviour.
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError('Please complete the human-verification check above'); return
+    }
     setSubmitting(true)
     try {
-      const payload = { ...form }
+      const payload = { ...form, turnstile_token: turnstileToken || undefined }
       // Strip empty optional fields
-      Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      Object.keys(payload).forEach(k => { if (payload[k] === '' || payload[k] === undefined) delete payload[k] })
       const res = await apiFetch('/api/patient-support', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,6 +113,11 @@ export default function Contact() {
     } catch (e) {
       setError(e.message)
       setSubmitting(false)
+      // Turnstile tokens are single-use — reset so the user can try again
+      if (widgetIdRef.current && window.turnstile) {
+        try { window.turnstile.reset(widgetIdRef.current) } catch {}
+      }
+      setTurnstileToken('')
     }
   }
 
@@ -158,7 +212,11 @@ export default function Contact() {
             </div>
           )}
 
-          <button type="submit" disabled={submitting} style={{ background: submitting ? 'rgba(11,110,118,.5)' : BRAND.teal, color: 'white', border: 'none', padding: '.875rem 1.75rem', borderRadius: 99, fontSize: '1rem', fontWeight: 700, cursor: submitting ? 'wait' : 'pointer', marginTop: '.5rem' }}>
+          {TURNSTILE_SITE_KEY && (
+            <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center', minHeight: 65 }} />
+          )}
+
+          <button type="submit" disabled={submitting || (TURNSTILE_SITE_KEY && !turnstileToken)} style={{ background: (submitting || (TURNSTILE_SITE_KEY && !turnstileToken)) ? 'rgba(11,110,118,.5)' : BRAND.teal, color: 'white', border: 'none', padding: '.875rem 1.75rem', borderRadius: 99, fontSize: '1rem', fontWeight: 700, cursor: submitting ? 'wait' : 'pointer', marginTop: '.5rem' }}>
             {submitting ? 'Sending…' : 'Send message'}
           </button>
         </form>

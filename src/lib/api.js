@@ -79,7 +79,11 @@ export async function apiFetch(path, options = {}) {
     } catch {}
   }
 
-  const res = await fetch(path, { ...options, headers })
+  // Include the HttpOnly session cookie on every /api/ call. Same-origin
+  // requests would send cookies by default, but explicit `credentials:
+  // include` covers the `fetch(...)` polyfill path and any future PWA
+  // context. Cookie-based auth closes Blacklock WEB-0923-0655443636.
+  const res = await fetch(path, { credentials: 'include', ...options, headers })
 
   // MFA-mandatory: if the server rejects with MFA_REQUIRED, the caller is
   // an authenticated provider who hasn't enrolled TOTP yet. Punt the whole

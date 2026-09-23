@@ -108,6 +108,18 @@ export default async function handler(req, res) {
   // triage); fall back to phone. Failure to find either is not fatal — we
   // still submit the session and Windcave will return the appropriate error.
   const supabaseForContact = admin()
+  // Sandbox suppression — never open a Windcave HPP session against a
+  // practice-mode consult. Return a simulated hosted-payment URL the client
+  // can display without a real card transaction.
+  const { isPracticeConsult } = await import('./_practice-guard.js')
+  if (await isPracticeConsult(supabaseForContact, consultationId)) {
+    return res.status(200).json({
+      sessionId: `sim_${consultationId.slice(0, 8)}`,
+      hostedPaymentPageUrl: `${origin}/payment-return?consultationId=${encodeURIComponent(consultationId)}&status=approved&simulated=1`,
+      simulated: true,
+      reason: 'practice_mode',
+    })
+  }
   const { data: contactRow } = await supabaseForContact
     .from('consultations')
     .select('patient_email, patient_phone')
