@@ -160,6 +160,77 @@ export default async function handler(req, res) {
       })
     }
 
+    if (type === 'gst_watchlist') {
+      // Rolling 12-month contractor earnings vs the IRD $60k GST-mandatory
+      // threshold. IRD requires anyone with taxable turnover of $60k+ in
+      // ANY 12-month window (past or forecast) to register within 21 days.
+      // We only see the contractor's Tere earnings, so flag when Tere alone
+      // approaches or crosses the threshold — the contractor may already
+      // be over from other work, but this at least catches the obvious cases.
+      //
+      // Bands:
+      //   ok         — under $48k (80% of threshold)
+      //   approaching— $48k–$59.99k (nudge them to register or watch)
+      //   exceeded   — $60k+ (mandatory registration, contact them today)
+      //
+      // Providers who are already gst_registered are excluded from the
+      // watchlist entirely — they're covered.
+      if (!isAdminLike) return res.status(403).json({ error: 'Admin role required' })
+      const THRESHOLD = 60000
+      const WARN      = THRESHOLD * 0.8    // 48000
+      const cutoff    = new Date()
+      cutoff.setDate(cutoff.getDate() - 365)
+      const cutoffIso = cutoff.toISOString().slice(0, 10)
+
+      const [{ data: periods }, { data: provs }] = await Promise.all([
+        supabase.from('payroll_periods')
+          .select('provider_id,total_amount,period_start')
+          .gte('period_start', cutoffIso),
+        supabase.from('providers')
+          .select('id,first_name,last_name,credential,email,gst_registered,gst_number,is_active,is_provider')
+          .eq('is_active', true),
+      ])
+
+      const byProvider = new Map()
+      for (const p of periods || []) {
+        byProvider.set(p.provider_id, (byProvider.get(p.provider_id) || 0) + Number(p.total_amount || 0))
+      }
+
+      const watchlist = (provs || [])
+        .filter(p => p.is_provider && !p.gst_registered)
+        .map(p => {
+          const rolling12m = parseFloat((byProvider.get(p.id) || 0).toFixed(2))
+          let band = 'ok'
+          if (rolling12m >= THRESHOLD)  band = 'exceeded'
+          else if (rolling12m >= WARN)  band = 'approaching'
+          return {
+            provider_id:   p.id,
+            name:          [p.first_name, p.last_name].filter(Boolean).join(' '),
+            credential:    p.credential,
+            email:         p.email,
+            rolling_12m:   rolling12m,
+            threshold:     THRESHOLD,
+            band,
+            headroom:      parseFloat((THRESHOLD - rolling12m).toFixed(2)),
+          }
+        })
+        // Only surface providers with any non-trivial earnings — no point
+        // listing a fresh hire with $0 rolling.
+        .filter(w => w.rolling_12m >= 1000)
+        .sort((a, b) => b.rolling_12m - a.rolling_12m)
+
+      return res.status(200).json({
+        watchlist,
+        counts: {
+          exceeded:    watchlist.filter(w => w.band === 'exceeded').length,
+          approaching: watchlist.filter(w => w.band === 'approaching').length,
+          ok:          watchlist.filter(w => w.band === 'ok').length,
+        },
+        threshold: THRESHOLD,
+        warn_at:   WARN,
+      })
+    }
+
     if (type === 'consultations') {
       if (!provider_id || !period_start || !period_end) return res.status(400).json({ error: 'Missing params' })
       if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })

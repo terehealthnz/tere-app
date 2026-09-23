@@ -285,8 +285,24 @@ export default function AdminPayroll({ embedded = false }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [toast, setToast]           = useState(null)
   const [showAll, setShowAll]       = useState(false)
+  const [gstWatch, setGstWatch]     = useState(null)
 
   const showToast = (msg, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500) }
+
+  // GST $60k threshold watchlist — non-registered contractors whose rolling
+  // 12-month Tere earnings are within striking distance of the IRD mandatory
+  // GST registration threshold. Task #570.
+  useEffect(() => {
+    async function loadGst() {
+      try {
+        const r = await apiFetch('/api/payroll?type=gst_watchlist')
+        if (!r.ok) return
+        const d = await r.json()
+        setGstWatch(d)
+      } catch {}
+    }
+    loadGst()
+  }, [])
 
   const load = useCallback(async () => {
     if (!period) return
@@ -391,6 +407,55 @@ export default function AdminPayroll({ embedded = false }) {
       {toast && (
         <div style={{ position:'fixed', bottom:'1.5rem', right:'1.5rem', zIndex:300, background:toast.ok?'#059669':'#DC2626', color:'white', padding:'.875rem 1.25rem', borderRadius:10, fontFamily:FF, fontWeight:600, fontSize:'.9375rem', boxShadow:'0 8px 24px rgba(0,0,0,.2)', maxWidth:300 }}>
           {toast.msg}
+        </div>
+      )}
+
+      {/* GST $60k threshold watchlist — surfaces non-registered contractors
+          whose rolling 12-month Tere earnings are approaching or over the
+          IRD mandatory GST registration threshold. Only renders when there's
+          at least one entry, so it disappears once the roster is clean. */}
+      {gstWatch && gstWatch.watchlist && gstWatch.watchlist.length > 0 && (
+        <div style={{ background:'white', border:`2px solid ${gstWatch.counts.exceeded ? '#DC2626' : '#D97706'}`, borderRadius:12, padding:'1rem 1.25rem', marginBottom:'1.25rem' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:'.5rem', marginBottom:'.75rem' }}>
+            <div style={{ fontSize:'1.25rem' }}>{gstWatch.counts.exceeded ? '🚨' : '⚠️'}</div>
+            <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>
+              GST registration watchlist
+            </div>
+            <div style={{ marginLeft:'auto', fontSize:'.75rem', color:'#6B7280' }}>
+              IRD threshold: ${gstWatch.threshold.toLocaleString()} / 12 months
+            </div>
+          </div>
+          <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.75rem', lineHeight:1.5 }}>
+            These non-GST-registered contractors are approaching or over the $60,000 IRD threshold. Contractors must register within 21 days of crossing $60k in any rolling 12-month period. Tere earnings shown only; their total taxable turnover may be higher.
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+            {gstWatch.watchlist.map(w => {
+              const pct = Math.min(100, (w.rolling_12m / w.threshold) * 100)
+              const color = w.band === 'exceeded' ? '#DC2626' : '#D97706'
+              return (
+                <div key={w.provider_id} style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:'.5rem 1rem', alignItems:'center', padding:'.625rem .875rem', background:'#F9FAFB', borderRadius:8 }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ display:'flex', gap:'.5rem', alignItems:'center', flexWrap:'wrap' }}>
+                      <div style={{ fontWeight:700, color:NAVY, fontSize:'.875rem' }}>{w.name}</div>
+                      {w.credential && <div style={{ fontSize:'.6875rem', color:'#6B7280' }}>{w.credential}</div>}
+                      <div style={{ fontSize:'.6875rem', padding:'2px 6px', borderRadius:4, background:color, color:'white', fontWeight:700, textTransform:'uppercase', letterSpacing:'.04em' }}>
+                        {w.band === 'exceeded' ? 'Must register' : 'Approaching'}
+                      </div>
+                    </div>
+                    <div style={{ marginTop:4, height:6, background:'#E5E7EB', borderRadius:3, overflow:'hidden' }}>
+                      <div style={{ width:`${pct}%`, height:'100%', background:color }} />
+                    </div>
+                  </div>
+                  <div style={{ textAlign:'right', flexShrink:0 }}>
+                    <div style={{ fontWeight:800, color, fontSize:'1rem' }}>${w.rolling_12m.toLocaleString()}</div>
+                    <div style={{ fontSize:'.6875rem', color:'#6B7280' }}>
+                      {w.band === 'exceeded' ? `$${Math.abs(w.headroom).toLocaleString()} over` : `$${w.headroom.toLocaleString()} to go`}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
