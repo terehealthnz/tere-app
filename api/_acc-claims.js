@@ -158,6 +158,17 @@ export default async function handler(req, res) {
     if (consult.payment_test_mode) {
       return res.status(400).json({ error: 'Test-mode consultation cannot be submitted to ACC' })
     }
+    // Same for sandbox / practice-mode consults (seeded training patients
+    // Aroha Mitchell, David Chen, Emily Nakamura). Missed by the earlier
+    // sandbox suppression sweep — 2026-09-24 incident where a test invoice
+    // for Aroha Mitchell was auto-emailed to providerinvoices@acc.co.nz.
+    if (consult.is_practice) {
+      return res.status(400).json({
+        error: 'Sandbox consultation cannot be submitted to ACC',
+        simulated: true,
+        reason: 'practice_mode',
+      })
+    }
 
     // MST1 (initial) vs MST3 (follow-up) — key on patient NHI + injury.
     // If ANY prior acc_claim exists for this patient and this injury date,
