@@ -35,9 +35,9 @@ export function clearElevationToken() { ELEVATION_TOKEN = null; ELEVATION_EXPIRE
 async function mintToken(mfaCode, purpose) {
   const res = await fetch('/api/elevation', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'x-provider-id': sessionStorage.getItem('providerId') || '',
     },
     body: JSON.stringify({ mfaCode, purpose }),
   })

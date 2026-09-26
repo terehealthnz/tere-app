@@ -26,6 +26,22 @@ try {
   if (consultId) sessionStorage.setItem('consultationId', consultId)
 } catch {}
 
+// Boot-time sweep of legacy note-draft keys. Drafts moved from
+// localStorage → sessionStorage on 2026-09-23 (Blacklock WEB-0923-0708178226).
+// Users who logged in before that deploy but never explicitly signed out
+// still carry PHI-carrying rows in localStorage. Sweep them on every boot
+// so the fix doesn't wait for an explicit logout. Only note-draft prefixes
+// are cleared here; feature-flag cache + device fingerprint stay put.
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i)
+    if (!key) continue
+    if (key.startsWith('tere_notes_draft_') || key.startsWith('tere_notes2_')) {
+      try { localStorage.removeItem(key) } catch {}
+    }
+  }
+} catch {}
+
 // Register the service worker. Moved out of index.html inline <script>
 // so we can strip 'unsafe-inline' from the CSP script-src (pen-test H-3).
 if ('serviceWorker' in navigator) {

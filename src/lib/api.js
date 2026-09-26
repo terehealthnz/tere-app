@@ -13,23 +13,16 @@ export async function apiFetch(path, options = {}) {
   if (options.body instanceof FormData) delete headers['Content-Type']
 
   // Identify the caller to server endpoints that use requireProvider().
-  // Preferred: Supabase JWT (Authorization: Bearer ...). Fallback: the
-  // sessionStorage-based provider id set by the existing PIN clinician login.
-  // Dynamic import avoids a circular dep with supabase.js.
+  // Preferred: Supabase JWT (Authorization: Bearer ...). Otherwise the
+  // HttpOnly `tere_session` cookie sent below via credentials:'include' is
+  // resolved by _auth.js. The old x-provider-id header fallback was removed
+  // once the cookie rollout stabilised (Blacklock WEB-0923-0655443636).
   if (!headers['Authorization']) {
     try {
       const { supabase } = await import('./supabase')
       const { data } = await supabase.auth.getSession()
       const token = data?.session?.access_token
       if (token) headers['Authorization'] = `Bearer ${token}`
-    } catch {}
-  }
-  if (!headers['Authorization'] && !headers['x-provider-id']) {
-    try {
-      const providerId = typeof sessionStorage !== 'undefined'
-        ? sessionStorage.getItem('providerId')
-        : null
-      if (providerId) headers['x-provider-id'] = providerId
     } catch {}
   }
 

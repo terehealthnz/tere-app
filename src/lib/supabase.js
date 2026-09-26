@@ -561,7 +561,8 @@ export async function createPatient(data) {
 export async function updatePatient(patientId, updates) {
   // Patient anon flow (AITriage) and provider flow (AdminPatients) both use
   // this. anon=1 marker lets the anon triage path through server-side; the
-  // provider flow attaches x-provider-id automatically via apiFetch.
+  // provider flow is authenticated via the tere_session cookie apiFetch
+  // sends automatically.
   const anonMarker = typeof window !== 'undefined' && !sessionStorage.getItem('providerId') ? '&anon=1' : ''
   const res = await apiFetch(`/api/patients?id=${encodeURIComponent(patientId)}${anonMarker}`, {
     method: 'PATCH',
