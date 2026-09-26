@@ -68,10 +68,14 @@ export default async function handler(req, res) {
 
     // Job name must be unique per AWS account (12 hrs history). Prefix
     // with day + short UUID prefix for greppability in the AWS console.
+    // AWS Transcribe does not support en-NZ. Nearest supported variant is
+    // en-AU. This was the load-bearing bug that stopped every scribe run
+    // silently: StartTranscriptionJobCommand throws ValidationException on
+    // 'en-NZ' → caught below → 500 to client → no transcript ever arrives.
     const jobName = `tere-scribe-${day}-${id}`
     await transcribe.send(new StartTranscriptionJobCommand({
       TranscriptionJobName: jobName,
-      LanguageCode: 'en-NZ',
+      LanguageCode: process.env.SCRIBE_LANGUAGE_CODE || 'en-AU',
       MediaFormat: mediaFormat,
       Media: { MediaFileUri: `s3://${bucket}/${key}` },
       OutputBucketName: bucket,
