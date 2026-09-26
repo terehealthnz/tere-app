@@ -115,14 +115,14 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // and OAuth probe actions that must be admin-gated.
   'nhi',
   // Windcave money-movement — only providers/admin may capture or refund
-  'windcave-complete', 'windcave-refund',
+  'windcave-complete', 'windcave-refund', 'capture-consult',
   // Windcave live-cred smoke test (admin-only, checks env + auth against Windcave)
   'windcave-health',
 ])
 
 // ── Rate limiting (in-memory, per instance) ──────────────────────────────────
 const RATE_WINDOWS = new Map() // key → { count, reset }
-const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query', 'windcave-complete', 'windcave-refund'])
+const PAYMENT_ROUTES = new Set(['create-payment-intent', 'capture-payment', 'cancel-payment', 'windcave-create-session', 'windcave-query', 'windcave-complete', 'windcave-refund', 'capture-consult'])
 
 function checkRateLimit(key, maxReqs, windowMs) {
   const now = Date.now()
@@ -238,6 +238,7 @@ const ROUTES = {
   'windcave-create-session':   () => import('./_windcave-create-session.js'),
   'windcave-query':            () => import('./_windcave-query.js'),
   'windcave-complete':         () => import('./_windcave-complete.js'),
+  'capture-consult':           () => import('./_capture-consult.js'),
   'windcave-refund':           () => import('./_windcave-refund.js'),
   'windcave-fprn':             () => import('./_windcave-fprn.js'),
   'windcave-health':           () => import('./_windcave-health.js'),

@@ -617,6 +617,19 @@ export default function NotesCompletion() {
         }).catch(() => {})
       }
 
+      // Windcave capture. Session was created as auth-only so no funds moved
+      // yet; fire the matching Complete now that the provider has signed off.
+      // Fire-and-forget: capture happens server-side, we log outcome but
+      // don't block the navigate — the audit_log + payment_captured_at
+      // columns tell us later if any consult failed to settle.
+      apiFetch('/api/capture-consult', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId: id }),
+      }).then(async r => {
+        const body = await r.json().catch(() => ({}))
+        if (!body?.approved) console.warn('[finalise] capture returned:', body)
+      }).catch(e => console.warn('[finalise] capture call failed:', e?.message))
+
       sessionStorage.removeItem(draftKey)
       // Back to the provider queue after finalize — provider wants the next
       // patient in front of them, not the just-completed chart.
