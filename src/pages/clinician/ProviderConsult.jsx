@@ -581,6 +581,14 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
       if (captured) finalTranscript = captured
     }
 
+    // Explicitly leave the LiveKit room so the mic + video tracks release and
+    // the patient side sees ParticipantDisconnected (their ProviderLeaveWatcher
+    // then disconnects them and PatientCall's onDisconnected navigates to /done).
+    // Without this, hitting "End call" only hides our overlay — the mic stays hot
+    // and the patient stays in a live meeting alone. onDisconnected fires here
+    // too but the endingCall guard above short-circuits the re-entry.
+    try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
+
     try {
       await updateConsultation(id, {
         notes_draft: { actions, callNotes },

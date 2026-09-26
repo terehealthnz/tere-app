@@ -1,7 +1,30 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { LiveKitRoom, VideoConference } from '@livekit/components-react'
+import { LiveKitRoom, VideoConference, useRoomContext } from '@livekit/components-react'
 import '@livekit/components-styles'
+
+// Auto-leave when the provider disconnects. LiveKit's onDisconnected only
+// fires when THIS client leaves, so without this watcher the patient sits
+// alone in a live room with mic + camera still hot after the provider ends
+// the call. We hook participantDisconnected on the Room and pull the plug
+// once no remote (i.e. provider) remains — that triggers our onDisconnected
+// handler above and navigates to /done.
+function ProviderLeaveWatcher() {
+  const room = useRoomContext()
+  useEffect(() => {
+    if (!room) return
+    const onLeft = () => {
+      try {
+        if (!room.remoteParticipants || room.remoteParticipants.size === 0) {
+          room.disconnect()
+        }
+      } catch (e) { console.warn('[PatientCall] auto-leave failed:', e?.message) }
+    }
+    room.on('participantDisconnected', onLeft)
+    return () => { try { room.off('participantDisconnected', onLeft) } catch {} }
+  }, [room])
+  return null
+}
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsult } from '../../lib/supabase'
@@ -360,6 +383,7 @@ export default function PatientCall() {
         style={{ height: '100dvh' }}
         onDisconnected={() => navigate('/done')}
       >
+        <ProviderLeaveWatcher />
         <VideoConference />
         {(() => {
           const patientLang = sessionStorage.getItem('patient_language') || 'en'

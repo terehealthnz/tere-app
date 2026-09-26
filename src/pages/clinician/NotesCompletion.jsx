@@ -618,7 +618,9 @@ export default function NotesCompletion() {
       }
 
       sessionStorage.removeItem(draftKey)
-      navigate('/clinician/dashboard')
+      // Back to the provider queue after finalize — provider wants the next
+      // patient in front of them, not the just-completed chart.
+      navigate('/provider')
     } catch (e) { console.error(e); setFinalising(false) }
   }
 
