@@ -60,20 +60,26 @@ async function broadcastNewMessage(consultation_id, message) {
 
 async function isProvider(req) {
   // guardProvider isn't run for this route (patient path allowed), so we do
-  // a soft check ourselves. If either the Supabase JWT or x-provider-id header
+  // a soft check ourselves. If either the session cookie or a Supabase JWT
   // resolves to a provider, treat as provider. Otherwise, patient.
-  const providerHeaderId = req.headers['x-provider-id']
+  // x-provider-id header path removed 2026-09-27 (Blacklock retest).
+  const { SESSION_COOKIE_NAME, readCookie } = await import('./_cookie.js')
+  const { resolveSessionByCookie } = await import('./_provider-session.js')
+  const cookieToken = readCookie(req, SESSION_COOKIE_NAME)
   const authHeader = req.headers.authorization || ''
-  if (!providerHeaderId && !authHeader.startsWith('Bearer ')) return false
+  if (!cookieToken && !authHeader.startsWith('Bearer ')) return false
 
   const supabase = admin()
 
-  if (providerHeaderId) {
-    const { data } = await supabase.from('providers')
-      .select('id, is_active')
-      .eq('id', String(providerHeaderId))
-      .maybeSingle()
-    if (data?.is_active) return true
+  if (cookieToken) {
+    const session = await resolveSessionByCookie(cookieToken)
+    if (session?.providerId) {
+      const { data } = await supabase.from('providers')
+        .select('id, is_active')
+        .eq('id', session.providerId)
+        .maybeSingle()
+      if (data?.is_active) return true
+    }
   }
 
   if (authHeader.startsWith('Bearer ')) {

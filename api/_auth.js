@@ -31,10 +31,11 @@ export function extractBearer(req) {
  *       Server hashes the cookie value and looks up an active session row.
  *   (B) `Authorization: Bearer <jwt>` — a Supabase auth JWT (future path,
  *       not currently used by the clinician login flow).
- *   (C) `x-provider-id: <uuid>` header — legacy path retained for the
- *       rollout window. To be removed once every deployed client has
- *       swapped to the cookie (task #562). Blacklock WEB-0923-0655443636
- *       flagged this as a bearer credential leaking into URLs and headers.
+ *
+ * The legacy `x-provider-id` header path was removed 2026-09-27 after
+ * Blacklock WEB-0923-0655443636 retest confirmed it was still exploitable
+ * server-side despite client emitters being retired. Any request without
+ * a valid cookie (or JWT) now returns 401 — no UUID-only bypass.
  *
  * Throws an Error with a `.status` property (401 / 403 / 500) on failure.
  * On success returns { userId?, email?, provider, sessionId? }.
@@ -57,9 +58,8 @@ export async function requireProvider(req) {
       if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
       return { userId: null, email: provider.email, provider, sessionId: session.sessionId }
     }
-    // Cookie present but not resolvable → fall through to legacy paths.
-    // Old tabs with expired cookies + working x-provider-id can still
-    // reach the app during the rollout window. Removed by task #562.
+    // Cookie present but not resolvable → JWT path only. Legacy
+    // x-provider-id fallback removed 2026-09-27 (Blacklock retest).
   }
 
   const token = extractBearer(req)
@@ -80,20 +80,6 @@ export async function requireProvider(req) {
     if (!provider) { const e = new Error('No provider account linked to this email'); e.status = 403; throw e }
     if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
     return { userId: userRes.user.id, email, provider }
-  }
-
-  // Path C — legacy x-provider-id header. Removal tracked as task #562.
-  const providerId = req.headers['x-provider-id'] || req.headers['X-Provider-Id']
-  if (providerId) {
-    const { data: provider, error: pErr } = await supabase
-      .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled')
-      .eq('id', String(providerId))
-      .maybeSingle()
-    if (pErr) { console.error('[auth] provider lookup (session) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
-    if (!provider) { const e = new Error('Provider not found'); e.status = 403; throw e }
-    if (!provider.is_active) { const e = new Error('Provider account is inactive'); e.status = 403; throw e }
-    return { userId: null, email: provider.email, provider }
   }
 
   const e = new Error('No provider credential (session cookie required)')

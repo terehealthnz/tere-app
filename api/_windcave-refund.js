@@ -38,7 +38,9 @@ export default async function handler(req, res) {
   const amountStr = amt.toFixed(2)
 
   const xId = randomUUID()
-  const providerId = req.headers['x-provider-id'] || null
+  // Prefer authenticated provider id (set by handler.js guardProvider);
+  // header fallback removed 2026-09-27 (Blacklock retest).
+  const providerId = req.auth?.provider?.id || null
 
   // Sandbox suppression — if the sessionId maps back to a practice consult
   // (payment_intent_id column stores the Windcave session id), never hit

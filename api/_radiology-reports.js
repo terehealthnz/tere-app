@@ -22,7 +22,8 @@ const SIGNED_URL_TTL_SECONDS = 60 * 15  // 15-min viewer link
 
 export default async function handler(req, res) {
   const supabase = admin()
-  const providerId = req.headers['x-provider-id'] || req.auth?.providerId || null
+  // x-provider-id header removed 2026-09-27 (Blacklock retest). Use cookie-authed provider only.
+  const providerId = req.auth?.provider?.id || req.auth?.providerId || null
   // Practice-mode scope for radiology report reads/writes (auth applied at router).
   const { practice } = resolveDataMode(req.auth?.provider, req)
 

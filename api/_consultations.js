@@ -18,6 +18,8 @@ import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 import { resolveDataMode } from './_provider-access-gate.js'
 import { getClientIp } from './_client-ip.js'
+import { sendEmail } from './_email-client.js'
+import { sendSms } from './_sms.js'
 
 function admin() {
   return createClient(
@@ -638,30 +640,25 @@ export default async function handler(req, res) {
         const shortReason = String(reason).trim().slice(0, 120)
         const bodyText = `Tere Health has queued you for a follow-up (${shortReason}). A doctor will call you shortly. ${APP_URL}`
         // Fire-and-forget — notification failure does not roll back the queue entry.
+        // Direct helper calls — no internal HTTP round-trip. The previous
+        // fetch pattern relied on the x-provider-id header for auth, which
+        // was removed 2026-09-27 after Blacklock retest of WEB-0923-0655443636.
         if (pt.email) {
-          fetch(`${APP_URL}/api/send-email`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'x-provider-id': auth.provider.id },
-            body:    JSON.stringify({
-              to:      pt.email,
-              subject: `Tere Health — follow-up requested`,
-              html:    `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
-                <p style="font-size:1.4rem;font-family:Georgia,serif;font-style:italic;color:#0D2B45">Tere Health</p>
-                <p>Kia ora ${pt.first_name || 'there'},</p>
-                <p>Our team has queued you for a follow-up consultation regarding your recent visit.</p>
-                <p><strong>Reason:</strong> ${shortReason}</p>
-                <p>A doctor will call you shortly. No further action is needed from you unless we're unable to reach you.</p>
-                <p style="color:#6B7280;font-size:.85rem;margin-top:1.5rem">Ngā mihi,<br><strong>Tere Health</strong></p>
-              </div>`,
-            }),
+          sendEmail({
+            to:      pt.email,
+            subject: `Tere Health — follow-up requested`,
+            html:    `<div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1A2A33">
+              <p style="font-size:1.4rem;font-family:Georgia,serif;font-style:italic;color:#0D2B45">Tere Health</p>
+              <p>Kia ora ${pt.first_name || 'there'},</p>
+              <p>Our team has queued you for a follow-up consultation regarding your recent visit.</p>
+              <p><strong>Reason:</strong> ${shortReason}</p>
+              <p>A doctor will call you shortly. No further action is needed from you unless we're unable to reach you.</p>
+              <p style="color:#6B7280;font-size:.85rem;margin-top:1.5rem">Ngā mihi,<br><strong>Tere Health</strong></p>
+            </div>`,
           }).catch(() => {})
         }
         if (pt.phone) {
-          fetch(`${APP_URL}/api/sms`, {
-            method:  'POST',
-            headers: { 'Content-Type': 'application/json', 'x-provider-id': auth.provider.id },
-            body:    JSON.stringify({ to: pt.phone, message: bodyText, type: 'admin_followup' }),
-          }).catch(() => {})
+          sendSms({ to: pt.phone, body: bodyText }).catch(() => {})
         }
       }
 
