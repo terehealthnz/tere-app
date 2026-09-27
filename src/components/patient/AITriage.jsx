@@ -1360,7 +1360,12 @@ export default function AITriage() {
     setPharmacyResults([])
   }
 
-  // Debounced HPI Practitioner search for the GP picker.
+  // Debounced GP picker search. Queries the local gp_directory (doctors +
+  // practices we've uploaded, task #472 seed) AND the national HPI
+  // Practitioner Index in parallel, then merges. Local hits show first so
+  // patients see the specific GPs/practices we've curated (Marlborough
+  // rural focus) before generic HPI matches. Also matches practice names —
+  // patients often know "Renwick Medical Centre" but not their GP's name.
   useEffect(() => {
     const q = gpQuery.trim()
     if (q.length < 2) { setGpResults([]); return }
@@ -1368,17 +1373,62 @@ export default function AITriage() {
     const t = setTimeout(async () => {
       setGpLoading(true)
       try {
-        const res = await apiFetch('/api/hpi-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: q, type: 'gp',
-            patientNhi: data?.patient_nhi || null,
-            consultationId: data?.consultation_id || null,
+        const [localRes, hpiRes] = await Promise.allSettled([
+          apiFetch(`/api/gp-directory?q=${encodeURIComponent(q)}`),
+          apiFetch('/api/hpi-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: q, type: 'gp',
+              patientNhi: data?.patient_nhi || null,
+              consultationId: data?.consultation_id || null,
+            }),
           }),
-        })
-        const { results } = await res.json()
-        if (!cancelled) setGpResults(Array.isArray(results) ? results.slice(0, 6) : [])
+        ])
+
+        const merged = []
+        const seen = new Set()
+
+        // Local uploads first — providers, then practices without a matching provider.
+        if (localRes.status === 'fulfilled' && localRes.value.ok) {
+          const body = await localRes.value.json().catch(() => ({}))
+          for (const p of (body.providers || [])) {
+            const name = [p.title, p.given_name, p.family_name].filter(Boolean).join(' ').trim()
+            const key = name.toLowerCase()
+            if (!name || seen.has(key)) continue
+            seen.add(key)
+            merged.push({
+              id: p.id, name,
+              clinic: p.practice?.name || '',
+              email: p.practice?.email || '',
+              source: 'local',
+            })
+          }
+          for (const pr of (body.practices || [])) {
+            const key = pr.name.toLowerCase()
+            if (seen.has(key)) continue
+            seen.add(key)
+            merged.push({
+              id: pr.id, name: pr.name,
+              clinic: pr.address || 'Practice',
+              email: pr.email || '',
+              source: 'local',
+            })
+          }
+        }
+
+        // HPI results next — only add ones we don't already have from local.
+        if (hpiRes.status === 'fulfilled' && hpiRes.value.ok) {
+          const body = await hpiRes.value.json().catch(() => ({}))
+          for (const r of (body.results || [])) {
+            const key = String(r.name || '').toLowerCase()
+            if (!key || seen.has(key)) continue
+            seen.add(key)
+            merged.push({ ...r, source: 'hpi' })
+          }
+        }
+
+        if (!cancelled) setGpResults(merged.slice(0, 8))
       } catch {
         if (!cancelled) setGpResults([])
       } finally {
