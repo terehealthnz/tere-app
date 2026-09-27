@@ -697,14 +697,16 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
 
     console.log('[vitalsModel] raw:', { rawSys: +rawSys.toFixed(1), rawDia: +rawDia.toFixed(1), rawHr: +rawHr.toFixed(1), rawSpo2: +rawSpo2.toFixed(1) })
 
-    // Mean-collapse guard: even with adequate label variance, if the
-    // model output lands within ±2 mmHg of the training mean the
-    // network has effectively learned nothing about this input (it's
-    // just returning the bias). Refuse rather than showing a bogus
-    // "always the same" reading across every patient.
-    if (Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2) {
-      console.warn('[vitalsModel] output collapsed to training mean — refusing to publish. Model needs retraining with more signal-dependent features or more diverse labels.')
-      return null
+    // Mean-collapse detector: even with adequate label variance, if the
+    // model output lands within ±2 mmHg of the training mean the network
+    // has effectively learned nothing about this input (it's just returning
+    // the bias). Previously we returned null here, which hid BP entirely.
+    // Post-launch we prefer to surface it as 'low' confidence — provider
+    // sees the reading with a clear "may vary" chip, patient never sees a
+    // gap. Retraining is task #517.
+    const collapsed = Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2
+    if (collapsed) {
+      console.warn('[vitalsModel] output near training mean — publishing as low confidence (model retrain pending, task #517).')
     }
 
     const { systolic, diastolic } = clampBP(rawSys, rawDia)
@@ -715,7 +717,14 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
     const calSys = calib ? Math.max(70, Math.min(200, systolic + calib.systolicOffset)) : systolic
     const calDia = calib ? Math.max(40, Math.min(130, diastolic + calib.diastolicOffset)) : diastolic
 
-    return { systolic: calSys, diastolic: calDia, hr, spo2, confidence: 'medium', calibrated: !!calib }
+    return {
+      systolic: calSys,
+      diastolic: calDia,
+      hr,
+      spo2,
+      confidence: collapsed ? 'low' : 'medium',
+      calibrated: !!calib,
+    }
   } catch (e) {
     console.warn('[vitalsModel] predict failed:', e.message)
     return null
