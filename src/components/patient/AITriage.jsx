@@ -234,7 +234,7 @@ const STEPS = [
   { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
   { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
   { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
-  { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>5, error:"Can you describe how it happened?", next:'acc_date' },
+  { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>0, error:"Please describe how it happened (a few words is fine — e.g. 'fall off ladder').", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   // HNZ NHI IG §4.3.2 General-2 — explicit ToU acceptance before we query
