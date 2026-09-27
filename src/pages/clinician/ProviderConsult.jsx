@@ -489,6 +489,40 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     return () => clearInterval(interval)
   }, [id, phoneCallState])
 
+  // Ringback tone while phone bridge is dialling or ringing. Web Audio
+  // API generates a soft dual-tone (NZ-style 400+450 Hz) at 3s intervals
+  // so the provider hears audible feedback that the call is active — the
+  // SIP call rings on the patient's phone, not the provider's browser,
+  // so without this the provider sees "Dialling…" text and no audio.
+  useEffect(() => {
+    if (!['dialling', 'ringing'].includes(phoneCallState)) return
+    let ctx = null, interval = null
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const beep = () => {
+        const now = ctx.currentTime
+        for (const freq of [400, 450]) {
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          gain.gain.setValueAtTime(0.001, now)
+          gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02)
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+          osc.connect(gain).connect(ctx.destination)
+          osc.start(now)
+          osc.stop(now + 0.42)
+        }
+      }
+      beep()
+      interval = setInterval(beep, 3000)
+    } catch {}
+    return () => {
+      if (interval) clearInterval(interval)
+      if (ctx) try { ctx.close() } catch {}
+    }
+  }, [phoneCallState])
+
   // Auto-start scribe when entering in-call state.
   //
   // Bug fix: previously depended only on [inCall]. On the LiveKit path,
