@@ -70,11 +70,19 @@ export default function VitalsCapture() {
   // On mount, ensure the latest shared BP model + SpO2 calibration are cached
   // locally so BP + SpO2 render calibrated on the summary. loadModelFromSupabase
   // verifies the IndexedDB weights match the latest model_versions row and
-  // re-restores if they don't — fixes the case where Justin's browser kept
-  // predicting 120/80 because a stale local model was overriding the shared
-  // v15 (150-sample) network.
+  // re-restores if they don't. Also compares the server trained_at against
+  // the last-synced bust key and force-resets the cache if the server has
+  // moved on — fixes the case where Justin's browser kept predicting 120/80
+  // because a stale NORM was overriding the latest v15 (150-sample) network.
+  //
+  // We track modelReady so predictBP is never called on stale NORM: the
+  // background-frames + live scan paths gate their BP dispatch on this
+  // promise resolving before starting.
+  const modelReadyRef = useRef(null)
   useEffect(() => {
-    import('../../lib/bpModel').then(({ loadModelFromSupabase }) => loadModelFromSupabase()).catch(() => {})
+    modelReadyRef.current = import('../../lib/bpModel')
+      .then(({ loadModelFromSupabase }) => loadModelFromSupabase())
+      .catch(() => null)
     import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
   }, [])
   const videoRef   = useRef(null)
@@ -199,10 +207,12 @@ export default function VitalsCapture() {
               // BP predictor is async (loads 1.6MB TF.js chunk). When it
               // resolves, PATCH the consult with the string so the provider
               // vitals bar picks it up. Same pattern as the live-camera path.
+              // Await modelReadyRef so we never predict on stale NORM.
               if (result.rawFrames?.length) {
-                import('../../lib/bpModel').then(({ predictBP }) =>
-                  predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-                ).then(bp => {
+                Promise.resolve(modelReadyRef.current)
+                  .then(() => import('../../lib/bpModel'))
+                  .then(({ predictBP }) => predictBP({ frames: result.rawFrames, fps: result.actualFps }, {}))
+                  .then(bp => {
                   if (!bp) return
                   setBpEstimate(bp)
                   if (id && !id.startsWith('demo')) {
@@ -267,9 +277,11 @@ export default function VitalsCapture() {
         if (result.rawFrames?.length) {
           // BP always attempted — confidence chip communicates uncertainty.
           // WAND change-notify tracked separately (task #260).
-          import('../../lib/bpModel').then(({ predictBP }) =>
-            predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-          ).then(bp => {
+          // Await modelReadyRef so we never predict on stale NORM.
+          Promise.resolve(modelReadyRef.current)
+            .then(() => import('../../lib/bpModel'))
+            .then(({ predictBP }) => predictBP({ frames: result.rawFrames, fps: result.actualFps }, {}))
+            .then(bp => {
             if (!bp) return
             setBpEstimate(bp)
             if (consultIdForBp && !consultIdForBp.startsWith('demo')) {

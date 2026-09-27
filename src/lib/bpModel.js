@@ -16,10 +16,20 @@ import { supabase } from './supabase'
 // DB-uploaded model and looked "unchanged" no matter how many times the
 // clinician clicked Retrain. Moved to IndexedDB in commit ~2026-07-09.
 const MODEL_KEY_OLD = 'localstorage://tere-vitals-unified'
-const MODEL_KEY  = 'indexeddb://tere-vitals-unified'
-const NORM_KEY   = 'tere-vitals-norm'
-const META_KEY   = 'tere-vitals-meta'
-const CALIB_KEY  = 'tere-bp-calibration'
+// v2 suffix bumped 2026-09-27 to invalidate all client caches after Justin's
+// browser was serving a constant 120/80 — likely a stale NORM_KEY holding
+// bp_mean values from an old model version. Every renamed key here forces a
+// cache-miss on next mount so clients re-fetch from Supabase. Follow-ups
+// beyond this bump are handled by the trained_at-based bust check in
+// loadModelFromSupabase() below (auto-invalidates on future retrains).
+const MODEL_KEY  = 'indexeddb://tere-vitals-unified-v2'
+const NORM_KEY   = 'tere-vitals-norm-v2'
+const META_KEY   = 'tere-vitals-meta-v2'
+const CALIB_KEY  = 'tere-bp-calibration-v2'
+const BUST_KEY   = 'tere-vitals-trained-at'  // Stores server trained_at we last synced from
+// Old key names — cleared once at boot so orphan IDB entries don't linger.
+const OLD_MODEL_KEYS = ['indexeddb://tere-vitals-unified']
+const OLD_LS_KEYS    = ['tere-vitals-norm', 'tere-vitals-meta', 'tere-bp-calibration']
 
 // One-shot migration: if weights still live at the old localStorage key
 // AND nothing lives at the new IndexedDB key yet, copy them over so we
@@ -450,6 +460,29 @@ export async function loadModelFromSupabase() {
     if (error || !data) return null
     const meta = { version: data.model_version, samples: data.training_samples, valMae: data.val_mae, finalMae: data.final_mae, trainedAt: data.trained_at }
 
+    // Server-side bust: if the latest server trained_at is newer than what
+    // we last synced, force a full local reset before restoring. Catches
+    // the case where META.version matches but bp_mean / bp_std / weights
+    // have drifted for the same version string (e.g. a re-train that
+    // reused v15). Every retrain auto-bumps trained_at, so this keeps
+    // every client in sync without a manual admin action.
+    try {
+      const lastSyncedAt = localStorage.getItem(BUST_KEY)
+      if (data.trained_at && lastSyncedAt && data.trained_at > lastSyncedAt) {
+        console.log('[vitalsModel] server has newer model (', data.trained_at, '>', lastSyncedAt, ') — resetting local cache')
+        try { await tf.io.removeModel(MODEL_KEY) } catch {}
+        localStorage.removeItem(NORM_KEY)
+        localStorage.removeItem(META_KEY)
+        localStorage.removeItem(CALIB_KEY)
+      }
+    } catch {}
+
+    // One-shot cleanup of pre-v2 orphan keys (safe to run on every mount).
+    try {
+      for (const k of OLD_MODEL_KEYS) { try { await tf.io.removeModel(k) } catch {} }
+      for (const k of OLD_LS_KEYS)    { try { localStorage.removeItem(k) } catch {} }
+    } catch {}
+
     // Verify the shared model actually made it into IndexedDB before we
     // trust the local META cache. Old bug: if a previous mount cached
     // META_KEY=v15 but the weight restore failed (network flake, TF.js
@@ -492,6 +525,10 @@ export async function loadModelFromSupabase() {
     // Only cache metadata AFTER weights are confirmed present.
     localStorage.setItem(NORM_KEY, JSON.stringify({ mean: data.bp_mean, std: data.bp_std }))
     localStorage.setItem(META_KEY, JSON.stringify(meta))
+    // Stamp the trained_at we just synced from so the next mount's bust
+    // check knows what we have. Only stored on success — a partial/failed
+    // restore leaves the old value so the retry keeps trying to catch up.
+    if (data.trained_at) localStorage.setItem(BUST_KEY, data.trained_at)
     return meta
   } catch (e) { console.warn('[vitalsModel] loadFromSupabase failed:', e.message); return null }
 }
@@ -506,9 +543,12 @@ export async function resetLocalModel() {
   // window so a Reset really does start from a blank slate. Safe once
   // MODEL_KEY_OLD is retired.
   try { await tf.io.removeModel(MODEL_KEY_OLD) } catch {}
+  for (const k of OLD_MODEL_KEYS) { try { await tf.io.removeModel(k) } catch {} }
+  for (const k of OLD_LS_KEYS)    { try { localStorage.removeItem(k) } catch {} }
   localStorage.removeItem(NORM_KEY)
   localStorage.removeItem(META_KEY)
   localStorage.removeItem(CALIB_KEY)
+  localStorage.removeItem(BUST_KEY)
   localStorage.removeItem('tere_last_train_ms')
 }
 
