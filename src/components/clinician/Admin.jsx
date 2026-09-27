@@ -5819,6 +5819,9 @@ function EmployersPanel() {
   const [saving, setSaving] = React.useState(false)
   const [uploadingFor, setUploadingFor] = React.useState(null)
   const [employeeCounts, setEmployeeCounts] = React.useState({})
+  const [editEmp, setEditEmp] = React.useState(null)  // { id, company_name, ... } while modal open
+  const [editSaving, setEditSaving] = React.useState(false)
+  const [editError, setEditError] = React.useState('')
 
   async function load() {
     setLoading(true)
@@ -5858,6 +5861,47 @@ function EmployersPanel() {
       await updateEmployer(id, { is_active: val })
       setEmployers(es => es.map(e => e.id === id ? { ...e, is_active: val } : e))
     } catch {}
+  }
+
+  function openEdit(emp) {
+    setEditError('')
+    setEditEmp({
+      id: emp.id,
+      company_name: emp.company_name || '',
+      contact_name: emp.contact_name || '',
+      contact_email: emp.contact_email || '',
+      contact_phone: emp.contact_phone || '',
+      monthly_rate_per_employee: emp.monthly_rate_per_employee ?? '',
+      contract_start: emp.contract_start || '',
+      slug: emp.slug || '',
+      usage_cap_month: emp.usage_cap_month ?? '',
+      notes: emp.notes || '',
+    })
+  }
+
+  async function saveEdit() {
+    if (!editEmp || !editEmp.company_name.trim()) { setEditError('Company name is required'); return }
+    setEditSaving(true)
+    setEditError('')
+    const patch = {
+      company_name: editEmp.company_name.trim(),
+      contact_name: editEmp.contact_name.trim() || null,
+      contact_email: editEmp.contact_email.trim() || null,
+      contact_phone: editEmp.contact_phone.trim() || null,
+      monthly_rate_per_employee: editEmp.monthly_rate_per_employee === '' ? null : parseFloat(editEmp.monthly_rate_per_employee),
+      contract_start: editEmp.contract_start || null,
+      slug: editEmp.slug.trim().toLowerCase() || null,
+      usage_cap_month: editEmp.usage_cap_month === '' ? null : parseInt(editEmp.usage_cap_month, 10),
+      notes: editEmp.notes.trim() || null,
+    }
+    try {
+      await updateEmployer(editEmp.id, patch)
+      setEmployers(es => es.map(e => e.id === editEmp.id ? { ...e, ...patch } : e))
+      setEditEmp(null)
+    } catch (e) {
+      setEditError(e.message || 'Save failed')
+    }
+    setEditSaving(false)
   }
 
   function parseCsv(text) {
@@ -5915,6 +5959,63 @@ function EmployersPanel() {
 
   return (
     <div style={card}>
+      {editEmp && (
+        <div onClick={() => !editSaving && setEditEmp(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '2rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: 'min(560px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>Edit employer</div>
+              <button onClick={() => !editSaving && setEditEmp(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9CA3AF' }}>×</button>
+            </div>
+            <div style={{ display: 'grid', gap: '.625rem' }}>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Company name *</label>
+                <input style={inp} value={editEmp.company_name} onChange={e => setEditEmp(x => ({ ...x, company_name: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact name</label>
+                <input style={inp} value={editEmp.contact_name} onChange={e => setEditEmp(x => ({ ...x, contact_name: e.target.value }))} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact email</label>
+                  <input style={inp} type="email" value={editEmp.contact_email} onChange={e => setEditEmp(x => ({ ...x, contact_email: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact phone</label>
+                  <input style={inp} value={editEmp.contact_phone} onChange={e => setEditEmp(x => ({ ...x, contact_phone: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug (terehealth.co.nz/work/<b>SLUG</b>) — 8‑32 lowercase alphanumeric</label>
+                <input style={inp} value={editEmp.slug} onChange={e => setEditEmp(x => ({ ...x, slug: e.target.value }))} placeholder="e.g. marinefarmingassociation" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly rate per employee ($)</label>
+                  <input style={inp} value={editEmp.monthly_rate_per_employee} onChange={e => setEditEmp(x => ({ ...x, monthly_rate_per_employee: e.target.value }))} placeholder="e.g. 15.00" />
+                </div>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly usage cap (consults)</label>
+                  <input style={inp} type="number" value={editEmp.usage_cap_month} onChange={e => setEditEmp(x => ({ ...x, usage_cap_month: e.target.value }))} placeholder="e.g. 20 · leave blank for no cap" />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contract start</label>
+                <input style={inp} type="date" value={editEmp.contract_start} onChange={e => setEditEmp(x => ({ ...x, contract_start: e.target.value }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Notes</label>
+                <textarea style={{ ...inp, minHeight: 60, fontFamily: 'inherit' }} value={editEmp.notes} onChange={e => setEditEmp(x => ({ ...x, notes: e.target.value }))} />
+              </div>
+              {editError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6 }}>{editError}</div>}
+              <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
+                <button onClick={() => setEditEmp(null)} disabled={editSaving} style={{ background: 'white', color: '#374151', border: '1px solid #D1D5DB', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600 }}>Cancel</button>
+                <button onClick={saveEdit} disabled={editSaving || !editEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, opacity: editSaving ? 0.6 : 1 }}>{editSaving ? 'Saving…' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
           <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Employer accounts</div>
@@ -5991,6 +6092,9 @@ function EmployersPanel() {
                   </label>
                   <button onClick={() => downloadReport(emp)} style={{ background: '#F0FDF4', color: '#059669', border: '1px solid #BBF7D0', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
                     ↓ Month report
+                  </button>
+                  <button onClick={() => openEdit(emp)} style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                    ✎ Edit
                   </button>
                   <button onClick={() => toggleActive(emp.id, !emp.is_active)} style={{ background: 'none', border: `1px solid ${emp.is_active ? '#FECACA' : '#BBF7D0'}`, color: emp.is_active ? '#DC2626' : '#059669', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
                     {emp.is_active ? 'Deactivate' : 'Activate'}
