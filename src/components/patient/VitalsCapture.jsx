@@ -472,6 +472,21 @@ export default function VitalsCapture() {
   }
   const abnormalCheck = detectAbnormal(vitals)
 
+  // Completeness gate — Patrick's rule: if any of HR/RR/SpO₂/BP is missing
+  // the patient must retake (or manually enter) before continuing. Provider
+  // shouldn't be handed a chart with half the vitals empty. Second attempt
+  // still allows Continue-anyway so the flow doesn't lock out patients whose
+  // devices genuinely can't capture everything.
+  const spo2Display = formatSpO2Display(spo2Estimate)
+  const missingVitals = []
+  if (uiState === STATES.DONE && vitals && !vitals.skipped) {
+    if (vitals.hr == null || vitals.hr <= 0) missingVitals.push('Heart rate')
+    if (vitals.rr == null || vitals.rr <= 0) missingVitals.push('Respiratory rate')
+    if (!spo2Display?.show) missingVitals.push('SpO₂')
+    if (!bpEstimate || !bpEstimate.systolic || !bpEstimate.diastolic) missingVitals.push('Blood pressure')
+  }
+  const canContinue = missingVitals.length === 0 || attemptCount >= 2
+
   // On each transition into DONE with a fresh reading, bump the attempt
   // counter and — if this was the FIRST attempt and readings are
   // abnormal — open the retake gate. Second attempt lets Continue
@@ -782,26 +797,38 @@ export default function VitalsCapture() {
 
               {uiState === STATES.DONE && (
                 <>
-                  <button className="btn btn-primary btn-full" onClick={async () => {
-                    if (abnormalCheck.abnormal && attemptCount < 2) {
-                      setShowAbnormalGate(true)
-                      return
-                    }
-                    // Second attempt (or first-attempt normal) — attach retake
-                    // metadata so the provider sees the persistence pattern.
-                    if (attemptCount > 1 && vitals) {
-                      try {
-                        const cId = sessionStorage.getItem('consultationId')
-                        if (cId && !cId.startsWith('demo')) {
-                          await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
-                        }
-                      } catch {}
-                    }
-                    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
-                  }}>
-                    Continue to consultation
-                  </button>
-                  {vitals?.numericConfidence < 50 && (
+                  {missingVitals.length > 0 && (
+                    <div style={{background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.75rem .875rem',marginBottom:'.75rem',fontSize:'.875rem',color:'#78350F'}}>
+                      <strong>Missing readings:</strong> {missingVitals.join(', ')}.
+                      <div style={{marginTop:4,fontSize:'.8125rem'}}>
+                        Please retake for a complete set — hold still and keep your face well-lit. Or enter the numbers manually if you have a home device.
+                      </div>
+                    </div>
+                  )}
+                  {canContinue ? (
+                    <button className="btn btn-primary btn-full" onClick={async () => {
+                      if (abnormalCheck.abnormal && attemptCount < 2) {
+                        setShowAbnormalGate(true)
+                        return
+                      }
+                      if (attemptCount > 1 && vitals) {
+                        try {
+                          const cId = sessionStorage.getItem('consultationId')
+                          if (cId && !cId.startsWith('demo')) {
+                            await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
+                          }
+                        } catch {}
+                      }
+                      navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
+                    }}>
+                      Continue to consultation
+                    </button>
+                  ) : (
+                    <button className="btn btn-primary btn-full" onClick={retake}>
+                      🔄 Retake scan
+                    </button>
+                  )}
+                  {canContinue && vitals?.numericConfidence < 50 && (
                     <button className="btn btn-secondary btn-full" onClick={retake}>
                       Retake for better accuracy
                     </button>
