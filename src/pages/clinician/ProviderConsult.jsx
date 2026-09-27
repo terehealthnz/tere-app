@@ -768,6 +768,13 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           video={!isPhone}
           audio
           data-lk-theme="default"
+          // adaptiveStream lets LiveKit drop resolution / pause off-screen
+          // tiles as bandwidth degrades instead of freezing the whole call.
+          // dynacast tells the SFU only to publish the layers actually being
+          // subscribed. Both are the standard 'quality over freeze' pair for
+          // rural / mobile patients.
+          adaptiveStream
+          dynacast
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />
@@ -941,6 +948,8 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           video={!isPhone}
           audio
           data-lk-theme="default"
+          adaptiveStream
+          dynacast
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <FloatingCallWidget

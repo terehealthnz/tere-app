@@ -381,6 +381,11 @@ export default function PatientCall() {
         data-lk-theme="default"
         className="tere-patient-lk"
         style={{ height: '100dvh' }}
+        // Adaptive stream + dynacast — SFU downscales layers and pauses
+        // off-screen tiles on constrained networks (rural mobile) instead
+        // of hard-freezing the whole call.
+        adaptiveStream
+        dynacast
         onDisconnected={() => navigate('/done')}
       >
         <ProviderLeaveWatcher />
