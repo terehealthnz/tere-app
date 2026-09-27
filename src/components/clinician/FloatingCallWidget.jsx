@@ -91,6 +91,9 @@ export default function FloatingCallWidget({
   // Pull the patient's remote camera track if they have one.
   const cameraTracks = useTracks([Track.Source.Camera], { onlySubscribed: true })
   const remoteCameraTrack = cameraTracks.find(t => t.participant && !t.participant.isLocal)
+  // Local self-view — the provider's own camera. Needed for split-screen
+  // PiP so the provider can see themselves during the consult.
+  const localCameraTrack = cameraTracks.find(t => t.participant && t.participant.isLocal)
 
   // Save position when drag ends
   useEffect(() => {
@@ -233,6 +236,22 @@ export default function FloatingCallWidget({
                   fontSize: '2.5rem', fontWeight: 700, color: 'white',
                 }}>{patientInitials.toUpperCase()}</div>
                 <div style={{ fontSize: '1rem' }}>{isAudioOnly ? '📞 Audio call' : hasRemote ? 'Camera off' : 'Waiting for patient…'}</div>
+              </div>
+            )}
+            {/* Self-view PiP — provider sees their own camera in the corner
+                so they can check framing/lighting during the consult. Only
+                renders when the local camera is actually publishing. */}
+            {localCameraTrack && isCameraEnabled && (
+              <div style={{
+                position: 'absolute', top: 16, right: 16,
+                width: 200, height: 140, borderRadius: 10, overflow: 'hidden',
+                background: '#000', border: '2px solid rgba(255,255,255,.25)',
+                boxShadow: '0 8px 24px rgba(0,0,0,.5)',
+              }}>
+                <VideoTrack
+                  trackRef={localCameraTrack}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+                />
               </div>
             )}
           </div>
@@ -456,6 +475,20 @@ export default function FloatingCallWidget({
                 fontSize: '1.5rem', fontWeight: 700, color: 'white',
               }}>{patientInitials.toUpperCase()}</div>
               <div>{isAudioOnly ? '📞 Audio call' : hasRemote ? 'Camera off' : 'Waiting…'}</div>
+            </div>
+          )}
+          {/* Self-view PiP — small provider camera tile in the corner. */}
+          {localCameraTrack && isCameraEnabled && (
+            <div style={{
+              position: 'absolute', top: 8, right: 8,
+              width: 80, height: 60, borderRadius: 6, overflow: 'hidden',
+              background: '#000', border: '1.5px solid rgba(255,255,255,.3)',
+              boxShadow: '0 4px 12px rgba(0,0,0,.4)',
+            }}>
+              <VideoTrack
+                trackRef={localCameraTrack}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+              />
             </div>
           )}
         </div>
