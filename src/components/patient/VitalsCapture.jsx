@@ -173,23 +173,47 @@ export default function VitalsCapture() {
             if (result && !result.faceWarning) {
               setVitals(result); setUiState(STATES.DONE)
               const id = sessionStorage.getItem('consultationId')
+
+              // Compute SpO2 synchronously so it lands in the FIRST updateVitals
+              // PATCH alongside HR/RR. Previously we saved HR+RR immediately
+              // then fired predictBP/calculateSpO2 whose results only touched
+              // React state — provider chart showed BP + SpO2 as null forever
+              // on the background-frames path. Live-camera path already got
+              // this right; this mirrors it.
+              let spo2Result = null
+              if (result.rawFrames?.length) {
+                try { spo2Result = calculateSpO2(result.rawFrames); if (spo2Result) setSpo2Estimate(spo2Result) } catch {}
+              }
+
               if (id && !id.startsWith('demo')) {
-                import('../../lib/supabase').then(({ updateVitals }) => updateVitals(id, result)).catch(() => {})
+                import('../../lib/supabase').then(({ updateVitals }) =>
+                  updateVitals(id, { ...result, spo2: spo2Result?.estimate || null })
+                ).catch(() => {})
                 import('../../lib/api').then(({ apiFetch }) =>
                   apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'vitals_ready', consultationId:id }) }).catch(() => {})
                 ).catch(() => {})
               } else {
-                sessionStorage.setItem('vitals', JSON.stringify(result))
+                sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
               }
+
+              // BP predictor is async (loads 1.6MB TF.js chunk). When it
+              // resolves, PATCH the consult with the string so the provider
+              // vitals bar picks it up. Same pattern as the live-camera path.
               if (result.rawFrames?.length) {
-                // BP is shown as an estimate regardless of local calibration
-                // depth — display carries "AI estimate / may vary" chips and
-                // low-confidence colouring. WAND change-notification tracked
-                // separately (memory: project-tere task #260).
                 import('../../lib/bpModel').then(({ predictBP }) =>
                   predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
-                ).then(bp => { if (bp) setBpEstimate(bp) }).catch(() => {})
-                try { const spo2 = calculateSpO2(result.rawFrames); if (spo2) setSpo2Estimate(spo2) } catch {}
+                ).then(bp => {
+                  if (!bp) return
+                  setBpEstimate(bp)
+                  if (id && !id.startsWith('demo')) {
+                    const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
+                    if (bpString) {
+                      import('../../lib/supabase').then(({ updateVitals }) =>
+                        updateVitals(id, { bp: bpString })
+                      ).catch(() => {})
+                    }
+                  }
+                }).catch(() => {})
               }
               console.log(`Using background frames: ${frames.length} (${result.backgroundDurationSec}s)`)
               return
