@@ -55,14 +55,47 @@ function VitalBadge({ label, value, unit, status }) {
 // the underlying Room instance into a parent-owned ref via useRoomContext.
 // Needed because tereScribe wants to pull audio tracks directly from the
 // Room, but the Room only exists in React context — parents can't read it
-// without this bridge. `onReady` fires when the Room instance is available
-// so the parent can gate scribe auto-start on it (fixes the race where
-// inCall flips true before <LiveKitRoom> has connected).
+// without this bridge. `onReady` fires ONLY once the local audio track has
+// been published — otherwise scribe kicks off before there's anything to
+// record, #collectLiveKitAudioTracks returns empty, falls back to
+// getUserMedia which is usually blocked (mic already held by LiveKit) →
+// silent 0-byte blob → null transcript. Waiting on the first LocalTrackPublished
+// event (or discovering an already-published audio track on mount) gives
+// scribe real audio to work with.
 function RoomCapture({ roomRef, onReady }) {
   const room = useRoomContext()
   useEffect(() => {
-    if (roomRef && room) roomRef.current = room
-    if (room && onReady) onReady()
+    if (!room) return
+    if (roomRef) roomRef.current = room
+
+    const hasLocalAudio = () => {
+      try {
+        const pubs = room.localParticipant?.audioTrackPublications
+        if (!pubs) return false
+        for (const [, pub] of pubs) if (pub?.track) return true
+      } catch {}
+      return false
+    }
+
+    let fired = false
+    const fire = () => {
+      if (fired) return
+      fired = true
+      onReady?.()
+    }
+
+    if (hasLocalAudio()) { fire(); return }
+
+    // Listen for the local audio track publishing. Safety net: fire after
+    // 6s even without a published track so scribe still attempts (falls back
+    // to getUserMedia); better a provider-only transcript than nothing.
+    const onPub = () => { if (hasLocalAudio()) fire() }
+    try { room.on('localTrackPublished', onPub) } catch {}
+    const t = setTimeout(fire, 6000)
+    return () => {
+      clearTimeout(t)
+      try { room.off('localTrackPublished', onPub) } catch {}
+    }
   }, [room, roomRef, onReady])
   return null
 }
@@ -533,34 +566,38 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
 
   async function startScribe() {
     setScribeState('recording')
-    // Route both LiveKit and Chime paths through the same recorder — the
-    // recorder picks which stream-collection strategy to use based on
-    // which ref is populated. LiveKit hands over a Room object; Chime
-    // hands over its bound <audio> element (captureStream'd for remote,
-    // plus a parallel getUserMedia for local mic).
+    console.log('[scribe] startScribe called', { chimeMode, hasRoom: !!scribeRoomRef.current, hasChimeAudio: !!chimeAudioElRef.current })
     recorderRef.current = new ConsultationRecorder({
       room: scribeRoomRef.current,
       chimeAudioEl: chimeMode ? chimeAudioElRef.current : null,
     })
-    try { await recorderRef.current.start() }
-    catch (e) { console.error(e); setScribeState('idle') }
+    try {
+      await recorderRef.current.start()
+      console.log('[scribe] recorder started ok')
+    } catch (e) {
+      console.error('[scribe] recorder start failed:', e?.message)
+      setScribeState('idle')
+    }
   }
 
   async function stopScribe() {
     setScribeState('transcribing')
+    console.log('[scribe] stopScribe called')
     try {
       const blob = await recorderRef.current.stop()
+      console.log('[scribe] recorder produced blob', { size: blob?.size, type: blob?.type })
       if (!blob || blob.size === 0) {
         console.warn('[scribe] Empty audio blob — skipping transcribe (would 400)')
         return null
       }
       const text = await transcribeAudio(blob)
+      console.log('[scribe] transcribe completed', { chars: text?.length })
       setTranscript(text)
       setCallNotes(n => n ? `${n}\n\n[Transcript]\n${text}` : `[Transcript]\n${text}`)
       setShowNotes(true)
       return text
     } catch (e) {
-      console.error(e)
+      console.error('[scribe] pipeline failed:', e?.message)
     } finally {
       setScribeState('idle')
     }
