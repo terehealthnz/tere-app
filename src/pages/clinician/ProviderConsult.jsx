@@ -1205,12 +1205,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           </div>
         )}
 
-        {/* Call-phone fallback panel. After 30s of ringing with no patient
+        {/* Call-phone fallback panel. After 15s of ringing with no patient
             join, we visually nudge the provider toward the phone fallback
             without hiding or auto-firing anything. Keeps provider agency
             for cases where they already know phone is the wrong choice. */}
         {(() => {
-          const nudge = inCall && !patientHere && elapsed >= 30 && phoneCallState === 'idle'
+          const nudge = inCall && !patientHere && elapsed >= 15 && phoneCallState === 'idle'
           if (!inCall || patientHere) return null
           return (
           <div style={{
