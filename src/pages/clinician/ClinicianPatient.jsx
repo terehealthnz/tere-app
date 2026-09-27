@@ -550,7 +550,7 @@ export default function ClinicianPatient() {
         </div>
 
         {/* Vitals */}
-        {v && !v.skipped && (v.hr || v.rr || v.spo2) && (
+        {v && !v.skipped && (v.hr || v.rr || v.spo2 || v.bp) && (
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.875rem' }}>Estimated Vitals</div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -566,6 +566,18 @@ export default function ClinicianPatient() {
                 <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
                   <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>SpO₂ N/A</div>
                   <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use oximeter if needed</div>
+                </div>
+              )}
+              {v.bp ? (
+                <div style={{ background: '#FEF3F2', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#B91C1C' }}>{v.bp}</div>
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>BP</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est. · confirm w/ cuff</div>
+                </div>
+              ) : (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>BP N/A</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use cuff if needed</div>
                 </div>
               )}
             </div>
