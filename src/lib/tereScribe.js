@@ -1,40 +1,26 @@
 /**
  * Tere Scribe
  * Proprietary AI clinical documentation engine.
- * AWS Transcribe (ap-southeast-2) → transcript → Claude (Bedrock) → structured SOAP notes
+ * Deepgram (nova-3-medical, en-NZ) → transcript → Claude (Bedrock) → structured SOAP notes
  */
 import { apiFetch } from './api'
 
-// ── Transcription via AWS Transcribe (batch) ─────────────────────────────────
-// POSTs the recording to /api/transcribe which uploads to S3 and starts a
-// TranscriptionJob. We then poll /api/transcribe-status until COMPLETED (or
-// FAILED / timeout) — Transcribe usually finishes in roughly 0.3-0.5× the
-// audio duration, so a 10-min consult transcribes in ~3-5 min. Timeout cap
-// is generous to handle the occasional slow batch under queue pressure.
-const POLL_INTERVAL_MS = 4000
-const MAX_WAIT_MS      = 10 * 60 * 1000    // 10 minutes
-
+// Synchronous transcription via Deepgram. Reverted from AWS Transcribe on
+// 2026-09-28 — Transcribe rejected en-NZ and the empty-blob race + missing
+// UI on Chime broke the whole path before launch. Deepgram returns text
+// inline in <0.5s for a 10-min call — no polling, no job IDs.
 export async function transcribeAudio(audioBlob) {
-  const startRes = await apiFetch('/api/transcribe', {
+  const res = await apiFetch('/api/transcribe', {
     method: 'POST',
     headers: { 'Content-Type': audioBlob.type || 'audio/webm' },
     body: audioBlob,
   })
-  if (!startRes.ok) throw new Error('Transcription start failed')
-  const { jobName } = await startRes.json()
-  if (!jobName) throw new Error('Transcription: no jobName returned')
-
-  const deadline = Date.now() + MAX_WAIT_MS
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
-    const r = await apiFetch(`/api/transcribe-status?jobName=${encodeURIComponent(jobName)}`)
-    if (!r.ok) throw new Error(`Transcription status ${r.status}`)
-    const body = await r.json()
-    if (body.status === 'completed') return body.text || ''
-    if (body.status === 'failed')    throw new Error(`Transcription failed: ${body.error || 'unknown'}`)
-    // in_progress / queued / unknown → keep polling
+  if (!res.ok) {
+    const err = await res.text().catch(() => '')
+    throw new Error(`Transcription failed: ${err || res.status}`)
   }
-  throw new Error('Transcription timed out')
+  const body = await res.json()
+  return body.text || ''
 }
 
 // ── Note generation via Claude ────────────────────────────────────────────────
