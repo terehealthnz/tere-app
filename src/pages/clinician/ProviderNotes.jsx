@@ -4,6 +4,7 @@ import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMess
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
+import ConfirmAccModal from '../../components/clinician/ConfirmAccModal'
 import AccIcd10Picker from '../../components/clinician/AccIcd10Picker'
 import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
@@ -1809,21 +1810,38 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         </div>
 
         {showAccConvert && consult && (
-          <ConvertToAccModal
-            consult={consult}
-            onClose={() => setShowAccConvert(false)}
-            onSuccess={async () => {
-              setShowAccConvert(false)
-              // Ask the parent (ClinicianPatient popup mode) to refresh — the
-              // consult prop is passed in; on success we reload the page-level
-              // state via the same callback pattern used elsewhere.
-              try {
-                const { getConsultation } = await import('../../lib/supabase')
-                const fresh = await getConsultation(consult.id)
-                if (fresh && setConsult) setConsult(fresh)
-              } catch {}
-            }}
-          />
+          aiDx.accIcd10Code ? (
+            // Compact confirm popup — AI already extracted everything.
+            // Read-only summary + injury date + consent tick + one button.
+            <ConfirmAccModal
+              consult={consult}
+              aiDx={aiDx}
+              onClose={() => setShowAccConvert(false)}
+              onSuccess={async () => {
+                setShowAccConvert(false)
+                try {
+                  const { getConsultation } = await import('../../lib/supabase')
+                  const fresh = await getConsultation(consult.id)
+                  if (fresh && setConsult) setConsult(fresh)
+                } catch {}
+              }}
+            />
+          ) : (
+            // Fallback full-form modal — used only when AI did NOT detect
+            // ACC and the provider is manually opening a claim from scratch.
+            <ConvertToAccModal
+              consult={consult}
+              onClose={() => setShowAccConvert(false)}
+              onSuccess={async () => {
+                setShowAccConvert(false)
+                try {
+                  const { getConsultation } = await import('../../lib/supabase')
+                  const fresh = await getConsultation(consult.id)
+                  if (fresh && setConsult) setConsult(fresh)
+                } catch {}
+              }}
+            />
+          )
         )}
 
         {/* Safety-netting (task #417) — HDC Right 6 evidence. Required for
