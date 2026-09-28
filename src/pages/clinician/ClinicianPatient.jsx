@@ -1328,6 +1328,12 @@ export default function ClinicianPatient() {
             onComplete={() => {
               // Static-bar Complete Encounter: open the notes popup here on
               // the patient page instead of navigating to /provider/notes/:id.
+              // If a call is still active, tear it down first — otherwise the
+              // LiveKit widget keeps playing behind the notes modal (2 videos
+              // still with srcObject, "End call" still visible). The in-call
+              // widget path already handles this via onEnd, but the static bar
+              // bypasses that and can leave the room hot.
+              if (activeCall) setActiveCall(null)
               setActiveNotes({ actions: [], transcript: '', callNotes: '' })
             }}
             onNoAnswer={async (res) => {
