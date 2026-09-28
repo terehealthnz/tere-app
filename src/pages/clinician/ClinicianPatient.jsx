@@ -66,6 +66,12 @@ export default function ClinicianPatient() {
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [callError, setCallError] = useState(null)
+  // Instant visual feedback for the ~1-2s /api/initiate-call round-trip
+  // (Supabase fetch + status PATCH + LiveKit token). Without it, provider
+  // stares at the button after clicking with nothing happening on-screen
+  // until the widget finally mounts. Cleared when activeCall goes truthy
+  // (widget takes over) or the call fails.
+  const [callStarting, setCallStarting] = useState(false)
   // When set, mounts <ProviderConsult popupMode /> which shows the floating
   // call widget on top of the chart. Setting to null unmounts it and ends
   // the call session (task #216).
@@ -1270,6 +1276,13 @@ export default function ClinicianPatient() {
           providers don't lose access to actions on reload or status transitions. */}
       {!isMessage && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'white', borderTop: '1px solid #E2E8F0', padding: '1rem', paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: '.5rem', maxWidth: 640, margin: '0 auto' }}>
+          {callStarting && (
+            <div style={{ background:'#F0F9FF', border:'1px solid #7DD3FC', color:'#075985', borderRadius:8, padding:'.6rem .75rem', fontSize:'.85rem', fontFamily:FF, display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ display:'inline-block', width:14, height:14, border:'2px solid #7DD3FC', borderTopColor:'#075985', borderRadius:'50%', animation:'tere-spin 0.7s linear infinite' }} />
+              Starting call…
+              <style>{`@keyframes tere-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
           {callError && (
             <div style={{ background:'#FEE2E2', border:'1px solid #FCA5A5', color:'#991B1B', borderRadius:8, padding:'.6rem .75rem', fontSize:'.85rem', fontFamily:FF }}>
               {callError} <button onClick={() => setCallError(null)} style={{ background:'none', border:'none', color:'#991B1B', fontWeight:700, cursor:'pointer', marginLeft:8 }}>Dismiss</button>
@@ -1304,6 +1317,11 @@ export default function ClinicianPatient() {
               // Never send forcePhone at click time — that skips the video
               // window entirely and kicks the patient straight to phone even
               // when they're staring at the waiting-room screen.
+              // Show "Starting call…" instantly so the provider gets visual
+              // feedback during the ~1-2s /api/initiate-call round-trip
+              // (Supabase fetch + status PATCH + LiveKit token). Cleared on
+              // success (widget mount takes over) or failure (error banner).
+              setCallStarting(true)
               const body = { consultationId: id, providerId, providerName: displayName }
               try {
                 const r = await apiFetch('/api/initiate-call', {
@@ -1313,16 +1331,19 @@ export default function ClinicianPatient() {
                 })
                 if (!r.ok) {
                   const err = await r.json().catch(() => ({}))
+                  setCallStarting(false)
                   setCallError(`Call could not start: ${err.error || `HTTP ${r.status}`}`)
                   return
                 }
               } catch (e) {
+                setCallStarting(false)
                 setCallError(`Call could not start: ${e.message}`)
                 return
               }
               // Mount ProviderConsult in popupMode instead of navigating.
               // Locked to this page: leaving unmounts the popup and ends
               // the session (endCall runs on LiveKit disconnect).
+              setCallStarting(false)
               setActiveCall({ channel, startedAt: Date.now() })
             }}
             onComplete={() => {
