@@ -1,20 +1,6 @@
 import React, { useState } from 'react'
 import { apiFetch } from '../../lib/api'
-
-const ACC_READ_CODES = [
-  { code: 'S30', label: 'Ankle sprain' },
-  { code: 'S39', label: 'Other ankle injury' },
-  { code: 'M13', label: 'Laceration' },
-  { code: 'M10', label: 'Contusion / bruise' },
-  { code: 'S20', label: 'Wrist sprain' },
-  { code: 'A84', label: 'Back pain' },
-  { code: 'S60', label: 'Finger injury' },
-  { code: 'F29', label: 'Eye injury' },
-  { code: 'T14', label: 'Burn' },
-  { code: 'K22', label: 'Chest pain' },
-  { code: 'A09', label: 'Headache' },
-  { code: 'N17', label: 'UTI' },
-]
+import AccIcd10Picker from './AccIcd10Picker'
 
 const BODY_PARTS = [
   'Head', 'Face / skull', 'Eye', 'Ear', 'Jaw / dental',
@@ -37,14 +23,19 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
   const [bodyPart, setBodyPart]       = useState('')
   const [workRelated, setWorkRelated] = useState('no')
   const [employer, setEmployer]       = useState(consult?.acc_employer || '')
-  const [readCode, setReadCode]       = useState('')
+  // ACC ICD-10 (HL7 NZ acc-icd10 CodeSystem) — mandatory field for ACC45
+  // lodgement. Pre-fill from consult row if AI already suggested one.
+  const [accIcd10Code, setAccIcd10Code] = useState(consult?.acc_icd10_code || '')
+  const [accIcd10Description, setAccIcd10Description] = useState(consult?.acc_icd10_description || '')
   const [consentObtained, setConsentObtained] = useState(false)
   const [converting, setConverting]   = useState(false)
   const [done, setDone]               = useState(false)
   const [paymentNote, setPaymentNote] = useState('')
 
+  const canSubmit = mechanism.trim() && bodyPart && accIcd10Code && consentObtained
+
   async function handleConvert() {
-    if (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) return
+    if (!canSubmit) return
     setConverting(true)
     try {
       const res = await apiFetch('/api/convert-to-acc', {
@@ -57,8 +48,8 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
           bodyPart,
           workRelated,
           employer: workRelated === 'yes' ? employer.trim() : '',
-          readCode,
-          readCodeLabel: ACC_READ_CODES.find(c => c.code === readCode)?.label || '',
+          accIcd10Code,
+          accIcd10Description,
           consentObtained,
           providerId: sessionStorage.getItem('providerId') || '',
           providerName: sessionStorage.getItem('providerDisplayName') || '',
@@ -68,7 +59,7 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
       if (data.ok) {
         setDone(true)
         setPaymentNote(data.paymentNote || '')
-        onSuccess?.({ injuryDate, mechanism, bodyPart, workRelated, employer, readCode })
+        onSuccess?.({ injuryDate, mechanism, bodyPart, workRelated, employer, accIcd10Code, accIcd10Description })
       } else {
         alert('Conversion failed: ' + (data.error || 'Unknown error'))
       }
@@ -134,11 +125,17 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                 </div>
 
                 <div>
-                  <label style={lbl}>ACC Read code <span style={{ color: '#DC2626' }}>*</span></label>
-                  <select value={readCode} onChange={e => setReadCode(e.target.value)} style={{ ...inp, color: readCode ? '#1A2A33' : '#9CA3AF' }}>
-                    <option value="">Select read code…</option>
-                    {ACC_READ_CODES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
-                  </select>
+                  <label style={lbl}>ACC ICD-10 code <span style={{ color: '#DC2626' }}>*</span></label>
+                  <AccIcd10Picker
+                    value={accIcd10Code}
+                    label={accIcd10Description}
+                    recommendedCode={consult?.acc_icd10_code || null}
+                    recommendedLabel={consult?.acc_icd10_description || null}
+                    onPick={(code, desc) => { setAccIcd10Code(code || ''); setAccIcd10Description(desc || '') }}
+                  />
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280', marginTop: 4 }}>
+                    HL7 NZ ACC ICD-10 subset (12,494 codes). Required for ACC45 lodgement.
+                  </div>
                 </div>
 
                 <div>
@@ -178,8 +175,8 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                   style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, color: '#6B7280' }}>
                   Cancel
                 </button>
-                <button onClick={handleConvert} disabled={converting || !mechanism.trim() || !bodyPart || !readCode || !consentObtained}
-                  style={{ flex: 2, padding: '10px', border: 'none', borderRadius: 8, background: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? '#E2E8F0' : '#D97706', color: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? '#9CA3AF' : 'white', cursor: (!mechanism.trim() || !bodyPart || !readCode || !consentObtained) ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
+                <button onClick={handleConvert} disabled={converting || !canSubmit}
+                  style={{ flex: 2, padding: '10px', border: 'none', borderRadius: 8, background: !canSubmit ? '#E2E8F0' : '#D97706', color: !canSubmit ? '#9CA3AF' : 'white', cursor: !canSubmit ? 'default' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>
                   {converting ? 'Converting…' : '⚡ Convert to ACC'}
                 </button>
               </div>

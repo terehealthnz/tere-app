@@ -1,5 +1,6 @@
 import { sendEmail } from './_email-client.js'
 import { encryptPhi } from './_phi-crypto.js'
+import { isAccIcd10, accIcd10Label } from './_acc-icd10-codes.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -11,14 +12,26 @@ export default async function handler(req, res) {
     bodyPart,
     workRelated,
     employer,
-    readCode,
-    readCodeLabel,
+    accIcd10Code:   accIcd10CodeIn,
+    accIcd10Description: accIcd10DescriptionIn,
     consentObtained,
     providerId,
     providerName,
   } = req.body || {}
 
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+  // ACC ICD-10 is mandatory on ACC45 lodgement. Validate the code against
+  // the HL7 NZ acc-icd10 CodeSystem whitelist (12,494 codes, no-dot format).
+  // Anything outside the whitelist is rejected — provider must re-pick.
+  const normalisedCode = typeof accIcd10CodeIn === 'string'
+    ? accIcd10CodeIn.trim().toUpperCase().replace(/\./g, '')
+    : ''
+  if (!normalisedCode || !isAccIcd10(normalisedCode)) {
+    return res.status(400).json({ error: 'A valid ACC ICD-10 code is required for ACC lodgement. Pick from the ACC ICD-10 picker.' })
+  }
+  // Trust the codeset's authoritative label over anything the client sent.
+  const canonicalDescription = accIcd10Label(normalisedCode) || accIcd10DescriptionIn || null
 
   const supaUrl = process.env.VITE_SUPABASE_URL
   const supaKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -48,7 +61,8 @@ export default async function handler(req, res) {
     acc_injury_details_enc: injuryDetailsEnc,
     acc_body_part: bodyPart || null,
     acc_employer: workRelated === 'yes' ? (employer || consult.acc_employer || null) : null,
-    acc_read_code: readCode || null,
+    acc_icd10_code: normalisedCode,
+    acc_icd10_description: canonicalDescription,
     notes_flagged: true,
     payment_amount: 2500,
     // Discrete consent capture — auditable independent of note prose.
@@ -94,7 +108,7 @@ export default async function handler(req, res) {
         action: 'acc_conversion',
         provider_id: providerId || null,
         consultation_id: consultationId,
-        details: `${providerName || 'Provider'} converted to ACC — ${mechanism || '—'} | ${bodyPart || '—'} | ${readCode || '—'}`,
+        details: `${providerName || 'Provider'} converted to ACC — ${mechanism || '—'} | ${bodyPart || '—'} | ${normalisedCode}`,
         created_at: now,
       }),
     })
@@ -135,7 +149,7 @@ export default async function handler(req, res) {
         `  Body part:    ${bodyPart || '—'}`,
         `  Work related: ${workRelated === 'yes' ? 'Yes' : 'No'}`,
         `  Employer:     ${employer || '—'}`,
-        `  Read code:    ${readCode || '—'} ${readCodeLabel ? '(' + readCodeLabel + ')' : ''}`,
+        `  ACC ICD-10:   ${normalisedCode}${canonicalDescription ? ' — ' + canonicalDescription : ''}`,
         '',
         paymentNote ? `Payment note: ${paymentNote}` : '',
         '',

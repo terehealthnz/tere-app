@@ -136,7 +136,7 @@ const CREATE_REJECT = new Set([
   'notes_final', 'notes_flagged',
   'transcript', 'clinical_notes', 'summary',
   'diagnosis', 'diagnosis_code', 'icd10_code',
-  'acc_read_code', 'acc_claim_number',
+  'acc_read_code', 'acc_icd10_code', 'acc_icd10_description', 'acc_claim_number',
   'consultation_token',
 ])
 

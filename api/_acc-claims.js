@@ -204,6 +204,16 @@ export default async function handler(req, res) {
     let claimNumber, rawResponse
 
     if (hasCredentials) {
+      // Hard-block live ACC submission if the ICD-10 code is missing. ACC
+      // rejects invoices without a valid diagnosis code and (for repeat
+      // offenders) audits the provider. The Convert-to-ACC modal enforces
+      // the picker up-front; this is the last-line server-side gate.
+      if (!consult.acc_icd10_code) {
+        console.error('[acc-claims] ACC ICD-10 missing on consult', consultationId)
+        return res.status(400).json({
+          error: 'ACC ICD-10 code missing on consultation. Re-open the consult and use the ACC ICD-10 picker before lodging the claim.',
+        })
+      }
       const claimPayload = {
         providerHPI:         hpiNumber,
         providerName:        pName,
@@ -217,7 +227,13 @@ export default async function handler(req, res) {
         patientEmail:        consult.patient_email,
         injuryDate:          consult.acc_injury_date,
         injuryDescription:   consult.acc_injury_details || consult.chief_complaint,
-        readCode:            consult.acc_read_code,
+        // ACC ICD-10 (HL7 NZ acc-icd10 CodeSystem) — mandatory diagnosis
+        // for ACC45 e-claim lodgement. No-dot format (e.g. 'S9340').
+        icd10Code:           consult.acc_icd10_code,
+        icd10Description:    consult.acc_icd10_description,
+        // acc_read_code kept for legacy audit trail on old rows; new consults
+        // pick ICD-10 via the picker.
+        readCode:            consult.acc_read_code || null,
         employerName:        consult.acc_employer || null,
         consultationDate:    consult.created_at,
         consultationType:    'telehealth',
