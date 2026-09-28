@@ -461,7 +461,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [showFeeTierOverride, setShowFeeTierOverride] = useState(false)
   useEffect(() => {
     if (!id) return
-    // Immediate safe default so provider never sees an unpicked tier.
+    // Don't guess a fee tier until the consult record has loaded — otherwise
+    // we race the consult's real `consultation_type` (e.g. 'employee' for
+    // employer-paid workers) and can silently flip it to a paying tier before
+    // the loader overwrites it. That race charged $65 on an employer-paid
+    // consult on 2026-09-28; gating fixes it.
+    if (!consult) return
+    // Immediate safe default only if the consult itself has no method set.
     if (!actualMethod || actualMethod === 'consult' || actualMethod === 'video' || actualMethod === 'phone') {
       setActualMethod('nz_resident')
     }
@@ -473,12 +479,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           setBillingCountry(j.country)
           setBillingCountrySource(j.source)
           // Auto-flip to international if the card was issued outside NZ.
-          setActualMethod(j.country === 'NZ' ? 'nz_resident' : 'international')
+          // Skip when tier is 'employee' — employer pays regardless of country.
+          setActualMethod(prev => prev === 'employee' ? prev : (j.country === 'NZ' ? 'nz_resident' : 'international'))
         }
       } catch {}
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
+  }, [id, consult?.id])
 
   async function saveMySafetyNetTemplate() {
     const providerId = sessionStorage.getItem('providerId')
@@ -920,8 +927,8 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     // Flat pricing — 'consult' unified type is $65; legacy video/phone rows
     // resolve to the same $65. Message stays $25 as an async product. ACC
     // retains the $25 co-pay pending the ACC-billing overhaul.
-    const METHOD_PRICES = { consult: 6500, video: 6500, phone: 6500, message: 2500 }
-    const chargeCents   = isAcc ? 2500 : (METHOD_PRICES[actualMethod] || 6500)
+    const METHOD_PRICES = { consult: 6500, video: 6500, phone: 6500, message: 2500, nz_resident: 6500, international: 10000, employee: 0 }
+    const chargeCents   = isAcc ? 2500 : (actualMethod === 'employee' ? 0 : (METHOD_PRICES[actualMethod] || 6500))
 
     const steps = [
       { label: 'Saving clinical notes',    status: 'pending' },
@@ -1967,7 +1974,9 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   Patient fee tier
                 </div>
                 <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45' }}>
-                  {actualMethod === 'international' ? '🌍 International — $100' : '🇳🇿 NZ resident — $65'}
+                  {actualMethod === 'employee'      ? '🧑‍💼 Employee — covered by employer'
+                   : actualMethod === 'international' ? '🌍 International — $100'
+                   : '🇳🇿 NZ resident — $65'}
                 </div>
                 <div style={{ fontSize:'.6875rem', color:'#065F46', marginTop:2, fontWeight:600 }}>
                   {billingCountry
@@ -1986,6 +1995,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   {[
                     { val:'nz_resident',   label:'🇳🇿 NZ resident',   price: 65 },
                     { val:'international', label:'🌍 International', price: 100 },
+                    { val:'employee',      label:'🧑‍💼 Employee',      price: 0 },
                   ].map(o => (
                     <button key={o.val} onClick={() => { setActualMethod(o.val); setShowFeeTierOverride(false) }}
                       style={{ flex:1, minHeight:52, borderRadius:10, border:`1.5px solid ${actualMethod===o.val?TEAL:'#E2E8F0'}`, background:actualMethod===o.val?'#EFF9F9':'white', color:actualMethod===o.val?TEAL:'#9CA3AF', fontFamily:FF, fontSize:'.8125rem', fontWeight:700, cursor:'pointer' }}>

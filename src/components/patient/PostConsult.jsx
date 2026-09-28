@@ -128,15 +128,24 @@ function deriveBilling(consult) {
   if (!consult) {
     return { feeDollars: 0, paidDollars: 0, adminFeeDollars: 0, isAcc: false, reasoning: null, claimNumber: null }
   }
-  const feeCents = 6500
   const isAcc = consult.is_acc === true
+  // Employer-paid workers (/work/[slug] flow) never see a personal charge —
+  // consultation_type='employee' + employer_paid=true → $0 to the patient.
+  const isEmployerPaid = consult.consultation_type === 'employee' || consult.employer_paid === true
+  // Tier-aware default; provider can override on ProviderNotes fee-tier picker.
+  const feeCents = isEmployerPaid ? 0
+                  : consult.consultation_type === 'international' ? 10000
+                  : 6500
   const feeDollars = feeCents / 100
   const adminFeeDollars = isAcc ? 25 : 0
-  const paidDollars = isAcc
-    ? adminFeeDollars
-    : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
+  const paidDollars = isEmployerPaid ? 0
+                    : isAcc ? adminFeeDollars
+                    : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
   let reasoning = null
-  if (isAcc) {
+  if (isEmployerPaid) {
+    const employerName = consult.employer_name || 'your employer'
+    reasoning = `This consultation is covered by ${employerName}. No charge to you.`
+  } else if (isAcc) {
     reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers the cost of your consultation directly. You have been charged a $20 administrative fee for platform access, prescription processing, and after-hours availability.'
   } else if (consult.acc_eligible === 'yes') {
     reasoning = 'Your provider assessed the presentation as not covered by ACC. The full consultation fee applies. If you think this should be an ACC claim, message support.'

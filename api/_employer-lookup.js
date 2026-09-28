@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     }
     const { data: rosterRow, error: rosterErr } = await supabase
       .from('employer_employees')
-      .select('id')
+      .select('id, phone, email, address, nhi')
       .eq('employer_id', String(data.id))
       .ilike('first_name', firstName)
       .ilike('last_name',  lastName)
@@ -116,12 +116,23 @@ export default async function handler(req, res) {
     if (!rosterRow) {
       return res.status(200).json({ matched: false })
     }
+    // Roster hit — return the pre-fill fields the employer supplied on the CSV
+    // upload so the /work/[slug]/intake form can save the worker some typing.
+    // These are advisory: the worker sees them as editable defaults and can
+    // overwrite anything that's wrong on the HR file. NHI is only advisory
+    // too — /api/nhi-lookup still runs downstream to verify against HNZ.
     return res.status(200).json({
       matched: true,
       employer: {
         id: data.id,
         company_name: data.company_name,
         require_employee_match: !!data.require_employee_match,
+      },
+      prefill: {
+        phone:   rosterRow.phone   || '',
+        email:   rosterRow.email   || '',
+        address: rosterRow.address || '',
+        nhi:     rosterRow.nhi     || '',
       },
     })
   }

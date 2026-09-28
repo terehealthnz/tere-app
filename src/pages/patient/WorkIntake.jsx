@@ -42,8 +42,59 @@ export default function WorkIntake() {
   const [dob, setDob] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [address, setAddress] = useState('')
+  const [nhi, setNhi] = useState('')
   const [chief, setChief] = useState('')
   const [consent, setConsent] = useState(false)
+
+  // Roster pre-fill status. Fires once name+DOB is complete — hits
+  // /api/employer-lookup POST, and if the worker is on the CSV roster,
+  // fills the empty phone/email/address/nhi fields from the row the
+  // employer uploaded. The fields stay editable so the worker can fix
+  // stale HR data before submit.
+  const [prefillState, setPrefillState] = useState('idle')  // idle | checking | matched | nomatch
+  const [prefillDone, setPrefillDone] = useState(false)     // suppress overwrite once we've prefilled once
+
+  // Fire the roster pre-check as soon as name + DOB are all present.
+  // Debounced 400ms so we don't spam while the DOB picker is being adjusted.
+  // Result populates the contact fields BEFORE the worker has to type them.
+  useEffect(() => {
+    if (!employer || !slug) return
+    const fn = firstName.trim()
+    const ln = lastName.trim()
+    if (fn.length < 2 || ln.length < 2 || !dob) {
+      setPrefillState('idle')
+      return
+    }
+    const timer = setTimeout(async () => {
+      setPrefillState('checking')
+      try {
+        const r = await apiFetch('/api/employer-lookup', {
+          method: 'POST',
+          body: JSON.stringify({ slug, firstName: fn, lastName: ln, dob }),
+        })
+        if (!r.ok) { setPrefillState('idle'); return }
+        const body = await r.json()
+        if (!body.matched) { setPrefillState('nomatch'); return }
+        setPrefillState('matched')
+        // Only fill empty fields — never clobber what the worker has typed.
+        // prefillDone gate makes changing DOB after a match not re-fire fills.
+        if (!prefillDone && body.prefill) {
+          if (!phone   && body.prefill.phone)   setPhone(body.prefill.phone)
+          if (!email   && body.prefill.email)   setEmail(body.prefill.email)
+          if (!address && body.prefill.address) setAddress(body.prefill.address)
+          if (!nhi     && body.prefill.nhi)     setNhi(body.prefill.nhi)
+          setPrefillDone(true)
+        }
+      } catch {
+        setPrefillState('idle')
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  // Only re-run on identity changes — prefill values are read from state at
+  // call time so React doesn't need them in the dep list.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstName, lastName, dob, employer?.id, slug])
 
   // Re-validate slug on mount so a bookmark to /work/xxx/intake can't
   // bypass the /work/[slug] landing check.
@@ -117,6 +168,11 @@ export default function WorkIntake() {
     sessionStorage.setItem('employer_id', employer.id)
     sessionStorage.setItem('employer_name', employer.company_name)
     sessionStorage.setItem('employer_paid', 'true')
+    // Bypass the waitlist gate for verified employer-paid workers. The whole
+    // point of B2B is a paid direct-access rail — worker mustn't get bounced
+    // to /waitlist mid-consult when provider clicks "Start call" and the
+    // patient client navigates through a waitlist-gated route.
+    sessionStorage.setItem('tere_beta_bypass', '1')
 
     try {
       const pt = await createConsultation({
@@ -126,8 +182,14 @@ export default function WorkIntake() {
         dob:       dob,
         phone:     phone.trim() || null,
         email:     email.trim() || null,
+        address:   address.trim() || null,
+        nhi:       nhi.trim().toUpperCase().replace(/\s+/g, '') || null,
         complaint: chief.trim(),
         patientLanguage: sessionStorage.getItem('patient_language') || 'en',
+
+        // Fee tier — employer covers the worker, no charge. ProviderNotes reads
+        // consultation_type and prices $0 for employee tier.
+        consultationType: 'employee',
 
         // Consent — HDC Right 7 (informed consent)
         recordingConsent: consent,
@@ -140,8 +202,17 @@ export default function WorkIntake() {
         // Skip payment gate — server sets status=waiting when employer_paid=true
         status: 'waiting',
       })
-      if (pt?.id) sessionStorage.setItem('consultation_id', pt.id)
-      navigate(`/waiting/${pt.id}`)
+      if (pt?.id) {
+        // Both keys — VitalsCapture + several other pages read `consultationId`
+        // (camelCase), while createConsultation writes `consultation_id`
+        // (snake_case). Set both so downstream flows all resolve the id.
+        sessionStorage.setItem('consultation_id', pt.id)
+        sessionStorage.setItem('consultationId',  pt.id)
+      }
+      // Route through vitals capture like paying patients — provider needs
+      // HR/SpO2/RR/BP for triage regardless of who's paying. The vitals page
+      // already flows into the waiting room after capture (or Skip).
+      navigate(`/vitals/${pt.id}`)
     } catch (e) {
       const msg = e?.message || ''
       // Server returns 403 with NO_ROSTER_MATCH in the error body if identity
@@ -211,11 +282,28 @@ export default function WorkIntake() {
               <DobPicker value={dob} onChange={setDob} />
             </div>
 
+            {prefillState === 'checking' && (
+              <div style={{ color: 'rgba(212,238,240,.65)', fontSize: '.75rem', marginBottom: '.75rem', fontStyle: 'italic' }}>
+                Checking the team list…
+              </div>
+            )}
+            {prefillState === 'matched' && (
+              <div style={{ background: 'rgba(11,110,118,.35)', border: '1px solid rgba(127,196,200,.4)', color: TEAL_LIGHT, padding: '.6rem .8rem', borderRadius: 8, fontSize: '.8125rem', marginBottom: '.75rem' }}>
+                ✓ Found on the {employer.company_name} team list. Some details below have been pre-filled from your HR record — check they're right and edit anything that's changed.
+              </div>
+            )}
+
             <label style={label}>Phone (for provider callback)</label>
             <input style={inp} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="02x xxx xxxx" autoComplete="tel" />
 
             <label style={label}>Email (for consult summary)</label>
             <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+
+            <label style={label}>Home address (optional)</label>
+            <input style={inp} type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Street, suburb, town" autoComplete="street-address" />
+
+            <label style={label}>NHI (optional — we can look it up if you don't know it)</label>
+            <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} placeholder="ABC1234" maxLength={7} autoComplete="off" />
 
             <label style={label}>What is the problem?</label>
             <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder="Briefly describe what happened or how you are feeling. The doctor will ask more when they call." />

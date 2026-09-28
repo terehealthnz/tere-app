@@ -523,6 +523,41 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     }
   }, [phoneCallState])
 
+  // Ringback tone for the browser video/audio call while waiting for the
+  // patient to join. Same NZ dual-tone pattern as the phone bridge. Fires
+  // once LiveKit is up but before the patient's participant has joined —
+  // silent again as soon as patientHere flips true. Added 2026-09-28 after
+  // provider reported no audible feedback during the "waiting for patient"
+  // stretch (thought the call had stalled).
+  useEffect(() => {
+    if (!inCall || patientHere) return
+    let ctx = null, interval = null
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)()
+      const beep = () => {
+        const now = ctx.currentTime
+        for (const freq of [400, 450]) {
+          const osc = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          gain.gain.setValueAtTime(0.001, now)
+          gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02)
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4)
+          osc.connect(gain).connect(ctx.destination)
+          osc.start(now)
+          osc.stop(now + 0.42)
+        }
+      }
+      beep()
+      interval = setInterval(beep, 3000)
+    } catch {}
+    return () => {
+      if (interval) clearInterval(interval)
+      if (ctx) try { ctx.close() } catch {}
+    }
+  }, [inCall, patientHere])
+
   // Auto-start scribe when entering in-call state.
   //
   // Bug fix: previously depended only on [inCall]. On the LiveKit path,
@@ -561,6 +596,21 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     if (!inCall || patientHere || sipFallbackFired) return
     if (chimeMode) return
     if (elapsed < AUTO_FALLBACK_S) return
+    // Belt-and-braces: PatientPresenceStamp sometimes fails to flip
+    // patientHere=true even when the patient is clearly in the LiveKit room
+    // (verified 2026-09-28: patient on video, provider header still said
+    // "waiting for patient", then SIP dial fired at 15s and kicked the
+    // patient off video onto their phone). Before dialling, check the room
+    // for any live remote participant. If there is one, cancel the fallback
+    // and assume the presence stamp is what's broken, not the join.
+    try {
+      const room = scribeRoomRef.current
+      if (room && room.remoteParticipants && room.remoteParticipants.size > 0) {
+        console.log('[auto-fallback] cancelled — remote participant already in room (patientHere stuck false)')
+        setSipFallbackFired(true)
+        return
+      }
+    } catch {}
     setSipFallbackFired(true)
     ;(async () => {
       try {
@@ -638,7 +688,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     return null
   }
 
-  async function endCall() {
+  async function endCall(providerInitiated = false) {
     if (endingCall) return
     setEndingCall(true)
     const durationSec = callStart ? Math.round((Date.now() - callStart) / 1000) : null
@@ -671,12 +721,25 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         note_generated_at: null,
       })
     } catch {}
-    // Removed auto-navigate to /provider/notes/${id}. The provider now uses
-    // the EncounterActionBar to explicitly decide the next step (retry call,
-    // mark no-answer, or complete encounter). This prevents notes being
-    // generated for a phantom encounter where the LiveKit call ended but no
-    // meaningful clinical contact happened.
-    setCallComplete(true)
+    // Only navigate to notes when the PROVIDER intentionally clicked End Call
+    // AND the patient actually joined. Everything else (patient dropped mid-
+    // call, browser closed their tab, network hiccup that outlasted the grace
+    // period) goes back to the queue with no charge. This closes the P0 loop
+    // where a patient hang-up was firing an auto-finalise + $65 charge.
+    if (providerInitiated && patientHere) {
+      navigate(`/provider/notes/${id}`)
+      return
+    }
+    // Patient dropped OR phantom call — release the lock so the consult is
+    // pickable again from the queue. No auto-charge, no notes navigation.
+    try {
+      await updateConsultation(id, {
+        status: 'waiting',
+        provider_id: null,
+        provider_display_name: null,
+      })
+    } catch {}
+    navigate('/provider')
   }
 
   // Return to queue — the "patient never joined" escape hatch. Only enabled
@@ -868,7 +931,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
               <>
                 <FloatingCallWidget
                   primaryAction={(() => {
-                    if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
+                    if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: () => endCall(true), disabled: endingCall }
                     if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
                     const currentAttempt = consult?.join_attempts || 0
                     if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
@@ -1032,7 +1095,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
               //   patient never joined + ≥90s + attempts ≥2 → Mark no-show (no charge)
               // Prevents providers from being forced through notes for a
               // phantom consult when the patient never answered.
-              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: endCall, disabled: endingCall }
+              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: () => endCall(true), disabled: endingCall }
               if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
               // join_attempts already reflects the CURRENT attempt (incremented
               // by /api/initiate-call at Start Call). >=3 → this is the 3rd
@@ -1043,24 +1106,24 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             })()}
             isAudioOnly={isPhone}
             patientName={patientName}
+            subtitlesAvailable={subtitlesAvailable}
+            subtitlesOn={subtitlesOn}
+            onToggleSubtitles={() => setSubtitlesOn(v => !v)}
+            subtitleLanguages={supportedLangs}
+            currentSubtitleLang={activeLang}
+            onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
           />
           <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
-          {(() => {
-            const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
-            const meta = getLangMeta(patientLang)
-            const supported = meta && (meta.subtitleSupport === 'excellent' || meta.subtitleSupport === 'very_good')
-            if (!supported || patientLang === 'en') return null
-            return (
-              <CallSubtitles
-                viewerRole="provider"
-                viewerLang="en"
-                speakerLang={patientLang}
-                enabled={subtitlesOn}
-                modalOpen={showNotes}
-                consultationId={id}
-              />
-            )
-          })()}
+          {subtitlesAvailable && (
+            <CallSubtitles
+              viewerRole="provider"
+              viewerLang="en"
+              speakerLang={activeLang}
+              enabled={subtitlesOn}
+              modalOpen={showNotes}
+              consultationId={id}
+            />
+          )}
         </LiveKitRoom>
       ) : (
         <div style={{ padding:'2rem', textAlign:'center', color:'#6B7280' }}>

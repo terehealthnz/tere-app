@@ -10,6 +10,29 @@ import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
 import DobPicker from '../DobPicker'
 
+// Turn bare URLs inside a chat message into clickable links. Called from the
+// message render loop. Splits on http(s)://... boundaries — trailing
+// punctuation like `.`, `,`, `)`, `.` is stripped so "…index )." doesn't
+// eat the closing paren into the href. Keeps whitespace / newlines intact
+// so the message layout is unchanged when there are no URLs.
+function linkifyText(text) {
+  if (!text || typeof text !== 'string') return text
+  const parts = text.split(/(https?:\/\/[^\s)]+)/g)
+  return parts.map((part, i) => {
+    if (!/^https?:\/\//.test(part)) return part
+    // Strip trailing punctuation that likely belongs to the sentence.
+    let url = part
+    let trail = ''
+    while (/[.,;:!?)\]]$/.test(url)) { trail = url.slice(-1) + trail; url = url.slice(0, -1) }
+    return (
+      <React.Fragment key={i}>
+        <a href={url} target="_blank" rel="noreferrer" style={{ color:'inherit', textDecoration:'underline' }}>{url}</a>
+        {trail}
+      </React.Fragment>
+    )
+  })
+}
+
 // NHI is a NZ-only identifier — skip the NHI question on non-NZ surfaces
 // (terecare.com US, tere.co.nz AU beta). Any step whose next was 'nhi'
 // becomes 'pharmacy' outside NZ. AU beta will grow a Medicare-card
@@ -1669,7 +1692,7 @@ export default function AITriage() {
           <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start',marginBottom:'.875rem'}}>
             {m.role==='tere'&&<div style={{width:32,height:32,borderRadius:'50%',background:'var(--teal)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:'1rem',flexShrink:0,marginRight:8,marginTop:2}}>🩺</div>}
             <div style={{maxWidth:'80%',padding:'.75rem 1rem',borderRadius:m.role==='user'?'18px 18px 4px 18px':'18px 18px 18px 4px',background:m.role==='user'?'var(--teal)':m.style==='amber'?'#FEF3C7':'white',color:m.role==='user'?'white':m.style==='amber'?'#78350F':'var(--text)',fontSize:'.9375rem',lineHeight:1.6,boxShadow:'0 1px 3px rgba(0,0,0,0.08)',border:m.role==='tere'?(m.style==='amber'?'1px solid #FDE68A':'1px solid var(--border)'):'none'}}>
-              {m.text}
+              {linkifyText(m.text)}
             </div>
           </div>
         ))}

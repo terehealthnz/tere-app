@@ -28,8 +28,11 @@ class ChunkErrorBoundary extends React.Component {
       const key = 'tere_chunk_reload'
       if (!sessionStorage.getItem(key)) {
         sessionStorage.setItem(key, '1')
-        // Hard navigation to current path — fetches fresh HTML with correct chunk hashes
-        window.location.href = window.location.href
+        // location.reload() actually reloads even when the URL has a hash
+        // fragment (e.g. /waiting#id=...). Assigning href = href silently
+        // no-ops in Chrome when only the fragment differs, which pinned
+        // the boundary on "Updating app…" forever after a redeploy.
+        window.location.reload()
       } else {
         sessionStorage.removeItem(key)
         // Second failure: don't loop — fall through to show manual reload button

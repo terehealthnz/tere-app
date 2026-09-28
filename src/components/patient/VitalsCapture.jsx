@@ -180,7 +180,7 @@ export default function VitalsCapture() {
             const result = processStoredFrames(frames, storedFPS)
             if (result && !result.faceWarning) {
               setVitals(result); setUiState(STATES.DONE)
-              const id = sessionStorage.getItem('consultationId')
+              const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
 
               // Compute SpO2 synchronously so it lands in the FIRST updateVitals
               // PATCH alongside HR/RR. Previously we saved HR+RR immediately
@@ -216,10 +216,13 @@ export default function VitalsCapture() {
                   if (!bp) return
                   setBpEstimate(bp)
                   if (id && !id.startsWith('demo')) {
+                    // Merge with the previously-saved HR/RR/SpO2 (background-
+                    // frames path also affected by the REPLACE-not-merge bug
+                    // documented in the live-camera path above).
                     const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
                     if (bpString) {
                       import('../../lib/supabase').then(({ updateVitals }) =>
-                        updateVitals(id, { bp: bpString })
+                        updateVitals(id, { ...(result || {}), spo2: spo2Result?.estimate || null, bp: bpString })
                       ).catch(() => {})
                     }
                   }
@@ -273,7 +276,7 @@ export default function VitalsCapture() {
         // Runs async; when it resolves we PATCH the consult with the BP so it
         // shows in the provider's vitals bar. Previously the estimate lived
         // only in local React state and never persisted.
-        const consultIdForBp = sessionStorage.getItem('consultationId')
+        const consultIdForBp = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
         if (result.rawFrames?.length) {
           // BP always attempted — confidence chip communicates uncertainty.
           // WAND change-notify tracked separately (task #260).
@@ -285,10 +288,14 @@ export default function VitalsCapture() {
             if (!bp) return
             setBpEstimate(bp)
             if (consultIdForBp && !consultIdForBp.startsWith('demo')) {
-              // Merge into existing vitals payload.
+              // Merge into existing vitals payload — updateVitals REPLACES the
+              // vitals JSON column, so we must send the full set (HR/RR/SpO2 +
+              // new BP). Previously this sent only { bp } and wiped the
+              // earlier save. Verified in prod 2026-09-28: consult
+              // f600012d ended up with vitals={"bp":"121/79"} only.
               const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
               if (bpString) {
-                updateVitals(consultIdForBp, { bp: bpString }).catch(() => {})
+                updateVitals(consultIdForBp, { ...(result || {}), spo2: spo2Result?.estimate || null, bp: bpString }).catch(() => {})
               }
             }
           }).catch(() => {})
@@ -299,7 +306,7 @@ export default function VitalsCapture() {
           try { spo2Result = calculateSpO2(result.rawFrames) } catch {}
           if (spo2Result) setSpo2Estimate(spo2Result)
         }
-        const id = sessionStorage.getItem('consultationId')
+        const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
         if (id && !id.startsWith('demo')) {
           try {
             await updateVitals(id, { ...result, spo2: spo2Result?.estimate || null })
@@ -399,7 +406,7 @@ export default function VitalsCapture() {
         }
         const finalResult = { ...result, source: 'finger_ppg', ptt: pttResult || undefined }
         setVitals(finalResult); setUiState(STATES.DONE); setScanMode('face')
-        const id = sessionStorage.getItem('consultationId')
+        const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
         if (id && !id.startsWith('demo')) {
           const { updateVitals } = await import('../../lib/supabase')
           await updateVitals(id, finalResult)
@@ -422,7 +429,7 @@ export default function VitalsCapture() {
       source: 'manual',
       note: 'Manually entered by patient',
     }
-    const cId = sessionStorage.getItem('consultationId')
+    const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
     if (cId && !cId.startsWith('demo')) {
       try {
         await updateVitals(cId, result)
@@ -439,12 +446,12 @@ export default function VitalsCapture() {
     } else {
       sessionStorage.setItem('vitals', JSON.stringify(result))
     }
-    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
+    navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
   }
 
   async function skip() {
     try {
-      const cId = sessionStorage.getItem('consultationId')
+      const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
       if (cId && !cId.startsWith('demo')) {
         await patientUpdateConsultation(cId, {
           status: 'vitals_complete',
@@ -455,7 +462,7 @@ export default function VitalsCapture() {
         sessionStorage.setItem('vitals', JSON.stringify({ skipped: true }))
       }
     } catch {}
-    navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
+    navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
   }
 
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
@@ -497,7 +504,11 @@ export default function VitalsCapture() {
     if (!spo2Display?.show) missingVitals.push('SpO₂')
     if (!bpEstimate || !bpEstimate.systolic || !bpEstimate.diastolic) missingVitals.push('Blood pressure')
   }
-  const canContinue = missingVitals.length === 0 || attemptCount >= 2
+  // One attempt is enough — workers on boats, in poor light, or with any
+  // movement will always have partial readings. Provider will re-take
+  // manually during the call if a specific value is needed. Any completed
+  // capture (attemptCount >= 1) unlocks Continue regardless of missing.
+  const canContinue = missingVitals.length === 0 || attemptCount >= 1
 
   // On each transition into DONE with a fresh reading, bump the attempt
   // counter and — if this was the FIRST attempt and readings are
@@ -825,13 +836,13 @@ export default function VitalsCapture() {
                       }
                       if (attemptCount > 1 && vitals) {
                         try {
-                          const cId = sessionStorage.getItem('consultationId')
+                          const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
                           if (cId && !cId.startsWith('demo')) {
                             await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
                           }
                         } catch {}
                       }
-                      navigate(makeConsultUrl('/waiting', sessionStorage.getItem('consultationId') || 'demo'))
+                      navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
                     }}>
                       Continue to consultation
                     </button>

@@ -13,15 +13,37 @@ function ProviderLeaveWatcher() {
   const room = useRoomContext()
   useEffect(() => {
     if (!room) return
+    // Grace period before we conclude the provider is really gone. LiveKit
+    // fires participantDisconnected briefly on the provider's side during
+    // network hiccups + reconnects (verified 2026-09-27: provider console
+    // showed "publishing track" twice from a reconnect, patient got kicked
+    // to /done mid-call). 20s covers a typical reconnect; anything longer
+    // and the provider probably intentionally left.
+    let pending = null
     const onLeft = () => {
-      try {
-        if (!room.remoteParticipants || room.remoteParticipants.size === 0) {
-          room.disconnect()
-        }
-      } catch (e) { console.warn('[PatientCall] auto-leave failed:', e?.message) }
+      if (pending) return
+      pending = setTimeout(() => {
+        pending = null
+        try {
+          if (!room.remoteParticipants || room.remoteParticipants.size === 0) {
+            room.disconnect()
+          }
+        } catch (e) { console.warn('[PatientCall] auto-leave failed:', e?.message) }
+      }, 20000)
+    }
+    const onJoined = () => {
+      // Provider came back — cancel the pending disconnect.
+      if (pending) { clearTimeout(pending); pending = null }
     }
     room.on('participantDisconnected', onLeft)
-    return () => { try { room.off('participantDisconnected', onLeft) } catch {} }
+    room.on('participantConnected',    onJoined)
+    return () => {
+      try {
+        room.off('participantDisconnected', onLeft)
+        room.off('participantConnected',    onJoined)
+      } catch {}
+      if (pending) clearTimeout(pending)
+    }
   }, [room])
   return null
 }

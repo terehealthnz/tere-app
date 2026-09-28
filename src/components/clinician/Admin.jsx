@@ -5921,12 +5921,16 @@ function EmployersPanel() {
     try {
       const text = await file.text()
       const rows = parseCsv(text)
-      if (!rows.length) { alert('No valid rows found. CSV needs columns: first_name, last_name (and optionally dob, employee_id)'); setUploadingFor(null); return }
+      if (!rows.length) { alert('No valid rows found. CSV needs first_name + last_name at minimum. Optional: dob, email, phone, address, nhi, employee_id'); setUploadingFor(null); return }
       const inserts = rows.map(r => ({
         employer_id: employerId,
         first_name: r.first_name || r.firstname || '',
         last_name: r.last_name || r.lastname || r.surname || '',
-        dob: r.dob || null,
+        dob: r.dob || r.birthdate || r.date_of_birth || null,
+        email: r.email || null,
+        phone: r.phone || r.mobile || r.phone_number || null,
+        address: r.address || null,
+        nhi: r.nhi ? String(r.nhi).toUpperCase().replace(/\s+/g, '') : null,
         employee_id: r.employee_id || r.staff_id || null,
       })).filter(r => r.first_name && r.last_name)
       await addEmployerEmployees(inserts)
@@ -6106,7 +6110,7 @@ function EmployersPanel() {
         </div>
       )}
       <div style={{ marginTop: '1rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, fontSize: '.8125rem', color: '#6B7280' }}>
-        CSV format: <code style={{ fontFamily: 'monospace' }}>first_name,last_name,dob,employee_id</code> — header row required, dob and employee_id optional.
+        CSV format: <code style={{ fontFamily: 'monospace' }}>first_name,last_name,dob,address,phone,email,nhi,employee_id</code> — header row required. Only first_name and last_name are required; everything else is optional and pre-fills the worker's booking form.
       </div>
     </div>
   )

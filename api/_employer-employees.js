@@ -56,6 +56,9 @@ export default async function handler(req, res) {
       last_name:   r?.last_name || null,
       dob:         r?.dob || null,
       email:       r?.email || null,
+      phone:       r?.phone || null,
+      address:     r?.address || null,
+      nhi:         r?.nhi ? String(r.nhi).toUpperCase().trim() : null,
       employee_id: r?.employee_id || null,
     })).filter(r => r.employer_id && r.first_name && r.last_name)
     if (clean.length === 0) return res.status(400).json({ error: 'No valid rows (need employer_id + first_name + last_name)' })

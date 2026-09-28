@@ -737,16 +737,16 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
 
     console.log('[vitalsModel] raw:', { rawSys: +rawSys.toFixed(1), rawDia: +rawDia.toFixed(1), rawHr: +rawHr.toFixed(1), rawSpo2: +rawSpo2.toFixed(1) })
 
-    // Mean-collapse detector: even with adequate label variance, if the
-    // model output lands within ±2 mmHg of the training mean the network
-    // has effectively learned nothing about this input (it's just returning
-    // the bias). Previously we returned null here, which hid BP entirely.
-    // Post-launch we prefer to surface it as 'low' confidence — provider
-    // sees the reading with a clear "may vary" chip, patient never sees a
-    // gap. Retraining is task #517.
+    // Mean-collapse detector: if model output lands within ±2 mmHg of the
+    // training mean the network has learned nothing about this input — it
+    // just returns the bias. Reverted to return-null on 2026-09-28 (launch
+    // eve): publishing a fake ~121/79 for every patient is worse than
+    // showing "BP N/A" because the provider can't trust it and may act on
+    // a spurious reading. Retraining is task #517 (post-launch).
     const collapsed = Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2
     if (collapsed) {
-      console.warn('[vitalsModel] output near training mean — publishing as low confidence (model retrain pending, task #517).')
+      console.warn('[vitalsModel] mean-collapse detected — refusing to publish BP. Provider should use cuff. (Retrain: task #517.)')
+      return null
     }
 
     const { systolic, diastolic } = clampBP(rawSys, rawDia)
