@@ -46,6 +46,10 @@ const UPDATE_ALLOWLIST = new Set([
   'notes_completed_seconds', 'clinical_notes',
   'transcript', 'summary', 'chief_complaint',
   'diagnosis', 'diagnosis_code', 'icd10_code', 'acc_read_code',
+  // ACC extraction fields — provider chart writes these after AI note gen so
+  // the Convert-to-ACC modal prefills mechanism + body part + ICD-10 code
+  // instead of the provider retyping. All also written by _convert-to-acc.js.
+  'acc_injury_details', 'acc_body_part', 'acc_icd10_code', 'acc_icd10_description',
   'mdm_summary', 'plan_summary',
   // Async consult response
   'async_response', 'async_responded_at',

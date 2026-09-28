@@ -449,6 +449,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // accept populates safetyNetText. Cleared after accept so the chip
   // doesn't linger over their edited wording.
   const [aiSafetyNet, setAiSafetyNet] = useState(null)
+  // AI-extracted diagnosis surfaced as a discrete Diagnosis section above
+  // the free-text note. Not editable here — the source of truth is the
+  // clinical impression the AI drafted from the transcript; provider can
+  // edit the note prose if wording differs.
+  const [aiDx, setAiDx] = useState({ impression: null, accIcd10Code: null, accIcd10Description: null })
   // Provider's personal safety-net templates (task 466 follow-up 2026-09-08).
   // Merged into the built-in SAFETY_NET_TEMPLATES dropdown with a "⭐" prefix.
   const [mySafetyNetTemplates, setMySafetyNetTemplates] = useState([])
@@ -770,6 +775,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       if (!res.ok || data.error) throw new Error(data.error || 'Generation failed')
 
       setNoteText(buildNZNote(data, consultData, actionsRef.current || []))
+      // Capture the AI diagnosis surface so we can render the Diagnosis
+      // section + prefill the ACC modal end-to-end without provider retyping.
+      setAiDx({
+        impression:          data.clinicalImpression || null,
+        accIcd10Code:        data.accSection?.accIcd10Code || null,
+        accIcd10Description: data.accSection?.accIcd10Description || null,
+      })
       if (data.accSection) {
         if (data.accSection.mechanism) setAccMechanism(data.accSection.mechanism)
         if (data.accSection.bodyPart)  setAccBodyPart(data.accSection.bodyPart)
@@ -783,7 +795,16 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         setAiSafetyNet(data.recommendedSafetyNet)
       }
 
-      await updateConsultation(id, { note_generated_at: new Date().toISOString() })
+      // Persist ACC extraction to the consultation row so ConvertToAccModal
+      // reads it back via its `consult` prop and prefills mechanism, body
+      // part, and ICD-10 code. Only fields the allowlist accepts (see
+      // api/_create-consultation.js).
+      const accPatch = {}
+      if (data.accSection?.mechanism)          accPatch.acc_injury_details   = data.accSection.mechanism
+      if (data.accSection?.bodyPart)           accPatch.acc_body_part        = data.accSection.bodyPart
+      if (data.accSection?.accIcd10Code)       accPatch.acc_icd10_code       = data.accSection.accIcd10Code
+      if (data.accSection?.accIcd10Description) accPatch.acc_icd10_description = data.accSection.accIcd10Description
+      await updateConsultation(id, { note_generated_at: new Date().toISOString(), ...accPatch })
     } catch (e) {
       console.error(e)
       setGenError(e.message)
@@ -1597,6 +1618,28 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             <div style={{ fontSize:'.8125rem', color:'#9CA3AF', fontStyle:'italic' }}>No prescriptions or imaging ordered yet</div>
           )}
         </div>
+
+        {/* Diagnosis — discrete AI-extracted impression + ACC ICD-10 chip.
+            Renders above the note text so provider can see the diagnosis at
+            a glance and confirm it matches the note prose. Not editable
+            here — provider edits the note text itself if wording differs.
+            ACC ICD-10 is the code the Convert-to-ACC modal will submit. */}
+        {aiDx.impression && (
+          <div style={{ background:'#F0F9FF', border:'1.5px solid #BAE6FD', borderRadius:14, padding:'12px 16px', marginBottom:12 }}>
+            <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#0369A1', marginBottom:6 }}>
+              Diagnosis
+            </div>
+            <div style={{ fontSize:'.9375rem', color:'#0C4A6E', fontWeight:600, lineHeight:1.45 }}>
+              {aiDx.impression}
+            </div>
+            {aiDx.accIcd10Code && (
+              <div style={{ marginTop:8, display:'inline-flex', alignItems:'center', gap:6, background:'white', border:'1.5px solid #BAE6FD', borderRadius:20, padding:'3px 10px', fontSize:'.75rem', color:'#0369A1', fontWeight:600 }}>
+                <span style={{ fontFamily:'ui-monospace, SFMono-Regular, monospace' }}>{aiDx.accIcd10Code}</span>
+                {aiDx.accIcd10Description && <span style={{ color:'#0284C7', fontWeight:500 }}>· {aiDx.accIcd10Description}</span>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Clinical note — labelled 'internal' for async */}
         <div style={{ background:'white', borderRadius:14, border:`1.5px solid ${noteConfirmed?'#BBF7D0':'#E2E8F0'}`, marginBottom:12, overflow:'hidden' }}>

@@ -18,10 +18,13 @@ const lbl = { display: 'block', fontSize: '.75rem', fontWeight: 600, color: '#6B
 
 export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
   const today = new Date().toISOString().slice(0, 10)
-  const [injuryDate, setInjuryDate]   = useState(today)
-  const [mechanism, setMechanism]     = useState('')
-  const [bodyPart, setBodyPart]       = useState('')
-  const [workRelated, setWorkRelated] = useState('no')
+  const [injuryDate, setInjuryDate]   = useState(consult?.acc_injury_date || today)
+  // Prefill from AI extraction — /api/generate-notes persists mechanism +
+  // body part + ICD-10 to the consult row before the provider opens this
+  // modal, so they see a filled form instead of a blank one to retype.
+  const [mechanism, setMechanism]     = useState(consult?.acc_injury_details || '')
+  const [bodyPart, setBodyPart]       = useState(consult?.acc_body_part || '')
+  const [workRelated, setWorkRelated] = useState(consult?.acc_employer ? 'yes' : 'no')
   const [employer, setEmployer]       = useState(consult?.acc_employer || '')
   // ACC ICD-10 (HL7 NZ acc-icd10 CodeSystem) — mandatory field for ACC45
   // lodgement. Pre-fill from consult row if AI already suggested one.
