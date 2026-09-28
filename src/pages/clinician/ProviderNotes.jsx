@@ -227,8 +227,14 @@ function buildNZNote(data, consult, actions) {
 
   lines.push('')
   lines.push('ASSESSMENT')
-  if (data.icd10Label || data.icd10Code) lines.push(`Diagnosis: ${data.icd10Label || ''}${data.icd10Code ? ` (ICD-10: ${data.icd10Code})` : ''}`)
-  if (isAcc && data.accSection?.readCodeSuggestion) lines.push(`ACC Read code: ${data.accSection.readCodeSuggestion}${data.accSection.readCodeLabel ? ` — ${data.accSection.readCodeLabel}` : ''}`)
+  // Impression: plain-English NZ urgent-care wording (from AI clinical_impression
+  // or legacy icd10Label fallback). ACC ICD-10 code below is mandatory for
+  // ACC45 lodgement — HL7 NZ acc-icd10 CodeSystem (12,494 codes, no-dot format).
+  const impression = data.clinicalImpression || data.icd10Label || null
+  if (impression) lines.push(`Impression: ${impression}`)
+  if (isAcc && data.accSection?.accIcd10Code) {
+    lines.push(`ACC ICD-10: ${data.accSection.accIcd10Code}${data.accSection.accIcd10Description ? ` — ${data.accSection.accIcd10Description}` : ''}`)
+  }
   if (data.mdm) { lines.push(''); lines.push('Clinical reasoning:'); lines.push(data.mdm) }
 
   lines.push('')

@@ -1,6 +1,7 @@
 // api/_generate-notes.js — Tere Scribe v3: extract → red-flag check → JS-merge
 import { isFlagEnabled } from './_flags-server.js'
 import { aiCallJSON, isConfigured } from './_ai.js'
+import { isAccIcd10, accIcd10Label } from './_acc-icd10-codes.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -160,15 +161,20 @@ export default async function handler(req, res) {
   }
   const hasTranscript = transcript && transcript.trim().length > 50
 
-  const systemPrompt = `You are a clinical documentation assistant. Your job is to accurately transcribe and structure what was said during a NZ telehealth consultation — nothing more. You are not the clinician. You do not diagnose, synthesise differentials, apply decision rules, or flag safety concerns of your own. Any clinical reasoning belongs to the provider; if they voiced it, capture it verbatim, otherwise leave the field null.
+  const systemPrompt = `You are a clinical documentation assistant for a NZ urgent-care telehealth service. Your job is to produce a succinct, precise, medically-worded consult note from what was said during the call — the style should read like a busy NZ urgent-care clinician wrote it, not a hospital coder.
 
-Knowledge you draw on strictly for accurate transcription and NZ-appropriate documentation formatting:
-- NZ ACC injury classifications and Read codes (for structured note output only)
+Style rules:
+- Third person past tense, medical English.
+- Tight prose per section. No filler, no repetition of triage data, no small talk, no "the patient reported that they reported...".
+- Do not invent clinical content. If it wasn't said, leave the field null.
+- Do not add differentials, decision rules, or safety flags the provider did NOT voice. Any clinical reasoning is captured verbatim from what the provider said.
+- Diagnosis is a plain-English clinical impression (e.g. "Right ankle sprain — lateral ligament", "Acute otitis media, right"). NZ primary/urgent care does NOT use ICD-10 in the reader-facing note.
+
+Knowledge you draw on strictly for NZ-appropriate documentation:
+- NZ ACC injury classifications and Read codes (for the ACC-specific fields only, when an injury is being lodged)
 - PHARMAC medication names and NZ prescribing terminology
-- MCNZ medical record keeping conventions
+- MCNZ record-keeping conventions (Right 7 informed consent, Right 8 support person, identity confirmed)
 - HDC Code of Rights documentation obligations
-
-You write in clear, concise medical English, third person past tense. You extract only clinically relevant information voiced during the consultation. You do not include greetings, small talk, or non-clinical conversation. You do not add clinical opinions, differentials, or "should be considered" language of your own.
 
 CRITICAL LANGUAGE RULE — all output MUST be in English regardless of the source language.
 If the transcript, chief complaint, or triage fields contain Spanish, Chinese, Japanese, Korean,
@@ -239,9 +245,10 @@ For each clinical field include a confidence rating based on the clarity and com
   "tobacco_use": "Smoking/vaping status only if mentioned. null if not mentioned.",
   "alcohol_use": "Alcohol use only if mentioned. null if not mentioned.",
   "occupation": "Occupation details only if mentioned beyond triage employer field. null if not mentioned.",
-  "diagnosis_code": "The single most likely working diagnosis for this consultation, expressed as an ICD-10-AM code (Australian/NZ hospital coding standard). Base it on the WHOLE clinical picture (chief complaint + your extracted findings + provider's spoken reasoning), not just keywords. If the provider explicitly named a diagnosis in the transcript, use theirs. If the presentation is too vague to code confidently, return null and Z00.0 will be used as the placeholder. Examples: 'A09' for gastroenteritis, 'J06.9' for URTI, 'M54.5' for low back pain, 'H66.9' for otitis media unspecified, 'N39.0' for UTI, 'R10.4' for undifferentiated abdominal pain, 'S93.4' for ankle sprain. Do NOT return anything outside ICD-10-AM.",
-  "diagnosis_description": "Plain-English description of the diagnosis_code above, exactly as it appears in ICD-10-AM. e.g. 'Gastroenteritis and colitis of unspecified origin' for A09.",
-  "diagnosis_confidence": "high|medium|low|null — high means the presentation clearly matches this code, medium means it's the most likely but not the only fit, low means the transcript was too thin and the provider should review.",
+  "clinical_impression": "The provider's working diagnosis in plain medical English — the way an urgent-care clinician would write it in a discharge note. Concise and specific: 'Right ankle sprain — lateral ligament', 'Acute otitis media, right', 'Viral URTI', 'Uncomplicated lower UTI', 'Undifferentiated abdominal pain — no red flags on examination', 'Mechanical low back pain, no radiculopathy'. If the provider named the diagnosis in the transcript, use their wording. If the presentation is too vague, return null and the provider will complete it.",
+  "diagnosis_confidence": "high|medium|low|null — high means the presentation clearly supports this impression, medium means it's the most likely but not the only fit, low means the transcript was too thin and the provider should review.",
+  "acc_icd10_code": "REQUIRED when this presentation is an ACC-covered injury (see acc_assessment.is_acc below). Use the ACC ICD-10 code from the HL7 NZ ACC codeset (http://hl7.org.nz/fhir/CodeSystem/acc-icd10). NO DOT format — write 'S9340' not 'S93.40', 'S001' not 'S00.1'. Common examples for urgent-care telehealth: 'S9340' (Sprain of lateral collateral ligament of ankle), 'S6100' (Open wound of finger without damage to nail), 'S001' (Contusion of eyelid), 'S0100' (Open wound of scalp), 'S6000' (Contusion of finger without damage to nail), 'S8300' (Dislocation of patella current), 'S4000' (Contusion of shoulder and upper arm), 'T140' (Superficial injury of unspecified body region). Return null for NON-ACC presentations (URTI, UTI, otitis, headache without head injury, gastroenteritis, dermatitis, mental health without workplace trauma). Return null if injury type is unclear from the transcript — provider will code it.",
+  "acc_icd10_description": "Plain-English description of the acc_icd10_code above as it appears in the ACC codeset. e.g. 'Sprain of lateral collateral ligament of ankle' for S9340. null when acc_icd10_code is null.",
   "acc_assessment": {
     "_comment": "ACC eligibility. Determines billing: ACC pays MST1 $96.38 initial / MST3 $48.20 follow-up direct; otherwise patient pays $65 private. Accuracy > maximisation — false positives trigger ACC audits + MCNZ complaints. When in doubt, err on 'not-ACC' and let the provider override.",
     "is_acc": "true|false — TRUE only if the presentation is a Personal Injury By Accident under the Accident Compensation Act 2001: a sudden unintended external event causing bodily harm (trauma, fall, workplace incident, road traffic, sports injury, sudden lifting injury with a specific event, work-related gradual process in limited categories). FALSE for: gradual-onset musculoskeletal pain without an incident, degenerative conditions, chronic pain flares, disease/illness (URTI, UTI, gastro, otitis, headache without head injury, dermatitis, mental health without workplace trauma). If patient claimed ACC at triage but the transcript reveals no incident, return false.",
@@ -277,37 +284,33 @@ For each clinical field include a confidence rating based on the clarity and com
 
   // ── Step 2: JS merge — deterministic triage + extracted combination ────────
   const accCode  = suggestReadCode(triage.chiefComplaint, triage.accInjuryDescription)
-  // Diagnosis code — prefer Sonnet 4.5's ICD-10-AM pick over the keyword
-  // fallback. Sonnet sees the full clinical picture (chief complaint +
-  // transcript + its own extracted findings) and picks the code that matches
-  // the whole presentation, not just a substring hit. If Sonnet returned
-  // null (transcript too thin), the keyword rules take over as a safety
-  // net. If BOTH return nothing usable, the merger returns Z00.0 as the
-  // "general medical examination" placeholder.
-  // Validate the AI-returned ICD-10 code against the ICD-10-AM shape
-  // (^[A-TV-Z]\d{2}(\.\d{1,4})?$) before trusting it. Pen-test #312-B5:
-  // without this, a prompt-injection payload like
-  // `"diagnosis_code": "Z51.5"` (palliative care) could land verbatim in
-  // the chart. Provider sign-off is the ultimate backstop but rejecting
-  // obviously-malformed codes at ingest is cheap defence in depth.
-  const ICD10_AM_RE = /^[A-TV-Z]\d{2}(\.\d{1,4})?$/
-  const extractedCodeValid = typeof extracted.diagnosis_code === 'string'
-    && ICD10_AM_RE.test(extracted.diagnosis_code)
-    && typeof extracted.diagnosis_description === 'string'
-    && extracted.diagnosis_description.length <= 200
-  if (extracted.diagnosis_code && !extractedCodeValid) {
-    console.warn('[generate-notes] rejected malformed diagnosis_code:', extracted.diagnosis_code)
+  // Clinical impression — plain-English NZ urgent-care style, no ICD-10.
+  // Sonnet returns `clinical_impression` as a short phrase (see extraction
+  // schema). We cap length (300 chars) as a cheap injection-defence guard;
+  // provider still signs off at finalise. Empty impression → provider fills.
+  const impressionRaw = typeof extracted.clinical_impression === 'string' ? extracted.clinical_impression.trim() : ''
+  const clinicalImpression = (impressionRaw.length > 0 && impressionRaw.length <= 300) ? impressionRaw : null
+
+  // ACC ICD-10 — validate against HL7 NZ acc-icd10 CodeSystem (12,494 codes,
+  // no-dot format). ACC requires this on ACC45 claim lodgement. If the AI
+  // returned a code that's not in the codeset, drop it and use the codeset's
+  // authoritative label (never trust the AI's description if it doesn't
+  // match the whitelist — provider re-picks at finalise).
+  const accCodeRaw = typeof extracted.acc_icd10_code === 'string' ? extracted.acc_icd10_code.trim().toUpperCase().replace(/\./g, '') : null
+  const accIcd10Code = (accCodeRaw && isAccIcd10(accCodeRaw)) ? accCodeRaw : null
+  const accIcd10Description = accIcd10Code
+    ? (accIcd10Label(accIcd10Code) || (typeof extracted.acc_icd10_description === 'string' ? extracted.acc_icd10_description.trim().slice(0, 200) : null))
+    : null
+  if (accCodeRaw && !accIcd10Code) {
+    console.warn('[generate-notes] rejected out-of-whitelist ACC ICD-10 code:', accCodeRaw)
   }
-  const icd10 = extractedCodeValid
-    ? { code: extracted.diagnosis_code, description: extracted.diagnosis_description }
-    : suggestIcd10(triage.chiefComplaint, triage.accInjuryDescription, transcript)
   const planAdditions = Array.isArray(extracted.plan_additions)
     ? extracted.plan_additions.filter(Boolean) : []
 
   // Source + confidence tracking
   const _sources = {
     presentingHistory: extracted.additional_history                          ? 'transcript' : (triage.chiefComplaint ? 'triage' : 'none'),
-    diagnosis:         extracted.diagnosis_code                              ? 'transcript' : 'keyword_fallback',
+    diagnosis:         extracted.clinical_impression                        ? 'transcript' : 'none',
     medicalHistory:    triage.medicalHistory                                 ? 'triage'     : 'none',
     medications:       triage.medications                                    ? 'triage'     : 'none',
     allergies:         triage.allergies                                      ? 'triage'     : 'none',
@@ -391,6 +394,11 @@ For each clinical field include a confidence rating based on the clarity and com
       bodyPart:           null,
       readCodeSuggestion: accCode.code,
       readCodeLabel:      accCode.label,
+      // ACC ICD-10 code (HL7 NZ acc-icd10 CodeSystem) — the mandatory
+      // diagnosis code for ACC45 lodgement. Validated against the 12,494-
+      // code whitelist server-side; provider still confirms at finalise.
+      accIcd10Code,
+      accIcd10Description,
     } : null,
     suggestedReadCode: accCode.code,
     readCodeLabel:     accCode.label,
@@ -399,8 +407,12 @@ For each clinical field include a confidence rating based on the clarity and com
     // shows the reasoning. Validated: is_acc coerced to boolean, read_code
     // whitelisted, unknown codes normalised to 'S39' with confidence 'low'.
     accAiAssessment: validateAccAssessment(extracted.acc_assessment),
-    icd10Code:         icd10.code,
-    icd10Label:        icd10.description,
+    // NZ urgent-care note style: plain-English clinical impression, no ICD-10
+    // in the reader-facing text. ACC path still uses the Read code (kept in
+    // accSection.readCodeSuggestion). icd10Code/Label removed 2026-09-28 —
+    // ICD-10-AM is a NZ hospital coding standard, not a primary-care note
+    // convention; GPs receiving the letter don't want to see "(ICD-10: J06.9)".
+    clinicalImpression,
     _sources,
     _confidence,
     _triage,
