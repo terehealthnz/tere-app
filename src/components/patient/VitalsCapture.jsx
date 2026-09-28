@@ -5,6 +5,7 @@ import { updateVitals, patientUpdateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
 import { makeConsultUrl } from '../../lib/consultUrl'
+import { useAutoT } from '../../lib/i18n'
 
 const STATES = {
   REQUESTING: 'requesting',
@@ -16,32 +17,33 @@ const STATES = {
   ERROR:      'error',
 }
 
-const PREP_TIPS = [
-  { icon: '💡', text: 'Good lighting on your face' },
-  { icon: '📱', text: 'Hold phone at arm\'s length' },
-  { icon: '🧘', text: 'Stay still and breathe normally' },
-  { icon: '👓', text: 'Remove glasses if you wear them' },
-]
-
 function QualityIndicator({ deviceInfo }) {
+  const tq = useAutoT({
+    lowFps: 'Low frame rate detected — results may be less accurate',
+    tooDark: 'Too dark — face a window or turn on more lights',
+    overexposed: 'Overexposed — avoid direct sunlight behind you',
+    lowQuality: 'Camera quality is low — results may be less accurate',
+    goodReady: '✓ Camera quality is good — ready to scan',
+    forBest: '⚠️ For best results:',
+  })
   if (!deviceInfo) return null
   const { fps, brightness, quality } = deviceInfo
   const issues = []
-  if (fps < 20)         issues.push('Low frame rate detected — results may be less accurate')
-  if (brightness < 60)  issues.push('Too dark — face a window or turn on more lights')
-  if (brightness > 200) issues.push('Overexposed — avoid direct sunlight behind you')
-  if (quality < 50)     issues.push('Camera quality is low — results may be less accurate')
+  if (fps < 20)         issues.push(tq.lowFps)
+  if (brightness < 60)  issues.push(tq.tooDark)
+  if (brightness > 200) issues.push(tq.overexposed)
+  if (quality < 50)     issues.push(tq.lowQuality)
 
   if (issues.length === 0) {
     return (
       <div style={{ background:'#D1FAE5', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#065F46', fontSize:'0.875rem' }}>
-        ✓ Camera quality is good — ready to scan
+        {tq.goodReady}
       </div>
     )
   }
   return (
     <div style={{ background:'#FEF3C7', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#92400E', fontSize:'0.875rem' }}>
-      ⚠️ For best results:
+      {tq.forBest}
       <ul style={{ margin:'4px 0 0 16px', padding:0 }}>
         {issues.map((issue, i) => <li key={i}>{issue}</li>)}
       </ul>
@@ -50,6 +52,11 @@ function QualityIndicator({ deviceInfo }) {
 }
 
 function ConfidenceBadge({ numericConfidence }) {
+  const tc = useAutoT({
+    high: '✓ High quality reading',
+    mid: '⚠️ Moderate quality — reading may vary slightly',
+    low: '⚠️ Low quality — consider retaking for accuracy',
+  })
   if (numericConfidence == null) return null
   const high = numericConfidence >= 80
   const mid  = numericConfidence >= 60
@@ -59,7 +66,7 @@ function ConfidenceBadge({ numericConfidence }) {
       color:      high ? '#065F46' : '#92400E',
       borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:'0.875rem'
     }}>
-      {high ? '✓ High quality reading' : mid ? '⚠️ Moderate quality — reading may vary slightly' : '⚠️ Low quality — consider retaking for accuracy'}
+      {high ? tc.high : mid ? tc.mid : tc.low}
       <span style={{ color:'var(--muted)', marginLeft:8, fontSize:'0.8rem' }}>({numericConfidence}/100)</span>
     </div>
   )
@@ -113,7 +120,7 @@ export default function VitalsCapture() {
   const [manualMode, setManualMode] = useState(false)
   const [manual,     setManual]     = useState({ hr:'', rr:'', spo2:'', bp:'', temperature:'' })
   const [deviceInfo, setDeviceInfo] = useState(null)
-  const [scanLabel,  setScanLabel]  = useState('Start scan')
+  const [scanLabel,  setScanLabel]  = useState(null)  // null = fall back to t.startScan
   const [passNum,    setPassNum]    = useState(1)
   const [totalPasses,setTotalPasses]= useState(3)
   const [motionPct,  setMotionPct]  = useState(0)
@@ -126,6 +133,111 @@ export default function VitalsCapture() {
   const [showAbnormalGate, setShowAbnormalGate] = useState(false)
   const rearStreamRef  = useRef(null)
   const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
+
+  const t = useAutoT({
+    // Header
+    navVitals: 'Vital signs',
+    homeLabel: 'Tere Health — go to home',
+    // Card titles + copy
+    scanTitle: 'Vital signs scan',
+    scanSubtitle: 'Your camera measures your heart rate, breathing, and blood pressure. Takes about 80 seconds.',
+    analysingTitle: 'Analysing your vitals…',
+    analysingSubtitle: 'We captured readings during your consultation — processing now.',
+    capturedTitle: 'Vitals captured',
+    capturedSubtitle: 'Captured during triage — no scan needed.',
+    // Prep tips
+    prepLighting: 'Good lighting on your face',
+    prepArmsLength: 'Hold phone at arm\'s length',
+    prepStill: 'Stay still and breathe normally',
+    prepGlasses: 'Remove glasses if you wear them',
+    // Errors
+    cameraDenied: 'Camera access denied. Please allow camera access and refresh, or use manual entry below.',
+    measurementCancelled: 'Measurement cancelled.',
+    fingerFailed: 'Finger scan failed. Try again or use face scan.',
+    rearUnavailable: 'Rear camera unavailable',
+    vitalsSaveFail: 'Vitals didn\'t save — {msg}. Try retake or continue without vitals.',
+    vitalsManualFail: 'Vitals didn\'t save — {msg}. Fix and try again.',
+    serverError: 'server error',
+    // Overlays
+    checkingCamera: 'Checking camera quality…',
+    holdStill: 'Hold still',
+    holdStillMeasuring: 'Hold still — measuring',
+    passOf: 'Pass {n} of {total}',
+    alignFace: 'Align your face with the oval',
+    // Finger scan
+    coverFinger: 'Cover the rear camera with your finger',
+    pressGently: 'Press gently — don\'t block the flash',
+    // Signal warning
+    poorSignal: '⚠️ Poor signal detected',
+    poorSignalBody: 'Low lighting or camera quality may affect accuracy. Try the finger scan for a more reliable reading.',
+    switchFinger: '👆 Switch to finger scan',
+    coverLens: 'Cover the rear camera lens with your fingertip',
+    // For best results box
+    forBestResults: 'For best results:',
+    bestResultsBody: 'Good lighting on your face · Stay still during the scan · Remove glasses if possible',
+    // Results
+    analysedSecs: '✓ Analysed {n} seconds of data from triage',
+    moreDataMore: 'More data = more accurate readings',
+    pttMs: '✓ Pulse transit time: {n}ms',
+    bpEnhanced: '· BP estimate enhanced with vascular timing',
+    heartRate: 'Heart Rate',
+    bpm: 'bpm',
+    respRate: 'Resp. Rate',
+    breathsMin: 'breaths/min',
+    bloodPressure: 'Blood Pressure',
+    aiEstimate: 'AI estimate',
+    calibrated: 'calibrated',
+    mayVary: 'may vary',
+    lowConfidence: 'low confidence',
+    screeningEstimate: 'screening estimate',
+    passesFrames: '{passes} passes · {frames} frames · {fps} fps',
+    disclaimer: 'provides indicative screening estimates only. Results are not a substitute for medical-grade devices and must be interpreted by a registered clinician.',
+    cameraIssue: 'Camera issue — ',
+    // Actions
+    imReady: 'I\'m ready — start vital signs scan',
+    startScan: 'Start scan',
+    startScanWindow: 'Start {sec}-second scan (3 passes)',
+    startScan80: 'Start 80-second scan (4 passes)',
+    checkingCameraBtn: 'Checking camera…',
+    cancelBtn: 'Cancel',
+    missingReadings: 'Missing readings:',
+    missingHelp: 'Please retake for a complete set — hold still and keep your face well-lit. Or enter the numbers manually if you have a home device.',
+    continueBtn: 'Continue to consultation',
+    retakeScan: '🔄 Retake scan',
+    retakeBetter: 'Retake for better accuracy',
+    enterManual: 'Enter vitals manually instead',
+    backIntake: '← Back to intake form',
+    havePulseOx: 'Have a pulse oximeter or BP cuff? Enter your own readings',
+    // Manual entry
+    manualTitle: 'Enter vital signs manually',
+    manualIntro: 'If you have a pulse oximeter or blood pressure cuff, enter your readings here. All fields are optional.',
+    hrLabel: 'Heart Rate',
+    hrUnit: '(bpm)',
+    hrPh: 'e.g. 80',
+    rrLabel: 'Resp. Rate',
+    rrUnit: '(breaths/min)',
+    rrPh: 'e.g. 16',
+    spo2Label: 'SpO₂',
+    spo2Unit: '(%)',
+    spo2Ph: 'e.g. 98',
+    bpLabel: 'Blood Pressure',
+    bpPh: 'e.g. 120/80',
+    tempLabel: 'Temperature',
+    tempUnit: '(°C)',
+    tempPh: 'e.g. 37.2',
+    backBtn: 'Back',
+    continueReadings: 'Continue with these readings',
+    // Bottom bar
+    emergency: 'Emergency? Call',
+    mentalHealth: 'Mental health crisis? Call or text',
+    // Abnormal dialog
+    tryOnceMore: 'Let\'s try that once more',
+    outsideRangeBody: 'looks outside the usual range. This is often a measurement error — small movements or lighting can throw the reading off. A second scan helps your provider see the real trend.',
+    yourValue: 'Your',
+    manualHint: 'If you already know your readings from a pulse oximeter or BP cuff, you can enter them instead.',
+    retakeBtn: 'Retake scan',
+    gotOwnReadings: 'I\'ve got my own readings',
+  })
 
   // Request camera → inspect → checklist (or use background frames if available)
   useEffect(() => {
@@ -146,9 +258,9 @@ export default function VitalsCapture() {
           const info = await inspectDevice(videoRef.current)
           setDeviceInfo(info)
           const cal = calibrateRPPG(info)
-          setScanLabel(`Start ${cal.windowSec}-second scan (3 passes)`)
+          setScanLabel(t.startScanWindow.replace('{sec}', String(cal.windowSec)))
         } catch {
-          setScanLabel('Start 80-second scan (4 passes)')
+          setScanLabel(t.startScan80)
         }
         setUiState(STATES.CHECKLIST)
 
@@ -162,7 +274,7 @@ export default function VitalsCapture() {
         }, 3000)
         qualityIntervalRef.current = qualityInterval
       } catch {
-        setError('Camera access denied. Please allow camera access and refresh, or use manual entry below.')
+        setError(t.cameraDenied)
         setUiState(STATES.ERROR)
       }
     }
@@ -322,7 +434,7 @@ export default function VitalsCapture() {
             // and surface a warning so the patient knows to retry rather
             // than presenting an empty vitals row to the provider queue.
             console.error('[vitals] save failed:', e?.message || e, { consultationId: id })
-            setError(`Vitals didn't save — ${e?.message || 'server error'}. Try retake or continue without vitals.`)
+            setError(t.vitalsSaveFail.replace('{msg}', e?.message || t.serverError))
           }
         } else {
           sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
@@ -412,10 +524,10 @@ export default function VitalsCapture() {
           await updateVitals(id, finalResult)
         } else { sessionStorage.setItem('vitals', JSON.stringify(finalResult)) }
       } else {
-        setError('Finger scan failed. Try again or use face scan.'); setUiState(STATES.ERROR); setScanMode('face')
+        setError(t.fingerFailed); setUiState(STATES.ERROR); setScanMode('face')
       }
     } catch (e) {
-      setError('Rear camera unavailable: ' + e.message); setUiState(STATES.ERROR); setScanMode('face')
+      setError(t.rearUnavailable + ': ' + e.message); setUiState(STATES.ERROR); setScanMode('face')
     }
   }
 
@@ -440,7 +552,7 @@ export default function VitalsCapture() {
         }).catch(() => {})
       } catch (e) {
         console.error('[vitals] manual save failed:', e?.message || e, { consultationId: cId })
-        setError(`Vitals didn't save — ${e?.message || 'server error'}. Fix and try again.`)
+        setError(t.vitalsManualFail.replace('{msg}', e?.message || t.serverError))
         return
       }
     } else {
@@ -499,10 +611,10 @@ export default function VitalsCapture() {
   const spo2Display = formatSpO2Display(spo2Estimate)
   const missingVitals = []
   if (uiState === STATES.DONE && vitals && !vitals.skipped) {
-    if (vitals.hr == null || vitals.hr <= 0) missingVitals.push('Heart rate')
-    if (vitals.rr == null || vitals.rr <= 0) missingVitals.push('Respiratory rate')
+    if (vitals.hr == null || vitals.hr <= 0) missingVitals.push(t.heartRate)
+    if (vitals.rr == null || vitals.rr <= 0) missingVitals.push(t.respRate)
     if (!spo2Display?.show) missingVitals.push('SpO₂')
-    if (!bpEstimate || !bpEstimate.systolic || !bpEstimate.diastolic) missingVitals.push('Blood pressure')
+    if (!bpEstimate || !bpEstimate.systolic || !bpEstimate.diastolic) missingVitals.push(t.bloodPressure)
   }
   // One attempt is enough — workers on boats, in poor light, or with any
   // movement will always have partial readings. Provider will re-take
@@ -559,8 +671,8 @@ export default function VitalsCapture() {
   return (
     <div className="page">
       <nav className="navbar">
-        <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to home">Tere</span>
-        <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>Vital signs</span>
+        <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none',transition:'opacity .15s'}} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label={t.homeLabel}>Tere</span>
+        <span style={{color:'rgba(255,255,255,.5)',fontSize:'.875rem'}}>{t.navVitals}</span>
       </nav>
 
       <div className="container" style={{paddingTop:'1.75rem',paddingBottom:'5rem'}}>
@@ -569,13 +681,13 @@ export default function VitalsCapture() {
           <div className="card">
             <h2 style={{marginBottom:'.375rem'}}>
               {hasBackgroundFrames
-                ? (uiState === STATES.DONE ? 'Vitals captured' : 'Analysing your vitals…')
-                : 'Vital signs scan'}
+                ? (uiState === STATES.DONE ? t.capturedTitle : t.analysingTitle)
+                : t.scanTitle}
             </h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem',color:'var(--muted)'}}>
               {hasBackgroundFrames
-                ? (uiState === STATES.DONE ? 'Captured during triage — no scan needed.' : 'We captured readings during your consultation — processing now.')
-                : 'Your camera measures your heart rate, breathing, and blood pressure. Takes about 80 seconds.'}
+                ? (uiState === STATES.DONE ? t.capturedSubtitle : t.analysingSubtitle)
+                : t.scanSubtitle}
             </p>
 
             {/* Camera preview — hidden when processing background frames */}
@@ -607,7 +719,7 @@ export default function VitalsCapture() {
                 <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.45)',zIndex:5}}>
                   <div style={{color:'white',fontSize:'.875rem',textAlign:'center'}}>
                     <div style={{marginBottom:6,fontSize:'1.25rem'}}>🔍</div>
-                    Checking camera quality…
+                    {t.checkingCamera}
                   </div>
                 </div>
               )}
@@ -630,7 +742,7 @@ export default function VitalsCapture() {
 
                   {/* Pass indicator */}
                   <div style={{color:'white',fontSize:'.8125rem',marginBottom:8,opacity:.85}}>
-                    Pass {passNum} of {totalPasses}
+                    {t.passOf.replace('{n}', String(passNum)).replace('{total}', String(totalPasses))}
                   </div>
 
                   {/* Motion indicator */}
@@ -640,7 +752,7 @@ export default function VitalsCapture() {
                       background: motionPct > 30 ? '#EF4444' : '#10B981',
                       transition:'background .3s'
                     }} />
-                    {motionPct > 30 ? 'Hold still' : 'Hold still — measuring'}
+                    {motionPct > 30 ? t.holdStill : t.holdStillMeasuring}
                   </div>
                 </div>
               )}
@@ -649,7 +761,7 @@ export default function VitalsCapture() {
               {(uiState === STATES.READY || uiState === STATES.CHECKLIST) && (
                 <div style={{position:'absolute',bottom:'10px',left:0,right:0,textAlign:'center',zIndex:11}}>
                   <div style={{background:'rgba(0,0,0,.55)',color:'white',fontSize:'.8125rem',padding:'4px 12px',borderRadius:'99px',display:'inline-block',backdropFilter:'blur(4px)'}}>
-                    Align your face with the oval
+                    {t.alignFace}
                   </div>
                 </div>
               )}
@@ -659,8 +771,8 @@ export default function VitalsCapture() {
             {scanMode === 'finger' && isMeasuring && (
               <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,.85)',zIndex:5,gap:12}}>
                 <div style={{fontSize:'3.5rem'}}>👆</div>
-                <div style={{color:'white',fontWeight:700,fontSize:'1rem'}}>Cover the rear camera with your finger</div>
-                <div style={{color:'rgba(255,255,255,.7)',fontSize:'.8125rem'}}>Press gently — don't block the flash</div>
+                <div style={{color:'white',fontWeight:700,fontSize:'1rem'}}>{t.coverFinger}</div>
+                <div style={{color:'rgba(255,255,255,.7)',fontSize:'.8125rem'}}>{t.pressGently}</div>
                 <svg width="80" height="80" style={{marginTop:8}}>
                   <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="5"/>
                   <circle cx="40" cy="40" r="34" fill="none" stroke="#0B6E76" strokeWidth="5"
@@ -679,20 +791,25 @@ export default function VitalsCapture() {
                 <QualityIndicator deviceInfo={deviceInfo} />
                 {deviceInfo && deviceInfo.quality < 30 && (
                   <div style={{background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:12,padding:16,marginBottom:12}}>
-                    <div style={{fontWeight:700,color:'#92400E',marginBottom:6}}>⚠️ Poor signal detected</div>
+                    <div style={{fontWeight:700,color:'#92400E',marginBottom:6}}>{t.poorSignal}</div>
                     <p style={{fontSize:'.875rem',color:'#92400E',margin:'0 0 12px'}}>
-                      Low lighting or camera quality may affect accuracy. Try the finger scan for a more reliable reading.
+                      {t.poorSignalBody}
                     </p>
                     <button onClick={startFingerScan} style={{width:'100%',padding:12,background:'#F59E0B',color:'white',borderRadius:8,border:'none',fontWeight:700,cursor:'pointer',fontSize:'.9375rem'}}>
-                      👆 Switch to finger scan
+                      {t.switchFinger}
                     </button>
                     <p style={{fontSize:'.75rem',color:'#92400E',margin:'8px 0 0',textAlign:'center'}}>
-                      Cover the rear camera lens with your fingertip
+                      {t.coverLens}
                     </p>
                   </div>
                 )}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'.5rem'}}>
-                  {PREP_TIPS.map(({ icon, text }) => (
+                  {[
+                    { icon: '💡', text: t.prepLighting },
+                    { icon: '📱', text: t.prepArmsLength },
+                    { icon: '🧘', text: t.prepStill },
+                    { icon: '👓', text: t.prepGlasses },
+                  ].map(({ icon, text }) => (
                     <div key={text} style={{background:'var(--bg)',borderRadius:10,padding:'.75rem',display:'flex',alignItems:'center',gap:'.625rem',fontSize:'.875rem',color:'var(--text)'}}>
                       <span style={{fontSize:'1.25rem',flexShrink:0}}>{icon}</span>
                       <span>{text}</span>
@@ -709,8 +826,8 @@ export default function VitalsCapture() {
             {(uiState === STATES.REQUESTING || isInspecting) && (
               <div style={{background:'var(--bg)',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem'}}>
                 <div style={{fontSize:'.875rem',color:'var(--muted)',lineHeight:1.6}}>
-                  <strong style={{color:'var(--text)',display:'block',marginBottom:'.375rem'}}>For best results:</strong>
-                  Good lighting on your face · Stay still during the scan · Remove glasses if possible
+                  <strong style={{color:'var(--text)',display:'block',marginBottom:'.375rem'}}>{t.forBestResults}</strong>
+                  {t.bestResultsBody}
                 </div>
               </div>
             )}
@@ -720,36 +837,36 @@ export default function VitalsCapture() {
               <>
                 {vitals.backgroundDurationSec && (
                   <div style={{ background:'#EFF6FF', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#1E40AF', fontSize:'.875rem' }}>
-                    ✓ Analysed {vitals.backgroundDurationSec} seconds of data from triage
-                    <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:2 }}>More data = more accurate readings</div>
+                    {t.analysedSecs.replace('{n}', String(vitals.backgroundDurationSec))}
+                    <div style={{ fontSize:'.8125rem', color:'#3B82F6', marginTop:2 }}>{t.moreDataMore}</div>
                   </div>
                 )}
                 {vitals.ptt && vitals.ptt.pttMs > 0 && (
                   <div style={{ background:'#F0FDF4', borderRadius:8, padding:'10px 14px', marginBottom:12, color:'#15803D', fontSize:'.875rem' }}>
-                    ✓ Pulse transit time: {vitals.ptt.pttMs}ms
-                    {vitals.ptt.systolicEstimate && <span style={{ marginLeft:8, color:'#166534' }}>· BP estimate enhanced with vascular timing</span>}
+                    {t.pttMs.replace('{n}', String(vitals.ptt.pttMs))}
+                    {vitals.ptt.systolicEstimate && <span style={{ marginLeft:8, color:'#166534' }}>{t.bpEnhanced}</span>}
                   </div>
                 )}
                 <ConfidenceBadge numericConfidence={vitals.numericConfidence} />
                 <div className="vitals-grid" style={{marginBottom:'1.25rem'}}>
                   <div className={`vital-card ${hrStatus}`}>
-                    <div className="vital-label">Heart Rate</div>
+                    <div className="vital-label">{t.heartRate}</div>
                     <div className={`vital-value ${hrStatus}`}>{vitals.hr ?? '—'}</div>
-                    <div className="vital-unit">bpm</div>
+                    <div className="vital-unit">{t.bpm}</div>
                   </div>
                   <div className={`vital-card ${rrStatus}`}>
-                    <div className="vital-label">Resp. Rate</div>
+                    <div className="vital-label">{t.respRate}</div>
                     <div className={`vital-value ${rrStatus}`}>{vitals.rr ?? '—'}</div>
-                    <div className="vital-unit">breaths/min</div>
+                    <div className="vital-unit">{t.breathsMin}</div>
                   </div>
                   {bpEstimate && (
                     <div className="vital-card" style={{gridColumn:'1 / -1'}}>
-                      <div className="vital-label">Blood Pressure{bpEstimate.confidence === 'medium' ? ' ⚠️' : ''}</div>
+                      <div className="vital-label">{t.bloodPressure}{bpEstimate.confidence === 'medium' ? ' ⚠️' : ''}</div>
                       <div className="vital-value" style={{ color: bpEstimate.confidence === 'low' ? '#F59E0B' : undefined }}>
                         {bpEstimate.systolic}/{bpEstimate.diastolic}
                       </div>
                       <div className="vital-unit">
-                        mmHg · AI estimate{bpEstimate.calibrated ? ' (calibrated)' : ''}{bpEstimate.confidence === 'medium' ? ' · may vary' : bpEstimate.confidence === 'low' ? ' · low confidence' : ''}
+                        mmHg · {t.aiEstimate}{bpEstimate.calibrated ? ` (${t.calibrated})` : ''}{bpEstimate.confidence === 'medium' ? ` · ${t.mayVary}` : bpEstimate.confidence === 'low' ? ` · ${t.lowConfidence}` : ''}
                       </div>
                     </div>
                   )}
@@ -764,7 +881,7 @@ export default function VitalsCapture() {
                           {disp.value}
                         </div>
                         <div className="vital-unit">
-                          % · screening estimate{disp.warning ? ' · may vary' : ''}
+                          % · {t.screeningEstimate}{disp.warning ? ` · ${t.mayVary}` : ''}
                         </div>
                       </div>
                     )
@@ -772,11 +889,11 @@ export default function VitalsCapture() {
                 </div>
                 {vitals.passes && (
                   <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>
-                    {vitals.passes} passes · {vitals.frames} frames · {vitals.actualFps} fps
+                    {t.passesFrames.replace('{passes}', String(vitals.passes)).replace('{frames}', String(vitals.frames)).replace('{fps}', String(vitals.actualFps))}
                   </div>
                 )}
                 <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'1.25rem',background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.625rem .875rem'}}>
-                  <strong>Tere Vitals</strong> provides indicative screening estimates only. Results are not a substitute for medical-grade devices and must be interpreted by a registered clinician.
+                  <strong>Tere Vitals</strong> {t.disclaimer}
                 </div>
               </>
             )}
@@ -784,7 +901,7 @@ export default function VitalsCapture() {
             {/* Error */}
             {uiState === STATES.ERROR && error && (
               <div className="alert alert-warning" style={{marginBottom:'1.25rem'}}>
-                <strong>Camera issue — </strong>{error}
+                <strong>{t.cameraIssue}</strong>{error}
               </div>
             )}
 
@@ -796,25 +913,25 @@ export default function VitalsCapture() {
                   className="btn btn-primary btn-full"
                   onClick={startMeasurement}
                 >
-                  I'm ready — start vital signs scan
+                  {t.imReady}
                 </button>
               )}
 
               {uiState === STATES.READY && (
                 <button className="btn btn-primary btn-full" onClick={startMeasurement}>
-                  {scanLabel}
+                  {scanLabel || t.startScan}
                 </button>
               )}
 
               {isInspecting && (
                 <button className="btn btn-primary btn-full" disabled style={{opacity:.5}}>
-                  Checking camera…
+                  {t.checkingCameraBtn}
                 </button>
               )}
 
               {isMeasuring && (
-                <button className="btn btn-secondary btn-full" onClick={() => { measureRef.current?.stop(); setUiState(STATES.ERROR); setError('Measurement cancelled.') }}>
-                  Cancel
+                <button className="btn btn-secondary btn-full" onClick={() => { measureRef.current?.stop(); setUiState(STATES.ERROR); setError(t.measurementCancelled) }}>
+                  {t.cancelBtn}
                 </button>
               )}
 
@@ -822,9 +939,9 @@ export default function VitalsCapture() {
                 <>
                   {missingVitals.length > 0 && (
                     <div style={{background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.75rem .875rem',marginBottom:'.75rem',fontSize:'.875rem',color:'#78350F'}}>
-                      <strong>Missing readings:</strong> {missingVitals.join(', ')}.
+                      <strong>{t.missingReadings}</strong> {missingVitals.join(', ')}.
                       <div style={{marginTop:4,fontSize:'.8125rem'}}>
-                        Please retake for a complete set — hold still and keep your face well-lit. Or enter the numbers manually if you have a home device.
+                        {t.missingHelp}
                       </div>
                     </div>
                   )}
@@ -844,16 +961,16 @@ export default function VitalsCapture() {
                       }
                       navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
                     }}>
-                      Continue to consultation
+                      {t.continueBtn}
                     </button>
                   ) : (
                     <button className="btn btn-primary btn-full" onClick={retake}>
-                      🔄 Retake scan
+                      {t.retakeScan}
                     </button>
                   )}
                   {canContinue && vitals?.numericConfidence < 50 && (
                     <button className="btn btn-secondary btn-full" onClick={retake}>
-                      Retake for better accuracy
+                      {t.retakeBetter}
                     </button>
                   )}
                 </>
@@ -861,68 +978,67 @@ export default function VitalsCapture() {
 
               {(uiState === STATES.ERROR || uiState === STATES.DONE) && (
                 <button className="btn btn-secondary btn-full" onClick={() => setManualMode(true)}>
-                  Enter vitals manually instead
+                  {t.enterManual}
                 </button>
               )}
 
 
               {uiState !== STATES.MEASURING && (
                 <button className="btn btn-secondary btn-full" onClick={() => {
-                  streamRef.current?.getTracks().forEach(t => t.stop())
+                  streamRef.current?.getTracks().forEach(track => track.stop())
                   navigate('/triage')
                 }}>
-                  ← Back to intake form
+                  {t.backIntake}
                 </button>
               )}
             </div>
 
             <button onClick={() => setManualMode(true)} style={{background:'none',border:'none',color:'var(--muted)',fontSize:'.8125rem',marginTop:'1rem',cursor:'pointer',textDecoration:'underline',width:'100%',textAlign:'center'}}>
-              Have a pulse oximeter or BP cuff? Enter your own readings
+              {t.havePulseOx}
             </button>
           </div>
         ) : (
           <div className="card">
-            <h2 style={{marginBottom:'.375rem'}}>Enter vital signs manually</h2>
+            <h2 style={{marginBottom:'.375rem'}}>{t.manualTitle}</h2>
             <p style={{marginBottom:'1.25rem',fontSize:'.9375rem'}}>
-              If you have a pulse oximeter or blood pressure cuff, enter your readings here.
-              All fields are optional.
+              {t.manualIntro}
             </p>
             <div className="form-row">
               <div className="form-group">
-                <label>Heart Rate <span className="label-opt">(bpm)</span></label>
-                <input type="number" min="30" max="250" placeholder="e.g. 80"
+                <label>{t.hrLabel} <span className="label-opt">{t.hrUnit}</span></label>
+                <input type="number" min="30" max="250" placeholder={t.hrPh}
                   value={manual.hr} onChange={e => setManual(m => ({...m, hr: e.target.value}))} />
               </div>
               <div className="form-group">
-                <label>Resp. Rate <span className="label-opt">(breaths/min)</span></label>
-                <input type="number" min="5" max="50" placeholder="e.g. 16"
+                <label>{t.rrLabel} <span className="label-opt">{t.rrUnit}</span></label>
+                <input type="number" min="5" max="50" placeholder={t.rrPh}
                   value={manual.rr} onChange={e => setManual(m => ({...m, rr: e.target.value}))} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>SpO₂ <span className="label-opt">(%)</span></label>
-                <input type="number" min="70" max="100" placeholder="e.g. 98"
+                <label>{t.spo2Label} <span className="label-opt">{t.spo2Unit}</span></label>
+                <input type="number" min="70" max="100" placeholder={t.spo2Ph}
                   value={manual.spo2} onChange={e => setManual(m => ({...m, spo2: e.target.value}))} />
               </div>
               <div className="form-group">
-                <label>Blood Pressure</label>
-                <input type="text" placeholder="e.g. 120/80"
+                <label>{t.bpLabel}</label>
+                <input type="text" placeholder={t.bpPh}
                   value={manual.bp} onChange={e => setManual(m => ({...m, bp: e.target.value}))} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Temperature <span className="label-opt">(°C)</span></label>
-                <input type="number" step="0.1" min="34" max="42" placeholder="e.g. 37.2"
+                <label>{t.tempLabel} <span className="label-opt">{t.tempUnit}</span></label>
+                <input type="number" step="0.1" min="34" max="42" placeholder={t.tempPh}
                   value={manual.temperature} onChange={e => setManual(m => ({...m, temperature: e.target.value}))} />
               </div>
               <div className="form-group" />
             </div>
             <div style={{display:'flex',gap:'.75rem',marginTop:'.5rem'}}>
-              <button className="btn btn-secondary" onClick={() => setManualMode(false)}>Back</button>
+              <button className="btn btn-secondary" onClick={() => setManualMode(false)}>{t.backBtn}</button>
               <button className="btn btn-primary" style={{flex:1}} onClick={saveManual}>
-                Continue with these readings
+                {t.continueReadings}
               </button>
             </div>
           </div>
@@ -930,8 +1046,8 @@ export default function VitalsCapture() {
       </div>
 
       <div style={{position:'fixed',bottom:0,left:0,right:0,background:'rgba(255,255,255,.95)',borderTop:'1px solid var(--border)',padding:'.5rem 1rem',paddingBottom:'max(.5rem, env(safe-area-inset-bottom))',display:'flex',flexWrap:'wrap',gap:'.5rem 1rem',justifyContent:'center',fontSize:'.8125rem',color:'var(--muted)'}}>
-        <span>Emergency? Call <strong>111</strong></span>
-        <span>Mental health crisis? Call or text <strong>1737</strong></span>
+        <span>{t.emergency} <strong>111</strong></span>
+        <span>{t.mentalHealth} <strong>1737</strong></span>
       </div>
 
       {showAbnormalGate && (
@@ -939,25 +1055,23 @@ export default function VitalsCapture() {
           style={{position:'fixed',inset:0,background:'rgba(15,23,42,.55)',display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem',zIndex:1000}}>
           <div style={{background:'white',borderRadius:14,maxWidth:440,width:'100%',padding:'1.5rem',boxShadow:'0 20px 40px rgba(0,0,0,.2)'}}>
             <div style={{fontSize:'1.75rem',marginBottom:'.5rem'}}>🔁</div>
-            <h2 id="abnormal-gate-title" style={{fontSize:'1.2rem',marginBottom:'.5rem',color:'#111827'}}>Let's try that once more</h2>
+            <h2 id="abnormal-gate-title" style={{fontSize:'1.2rem',marginBottom:'.5rem',color:'#111827'}}>{t.tryOnceMore}</h2>
             <p style={{color:'#374151',lineHeight:1.5,fontSize:'.95rem',marginBottom:'.75rem'}}>
-              Your <strong>{abnormalCheck.reasons.join(', ')}</strong> looks outside the usual range.
-              This is often a measurement error — small movements or lighting can throw the reading off.
-              A second scan helps your provider see the real trend.
+              {t.yourValue} <strong>{abnormalCheck.reasons.join(', ')}</strong> {t.outsideRangeBody}
             </p>
             <p style={{color:'#6B7280',fontSize:'.8125rem',marginBottom:'1.25rem'}}>
-              If you already know your readings from a pulse oximeter or BP cuff, you can enter them instead.
+              {t.manualHint}
             </p>
             <div style={{display:'flex',flexDirection:'column',gap:'.5rem'}}>
               <button
                 className="btn btn-primary btn-full"
                 onClick={() => { setShowAbnormalGate(false); retake() }}>
-                Retake scan
+                {t.retakeBtn}
               </button>
               <button
                 className="btn btn-secondary btn-full"
                 onClick={() => { setShowAbnormalGate(false); setManualMode(true) }}>
-                I've got my own readings
+                {t.gotOwnReadings}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
+import { useAutoT } from '../../lib/i18n'
 import DobPicker from '../../components/DobPicker'
 
 // /work/[slug]/intake — streamlined B2B intake form.
@@ -55,6 +56,42 @@ export default function WorkIntake() {
   const [prefillState, setPrefillState] = useState('idle')  // idle | checking | matched | nomatch
   const [prefillDone, setPrefillDone] = useState(false)     // suppress overwrite once we've prefilled once
 
+  const t = useAutoT({
+    teamSuffix: 'team',
+    checkingAccess: 'Checking access…',
+    accessUnavailable: 'Access unavailable',
+    linkNotActive: 'This access link is not active.',
+    couldNotVerify: 'Could not verify access.',
+    couldNotVerifyDetails: 'Could not verify your details. Please try again.',
+    genericError: 'Something went wrong. Please try again.',
+    goToTere: 'Go to Tere Health',
+    yourDetails: 'Your details',
+    detailsHelp: 'Name and date of birth verify you are on the {company} team list. Your consult is covered.',
+    firstName: 'First name',
+    lastName: 'Last name',
+    dob: 'Date of birth',
+    checkingTeamList: 'Checking the team list…',
+    matched: '✓ Found on the {company} team list. Some details below have been pre-filled from your HR record — check they\'re right and edit anything that\'s changed.',
+    phoneLabel: 'Phone (for provider callback)',
+    phonePlaceholder: '02x xxx xxxx',
+    emailLabel: 'Email (for consult summary)',
+    emailPlaceholder: 'you@example.com',
+    addressLabel: 'Home address (optional)',
+    addressPlaceholder: 'Street, suburb, town',
+    nhiLabel: 'NHI (optional — we can look it up if you don\'t know it)',
+    problemLabel: 'What is the problem?',
+    problemPlaceholder: 'Briefly describe what happened or how you are feeling. The doctor will ask more when they call.',
+    consentText: 'I consent to a telehealth consultation with a Tere Health clinician. I understand my consult will be shared with {company} only if I later authorise it in writing.',
+    joining: 'Joining queue…',
+    joinQueue: 'Join the doctor queue',
+    emergency111: 'Emergency? Call 111 immediately.',
+    couldNotVerifyDialog: 'We could not verify your details',
+    contactAdmin: 'Please contact your work administrator at {company} to add you to the team list.',
+    urgentFallback: 'If you need to see a doctor now, use the main Tere Health page.',
+    mainPageBtn: 'Go to Tere Health main page',
+    closeCheckBtn: 'Close and check my details',
+  })
+
   // Fire the roster pre-check as soon as name + DOB are all present.
   // Debounced 400ms so we don't spam while the DOB picker is being adjusted.
   // Result populates the contact fields BEFORE the worker has to type them.
@@ -104,12 +141,12 @@ export default function WorkIntake() {
       try {
         const r = await apiFetch(`/api/employer-lookup?slug=${encodeURIComponent(slug || '')}`)
         if (cancelled) return
-        if (!r.ok) { setPhase('error'); setErrorMsg('This access link is not active.'); return }
+        if (!r.ok) { setPhase('error'); setErrorMsg(t.linkNotActive); return }
         const body = await r.json()
         setEmployer(body.employer)
         setPhase('ready')
       } catch {
-        if (!cancelled) { setPhase('error'); setErrorMsg('Could not verify access.') }
+        if (!cancelled) { setPhase('error'); setErrorMsg(t.couldNotVerify) }
       }
     }
     validate()
@@ -142,7 +179,7 @@ export default function WorkIntake() {
       if (!preCheck.ok) {
         setPhase('ready')
         const err = await preCheck.json().catch(() => ({}))
-        setErrorMsg(err.error || 'Could not verify your details. Please try again.')
+        setErrorMsg(err.error || t.couldNotVerifyDetails)
         return
       }
       const preBody = await preCheck.json()
@@ -152,7 +189,7 @@ export default function WorkIntake() {
       }
     } catch {
       setPhase('ready')
-      setErrorMsg('Could not verify your details. Please try again.')
+      setErrorMsg(t.couldNotVerifyDetails)
       return
     }
 
@@ -222,7 +259,7 @@ export default function WorkIntake() {
         setPhase('blocked')
       } else {
         setPhase('ready')
-        setErrorMsg(msg || 'Something went wrong. Please try again.')
+        setErrorMsg(msg || t.genericError)
       }
     }
   }
@@ -248,69 +285,69 @@ export default function WorkIntake() {
         <div style={{ fontFamily: SERIF, fontStyle: 'italic', fontSize: '2rem', color: TEAL_LIGHT, textAlign: 'center', marginBottom: 4 }}>Tere Health</div>
         {employer && (
           <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.7)', letterSpacing: '.1em', textTransform: 'uppercase', textAlign: 'center', marginBottom: '2rem' }}>
-            {employer.company_name} team
+            {employer.company_name} {t.teamSuffix}
           </div>
         )}
 
         {phase === 'checking' && (
-          <div style={{ color: TEAL_LIGHT, textAlign: 'center', opacity: .7 }}>Checking access…</div>
+          <div style={{ color: TEAL_LIGHT, textAlign: 'center', opacity: .7 }}>{t.checkingAccess}</div>
         )}
 
         {phase === 'error' && (
           <div style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: 16, padding: '2rem 1.5rem', textAlign: 'center' }}>
-            <div style={{ color: 'white', fontWeight: 700, marginBottom: 8 }}>Access unavailable</div>
+            <div style={{ color: 'white', fontWeight: 700, marginBottom: 8 }}>{t.accessUnavailable}</div>
             <div style={{ color: 'rgba(255,255,255,.7)', fontSize: '.9rem', marginBottom: '1.5rem' }}>{errorMsg}</div>
-            <button onClick={() => navigate('/')} style={{ background: TEAL, color: 'white', border: 'none', padding: '.75rem 1.5rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>Go to Tere Health</button>
+            <button onClick={() => navigate('/')} style={{ background: TEAL, color: 'white', border: 'none', padding: '.75rem 1.5rem', borderRadius: 99, fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>{t.goToTere}</button>
           </div>
         )}
 
         {(phase === 'ready' || phase === 'submitting' || phase === 'blocked') && employer && (
           <div style={{ background: 'rgba(11,110,118,.15)', border: '1px solid rgba(11,110,118,.4)', borderRadius: 16, padding: '1.75rem 1.5rem' }}>
-            <div style={{ color: 'white', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>Your details</div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>{t.yourDetails}</div>
             <div style={{ color: 'rgba(212,238,240,.7)', fontSize: '.8125rem', marginBottom: '1.25rem' }}>
-              Name and date of birth verify you are on the {employer.company_name} team list. Your consult is covered.
+              {t.detailsHelp.replace('{company}', employer.company_name)}
             </div>
 
-            <label style={label}>First name</label>
+            <label style={label}>{t.firstName}</label>
             <input style={inp} value={firstName} onChange={e => setFirstName(e.target.value)} autoComplete="given-name" />
 
-            <label style={label}>Last name</label>
+            <label style={label}>{t.lastName}</label>
             <input style={inp} value={lastName} onChange={e => setLastName(e.target.value)} autoComplete="family-name" />
 
-            <label style={label}>Date of birth</label>
+            <label style={label}>{t.dob}</label>
             <div style={{ marginBottom: '.75rem' }}>
               <DobPicker value={dob} onChange={setDob} />
             </div>
 
             {prefillState === 'checking' && (
               <div style={{ color: 'rgba(212,238,240,.65)', fontSize: '.75rem', marginBottom: '.75rem', fontStyle: 'italic' }}>
-                Checking the team list…
+                {t.checkingTeamList}
               </div>
             )}
             {prefillState === 'matched' && (
               <div style={{ background: 'rgba(11,110,118,.35)', border: '1px solid rgba(127,196,200,.4)', color: TEAL_LIGHT, padding: '.6rem .8rem', borderRadius: 8, fontSize: '.8125rem', marginBottom: '.75rem' }}>
-                ✓ Found on the {employer.company_name} team list. Some details below have been pre-filled from your HR record — check they're right and edit anything that's changed.
+                {t.matched.replace('{company}', employer.company_name)}
               </div>
             )}
 
-            <label style={label}>Phone (for provider callback)</label>
-            <input style={inp} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="02x xxx xxxx" autoComplete="tel" />
+            <label style={label}>{t.phoneLabel}</label>
+            <input style={inp} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder={t.phonePlaceholder} autoComplete="tel" />
 
-            <label style={label}>Email (for consult summary)</label>
-            <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" />
+            <label style={label}>{t.emailLabel}</label>
+            <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t.emailPlaceholder} autoComplete="email" />
 
-            <label style={label}>Home address (optional)</label>
-            <input style={inp} type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder="Street, suburb, town" autoComplete="street-address" />
+            <label style={label}>{t.addressLabel}</label>
+            <input style={inp} type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder={t.addressPlaceholder} autoComplete="street-address" />
 
-            <label style={label}>NHI (optional — we can look it up if you don't know it)</label>
+            <label style={label}>{t.nhiLabel}</label>
             <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} placeholder="ABC1234" maxLength={7} autoComplete="off" />
 
-            <label style={label}>What is the problem?</label>
-            <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder="Briefly describe what happened or how you are feeling. The doctor will ask more when they call." />
+            <label style={label}>{t.problemLabel}</label>
+            <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder={t.problemPlaceholder} />
 
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.5rem', marginBottom: '1.25rem', cursor: 'pointer', color: 'rgba(255,255,255,.85)', fontSize: '.8125rem', lineHeight: 1.5 }}>
               <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
-              <span>I consent to a telehealth consultation with a Tere Health clinician. I understand my consult will be shared with {employer.company_name} only if I later authorise it in writing.</span>
+              <span>{t.consentText.replace('{company}', employer.company_name)}</span>
             </label>
 
             {errorMsg && (
@@ -327,11 +364,11 @@ export default function WorkIntake() {
               boxShadow: formValid ? '0 4px 20px rgba(249,115,22,.35)' : 'none',
               opacity: phase === 'submitting' ? .7 : 1,
             }}>
-              {phase === 'submitting' ? 'Joining queue…' : 'Join the doctor queue'}
+              {phase === 'submitting' ? t.joining : t.joinQueue}
             </button>
 
             <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.7rem', marginTop: '1rem', textAlign: 'center' }}>
-              Emergency? Call 111 immediately.
+              {t.emergency111}
             </div>
           </div>
         )}
@@ -365,25 +402,25 @@ export default function WorkIntake() {
           >
             <div style={{ fontSize: '2.25rem', marginBottom: 10 }}>🔍</div>
             <div style={{ color: 'white', fontWeight: 700, fontSize: '1.15rem', marginBottom: 10 }}>
-              We could not verify your details
+              {t.couldNotVerifyDialog}
             </div>
             <div style={{ color: 'rgba(255,255,255,.8)', fontSize: '.9rem', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-              Please contact your work administrator at {employer.company_name} to add you to the team list.
+              {t.contactAdmin.replace('{company}', employer.company_name)}
               <br /><br />
-              If you need to see a doctor now, use the main Tere Health page.
+              {t.urgentFallback}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
                 onClick={() => navigate('/')}
                 style={{ background: TEAL, color: 'white', border: 'none', padding: '.85rem 1rem', borderRadius: 12, fontWeight: 700, fontSize: '.95rem', cursor: 'pointer', fontFamily: FF }}
               >
-                Go to Tere Health main page
+                {t.mainPageBtn}
               </button>
               <button
                 onClick={() => setPhase('ready')}
                 style={{ background: 'none', color: TEAL_LIGHT, border: '1px solid rgba(212,238,240,.3)', padding: '.7rem 1rem', borderRadius: 12, fontWeight: 600, fontSize: '.875rem', cursor: 'pointer', fontFamily: FF }}
               >
-                Close and check my details
+                {t.closeCheckBtn}
               </button>
             </div>
           </div>

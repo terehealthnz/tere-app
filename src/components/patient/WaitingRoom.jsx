@@ -4,6 +4,7 @@ import { useConsultId } from '../../lib/consultUrl'
 import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat, patientUploadDocument } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { requestUserLocation, nearestPharmacies, formatDistance } from '../../lib/nearestPharmacy'
+import { useAutoT } from '../../lib/i18n'
 
 const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -103,6 +104,58 @@ export default function WaitingRoom() {
   // or user denied / no coords in the register — either way we just hide the block
   // and fall back to text search.
   const [nearestByLocation, setNearestByLocation] = useState(null)
+
+  const t = useAutoT({
+    kiaOra: 'Kia ora, {name}',
+    requestSubmitted: 'Request submitted',
+    from8am: 'From 8am',
+    yourDoctorWhenAvailable: 'your doctor will contact you when available',
+    windowClosed: 'Window closed',
+    timeRemaining: 'time remaining in your 2-hour window',
+    reviewLineMessage: '{who} review your notes and send you a written reply {when}.',
+    reviewLineVideo: '{who} review your notes and video call you {when}.',
+    reviewLinePhone: '{who} review your notes and call you {when}.',
+    aDoctorWill: 'A doctor will',
+    willWord: 'will',
+    withinFrom8am: 'from 8am',
+    within2h: 'within 2 hours',
+    watchEmail: 'Watch your email',
+    keepDeviceNearby: 'Keep your device nearby',
+    replyByEmailFrom8am: 'Your doctor\'s written reply will arrive by email from 8am.',
+    replyByEmailIn2h: 'Your doctor\'s written reply will arrive by email within 2 hours.',
+    callFrom8am: 'Your doctor will start the call from 8am. Video is optional — turn it on any time.',
+    callNotify: 'You\'ll get a notification when the call starts. Video is optional — turn it on any time.',
+    emailLinkJoin: 'You\'ll receive an email with a link to join your consultation.',
+    prescriptionPharmacy: 'Prescription pharmacy',
+    pharmacyExplain: 'If your doctor issues a prescription, it will be sent here. Please check the pharmacy is open when you need it.',
+    changePharmacy: 'Change pharmacy',
+    shareDoc: 'Share a document',
+    docsSent: '({n} sent)',
+    docExplain: 'Send your doctor a photo, lab result, or letter (PDF or image, up to 10MB). Only your treating clinician sees it.',
+    docTitlePh: 'Title (e.g. Rash photo, Blood test result)',
+    sending: 'Sending…',
+    sendToDoctor: 'Send to doctor',
+    sentToDoctor: 'Sent to your doctor',
+    stepSubmitted: 'Submitted',
+    stepDrReviewing: 'Dr reviewing',
+    stepCallback: 'Callback',
+    cardHeld: 'Card held, not charged yet',
+    cardHeldBody: 'Your card is held but you won\'t be charged until your doctor contacts you. Cancel anytime and the hold is released automatically.',
+    cancelBtn: 'Cancel — remove me from the queue',
+    emergencyPrefix: 'Emergency? Call',
+    emergencySuffix: 'immediately',
+    mentalHealth: 'Mental health: call or text',
+    tereNotWorking: 'If Tere isn\'t working: email',
+    orUrgent: '— or for anything urgent, always call',
+    choosePharmacy: 'Choose your pharmacy',
+    searchByName: 'Search by pharmacy name or suburb',
+    closestToYou: '📍 Closest to you',
+    locationOnlySort: 'Your location is only used to sort — nothing is sent to Tere.',
+    searchPh: 'e.g. Unichem Whanganui',
+    loadingPharmacies: 'Loading pharmacy list…',
+    typeAtLeast2: 'Type at least 2 characters to search.',
+    noPharmaciesMatched: 'No pharmacies matched. Try a different name or suburb.',
+  })
 
   const patientName = (sessionStorage.getItem('patientName') || '').split(' ')[0] || null
   const consultType = sessionStorage.getItem('consultationType') || 'video'
@@ -343,20 +396,20 @@ export default function WaitingRoom() {
 
         {patientName && (
           <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.9375rem', marginBottom: '.375rem', letterSpacing: '.02em', animation: 'fadeUp .5s .3s both' }}>
-            Kia ora, {patientName}
+            {t.kiaOra.replace('{name}', patientName)}
           </div>
         )}
 
         <h1 style={{ color: 'white', fontSize: '1.625rem', fontWeight: 700, margin: '0 0 .75rem', lineHeight: 1.25, animation: 'fadeUp .5s .4s both' }}>
-          Request submitted
+          {t.requestSubmitted}
         </h1>
 
         {/* Timer */}
         {afterHours ? (
           <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'rgba(212,238,240,.9)' }}>From 8am</div>
+            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'rgba(212,238,240,.9)' }}>{t.from8am}</div>
             <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
-              your doctor will contact you when available
+              {t.yourDoctorWhenAvailable}
             </div>
           </div>
         ) : secsLeft !== null && (
@@ -368,16 +421,22 @@ export default function WaitingRoom() {
               letterSpacing: '.06em',
               color: secsLeft <= 0 ? '#EF4444' : secsLeft < 1800 ? '#FBBF24' : 'rgba(212,238,240,.9)',
             }}>
-              {secsLeft <= 0 ? 'Window closed' : fmtCountdown(secsLeft)}
+              {secsLeft <= 0 ? t.windowClosed : fmtCountdown(secsLeft)}
             </div>
             <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
-              time remaining in your 2-hour window
+              {t.timeRemaining}
             </div>
           </div>
         )}
 
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
-          {providerName ? `${providerName} will` : 'A doctor will'} review your notes and {consultType === 'message' ? 'send you a written reply' : consultType === 'video' ? 'video call you' : 'call you'} <strong style={{ color: 'rgba(255,255,255,.8)' }}>{afterHours ? 'from 8am' : 'within 2 hours'}</strong>.
+          {(() => {
+            const who = providerName ? `${providerName} ${t.willWord}` : t.aDoctorWill
+            const when = afterHours ? t.withinFrom8am : t.within2h
+            const tmpl = consultType === 'message' ? t.reviewLineMessage : consultType === 'video' ? t.reviewLineVideo : t.reviewLinePhone
+            const parts = tmpl.replace('{who}', who).split('{when}')
+            return (<>{parts[0]}<strong style={{ color: 'rgba(255,255,255,.8)' }}>{when}</strong>{parts[1] || ''}</>)
+          })()}
         </p>
 
         {/* Info cards */}
@@ -395,16 +454,16 @@ export default function WaitingRoom() {
             </span>
             <div>
               <div style={{ color: 'rgba(212,238,240,.8)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>
-                {consultType === 'message' ? 'Watch your email' : 'Keep your device nearby'}
+                {consultType === 'message' ? t.watchEmail : t.keepDeviceNearby}
               </div>
               <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
                 {consultType === 'message'
                   ? afterHours
-                    ? "Your doctor's written reply will arrive by email from 8am."
-                    : "Your doctor's written reply will arrive by email within 2 hours."
+                    ? t.replyByEmailFrom8am
+                    : t.replyByEmailIn2h
                   : afterHours
-                    ? 'Your doctor will start the call from 8am. Video is optional — turn it on any time.'
-                    : "You'll get a notification when the call starts. Video is optional — turn it on any time."}
+                    ? t.callFrom8am
+                    : t.callNotify}
               </div>
             </div>
           </div>
@@ -421,10 +480,10 @@ export default function WaitingRoom() {
               <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📧</span>
               <div>
                 <div style={{ color: 'rgba(212,238,240,.8)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>
-                  Watch your email
+                  {t.watchEmail}
                 </div>
                 <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', lineHeight: 1.6 }}>
-                  You'll receive an email with a link to join your consultation.
+                  {t.emailLinkJoin}
                 </div>
               </div>
             </div>
@@ -449,17 +508,17 @@ export default function WaitingRoom() {
             <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>💊</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
-                Prescription pharmacy
+                {t.prescriptionPharmacy}
               </div>
               <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.375rem', wordBreak: 'break-word' }}>
                 {pharmacyName}
               </div>
               <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', lineHeight: 1.6, marginBottom: '.5rem' }}>
-                If your doctor issues a prescription, it will be sent here. Please check the pharmacy is open when you need it.
+                {t.pharmacyExplain}
               </div>
               <button onClick={() => setPickerOpen(true)}
                 style={{ background: 'transparent', border: 'none', color: '#4FD1D9', fontSize: '.8125rem', fontWeight: 600, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
-                Change pharmacy
+                {t.changePharmacy}
               </button>
             </div>
           </div>
@@ -484,10 +543,10 @@ export default function WaitingRoom() {
             <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📎</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
-                Share a document{uploadedCount > 0 ? ` (${uploadedCount} sent)` : ''}
+                {t.shareDoc}{uploadedCount > 0 ? ` ${t.docsSent.replace('{n}', String(uploadedCount))}` : ''}
               </div>
               <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.75rem', lineHeight: 1.6 }}>
-                Send your doctor a photo, lab result, or letter (PDF or image, up to 10MB). Only your treating clinician sees it.
+                {t.docExplain}
               </div>
             </div>
           </div>
@@ -495,7 +554,7 @@ export default function WaitingRoom() {
             type="text"
             value={uploadTitle}
             onChange={e => setUploadTitle(e.target.value)}
-            placeholder="Title (e.g. Rash photo, Blood test result)"
+            placeholder={t.docTitlePh}
             style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.15)', color: 'white', padding: '.6rem .75rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.875rem', marginBottom: '.5rem' }}
           />
           <input
@@ -512,7 +571,7 @@ export default function WaitingRoom() {
                 await patientUploadDocument({ consultationId, title: uploadTitle.trim(), file: uploadFile })
                 setUploadTitle(''); setUploadFile(null)
                 setUploadedCount(n => n + 1)
-                setUploadMsg({ kind: 'ok', text: 'Sent to your doctor' })
+                setUploadMsg({ kind: 'ok', text: t.sentToDoctor })
                 // File input value doesn't clear via setState; reset with a null hack
                 const fi = document.querySelector('input[type="file"]')
                 if (fi) fi.value = ''
@@ -521,7 +580,7 @@ export default function WaitingRoom() {
               } finally { setUploading(false) }
             }}
             style={{ width: '100%', background: (uploading || !uploadFile || !uploadTitle.trim()) ? 'rgba(255,255,255,.08)' : '#0B6E76', border: 'none', color: 'white', padding: '.6rem 1rem', borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: '.875rem', cursor: (uploading || !uploadFile || !uploadTitle.trim()) ? 'not-allowed' : 'pointer' }}>
-            {uploading ? 'Sending…' : 'Send to doctor'}
+            {uploading ? t.sending : t.sendToDoctor}
           </button>
           {uploadMsg && (
             <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: uploadMsg.kind === 'ok' ? '#4FD1D9' : '#FCA5A5' }}>
@@ -533,9 +592,9 @@ export default function WaitingRoom() {
         {/* Step indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: '2rem', animation: 'fadeUp .5s .7s both' }}>
           {[
-            { label: 'Submitted', done: true },
-            { label: 'Dr reviewing', done: false },
-            { label: 'Callback', done: false },
+            { label: t.stepSubmitted, done: true },
+            { label: t.stepDrReviewing, done: false },
+            { label: t.stepCallback, done: false },
           ].map((step, i, arr) => (
             <React.Fragment key={step.label}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
@@ -563,27 +622,27 @@ export default function WaitingRoom() {
         {/* No-charge notice for after-hours */}
         {afterHours && (
           <div style={{ background: 'rgba(11,110,118,.2)', border: '1px solid rgba(11,110,118,.4)', borderRadius: 12, padding: '1rem 1.25rem', marginBottom: '1.5rem', width: '100%', maxWidth: 360, animation: 'fadeUp .5s .75s both' }}>
-            <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>Card held, not charged yet</div>
-            <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.8125rem', lineHeight: 1.6 }}>Your card is held but you won't be charged until your doctor contacts you. Cancel anytime and the hold is released automatically.</div>
+            <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.25rem' }}>{t.cardHeld}</div>
+            <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.8125rem', lineHeight: 1.6 }}>{t.cardHeldBody}</div>
           </div>
         )}
 
         {/* Cancel */}
         <button onClick={cancelConsultation}
           style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.2)', color: 'rgba(255,255,255,.7)', fontSize: '.9375rem', cursor: 'pointer', padding: '.75rem 1.5rem', borderRadius: 10, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>
-          Cancel — remove me from the queue
+          {t.cancelBtn}
         </button>
       </div>
 
       {/* Footer — emergency + platform-fallback (task #437) */}
       <div style={{ padding: '1.25rem 1.5rem', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,.06)' }}>
         <div style={{ color: 'rgba(255,255,255,.25)', fontSize: '.75rem', lineHeight: 1.8 }}>
-          Emergency? Call <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a> immediately
+          {t.emergencyPrefix} <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a> {t.emergencySuffix}
           &nbsp;·&nbsp;
-          Mental health: call or text <a href="tel:1737" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>1737</a>
+          {t.mentalHealth} <a href="tel:1737" style={{ color: 'rgba(255,255,255,.4)', textDecoration: 'none' }}>1737</a>
         </div>
         <div style={{ color: 'rgba(255,255,255,.35)', fontSize: '.6875rem', lineHeight: 1.6, marginTop: 8 }}>
-          If Tere isn't working: email <a href="mailto:hello@terehealth.co.nz" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>hello@terehealth.co.nz</a> — or for anything urgent, always call <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a>.
+          {t.tereNotWorking} <a href="mailto:hello@terehealth.co.nz" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>hello@terehealth.co.nz</a> {t.orUrgent} <a href="tel:111" style={{ color: '#ef4444', fontWeight: 700, textDecoration: 'none' }}>111</a>.
         </div>
       </div>
 
@@ -594,8 +653,8 @@ export default function WaitingRoom() {
           <div style={{ background: '#0F2E4C', border: '1px solid rgba(255,255,255,.12)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '90dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
               <div style={{ flex: 1 }}>
-                <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem' }}>Choose your pharmacy</div>
-                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>Search by pharmacy name or suburb</div>
+                <div style={{ color: 'white', fontWeight: 700, fontSize: '1rem' }}>{t.choosePharmacy}</div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', marginTop: 2 }}>{t.searchByName}</div>
               </div>
               <button onClick={() => { setPickerOpen(false); setPharmacyQuery('') }}
                 style={{ background: 'rgba(255,255,255,.08)', border: 'none', color: 'white', width: 32, height: 32, borderRadius: 8, fontSize: '1.125rem', cursor: 'pointer' }}>×</button>
@@ -603,7 +662,7 @@ export default function WaitingRoom() {
             <div style={{ padding: '.875rem 1.25rem' }}>
               {Array.isArray(nearestByLocation) && nearestByLocation.length > 0 && (
                 <div style={{ marginBottom: 12, background: 'rgba(65,196,207,.08)', border: '1px solid rgba(65,196,207,.25)', borderRadius: 10, padding: '.625rem .75rem' }}>
-                  <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.75)', fontWeight: 600, marginBottom: 6 }}>📍 Closest to you</div>
+                  <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.75)', fontWeight: 600, marginBottom: 6 }}>{t.closestToYou}</div>
                   {nearestByLocation.map(p => (
                     <button key={p.id} disabled={savingPharmacy} onClick={() => selectPharmacy(p)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '.5rem', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)', color: 'white', padding: '.5rem .75rem', margin: '3px 0', borderRadius: 8, cursor: savingPharmacy ? 'default' : 'pointer', fontFamily: 'inherit', opacity: savingPharmacy ? 0.6 : 1 }}>
@@ -611,26 +670,26 @@ export default function WaitingRoom() {
                       <span style={{ fontSize: '.6875rem', color: 'rgba(65,196,207,.9)', flexShrink: 0 }}>{formatDistance(p.distanceKm)}</span>
                     </button>
                   ))}
-                  <div style={{ fontSize: '.6875rem', color: 'rgba(255,255,255,.4)', marginTop: 4 }}>Your location is only used to sort — nothing is sent to Tere.</div>
+                  <div style={{ fontSize: '.6875rem', color: 'rgba(255,255,255,.4)', marginTop: 4 }}>{t.locationOnlySort}</div>
                 </div>
               )}
               <input
                 autoFocus
                 value={pharmacyQuery}
                 onChange={e => setPharmacyQuery(e.target.value)}
-                placeholder="e.g. Unichem Whanganui"
+                placeholder={t.searchPh}
                 style={{ width: '100%', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.15)', borderRadius: 10, padding: '.75rem 1rem', color: 'white', fontSize: '.9375rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
               />
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 .5rem 1rem' }}>
               {!pharmacyIndex && (
-                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '1rem 1.25rem' }}>Loading pharmacy list…</div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '1rem 1.25rem' }}>{t.loadingPharmacies}</div>
               )}
               {pharmacyIndex && pharmacyQuery.trim().length < 2 && (
-                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>Type at least 2 characters to search.</div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>{t.typeAtLeast2}</div>
               )}
               {pharmacyIndex && pharmacyQuery.trim().length >= 2 && pharmacyResults.length === 0 && (
-                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>No pharmacies matched. Try a different name or suburb.</div>
+                <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.8125rem', padding: '.5rem 1.25rem' }}>{t.noPharmaciesMatched}</div>
               )}
               {pharmacyResults.map(p => (
                 <button key={p.id} disabled={savingPharmacy} onClick={() => selectPharmacy(p)}

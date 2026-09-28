@@ -2061,3 +2061,80 @@ export function t_bilingual(id, lang = 'en', vars = {}) {
   const en = t(id, 'en', vars)
   return en === primary ? primary : `${primary} — ${en}`
 }
+
+// ── Auto-translate for patient-flow pages ────────────────────────────────
+//
+// The T[] table above covers every string that's been hand-translated by a
+// human. Patient-facing pages that came later (WorkIntake, VitalsCapture,
+// WaitingRoom) have far too many strings to maintain 13 language variants
+// by hand, and they're all short simple copy — well suited to MT. Pattern:
+//
+//   const T_EN = { welcome: 'Welcome', continue: 'Continue', ... }
+//   const t = useAutoT(T_EN)
+//   <div>{t.welcome}</div>
+//
+// On mount the hook reads `sessionStorage.getItem('patient_language')`
+// (set by WorkLanding when the patient picked their language) and, if it's
+// not 'en', calls /api/translate with the whole strings map in one round
+// trip. Result is cached in sessionStorage keyed by lang + hash so a
+// same-language reload is instant. English is a no-op.
+//
+// If the API fails, English strings render as fallback — worse than
+// translated but far better than a broken page.
+
+import { useEffect, useState } from 'react'
+
+function _hash(s) {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+  return (h >>> 0).toString(36)
+}
+
+// Exported so callers can prime a cache (e.g. server-side hydration).
+export async function translateStrings(map, targetLang) {
+  if (!targetLang || targetLang === 'en') return map
+  const keys = Object.keys(map).filter(k => typeof map[k] === 'string' && map[k].trim())
+  if (keys.length === 0) return map
+  const key = `_i18n_${targetLang}_${_hash(JSON.stringify({ k: keys, v: keys.map(k => map[k]) }))}`
+  try {
+    const cached = sessionStorage.getItem(key)
+    if (cached) return { ...map, ...JSON.parse(cached) }
+  } catch {}
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: keys.map(k => map[k]), target_lang: targetLang, source_lang: 'en' }),
+    })
+    if (!res.ok) return map
+    const data = await res.json()
+    const arr = Array.isArray(data.translated_text) ? data.translated_text : []
+    if (arr.length !== keys.length) return map
+    const out = { ...map }
+    keys.forEach((k, i) => { out[k] = arr[i] || map[k] })
+    try {
+      const only = {}
+      keys.forEach((k, i) => { only[k] = arr[i] || map[k] })
+      sessionStorage.setItem(key, JSON.stringify(only))
+    } catch {}
+    return out
+  } catch {
+    return map
+  }
+}
+
+export function useAutoT(englishMap) {
+  const lang = (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('patient_language')) || 'en'
+  const [t, setT] = useState(englishMap)
+  useEffect(() => {
+    let cancelled = false
+    if (lang === 'en') { setT(englishMap); return }
+    translateStrings(englishMap, lang).then(r => { if (!cancelled) setT(r) })
+    return () => { cancelled = true }
+    // Intentionally NOT depending on englishMap identity — callers pass a
+    // fresh object each render, which would loop. Rely on the stringified
+    // hash inside translateStrings as the effective cache key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang])
+  return t
+}
