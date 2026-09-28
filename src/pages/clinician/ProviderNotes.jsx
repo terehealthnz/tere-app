@@ -4,6 +4,7 @@ import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMess
 import { apiFetch } from '../../lib/api'
 import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
+import AccIcd10Picker from '../../components/clinician/AccIcd10Picker'
 import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
 import { getRrDisplay } from '../../lib/rrDisplay'
@@ -596,6 +597,22 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         const data = await loadWithRetry()
         setConsult(data)
         setActualMethod(data.consultation_type || sessionStorage.getItem('consultationType') || 'video')
+
+        // Hydrate the Diagnosis section from persisted consult data — so a
+        // page reload or provider returning later still sees the diagnosis
+        // chip, not just the fresh-post-generation state. clinicalImpression
+        // isn't stored as its own column (yet); parse it out of the saved
+        // note text if present ("Impression: <text>" line, our own NZ
+        // urgent-care template convention).
+        const parsedImpression = (typeof data.notes_final === 'string' ? data.notes_final : '')
+          .match(/^\s*Impression:\s*(.+)$/im)?.[1]?.trim() || null
+        if (parsedImpression || data.acc_icd10_code) {
+          setAiDx({
+            impression:          parsedImpression,
+            accIcd10Code:        data.acc_icd10_code || null,
+            accIcd10Description: data.acc_icd10_description || null,
+          })
+        }
 
         const rs = location.state
         actionsRef.current    = rs?.actions || data.notes_draft?.actions || []
@@ -1619,25 +1636,32 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           )}
         </div>
 
-        {/* Diagnosis — discrete AI-extracted impression + ACC ICD-10 chip.
-            Renders above the note text so provider can see the diagnosis at
-            a glance and confirm it matches the note prose. Not editable
-            here — provider edits the note text itself if wording differs.
-            ACC ICD-10 is the code the Convert-to-ACC modal will submit. */}
-        {aiDx.impression && (
+        {/* Diagnosis — AI-extracted clinical impression + editable ACC ICD-10
+            picker. Renders above the note so the code is visible + changeable
+            without opening the ACC modal. Any change here persists to the
+            consult row and pre-fills the ACC modal downstream. */}
+        {(aiDx.impression || aiDx.accIcd10Code) && (
           <div style={{ background:'#F0F9FF', border:'1.5px solid #BAE6FD', borderRadius:14, padding:'12px 16px', marginBottom:12 }}>
             <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#0369A1', marginBottom:6 }}>
               Diagnosis
             </div>
-            <div style={{ fontSize:'.9375rem', color:'#0C4A6E', fontWeight:600, lineHeight:1.45 }}>
-              {aiDx.impression}
-            </div>
-            {aiDx.accIcd10Code && (
-              <div style={{ marginTop:8, display:'inline-flex', alignItems:'center', gap:6, background:'white', border:'1.5px solid #BAE6FD', borderRadius:20, padding:'3px 10px', fontSize:'.75rem', color:'#0369A1', fontWeight:600 }}>
-                <span style={{ fontFamily:'ui-monospace, SFMono-Regular, monospace' }}>{aiDx.accIcd10Code}</span>
-                {aiDx.accIcd10Description && <span style={{ color:'#0284C7', fontWeight:500 }}>· {aiDx.accIcd10Description}</span>}
+            {aiDx.impression && (
+              <div style={{ fontSize:'.9375rem', color:'#0C4A6E', fontWeight:600, lineHeight:1.45, marginBottom:10 }}>
+                {aiDx.impression}
               </div>
             )}
+            <div style={{ fontSize:'.6875rem', color:'#075985', fontWeight:600, marginBottom:6, textTransform:'uppercase', letterSpacing:'.03em' }}>
+              ACC ICD-10 code {!aiDx.accIcd10Code && <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none' }}>— search 12,494 codes</span>}
+            </div>
+            <AccIcd10Picker
+              value={aiDx.accIcd10Code || ''}
+              label={aiDx.accIcd10Description || ''}
+              recommendedCode={aiDx.accIcd10Code || null}
+              onPick={async (code, description) => {
+                setAiDx(prev => ({ ...prev, accIcd10Code: code, accIcd10Description: description }))
+                try { await updateConsultation(id, { acc_icd10_code: code, acc_icd10_description: description }) } catch {}
+              }}
+            />
           </div>
         )}
 

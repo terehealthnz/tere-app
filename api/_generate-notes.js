@@ -396,7 +396,7 @@ For each clinical field include a confidence rating based on the clarity and com
     // AI-detected path is why an ankle sprain described mid-consult (with
     // the patient not having ticked ACC upfront) still prefills mechanism,
     // bodyPart, and ACC ICD-10 in the Convert-to-ACC modal.
-    accSection: (triage.accEligible || (extracted.acc_assessment && extracted.acc_assessment.is_acc === true)) ? {
+    accSection: (triage.accEligible || (extracted.acc_assessment && (extracted.acc_assessment.is_acc === true || extracted.acc_assessment.is_acc === 'true'))) ? {
       mechanism:          triage.accInjuryDescription
                           || (extracted.acc_assessment && typeof extracted.acc_assessment.mechanism === 'string' ? extracted.acc_assessment.mechanism.trim().slice(0, 500) : null)
                           || null,
