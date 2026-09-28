@@ -243,7 +243,13 @@ export default async function handler(req, res) {
           `tere-${consultationId.slice(0, 8)}`,
           {
             fromNumber,
-            participantIdentity: `patient-${consultationId.slice(0, 8)}`,
+            // Distinct identity from the browser patient (which uses
+            // `patient-${consultationId.slice(0,8)}`). LiveKit's default
+            // dup-identity policy kicks the older participant, which was
+            // knocking the patient off their video feed the moment SIP
+            // auto-fallback fired. `sip-patient-*` keeps both channels
+            // independently alive.
+            participantIdentity: `sip-patient-${consultationId.slice(0, 8)}`,
             participantName: consult.patient_first_name || 'Patient',
             krispEnabled: true,
             waitUntilAnswered: false,

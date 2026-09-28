@@ -163,17 +163,15 @@ export default function ClinicianPatient() {
           }).catch(() => {})
         } catch {}
         // Lock the consultation so other providers see it as being reviewed.
-        // Note: since we now read then write via API, there's a small race window
-        // if two providers open the same consult at the same second. Acceptable
-        // for a soft lock — the queue re-syncs on realtime updates.
+        // Fire-and-forget — do NOT await. The soft lock is a nice-to-have for
+        // queue de-dup; blocking the chart render on a round-trip to Supabase
+        // added ~500ms of dead time to every chart open. Optimistically flip
+        // the local status so the UI reads 'reviewing' immediately.
         if (data && ['vitals_complete', 'ready'].includes(data.status)) {
-          try {
-            await updateConsultation(id, {
-              status: 'reviewing', provider_display_name: displayName, provider_id: providerId,
-            })
-            lockedRef.current = true
-            setConsult(c => ({ ...c, status: 'reviewing' }))
-          } catch {}
+          setConsult(c => ({ ...c, status: 'reviewing' }))
+          updateConsultation(id, {
+            status: 'reviewing', provider_display_name: displayName, provider_id: providerId,
+          }).then(() => { lockedRef.current = true }).catch(() => {})
         }
         if (data?.patient_id) {
           const [pt, pastConsults, imagingRes, rx, docs, allg, meds, conds, hl7Res] = await Promise.all([
@@ -1282,7 +1280,17 @@ export default function ClinicianPatient() {
             consult={consult}
             onCall={async (channel) => {
               setCallError(null)
-              await unlock()
+              // DO NOT call unlock() here. It PATCHes status='waiting' +
+              // provider_id=null — the OPPOSITE of what we want. Previously
+              // it was fire-and-forget "to keep click→ring latency down",
+              // but the async PATCH races initiate-call and can land AFTER
+              // it, silently reverting status back to 'waiting'. Result:
+              // provider poll never sees in_progress → popup never mounts →
+              // no video. We're claiming the patient by pressing Call, so
+              // the lock is being upgraded to in_progress, not released.
+              // Also clear the local lock ref so unmount cleanup doesn't
+              // fire an unlock after Call succeeds.
+              lockedRef.current = false
               // Sandbox: don't call initiate-call for practice consults.
               // The bar's Simulate Call button already flipped status via
               // encounterAction; just flip UI into "in-call" mode so the
@@ -1291,9 +1299,12 @@ export default function ClinicianPatient() {
                 setActiveCall({ channel: 'practice', startedAt: Date.now() })
                 return
               }
-              const body = channel === 'livekit'
-                ? { consultationId: id, providerId, providerName: displayName }
-                : { consultationId: id, providerId, providerName: displayName, forcePhone: true }
+              // Always start LiveKit. The 15s auto-fallback in ProviderConsult
+              // fires forcePhone if the patient hasn't joined the room by then.
+              // Never send forcePhone at click time — that skips the video
+              // window entirely and kicks the patient straight to phone even
+              // when they're staring at the waiting-room screen.
+              const body = { consultationId: id, providerId, providerName: displayName }
               try {
                 const r = await apiFetch('/api/initiate-call', {
                   method: 'POST',

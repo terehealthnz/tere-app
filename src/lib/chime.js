@@ -39,18 +39,16 @@ import { apiFetch } from './api'
  *   default   → LiveKit
  */
 export function useChimeSdk() {
+  // LAUNCH LOCK 2026-09-27: hard-force LiveKit path. A stale
+  // sessionStorage `tere_chime=1` from a prior test was causing one side
+  // to render <ChimeCall> while the other rendered <LiveKitRoom>, putting
+  // them in different meeting infrastructures — the patient side saw a
+  // blank popup because Chime never created a meeting, then dropped to
+  // /done, then SIP fell back. Also proactively purge the stale key so
+  // no cached tab keeps triggering the split-brain state.
   try {
     if (typeof window !== 'undefined') {
-      const qp = new URLSearchParams(window.location.search).get('chime')
-      if (qp === '1') {
-        try { sessionStorage.setItem('tere_chime', '1') } catch {}
-        return true
-      }
-      if (qp === '0') {
-        try { sessionStorage.removeItem('tere_chime') } catch {}
-        return false
-      }
-      try { if (sessionStorage.getItem('tere_chime') === '1') return true } catch {}
+      try { sessionStorage.removeItem('tere_chime') } catch {}
     }
   } catch {}
   return false
