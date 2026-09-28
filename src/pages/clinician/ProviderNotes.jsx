@@ -443,6 +443,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // to the patient. HDC Right 6 evidence.
   const [safetyNetTemplateId, setSafetyNetTemplateId] = useState('')
   const [safetyNetText,       setSafetyNetText]       = useState('')
+  // AI-recommended safety-netting (diagnosis-specific). Populated by
+  // /api/generate-notes when it extracts a clinical impression. Provider
+  // sees this as an amber chip above the templates picker; one-click
+  // accept populates safetyNetText. Cleared after accept so the chip
+  // doesn't linger over their edited wording.
+  const [aiSafetyNet, setAiSafetyNet] = useState(null)
   // Provider's personal safety-net templates (task 466 follow-up 2026-09-08).
   // Merged into the built-in SAFETY_NET_TEMPLATES dropdown with a "⭐" prefix.
   const [mySafetyNetTemplates, setMySafetyNetTemplates] = useState([])
@@ -770,6 +776,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       }
       if (data.suggestedReadCode) setAccReadCode(data.suggestedReadCode)
       if (data.workCapacity)      setWorkCapacity(data.workCapacity)
+      // Diagnosis-specific safety-net recommendation. Only surface if the
+      // provider hasn't already picked / edited a safety-net; don't clobber
+      // their work if they re-run generation.
+      if (data.recommendedSafetyNet && (safetyNetText || '').trim().length === 0) {
+        setAiSafetyNet(data.recommendedSafetyNet)
+      }
 
       await updateConsultation(id, { note_generated_at: new Date().toISOString() })
     } catch (e) {
@@ -1747,6 +1759,46 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 — what the patient should watch for + when to come back
               </span>
             </label>
+            {/* AI-recommended safety-net (diagnosis-specific). Amber chip shows
+                above the template picker. One-click accept populates the
+                textarea; dismiss removes the chip for this session. Never
+                overrides a provider's edited text — accept is a fill, not a
+                merge. */}
+            {!isFinalised && aiSafetyNet && (safetyNetText || '').trim().length === 0 && (
+              <div style={{
+                background:'#FFFBEB', border:'1.5px solid #FCD34D', borderRadius:10,
+                padding:'12px 14px', marginBottom:12, display:'flex', gap:12, alignItems:'flex-start',
+              }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#B45309', marginBottom:6 }}>
+                    AI suggestion: diagnosis-specific return advice
+                  </div>
+                  <div style={{ fontSize:'.8125rem', color:'#78350F', whiteSpace:'pre-wrap', lineHeight:1.5 }}>
+                    {aiSafetyNet}
+                  </div>
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSafetyNetText(aiSafetyNet)
+                      setSafetyNetTemplateId('')
+                      setAiSafetyNet(null)
+                    }}
+                    style={{ background:'#F59E0B', color:'white', border:'none', borderRadius:6, padding:'.4rem .75rem', fontFamily:FF, fontSize:'.75rem', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}
+                  >
+                    Use this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAiSafetyNet(null)}
+                    style={{ background:'transparent', color:'#B45309', border:'1px solid #FCD34D', borderRadius:6, padding:'.4rem .75rem', fontFamily:FF, fontSize:'.75rem', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
             {!isFinalised && (
               <select value={safetyNetTemplateId}
                 onChange={e => {
