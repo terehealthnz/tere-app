@@ -49,7 +49,7 @@ function ProviderLeaveWatcher() {
 }
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsult } from '../../lib/supabase'
+import { getPatientConsult, subscribeToConsultationEnded } from '../../lib/supabase'
 import { getLangMeta, t } from '../../lib/i18n'
 import CallSubtitles from '../clinical/CallSubtitles'
 import ChimeCallSubtitles from '../clinical/ChimeCallSubtitles'
@@ -110,6 +110,17 @@ export default function PatientCall() {
       }
     }).catch(() => {})
   }, [consultationId])
+
+  // Listen for provider End Call broadcast — navigates to /done immediately
+  // instead of waiting 20s for ProviderLeaveWatcher's LiveKit-based grace
+  // period to elapse. Fires the moment the provider clicks End Call.
+  useEffect(() => {
+    if (!consultationId) return
+    const ch = subscribeToConsultationEnded(consultationId, () => {
+      navigate('/done')
+    })
+    return () => { try { ch?.unsubscribe?.() } catch {} }
+  }, [consultationId, navigate])
 
   // Poll consult status. Runs every 3s whenever we're in a gated state so we
   // can detect status flips (cooldown → waiting → in_progress) without the

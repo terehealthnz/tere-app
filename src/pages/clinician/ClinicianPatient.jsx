@@ -1312,17 +1312,16 @@ export default function ClinicianPatient() {
                 setActiveCall({ channel: 'practice', startedAt: Date.now() })
                 return
               }
-              // Always start LiveKit. The 15s auto-fallback in ProviderConsult
-              // fires forcePhone if the patient hasn't joined the room by then.
-              // Never send forcePhone at click time — that skips the video
-              // window entirely and kicks the patient straight to phone even
-              // when they're staring at the waiting-room screen.
+              // Channel is now an explicit provider choice (2026-09-28: split
+              // one "Call" button into "🎥 Video" + "📞 Phone"). Video →
+              // LiveKit only; Phone → forcePhone at click time so SIP dials
+              // the patient immediately, no 15s video wait.
               // Show "Starting call…" instantly so the provider gets visual
               // feedback during the ~1-2s /api/initiate-call round-trip
               // (Supabase fetch + status PATCH + LiveKit token). Cleared on
               // success (widget mount takes over) or failure (error banner).
               setCallStarting(true)
-              const body = { consultationId: id, providerId, providerName: displayName }
+              const body = { consultationId: id, providerId, providerName: displayName, forcePhone: channel === 'phone' }
               try {
                 const r = await apiFetch('/api/initiate-call', {
                   method: 'POST',

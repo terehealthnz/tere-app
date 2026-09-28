@@ -517,6 +517,36 @@ export function subscribeToChatMessages(consultationId, callback) {
     .subscribe()
 }
 
+// Provider-ended-call signal — patient tab listens on this channel and
+// navigates to /done immediately, skipping the 20s reconnect grace in
+// ProviderLeaveWatcher. LiveKit's participantDisconnected can't distinguish
+// an intentional End Call from a network drop, so we send an explicit
+// broadcast alongside the room disconnect.
+export function subscribeToConsultationEnded(consultationId, callback) {
+  return supabase
+    .channel(`consult-${consultationId}`, { config: { broadcast: { self: false } } })
+    .on('broadcast', { event: 'provider_ended' }, ({ payload }) => {
+      callback(payload || {})
+    })
+    .subscribe()
+}
+
+// Provider-side hangup signal. Broadcast is ephemeral (no DB write) so the
+// anon patient client can subscribe without any table SELECT privilege.
+export async function broadcastConsultationEnded(consultationId, reason = 'provider_ended') {
+  try {
+    const ch = supabase.channel(`consult-${consultationId}`, { config: { broadcast: { self: false } } })
+    await new Promise(resolve => {
+      ch.subscribe(status => { if (status === 'SUBSCRIBED') resolve() })
+      setTimeout(resolve, 800)
+    })
+    await ch.send({ type: 'broadcast', event: 'provider_ended', payload: { reason, at: new Date().toISOString() } })
+    setTimeout(() => { try { ch.unsubscribe() } catch {} }, 500)
+  } catch (e) {
+    console.warn('[broadcastConsultationEnded] failed:', e?.message)
+  }
+}
+
 // ── Patient profile helpers ──────────────────────────────────────────────────
 
 // Provider-side NHI-first lookup. Direct hit against patients.nhi (case-

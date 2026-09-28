@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getConsultation, updateConsultation } from '../../lib/supabase'
+import { getConsultation, updateConsultation, broadcastConsultationEnded } from '../../lib/supabase'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
 import { LiveKitRoom, useParticipants, useRoomContext } from '@livekit/components-react'
 import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
@@ -709,6 +709,13 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     // and the patient stays in a live meeting alone. onDisconnected fires here
     // too but the endingCall guard above short-circuits the re-entry.
     try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
+
+    // Fire an explicit "provider ended" broadcast so the patient tab
+    // navigates to /done immediately (skips the 20s reconnect grace in
+    // ProviderLeaveWatcher). LiveKit's participantDisconnected alone can't
+    // distinguish a real hangup from a network reconnect, hence the grace.
+    // Fire-and-forget — we don't block hangup on broadcast success.
+    broadcastConsultationEnded(id, providerInitiated ? 'provider_ended' : 'provider_left').catch(() => {})
 
     try {
       await updateConsultation(id, {
