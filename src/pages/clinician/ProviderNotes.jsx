@@ -1662,6 +1662,21 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 try { await updateConsultation(id, { acc_icd10_code: code, acc_icd10_description: description }) } catch {}
               }}
             />
+            {/* Inline ACC confirm — folds the previously-separate "Convert to
+                ACC claim" button into the Diagnosis card since the AI has
+                already extracted everything the ACC45 needs. Same modal, same
+                explicit consent tick still required (regulatory audit). */}
+            {isNZ() && !isFinalised && aiDx.accIcd10Code && !consult?.acc_converted_by_provider && consult?.acc_eligible !== 'yes' && (
+              <button type="button" onClick={() => setShowAccConvert(true)}
+                style={{ marginTop:10, width:'100%', padding:'8px 12px', border:'1.5px solid #059669', borderRadius:8, background:'#ECFDF5', color:'#065F46', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.8125rem' }}>
+                ✓ Confirm ACC claim & lodge
+              </button>
+            )}
+            {isNZ() && consult?.acc_converted_by_provider && (
+              <div style={{ marginTop:10, padding:'6px 10px', border:'1px solid #BBF7D0', borderRadius:6, background:'#F0FDF4', color:'#065F46', fontSize:'.75rem', fontWeight:600 }}>
+                ✓ ACC claim confirmed — pending admin lodgement
+              </div>
+            )}
           </div>
         )}
 
@@ -1780,19 +1795,16 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             <option value="">Select outcome…</option>
             {OUTCOMES.filter(o => !isAsyncMessage || o.value !== 'acc_lodged').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          {/* ACC conversion — the injury-billing decision belongs in wrap-up
-              alongside outcome / fee tier / continuity. Moved from chart 2026-09-08.
-              NZ only; only when not already converted. */}
-          {isNZ() && !isFinalised && !consult?.acc_converted_by_provider && consult?.acc_eligible !== 'yes' && (
+          {/* ACC conversion — only shown here when the AI DIDN'T detect ACC
+              (aiDx.accIcd10Code is empty). AI-detected path folds the confirm
+              action into the Diagnosis card above; showing both would be
+              duplicative. Already-converted status shows in the Diagnosis
+              card too. */}
+          {isNZ() && !isFinalised && !aiDx.accIcd10Code && !consult?.acc_converted_by_provider && consult?.acc_eligible !== 'yes' && (
             <button type="button" onClick={() => setShowAccConvert(true)}
               style={{ marginTop:10, width:'100%', padding:'10px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.875rem' }}>
               ⚡ Convert to ACC claim (injury)
             </button>
-          )}
-          {isNZ() && consult?.acc_converted_by_provider && (
-            <div style={{ marginTop:10, padding:'8px 12px', border:'1px solid #BBF7D0', borderRadius:8, background:'#F0FDF4', color:'#065F46', fontSize:'.8125rem', fontWeight:600 }}>
-              ✓ Converted to ACC — pending admin lodgement
-            </div>
           )}
         </div>
 
