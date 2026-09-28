@@ -693,29 +693,25 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     setEndingCall(true)
     const durationSec = callStart ? Math.round((Date.now() - callStart) / 1000) : null
 
-    // Stop the scribe first so its recorded audio actually gets transcribed. Previously
-    // endCall persisted transcript state to DB *before* stopScribe ran, so the Blob
-    // never reached /api/transcribe and transcript was always null in the record.
+    // INSTANT teardown first (2026-09-28): both sides used to sit staring
+    // at a frozen video for 3-10s while stopScribe uploaded audio to
+    // /api/transcribe before the LiveKit room disconnected. Now we release
+    // the room + fire the broadcast first (~200ms end-to-end) so the video
+    // visibly ends immediately, then run transcription behind a "wrapping
+    // up" spinner (setEndingCall(true) above already flipped the widget).
+    // Fire-and-forget broadcast — we don't block hangup on ack.
+    broadcastConsultationEnded(id, providerInitiated ? 'provider_ended' : 'provider_left').catch(() => {})
+    try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
+
+    // Now transcribe. The video is already gone; provider sees the "ending
+    // call" state on the widget while the audio blob uploads. Notes page
+    // reads transcript from the consult row on load, so we still await
+    // this before navigate.
     let finalTranscript = transcript
     if (scribeState === 'recording' && recorderRef.current) {
       const captured = await stopScribe()
       if (captured) finalTranscript = captured
     }
-
-    // Explicitly leave the LiveKit room so the mic + video tracks release and
-    // the patient side sees ParticipantDisconnected (their ProviderLeaveWatcher
-    // then disconnects them and PatientCall's onDisconnected navigates to /done).
-    // Without this, hitting "End call" only hides our overlay — the mic stays hot
-    // and the patient stays in a live meeting alone. onDisconnected fires here
-    // too but the endingCall guard above short-circuits the re-entry.
-    try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
-
-    // Fire an explicit "provider ended" broadcast so the patient tab
-    // navigates to /done immediately (skips the 20s reconnect grace in
-    // ProviderLeaveWatcher). LiveKit's participantDisconnected alone can't
-    // distinguish a real hangup from a network reconnect, hence the grace.
-    // Fire-and-forget — we don't block hangup on broadcast success.
-    broadcastConsultationEnded(id, providerInitiated ? 'provider_ended' : 'provider_left').catch(() => {})
 
     try {
       await updateConsultation(id, {
