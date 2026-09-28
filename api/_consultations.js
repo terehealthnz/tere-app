@@ -68,7 +68,7 @@ const UPDATE_ALLOWLIST = new Set([
   'daily_room_url', 'daily_room_name',
   // Approval / admin
   'acc_approval_status', 'acc_draft', 'acc_reviewed_at', 'acc_reviewer_id',
-  'is_acc', 'billing_code', 'payment_amount',
+  'is_acc', 'acc_eligible', 'billing_code', 'payment_amount',
   'recall_completed', 'controlled_medication_mentioned',
   // Pharmacy
   'pharmacy', 'pharmacy_id',

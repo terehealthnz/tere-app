@@ -960,7 +960,16 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const contOk = !!contDisposition && (
     !HANDOFF_TYPES.has(contDisposition) || contPatientTold
   )
-  const canFinalise = noteConfirmed && !!outcome && attested && safetyNetOk && contOk
+  // ACC billing decision gate (Option B): if AI extracted an ACC ICD-10 code
+  // but provider hasn't converted OR explicitly overridden ("bill privately"),
+  // block finalise. Prevents the silent-revenue-leak failure mode where an
+  // ACC-eligible injury gets billed at the private rate because the provider
+  // forgot to click Confirm.
+  const accBillingDecided = !aiDx.accIcd10Code
+    || !!consult?.acc_converted_by_provider
+    || consult?.acc_eligible === 'no'
+    || consult?.acc_eligible === 'yes'
+  const canFinalise = noteConfirmed && !!outcome && attested && safetyNetOk && contOk && accBillingDecided
 
   function addAction(action) {
     actionsRef.current = [...actionsRef.current, action]
@@ -2167,6 +2176,49 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           </div>
         )}
 
+        {/* ACC billing decision banner (Option B). Shown when AI extracted
+            an ACC ICD-10 code but the provider hasn't yet Confirmed the
+            claim OR explicitly opted out via "Not ACC — bill privately".
+            Blocks finalise (via canFinalise gate) until one path is chosen —
+            prevents the silent-revenue-leak failure mode where an ACC
+            injury gets finalised at private rates because the provider
+            forgot the button. */}
+        {isNZ() && !isAsyncMessage && !isFinalised && aiDx.accIcd10Code
+          && !consult?.acc_converted_by_provider
+          && consult?.acc_eligible !== 'no'
+          && consult?.acc_eligible !== 'yes' && (
+          <div style={{ background:'#FEF2F2', border:'2px solid #FCA5A5', borderRadius:14, padding:'1rem 1.25rem', marginBottom:12 }}>
+            <div style={{ fontWeight:800, color:'#991B1B', fontSize:'.9375rem', marginBottom:6 }}>
+              ⚠ ACC decision required before finalise
+            </div>
+            <div style={{ fontSize:'.8125rem', color:'#7F1D1D', lineHeight:1.5, marginBottom:12 }}>
+              AI detected an ACC-covered injury (<b style={{ fontFamily:'monospace' }}>{aiDx.accIcd10Code}</b>
+              {aiDx.accIcd10Description ? ` — ${aiDx.accIcd10Description}` : ''}).
+              Confirm to bill at ACC rates, or override to bill privately. Choice is audit-logged.
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button type="button" onClick={() => setShowAccConvert(true)}
+                style={{ flex:2, padding:'10px 12px', border:'none', borderRadius:8, background:'#059669', color:'white', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.8125rem' }}>
+                ✓ Confirm ACC claim
+              </button>
+              <button type="button"
+                onClick={async () => {
+                  if (!confirm('Bill this consultation privately (not ACC)? This will be recorded in the audit log.')) return
+                  try {
+                    await updateConsultation(id, { acc_eligible: 'no' })
+                    if (setConsult) {
+                      const fresh = await getConsultation(id)
+                      if (fresh) setConsult(fresh)
+                    }
+                  } catch (e) { alert('Could not save override: ' + e.message) }
+                }}
+                style={{ flex:1, padding:'10px 12px', border:'1.5px solid #DC2626', borderRadius:8, background:'white', color:'#991B1B', cursor:'pointer', fontFamily:FF, fontWeight:700, fontSize:'.8125rem' }}>
+                Not ACC — bill privately
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Attestation + Finalise — video / phone only */}
         {!isAsyncMessage && (
           !isFinalised ? (
@@ -2186,6 +2238,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
               {!noteConfirmed && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Confirm the clinical note above to continue</div>}
               {noteConfirmed && !outcome && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#D97706', marginTop:8 }}>Select a consultation outcome to continue</div>}
               {noteConfirmed && outcome && !attested && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#9CA3AF', marginTop:8 }}>Tick the attestation above to finalise</div>}
+              {noteConfirmed && outcome && attested && !accBillingDecided && <div style={{ textAlign:'center', fontSize:'.8125rem', color:'#991B1B', marginTop:8, fontWeight:700 }}>Choose ACC or private billing above to finalise</div>}
             </div>
           ) : (
             <div style={{ background:'#F0FDF4', borderRadius:14, padding:'1.5rem', border:'1.5px solid #BBF7D0', textAlign:'center', marginBottom:12 }}>
