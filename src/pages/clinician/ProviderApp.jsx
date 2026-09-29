@@ -1395,8 +1395,17 @@ export default function ProviderApp() {
         </div>
       )}
 
-      {/* Bottom nav */}
-      <BottomNav tab={tab} setTab={setTab} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} />
+      {/* Bottom nav. On desktop the "PMS" tab is a shortcut into the
+          real desktop dashboard at /clinician/dashboard instead of the
+          cramped mobile PMSTab view — provider was having to click PMS
+          then Menu → Provider dashboard (desktop) to get anywhere useful. */}
+      <BottomNav tab={tab} setTab={(next) => {
+        if (next === 'pms' && typeof window !== 'undefined' && window.innerWidth >= 900) {
+          navigate('/clinician/dashboard')
+          return
+        }
+        setTab(next)
+      }} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} />
     </div>
   )
 }
