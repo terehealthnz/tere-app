@@ -1,7 +1,16 @@
-// api/_generate-med-cert.js — Generate and email a medical certificate
+// api/_generate-med-cert.js — Generate a medical certificate PDF and email
+// it to the patient as an attachment.
+//
+// Previous version rendered the certificate inline in the email body. Gmail
+// strips base64 data-URL <img> tags so the provider signature always
+// disappeared, and long HTML layouts get mangled across email clients — the
+// artefact never looked like a real certificate. Now: proper A4 PDF built by
+// buildMedCertPdf (mirrors prescription/referral PDFs), delivered as an
+// attachment with a short cover email.
 import { escapeHtml, sanitizeSubject } from './_email-safety.js'
 import { writeAuditEvent } from './_audit-write.js'
 import { hasEmailProvider } from './_email-client.js'
+import { buildMedCertPdf } from './_pdf-builders.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -24,131 +33,41 @@ export default async function handler(req, res) {
     modifiedHours,
     modifiedDays,
     reviewDate,
-    // data-URL PNG captured from the provider's signature canvas. Rendered
-    // inline in the certificate above the printed name so it looks like a
-    // real signed document. Sanity-cap the size at ~200KB so a rogue
-    // client can't blow up the email payload.
+    // data-URL PNG captured from the provider's signature canvas — passed
+    // through to the PDF builder which decodes to a Buffer for pdfkit.
     providerSignature,
   } = req.body || {}
 
   if (!consultationId || !patientEmail) return res.status(400).json({ error: 'consultationId and patientEmail required' })
-
-  const canEmail = hasEmailProvider()
-  if (!canEmail) return res.status(500).json({ error: 'Resend not configured' })
+  if (!hasEmailProvider()) return res.status(500).json({ error: 'Email not configured' })
 
   const dateStr = consultationDate
     ? new Date(consultationDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
 
-  const certFromStr   = certFrom   ? new Date(certFrom).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : dateStr
-  const certToStr     = certTo     ? new Date(certTo).toLocaleDateString('en-NZ',   { day: 'numeric', month: 'long', year: 'numeric' }) : '—'
-  const reviewDateStr = reviewDate ? new Date(reviewDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null
-
-  const capacityLabel = workCapacity === 'unfit' ? 'Unfit for work' : 'Modified duties only'
-  const capacityColor = workCapacity === 'unfit' ? '#DC2626' : '#D97706'
-
-  // Escape every field that gets interpolated into HTML. Patient names,
-  // diagnosis text, employer, restrictions are patient-supplied or provider-
-  // typed and were previously bare-interpolated → HTML/JS injection into
-  // the emailed certificate. Pen-test #314-A3.
-  const e = {
-    patientName:   escapeHtml(patientName || 'Patient'),
-    patientDob:    escapeHtml(patientDob),
-    patientNhi:    escapeHtml(patientNhi),
-    employer:      escapeHtml(employer),
-    diagnosis:     escapeHtml(diagnosis),
-    restrictions:  escapeHtml(restrictions),
-    modifiedHours: escapeHtml(modifiedHours),
-    modifiedDays:  escapeHtml(modifiedDays),
-    providerName:  escapeHtml(providerName || 'Tere clinician'),
-    providerReg:   escapeHtml(providerReg),
-  }
-
-  // Accept the provider signature only if it looks like a small PNG data URL.
-  // Anything larger than ~200 KB or that doesn't parse gets dropped and we
-  // fall through to the printed-name-only footer.
-  const sigOk = typeof providerSignature === 'string'
-    && providerSignature.startsWith('data:image/png;base64,')
-    && providerSignature.length < 250_000
-  const signatureBlock = sigOk
-    ? `<div style="margin-top:12px"><img src="${providerSignature}" alt="Provider signature" style="max-height:60px;max-width:280px;display:block" /></div>`
-    : ''
-
-  const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><style>
-  body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1A2A33; max-width: 680px; margin: 0 auto; background: #fff; }
-  .header { background: #0D2B45; padding: 24px 32px; }
-  .logo { font-family: Georgia, serif; font-style: italic; color: #D4EEF0; font-size: 22px; }
-  .sublogo { color: rgba(212,238,240,.5); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
-  .cert-title { background: #F8FAFC; border: 2px solid #0B6E76; border-radius: 8px; padding: 16px 24px; margin: 24px 32px 0; text-align: center; }
-  .body { padding: 20px 32px 24px; }
-  .row { display: flex; border-bottom: 1px solid #F3F4F6; padding: 8px 0; font-size: 14px; }
-  .row-label { color: #6B7280; width: 180px; flex-shrink: 0; }
-  .row-value { color: #1A2A33; font-weight: 600; }
-  .capacity-box { border-radius: 8px; padding: 12px 16px; margin: 16px 0; text-align: center; font-size: 18px; font-weight: 700; }
-  .footer { background: #F8FAFC; padding: 16px 32px; font-size: 11px; color: #9CA3AF; border-top: 1px solid #E2E8F0; }
-</style></head>
-<body>
-<div class="header">
-  <div class="logo">Tere Health</div>
-  <div class="sublogo">Marlborough Sounds, New Zealand</div>
-</div>
-
-<div class="cert-title">
-  <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#0B6E76;font-weight:700;margin-bottom:4px">Medical Certificate</div>
-  <div style="font-size:22px;font-family:Georgia,serif;font-weight:700;color:#0D2B45">${e.patientName}</div>
-</div>
-
-<div class="body">
-  <div style="margin-bottom:20px">
-    <div class="row"><span class="row-label">Date of consultation</span><span class="row-value">${dateStr}</span></div>
-    <div class="row"><span class="row-label">Date of birth</span><span class="row-value">${e.patientDob || '—'}</span></div>
-    <div class="row"><span class="row-label">NHI number</span><span class="row-value">${e.patientNhi || '—'}</span></div>
-    <div class="row"><span class="row-label">Employer</span><span class="row-value">${e.employer || '—'}</span></div>
-    <div class="row"><span class="row-label">Diagnosis</span><span class="row-value">${e.diagnosis || '—'}</span></div>
-  </div>
-
-  <div class="capacity-box" style="background:${workCapacity === 'unfit' ? '#FEF2F2' : '#FFFBEB'};border:2px solid ${capacityColor};color:${capacityColor}">
-    ${capacityLabel}
-  </div>
-
-  <div style="margin-bottom:16px">
-    <div class="row"><span class="row-label">From</span><span class="row-value">${certFromStr}</span></div>
-    <div class="row"><span class="row-label">To</span><span class="row-value">${certToStr}</span></div>
-    ${workCapacity === 'modified' && modifiedHours && modifiedDays ? `<div class="row"><span class="row-label">Hours / days</span><span class="row-value">${e.modifiedHours} hours/day · ${e.modifiedDays} days/week</span></div>` : ''}
-    ${restrictions ? `<div class="row"><span class="row-label">Restrictions</span><span class="row-value">${e.restrictions}</span></div>` : ''}
-    ${reviewDateStr ? `<div class="row"><span class="row-label">Review date</span><span class="row-value">${reviewDateStr}</span></div>` : ''}
-  </div>
-
-  <p style="font-size:13px;color:#6B7280;line-height:1.7;margin-top:20px">
-    This certificate was issued following a telehealth consultation conducted via Tere Health (terehealth.co.nz)
-    in accordance with MCNZ telehealth standards.
-  </p>
-
-  <div style="margin-top:20px;border-top:1px solid #E2E8F0;padding-top:16px">
-    ${signatureBlock}
-    <div style="font-size:14px;font-weight:700;color:#0D2B45;margin-top:${sigOk ? '4px' : '0'}">${e.providerName}</div>
-    ${providerReg ? `<div style="font-size:12px;color:#6B7280">${e.providerReg}</div>` : ''}
-    <div style="font-size:12px;color:#6B7280">Tere Health · terehealthnz@gmail.com</div>
-    <div style="font-size:12px;color:#6B7280">Issued: ${dateStr}</div>
-  </div>
-</div>
-
-<div class="footer">
-  Tere Health · Marlborough Sounds, New Zealand · terehealth.co.nz<br>
-  This certificate contains confidential patient information.
-</div>
-</body></html>`
-
   try {
+    const pdfBuf = await buildMedCertPdf({
+      patientName, patientDob, patientNhi, employer,
+      consultationDate: consultationDate || new Date().toISOString(),
+      certFrom, certTo,
+      workCapacity, diagnosis, restrictions, modifiedHours, modifiedDays, reviewDate,
+      providerName, providerReg,
+      providerSignatureDataUrl: providerSignature,
+    })
+
+    const filename = `medical-certificate-${(patientName || 'patient').replace(/[^A-Za-z0-9]+/g, '-')}-${dateStr.replace(/ /g, '-')}.pdf`
+
     const { sendEmail } = await import('./_email-client.js')
     const emailRes = await sendEmail({
       from: 'Tere Health <hello@terehealth.co.nz>',
       replyTo: 'terehealthnz@gmail.com',
       to: patientEmail,
-      subject: sanitizeSubject(`Medical Certificate — ${patientName || 'Patient'} — ${dateStr}`),
-      html,
+      subject: sanitizeSubject(`Medical certificate — ${patientName || 'Patient'} — ${dateStr}`),
+      html: `<p>Hi ${patientName ? escapeHtml(String(patientName).split(' ')[0]) : 'there'},</p>
+<p>Please find your medical certificate from your Tere Health telehealth consultation attached as a PDF. You can forward this to your employer or ACC as needed.</p>
+<p>If you have any questions, reply to this email and we'll get back to you.</p>
+<p>— Tere Health<br>terehealth.co.nz</p>`,
+      attachments: [{ filename, content: pdfBuf.toString('base64'), contentType: 'application/pdf' }],
     })
     if (!emailRes.ok) {
       console.error('[generate-med-cert] email send failed:', emailRes.error)

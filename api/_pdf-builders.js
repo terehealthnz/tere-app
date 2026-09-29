@@ -53,6 +53,18 @@ async function fetchSignatureBuffer(url) {
   } catch { return null }
 }
 
+// Decode an in-line `data:image/…;base64,…` URL to a Buffer for pdfkit's
+// doc.image() API. Med cert path captures the provider signature on-canvas
+// then sends it inline, so no fetch is needed. Size-capped at 250 KB to
+// match the endpoint's own sanity cap.
+function signatureBufferFromDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string') return null
+  const m = dataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/i)
+  if (!m) return null
+  if (dataUrl.length > 250_000) return null
+  try { return Buffer.from(m[2], 'base64') } catch { return null }
+}
+
 // Tere Health logo — loaded lazily from public/ so it ships with the Vercel
 // deployment. Cached module-level to avoid disk reads on every PDF. Embedding
 // the logo also bulks referral PDFs past the 10 KB threshold that RHCNZ's
@@ -1842,6 +1854,150 @@ export function buildAccCertificatePdf(data) {
 
     // Watermark — provider name + timestamp diagonally across every page.
     drawWatermark(doc, { exporter: data.provider?.name, label: 'CONFIDENTIAL — ' + (TITLES[type] || 'ACC CERTIFICATE').toUpperCase() })
+
+    doc.end()
+  })
+}
+
+// ─── Medical certificate PDF ──────────────────────────────────────────────
+//
+// One-page A4 certificate the patient can forward to their employer. Real
+// PDF (not an inline-HTML email) because Gmail strips data-URL <img> tags
+// which was hiding the provider signature, and email clients broadly mangle
+// the layout so the doc doesn't read as a "proper" certificate. The PDF is
+// attached to a short cover email built alongside in _generate-med-cert.js.
+//
+// Expected shape:
+//   {
+//     patientName, patientDob, patientNhi, employer,
+//     consultationDate, certFrom, certTo,
+//     workCapacity: 'unfit' | 'modified',
+//     diagnosis, restrictions, modifiedHours, modifiedDays, reviewDate,
+//     providerName, providerReg,
+//     providerSignatureDataUrl,  // 'data:image/png;base64,...' from canvas
+//   }
+export async function buildMedCertPdf(data) {
+  const sigBuf = signatureBufferFromDataUrl(data.providerSignatureDataUrl)
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const H = doc.page.height
+    const M = 50
+
+    // Header band — matches prescription/referral/insurance PDFs.
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', M, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', M, 46)
+
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('MEDICAL CERTIFICATE', M, 90)
+    doc.moveTo(M, 110).lineTo(W - M, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
+
+    // Two-column: Patient / Certifying clinician. Same put() helper pattern
+    // as the prescription PDF so long names wrap without colliding.
+    const LEFT  = M
+    const RIGHT = 300
+    const COL_W = 235
+    const nzDate = (v) => v
+      ? new Date(v).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+      : '—'
+    const put = (text, x, y, { w = COL_W, fs = 10, font = 'Helvetica', color = null, gap = 2 } = {}) => {
+      if (color) doc.fillColor(color)
+      doc.font(font).fontSize(fs).text(String(text), x, y, { width: w })
+      const h = doc.heightOfString(String(text), { width: w })
+      return y + Math.max(fs + gap, h + gap)
+    }
+
+    let leftY = 120
+    leftY = put('Patient',                          LEFT, leftY, { fs: 10, font: 'Helvetica-Bold', color: '#333' })
+    leftY = put(data.patientName || '—',            LEFT, leftY, { fs: 11, font: 'Helvetica-Bold', color: '#1A2A33' })
+    leftY = put(`DOB: ${nzDate(data.patientDob)}`,  LEFT, leftY, { color: '#555' })
+    if (data.patientNhi) leftY = put(`NHI: ${data.patientNhi}`, LEFT, leftY, { color: '#555' })
+    if (data.employer)   leftY = put(`Employer: ${data.employer}`, LEFT, leftY, { color: '#555' })
+
+    let rightY = 120
+    rightY = put('Certifying clinician',                      RIGHT, rightY, { fs: 10, font: 'Helvetica-Bold', color: '#333' })
+    rightY = put(data.providerName || 'Tere clinician',       RIGHT, rightY, { fs: 11, font: 'Helvetica-Bold', color: '#1A2A33' })
+    if (data.providerReg) rightY = put(`MCNZ: ${data.providerReg}`, RIGHT, rightY, { color: '#555' })
+    rightY = put(`Consultation: ${nzDate(data.consultationDate)}`, RIGHT, rightY, { color: '#555' })
+    rightY = put('Consultation type: Telehealth',             RIGHT, rightY, { color: '#555' })
+
+    let flowY = Math.max(leftY, rightY) + 10
+    doc.moveTo(M, flowY).lineTo(W - M, flowY).strokeColor('#DDD').lineWidth(0.5).stroke()
+    flowY += 14
+
+    // Work capacity block.
+    const capacity = data.workCapacity === 'unfit' ? 'Unfit for work' : 'Fit for modified duties only'
+    const capColor = data.workCapacity === 'unfit' ? '#B91C1C' : '#B45309'
+    doc.fillColor(capColor).font('Helvetica-Bold').fontSize(14).text(capacity, M, flowY)
+    flowY += 22
+
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Period of certification', M, flowY)
+    flowY += 14
+    doc.fillColor('#1A2A33').font('Helvetica').fontSize(11)
+      .text(`From ${nzDate(data.certFrom)} to ${nzDate(data.certTo)}`, M, flowY)
+    flowY += 22
+
+    if (data.diagnosis) {
+      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Diagnosis', M, flowY)
+      flowY += 14
+      flowY = put(data.diagnosis, M, flowY, { w: W - 100, fs: 11, color: '#1A2A33' })
+      flowY += 6
+    }
+
+    if (data.restrictions) {
+      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Restrictions / notes for employer', M, flowY)
+      flowY += 14
+      flowY = put(data.restrictions, M, flowY, { w: W - 100, fs: 11, color: '#1A2A33' })
+      flowY += 6
+    }
+
+    if (data.workCapacity === 'modified' && (data.modifiedHours || data.modifiedDays)) {
+      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Modified duties', M, flowY)
+      flowY += 14
+      const parts = []
+      if (data.modifiedHours) parts.push(`${data.modifiedHours} hours per day`)
+      if (data.modifiedDays)  parts.push(`${data.modifiedDays} days per week`)
+      flowY = put(parts.join(' · '), M, flowY, { w: W - 100, fs: 11, color: '#1A2A33' })
+      flowY += 6
+    }
+
+    if (data.reviewDate) {
+      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Review recommended', M, flowY)
+      flowY += 14
+      flowY = put(nzDate(data.reviewDate), M, flowY, { w: W - 100, fs: 11, color: '#1A2A33' })
+      flowY += 6
+    }
+
+    // Signature block — anchored near the bottom but not above the flowed
+    // content. Fixed offsets mirror the prescription PDF.
+    const sigY = Math.max(flowY + 40, H - 160)
+    if (sigBuf) {
+      try { doc.image(sigBuf, M, sigY - 40, { fit: [170, 40], align: 'center' }) } catch { /* fall through */ }
+    }
+    doc.moveTo(M, sigY).lineTo(220, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text(data.providerName || 'Tere clinician', M, sigY + 6)
+    if (data.providerReg) doc.fillColor('#666').font('Helvetica').fontSize(9).text(`MCNZ ${data.providerReg}`, M, sigY + 20)
+    doc.moveTo(300, sigY).lineTo(W - M, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.fillColor('#666').font('Helvetica').fontSize(9).text('Date issued', 300, sigY + 6)
+    doc.fillColor('#333').text(nzDate(new Date()), 300, sigY + 18)
+
+    // Regulatory footer. MCNZ Telehealth statement is the key legitimacy
+    // signal for an employer accepting a telehealth-only sick note.
+    doc.fillColor('#666').font('Helvetica-Oblique').fontSize(8).text(
+      'Issued in accordance with the Medical Council of New Zealand Telehealth Statement (2020). ' +
+      'This is an electronically-issued medical certificate; the certifying clinician\'s printed name ' +
+      'and MCNZ registration number carry the same legal weight as a wet-ink signature.',
+      M, H - 80, { width: W - 100, align: 'center', lineGap: 1 }
+    )
+    doc.fillColor('#9CA3AF').fontSize(7.5).text(
+      'Tere Health Ltd · terehealth.co.nz · Not valid if altered',
+      M, H - 45, { width: W - 100, align: 'center' }
+    )
 
     doc.end()
   })
