@@ -766,12 +766,25 @@ export default function AITriage() {
             // to what we already collected. If postcode/suburb/city
             // matches, confidence='high' and we skip the confirmation.
             patientAddress: stamped.patient_address || '',
+            // Per-patient-session ID for HNZ correlation (IN-3589).
+            sessionId: sessionStorage.getItem('tere_session_id') || undefined,
           }),
         })
         const body = await res.json().catch(() => ({}))
         setTereTyping(false)
         // Endpoint disabled (no HNZ creds yet) → skip silently.
         if (body.enabled === false) { advanceToStep('pharmacy', stamped); return }
+        // Discovery-mode match with NHI hidden (IN-3589 fix): HNZ found a
+        // unique record for this patient but the NHI is never returned to
+        // the anonymous browser to avoid the name+DOB-fishing risk Noel
+        // flagged 26 Sept. Confirm identity in-app + advance without
+        // stashing an NHI client-side. Provider or admin can attach the
+        // NHI later via the authenticated Admin NHI Lookup surface.
+        if (body.matched && body.display?.nhi_hidden) {
+          setMessages(prev => [...prev, { role:'tere', text:'✓ Identity confirmed with Health New Zealand.' }])
+          advanceToStep('pharmacy', stamped)
+          return
+        }
         if (body.matched && body.display?.nhi) {
           const withDisplay = {
             ...stamped,
@@ -838,6 +851,7 @@ export default function AITriage() {
             nhi:         v.nhi,
             patientName: newData.patient_name,
             patientDob:  newData.patient_dob_raw,
+            sessionId:   sessionStorage.getItem('tere_session_id') || undefined,
           }),
         })
         const body = await res.json().catch(() => ({}))

@@ -204,7 +204,7 @@ function parseNzAddress(raw) {
 // $match to fetch full demographics (name/DOB) because HNZ redacts those
 // from $match responses. Without this, the "Found X — is that you?" prompt
 // would render as "Found a match, born  — is that you?".
-async function callGetPatient(token, nhi) {
+async function callGetPatient(token, nhi, { corrId, userid }) {
   const base = NHI_FHIR_BASE.replace(/\/+$/, '')
   const r = await globalThis.fetch(`${base}/Patient/${encodeURIComponent(nhi)}`, {
     method: 'GET',
@@ -212,7 +212,8 @@ async function callGetPatient(token, nhi) {
       Authorization:      `Bearer ${token}`,
       Accept:             'application/fhir+json',
       'x-api-key':        NHI_CLIENT_ID,
-      userid:             'tere-triage',
+      userid:             userid,
+      'X-Correlation-Id': corrId,
       'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
     },
   })
@@ -222,7 +223,7 @@ async function callGetPatient(token, nhi) {
   return { status: r.status, body: parsed }
 }
 
-async function callMatch(token, { nhi, given, family, birthdate, address, onlyCertain }) {
+async function callMatch(token, { nhi, given, family, birthdate, address, onlyCertain }, { corrId, userid }) {
   const base = NHI_FHIR_BASE.replace(/\/+$/, '')
   const patient = { resourceType: 'Patient' }
   if (nhi) patient.identifier = [{ system: 'https://standards.digital.health.nz/ns/nhi-id', value: nhi }]
@@ -258,7 +259,8 @@ async function callMatch(token, { nhi, given, family, birthdate, address, onlyCe
       Accept:             'application/fhir+json',
       'Content-Type':     'application/fhir+json',
       'x-api-key':        NHI_CLIENT_ID,
-      userid:             'tere-triage',
+      userid:             userid,
+      'X-Correlation-Id': corrId,
       'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
     },
     body: JSON.stringify(body),
@@ -275,10 +277,24 @@ export default async function handler(req, res) {
   // Stub short-circuit — no access yet, no attempt.
   if (!NHI_ENABLED) return res.status(200).json({ enabled: false })
 
-  const { nhi, patientName, patientDob, patientAddress } = req.body || {}
+  const { nhi, patientName, patientDob, patientAddress, sessionId } = req.body || {}
   const cleanNhi = String(nhi || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
   const dobIso = toIsoDob(patientDob)
   const { given, family } = splitName(patientName)
+
+  // Per-request correlation ID (X-Correlation-Id on every outbound HNZ call)
+  // and per-patient-session userid, both fixes for IN-3589 (Noel Babu 26 Sept).
+  // The session UUID persists for the duration of one anonymous patient's
+  // triage flow (client stashes on first hit; falls back to a generated
+  // ephemeral ID if client hasn't upgraded yet). Neither is linkable back
+  // to an authenticated user (patient is anonymous during triage) but the
+  // session ID does uniquely identify one patient's request chain across
+  // HPI, NHI, and clinical audit logs.
+  const { randomUUID } = await import('node:crypto')
+  const corrId = randomUUID()
+  const rawSession = typeof sessionId === 'string' ? sessionId.trim() : ''
+  const sessionUuid = /^[0-9a-f-]{8,64}$/i.test(rawSession) ? rawSession : `tere-anon-${randomUUID().slice(0, 12)}`
+  const outboundCtx = { corrId, userid: sessionUuid }
 
   // Diagnostic mode: append `?diag=1` to echo raw HNZ status + body from
   // each $match attempt. Gated on NHI_DIAG_ENABLED so we can flip it off
@@ -325,7 +341,7 @@ export default async function handler(req, res) {
       birthdate: dobIso || undefined,
       address: parsedAddress,
       onlyCertain: !!cleanNhi,
-    })
+    }, outboundCtx)
     let matchMode = cleanNhi ? 'certain' : 'searched'
     if (diag) diag.attempts.push({ n: 1, onlyCertain: !!cleanNhi, status, body, sent: { given, family, dobIso, hasAddress: !!parsedAddress } })
 
@@ -381,7 +397,7 @@ export default async function handler(req, res) {
     // mode and got the info back (rare) or if there's no NHI to GET on.
     const returnedNhi = resource?.id || cleanNhi
     if (returnedNhi && (!patient.name || !patient.dob)) {
-      const getRes = await callGetPatient(token, returnedNhi)
+      const getRes = await callGetPatient(token, returnedNhi, outboundCtx)
       if (getRes.status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
       if (getRes?.body?.resourceType === 'Patient') {
         resource = getRes.body
@@ -409,9 +425,18 @@ export default async function handler(req, res) {
     const strength = addr?.strength || 'none'
     const confidence = (strength === 'strong' || strength === 'moderate') ? 'high' : 'medium'
 
-    // Success — return NHI + display tuple + confidence. When we
-    // auto-discovered the NHI (MODE 2), the frontend needs the NHI to
-    // save on the consult record.
+    // Success. NHI-reveal rule (IN-3589, Noel Babu 26 Sept 2026):
+    //   - Validate mode (patient supplied the NHI themselves) → return it,
+    //     we are confirming their own identifier back to them, not
+    //     disclosing new information.
+    //   - Demographic-search mode (no NHI supplied) → NEVER return the NHI
+    //     to the anonymous patient client. Anyone who knows a person's name
+    //     + DOB could otherwise fish for that person's NHI. The server has
+    //     the discovered NHI in `resource.id`; downstream consult-linking
+    //     is being reworked to use a short-lived server-side token instead
+    //     of round-tripping the NHI through the browser.
+    const discoveredNhi = resource?.id || cleanNhi || null
+    const revealNhi = !!cleanNhi
     return res.status(200).json({
       enabled: true,
       matched: true,
@@ -419,7 +444,12 @@ export default async function handler(req, res) {
       confidence,
       address_match_strength: strength,
       matched_fields,
-      display: { name: patient.name, dob: patient.dob, nhi: resource?.id || cleanNhi || null },
+      display: {
+        name: patient.name,
+        dob:  patient.dob,
+        nhi:  revealNhi ? discoveredNhi : null,
+        nhi_hidden: !revealNhi,
+      },
     })
   } catch {
     return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_failed' })
