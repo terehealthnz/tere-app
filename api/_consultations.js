@@ -727,6 +727,35 @@ export default async function handler(req, res) {
       if (!owns) return res.status(403).json({ error: 'Not authorised for this consultation.' })
     }
 
+    // Payment-amount ceiling guard (Windcave capture ≤ auth rule).
+    // Windcave silently rejects a Complete/capture that exceeds the
+    // original auth amount, so any provider action that would raise
+    // payment_amount above what the patient authorised leaves the money
+    // uncaptured (we discovered this on launch eve 2026-09-29 with a
+    // consult stuck at Authorised). Decreases are always safe (partial
+    // capture releases the delta), so ACC downgrades / coupons still
+    // work. Only fires when payment has actually been authorised —
+    // pre-payment patches are unrestricted.
+    if ('payment_amount' in patch) {
+      const { data: existing } = await supabase
+        .from('consultations')
+        .select('payment_amount, payment_authorised_at')
+        .eq('id', id)
+        .maybeSingle()
+      if (existing?.payment_authorised_at && existing.payment_amount != null) {
+        const nextAmt = Number(patch.payment_amount)
+        const prevAmt = Number(existing.payment_amount)
+        if (Number.isFinite(nextAmt) && Number.isFinite(prevAmt) && nextAmt > prevAmt) {
+          return res.status(400).json({
+            error: 'payment_amount cannot exceed the patient-authorised amount',
+            authorised: prevAmt,
+            requested: nextAmt,
+            hint: 'Windcave rejects captures above the original auth. Reduce the amount, or ask the patient to complete a new payment for the difference.',
+          })
+        }
+      }
+    }
+
     // Atomic claim guard — when the patch attempts to SET provider_id
     // (i.e. a provider claiming an unclaimed queue item), only allow the
     // UPDATE if the row is still unclaimed. Prevents two providers both
