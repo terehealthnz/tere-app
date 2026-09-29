@@ -739,16 +739,21 @@ export default async function handler(req, res) {
     if ('payment_amount' in patch) {
       const { data: existing } = await supabase
         .from('consultations')
-        .select('payment_amount, payment_authorised_at')
+        .select('payment_amount, payment_authorised_at, payment_authorised_amount_cents')
         .eq('id', id)
         .maybeSingle()
-      if (existing?.payment_authorised_at && existing.payment_amount != null) {
+      if (existing?.payment_authorised_at) {
+        // Compare against the true auth ceiling stored at create-session
+        // time (2026-09-29 migration). Fall back to payment_amount for
+        // legacy rows created before that column existed.
+        const ceiling = existing.payment_authorised_amount_cents != null
+          ? Number(existing.payment_authorised_amount_cents)
+          : Number(existing.payment_amount)
         const nextAmt = Number(patch.payment_amount)
-        const prevAmt = Number(existing.payment_amount)
-        if (Number.isFinite(nextAmt) && Number.isFinite(prevAmt) && nextAmt > prevAmt) {
+        if (Number.isFinite(nextAmt) && Number.isFinite(ceiling) && nextAmt > ceiling) {
           return res.status(400).json({
             error: 'payment_amount cannot exceed the patient-authorised amount',
-            authorised: prevAmt,
+            authorised: ceiling,
             requested: nextAmt,
             hint: 'Windcave rejects captures above the original auth. Reduce the amount, or ask the patient to complete a new payment for the difference.',
           })

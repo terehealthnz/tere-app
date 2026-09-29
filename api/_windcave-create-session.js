@@ -68,9 +68,25 @@ export default async function handler(req, res) {
     // No international bump — receipt cost is admin, not clinical.
     receipt: { private: 1000, acc: 1000, international: 1000 },
   }
-  const tier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
-  const baseAmount = (PRICES[type] || PRICES.consult)[tier]
-  const discountCents = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, baseAmount - 100))
+  // Two tiers to compute:
+  //  1. AUTH tier — always private (or international) regardless of ACC
+  //     claim. This is the amount Windcave holds on the patient's card.
+  //     Reason: if a patient enters ACC ($25) and the provider later
+  //     confirms it's NOT ACC, we need $65 available to capture. An ACC
+  //     auth of $25 would leave us unable to charge the full private rate
+  //     (Windcave rejects captures > auth). Message consults stay at their
+  //     own $25 rate — no tier upgrade path from a message consult.
+  //  2. DISPLAY tier — what the patient is quoted (ACC $25 if eligible).
+  //     Persisted as payment_amount and used as the intended settle at
+  //     capture time. If ACC is confirmed at Finalise, capture = $25 and
+  //     Windcave releases the $40 hold delta automatically (5-7 days).
+  const authTier    = isIntl ? 'international' : 'private'
+  const displayTier = isIntl ? 'international' : (isAcc && type !== 'message' ? 'acc' : 'private')
+  const authAmountRaw    = (PRICES[type] || PRICES.consult)[authTier]
+  const displayAmountRaw = (PRICES[type] || PRICES.consult)[displayTier]
+  const discountCents    = Math.max(0, Math.min(Number(couponDiscount || 0) * 100, displayAmountRaw - 100))
+  // Auth ignores coupon (couldn't verify pre-auth). Display honours it.
+  const baseAmount = displayAmountRaw
 
   // Test-mode override: server validates password against PAYMENT_TEST_PASSWORD
   // env var (timing-safe). If it matches, amount collapses to NZ$0.10 so we
@@ -94,10 +110,20 @@ export default async function handler(req, res) {
       }
     } catch { /* fall through — treat as non-test */ }
   }
-  const amountCents = isTestMode ? 10 : (baseAmount - discountCents)
+  // Display / settle amount — what the patient is quoted and what we'll
+  // eventually capture at Finalise (unless provider adjusts within the
+  // auth ceiling).
+  const amountCents = isTestMode ? 10 : (displayAmountRaw - discountCents)
   const amountDollars = (amountCents / 100).toFixed(2)
+  // Auth ceiling — what Windcave actually holds on the card. Test mode
+  // still holds only $0.10 (matches capture). Non-test mode holds the
+  // full private/international rate regardless of ACC claim, so the
+  // provider can flip an ACC-claimed patient back to private mid-visit
+  // and still capture the full $65 (Windcave rejects captures > auth).
+  const authCents = isTestMode ? 10 : authAmountRaw
+  const authDollars = (authCents / 100).toFixed(2)
   if (isTestMode) {
-    console.log('[windcave] TEST-MODE payment session', { consultationId, amountCents })
+    console.log('[windcave] TEST-MODE payment session', { consultationId, amountCents, authCents })
   }
 
   const origin = siteOrigin(req)
@@ -130,7 +156,10 @@ export default async function handler(req, res) {
 
   const payload = {
     type: wcType,
-    amount: amountDollars,
+    // Auth for the ceiling amount (private/international rate), not the
+    // ACC-discounted display amount. Capture at Finalise pulls the actual
+    // amount owed (payment_amount) which will be ≤ this ceiling.
+    amount: authDollars,
     currency: 'NZD',
     merchantReference: consultationId,
     storeCard: false,
@@ -195,6 +224,10 @@ export default async function handler(req, res) {
   await supabase.from('consultations').update({
     payment_intent_id: sessionData.id,   // reuse existing column; Windcave session id lives here
     payment_amount: amountCents,
+    // Windcave auth ceiling — separate from payment_amount so downstream
+    // guards can distinguish "how much can we capture" from "how much
+    // are we quoted / owed". See db/migrations/2026-09-29_payment_authorised_amount.sql.
+    payment_authorised_amount_cents: authCents,
     ...(isTestMode ? { payment_test_mode: true } : {}),
   }).eq('id', consultationId)
 
