@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data: consult, error: fetchErr } = await supabase
     .from('consultations')
-    .select('id, is_practice, payment_intent_id, payment_amount, payment_captured_at')
+    .select('id, is_practice, payment_intent_id, payment_amount, payment_captured_at, payment_test_mode')
     .eq('id', consultationId)
     .maybeSingle()
 
@@ -76,7 +76,12 @@ export default async function handler(req, res) {
     return res.status(200).json({ approved: true, skipped: true, reason: 'no_amount' })
   }
 
-  const amountDollars = (consult.payment_amount / 100).toFixed(2)
+  // Test-mode override: create-session forced Windcave auth to NZ$0.10.
+  // Capture MUST match the auth or Windcave rejects on amount mismatch.
+  // Some old rows still carry payment_amount stamped in dollars (65) rather
+  // than cents (6500) from an earlier bug — dividing by 100 yields $0.65
+  // and Windcave rejects. Force $0.10 whenever payment_test_mode is set.
+  const amountDollars = consult.payment_test_mode ? '0.10' : (consult.payment_amount / 100).toFixed(2)
   const xId = randomUUID()
 
   let r, data
