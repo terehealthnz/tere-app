@@ -1231,13 +1231,45 @@ export default function ProviderApp() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 5000)
-    const sub = subscribeToQueue(() => load())
+    let interval = setInterval(load, 5000)
+    let sub = subscribeToQueue(() => load())
     // Re-fetch immediately when practice mode toggles so the queue swaps
     // between practice (sandbox) and live without a 15s wait.
     const onPracticeChanged = () => load()
     window.addEventListener('tere:practice-mode-changed', onPracticeChanged)
-    return () => { clearInterval(interval); sub?.unsubscribe?.(); window.removeEventListener('tere:practice-mode-changed', onPracticeChanged) }
+
+    // iOS PWA foreground/background handling. When the standalone-mode
+    // web app is backgrounded, JS execution is throttled to zero and the
+    // Supabase Broadcast websocket dies silently. When the app comes
+    // back to the foreground, setInterval resumes but ~all accumulated
+    // 5s ticks are lost, AND the websocket doesn't auto-reconnect. Net
+    // effect: provider taps back to Tere on their phone and sees a
+    // stale queue for however long they were away (a "queue is clear"
+    // even when there's a waiting consult). Fix: on every foreground
+    // event, fire load() immediately and rebuild the Broadcast sub +
+    // interval fresh. Cheap — load() is a single GET.
+    const onForeground = () => {
+      if (document.visibilityState !== 'visible') return
+      load()
+      try { sub?.unsubscribe?.() } catch {}
+      sub = subscribeToQueue(() => load())
+      clearInterval(interval)
+      interval = setInterval(load, 5000)
+    }
+    document.addEventListener('visibilitychange', onForeground)
+    window.addEventListener('focus', onForeground)
+    // pageshow fires when iOS restores from BFCache — sometimes visibilitychange
+    // doesn't fire in that case (Safari quirk).
+    window.addEventListener('pageshow', onForeground)
+
+    return () => {
+      clearInterval(interval)
+      try { sub?.unsubscribe?.() } catch {}
+      window.removeEventListener('tere:practice-mode-changed', onPracticeChanged)
+      document.removeEventListener('visibilitychange', onForeground)
+      window.removeEventListener('focus', onForeground)
+      window.removeEventListener('pageshow', onForeground)
+    }
   }, [load])
 
   // Audit: log that this provider viewed the queue. Once per browser session
