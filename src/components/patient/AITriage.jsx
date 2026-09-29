@@ -722,7 +722,7 @@ export default function AITriage() {
       // skip re-asking those three and jump to the admin block (or ACC description).
       if (newData._historyReviewed) {
         setData(newData)
-        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
+        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'imaging_clinic', newData)
         return
       }
     }
@@ -737,7 +737,7 @@ export default function AITriage() {
         advanceToStep('complaint', newData)
         return
       }
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'imaging_clinic', newData)
       return
     }
 
@@ -755,9 +755,10 @@ export default function AITriage() {
       return
     }
 
-    // After acc_employer, ask about preferred imaging region on the ACC branch
-    // (patient's answer feeds preferred_imaging_region_id → RHCNZ referral
-    // routing). imaging_clinic itself points to NEXT_AFTER_ALLERGIES.
+    // After acc_employer, continue to imaging_clinic. Non-ACC visits also
+    // pass through imaging_clinic straight after allergies — providers may
+    // still order X-ray / ultrasound on non-injury visits, and the region
+    // pick feeds RHCNZ referral routing when they do.
     if (step.id === 'acc_employer') {
       setData(newData)
       advanceToStep('imaging_clinic', newData)
