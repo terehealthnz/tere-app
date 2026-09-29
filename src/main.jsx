@@ -44,13 +44,44 @@ try {
 
 // Register the service worker. Moved out of index.html inline <script>
 // so we can strip 'unsafe-inline' from the CSP script-src (pen-test H-3).
+//
+// Auto-reload on new SW takeover: when public/sw.js bumps its CACHE
+// version, the browser installs the new worker, activate() calls
+// self.clients.claim(), and 'controllerchange' fires on this page. At
+// that moment the new SW is now in charge but the currently-running JS
+// is still the OLD bundle. Force a reload so the user's tab picks up
+// the new HTML/JS immediately — no need to close/reopen the PWA
+// manually or ping providers to hard-refresh. This makes every deploy
+// self-propagating to installed PWAs within one open-cycle. The
+// `refreshing` guard prevents the tight-loop that happens if the SW
+// claim-then-controllerchange fires while the page is already reloading.
 if ('serviceWorker' in navigator) {
+  let refreshing = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return
+    refreshing = true
+    window.location.reload()
+  })
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
       .then(reg => reg.update())
       .catch(() => {})
   })
+  // Also re-check for SW updates whenever the PWA comes back to the
+  // foreground. Fixes the case where a provider has the PWA installed,
+  // backgrounds it for hours, and never triggers a fresh 'load' event —
+  // without this, the SW never notices a new deploy is out. On
+  // foreground we ask the browser to re-fetch sw.js; if it's changed,
+  // the install→activate→controllerchange chain above fires and reloads.
+  const checkForUpdate = () => {
+    if (document.visibilityState !== 'visible') return
+    navigator.serviceWorker.getRegistration('/sw.js')
+      .then(reg => reg?.update())
+      .catch(() => {})
+  }
+  document.addEventListener('visibilitychange', checkForUpdate)
+  window.addEventListener('focus', checkForUpdate)
 }
 
 if (import.meta.env.VITE_SENTRY_DSN) {

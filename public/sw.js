@@ -6,7 +6,12 @@
 // stale shells can't hand out dead chunk hashes after a deploy.
 // v8→v9: forced eviction cycle on 2026-09-16 to clear a stuck AITriage
 // chunk (some clients were serving pre-6032c39 code even after hard-refresh).
-const CACHE = 'tere-v9'
+// v9→v10: forced eviction cycle on 2026-09-29 to push the PWA foreground-
+// reload fix (commit 2b4f7f8) to every installed provider PWA. Every
+// SW version bump triggers activate() which combined with the
+// controllerchange listener in src/main.jsx forces the client to reload
+// with the new bundle within one open-cycle of the app.
+const CACHE = 'tere-v10'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 
