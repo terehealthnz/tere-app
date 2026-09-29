@@ -39,19 +39,70 @@ function InfoRow({ label, value }) {
   )
 }
 
-// Pharmacy + imaging region shown at a glance on the chart. Imaging is
-// inline-editable (8-region dropdown) so the provider can override before
-// they issue an X-ray/US referral. Pharmacy is display-only here because
-// the prescribe modal already carries a "change pharmacy" picker per-
-// prescription — duplicating a full pharmacy picker here just for viewing
-// isn't worth the surface area.
-function PreferencesCard({ consult, onImagingChange }) {
+// Pharmacy + imaging region shown at a glance on the chart. Both are
+// inline-editable — pharmacy so the provider can change the patient's
+// default without waiting until the prescribe modal (e.g. patient tells
+// them mid-consult "I actually use X pharmacy now"), imaging so they can
+// override before issuing an X-ray/US referral. Pharmacy picker lazy-loads
+// the same pharmacies.json + emailable filter used everywhere else so we
+// only ever send scripts to pharmacies with a dispensary email on file.
+function PreferencesCard({ consult, onImagingChange, onPharmacyChange }) {
   const [saving, setSaving] = useState(false)
   const [localRegion, setLocalRegion] = useState(consult?.preferred_imaging_region_id || '')
   useEffect(() => { setLocalRegion(consult?.preferred_imaging_region_id || '') }, [consult?.preferred_imaging_region_id])
 
   const currentRegion = RHCNZ_REGIONS.find(r => r.id === localRegion)
   const pharmacyLabel = consult?.pharmacy || null
+
+  const [showPickPharmacy, setShowPickPharmacy] = useState(false)
+  const [pharmacyList, setPharmacyList] = useState(null)  // Medsafe register once loaded
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+  const [savingPharmacy, setSavingPharmacy] = useState(false)
+
+  useEffect(() => {
+    if (!showPickPharmacy || pharmacyList !== null) return
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const list = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(list)) { setPharmacyList([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        setPharmacyList(emailable && emailable.size > 0 ? list.filter(p => emailable.has(p.id)) : list)
+      } catch { setPharmacyList([]) }
+    })()
+  }, [showPickPharmacy, pharmacyList])
+
+  const filteredPharmacies = (() => {
+    if (!pharmacyList) return []
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of pharmacyList) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function pickPharmacy(p) {
+    setSavingPharmacy(true)
+    try {
+      await onPharmacyChange({
+        pharmacy: p.premises_name || '',
+        pharmacy_id: p.id || null,
+      })
+      setShowPickPharmacy(false)
+      setPharmacyQuery('')
+    } finally { setSavingPharmacy(false) }
+  }
 
   async function handleRegionChange(e) {
     const next = e.target.value
@@ -64,13 +115,58 @@ function PreferencesCard({ consult, onImagingChange }) {
     <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
       <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Patient preferences</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        {/* Pharmacy — display only. Change lives in the prescribe modal. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>Preferred pharmacy</div>
-          <div style={{ fontSize: '.9375rem', color: pharmacyLabel ? NAVY : '#9CA3AF', lineHeight: 1.5 }}>
-            {pharmacyLabel || 'Not set — patient can pick from their waiting-room card'}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>Preferred pharmacy</div>
+            {!showPickPharmacy && (
+              <button type="button" onClick={() => setShowPickPharmacy(true)}
+                style={{ background: 'none', border: 'none', color: '#0B6E76', fontSize: '.6875rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                {pharmacyLabel ? 'Change' : 'Set'}
+              </button>
+            )}
           </div>
-          <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>Change per-script from the Prescribe modal.</div>
+          {!showPickPharmacy ? (
+            <>
+              <div style={{ fontSize: '.9375rem', color: pharmacyLabel ? NAVY : '#9CA3AF', lineHeight: 1.5 }}>
+                {pharmacyLabel || 'Not set — patient can pick from their waiting-room card'}
+              </div>
+              <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>Can also override per-script from the Prescribe modal.</div>
+            </>
+          ) : (
+            <>
+              <input
+                autoFocus
+                value={pharmacyQuery}
+                onChange={e => setPharmacyQuery(e.target.value)}
+                placeholder="Search name, suburb, or postcode…"
+                disabled={savingPharmacy}
+                style={{ padding: '.5rem .625rem', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', color: NAVY, fontFamily: FF, fontSize: '.875rem' }}
+              />
+              {pharmacyList === null && pharmacyQuery.length >= 2 && (
+                <div style={{ fontSize: '.75rem', color: '#6B7280', padding: '.25rem 0' }}>Loading pharmacies…</div>
+              )}
+              {filteredPharmacies.length > 0 && (
+                <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+                  {filteredPharmacies.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => pickPharmacy(p)}
+                      disabled={savingPharmacy}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.5rem .75rem', background: 'white', border: 'none', borderBottom: '1px solid #F1F5F9', cursor: savingPharmacy ? 'wait' : 'pointer', fontSize: '.8125rem', color: NAVY }}
+                    >
+                      <div style={{ fontWeight: 600 }}>{p.premises_name}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{[p.town, p.region].filter(Boolean).join(', ')}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button type="button" onClick={() => { setShowPickPharmacy(false); setPharmacyQuery('') }}
+                style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#6B7280', fontSize: '.6875rem', cursor: 'pointer', padding: 0 }}>
+                Cancel
+              </button>
+            </>
+          )}
         </div>
 
         {/* Imaging region — editable inline. */}
@@ -620,6 +716,13 @@ export default function ClinicianPatient() {
               const fresh = await getConsultation(id)
               if (fresh) setConsult(fresh)
             } catch (e) { console.warn('[preferences] imaging save failed:', e.message) }
+          }}
+          onPharmacyChange={async (patch) => {
+            try {
+              await updateConsultation(id, patch)
+              const fresh = await getConsultation(id)
+              if (fresh) setConsult(fresh)
+            } catch (e) { console.warn('[preferences] pharmacy save failed:', e.message) }
           }}
         />
 
