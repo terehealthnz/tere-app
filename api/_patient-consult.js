@@ -107,6 +107,8 @@ const PATIENT_VIEW_COLUMNS = [
   'chief_complaint',
   // Pharmacy — waiting-room card shows this and lets the patient change it.
   'pharmacy', 'pharmacy_id',
+  // Imaging region — waiting-room card renders + change-picker uses this.
+  'preferred_imaging_region_id',
   // Post-consult billing surface — patient reads these to render the
   // insurance-receipt upsell and its "already purchased" state.
   'is_acc', 'acc_eligible', 'acc_claim_number', 'payment_amount',

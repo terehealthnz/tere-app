@@ -1210,7 +1210,7 @@ export default function ProviderApp() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 15000)
+    const interval = setInterval(load, 5000)
     const sub = subscribeToQueue(() => load())
     // Re-fetch immediately when practice mode toggles so the queue swaps
     // between practice (sandbox) and live without a 15s wait.
