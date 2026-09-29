@@ -108,12 +108,36 @@ export const ADULT_DRUG_PRESETS = {
 
 // ── Paediatric dose calculator ────────────────────────────────────────────────
 
-export function calcPaedDose(drug, weightKg) {
+// Parse a strength string like "120mg/5mL" or "250 mg / 5 ml" into an
+// { mg, mL } concentration. Returns null for non-liquid strengths ("500mg"
+// bare) or anything that doesn't match. Safety-critical: paracetamol comes
+// as both 120/5 (infants) and 250/5 (children) — if the provider picks the
+// 120/5 formulation from the NZF picker we MUST recompute mL against 120/5,
+// not against the hardcoded PAED_DRUGS default of 250/5. Half-dose bug
+// otherwise.
+export function parseLiquidStrength(str) {
+  if (!str) return null
+  const m = String(str).match(/(\d+(?:\.\d+)?)\s*mg\s*\/\s*(\d+(?:\.\d+)?)\s*m[Ll]/i)
+  if (!m) return null
+  const mg = parseFloat(m[1])
+  const mL = parseFloat(m[2])
+  if (!(mg > 0) || !(mL > 0)) return null
+  return { mg, mL }
+}
+
+export function calcPaedDose(drug, weightKg, strengthOverride = null) {
   const d = PAED_DRUGS[drug?.toLowerCase().split(' ')[0]]
   if (!d || !weightKg) return null
   const mg = Math.min(Math.round(d.mgPerKg * weightKg / 5) * 5, d.maxMg)
-  const mL = Math.round((mg / d.concentration.mg) * d.concentration.mL * 10) / 10
-  return { dose:`${mg}mg (${mL}mL)`, directions:`${mL}mL ${d.form} ${d.freq}`, qty:`100mL` }
+  // Prefer a concentration parsed from the currently-selected preparation.
+  // Falls back to the PAED_DRUGS default only when no liquid strength has
+  // been picked yet. Fixes half-dose bug when provider changes the NZF
+  // formulation (e.g. paracetamol 120/5 vs 250/5) after entering weight.
+  const parsed = parseLiquidStrength(strengthOverride)
+  const conc = parsed || d.concentration
+  const form = parsed ? `oral liquid ${parsed.mg}mg/${parsed.mL}mL` : d.form
+  const mL = Math.round((mg / conc.mg) * conc.mL * 10) / 10
+  return { dose:`${mg}mg (${mL}mL)`, directions:`${mL}mL ${form} ${d.freq}`, qty:`100mL` }
 }
 
 // ── Prescribe modal ───────────────────────────────────────────────────────────
@@ -331,6 +355,25 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
       if (w) setPaedWeight(String(w))
     }
   }, [open, consult?.id])
+
+  // Safety-critical: whenever the strength changes while paediatric mode is
+  // on with a weight entered, re-derive the volume from the *current*
+  // strength. Catches the case where the provider hand-edits the strength
+  // field to a different mg/mL ratio after typing weight — the picker path
+  // is handled inline in onChange, this covers the direct-text-edit path.
+  useEffect(() => {
+    if (!isPaediatric) return
+    const w = parseFloat(paedWeight)
+    if (!(w > 0) || !rx.medication) return
+    const parsed = parseLiquidStrength(rx.strength)
+    if (!parsed) return
+    const calc = calcPaedDose(rx.medication, w, rx.strength)
+    if (!calc) return
+    // Only overwrite if the derived mL differs from what's currently shown,
+    // otherwise every render triggers a state churn.
+    if (rx.dose === calc.dose && rx.notes === calc.directions) return
+    setRx(r => ({ ...r, dose: calc.dose, qty: calc.qty, notes: calc.directions }))
+  }, [rx.strength, rx.medication, paedWeight, isPaediatric])
   const hasAllergyNote = consult?.patient_allergies?.toLowerCase().includes('penicillin') || false
   const canPrescribe = sessionStorage.getItem('providerCanPrescribe') !== 'false'
   // Single supervision toggle (2026-09-20). When true, drafts route to the
@@ -756,15 +799,15 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
               <input type="number" min={1} max={100} value={paedWeight} onChange={e => {
                 const w = parseFloat(e.target.value); setPaedWeight(e.target.value)
                 if (w > 0 && rx.medication) {
-                  const calc = calcPaedDose(rx.medication, w)
+                  const calc = calcPaedDose(rx.medication, w, rx.strength)
                   if (calc) setRx(r => ({ ...r, dose: calc.dose, qty: calc.qty, notes: calc.directions }))
                 }
               }} placeholder="Weight (kg)" style={{width:130,padding:'7px 10px',border:'1.5px solid #93C5FD',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}} />
               <span style={{fontSize:'.8rem',color:'#6B7280'}}>kg</span>
-              {paedWeight && calcPaedDose(rx.medication, parseFloat(paedWeight)) && (
-                <span style={{fontSize:'.8rem',color:'#1D4ED8',fontWeight:700}}>→ {calcPaedDose(rx.medication, parseFloat(paedWeight)).dose}</span>
+              {paedWeight && calcPaedDose(rx.medication, parseFloat(paedWeight), rx.strength) && (
+                <span style={{fontSize:'.8rem',color:'#1D4ED8',fontWeight:700}}>→ {calcPaedDose(rx.medication, parseFloat(paedWeight), rx.strength).dose}</span>
               )}
-              {paedWeight && !calcPaedDose(rx.medication, parseFloat(paedWeight)) && (
+              {paedWeight && !calcPaedDose(rx.medication, parseFloat(paedWeight), rx.strength) && (
                 <span style={{fontSize:'.8rem',color:'#D97706'}}>No auto-calc — enter dose manually</span>
               )}
             </div>
@@ -793,6 +836,20 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
                   const v = e.target.value
                   if (v === '__manual__' || v === '') return  // leave fields as they are
                   const [strength, form] = v.split('||')
+                  // Paediatric recalc — if the provider previously entered a
+                  // weight, mL was computed against the old (default or
+                  // hardcoded) concentration. Picking a new preparation with
+                  // a different mg/mL ratio (e.g. paracetamol 120/5 vs
+                  // 250/5) MUST recompute mL, otherwise the printed dose is
+                  // wrong by the ratio. Half-dose safety bug.
+                  const w = parseFloat(paedWeight)
+                  if (isPaediatric && w > 0 && rx.medication) {
+                    const calc = calcPaedDose(rx.medication, w, strength)
+                    if (calc) {
+                      setRx(r => ({ ...r, strength, form, dose: calc.dose, qty: calc.qty, notes: calc.directions }))
+                      return
+                    }
+                  }
                   setRx(r => ({ ...r, strength, form }))
                 }}
                 style={{width:'100%',padding:'.5rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.875rem',cursor:'pointer'}}>
