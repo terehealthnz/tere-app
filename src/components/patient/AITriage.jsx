@@ -9,6 +9,7 @@ import { isNZ } from '../../lib/region'
 import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
 import DobPicker from '../DobPicker'
+import PhonePicker from '../PhonePicker'
 
 // Turn bare URLs inside a chat message into clickable links. Called from the
 // message render loop. Splits on http(s)://... boundaries — trailing
@@ -245,7 +246,7 @@ function summarizeOnFile(d) {
 const STEPS = [
   { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}?`, field:'patient_dob_raw', type:'dob_picker', validate:v=>/^\d{4}-\d{2}-\d{2}$/.test(v||''), error:"Please pick your date of birth from the fields.", next:'phone' },
-  { id:'phone', message:"What's your mobile number?", field:'patient_phone', validate:v=>v.trim().length>6, error:"Can you pop in your mobile number?", next:'email' },
+  { id:'phone', message:"What's your mobile number?", field:'patient_phone', type:'phone_picker', validate:v=>/^\+\d{6,15}$/.test(String(v||'').trim()), error:"Please enter a valid mobile number.", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
   { id:'address', message:"What's your home address? Start typing and pick from the list, or just type it out.", field:'patient_address', type:'address_picker', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
   { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
@@ -1963,6 +1964,20 @@ export default function AITriage() {
         </div>
       )}
 
+      {step?.type==='phone_picker' && !tereTyping && (
+        <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+          <PhonePicker
+            value={/^\+\d{6,15}$/.test(String(input||'').trim()) ? input : ''}
+            onChange={v => setInput(v)}
+          />
+          <button type="button" onClick={() => { const v = String(input||'').trim(); if (/^\+\d{6,15}$/.test(v)) { setInput(''); handleSendValue(v) } }}
+            disabled={!/^\+\d{6,15}$/.test(String(input||'').trim())}
+            style={{width:'100%',marginTop:10,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:/^\+\d{6,15}$/.test(String(input||'').trim())?'pointer':'not-allowed',opacity:/^\+\d{6,15}$/.test(String(input||'').trim())?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+            Continue
+          </button>
+        </div>
+      )}
+
       {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
@@ -1991,7 +2006,7 @@ export default function AITriage() {
         {/* Chat-style free-text bar. Hidden on picker steps so patients
             can't sidestep the dropdown by typing here — the picker's
             own Continue/Send button is the only path forward. */}
-        {!(step?.type === 'dob_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker') && (
+        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker') && (
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
