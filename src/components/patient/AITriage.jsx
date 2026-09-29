@@ -746,10 +746,12 @@ export default function AITriage() {
       return
     }
 
-    // After acc_employer, go to admin questions (nhi/pharmacy/gp)
+    // After acc_employer, ask about preferred imaging region on the ACC branch
+    // (patient's answer feeds preferred_imaging_region_id → RHCNZ referral
+    // routing). imaging_clinic itself points to NEXT_AFTER_ALLERGIES.
     if (step.id === 'acc_employer') {
       setData(newData)
-      advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
+      advanceToStep('imaging_clinic', newData)
       return
     }
 

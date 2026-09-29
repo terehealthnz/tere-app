@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useConsultId } from '../../lib/consultUrl'
 import { getPatientConsult, patientUpdateConsultation, sendPatientHeartbeat, patientUploadDocument } from '../../lib/supabase'
+import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
 import { apiFetch } from '../../lib/api'
 import { requestUserLocation, nearestPharmacies, formatDistance } from '../../lib/nearestPharmacy'
 import { useAutoT } from '../../lib/i18n'
@@ -100,6 +101,12 @@ export default function WaitingRoom() {
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [savingPharmacy, setSavingPharmacy] = useState(false)
+  // Imaging region card, only rendered when the patient picked one in
+  // AITriage (ACC branch). Mirrors the pharmacy pattern so the patient can
+  // swap regions here if they realise their triage answer was wrong.
+  const [imagingRegionId, setImagingRegionId] = useState(null)
+  const [imagingPickerOpen, setImagingPickerOpen] = useState(false)
+  const [savingImaging, setSavingImaging] = useState(false)
   // Geolocation-derived nearest 3 emailable pharmacies. null = not yet requested
   // or user denied / no coords in the register — either way we just hide the block
   // and fall back to text search.
@@ -129,6 +136,11 @@ export default function WaitingRoom() {
     prescriptionPharmacy: 'Prescription pharmacy',
     pharmacyExplain: 'If your doctor issues a prescription, it will be sent here. Please check the pharmacy is open when you need it.',
     changePharmacy: 'Change pharmacy',
+    imagingRegion: 'Preferred imaging region',
+    imagingExplain: "If your doctor orders an X-ray or ultrasound, the regional imaging service will contact you to book at the nearest clinic.",
+    changeImagingRegion: 'Change region',
+    saveImagingRegion: 'Save',
+    cancelImagingRegion: 'Cancel',
     shareDoc: 'Share a document',
     docsSent: '({n} sent)',
     docExplain: 'Send your doctor a photo, lab result, or letter (PDF or image, up to 10MB). Only your treating clinician sees it.',
@@ -200,6 +212,7 @@ export default function WaitingRoom() {
       if (c?.created_at) setCreatedAt(c.created_at)
       if (c?.pharmacy) setPharmacyName(c.pharmacy)
       if (c?.pharmacy_id) setPharmacyId(c.pharmacy_id)
+      if (c?.preferred_imaging_region_id) setImagingRegionId(c.preferred_imaging_region_id)
     }).catch(() => {})
   }, [consultationId])
 
