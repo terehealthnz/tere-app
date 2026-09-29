@@ -1,4 +1,4 @@
-import { AccessToken, SipClient } from 'livekit-server-sdk'
+import { AccessToken, SipClient, RoomServiceClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
@@ -25,7 +25,7 @@ function toE164(phone) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { consultationId, providerId, providerName, forcePhone } = req.body
+  const { consultationId, providerId, providerName, forcePhone, sipOnly } = req.body
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   const supabase = createClient(
@@ -40,6 +40,74 @@ export default async function handler(req, res) {
     .single()
 
   if (fetchErr || !consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // sipOnly path — auto-fallback fired by the provider's ProviderConsult
+  // when the LiveKit room's had no remote participant after ~15s. Just
+  // dials the patient's phone into the existing room. Skips all the
+  // consultation_type / status / email / SMS bookkeeping that the primary
+  // Video/Phone button click already handled. Practice consults short-
+  // circuit (no outbound side effects). Dedups against a live sip-patient-*
+  // participant already in the room so a provider retry can't double-ring
+  // the patient. See ProviderConsult.jsx call-mount effect for the client.
+  if (sipOnly) {
+    if (consult.is_practice) {
+      return res.status(200).json({ ok: true, simulated: true, reason: 'practice_mode' })
+    }
+    const lkUrl        = process.env.LIVEKIT_URL
+    const lkApiKey     = process.env.LIVEKIT_API_KEY
+    const lkApiSecret  = process.env.LIVEKIT_API_SECRET
+    const sipTrunkId   = process.env.LIVEKIT_SIP_TRUNK_ID
+    const fromNumber   = process.env.TELNYX_VOICE_FROM_NUMBER
+    if (!consult.patient_phone) return res.status(400).json({ ok: false, error: 'No phone number on record' })
+    if (!lkUrl || !lkApiKey || !lkApiSecret || !sipTrunkId) {
+      return res.status(500).json({ ok: false, error: 'LiveKit SIP not configured' })
+    }
+    const roomName = `tere-${consultationId.slice(0, 8)}`
+    const httpUrl  = lkUrl.replace(/^wss?:\/\//, 'https://')
+    // Dedup guard (A): if a sip-patient-* participant is already alive in
+    // the room, skip the dial. LiveKit itself is the source of truth here
+    // so a previously-ended call won't block a fresh retry.
+    try {
+      const roomService = new RoomServiceClient(httpUrl, lkApiKey, lkApiSecret)
+      const participants = await roomService.listParticipants(roomName)
+      const alreadySip = (participants || []).some(p => (p.identity || '').startsWith('sip-patient-'))
+      if (alreadySip) {
+        return res.status(200).json({ ok: true, skipped: true, reason: 'sip_participant_already_in_room' })
+      }
+    } catch (e) {
+      // Room may not exist yet if provider hasn't joined — treat as "no
+      // existing SIP participant" and proceed with the dial. Any other
+      // listParticipants error is logged but doesn't block the fallback.
+      console.error('[initiate-call sipOnly] listParticipants failed (proceeding with dial):', e.message)
+    }
+    try {
+      const sip = new SipClient(httpUrl, lkApiKey, lkApiSecret)
+      const participant = await sip.createSipParticipant(
+        sipTrunkId,
+        toE164(consult.patient_phone),
+        roomName,
+        {
+          fromNumber,
+          participantIdentity: `sip-patient-${consultationId.slice(0, 8)}`,
+          participantName: consult.patient_first_name || 'Patient',
+          krispEnabled: true,
+          waitUntilAnswered: false,
+        }
+      )
+      await supabase
+        .from('consultations')
+        .update({
+          voice_call_id:      participant.sipCallId || participant.participantId,
+          twilio_call_status: 'answered',
+          call_started_at:    new Date().toISOString(),
+        })
+        .eq('id', consultationId)
+      return res.status(200).json({ ok: true, sipCallId: participant.sipCallId, participantId: participant.participantId })
+    } catch (e) {
+      console.error('[initiate-call sipOnly] SIP dial failed:', e.message)
+      return res.status(500).json({ ok: false, error: 'SIP dial failed' })
+    }
+  }
 
   // Sandbox safety gate — an outbound-to-patient endpoint on a practice
   // consult must never send email, SMS or place a SIP call. Sandbox seed

@@ -119,6 +119,44 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
   return null
 }
 
+// SipFallbackTimer — lives inside <LiveKitRoom> on the Video path only.
+// If no patient-* (browser) OR sip-patient-* (phone) participant has joined
+// within FALLBACK_MS, POSTs /api/initiate-call { sipOnly: true } to dial
+// the patient's phone into the same LiveKit room. Once fired, self-locks
+// with firedRef so a brief patient-disconnect can't retrigger. Cancels on
+// unmount so ending the call before the timer expires doesn't dial. The
+// server ALSO dedups against a live sip-patient-* participant (guard A) so
+// tab-races can't double-dial. Only mounted when isPhone === false —
+// the Phone button already fired SIP immediately at call start.
+function SipFallbackTimer({ consultationId, delayMs = 15000 }) {
+  const participants = useParticipants()
+  const firedRef = useRef(false)
+  const timerRef = useRef(null)
+  useEffect(() => {
+    if (firedRef.current) return
+    const hasPatient = participants.some(p => {
+      const id = p.identity || ''
+      return id.startsWith('patient-') || id.startsWith('sip-patient-')
+    })
+    if (hasPatient) {
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+      return
+    }
+    if (timerRef.current) return
+    timerRef.current = setTimeout(() => {
+      if (firedRef.current) return
+      firedRef.current = true
+      apiFetch('/api/initiate-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId, sipOnly: true }),
+      }).catch(e => console.error('[SipFallbackTimer] dial failed:', e))
+    }, delayMs)
+    return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null } }
+  }, [participants, consultationId, delayMs])
+  return null
+}
+
 // RR-specific badge — tiered display driven by fusion metadata (rr_source)
 // via getRrDisplay(). Shows a small caption when confidence is medium/low
 // so providers know which readings to weight more carefully. See
@@ -1011,6 +1049,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+                {!isPhone && <SipFallbackTimer consultationId={id} delayMs={15000} />}
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
