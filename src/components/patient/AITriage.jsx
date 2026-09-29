@@ -10,6 +10,12 @@ import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
 import DobPicker from '../DobPicker'
 import PhonePicker from '../PhonePicker'
+import ChipMultiSelect from './ChipMultiSelect'
+import nzfFormulary from '../../lib/nzf-formulary.json'
+import { COMMON_CONDITIONS, COMMON_ALLERGIES, buildMedicationOptionsFromNzf } from '../../lib/triageChipLists'
+
+// NZF-derived medication options, built once at module load (1106 drugs).
+const MEDICATION_OPTIONS = buildMedicationOptionsFromNzf(nzfFormulary)
 
 // Turn bare URLs inside a chat message into clickable links. Called from the
 // message render loop. Splits on http(s)://... boundaries — trailing
@@ -255,9 +261,12 @@ const STEPS = [
   // If nothing on file, this step is skipped and we go straight to complaint (see
   // returning-patient branch in submitAnswer). Message is dynamic — see summarizeOnFile.
   { id:'updates_check', message:(d) => summarizeOnFile(d), field:'updates_needed', type:'yesno', validate:()=>true, next:'complaint' },
-  { id:'history', message:"Any relevant medical history? Past conditions, surgeries — say none if not.", field:'medical_history', validate:()=>true, next:'medications' },
-  { id:'medications', message:"Are you on any regular medications?", field:'medications', validate:()=>true, next:'allergies' },
-  { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
+  { id:'history', message:"Any medical conditions? Tap to add, or search below.", field:'medical_history', validate:()=>true, next:'medications',
+    type:'chip_multi', chipOptions:COMMON_CONDITIONS, chipPlaceholder:'Search conditions (e.g. diabetes, asthma)', chipNoneLabel:'No medical conditions' },
+  { id:'medications', message:"Are you on any regular medications? Type to search.", field:'medications', validate:()=>true, next:'allergies',
+    type:'chip_multi', chipOptions:MEDICATION_OPTIONS, chipPlaceholder:'Search medication name (e.g. paracetamol, metformin)', chipNoneLabel:'No regular medications' },
+  { id:'allergies', message:"Any allergies? Tap medications, foods, or anything you react to.", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES,
+    type:'chip_multi', chipOptions:COMMON_ALLERGIES, chipPlaceholder:'Search (e.g. penicillin, peanuts)', chipNoneLabel:'No known allergies' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>0, error:"Please describe how it happened (a few words is fine — e.g. 'fall off ladder').", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'imaging_clinic' },
@@ -2007,7 +2016,25 @@ export default function AITriage() {
         </div>
       )}
 
-      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && !tereTyping && (
+      {/* Chip picker for meds / allergies / conditions. Renders NZF-backed
+          typeahead for meds and curated lists for allergies/conditions.
+          Value is a comma-separated string so downstream save/PATCH paths
+          continue to treat it as free-text. */}
+      {step?.type === 'chip_multi' && !tereTyping && (
+        <ChipMultiSelect
+          options={step.chipOptions || []}
+          value={input}
+          onChange={v => setInput(v)}
+          onSubmit={() => {
+            const v = String(input || '').trim() || 'None'
+            handleSendValue(v)
+          }}
+          placeholder={step.chipPlaceholder || 'Search…'}
+          noneLabel={step.chipNoneLabel}
+        />
+      )}
+
+      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && step?.type !== 'chip_multi' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
@@ -2035,7 +2062,7 @@ export default function AITriage() {
         {/* Chat-style free-text bar. Hidden on picker steps so patients
             can't sidestep the dropdown by typing here — the picker's
             own Continue/Send button is the only path forward. */}
-        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker') && (
+        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker' || step?.type === 'chip_multi') && (
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
