@@ -74,30 +74,36 @@ const PAED_DRUGS = {
 // dose. Provider must verify against NZF for the specific indication +
 // patient factors (renal function, interactions, allergy) before
 // prescribing. Provided as autocomplete presets to reduce typing errors.
+// Quantity intentionally omitted from every preset — providers were finding
+// pre-populated "100 tablets" etc. annoying (wanted to think about qty per
+// patient without deleting a default first). Provider types the qty; if
+// they save as a personal favourite it round-trips fine.
+// UTI first-line: cefalexin 500mg BD per Patrick's clinical preference —
+// nitrofurantoin kept in the preset list but no longer UTI-labelled.
 export const ADULT_DRUG_PRESETS = {
-  'paracetamol':               { strength:'500mg',  form:'tablets',      dose:'2 tablets (1g)',  frequency:'QID',   duration:'as needed for pain',        qty:'100 tablets' },
-  'ibuprofen':                 { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for pain, with food', qty:'30 tablets' },
-  'amoxicillin':               { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'TDS',   duration:'5 days',                    qty:'15 capsules' },
-  'amoxicillin-clavulanate':   { strength:'625mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'5–7 days',                  qty:'21 tablets' },
-  'cefalexin':                 { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'TDS',   duration:'5 days',                    qty:'15 capsules' },
-  'flucloxacillin':            { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'7 days',                    qty:'28 capsules' },
-  'phenoxymethylpenicillin':   { strength:'500mg',  form:'tablets',      dose:'1 tablet',        frequency:'BD',    duration:'10 days (strep throat)',    qty:'20 tablets' },
-  'trimethoprim':              { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'nocte', duration:'3 days (uncomplicated UTI, female)', qty:'3 tablets' },
-  'nitrofurantoin':            { strength:'50mg',   form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'5 days (uncomplicated UTI)', qty:'20 capsules' },
-  'doxycycline':               { strength:'100mg',  form:'capsules',     dose:'1 capsule',       frequency:'BD',    duration:'7 days',                    qty:'14 capsules' },
-  'metronidazole':             { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'7 days',                    qty:'21 tablets' },
-  'roxithromycin':             { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'5 days',                    qty:'5 tablets' },
-  'erythromycin':              { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'QID',   duration:'7 days',                    qty:'28 tablets' },
-  'fluconazole':               { strength:'150mg',  form:'capsules',     dose:'1 capsule',       frequency:'STAT',  duration:'single dose (vaginal candidiasis)', qty:'1 capsule' },
-  'prednisone':                { strength:'20mg',   form:'tablets',      dose:'2 tablets (40mg)',frequency:'OD',    duration:'5 days (adult asthma exacerbation)', qty:'10 tablets' },
-  'salbutamol':                { strength:'100 micrograms/dose', form:'inhaler', dose:'1–2 puffs', frequency:'PRN', duration:'as needed for wheeze / SOB', qty:'1 inhaler' },
-  'fluticasone':               { strength:'50 micrograms/dose (nasal)', form:'inhaler', dose:'2 sprays each nostril', frequency:'OD', duration:'ongoing for allergic rhinitis', qty:'1 bottle' },
-  'loratadine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy',     qty:'30 tablets' },
-  'cetirizine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy',     qty:'30 tablets' },
-  'omeprazole':                { strength:'20mg',   form:'capsules',     dose:'1 capsule',       frequency:'OD',    duration:'ongoing (review at 4 weeks)', qty:'30 capsules' },
-  'pantoprazole':              { strength:'40mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'ongoing (review at 4 weeks)', qty:'30 tablets' },
-  'ondansetron':               { strength:'4mg',    form:'tablets',      dose:'1 tablet',        frequency:'Q8H',   duration:'as needed for nausea, max 3 days', qty:'10 tablets' },
-  'metoclopramide':            { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for nausea, max 5 days', qty:'15 tablets' },
+  'paracetamol':               { strength:'500mg',  form:'tablets',      dose:'2 tablets (1g)',  frequency:'QID',   duration:'as needed for pain' },
+  'ibuprofen':                 { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for pain, with food' },
+  'amoxicillin':               { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'TDS',   duration:'5 days' },
+  'amoxicillin-clavulanate':   { strength:'625mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'5–7 days' },
+  'cefalexin':                 { strength:'500mg',  form:'tablets',      dose:'1 tablet',        frequency:'BD',    duration:'5 days (uncomplicated UTI)' },
+  'flucloxacillin':            { strength:'500mg',  form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'7 days' },
+  'phenoxymethylpenicillin':   { strength:'500mg',  form:'tablets',      dose:'1 tablet',        frequency:'BD',    duration:'10 days (strep throat)' },
+  'trimethoprim':              { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'nocte', duration:'3 days (uncomplicated UTI, female)' },
+  'nitrofurantoin':            { strength:'50mg',   form:'capsules',     dose:'1 capsule',       frequency:'QID',   duration:'5 days' },
+  'doxycycline':               { strength:'100mg',  form:'capsules',     dose:'1 capsule',       frequency:'BD',    duration:'7 days' },
+  'metronidazole':             { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'7 days' },
+  'roxithromycin':             { strength:'300mg',  form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'5 days' },
+  'erythromycin':              { strength:'400mg',  form:'tablets',      dose:'1 tablet',        frequency:'QID',   duration:'7 days' },
+  'fluconazole':               { strength:'150mg',  form:'capsules',     dose:'1 capsule',       frequency:'STAT',  duration:'single dose (vaginal candidiasis)' },
+  'prednisone':                { strength:'20mg',   form:'tablets',      dose:'2 tablets (40mg)',frequency:'OD',    duration:'5 days (adult asthma exacerbation)' },
+  'salbutamol':                { strength:'100 micrograms/dose', form:'inhaler', dose:'1–2 puffs', frequency:'PRN', duration:'as needed for wheeze / SOB' },
+  'fluticasone':               { strength:'50 micrograms/dose (nasal)', form:'inhaler', dose:'2 sprays each nostril', frequency:'OD', duration:'ongoing for allergic rhinitis' },
+  'loratadine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy' },
+  'cetirizine':                { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'as needed for allergy' },
+  'omeprazole':                { strength:'20mg',   form:'capsules',     dose:'1 capsule',       frequency:'OD',    duration:'ongoing (review at 4 weeks)' },
+  'pantoprazole':              { strength:'40mg',   form:'tablets',      dose:'1 tablet',        frequency:'OD',    duration:'ongoing (review at 4 weeks)' },
+  'ondansetron':               { strength:'4mg',    form:'tablets',      dose:'1 tablet',        frequency:'Q8H',   duration:'as needed for nausea, max 3 days' },
+  'metoclopramide':            { strength:'10mg',   form:'tablets',      dose:'1 tablet',        frequency:'TDS',   duration:'as needed for nausea, max 5 days' },
 }
 
 // ── Paediatric dose calculator ────────────────────────────────────────────────
