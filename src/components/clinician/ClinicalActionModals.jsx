@@ -76,12 +76,21 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   }, [consult?.pharmacy_id])
 
   // Auto-select the RHCNZ region. Priority (see rhcnzRegions.js):
+  //   0. patient's own triage pick (preferred_imaging_region_id) — always wins
+  //      when set. Patrick 2026-09-29: providers were manually reclicking
+  //      the correct region on every referral because the address-guess
+  //      wasn't matching what the patient wanted.
   //   1. patient GPS coords (if we have them + clinic lat/lng data)
   //   2. pharmacy postcode (revealed real-time location — beats home)
   //   3. patient home postcode (fallback)
   // Never overwrites a manual pick.
   useEffect(() => {
     if (regionTouchedByUser) return
+    if (consult?.preferred_imaging_region_id) {
+      setRhcnzRegionId(consult.preferred_imaging_region_id)
+      setRhcnzAutoReason('patient triage pick')
+      return
+    }
     const match = autoSelectRegion({
       patientAddress: extra.address,
       patientCoords: consult?.patient_lat && consult?.patient_lng
@@ -95,7 +104,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
     } else {
       setRhcnzAutoReason(null)
     }
-  }, [extra.address, consult?.patient_lat, consult?.patient_lng, pharmacyAddress, regionTouchedByUser])
+  }, [extra.address, consult?.patient_lat, consult?.patient_lng, consult?.preferred_imaging_region_id, pharmacyAddress, regionTouchedByUser])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const accNum = consult?.acc_claim_number || ''

@@ -260,7 +260,21 @@ const STEPS = [
   { id:'allergies', message:"Any allergies — medications, foods, anything?", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>0, error:"Please describe how it happened (a few words is fine — e.g. 'fall off ladder').", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
-  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
+  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'imaging_clinic' },
+  // ACC-branch imaging pick — patient chooses which regional imaging service
+  // to send referrals to if X-ray / ultrasound is ordered. Region-level
+  // (matches RHCNZ_REGIONS ids). Optional — patient can skip if unsure.
+  { id:'imaging_clinic', message:"If you need an X-ray or ultrasound, where would you like it done?", field:'preferred_imaging_region_id', type:'choices', choices: [
+    { value:'arg',        label:'Auckland / Northland (Auckland Radiology)' },
+    { value:'bay',        label:'Bay of Plenty (Bay Radiology)' },
+    { value:'pr-waikato', label:'Waikato (Pacific Radiology)' },
+    { value:'pr-wgtn',    label:'Wellington / Manawatū (Pacific Radiology)' },
+    { value:'pr-nelson',  label:'Nelson / Tasman (Pacific Radiology)' },
+    { value:'mmi',        label:'Marlborough / Blenheim (MMI)' },
+    { value:'pr-cbg',     label:'Canterbury / Christchurch (Pacific Radiology)' },
+    { value:'pr-otago',   label:'Otago / Southland (Pacific Radiology)' },
+    { value:'',           label:"Not sure — my doctor can pick" },
+  ], validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   // HNZ NHI IG §4.3.2 General-2 — explicit ToU acceptance before we query
   // the National Health Index. If declined, we skip the NHI lookup entirely
   // (the consult still proceeds). Acceptance is stored as consent_type
@@ -976,11 +990,15 @@ export default function AITriage() {
     advanceToStep(nextId, newData)
   }
 
-  const handleSendValue = async (value) => {
+  const handleSendValue = async (value, displayLabel) => {
     const step = STEPS[currentStep]
     if (!step) return
     setStepHistory(prev => [...prev, { stepIdx: currentStep, msgCount: messages.length }])
-    setMessages(prev => [...prev, { role:'user', text:value }])
+    // displayLabel is optional — used by choices where the stored value
+    // differs from what the patient sees (e.g. imaging-clinic ids). If
+    // omitted, fall back to the value itself (backward-compat for existing
+    // choice/yesno steps that store the label as the value).
+    setMessages(prev => [...prev, { role:'user', text: displayLabel || value }])
 
     // Translate to English for keyword safety checks when not English
     let textForCheck = value
@@ -1760,12 +1778,21 @@ export default function AITriage() {
 
       {step?.type==='choices' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box',display:'flex',flexDirection:'column',gap:6}}>
-          {step.choices.map(choice => (
-            <button key={choice} onClick={()=>handleSendValue(choice)} className="btn"
-              style={{width:'100%',background:'white',border:'1.5px solid var(--border)',color:'var(--text)',fontWeight:500,textAlign:'left',justifyContent:'flex-start'}}>
-              {choice}
-            </button>
-          ))}
+          {step.choices.map(choice => {
+            // Choices can be plain strings (label used as both display + value,
+            // backward-compatible) or {label, value} objects when the stored
+            // value needs to differ from what the patient sees (e.g. region ids
+            // for the imaging picker where we display "Marlborough (Blenheim)"
+            // but store 'mmi').
+            const label = typeof choice === 'string' ? choice : choice.label
+            const value = typeof choice === 'string' ? choice : choice.value
+            return (
+              <button key={value} onClick={()=>handleSendValue(value, label)} className="btn"
+                style={{width:'100%',background:'white',border:'1.5px solid var(--border)',color:'var(--text)',fontWeight:500,textAlign:'left',justifyContent:'flex-start'}}>
+                {label}
+              </button>
+            )
+          })}
         </div>
       )}
 

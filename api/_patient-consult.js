@@ -61,6 +61,10 @@ const PATIENT_ALLOWLIST = new Set([
   // realise the one they picked is closed / far away. `pharmacy_id` is the
   // Medsafe slug from pharmacies.json; `pharmacy` is the display name.
   'pharmacy', 'pharmacy_id',
+  // Patient picks preferred imaging clinic (RHCNZ region id) during triage
+  // on the ACC branch — matches RHCNZ_REGIONS ids like 'mmi', 'pr-cbg'.
+  // Provider modal prefills from this instead of guessing from address.
+  'preferred_imaging_region_id',
   // Post-consult rating
   'rating', 'rating_comment', 'rated_at',
 ])
