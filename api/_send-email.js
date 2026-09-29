@@ -158,6 +158,35 @@ export default async function handler(req, res) {
     return res.status(200).json({ sent: true })
   }
 
+  // Fetch billing state for the summary email — patient wants the final
+  // amount in the same email as the clinical summary, not a separate
+  // receipt-only email. deriveBilling() logic mirrors the client-side
+  // PostConsult component so patient sees the same number in both places.
+  let billing = null
+  if (consultationId) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+      const { data: row } = await sb.from('consultations')
+        .select('payment_amount, is_acc, consultation_type, employer_paid, employer_name, acc_claim_number')
+        .eq('id', consultationId).single()
+      if (row) {
+        const isAcc = row.is_acc === true
+        const isEmployerPaid = row.consultation_type === 'employee' || row.employer_paid === true
+        const paidDollars = isEmployerPaid ? 0
+                          : isAcc ? 25
+                          : (row.payment_amount != null ? row.payment_amount / 100 : 0)
+        billing = {
+          paidDollars,
+          isAcc,
+          isEmployerPaid,
+          employerName: row.employer_name || null,
+          claimNumber: row.acc_claim_number || null,
+        }
+      }
+    } catch (e) { console.warn('[send-email] billing fetch failed:', e.message) }
+  }
+
   // Support both old SOAP format and new 9-section format
   const assessment = sections.mdm     || notes.A || ''
   const plan       = sections.plan    || notes.P || ''
@@ -229,6 +258,27 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
        </div>`
     : ''
 
+  // Billing block — final amount charged, so patient sees it in the same
+  // email as the clinical summary. Included after ACC/Rx/Imaging blocks
+  // so it reads as "here's what the doctor did AND what you were charged".
+  const billingHtml = billing
+    ? (billing.isEmployerPaid
+        ? `<div style="background:#F0FDF4;border-left:3px solid #059669;border-radius:4px;padding:10px 14px;margin:8px 0;font-size:14px">
+            <strong style="color:#059669">Billing — no charge</strong><br>
+            Covered by ${billing.employerName || 'your employer'}. You have not been charged.
+           </div>`
+        : billing.isAcc
+        ? `<div style="background:#F0FDF4;border-left:3px solid #059669;border-radius:4px;padding:10px 14px;margin:8px 0;font-size:14px">
+            <strong style="color:#059669">Billing — ACC covered</strong><br>
+            ACC is covering your consultation. You paid a $${billing.paidDollars.toFixed(2)} administrative fee.
+            ${billing.claimNumber ? `<br><span style="font-size:12px;color:#065F46">ACC claim: <code style="background:white;padding:1px 6px;border-radius:4px">${billing.claimNumber}</code></span>` : ''}
+           </div>`
+        : `<div style="background:#EFF9F9;border-left:3px solid #0B6E76;border-radius:4px;padding:10px 14px;margin:8px 0;font-size:14px">
+            <strong style="color:#0B6E76">Billing</strong><br>
+            Consultation fee: <strong>$${billing.paidDollars.toFixed(2)} NZD</strong>
+           </div>`)
+    : ''
+
   // Enrolment guidance — only inserted when the provider flagged the patient
   // as unenrolled during the continuity step. Links to Healthpoint's GP
   // finder + a portal action that lets the patient trigger a record-forward
@@ -277,7 +327,7 @@ Sign off warmly from Tere Health. Keep under 200 words total.`
       Your telehealth consultation on <strong>${dateStr}</strong>
     </p>
 
-    ${rxHtml}${xrHtml}${accHtml}
+    ${rxHtml}${xrHtml}${accHtml}${billingHtml}
 
     <div style="margin:20px 0;font-size:15px;line-height:1.8;color:#374151;white-space:pre-line">${summaryText.replace(/\n/g, '<br>')}</div>
 

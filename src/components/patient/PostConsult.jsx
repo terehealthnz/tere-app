@@ -21,11 +21,19 @@ export default function PostConsult() {
     getPatientConsult(consultationId).then(c => setConsult(c || null)).catch(() => {})
   }
 
-  // Billing derivation. Handles both the current state (payment_amount set on
-  // the row after finalise) and the transitional case where finalise hasn't
-  // completed yet — we fall back to the auth amount + is_acc/acc_eligible so
-  // the patient never sees a blank billing section.
+  // Billing derivation. Only meaningful once the provider has finalised —
+  // before that we don't know if this is ACC, employer-paid, waived, tier-
+  // shifted, etc. Patrick 2026-09-29: don't front-run the provider's billing
+  // decision with an estimated "Amount you paid" — patients were seeing a
+  // billing block populated from the auth-time hold before the provider had
+  // actually decided anything. Final billing shows here only after finalise
+  // (status='complete'/'completed'), and the summary email carries the same
+  // number as the source of truth.
   const billing = deriveBilling(consult)
+  const isFinalised = consult && (consult.status === 'complete' || consult.status === 'completed' || consult.completed_at)
+  // Employer-paid can safely show $0 immediately — the provider can't change
+  // that (the payer is fixed by the intake path), so it's not front-running.
+  const showBillingNow = isFinalised || billing.isEmployerPaid
 
   return (
     <div className="page">
@@ -35,15 +43,16 @@ export default function PostConsult() {
           <div style={{fontSize:'3rem',marginBottom:'1rem'}}>✅</div>
           <h2 style={{marginBottom:'.5rem'}}>Consultation complete</h2>
           <p style={{marginBottom:'1.5rem'}}>
-            Your consultation summary and any prescriptions or referrals will be
-            sent to you by SMS or email shortly.
+            {showBillingNow
+              ? 'Your consultation summary and any prescriptions or referrals will be sent to you by SMS or email shortly.'
+              : "Your doctor is finalising your notes now. Your consultation summary, any prescriptions or referrals, and the final billing will be sent to you by email once they're done — usually within a few minutes."}
           </p>
 
-          {/* Billing summary — always shown once the consult record loads.
-              For ACC-covered consults the patient sees $0 explicitly with the
-              claim reference; for private consults they see the $65 with the
-              card last-4 if available. Silent charges break HDC Right 6. */}
-          {!loading && consult && (
+          {/* Billing summary — shown only after the provider has finalised
+              (or immediately for employer-paid consults where the payer is
+              fixed by intake). Otherwise we'd be publishing an auth-time
+              estimate before the provider has decided ACC/private/waived. */}
+          {!loading && consult && showBillingNow && (
             <div style={{
               background: billing.isAcc ? '#F0FDF4' : 'var(--bg)',
               border: `1px solid ${billing.isAcc ? '#BBF7D0' : 'var(--border)'}`,
@@ -94,8 +103,9 @@ export default function PostConsult() {
         </div>
 
         {/* Insurance receipt upsell — $10 for an itemised PDF. Component
-            hides itself once purchased (insurance_receipt_purchased_at). */}
-        {!loading && consult && consultationId && (
+            hides itself once purchased. Also gated behind finalisation:
+            no bill to itemise until the provider has decided. */}
+        {!loading && consult && consultationId && showBillingNow && (
           <InsuranceReceiptUpsell
             consult={consult}
             consultationId={consultationId}
@@ -126,7 +136,7 @@ export default function PostConsult() {
 // consult, this page will reflect the new state on next load.
 function deriveBilling(consult) {
   if (!consult) {
-    return { feeDollars: 0, paidDollars: 0, adminFeeDollars: 0, isAcc: false, reasoning: null, claimNumber: null }
+    return { feeDollars: 0, paidDollars: 0, adminFeeDollars: 0, isAcc: false, isEmployerPaid: false, reasoning: null, claimNumber: null }
   }
   const isAcc = consult.is_acc === true
   // Employer-paid workers (/work/[slug] flow) never see a personal charge —
@@ -157,6 +167,7 @@ function deriveBilling(consult) {
     paidDollars,
     adminFeeDollars,
     isAcc,
+    isEmployerPaid,
     reasoning,
     claimNumber: isAcc ? (consult.acc_claim_number || null) : null,
   }
