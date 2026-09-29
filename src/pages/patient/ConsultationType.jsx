@@ -58,6 +58,27 @@ export default function ConsultationType() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Auto-route case (the current tele-emergency positioning): render a tiny
+  // spinner instead of the full price card. Otherwise the price card paints
+  // for a single frame before the effect above navigates to /payment, and
+  // patients see a glitchy flash of "$Consultation $X" → "Where will you be
+  // paying from?" that reads like a bug.
+  if (availableTypes.length === 1) {
+    return (
+      <div className="page" style={{ background: 'var(--bg)' }}>
+        <nav className="navbar">
+          <div style={{display:'flex',alignItems:'center',gap:'1rem'}}>
+            <span className="navbar-brand" onClick={() => navigate('/')} style={{cursor:'pointer',userSelect:'none'}}>Tere</span>
+          </div>
+        </nav>
+        <div className="container" style={{ paddingTop: '3rem', textAlign: 'center', maxWidth: 480 }}>
+          <div className="spinner" style={{ margin: '0 auto 1rem' }} />
+          <div style={{ color: '#6B7280', fontSize: '.9375rem' }}>Preparing your consultation…</div>
+        </div>
+      </div>
+    )
+  }
+
   const typeConfig = TYPE_CONFIG
 
   function getPrice(type) {

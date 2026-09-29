@@ -46,16 +46,23 @@ export default async function handler(req, res) {
   if (pErr) return res.status(500).json({ error: pErr.message })
 
   // Providers lookup — only run when there's a query; typing 2+ chars is
-  // enough to disambiguate most rural GP surnames. Case-insensitive prefix
-  // match on either given or family name.
+  // enough to disambiguate most rural GP surnames. Match either provider
+  // name (given/family) OR any provider whose practice was matched above
+  // — patients often know "Renwick Medical Centre" but not their GP's
+  // surname, and returning just the practice with no providers made the
+  // picker look empty.
   let providers = []
   if (q.length >= 2) {
-    // We need practice info for each provider hit. Join via nested select.
+    const practiceIds = (practices || []).map(p => p.id)
+    const nameFilter = `given_name.ilike.${q}%,family_name.ilike.${q}%`
+    const filter = practiceIds.length
+      ? `${nameFilter},practice_id.in.(${practiceIds.join(',')})`
+      : nameFilter
     let provQuery = supabase
       .from('gp_providers')
       .select('id, title, given_name, family_name, practice_id, gp_practices!inner(id, name, email, phone, address, region)')
       .eq('active', true)
-      .or(`given_name.ilike.${q}%,family_name.ilike.${q}%`)
+      .or(filter)
       .order('family_name', { ascending: true })
       .limit(30)
     // Region filter applies to the joined practice.
