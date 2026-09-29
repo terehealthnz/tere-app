@@ -65,6 +65,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // NOT here — logout must succeed even after the client has already begun
   // wiping sessionStorage (see api/_provider-logout.js header for details).
   'provider-sessions',
+  // Admin funnel analytics — GET aggregated event counts + drop-off. The
+  // WRITE side (patient-event) stays anon so the patient's browser can
+  // fire beacons without a session; the READ side is admin-only.
+  'patient-funnel',
   // Provider inbox: GET returns caller's own broadcasts + targeted notifications,
   // POST broadcasts (admin only), PATCH marks read. Server infers provider from
   // auth — client-supplied providerId is ignored (task #563).
@@ -393,6 +397,8 @@ const ROUTES = {
   'job-applications':          () => import('./_job-applications.js'),
   'interview-join':            () => import('./_interview-join.js'),
   'patient-support':           () => import('./_patient-support.js'),
+  'patient-event':             () => import('./_patient-event.js'),
+  'patient-funnel':            () => import('./_patient-funnel.js'),
   'provider-notifications':    () => import('./_provider-notifications.js'),
 }
 

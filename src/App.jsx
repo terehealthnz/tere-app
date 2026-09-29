@@ -137,6 +137,7 @@ const Waitlist            = lazy(() => import('./pages/Waitlist'))
 import BetaBanner from './components/BetaBanner'
 import SessionIdleGuard from './components/clinician/SessionIdleGuard'
 import StuckHelperWidget from './components/patient/StuckHelperWidget'
+import FunnelTracker from './components/FunnelTracker'
 import NativeShell from './lib/NativeShell'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
@@ -232,6 +233,7 @@ export default function App() {
     <BetaBanner />
     <SessionIdleGuard />
     <StuckHelperWidget />
+    <FunnelTracker />
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
