@@ -2022,11 +2022,13 @@ export default function AITriage() {
           continue to treat it as free-text. */}
       {step?.type === 'chip_multi' && !tereTyping && (
         <ChipMultiSelect
+          key={step.id}
           options={step.chipOptions || []}
           value={input}
           onChange={v => setInput(v)}
           onSubmit={() => {
             const v = String(input || '').trim() || 'None'
+            setInput('')
             handleSendValue(v)
           }}
           placeholder={step.chipPlaceholderKey ? t(step.chipPlaceholderKey, lang) : 'Search…'}
