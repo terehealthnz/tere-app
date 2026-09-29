@@ -1877,9 +1877,20 @@ export function buildAccCertificatePdf(data) {
 //     providerSignatureDataUrl,  // 'data:image/png;base64,...' from canvas
 //   }
 export async function buildMedCertPdf(data) {
-  const sigBuf = signatureBufferFromDataUrl(data.providerSignatureDataUrl)
+  // Signature: prefer inline data URL (canvas draw or localStorage cache).
+  // If the provider's signature came from their profile (Supabase Storage
+  // https URL), fetch it via the SSRF-guarded fetcher. Either path yields
+  // a PNG/JPEG Buffer we can pass to doc.image().
+  let sigBuf = signatureBufferFromDataUrl(data.providerSignatureDataUrl)
+  if (!sigBuf && typeof data.providerSignatureDataUrl === 'string' && /^https?:\/\//.test(data.providerSignatureDataUrl)) {
+    sigBuf = await fetchSignatureBuffer(data.providerSignatureDataUrl)
+  }
+  const logoBuf = tereLogoBuffer()
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    // Tight bottom margin so the regulatory footer + wordmark fit on the
+    // one page. Previous 50px bottom margin was pushing the wordmark onto
+    // a second blank page.
+    const doc = new PDFDocument({ margins: { top: 50, bottom: 25, left: 50, right: 50 }, size: 'A4' })
     const chunks = []
     doc.on('data', c => chunks.push(c))
     doc.on('end', () => resolve(Buffer.concat(chunks)))
@@ -1891,8 +1902,12 @@ export async function buildMedCertPdf(data) {
 
     // Header band — matches prescription/referral/insurance PDFs.
     doc.rect(0, 0, W, 70).fill('#0B6E76')
-    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', M, 20)
-    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', M, 46)
+    if (logoBuf) {
+      try { doc.image(logoBuf, M, 15, { fit: [40, 40] }) } catch { /* fall through */ }
+    }
+    const wordmarkX = logoBuf ? M + 50 : M
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', wordmarkX, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', wordmarkX, 46)
 
     doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(16).text('MEDICAL CERTIFICATE', M, 90)
     doc.moveTo(M, 110).lineTo(W - M, 110).strokeColor('#0B6E76').lineWidth(1).stroke()
@@ -1973,30 +1988,35 @@ export async function buildMedCertPdf(data) {
       flowY += 6
     }
 
-    // Signature block — anchored near the bottom but not above the flowed
-    // content. Fixed offsets mirror the prescription PDF.
-    const sigY = Math.max(flowY + 40, H - 160)
+    // Signature block — mirrors the prescription PDF: content ABOVE the
+    // line (signature image on the left, date on the right), labels BELOW
+    // the line. Pinned high enough that the regulatory footer + wordmark
+    // both fit within the tight 25px bottom margin.
+    const FOOTER_TOP = H - 90  // regulatory + wordmark reserved area
+    const sigY = Math.max(flowY + 50, FOOTER_TOP - 30)
     if (sigBuf) {
       try { doc.image(sigBuf, M, sigY - 40, { fit: [170, 40], align: 'center' }) } catch { /* fall through */ }
     }
+    // Left column: signature line + printed name/reg below
     doc.moveTo(M, sigY).lineTo(220, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text(data.providerName || 'Tere clinician', M, sigY + 6)
     if (data.providerReg) doc.fillColor('#666').font('Helvetica').fontSize(9).text(`MCNZ ${data.providerReg}`, M, sigY + 20)
+    // Right column: date ABOVE the line, label BELOW (matches prescription PDF)
+    doc.fillColor('#333').font('Helvetica').fontSize(11).text(nzDate(new Date()), 305, sigY - 16)
     doc.moveTo(300, sigY).lineTo(W - M, sigY).strokeColor('#999').lineWidth(0.5).stroke()
     doc.fillColor('#666').font('Helvetica').fontSize(9).text('Date issued', 300, sigY + 6)
-    doc.fillColor('#333').text(nzDate(new Date()), 300, sigY + 18)
 
-    // Regulatory footer. MCNZ Telehealth statement is the key legitimacy
-    // signal for an employer accepting a telehealth-only sick note.
+    // Regulatory footer + wordmark. Both must fit above H (page height)
+    // and inside the 25px bottom margin so pdfkit doesn't spill to page 2.
     doc.fillColor('#666').font('Helvetica-Oblique').fontSize(8).text(
       'Issued in accordance with the Medical Council of New Zealand Telehealth Statement (2020). ' +
       'This is an electronically-issued medical certificate; the certifying clinician\'s printed name ' +
       'and MCNZ registration number carry the same legal weight as a wet-ink signature.',
-      M, H - 80, { width: W - 100, align: 'center', lineGap: 1 }
+      M, H - 65, { width: W - 100, align: 'center', lineGap: 1 }
     )
     doc.fillColor('#9CA3AF').fontSize(7.5).text(
       'Tere Health Ltd · terehealth.co.nz · Not valid if altered',
-      M, H - 45, { width: W - 100, align: 'center' }
+      M, H - 32, { width: W - 100, align: 'center' }
     )
 
     doc.end()
