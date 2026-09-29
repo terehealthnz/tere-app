@@ -1,6 +1,7 @@
 // api/_generate-med-cert.js — Generate and email a medical certificate
 import { escapeHtml, sanitizeSubject } from './_email-safety.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { hasEmailProvider } from './_email-client.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
