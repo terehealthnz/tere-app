@@ -264,15 +264,15 @@ const STEPS = [
   // ACC-branch imaging pick — patient chooses which regional imaging service
   // to send referrals to if X-ray / ultrasound is ordered. Region-level
   // (matches RHCNZ_REGIONS ids). Optional — patient can skip if unsure.
-  { id:'imaging_clinic', message:"If you need an X-ray or ultrasound, where would you like it done?", field:'preferred_imaging_region_id', type:'choices', choices: [
-    { value:'arg',        label:'Auckland / Northland (Auckland Radiology)' },
-    { value:'bay',        label:'Bay of Plenty (Bay Radiology)' },
-    { value:'pr-waikato', label:'Waikato (Pacific Radiology)' },
-    { value:'pr-wgtn',    label:'Wellington / Manawatū (Pacific Radiology)' },
-    { value:'pr-nelson',  label:'Nelson / Tasman (Pacific Radiology)' },
-    { value:'mmi',        label:'Marlborough / Blenheim (MMI)' },
-    { value:'pr-cbg',     label:'Canterbury / Christchurch (Pacific Radiology)' },
-    { value:'pr-otago',   label:'Otago / Southland (Pacific Radiology)' },
+  { id:'imaging_clinic', message:"If you need an X-ray or ultrasound, which region would you like it done in? The regional imaging service will call you to book the clinic.", field:'preferred_imaging_region_id', type:'choices', choices: [
+    { value:'arg',        label:'Auckland / Northland' },
+    { value:'bay',        label:'Bay of Plenty' },
+    { value:'pr-waikato', label:'Waikato' },
+    { value:'pr-wgtn',    label:'Wellington / Manawatū' },
+    { value:'pr-nelson',  label:'Nelson / Tasman' },
+    { value:'mmi',        label:'Marlborough (Blenheim)' },
+    { value:'pr-cbg',     label:'Canterbury (Christchurch)' },
+    { value:'pr-otago',   label:'Otago / Southland' },
     { value:'',           label:"Not sure — my doctor can pick" },
   ], validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   // HNZ NHI IG §4.3.2 General-2 — explicit ToU acceptance before we query
