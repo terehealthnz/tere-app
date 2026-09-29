@@ -106,6 +106,10 @@ export default async function handler(req, res) {
       join_attempts: attemptNum,
       join_attempt_history: history,
       cooldown_until: null,
+      // Provider's Video / Phone button choice at call start is authoritative
+      // over whatever the intake set — this is what both sides key off to
+      // decide audio-only vs video (isPhone check in PatientCall + ProviderConsult).
+      consultation_type: forcePhone ? 'phone' : 'video',
       ...(providerId ? { provider_id: providerId } : {}),
       ...(providerName ? { provider_display_name: providerName } : {}),
     })
@@ -127,7 +131,12 @@ export default async function handler(req, res) {
   // different browser/device (empty sessionStorage) can still join their call.
   const callJoinUrl = `${appUrl}/call?consultation=${consultationId}`
 
-  if (canEmail && consult.patient_email) {
+  // Only email on the first ring attempt of a session. Ring 2+ (after a
+  // failed call → provider re-clicks Video/Phone on the same consult) uses
+  // the urgency SMS below instead — sending "your provider is ready" again
+  // reads as spam and confuses the patient. attemptNum is incremented
+  // above from consult.join_attempts, so this fires exactly once per consult.
+  if (canEmail && consult.patient_email && attemptNum === 1) {
     const subject = `${providerLabel} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>

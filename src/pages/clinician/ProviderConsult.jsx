@@ -856,9 +856,11 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   }
 
   const isAcc       = consult.acc_eligible === 'yes'
-  // 'consult' (unified type) and 'phone' (legacy) both default the call to
-  // audio-only — provider can toggle camera on inside the call.
-  const isPhone     = consult.consultation_type === 'phone' || consult.consultation_type === 'consult'
+  // Only the legacy 'phone' type is audio-only. 'video' and 'consult'
+  // (unified) start with the camera on; either side can toggle it off
+  // mid-call via the VideoConference toolbar. The provider's Video / Phone
+  // buttons set consultation_type explicitly at the start of each call.
+  const isPhone     = consult.consultation_type === 'phone'
   const patientName = `${consult.patient_first_name} ${consult.patient_last_name}`
 
   // ── IN-CALL VIEW ─────────────────────────────────────────────────────────────

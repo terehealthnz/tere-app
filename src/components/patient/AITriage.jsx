@@ -1107,6 +1107,7 @@ export default function AITriage() {
         complaint: data.chief_complaint,
         pharmacy: data.pharmacy||'',
         pharmacyId: sessionStorage.getItem('pending_pharmacy_id') || null,
+        preferredImagingRegionId: data.preferred_imaging_region_id || null,
         accEligible: data.is_acc_raw==='yes'?'yes':'no',
         employer: data.employer,
         injuryDetails: data.acc_injury_description||'',

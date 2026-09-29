@@ -90,19 +90,25 @@ export default function PatientCall() {
   const consultationId = urlConsultId || sessionStorage.getItem('consultationId')
   const ssType = sessionStorage.getItem('consultationType')
   const [consultationType, setConsultationType] = useState(ssType || 'video')
-  // Both 'phone' (legacy) and 'consult' (unified type) default to audio-only —
-  // camera is a toggle on top, not a mode. Only historical 'video' defaults
-  // camera on.
-  const isPhone = consultationType === 'phone' || consultationType === 'consult'
+  // Only the legacy 'phone' type is audio-only. 'consult' (unified) and
+  // 'video' both start with the camera on; either side can toggle it off
+  // mid-call via the VideoConference toolbar.
+  const isPhone = consultationType === 'phone'
   // Set to the Chime meeting id once the provider has clicked Call server-
   // side. Populated from the same status-poll below. Gates the "Start call"
   // button on Chime so the patient can't tap before the meeting exists
   // (which would 409 → "Couldn't connect").
   const [chimeMeetingId, setChimeMeetingId] = useState(null)
 
-  // When sessionStorage was cleared (browser reopened), fetch type from DB
+  // Always refresh consultation_type from DB on mount. Triage may have
+  // stored 'consult' or 'video' in sessionStorage, but the provider's
+  // Video / Phone button click just before /api/initiate-call is the
+  // authoritative choice (server writes it to consultations.consultation_type,
+  // see api/_initiate-call.js). Without this refresh the patient's isPhone
+  // check runs against stale sessionStorage, so provider-clicked Phone
+  // would still open with video on the patient side.
   useEffect(() => {
-    if (!consultationId || ssType) return
+    if (!consultationId) return
     getPatientConsult(consultationId).then(c => {
       if (c?.consultation_type) {
         setConsultationType(c.consultation_type)
