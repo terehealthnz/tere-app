@@ -199,13 +199,16 @@ export default async function handler(req, res) {
   // different browser/device (empty sessionStorage) can still join their call.
   const callJoinUrl = `${appUrl}/call?consultation=${consultationId}`
 
-  // Only email on the first ring attempt of a session, and only for the
-  // Video path — Phone dials the patient's phone directly so notifying them
-  // by email/SMS is redundant + spammy. The "we tried to reach you" email
-  // that fires on provider-clicked Failed / Return-to-queue lives in
-  // /api/ring-timeout instead. attemptNum is incremented above from
-  // consult.join_attempts, so this fires exactly once per Video consult.
-  if (canEmail && consult.patient_email && attemptNum === 1 && !forcePhone) {
+  // Ring-start email disabled for both Video and Phone paths. The waiting
+  // room page polls consult status and shows "Your provider is ready"
+  // when it flips to in_progress, which is enough for a patient watching
+  // the tab. Anyone with the tab backgrounded gets caught by the 15s
+  // SIP fallback on Video (or the immediate SIP dial on Phone). The
+  // "we tried to reach you" email fires on provider-clicked Failed /
+  // Return-to-queue via /api/ring-timeout instead — one email per real
+  // failed attempt, no ring-start spam. Kept the branch so re-enabling
+  // is a one-line flip if needed.
+  if (false && canEmail && consult.patient_email && attemptNum === 1 && !forcePhone) {
     const subject = `${providerLabel} is ready for your ${consultType === 'phone' ? 'phone call' : 'video consultation'}`
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"></head>
@@ -250,11 +253,11 @@ export default async function handler(req, res) {
     }).catch(e => console.error('[initiate-call] email failed:', e.message))
   }
 
-  // SMS to patient — reliable delivery for any phone (no PWA install needed).
-  // Push notifications only work for the ~0% of patients with Tere added to
-  // their home screen, so SMS is the primary real-time channel. Suppressed
-  // on the Phone path (forcePhone) — the phone itself is ringing them.
-  if (consult.patient_phone && !forcePhone) {
+  // SMS disabled at ring start for both paths (see email comment above).
+  // Video path relies on the 15s SIP fallback to catch backgrounded tabs;
+  // Phone path dials immediately. Kept the branch so re-enabling is a
+  // one-line flip if the SIP fallback proves unreliable in the field.
+  if (false && consult.patient_phone && !forcePhone) {
     const callUrl = `${appUrl}/call?consultation=${consultationId}`
     // Attempt 2 gets urgency framing: if they miss this one, they're marked
     // no-show and the payment hold is released.
