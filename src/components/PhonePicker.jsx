@@ -80,11 +80,16 @@ export default function PhonePicker({ value, onChange }) {
     onChange(clean ? `${d}${clean}` : '')
   }
 
-  const selectStyle = { padding: '.6rem .75rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white', minWidth: 130 }
-  const inputStyle  = { flex: 1, padding: '.6rem .75rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', minWidth: 0 }
+  // Closed-state shows just flag + dial code (compact); the dropdown
+  // list includes country names so patients can find theirs by scanning.
+  // Native <select> can't render a different closed vs open template,
+  // so options are labelled "🇳🇿 +64 New Zealand" — the flag + dial
+  // sit first so a squeezed closed state still shows the essentials.
+  const selectStyle = { width: 110, flexShrink: 0, padding: '.6rem .5rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white' }
+  const inputStyle  = { flex: 1, width: '100%', padding: '.6rem .75rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem', minWidth: 0, letterSpacing: '.02em' }
 
   return (
-    <div style={{ display: 'flex', gap: 8 }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
       <select
         value={dial}
         onChange={e => { const d = e.target.value; setDial(d); emit(d, local) }}
@@ -92,7 +97,7 @@ export default function PhonePicker({ value, onChange }) {
         aria-label="Country dial code"
       >
         {COUNTRIES.map(c => (
-          <option key={c.code} value={c.dial}>{c.flag} {c.name} ({c.dial})</option>
+          <option key={c.code} value={c.dial}>{c.flag} {c.dial} {c.name}</option>
         ))}
       </select>
       <input
