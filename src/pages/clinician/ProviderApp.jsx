@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { getActiveConsultations, subscribeToQueue, getCompleteSince, getPendingNotes, getCompletedNotes } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { isUS } from '../../lib/region'
+import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
 import { PrescribeModal, XrayModal, NotesModal, InPersonModal, UpgradeModal } from '../../components/clinician/ConsultModals'
 import ProviderEarnings from './ProviderEarnings'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
@@ -370,6 +371,15 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   {c.acc_eligible === 'yes' && (
                     <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>ACC</span>
                   )}
+                  {c.preferred_imaging_region_id && (() => {
+                    const reg = RHCNZ_REGIONS.find(r => r.id === c.preferred_imaging_region_id)
+                    return reg ? (
+                      <span title={`Preferred imaging: ${reg.region}`}
+                        style={{ background:'#F5F3FF', color:'#6D28D9', fontSize:'.5625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>
+                        🩻 {reg.region}
+                      </span>
+                    ) : null
+                  })()}
                   {c.patient_allergies && !['none','no','nkda','nil','no known allergies','no allergies','n/a'].includes(c.patient_allergies.toLowerCase().trim()) && (
                     <span style={{ color:'#DC2626', fontSize:'.625rem', fontWeight:700 }}>⚠ Allergy</span>
                   )}
@@ -481,9 +491,20 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   <div style={{ fontWeight:600, color:NAVY, fontSize:'.9375rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                     {c.patient_first_name} {c.patient_last_name}
                   </div>
-                  {c.acc_eligible==='yes' && (
-                    <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'1px 5px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block', marginTop:3 }}>ACC</span>
-                  )}
+                  <div style={{ display:'flex', gap:4, marginTop:3, flexWrap:'wrap' }}>
+                    {c.acc_eligible==='yes' && (
+                      <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'1px 5px', borderRadius:99, whiteSpace:'nowrap' }}>ACC</span>
+                    )}
+                    {c.preferred_imaging_region_id && (() => {
+                      const reg = RHCNZ_REGIONS.find(r => r.id === c.preferred_imaging_region_id)
+                      return reg ? (
+                        <span title={`Preferred imaging: ${reg.region}`}
+                          style={{ background:'#F5F3FF', color:'#6D28D9', fontSize:'.5625rem', fontWeight:700, padding:'1px 5px', borderRadius:99, whiteSpace:'nowrap' }}>
+                          🩻 {reg.region}
+                        </span>
+                      ) : null
+                    })()}
+                  </div>
                 </div>
 
                 {/* Date/time */}

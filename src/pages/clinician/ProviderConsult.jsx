@@ -638,13 +638,22 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ consultationId: id, providerId, providerName: displayName }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `Failed (HTTP ${res.status})`)
+      // Missing token means server accepted the call but LiveKit isn't
+      // configured. Surface loudly so the provider doesn't stare at a
+      // silent screen — matches how the phone-only path handles errors.
+      if (!data.token || !data.serverUrl) {
+        throw new Error('Video service returned no token. Check LIVEKIT_* env vars in Vercel.')
+      }
       setConsult(d => ({ ...d, status: 'in_progress' }))
-      if (data.token) { setLkToken(data.token); setLkUrl(data.serverUrl) }
+      setLkToken(data.token); setLkUrl(data.serverUrl)
       setCallStart(Date.now())
       setInCall(true)
-    } catch (e) { console.error(e) }
+    } catch (e) {
+      console.error('[initiateCall]', e)
+      alert(`Could not start video: ${e.message}`)
+    }
     setCalling(false)
   }
 

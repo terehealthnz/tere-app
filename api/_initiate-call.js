@@ -199,26 +199,35 @@ export default async function handler(req, res) {
   // who added Tere to their home screen as a PWA, which is a tiny minority.
   // SMS + email above cover all real patients regardless of install state.
 
-  // Generate LiveKit token for provider
+  // Generate LiveKit token for provider. All three env vars are required
+  // in prod — a missing one used to silently return token=null which the
+  // client mishandled as "no video widget renders". Now fail loud so
+  // ProviderConsult surfaces a real error instead of a blank screen.
   const lkApiKey = process.env.LIVEKIT_API_KEY
   const lkApiSecret = process.env.LIVEKIT_API_SECRET
   const lkUrl = process.env.LIVEKIT_URL
-
-  let token = null
-  if (lkApiKey && lkApiSecret) {
-    const at = new AccessToken(lkApiKey, lkApiSecret, {
-      identity: `provider-${consultationId.slice(0, 8)}`,
-      ttl: 7200,
-    })
-    at.addGrant({
-      roomJoin: true,
-      room: `tere-${consultationId.slice(0, 8)}`,
-      canPublish: true,
-      canSubscribe: true,
-      canPublishData: true,
-    })
-    token = await at.toJwt()
+  if (!lkApiKey || !lkApiSecret || !lkUrl) {
+    const missing = [
+      !lkApiKey    && 'LIVEKIT_API_KEY',
+      !lkApiSecret && 'LIVEKIT_API_SECRET',
+      !lkUrl       && 'LIVEKIT_URL',
+    ].filter(Boolean).join(', ')
+    console.error('[initiate-call] LiveKit env vars missing:', missing)
+    return res.status(500).json({ error: `Video service misconfigured — missing ${missing}. Check Vercel env vars.` })
   }
+
+  const at = new AccessToken(lkApiKey, lkApiSecret, {
+    identity: `provider-${consultationId.slice(0, 8)}`,
+    ttl: 7200,
+  })
+  at.addGrant({
+    roomJoin: true,
+    room: `tere-${consultationId.slice(0, 8)}`,
+    canPublish: true,
+    canSubscribe: true,
+    canPublishData: true,
+  })
+  const token = await at.toJwt()
 
   // forcePhone path — patient wasn't online per the heartbeat check, so dial
   // their phone via LiveKit's SIP client (Telnyx trunk) and add them to the
