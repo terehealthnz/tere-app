@@ -253,11 +253,13 @@ export default async function handler(req, res) {
     }).catch(e => console.error('[initiate-call] email failed:', e.message))
   }
 
-  // SMS disabled at ring start for both paths (see email comment above).
-  // Video path relies on the 15s SIP fallback to catch backgrounded tabs;
-  // Phone path dials immediately. Kept the branch so re-enabling is a
-  // one-line flip if the SIP fallback proves unreliable in the field.
-  if (false && consult.patient_phone && !forcePhone) {
+  // SMS kept ON for Video ring-start (cheap $0.03 insurance for
+  // backgrounded/closed tabs — lets the patient tap into the browser from
+  // lockscreen for a video call instead of only getting the SIP audio
+  // fallback at 15s). Skipped on Phone (forcePhone) — the phone itself is
+  // ringing them. Retry framing at attempt 2 gives the patient explicit
+  // "second attempt — 90s to answer" pressure.
+  if (consult.patient_phone && !forcePhone) {
     const callUrl = `${appUrl}/call?consultation=${consultationId}`
     // Attempt 2 gets urgency framing: if they miss this one, they're marked
     // no-show and the payment hold is released.
