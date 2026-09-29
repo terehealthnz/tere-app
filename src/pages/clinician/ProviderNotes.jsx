@@ -1759,13 +1759,35 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             </div>
           )}
 
-          {workCapacity !== 'fit' && (
-            <div style={{ marginTop:10 }}>
-              <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:6 }}>Return to work date</label>
-              <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} readOnly={isFinalised||isAlreadyResponded}
-                style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'1rem', outline:'none', background:isFinalised||isAlreadyResponded?'#F8FAFC':'white' }} />
-            </div>
-          )}
+          {workCapacity !== 'fit' && (() => {
+            // Cap RTW date at today + 14 days. Beyond that the patient needs
+            // to be re-seen — a telehealth consult can't reliably predict
+            // work capacity more than two weeks out. Clamps in the UI via
+            // min/max attributes and re-clamps setReturnDate to be safe
+            // against paste-in dates that dodge the picker.
+            const today = new Date()
+            const iso = (d) => d.toISOString().slice(0, 10)
+            const minDate = iso(today)
+            const maxDate = iso(new Date(today.getTime() + 14 * 24 * 3600 * 1000))
+            return (
+              <div style={{ marginTop:10 }}>
+                <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:6 }}>Return to work date <span style={{ fontWeight:400, color:'#9CA3AF', textTransform:'none', letterSpacing:0 }}>(max 2 weeks — re-see beyond)</span></label>
+                <input type="date" value={returnDate} min={minDate} max={maxDate}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (!v) { setReturnDate(''); return }
+                    // Reject anything outside the 2-week window even if the
+                    // user typed rather than picked. Silently clamp to max
+                    // so we never persist an out-of-range date.
+                    if (v > maxDate) setReturnDate(maxDate)
+                    else if (v < minDate) setReturnDate(minDate)
+                    else setReturnDate(v)
+                  }}
+                  readOnly={isFinalised||isAlreadyResponded}
+                  style={{ width:'100%', boxSizing:'border-box', padding:'10px 12px', border:'1.5px solid #E2E8F0', borderRadius:8, fontFamily:FF, fontSize:'1rem', outline:'none', background:isFinalised||isAlreadyResponded?'#F8FAFC':'white' }} />
+              </div>
+            )
+          })()}
         </div>
         )}
 

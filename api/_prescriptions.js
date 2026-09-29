@@ -116,7 +116,11 @@ export default async function handler(req, res) {
   // Recent list capped at limit — ProviderApp.jsx analytics panel.
   if (filter === 'recent_list') {
     const { limit: rawLimit } = req.query
-    const cols = normalizeCols(columns) || 'id, drug_name, drug, dose, directions, delivery_status, created_at, patient_name, nzeps_token, consultation_id'
+    // nzeps_token removed 2026-09-29 — NZePS integration is still pending
+    // (task #168) and the column doesn't exist yet, so PostgREST 400s the
+    // whole select and Vercel returns 500 to the client. Add it back once
+    // the NZePS migration lands.
+    const cols = normalizeCols(columns) || 'id, drug_name, drug, dose, directions, delivery_status, created_at, patient_name, consultation_id'
     const lim = Math.max(1, Math.min(200, parseInt(rawLimit) || 30))
     const { data, error } = await supabase
       .from('prescriptions')

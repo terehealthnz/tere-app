@@ -41,6 +41,14 @@ export default async function handler(req, res) {
   if (!consult.payment_intent_id) {
     return res.status(200).json({ country: null, source: 'no_payment_intent' })
   }
+  // Windcave cutover 2026-09-10: payment_intent_id can now be either a
+  // Stripe `pi_…` or a Windcave sessionId. Only pi_… IDs are Stripe-
+  // retrievable — anything else pre-dates or bypasses the Stripe flow, so
+  // just short-circuit with a null country instead of throwing a 500 that
+  // takes the notes page down with it.
+  if (!consult.payment_intent_id.startsWith('pi_')) {
+    return res.status(200).json({ country: null, source: 'non_stripe_provider' })
+  }
 
   try {
     const pi = await getStripe().paymentIntents.retrieve(consult.payment_intent_id, {
