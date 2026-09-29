@@ -262,11 +262,11 @@ const STEPS = [
   // returning-patient branch in submitAnswer). Message is dynamic — see summarizeOnFile.
   { id:'updates_check', message:(d) => summarizeOnFile(d), field:'updates_needed', type:'yesno', validate:()=>true, next:'complaint' },
   { id:'history', message:"Any medical conditions? Tap to add, or search below.", field:'medical_history', validate:()=>true, next:'medications',
-    type:'chip_multi', chipOptions:COMMON_CONDITIONS, chipPlaceholder:'Search conditions (e.g. diabetes, asthma)', chipNoneLabel:'No medical conditions' },
+    type:'chip_multi', chipOptions:COMMON_CONDITIONS, chipPlaceholderKey:'chip_search_conditions', chipNoneLabelKey:'chip_none_conditions' },
   { id:'medications', message:"Are you on any regular medications? Type to search.", field:'medications', validate:()=>true, next:'allergies',
-    type:'chip_multi', chipOptions:MEDICATION_OPTIONS, chipPlaceholder:'Search medication name (e.g. paracetamol, metformin)', chipNoneLabel:'No regular medications' },
+    type:'chip_multi', chipOptions:MEDICATION_OPTIONS, chipPlaceholderKey:'chip_search_meds', chipNoneLabelKey:'chip_none_meds' },
   { id:'allergies', message:"Any allergies? Tap medications, foods, or anything you react to.", field:'allergies', validate:()=>true, next: NEXT_AFTER_ALLERGIES,
-    type:'chip_multi', chipOptions:COMMON_ALLERGIES, chipPlaceholder:'Search (e.g. penicillin, peanuts)', chipNoneLabel:'No known allergies' },
+    type:'chip_multi', chipOptions:COMMON_ALLERGIES, chipPlaceholderKey:'chip_search_allergies', chipNoneLabelKey:'chip_none_allergies' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>0, error:"Please describe how it happened (a few words is fine — e.g. 'fall off ladder').", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
   { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'imaging_clinic' },
@@ -2029,8 +2029,15 @@ export default function AITriage() {
             const v = String(input || '').trim() || 'None'
             handleSendValue(v)
           }}
-          placeholder={step.chipPlaceholder || 'Search…'}
-          noneLabel={step.chipNoneLabel}
+          placeholder={step.chipPlaceholderKey ? t(step.chipPlaceholderKey, lang) : 'Search…'}
+          noneLabel={step.chipNoneLabelKey ? t(step.chipNoneLabelKey, lang) : null}
+          labels={{
+            continueBtn:   t('chip_continue', lang),
+            change:        t('chip_change', lang),
+            noMatch:       t('chip_no_match', lang),
+            freetextLabel: t('chip_freetext_label', lang),
+            freetextPh:    t('chip_freetext_placeholder', lang),
+          }}
         />
       )}
 

@@ -13,7 +13,16 @@ import React, { useState, useMemo } from 'react'
 //   onSubmit   : () => void    — fires when patient clicks Continue
 //   placeholder: string        — search input placeholder
 //   noneLabel  : string        — "None"-style button label (nullable)
-export default function ChipMultiSelect({ options, value, onChange, onSubmit, placeholder, noneLabel }) {
+//   labels     : { continueBtn, change, noMatch, freetextLabel, freetextPh }
+//                — translated UI strings from the caller (i18n at call site)
+export default function ChipMultiSelect({ options, value, onChange, onSubmit, placeholder, noneLabel, labels = {} }) {
+  const L = {
+    continueBtn:   labels.continueBtn   || 'Continue →',
+    change:        labels.change        || 'Change',
+    noMatch:       labels.noMatch       || 'Nothing matched. Add it below as free-text.',
+    freetextLabel: labels.freetextLabel || 'Anything not in the list:',
+    freetextPh:    labels.freetextPh    || 'Type here, separate with commas',
+  }
   const [q, setQ] = useState('')
 
   // Parse the comma-separated value into (selected, custom-freetext-remainder).
@@ -77,7 +86,7 @@ export default function ChipMultiSelect({ options, value, onChange, onSubmit, pl
         <div style={{ padding: '10px 12px', background: '#F0F9FA', border: '1px solid #C7EAEC', borderRadius: 8, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '.85rem', color: 'var(--teal)', fontWeight: 600 }}>{noneLabel || 'None'}</span>
           <button onClick={() => onChange('')} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '.75rem', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
-            Change
+            {L.change}
           </button>
         </div>
       )}
@@ -120,20 +129,20 @@ export default function ChipMultiSelect({ options, value, onChange, onSubmit, pl
           )}
           {q.trim().length >= 2 && results.length === 0 && (
             <div style={{ fontSize: '.75rem', color: 'var(--muted)', marginBottom: 10, fontStyle: 'italic' }}>
-              Nothing matched. Add it below as free-text.
+              {L.noMatch}
             </div>
           )}
 
           {/* Free-text fallback */}
           <div style={{ marginTop: 4 }}>
             <label style={{ fontSize: '.75rem', color: 'var(--muted)', display: 'block', marginBottom: 4 }}>
-              Anything not in the list:
+              {L.freetextLabel}
             </label>
             <input
               type="text"
               value={parsed.custom}
               onChange={e => reformat(parsed.selected, e.target.value)}
-              placeholder="Type here, separate with commas"
+              placeholder={L.freetextPh}
               autoCorrect="off" autoCapitalize="none" spellCheck="false"
               style={{ width: '100%', padding: '.6rem .8rem', border: '1px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.9rem', outline: 'none', boxSizing: 'border-box' }}
             />
@@ -146,7 +155,7 @@ export default function ChipMultiSelect({ options, value, onChange, onSubmit, pl
         onClick={onSubmit}
         disabled={empty && !isNone}
         style={{ width: '100%', marginTop: 12, padding: '12px', background: (empty && !isNone) ? '#E2E8F0' : 'var(--teal)', color: (empty && !isNone) ? '#94A3B8' : 'white', border: 'none', borderRadius: 10, fontWeight: 700, cursor: (empty && !isNone) ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem' }}>
-        Continue →
+        {L.continueBtn}
       </button>
     </div>
   )
