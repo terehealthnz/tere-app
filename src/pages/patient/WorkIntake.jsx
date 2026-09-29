@@ -46,6 +46,11 @@ export default function WorkIntake() {
   const [address, setAddress] = useState('')
   const [nhi, setNhi] = useState('')
   const [chief, setChief] = useState('')
+  // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Optional — provider
+  // can pick later if empty. Same 8-option list as AITriage's
+  // imaging_clinic step; kept in sync manually since this form has no
+  // step chain to import.
+  const [imagingRegion, setImagingRegion] = useState('')
   const [consent, setConsent] = useState(false)
 
   // Roster pre-fill status. Fires once name+DOB is complete — hits
@@ -222,6 +227,7 @@ export default function WorkIntake() {
         address:   address.trim() || null,
         nhi:       nhi.trim().toUpperCase().replace(/\s+/g, '') || null,
         complaint: chief.trim(),
+        preferredImagingRegionId: imagingRegion || null,
         patientLanguage: sessionStorage.getItem('patient_language') || 'en',
 
         // Fee tier — employer covers the worker, no charge. ProviderNotes reads
@@ -344,6 +350,24 @@ export default function WorkIntake() {
 
             <label style={label}>{t.problemLabel}</label>
             <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder={t.problemPlaceholder} />
+
+            {/* Optional imaging region — mirrors AITriage's imaging_clinic
+                step so the provider isn't left guessing from address on
+                work-injury X-ray/US referrals. Region-only (matches
+                RHCNZ_REGIONS ids). Native <select> to avoid pulling the
+                AITriage chat renderer into this simple form. */}
+            <label style={label}>If you need an X-ray or ultrasound, which region?</label>
+            <select style={{ ...inp, cursor: 'pointer' }} value={imagingRegion} onChange={e => setImagingRegion(e.target.value)}>
+              <option value="">Not sure — my doctor can pick</option>
+              <option value="arg">Auckland / Northland</option>
+              <option value="bay">Bay of Plenty</option>
+              <option value="pr-waikato">Waikato</option>
+              <option value="pr-wgtn">Wellington / Manawatū</option>
+              <option value="pr-nelson">Nelson / Tasman</option>
+              <option value="mmi">Marlborough (Blenheim)</option>
+              <option value="pr-cbg">Canterbury (Christchurch)</option>
+              <option value="pr-otago">Otago / Southland</option>
+            </select>
 
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.5rem', marginBottom: '1.25rem', cursor: 'pointer', color: 'rgba(255,255,255,.85)', fontSize: '.8125rem', lineHeight: 1.5 }}>
               <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />

@@ -140,6 +140,7 @@ export async function createConsultation(data) {
     gp_name:                      data.gpName || null,
     gp_email:                     data.gpEmail || null,
     gp_clinic:                    data.gpClinic || null,
+    preferred_imaging_region_id:  data.preferredImagingRegionId || null,
     interpreter_requested:        data.interpreterRequested || false,
     interpreter_language:         data.interpreterLanguage || null,
     // HDC Right 7(2) — capacity to consent (task #397). If the patient
