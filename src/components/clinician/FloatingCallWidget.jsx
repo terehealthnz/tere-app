@@ -50,7 +50,7 @@ function clampToViewport(pos, w, h) {
 }
 
 export default function FloatingCallWidget({
-  primaryAction, isAudioOnly, patientName,
+  primaryAction, secondaryAction, isAudioOnly, patientName,
   // Subtitle props — parent (ProviderConsult) decides whether subtitles
   // are supported for this patient's language and owns the on/off state.
   // Widget just renders the toggle button and calls back on click.
@@ -331,6 +331,24 @@ export default function FloatingCallWidget({
               >📸</button>
             )}
 
+            {secondaryAction && (
+              <button
+                onClick={() => {
+                  setFullscreen(false)
+                  if (secondaryAction.onClick) secondaryAction.onClick()
+                }}
+                disabled={secondaryAction.disabled || !secondaryAction.onClick}
+                title={secondaryAction.label}
+                style={{
+                  minWidth: 160, height: 56, borderRadius: 28,
+                  background: secondaryAction.color || '#DC2626',
+                  color: 'white', border: 'none', padding: '0 20px',
+                  cursor: (secondaryAction.disabled || !secondaryAction.onClick) ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit', fontWeight: 700, fontSize: '.875rem',
+                  opacity: (secondaryAction.disabled || !secondaryAction.onClick) ? 0.6 : 1,
+                }}
+              >{secondaryAction.label}</button>
+            )}
             <button
               onClick={() => {
                 // Exit fullscreen synchronously BEFORE handing off to the
@@ -542,7 +560,26 @@ export default function FloatingCallWidget({
           {/* Primary action — label + colour + handler come from the parent
               and depend on whether the patient has joined + how long we've
               been waiting + how many attempts already made. See
-              ProviderConsult.jsx for the state machine. */}
+              ProviderConsult.jsx for the state machine.
+              secondaryAction (optional) surfaces "Failed Call" when patient
+              is in the room so provider can bail out without pushing patient
+              to post-consult (patient goes back to /waiting instead). */}
+          {secondaryAction && (
+            <button
+              onClick={secondaryAction.onClick || undefined}
+              disabled={secondaryAction.disabled || !secondaryAction.onClick}
+              title={secondaryAction.label}
+              style={{
+                height: 40, borderRadius: 20, padding: '0 12px',
+                background: secondaryAction.color || '#DC2626',
+                color: 'white', border: 'none',
+                cursor: (secondaryAction.disabled || !secondaryAction.onClick) ? 'not-allowed' : 'pointer',
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                fontWeight: 700, fontSize: '.75rem', whiteSpace: 'nowrap',
+                opacity: (secondaryAction.disabled || !secondaryAction.onClick) ? 0.6 : 1,
+              }}
+            >{secondaryAction.label}</button>
+          )}
           <button
             onClick={action.onClick || undefined}
             disabled={action.disabled || !action.onClick}

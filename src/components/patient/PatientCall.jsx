@@ -111,13 +111,20 @@ export default function PatientCall() {
     }).catch(() => {})
   }, [consultationId])
 
-  // Listen for provider End Call broadcast — navigates to /done immediately
-  // instead of waiting 20s for ProviderLeaveWatcher's LiveKit-based grace
-  // period to elapse. Fires the moment the provider clicks End Call.
+  // Listen for provider End Call broadcast. Payload.reason tells us which
+  // provider-side button was clicked:
+  //   'call_failed'   → provider had video/audio issues; keep patient in
+  //                     the queue (route back to /waiting/:id so their
+  //                     UI shows the waiting-room, not post-consult).
+  //   'provider_ended' / 'provider_left' → normal end-of-consult → /done.
   useEffect(() => {
     if (!consultationId) return
-    const ch = subscribeToConsultationEnded(consultationId, () => {
-      navigate('/done')
+    const ch = subscribeToConsultationEnded(consultationId, (payload) => {
+      if (payload?.reason === 'call_failed') {
+        navigate(`/waiting/${consultationId}`)
+      } else {
+        navigate('/done')
+      }
     })
     return () => { try { ch?.unsubscribe?.() } catch {} }
   }, [consultationId, navigate])

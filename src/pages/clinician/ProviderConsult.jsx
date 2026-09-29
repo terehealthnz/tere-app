@@ -688,10 +688,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     return null
   }
 
-  async function endCall(providerInitiated = false) {
+  async function endCall(providerInitiated = false, reason = 'complete') {
     if (endingCall) return
     setEndingCall(true)
     const durationSec = callStart ? Math.round((Date.now() - callStart) / 1000) : null
+
+    // Failed-call path: provider explicitly signalled the call had video/
+    // audio issues and the patient was never actually seen. We route the
+    // patient back to /waiting (not /done) and release the consult lock so
+    // it re-enters the queue. No notes, no auto-finalise, no charge — mirror
+    // of the "patient dropped" path below but explicitly signalled so the
+    // patient's UI knows to keep waiting instead of jumping to post-consult.
+    const isFailedCall = providerInitiated && reason === 'failed'
 
     // INSTANT teardown first (2026-09-28): both sides used to sit staring
     // at a frozen video for 3-10s while stopScribe uploaded audio to
@@ -700,8 +708,26 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     // visibly ends immediately, then run transcription behind a "wrapping
     // up" spinner (setEndingCall(true) above already flipped the widget).
     // Fire-and-forget broadcast — we don't block hangup on ack.
-    broadcastConsultationEnded(id, providerInitiated ? 'provider_ended' : 'provider_left').catch(() => {})
+    const broadcastReason = isFailedCall
+      ? 'call_failed'
+      : (providerInitiated ? 'provider_ended' : 'provider_left')
+    broadcastConsultationEnded(id, broadcastReason).catch(() => {})
     try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
+
+    // Failed calls skip notes entirely — no transcript, no notes_draft save,
+    // just release the lock and drop back to the queue. Complete calls run
+    // the normal wrap-up (transcribe → save draft → notes).
+    if (isFailedCall) {
+      try {
+        await updateConsultation(id, {
+          status: 'waiting',
+          provider_id: null,
+          provider_display_name: null,
+        })
+      } catch {}
+      navigate('/provider')
+      return
+    }
 
     // Now transcribe. The video is already gone; provider sees the "ending
     // call" state on the widget while the audio blob uploads. Notes page
@@ -934,12 +960,17 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
               <>
                 <FloatingCallWidget
                   primaryAction={(() => {
-                    if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: () => endCall(true), disabled: endingCall }
+                    // Patient joined → primary "✓ Consult Complete" (charges, notes).
+                    // Failed-call button lives on secondaryAction so the provider
+                    // can bail out on video/audio issues without pushing the
+                    // patient to /done. See ProviderConsult.endCall(true, 'failed').
+                    if (patientHere) return { label: '✓ Consult Complete', color: '#059669', onClick: () => endCall(true, 'complete'), disabled: endingCall }
                     if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
                     const currentAttempt = consult?.join_attempts || 0
                     if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
                     return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
                   })()}
+                  secondaryAction={patientHere ? { label: '⚠ Failed Call', color: '#DC2626', onClick: () => endCall(true, 'failed'), disabled: endingCall } : null}
                   isAudioOnly={isPhone}
                   patientName={patientName}
                   subtitlesAvailable={subtitlesAvailable}
@@ -1092,13 +1123,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           <FloatingCallWidget
             primaryAction={(() => {
               // Route the widget's primary button correctly based on presence:
-              //   patient joined → End call → notes (real consult)
+              //   patient joined → ✓ Consult Complete (notes + charge)
+              //                    ⚠ Failed Call (secondaryAction, back to queue)
               //   patient never joined + <90s → block, show countdown
               //   patient never joined + ≥90s + attempts <2 → Return to queue
               //   patient never joined + ≥90s + attempts ≥2 → Mark no-show (no charge)
-              // Prevents providers from being forced through notes for a
-              // phantom consult when the patient never answered.
-              if (patientHere) return { label: '🔴 End call', color: '#DC2626', onClick: () => endCall(true), disabled: endingCall }
+              if (patientHere) return { label: '✓ Consult Complete', color: '#059669', onClick: () => endCall(true, 'complete'), disabled: endingCall }
               if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
               // join_attempts already reflects the CURRENT attempt (incremented
               // by /api/initiate-call at Start Call). >=3 → this is the 3rd
@@ -1107,6 +1137,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
               if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
               return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
             })()}
+            secondaryAction={patientHere ? { label: '⚠ Failed Call', color: '#DC2626', onClick: () => endCall(true, 'failed'), disabled: endingCall } : null}
             isAudioOnly={isPhone}
             patientName={patientName}
             subtitlesAvailable={subtitlesAvailable}
