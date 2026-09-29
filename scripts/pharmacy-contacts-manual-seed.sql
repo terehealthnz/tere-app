@@ -444,7 +444,9 @@ VALUES
    'millwaterdispensary@gmail.com',
    NOW(), NULL),
 
-  ('northcote-family-pharmacy-auckland',
+  -- ID corrected 2026-09-29 to match Medsafe register slug (region:
+  -- waitemat, not auckland) so JOIN with pharmacies.json succeeds.
+  ('northcote-family-pharmacy-waitemat',
    'Northcote Family Pharmacy',
    'danpharmacy@xtra.co.nz',
    NOW(), NULL),
@@ -767,7 +769,9 @@ VALUES
 
   -- Address discrepancy between Healthpoint and Medsafe register — same brand
   -- (Faywells Ltd) so likely a recent relocation. Matched by brand name.
-  ('unichem-olsen-s-pharmacy-west-coast',
+  -- ID corrected 2026-09-29 to match Medsafe register slug (no
+  -- apostrophe → olsens, not olsen-s) so JOIN succeeds.
+  ('unichem-olsens-pharmacy-west-coast',
    'Unichem Olsen''s Pharmacy',
    'scriptstown@olsenspharmacy.co.nz',
    NOW(), NULL),
@@ -1138,7 +1142,12 @@ VALUES
    'linwood@communitypharmacy.co.nz',
    NOW(), NULL),
 
-  ('chemist-warehouse-blenheim-square-canterbury',
+  -- ID corrected 2026-09-29 to match Medsafe register slug — the register
+  -- labels this Riccarton/Christchurch store's "town" as "Nelson
+  -- Marlborough" (register data bug — the pharmacy is on Blenheim Road,
+  -- Riccarton, NOT in Blenheim, Marlborough). Register drives the ID,
+  -- so we mirror it here or the JOIN misses.
+  ('chemist-warehouse-blenheim-square-nelson-marlborough',
    'Chemist Warehouse Blenheim Square',
    'blenheimsquare2@chemistwarehouse.co.nz',
    NOW(), NULL),
