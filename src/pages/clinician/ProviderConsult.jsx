@@ -725,6 +725,24 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           provider_display_name: null,
         })
       } catch {}
+      // Nudge the patient by SMS in case their tab closed/backgrounded
+      // during the video hiccup. The in-tab case is already handled by the
+      // broadcast → /waiting redirect above; this closes the closed-tab
+      // edge case. Fire-and-forget — server-side sandbox suppression via
+      // consultationId means practice-mode consults simulate the send.
+      const phone = consult?.patient_phone
+      if (phone) {
+        apiFetch('/api/sms', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: phone,
+            type: 'call_failed',
+            consultationId: id,
+            message: `Sorry, we had a technical issue on the call. We're ready to try again — open ${window.location.origin}/waiting/${id} to rejoin.`,
+          }),
+        }).catch(() => {})
+      }
       navigate('/provider')
       return
     }

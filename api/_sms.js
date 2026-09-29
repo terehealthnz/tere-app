@@ -101,6 +101,7 @@ async function sendTwilio({ to, body }) {
 const ESSENTIAL_TYPES = new Set([
   'call_ready',   // provider is ready — patient needs to join the consult
   'call_retry',   // second ring — still needs to join
+  'call_failed',  // provider hit "Failed Call" — patient's tab may be closed, tell them to come back
   'in_person',    // provider recommended in-person visit — clinical follow-up
   'security_alert', // critical-severity security alert (break-in signal)
   'test',         // internal smoke tests
