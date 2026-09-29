@@ -399,6 +399,7 @@ const ROUTES = {
   'patient-support':           () => import('./_patient-support.js'),
   'patient-event':             () => import('./_patient-event.js'),
   'patient-funnel':            () => import('./_patient-funnel.js'),
+  'patient-stuck-alert':       () => import('./_patient-stuck-alert.js'),
   'provider-notifications':    () => import('./_provider-notifications.js'),
 }
 

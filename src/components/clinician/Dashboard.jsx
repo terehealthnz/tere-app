@@ -365,6 +365,12 @@ export default function Dashboard() {
   }, [load])
 
   async function dismissConsult(id) {
+    // Confirmation gate — dismiss sets status='expired' which makes the
+    // consult invisible to every provider queue, and the patient's
+    // waiting-room detects the dead status and flips to a "please contact
+    // us" banner (task: patient-side stuck detection). Accidental clicks
+    // silently lose paying patients, so require an explicit confirm.
+    if (!window.confirm("Dismiss this consult? The patient will be told to contact support — this is not the same as marking no-show. Only dismiss if you're sure.")) return
     try {
       await updateConsultation(id, { status: 'expired' })
       setConsultations(cs => cs.filter(c => c.id !== id))

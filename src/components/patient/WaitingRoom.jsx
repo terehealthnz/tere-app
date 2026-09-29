@@ -349,12 +349,53 @@ export default function WaitingRoom() {
     }).catch(() => {})
   }, [consultationId])
 
-  // Poll + realtime: when provider initiates call, navigate to /call
+  // Safety net: silent-failure detection. If the consult ever lands in a
+  // status where no provider will ever see it (expired, cancelled,
+  // no_show, abandoned) — OR if it stays 'draft' for >15 min after
+  // payment (Windcave FPRN never fired, session lost, etc.) — the
+  // patient would otherwise stare at "Request submitted" indefinitely.
+  // We flip stuckState → the banner replaces the success panel, and
+  // we fire /api/patient-stuck-alert once (deduped server-side by
+  // consult id) so admin gets an email + SMS.
+  const [stuckState, setStuckState] = useState(null)     // null | 'dead' | 'stuck_draft'
+  const stuckAlertFiredRef = useRef(false)
+
+  async function fireStuckAlert(reason) {
+    if (stuckAlertFiredRef.current) return
+    stuckAlertFiredRef.current = true
+    try {
+      await apiFetch('/api/patient-stuck-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId, reason }),
+      })
+    } catch {}
+  }
+
+  // Poll + realtime: when provider initiates call, navigate to /call.
+  // Also runs the stuck-consult safety check on every poll tick.
   useEffect(() => {
     if (!consultationId || consultationId.startsWith('demo')) return
+    const DEAD_STATUSES = new Set(['expired', 'cancelled', 'no_show', 'abandoned'])
+    const STUCK_DRAFT_THRESHOLD_MS = 15 * 60 * 1000
 
-    function handleStatusChange(status, providerDisplayName) {
+    function checkStuck(status, created) {
+      if (DEAD_STATUSES.has(status)) {
+        setStuckState('dead')
+        fireStuckAlert(`status_${status}`)
+        return true
+      }
+      if (status === 'draft' && created && (Date.now() - new Date(created).getTime()) > STUCK_DRAFT_THRESHOLD_MS) {
+        setStuckState('stuck_draft')
+        fireStuckAlert('stuck_draft_15min')
+        return true
+      }
+      return false
+    }
+
+    function handleStatusChange(status, providerDisplayName, created) {
       if (providerDisplayName) setProviderName(providerDisplayName)
+      if (checkStuck(status, created)) return
       if (['in_progress', 'ready'].includes(status)) { navigate('/call'); return }
     }
 
@@ -362,7 +403,7 @@ export default function WaitingRoom() {
       try {
         const consult = await getPatientConsult(consultationId)
         if (!consult) return
-        handleStatusChange(consult.status, consult.provider_display_name)
+        handleStatusChange(consult.status, consult.provider_display_name, consult.created_at)
       } catch {}
     }
 
@@ -380,7 +421,7 @@ export default function WaitingRoom() {
           table: 'consultations',
           filter: `id=eq.${consultationId}`,
         }, ({ new: row }) => {
-          handleStatusChange(row.status, row.provider_display_name)
+          handleStatusChange(row.status, row.provider_display_name, row.created_at)
         })
         .subscribe()
     })()
@@ -404,7 +445,34 @@ export default function WaitingRoom() {
         <div style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: 'rgba(212,238,240,.8)', fontSize: '1.3rem' }}>Tere</div>
       </div>
 
-      {/* Main content */}
+      {/* Silent-failure safety banner. Replaces the whole success panel when
+          the consult is in a dead status or stuck at draft >15min. Patient
+          sees this instead of "Request submitted". Admin has already been
+          emailed by the poll effect (once per consult, deduped server-side). */}
+      {stuckState && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem', textAlign: 'center' }}>
+          <div style={{ maxWidth: 480, background: 'rgba(220,38,38,.12)', border: '1px solid rgba(248,113,113,.6)', borderRadius: 16, padding: '2rem 1.5rem', color: 'white' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⚠</div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0 0 1rem', color: '#FCA5A5' }}>
+              Something went wrong with your consultation
+            </h1>
+            <p style={{ fontSize: '.9375rem', lineHeight: 1.6, color: 'rgba(255,255,255,.9)', margin: '0 0 1.25rem' }}>
+              We've been notified and our team is looking into it now. Please contact us so we can help right away.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', alignItems: 'center' }}>
+              <a href="mailto:hello@terehealth.co.nz" style={{ display: 'inline-block', background: '#0B6E76', color: 'white', padding: '.75rem 1.5rem', borderRadius: 999, textDecoration: 'none', fontWeight: 700, fontSize: '.9375rem' }}>
+                Email hello@terehealth.co.nz
+              </a>
+              <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.6)', marginTop: '.5rem' }}>
+                <strong style={{ color: '#FCA5A5' }}>Emergency?</strong> Call <a href="tel:111" style={{ color: '#FCA5A5', fontWeight: 700 }}>111</a> immediately.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main content — hidden when the safety banner is showing. */}
+      {!stuckState && (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1.5rem', textAlign: 'center' }}>
 
         {/* Animated check mark */}
@@ -726,6 +794,8 @@ export default function WaitingRoom() {
           {t.cancelBtn}
         </button>
       </div>
+      )}
+      {/* end !stuckState guard */}
 
       {/* Footer — emergency + platform-fallback (task #437) */}
       <div style={{ padding: '1.25rem 1.5rem', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,.06)' }}>
