@@ -222,7 +222,17 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         {isNZ() && (
         <div className="form-group">
           <label>Send to RHCNZ (recommended)</label>
-          <select value={rhcnzRegionId} onChange={e => { setRhcnzRegionId(e.target.value); setRegionTouchedByUser(true); setRhcnzAutoReason(null) }}>
+          <select value={rhcnzRegionId} onChange={e => {
+            const next = e.target.value
+            setRhcnzRegionId(next); setRegionTouchedByUser(true); setRhcnzAutoReason(null)
+            // Provider override persists to the consultation so the chart
+            // reflects the current preferred region (was: only patient's
+            // triage pick was stored, provider's override was ephemeral).
+            if (consult?.id && next !== consult.preferred_imaging_region_id) {
+              updateConsultation(consult.id, { preferred_imaging_region_id: next || null })
+                .catch(err => console.warn('[XrayModal] persist imaging region failed:', err.message))
+            }
+          }}>
             <option value="">— Other facility (free-text below) —</option>
             {RHCNZ_REGIONS.map(r => (
               <option key={r.id} value={r.id}>{r.brand} — {r.region}</option>

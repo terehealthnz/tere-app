@@ -300,6 +300,20 @@ export default function WaitingRoom() {
     setSavingPharmacy(false)
   }
 
+  async function selectImagingRegion(regionId) {
+    setSavingImaging(true)
+    try {
+      await patientUpdateConsultation(consultationId, {
+        preferred_imaging_region_id: regionId || null,
+      })
+      setImagingRegionId(regionId || null)
+      setImagingPickerOpen(false)
+    } catch (e) {
+      console.error('[waiting-room] imaging region update failed:', e.message)
+    }
+    setSavingImaging(false)
+  }
+
   // Countdown ticks every second
   useEffect(() => {
     if (!createdAt) return
@@ -533,6 +547,72 @@ export default function WaitingRoom() {
                 style={{ background: 'transparent', border: 'none', color: '#4FD1D9', fontSize: '.8125rem', fontWeight: 600, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
                 {t.changePharmacy}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Imaging region card — only shown when the patient picked one in
+            triage (ACC branch). Same card pattern as pharmacy so they can
+            swap regions if they picked wrong. Compact inline dropdown
+            rather than a full modal picker since it's only 8 choices. */}
+        {imagingRegionId && (
+          <div style={{
+            background: 'rgba(255,255,255,.06)',
+            border: '1px solid rgba(255,255,255,.1)',
+            borderRadius: 14,
+            padding: '1rem 1.25rem',
+            width: '100%',
+            maxWidth: 360,
+            marginBottom: '2rem',
+            textAlign: 'left',
+            animation: 'fadeUp .5s .66s both',
+            display: 'flex', alignItems: 'flex-start', gap: '1rem',
+          }}>
+            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>🩻</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
+                {t.imagingRegion}
+              </div>
+              <div style={{ color: 'rgba(212,238,240,.9)', fontWeight: 700, fontSize: '.9375rem', marginBottom: '.375rem', wordBreak: 'break-word' }}>
+                {RHCNZ_REGIONS.find(r => r.id === imagingRegionId)?.region || imagingRegionId}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,.4)', fontSize: '.75rem', lineHeight: 1.6, marginBottom: '.5rem' }}>
+                {t.imagingExplain}
+              </div>
+              {!imagingPickerOpen ? (
+                <button onClick={() => setImagingPickerOpen(true)}
+                  style={{ background: 'transparent', border: 'none', color: '#4FD1D9', fontSize: '.8125rem', fontWeight: 600, padding: 0, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                  {t.changeImagingRegion}
+                </button>
+              ) : (
+                <div style={{ marginTop: '.5rem' }}>
+                  <select
+                    value={imagingRegionId || ''}
+                    onChange={e => selectImagingRegion(e.target.value)}
+                    disabled={savingImaging}
+                    style={{
+                      width: '100%',
+                      padding: '.5rem .625rem',
+                      background: 'rgba(255,255,255,.08)',
+                      border: '1px solid rgba(255,255,255,.15)',
+                      borderRadius: 8,
+                      color: 'white',
+                      fontFamily: 'inherit',
+                      fontSize: '.875rem',
+                      cursor: savingImaging ? 'wait' : 'pointer',
+                    }}>
+                    {RHCNZ_REGIONS.map(r => (
+                      <option key={r.id} value={r.id} style={{ background: '#0D2B45', color: 'white' }}>
+                        {r.region}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => setImagingPickerOpen(false)}
+                    style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,.55)', fontSize: '.75rem', fontWeight: 600, padding: '.25rem 0 0', cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}>
+                    {t.cancelImagingRegion}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

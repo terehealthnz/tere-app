@@ -72,6 +72,10 @@ const UPDATE_ALLOWLIST = new Set([
   'recall_completed', 'controlled_medication_mentioned',
   // Pharmacy
   'pharmacy', 'pharmacy_id',
+  // Imaging region (RHCNZ). Patient sets in triage, provider can override
+  // mid-consult from the XrayModal referral dropdown so the chart tracks
+  // the current choice for future consults.
+  'preferred_imaging_region_id',
   // Language / accessibility
   'patient_language', 'preferred_language',
   // Two-attempt no-show flow (see supabase-no-show-migration.sql)
