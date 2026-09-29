@@ -737,13 +737,15 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
 
     console.log('[vitalsModel] raw:', { rawSys: +rawSys.toFixed(1), rawDia: +rawDia.toFixed(1), rawHr: +rawHr.toFixed(1), rawSpo2: +rawSpo2.toFixed(1) })
 
-    // Mean-collapse guard removed 2026-09-29 per Patrick: publish whatever
-    // the 151-sample model outputs, even if it lands on the training mean.
-    // Rationale: the "BP N/A" state was reading as a bug to providers, and
-    // the disclaimer chip ("camera est. · confirm w/ cuff") already tells
-    // them not to act on the reading blind. Retrain (task #517) is still
-    // the real fix — collapse just gets flagged as 'low' confidence now.
-    const collapsed = Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2
+    // Publish the raw equation output. The model runs an equation; whatever
+    // it returns is what the equation returns. Second-guessing it with a
+    // "low confidence" tag when it lands near the training mean was
+    // misleading — the disclaimer chip on the UI already tells the provider
+    // to confirm with a cuff. Retrain (task #517) is the real fix for
+    // narrow-variance training data. Patrick 2026-09-29.
+    if (Math.abs(rawSys - norm.mean[0]) < 2 && Math.abs(rawDia - norm.mean[1]) < 2) {
+      console.log('[vitalsModel] output within 2mmHg of training mean (diagnostic only, still publishing)')
+    }
 
     const { systolic, diastolic } = clampBP(rawSys, rawDia)
     const hr   = Math.max(40, Math.min(200, Math.round(rawHr)))
@@ -758,7 +760,7 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
       diastolic: calDia,
       hr,
       spo2,
-      confidence: collapsed ? 'low' : 'medium',
+      confidence: 'medium',
       calibrated: !!calib,
     }
   } catch (e) {
