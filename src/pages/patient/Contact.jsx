@@ -49,7 +49,12 @@ export default function Contact() {
     patient_email: (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('patientEmail')) || '',
     patient_phone: (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('patientPhone')) || '',
     consultation_id: (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('consultationId')) || '',
-    message: '',
+    // Pre-fill message with a hint line when the patient arrived via the
+    // "Stuck? Get help" pill — surfaces WHERE they got stuck to admin
+    // before the patient even types, so the admin isn't chasing context.
+    message: params.get('source') === 'stuck_widget' && params.get('from')
+      ? `I'm stuck on this page: ${params.get('from')}\n\n`
+      : '',
     source: params.get('source') || 'contact_page',
   })
   const [submitting, setSubmitting] = React.useState(false)
