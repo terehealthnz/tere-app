@@ -8,7 +8,7 @@
 //
 // Windcave-only. Stripe was ripped 2026-09-10 (task #236 + #512). This
 // endpoint POSTs a complete transaction against the auth session — settles
-// the hold. Idempotent via consult.payment_amount_nzd guard below.
+// the hold. Idempotent via consult.payment_captured_at guard below.
 
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   // Verify consult exists AND the caller is entitled to capture on it.
   const { data: consult, error: cErr } = await supabase
     .from('consultations')
-    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd, is_practice, payment_authorised_amount_cents, payment_test_mode')
+    .select('id, provider_id, payment_intent_id, status, payment_captured_at, payment_captured_amount_cents, is_practice, payment_authorised_amount_cents, payment_test_mode')
     .eq('id', consultationId)
     .maybeSingle()
   if (cErr) {
@@ -73,11 +73,11 @@ export default async function handler(req, res) {
   }
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
 
-  // Sandbox suppression — never capture a real Stripe/Windcave hold for a
+  // Sandbox suppression — never capture a real Windcave hold for a
   // practice-mode consult. Return simulated:true so the UI treats it as
   // a successful capture without touching the payment provider.
   if (consult.is_practice) {
-    return res.status(200).json({ status: 'simulated', simulated: true, reason: 'practice_mode', amount_nzd: 0 })
+    return res.status(200).json({ status: 'simulated', simulated: true, reason: 'practice_mode', amount_cents: 0 })
   }
 
   // Refuse if the consult is in a non-capturable state — no_show or cancelled
@@ -86,10 +86,10 @@ export default async function handler(req, res) {
   if (consult.status === 'no_show' || consult.status === 'cancelled') {
     return res.status(409).json({ error: `Payment cannot be captured on a ${consult.status} consultation.` })
   }
-  // Idempotency guard — if payment_amount_nzd is already set, capture
+  // Idempotency guard — if payment_captured_at is already set, capture
   // has already run. Return the existing amount instead of double-billing.
-  if (consult.payment_amount_nzd != null) {
-    return res.status(200).json({ status: 'already_captured', amount_nzd: consult.payment_amount_nzd })
+  if (consult.payment_captured_at != null) {
+    return res.status(200).json({ status: 'already_captured', amount_cents: consult.payment_captured_amount_cents })
   }
 
   // Ownership: consult must be assigned to caller, unclaimed, or the caller
@@ -131,15 +131,24 @@ export default async function handler(req, res) {
         windcave_body:   result.data,
       })
     }
-    const amountDollars = effectiveAmountCents / 100
+    const capturedTxnId = result.data?.id || result.data?.transactionId || null
     try {
       await supabase.from('consultations')
-        .update({ payment_amount_nzd: amountDollars })
+        .update({
+          payment_captured_at:           new Date().toISOString(),
+          payment_captured_amount_cents: effectiveAmountCents,
+          payment_captured_txn_id:       capturedTxnId,
+        })
         .eq('id', consultationId)
-    } catch {}
+    } catch (e) {
+      // Row update failure after a successful Windcave capture is a serious
+      // reconciliation problem — surface it in logs (money moved, DB didn't).
+      console.error('[capture-payment] DB update failed AFTER Windcave approved:', e?.message, { paymentIntentId, capturedTxnId, effectiveAmountCents })
+    }
     return res.status(200).json({
       status: 'succeeded',
-      amount_nzd: amountDollars,
+      amount_cents: effectiveAmountCents,
+      txn_id: capturedTxnId,
       provider: 'windcave',
       capped: effectiveAmountCents !== amount_cents,
     })

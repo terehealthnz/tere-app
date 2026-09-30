@@ -1289,16 +1289,18 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                 <span style={{ color:'#FCA5A5', fontWeight:600, fontSize:'.8125rem' }}>Failed — retry from PMS tab</span>
               </div>
             )}
-            {finaliseResult.chargeCents > 0 && (
+            {finaliseResult.chargeCents > 0 && !finaliseResult.chargeError && (
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Charged</span>
                 <span style={{ color:'white', fontWeight:700 }}>${(finaliseResult.chargeCents/100).toFixed(2)}</span>
               </div>
             )}
             {finaliseResult.chargeError && (
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexDirection:'column', gap:'.25rem' }}>
                 <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Payment</span>
-                <span style={{ color:'#FCA5A5', fontSize:'.8125rem' }}>Failed — capture manually</span>
+                <span style={{ color:'#FCA5A5', fontSize:'.8125rem', textAlign:'right' }}>
+                  Not charged — {finaliseResult.chargeError}
+                </span>
               </div>
             )}
           </div>
