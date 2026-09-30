@@ -173,14 +173,16 @@ export default async function handler(req, res) {
 
     if (changed) {
       // Log the transition
-      await supabase.from('availability_log').insert({
-        action: shouldBeOpen ? 'open' : 'close',
-        reason: shouldBeOpen
-          ? `Provider(s) available: ${uniqueNames.join(', ')}`
-          : 'No providers scheduled',
-        triggered_by: 'cron',
-        provider_names: uniqueNames,
-      }).catch(() => {})
+      try {
+        await supabase.from('availability_log').insert({
+          action: shouldBeOpen ? 'open' : 'close',
+          reason: shouldBeOpen
+            ? `Provider(s) available: ${uniqueNames.join(', ')}`
+            : 'No providers scheduled',
+          triggered_by: 'cron',
+          provider_names: uniqueNames,
+        })
+      } catch { /* non-fatal — log-only table */ }
 
       // Push notify relevant parties on state change
       if (shouldBeOpen) {
