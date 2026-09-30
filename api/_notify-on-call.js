@@ -51,12 +51,16 @@ export async function notifyOnCallProviders({ consultationId }) {
 
     const supabase = admin()
 
-    // Sandbox suppression — mirrors the sweep from task #541.
+    // Practice consults are ALLOWED to fire this notification. Body contains
+    // no PHI (just "new patient in queue" + provider URL), and providers need
+    // to be able to verify their own on-call SMS wiring using a test consult.
+    // Every other outbound (patient email, pharmacy fax, GP letter) still
+    // suppresses via task #541's sandbox sweep.
     const { data: consult } = await supabase.from('consultations')
       .select('id, is_practice')
       .eq('id', consultationId)
       .maybeSingle()
-    if (!consult || consult.is_practice === true) return
+    if (!consult) return
 
     const cutoffIso = new Date(Date.now() - 10 * 60 * 1000).toISOString()
 

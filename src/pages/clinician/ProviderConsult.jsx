@@ -127,44 +127,6 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
   return null
 }
 
-// SipFallbackTimer — lives inside <LiveKitRoom> on the Video path only.
-// If no patient-* (browser) OR sip-patient-* (phone) participant has joined
-// within FALLBACK_MS, POSTs /api/initiate-call { sipOnly: true } to dial
-// the patient's phone into the same LiveKit room. Once fired, self-locks
-// with firedRef so a brief patient-disconnect can't retrigger. Cancels on
-// unmount so ending the call before the timer expires doesn't dial. The
-// server ALSO dedups against a live sip-patient-* participant (guard A) so
-// tab-races can't double-dial. Only mounted when isPhone === false —
-// the Phone button already fired SIP immediately at call start.
-function SipFallbackTimer({ consultationId, delayMs = 25000 }) {
-  const participants = useParticipants()
-  const firedRef = useRef(false)
-  const timerRef = useRef(null)
-  useEffect(() => {
-    if (firedRef.current) return
-    const hasPatient = participants.some(p => {
-      const id = p.identity || ''
-      return id.startsWith('patient-') || id.startsWith('sip-patient-')
-    })
-    if (hasPatient) {
-      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
-      return
-    }
-    if (timerRef.current) return
-    timerRef.current = setTimeout(() => {
-      if (firedRef.current) return
-      firedRef.current = true
-      apiFetch('/api/initiate-call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ consultationId, sipOnly: true }),
-      }).catch(e => console.error('[SipFallbackTimer] dial failed:', e))
-    }, delayMs)
-    return () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null } }
-  }, [participants, consultationId, delayMs])
-  return null
-}
-
 // RR-specific badge — tiered display driven by fusion metadata (rr_source)
 // via getRrDisplay(). Shows a small caption when confidence is medium/low
 // so providers know which readings to weight more carefully. See
@@ -268,14 +230,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // the LiveKit room. Drives the 90s "Return to queue" button.
   const [patientHere, setPatientHere]   = useState(false)
   const markPatientHere = useCallback(() => setPatientHere(true), [])
-  // Auto-fallback: if the patient hasn't joined the LiveKit room within 25s
-  // of the call starting, we silently trigger a SIP dial to their phone. Both
-  // pathways join the same LiveKit room, so whichever connects first wins.
-  // `sipFallbackFired` prevents us dialling more than once.
-  const [sipFallbackFired, setSipFallbackFired] = useState(false)
-  // Hoisted so the SIP auto-fallback useEffect (below) can gate on it.
   const chimeMode = useChimeSdk()
-  const AUTO_FALLBACK_S = 15
   const [phoneCallState, setPhoneCallState] = useState('idle') // idle|dialling|ringing|answered|completed|no_answer|busy|failed
   // Final-attempt phone-only flow — provider dials patient directly from
   // their own phone (tel: link), no LiveKit involved. State tracks whether
@@ -640,56 +595,6 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     startScribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inCall, scribeRoomReady, chimeMode, scribeState])
-
-  // Auto-fallback to phone if patient hasn't joined LiveKit by AUTO_FALLBACK_S
-  // seconds. Fires POST /api/initiate-call with forcePhone:true — SIP dials the
-  // patient via Telnyx and adds them to the same LiveKit room the provider is
-  // in. If the patient later joins LiveKit (e.g. they were slow to click the
-  // notification), whichever route connects first wins; the other simply
-  // shows an extra participant which the provider can mute/dismiss.
-  //
-  // Chime path: still skipped. SIP → LiveKit room bridge is a LiveKit-specific
-  // feature (LIVEKIT_SIP_TRUNK_ID + LiveKit's room graph). Chime SDK Meetings
-  // has no equivalent auto-dial-in — the No-Answer button (3 attempts) is the
-  // provider's escalation path instead.
-  useEffect(() => {
-    if (!inCall || patientHere || sipFallbackFired) return
-    if (chimeMode) return
-    if (elapsed < AUTO_FALLBACK_S) return
-    // Belt-and-braces: PatientPresenceStamp sometimes fails to flip
-    // patientHere=true even when the patient is clearly in the LiveKit room
-    // (verified 2026-09-28: patient on video, provider header still said
-    // "waiting for patient", then SIP dial fired at 15s and kicked the
-    // patient off video onto their phone). Before dialling, check the room
-    // for any live remote participant. If there is one, cancel the fallback
-    // and assume the presence stamp is what's broken, not the join.
-    try {
-      const room = scribeRoomRef.current
-      if (room && room.remoteParticipants && room.remoteParticipants.size > 0) {
-        console.log('[auto-fallback] cancelled — remote participant already in room (patientHere stuck false)')
-        setSipFallbackFired(true)
-        return
-      }
-    } catch {}
-    setSipFallbackFired(true)
-    ;(async () => {
-      try {
-        await apiFetch('/api/initiate-call', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            consultationId: id,
-            providerId,
-            providerName: displayName,
-            forcePhone: true,
-          }),
-        })
-        console.log('[auto-fallback] SIP dial triggered after', AUTO_FALLBACK_S, 's without patient join')
-      } catch (e) {
-        console.error('[auto-fallback] SIP dial failed:', e.message)
-      }
-    })()
-  }, [inCall, patientHere, elapsed, sipFallbackFired, id, providerId, displayName])
 
   async function initiateCall() {
     setCalling(true)
@@ -1061,7 +966,6 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
-                {!isPhone && <SipFallbackTimer consultationId={id} delayMs={25000} />}
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
