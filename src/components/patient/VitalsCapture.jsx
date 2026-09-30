@@ -879,22 +879,16 @@ export default function VitalsCapture() {
                       </div>
                     </div>
                   )}
-                  {/* SpO2: use formatSpO2Display() to hide low/unreliable estimates rather than misrendering them */}
-                  {(() => {
-                    const disp = formatSpO2Display(spo2Estimate)
-                    if (!disp?.show) return null
-                    return (
-                      <div className="vital-card">
-                        <div className="vital-label">SpO₂{disp.warning ? ' ⚠️' : ''}</div>
-                        <div className="vital-value" style={{ color: disp.warning ? disp.color : undefined }}>
-                          {disp.value}
-                        </div>
-                        <div className="vital-unit">
-                          % · {t.screeningEstimate}{disp.warning ? ` · ${t.mayVary}` : ''}
-                        </div>
-                      </div>
-                    )
-                  })()}
+                  {/* SpO2 — show whatever the algorithm returned. Same value
+                      gets saved and shown to the provider. Provider judges
+                      plausibility; no client-side hide. */}
+                  {spo2Estimate?.estimate && (
+                    <div className="vital-card">
+                      <div className="vital-label">SpO₂</div>
+                      <div className="vital-value">{spo2Estimate.estimate}</div>
+                      <div className="vital-unit">% · {t.screeningEstimate}</div>
+                    </div>
+                  )}
                 </div>
                 {vitals.passes && (
                   <div style={{fontSize:'.8125rem',color:'var(--muted)',marginBottom:'.75rem',textAlign:'center'}}>
