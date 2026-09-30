@@ -488,8 +488,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     // consult on 2026-09-28; gating fixes it.
     if (!consult) return
     // Immediate safe default only if the consult itself has no method set.
+    // Employer-paid consults (WorkIntake) MUST default to 'employee' — a
+    // silent flip to 'nz_resident' shows "Charged $65" on the finalise card
+    // and writes payment_amount=6500 for a worker who never touched a card.
     if (!actualMethod || actualMethod === 'consult' || actualMethod === 'video' || actualMethod === 'phone') {
-      setActualMethod('nz_resident')
+      const isEmployerConsult = consult.consultation_type === 'employee' || consult.employer_paid === true
+      setActualMethod(isEmployerConsult ? 'employee' : 'nz_resident')
     }
     ;(async () => {
       try {
@@ -996,7 +1000,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
     // patients owe Tere the ACC_PATIENT_CONTRIBUTION_CENTS constant (single
     // source of truth in src/lib/consultationType.js).
     const METHOD_PRICES = { consult: 6500, video: 6500, phone: 6500, message: 2500, nz_resident: 6500, international: 10000, employee: 0 }
-    const chargeCents   = isAcc ? ACC_PATIENT_CONTRIBUTION_CENTS : (actualMethod === 'employee' ? 0 : (METHOD_PRICES[actualMethod] || 6500))
+    // Hard guard: employer-paid consults are ALWAYS $0 regardless of what the
+    // fee-tier picker shows. Prevents a fat-finger tier change from billing a
+    // worker who never provided a card. Auto-default should already have set
+    // actualMethod='employee' upstream — this is the belt for the braces.
+    const isEmployerPaidConsult = consult?.consultation_type === 'employee' || consult?.employer_paid === true
+    const chargeCents   = isEmployerPaidConsult ? 0 : (isAcc ? ACC_PATIENT_CONTRIBUTION_CENTS : (actualMethod === 'employee' ? 0 : (METHOD_PRICES[actualMethod] || 6500)))
 
     const steps = [
       { label: 'Saving clinical notes',    status: 'pending' },
@@ -1308,6 +1317,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                 <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Charged</span>
                 <span style={{ color:'white', fontWeight:700 }}>${(finaliseResult.chargeCents/100).toFixed(2)}</span>
+              </div>
+            )}
+            {finaliseResult.chargeCents === 0 && !finaliseResult.chargeError && (consult?.consultation_type === 'employee' || consult?.employer_paid === true) && (
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ color:'rgba(255,255,255,.6)', fontSize:'.875rem' }}>Billed to</span>
+                <span style={{ color:'#6EE7B7', fontWeight:700, fontSize:'.9375rem' }}>{consult?.employer_name || 'employer'}</span>
               </div>
             )}
             {finaliseResult.chargeError && (
