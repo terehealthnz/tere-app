@@ -204,6 +204,16 @@ export default function WaitingRoom() {
     return () => clearInterval(id)
   }, [consultationId])
 
+  // Flip in_waiting_room=true so this consult becomes visible in the provider
+  // queue. Gated in api/_consultations.js filter=active — without this the
+  // consult stays hidden even with status='waiting'. Public patients hit
+  // this on arrival post-payment; employer patients hit it after vitals.
+  // Idempotent — safe to run every mount.
+  useEffect(() => {
+    if (!consultationId || consultationId.startsWith('demo')) return
+    patientUpdateConsultation(consultationId, { in_waiting_room: true }).catch(() => {})
+  }, [consultationId])
+
   // Fetch created_at for the countdown + hydrate the pharmacy card from the
   // consult row (patient picked it in triage; may swap here).
   useEffect(() => {

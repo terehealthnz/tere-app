@@ -67,6 +67,12 @@ const PATIENT_ALLOWLIST = new Set([
   'preferred_imaging_region_id',
   // Post-consult rating
   'rating', 'rating_comment', 'rated_at',
+  // Queue-visibility gate: WaitingRoom mount flips this true. Without it,
+  // consults appear in the provider queue after status='waiting' but before
+  // the patient has actually reached the waiting-room page (public: during
+  // vitals; employer: immediately). Provider gets paged with an incomplete
+  // chart. See db/migrations/2026-09-30_consultations_in_waiting_room.sql.
+  'in_waiting_room',
 ])
 
 // Verifies the claimed employer_id belongs to an active employer row. Returns

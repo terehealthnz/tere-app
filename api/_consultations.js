@@ -227,6 +227,13 @@ export default async function handler(req, res) {
         .select('*')
         .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
         .eq('is_practice', practice)
+        // Gate: patient must have actually reached the /waiting/:id page.
+        // Public consults flip status='waiting' at payment authorisation
+        // (still on vitals page); employer consults are 'waiting' immediately
+        // at create-time. Neither should page a provider until the patient
+        // is looking at the waiting room. WaitingRoom.jsx PATCHes true on
+        // mount via /api/patient-consult (in_waiting_room in PATIENT_ALLOWLIST).
+        .eq('in_waiting_room', true)
         .order('employer_paid', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: true })
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
