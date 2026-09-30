@@ -17,9 +17,15 @@ import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
 
-// UUID = Windcave sessionId. Anything else (including 'pi_...') routes to Stripe.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-function isWindcaveId(id) { return UUID_RE.test(String(id || '')) }
+// Dispatch on Stripe's 'pi_' prefix — everything else is Windcave.
+// Previous UUID-based check was wrong: Windcave session IDs are long
+// uppercase hex WITHOUT dashes (e.g. F0000D0056D584...), so UUID_RE
+// returned false → fell through to Stripe → Stripe.paymentIntents.capture
+// threw on invalid id → 500 to client. Reproduced 2026-09-30 04:36 NZT
+// on Patrick's live E2E, capture-payment 500'd with capture never happening.
+const STRIPE_PI_RE = /^pi_[A-Za-z0-9]+$/
+function isStripeId(id) { return STRIPE_PI_RE.test(String(id || '')) }
+function isWindcaveId(id) { return !!id && !isStripeId(id) }
 
 function windcaveBasicAuth() {
   return 'Basic ' + Buffer.from(`${process.env.WINDCAVE_USERNAME}:${process.env.WINDCAVE_API_KEY}`).toString('base64')
@@ -73,7 +79,7 @@ export default async function handler(req, res) {
   // Verify consult exists AND the caller is entitled to capture on it.
   const { data: consult, error: cErr } = await supabase
     .from('consultations')
-    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd, is_practice')
+    .select('id, provider_id, payment_intent_id, status, payment_amount_nzd, is_practice, payment_authorised_amount_cents, payment_test_mode')
     .eq('id', consultationId)
     .maybeSingle()
   if (cErr) {
@@ -117,10 +123,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'paymentIntentId does not match this consultation.' })
   }
 
+  // Amount ceiling — never try to capture more than was authorised. Windcave
+  // (and Stripe) both reject over-capture; we'd get a 502 with a confusing
+  // error. Cap explicitly so a test-mode $0.10 auth doesn't blow up when the
+  // provider tries to capture $25 (real ACC price). Also protects prod from
+  // any future drift where quoted price > authorised price.
+  const authCeilingCents = consult.payment_authorised_amount_cents
+  let effectiveAmountCents = amount_cents
+  if (authCeilingCents != null && amount_cents > authCeilingCents) {
+    console.warn('[capture-payment] amount capped to auth ceiling:', { requested: amount_cents, ceiling: authCeilingCents, testMode: consult.payment_test_mode })
+    effectiveAmountCents = authCeilingCents
+  }
+
   // Windcave path (all NZ consults since 2026-09-10 cutover).
   if (isWindcaveId(paymentIntentId)) {
     try {
-      const result = await captureWindcave(paymentIntentId, amount_cents)
+      const result = await captureWindcave(paymentIntentId, effectiveAmountCents)
       if (!result.approved) {
         console.error('[capture-payment] windcave complete not approved:', result.status, JSON.stringify(result.data))
         return res.status(502).json({
@@ -129,13 +147,13 @@ export default async function handler(req, res) {
           windcave_body:   result.data,
         })
       }
-      const amountDollars = amount_cents / 100
+      const amountDollars = effectiveAmountCents / 100
       try {
         await supabase.from('consultations')
           .update({ payment_amount_nzd: amountDollars })
           .eq('id', consultationId)
       } catch {}
-      return res.status(200).json({ status: 'succeeded', amount_nzd: amountDollars, provider: 'windcave' })
+      return res.status(200).json({ status: 'succeeded', amount_nzd: amountDollars, provider: 'windcave', capped: effectiveAmountCents !== amount_cents })
     } catch (e) {
       console.error('[capture-payment] windcave error:', e?.message || e)
       return res.status(502).json({ error: 'Windcave unreachable' })

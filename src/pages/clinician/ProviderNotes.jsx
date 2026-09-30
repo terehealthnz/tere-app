@@ -1080,11 +1080,27 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       const paymentIntentId = consult.payment_intent_id || sessionStorage.getItem('paymentIntentId')
       if (paymentIntentId) {
         try {
-          await apiFetch('/api/capture-payment', {
+          const cRes = await apiFetch('/api/capture-payment', {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({ paymentIntentId, consultationId:id, amount_cents:chargeCents }),
           })
-          setStep(1, { status: 'done', detail: `$${(chargeCents/100).toFixed(2)} charged` })
+          // apiFetch does NOT throw on non-2xx — check explicitly. Without this
+          // the UI cheerfully showed "$25 charged" while capture returned 500
+          // and the Windcave dashboard still showed Complete=X. Bug seen live
+          // 2026-09-30 04:36 NZT.
+          if (!cRes.ok) {
+            const body = await cRes.json().catch(() => ({}))
+            const detail = body?.error || body?.windcave_body?.errorMessage || `HTTP ${cRes.status}`
+            result.chargeError = detail
+            setStep(1, { status: 'error', detail: `Charge failed — ${detail}` })
+          } else {
+            const body = await cRes.json().catch(() => ({}))
+            const actualCents = body?.amount_nzd != null ? Math.round(body.amount_nzd * 100) : chargeCents
+            const label = body?.capped
+              ? `$${(actualCents/100).toFixed(2)} charged (capped to auth ceiling)`
+              : `$${(actualCents/100).toFixed(2)} charged`
+            setStep(1, { status: 'done', detail: label })
+          }
         } catch (e) {
           result.chargeError = e.message
           setStep(1, { status: 'error', detail: 'Charge failed — manual capture needed' })
