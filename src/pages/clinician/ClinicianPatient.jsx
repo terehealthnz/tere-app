@@ -1133,8 +1133,8 @@ export default function ClinicianPatient() {
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Radiology referrals ordered — pending / in-flight Tere-issued
             referrals (not yet reported). Filtered on the server by patient
