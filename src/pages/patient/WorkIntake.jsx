@@ -4,6 +4,7 @@ import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
 import { useAutoT } from '../../lib/i18n'
 import DobPicker from '../../components/DobPicker'
+import { isClinicOpen } from '../../lib/clinicHours'
 
 // /work/[slug]/intake — streamlined B2B intake form.
 //
@@ -215,6 +216,19 @@ export default function WorkIntake() {
     // to /waitlist mid-consult when provider clicks "Start call" and the
     // patient client navigates through a waitlist-gated route.
     sessionStorage.setItem('tere_beta_bypass', '1')
+
+    // After-hours flag parity with the paying-patient flow (AITriage sets
+    // these on finalise). WaitingRoom reads sessionStorage.after_hours and
+    // swaps the 2-hour callback banner for a "back at 8am" one — without
+    // this flag employees submitting after 8pm see "doctor within 2 hours"
+    // even though the clinic is closed until morning.
+    if (!isClinicOpen()) {
+      sessionStorage.setItem('after_hours', 'true')
+      sessionStorage.setItem('consultation_subtype', 'after_hours')
+    } else {
+      sessionStorage.removeItem('after_hours')
+      sessionStorage.setItem('consultation_subtype', 'live')
+    }
 
     try {
       const pt = await createConsultation({
