@@ -8,7 +8,13 @@ export default async function handler(req, res) {
   // Pen-test M-5 phase 2: verify the patient session token before promoting
   // this consult out of waitlisted → waiting. Prevents a scraper who guessed
   // a consult id from jumping the queue on someone else's session.
-  const auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  let auth
+  try {
+    auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  } catch (e) {
+    console.error('[confirm-waiting] auth threw:', e?.message || e, e?.stack)
+    return res.status(500).json({ error: 'Server error', stage: 'auth', detail: String(e?.message || e) })
+  }
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   if (auth.consultationId !== consultationId) {
     return res.status(403).json({ error: 'Token does not match consultation' })
@@ -35,7 +41,7 @@ export default async function handler(req, res) {
 
     if (readErr) {
       console.error('[confirm-waiting] read failed:', consultationId, readErr.code, readErr.message)
-      return res.status(500).json({ error: 'Read failed', code: readErr.code })
+      return res.status(500).json({ error: 'Read failed', code: readErr.code, detail: readErr.message })
     }
     if (!consult) {
       console.warn('[confirm-waiting] row not found:', consultationId)
@@ -58,7 +64,7 @@ export default async function handler(req, res) {
 
     res.status(200).json({ ok: true, promoted: true })
   } catch (e) {
-    console.error('[confirm-waiting]', e)
-    res.status(500).json({ error: 'Server error' })
+    console.error('[confirm-waiting] fatal:', e?.message || e, e?.stack)
+    res.status(500).json({ error: 'Server error', stage: 'fatal', detail: String(e?.message || e) })
   }
 }

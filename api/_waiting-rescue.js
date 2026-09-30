@@ -24,7 +24,13 @@ export default async function handler(req, res) {
   const { consultationId } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
-  const auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  let auth
+  try {
+    auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
+  } catch (e) {
+    console.error('[waiting-rescue] auth threw:', e?.message || e, e?.stack)
+    return res.status(500).json({ error: 'Server error', stage: 'auth', detail: String(e?.message || e) })
+  }
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   if (auth.consultationId !== consultationId) {
     return res.status(403).json({ error: 'Token does not match consultation' })
@@ -40,7 +46,7 @@ export default async function handler(req, res) {
 
     if (readErr) {
       console.error('[waiting-rescue] read failed:', readErr)
-      return res.status(500).json({ error: 'Server error', detail: readErr.message })
+      return res.status(500).json({ error: 'Server error', stage: 'read', code: readErr.code, detail: readErr.message })
     }
     if (!consult) {
       // Truly deleted. Nothing we can do — patient needs to start a fresh
@@ -83,7 +89,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, promoted: true, previousStatus: consult.status })
   } catch (e) {
-    console.error('[waiting-rescue] fatal', e)
-    return res.status(500).json({ error: 'Server error' })
+    console.error('[waiting-rescue] fatal', e?.message || e, e?.stack)
+    return res.status(500).json({ error: 'Server error', stage: 'fatal', detail: String(e?.message || e) })
   }
 }
