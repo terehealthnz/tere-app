@@ -746,18 +746,24 @@ export default async function handler(req, res) {
     if ('payment_amount' in patch) {
       const { data: existing } = await supabase
         .from('consultations')
-        .select('payment_amount, payment_authorised_at, payment_authorised_amount_cents')
+        .select('payment_amount, payment_authorised_at, payment_authorised_amount_cents, employer_paid, consultation_type')
         .eq('id', id)
         .maybeSingle()
-      if (existing?.payment_authorised_at) {
+      const nextAmt = Number(patch.payment_amount)
+      // $0 is always safe — Windcave partial-capture releases the full auth.
+      // Employer-paid / employee consults finalise at $0 by design; the
+      // ceiling guard used to reject them because payment_authorised_at was
+      // still set from a stray earlier auth. Skipping the guard when the
+      // target amount is 0 avoids the false positive.
+      const isEmployerPaid = existing?.employer_paid === true || existing?.consultation_type === 'employee'
+      if (existing?.payment_authorised_at && Number.isFinite(nextAmt) && nextAmt > 0 && !isEmployerPaid) {
         // Compare against the true auth ceiling stored at create-session
         // time (2026-09-29 migration). Fall back to payment_amount for
         // legacy rows created before that column existed.
         const ceiling = existing.payment_authorised_amount_cents != null
           ? Number(existing.payment_authorised_amount_cents)
           : Number(existing.payment_amount)
-        const nextAmt = Number(patch.payment_amount)
-        if (Number.isFinite(nextAmt) && Number.isFinite(ceiling) && nextAmt > ceiling) {
+        if (Number.isFinite(ceiling) && nextAmt > ceiling) {
           return res.status(400).json({
             error: 'payment_amount cannot exceed the patient-authorised amount',
             authorised: ceiling,
