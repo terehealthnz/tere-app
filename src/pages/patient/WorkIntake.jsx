@@ -47,11 +47,18 @@ export default function WorkIntake() {
   const [address, setAddress] = useState('')
   const [nhi, setNhi] = useState('')
   const [chief, setChief] = useState('')
-  // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Optional — provider
-  // can pick later if empty. Same 8-option list as AITriage's
-  // imaging_clinic step; kept in sync manually since this form has no
-  // step chain to import.
+  // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Required — same 8
+  // options as AITriage's imaging_clinic step, plus an explicit "not sure"
+  // value so the worker has to actively acknowledge the choice. Empty
+  // string means "not yet picked" and blocks submit.
   const [imagingRegion, setImagingRegion] = useState('')
+  // Pharmacy pick from the Medsafe register (same source as AITriage's
+  // pharmacy_picker step). Required — provider needs a delivery target for
+  // any prescription. Object { id, premises_name, town } once picked.
+  const [selectedPharmacy, setSelectedPharmacy] = useState(null)
+  const [pharmacyQuery, setPharmacyQuery] = useState('')
+  const [pharmacyResults, setPharmacyResults] = useState([])
+  const [pharmacyIndex, setPharmacyIndex] = useState(null)
   const [consent, setConsent] = useState(false)
 
   // Roster pre-fill status. Fires once name+DOB is complete — hits
@@ -159,7 +166,40 @@ export default function WorkIntake() {
     return () => { cancelled = true }
   }, [slug])
 
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phone.trim() || email.trim()) && consent
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phone.trim() || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent
+
+  // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
+  // uses so provider-side lookup is identical whichever intake fed the row.
+  useEffect(() => {
+    if (pharmacyIndex !== null) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`/pharmacies.json?v=${Date.now()}`)
+        const list = r.ok ? await r.json() : []
+        if (!cancelled) setPharmacyIndex(Array.isArray(list) ? list : [])
+      } catch { if (!cancelled) setPharmacyIndex([]) }
+    })()
+    return () => { cancelled = true }
+  }, [pharmacyIndex])
+
+  // Simple substring search over the register. Name matches rank above
+  // town/address matches. Capped at 8 rows so the dropdown fits on screen.
+  useEffect(() => {
+    const q = pharmacyQuery.trim().toLowerCase()
+    if (q.length < 2 || !pharmacyIndex) { setPharmacyResults([]); return }
+    const nameHits = []
+    const otherHits = []
+    for (const p of pharmacyIndex) {
+      const name = (p.premises_name || '').toLowerCase()
+      const addr = (p.address || '').toLowerCase()
+      const town = (p.town || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (addr.includes(q) || town.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    setPharmacyResults([...nameHits, ...otherHits].slice(0, 8))
+  }, [pharmacyQuery, pharmacyIndex])
 
   async function submit() {
     if (!formValid || !employer) return
@@ -241,7 +281,8 @@ export default function WorkIntake() {
         address:   address.trim() || null,
         nhi:       nhi.trim().toUpperCase().replace(/\s+/g, '') || null,
         complaint: chief.trim(),
-        preferredImagingRegionId: imagingRegion || null,
+        preferredImagingRegionId: imagingRegion === 'not_sure' ? null : (imagingRegion || null),
+        pharmacyId: selectedPharmacy?.id || null,
         patientLanguage: sessionStorage.getItem('patient_language') || 'en',
 
         // Fee tier — employer covers the worker, no charge. ProviderNotes reads
@@ -365,14 +406,15 @@ export default function WorkIntake() {
             <label style={label}>{t.problemLabel}</label>
             <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder={t.problemPlaceholder} />
 
-            {/* Optional imaging region — mirrors AITriage's imaging_clinic
+            {/* Required imaging region — mirrors AITriage's imaging_clinic
                 step so the provider isn't left guessing from address on
-                work-injury X-ray/US referrals. Region-only (matches
-                RHCNZ_REGIONS ids). Native <select> to avoid pulling the
-                AITriage chat renderer into this simple form. */}
+                work-injury X-ray/US referrals. First option is a disabled
+                placeholder so the field reads as "not yet picked" rather
+                than a pre-filled answer; "Not sure" is a real value the
+                worker has to actively choose. */}
             <label style={label}>If you need an X-ray or ultrasound, which region?</label>
             <select style={{ ...inp, cursor: 'pointer' }} value={imagingRegion} onChange={e => setImagingRegion(e.target.value)}>
-              <option value="">Not sure — my doctor can pick</option>
+              <option value="" disabled>Select a region…</option>
               <option value="arg">Auckland / Northland</option>
               <option value="bay">Bay of Plenty</option>
               <option value="pr-waikato">Waikato</option>
@@ -381,7 +423,49 @@ export default function WorkIntake() {
               <option value="mmi">Marlborough (Blenheim)</option>
               <option value="pr-cbg">Canterbury (Christchurch)</option>
               <option value="pr-otago">Otago / Southland</option>
+              <option value="not_sure">Not sure — my doctor can pick</option>
             </select>
+
+            {/* Required pharmacy — worker must pick one from the Medsafe
+                register so the provider has a delivery target for any
+                prescription. Same file + shape as AITriage's picker so
+                provider-side reads are identical. */}
+            <label style={label}>Which pharmacy should we send any prescription to?</label>
+            {selectedPharmacy ? (
+              <div style={{ background: 'rgba(11,110,118,.35)', border: '1px solid rgba(127,196,200,.4)', borderRadius: 8, padding: '.6rem .8rem', marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: 'white', fontSize: '.875rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPharmacy.premises_name}</div>
+                  {selectedPharmacy.town && <div style={{ color: 'rgba(212,238,240,.7)', fontSize: '.75rem' }}>{selectedPharmacy.town}</div>}
+                </div>
+                <button type="button" onClick={() => { setSelectedPharmacy(null); setPharmacyQuery('') }}
+                  style={{ background: 'transparent', border: '1px solid rgba(212,238,240,.35)', color: TEAL_LIGHT, padding: '.35rem .7rem', borderRadius: 6, fontSize: '.75rem', fontFamily: FF, cursor: 'pointer' }}>
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative', marginBottom: '.75rem' }}>
+                <input style={{ ...inp, marginBottom: 0 }} type="text" value={pharmacyQuery}
+                  onChange={e => setPharmacyQuery(e.target.value)}
+                  placeholder="Type a pharmacy name or town…" autoComplete="off" />
+                {pharmacyResults.length > 0 && (
+                  <div style={{ background: NAVY, border: '1px solid rgba(212,238,240,.2)', borderRadius: 8, marginTop: 6, maxHeight: 240, overflowY: 'auto' }}>
+                    {pharmacyResults.map(p => (
+                      <button key={p.id} type="button"
+                        onClick={() => { setSelectedPharmacy(p); setPharmacyQuery(''); setPharmacyResults([]) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid rgba(212,238,240,.08)', padding: '.6rem .8rem', color: 'white', fontSize: '.8125rem', fontFamily: FF, cursor: 'pointer' }}>
+                        <div style={{ fontWeight: 700 }}>{p.premises_name}</div>
+                        {(p.town || p.address) && (
+                          <div style={{ color: 'rgba(212,238,240,.6)', fontSize: '.6875rem', marginTop: 2 }}>{p.town || p.address}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pharmacyQuery.trim().length >= 2 && pharmacyResults.length === 0 && pharmacyIndex && (
+                  <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', marginTop: 6, fontStyle: 'italic' }}>No matches — try a different name or town.</div>
+                )}
+              </div>
+            )}
 
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.5rem', marginBottom: '1.25rem', cursor: 'pointer', color: 'rgba(255,255,255,.85)', fontSize: '.8125rem', lineHeight: 1.5 }}>
               <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
