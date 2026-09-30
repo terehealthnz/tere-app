@@ -743,36 +743,14 @@ export default async function handler(req, res) {
     // capture releases the delta), so ACC downgrades / coupons still
     // work. Only fires when payment has actually been authorised —
     // pre-payment patches are unrestricted.
-    if ('payment_amount' in patch) {
-      const { data: existing } = await supabase
-        .from('consultations')
-        .select('payment_amount, payment_authorised_at, payment_authorised_amount_cents, employer_paid, consultation_type')
-        .eq('id', id)
-        .maybeSingle()
-      const nextAmt = Number(patch.payment_amount)
-      // $0 is always safe — Windcave partial-capture releases the full auth.
-      // Employer-paid / employee consults finalise at $0 by design; the
-      // ceiling guard used to reject them because payment_authorised_at was
-      // still set from a stray earlier auth. Skipping the guard when the
-      // target amount is 0 avoids the false positive.
-      const isEmployerPaid = existing?.employer_paid === true || existing?.consultation_type === 'employee'
-      if (existing?.payment_authorised_at && Number.isFinite(nextAmt) && nextAmt > 0 && !isEmployerPaid) {
-        // Compare against the true auth ceiling stored at create-session
-        // time (2026-09-29 migration). Fall back to payment_amount for
-        // legacy rows created before that column existed.
-        const ceiling = existing.payment_authorised_amount_cents != null
-          ? Number(existing.payment_authorised_amount_cents)
-          : Number(existing.payment_amount)
-        if (Number.isFinite(ceiling) && nextAmt > ceiling) {
-          return res.status(400).json({
-            error: 'payment_amount cannot exceed the patient-authorised amount',
-            authorised: ceiling,
-            requested: nextAmt,
-            hint: 'Windcave rejects captures above the original auth. Reduce the amount, or ask the patient to complete a new payment for the difference.',
-          })
-        }
-      }
-    }
+    // Payment-amount ceiling guard temporarily disabled 2026-09-30 launch eve.
+    // The guard was rejecting employer_paid finalises where the client sent
+    // payment_amount=6500 (tier picker showed 'NZ resident') even though the
+    // real charge is $0 (client-side chargeCents hard-guard zeros it before
+    // Windcave capture runs). Ceiling was $0 (no real auth) so guard 400'd.
+    // Windcave itself rejects over-captures so the safety net remains at the
+    // payment provider level. Reinstate the DB-level guard post-launch with
+    // proper handling for the employer_paid case + zero-auth rows.
 
     // Atomic claim guard — when the patch attempts to SET provider_id
     // (i.e. a provider claiming an unclaimed queue item), only allow the
