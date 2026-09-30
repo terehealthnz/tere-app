@@ -507,6 +507,20 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     } catch {}
   }
 
+  // Safety net: whenever we're in a call but don't yet have a LiveKit token,
+  // fetch one. Closes the race where the 4s status-poll flipped inCall=true
+  // (because status flipped 'waiting'→'in_progress' between load() and poll)
+  // but fetchToken() was only called from the initial load path. Without this
+  // the provider popup mounts, inCall goes true, but <LiveKitRoom> never
+  // renders → widget never appears → patient joins alone. Reproduced 2026-09-29
+  // when Patrick clicked Video on a second computer.
+  useEffect(() => {
+    if (!inCall || chimeMode) return
+    if (lkToken && lkUrl) return
+    fetchToken()
+
+  }, [inCall, chimeMode, lkToken, lkUrl])
+
   async function initiatePhoneCall() {
     setPhoneCallState('dialling')
     try {
