@@ -49,16 +49,25 @@ export default async function handler(req, res) {
         })
       }
       const rawResult = await sendSms({ to, body: 'Tere: test SMS from admin diagnostic — you should be able to receive on-call pings.' })
-      return res.status(200).json({
+      const status = rawResult?.ok ? 200 : (rawResult?.skipped ? 200 : 502)
+      return res.status(status).json({
+        ok: !!rawResult?.ok,
         to,
         provider_row: me,
         sms_result: rawResult,
+        error: rawResult?.ok ? undefined : (rawResult?.error || rawResult?.reason || 'SMS send failed'),
       })
     }
 
     if (!to) return res.status(400).json({ error: 'Missing ?to=+64... or ?self=1' })
     const rawResult = await sendSms({ to, body: 'Tere: admin test SMS.' })
-    return res.status(200).json({ to, sms_result: rawResult })
+    const status = rawResult?.ok ? 200 : (rawResult?.skipped ? 200 : 502)
+    return res.status(status).json({
+      ok: !!rawResult?.ok,
+      to,
+      sms_result: rawResult,
+      error: rawResult?.ok ? undefined : (rawResult?.error || rawResult?.reason || 'SMS send failed'),
+    })
   } catch (e) {
     console.error('[admin-test-sms] fatal', e?.message || e, e?.stack)
     return res.status(500).json({ error: 'Server error', detail: String(e?.message || e) })
