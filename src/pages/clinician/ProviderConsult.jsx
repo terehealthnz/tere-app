@@ -1053,13 +1053,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                     // Failed-call button lives on secondaryAction so the provider
                     // can bail out on video/audio issues without pushing the
                     // patient to /done. See ProviderConsult.endCall(true, 'failed').
-                    if (patientHere) return { label: '✓ Consult Complete', color: '#059669', onClick: () => endCall(true, 'complete'), disabled: endingCall }
+                    // Phone parity: treat phoneCallState==='answered' as
+                    // real patient contact even if the sip-patient-* LiveKit
+                    // participant hasn't propagated to the presence stamp yet
+                    // (SIP→LiveKit bridge can lag a few seconds).
+                    const phoneAnswered = isPhone && phoneCallState === 'answered'
+                    if (patientHere || phoneAnswered) return { label: '✓ Consult Complete', color: '#059669', onClick: () => endCall(true, 'complete'), disabled: endingCall }
                     if (elapsed < 30)  return { label: `Return in ${Math.max(0, 30 - elapsed)}s`, color: '#6B7280', onClick: null, disabled: true }
                     const currentAttempt = consult?.join_attempts || 0
                     if (currentAttempt >= 3) return { label: '✕ Mark no-show (no charge)', color: '#DC2626', onClick: returnToQueue, disabled: endingCall }
                     return { label: `← Return to queue (attempt ${currentAttempt}/3)`, color: '#F59E0B', onClick: returnToQueue, disabled: endingCall }
                   })()}
-                  secondaryAction={patientHere ? { label: '⚠ Failed Call', color: '#DC2626', onClick: () => endCall(true, 'failed'), disabled: endingCall } : null}
+                  secondaryAction={(patientHere || (isPhone && elapsed >= 10)) ? { label: '⚠ Failed Call', color: '#DC2626', onClick: () => endCall(true, 'failed'), disabled: endingCall } : null}
                   isAudioOnly={isPhone}
                   patientName={patientName}
                   subtitlesAvailable={subtitlesAvailable}
