@@ -607,12 +607,21 @@ export default function PatientCall() {
   }
 
   // LiveKit fallback path (only reached when ?chime=0). Wait for token
-  // before mounting <LiveKitRoom>.
+  // before mounting <LiveKitRoom>. If the spinner takes more than a few
+  // seconds, most likely: camera/mic permission denied, or WebRTC blocked
+  // by a corporate/home firewall. The provider will phone-bridge the
+  // patient at 15s (ring-timeout) as a fallback so care still happens.
   if (!token || !serverUrl) return (
-    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif'}}>
-      <div style={{textAlign:'center',color:'rgba(255,255,255,.6)'}}>
+    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',padding:'2rem'}}>
+      <div style={{textAlign:'center',color:'rgba(255,255,255,.6)',maxWidth:360}}>
         <div style={{width:36,height:36,border:'3px solid var(--teal)',borderTopColor:'transparent',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 1rem'}}/>
-        <div>Connecting to {isPhone ? 'call' : 'video call'}…</div>
+        <div style={{marginBottom:'.75rem'}}>Connecting to {isPhone ? 'call' : 'video call'}…</div>
+        <div style={{fontSize:'.8125rem',color:'rgba(255,255,255,.45)',lineHeight:1.5}}>
+          {error
+            ? <span style={{color:'#FCA5A5'}}>{error}</span>
+            : <>If this hangs for more than 15 seconds, make sure your browser allowed <strong style={{color:'rgba(255,255,255,.7)'}}>camera and microphone</strong> access. Your clinician will call your phone as a backup.</>
+          }
+        </div>
       </div>
     </div>
   )
