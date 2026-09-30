@@ -21,11 +21,28 @@
 const DEFAULT_PROVIDER = 'sns'
 
 function normaliseNZNumber(to) {
-  const digits = String(to || '').replace(/\D/g, '')
+  let digits = String(to || '').replace(/\D/g, '')
   if (!digits) return null
-  if (digits.startsWith('64')) return '+' + digits
-  if (digits.startsWith('0')) return '+64' + digits.slice(1)
-  return '+' + digits
+  // If the user typed +64 AND a local number with the leading 0
+  // (e.g. +64 029 xxx xxxx), the '64' branch used to keep the 0 —
+  // producing +640... which SNS silently accepts but no phone owns.
+  if (digits.startsWith('640')) digits = '64' + digits.slice(3)
+  if (digits.startsWith('64')) {
+    // NZ mobiles are 64 + 2x + 7-8 digits = 10-11 digits total after country
+    // code stripping. Anything else is either a landline (not addressable via
+    // SMS for our purposes) or a typo.
+    if (!/^642\d{7,8}$/.test(digits)) return null
+    return '+' + digits
+  }
+  if (digits.startsWith('0')) {
+    const local = digits.slice(1)
+    if (!/^2\d{7,8}$/.test(local)) return null
+    return '+64' + local
+  }
+  // Bare international-shape number without leading + — trust only if it
+  // matches the NZ mobile shape we expect.
+  if (/^642\d{7,8}$/.test(digits)) return '+' + digits
+  return null
 }
 
 async function sendSNS({ to, body }) {
