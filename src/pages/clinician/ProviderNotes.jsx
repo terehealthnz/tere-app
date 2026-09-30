@@ -1101,7 +1101,18 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             setStep(1, { status: 'error', detail: `Charge failed — ${detail}` })
           } else {
             const body = await cRes.json().catch(() => ({}))
-            const actualCents = body?.amount_nzd != null ? Math.round(body.amount_nzd * 100) : chargeCents
+            // Server returns amount_cents (post 1a92f0f rewrite). Fall back to
+            // amount_nzd for any older response shapes that might still be in
+            // flight during deploy. If neither is present, fall back to the
+            // requested amount rather than lying about "$65 charged" when the
+            // server may have capped to the auth ceiling.
+            const actualCents = body?.amount_cents != null ? body.amount_cents
+                              : body?.amount_nzd    != null ? Math.round(body.amount_nzd * 100)
+                              : chargeCents
+            // Overwrite the summary line so the "Consultation complete" card
+            // shows what actually moved, not what we asked for (matters most
+            // in test-mode where auth ceiling caps $65 → $0.10).
+            result.chargeCents = actualCents
             const label = body?.capped
               ? `$${(actualCents/100).toFixed(2)} charged (capped to auth ceiling)`
               : `$${(actualCents/100).toFixed(2)} charged`
