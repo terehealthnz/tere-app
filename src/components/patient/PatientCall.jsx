@@ -80,29 +80,58 @@ function PatientLeaveButton({ consultationId }) {
     if (hasProvider) everSawProviderRef.current = true
   }, [participants])
 
-  // BELT + BRACES for the LiveKit control-bar disconnect button. CSS in the
-  // LiveKitRoom subtree hides all known variants, but new LiveKit versions
-  // have shipped extra selectors that slip through. This click-capture layer
-  // intercepts any click that lands inside the LiveKit ControlBar on an
-  // element that identifies as a disconnect/leave/hangup control. When
-  // matched, we open the intent modal instead of letting LiveKit's default
-  // handler run.
+  // BELT + BRACES for the LiveKit control-bar Leave button. CSS in the
+  // LiveKitRoom subtree hides known variants, but LiveKit v2 sometimes ships
+  // the Disconnect button with class/attr combos our selectors miss. Two
+  // extra layers here:
+  //
+  //  1) MutationObserver that scans the LiveKit subtree and hides any
+  //     <button> whose visible text is "Leave"/"Disconnect"/"Hang up"/"End
+  //     call". Runs on every DOM mutation inside the LK tree. This is the
+  //     load-bearing hide — text-match survives class renames.
+  //
+  //  2) Click-capture interceptor: if a click somehow lands on the button
+  //     before we hide it (first paint race), open the intent modal instead
+  //     of letting LiveKit disconnect.
   useEffect(() => {
+    const LEAVE_TEXTS = ['leave', 'disconnect', 'hang up', 'end call']
+    const isLeaveText = (t) => {
+      const s = (t || '').trim().toLowerCase()
+      return LEAVE_TEXTS.some(x => s === x || s.startsWith(x + ' ') || s.endsWith(' ' + x))
+    }
+    const isLeaveButton = (btn) => {
+      if (!btn || btn.tagName !== 'BUTTON') return false
+      const label = (btn.getAttribute('aria-label') || '').toLowerCase()
+      const src   = (btn.getAttribute('data-lk-source') || '').toLowerCase()
+      const kind  = (btn.getAttribute('data-lk-kind') || '').toLowerCase()
+      const cls   = (btn.className || '').toString().toLowerCase()
+      if (src === 'disconnect' || kind === 'disconnect') return true
+      if (cls.includes('lk-disconnect-button')) return true
+      if (LEAVE_TEXTS.some(x => label.includes(x))) return true
+      if (isLeaveText(btn.textContent)) return true
+      return false
+    }
+    const hideLeaveButtons = () => {
+      const root = document.querySelector('.tere-patient-lk')
+      if (!root) return
+      root.querySelectorAll('button').forEach(btn => {
+        if (isLeaveButton(btn) && btn.style.display !== 'none') {
+          btn.style.display = 'none'
+        }
+      })
+    }
+    // Run once, then on every mutation inside the LK subtree.
+    hideLeaveButtons()
+    const observer = new MutationObserver(hideLeaveButtons)
+    // Observe from body so we catch the LK tree mounting after this effect.
+    observer.observe(document.body, { childList: true, subtree: true })
+
     const isDisconnectTarget = (el) => {
       if (!el || !(el instanceof Element)) return false
-      // Walk up 4 levels; LiveKit sometimes wraps the icon in a span inside
-      // the button, so the initial event.target may be the SVG, not the btn.
       let node = el
       for (let i = 0; i < 5 && node; i++) {
         try {
-          const label = (node.getAttribute?.('aria-label') || '').toLowerCase()
-          const src   = (node.getAttribute?.('data-lk-source') || '').toLowerCase()
-          const kind  = (node.getAttribute?.('data-lk-kind') || '').toLowerCase()
-          const cls   = (node.className && node.className.baseVal !== undefined ? node.className.baseVal : node.className) || ''
-          const classStr = typeof cls === 'string' ? cls.toLowerCase() : ''
-          if (src === 'disconnect' || kind === 'disconnect') return true
-          if (classStr.includes('lk-disconnect-button')) return true
-          if (label.includes('disconnect') || label.includes('leave') || label.includes('hang up') || label.includes('end call')) return true
+          if (node.tagName === 'BUTTON' && isLeaveButton(node)) return true
         } catch {}
         node = node.parentElement
       }
@@ -115,9 +144,11 @@ function PatientLeaveButton({ consultationId }) {
       e.stopImmediatePropagation()
       setOpen(true)
     }
-    // Capture phase so we run before LiveKit's own click handlers.
     document.addEventListener('click', onClick, true)
-    return () => document.removeEventListener('click', onClick, true)
+    return () => {
+      observer.disconnect()
+      document.removeEventListener('click', onClick, true)
+    }
   }, [])
 
   async function finish(dest) {
