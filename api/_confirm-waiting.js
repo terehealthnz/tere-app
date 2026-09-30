@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     auth = await resolvePatientAuth(req, { legacyConsultId: consultationId })
   } catch (e) {
     console.error('[confirm-waiting] auth threw:', e?.message || e, e?.stack)
-    return res.status(500).json({ error: 'Server error', stage: 'auth', detail: String(e?.message || e) })
+    return res.status(500).json({ error: 'Server error' })
   }
   if (auth.error) return res.status(auth.status).json({ error: auth.error })
   if (auth.consultationId !== consultationId) {
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
     if (readErr) {
       console.error('[confirm-waiting] read failed:', consultationId, readErr.code, readErr.message)
-      return res.status(500).json({ error: 'Read failed', code: readErr.code, detail: readErr.message })
+      return res.status(500).json({ error: 'Server error' })
     }
     if (!consult) {
       console.warn('[confirm-waiting] row not found:', consultationId)
@@ -65,6 +65,6 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, promoted: true })
   } catch (e) {
     console.error('[confirm-waiting] fatal:', e?.message || e, e?.stack)
-    res.status(500).json({ error: 'Server error', stage: 'fatal', detail: String(e?.message || e) })
+    res.status(500).json({ error: 'Server error' })
   }
 }

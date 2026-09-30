@@ -317,6 +317,8 @@ export default function Dashboard() {
   const [referralBadge, setReferralBadge] = useState(0)
   const teamBadge = useTereChatUnread()
   const [nowTick, setNowTick]             = useState(Date.now())
+  const [dismissTarget, setDismissTarget] = useState(null) // { id, patientName } | null
+  const [dismissing, setDismissing]       = useState(false)
   const isSupervisor = sessionStorage.getItem('providerIsSupervisor') === 'true'
   const isRMO = sessionStorage.getItem('providerType') === 'rmo'
 
@@ -364,17 +366,29 @@ export default function Dashboard() {
     return () => { clearInterval(interval); sub?.unsubscribe?.(); window.removeEventListener('tere:practice-mode-changed', onPracticeChanged) }
   }, [load])
 
-  async function dismissConsult(id) {
-    // Confirmation gate — dismiss sets status='expired' which makes the
-    // consult invisible to every provider queue, and the patient's
-    // waiting-room detects the dead status and flips to a "please contact
-    // us" banner (task: patient-side stuck detection). Accidental clicks
-    // silently lose paying patients, so require an explicit confirm.
-    if (!window.confirm("Dismiss this consult? The patient will be told to contact support — this is not the same as marking no-show. Only dismiss if you're sure.")) return
+  function requestDismiss(consult) {
+    // Two-step gate — opens a modal instead of native window.confirm.
+    // Native confirms are easy to dismiss with a stray Enter and hard
+    // to visually distinguish. Modal requires a deliberate click on a
+    // red "Dismiss" button. Dismiss sets status='expired', which is now
+    // recoverable via WaitingRoom's rescue button (5a8138b) but still
+    // best not to trigger accidentally.
+    const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ') || 'this patient'
+    setDismissTarget({ id: consult.id, patientName })
+  }
+
+  async function confirmDismiss() {
+    if (!dismissTarget || dismissing) return
+    setDismissing(true)
     try {
-      await updateConsultation(id, { status: 'expired' })
-      setConsultations(cs => cs.filter(c => c.id !== id))
-    } catch(e) { console.error(e) }
+      await updateConsultation(dismissTarget.id, { status: 'expired' })
+      setConsultations(cs => cs.filter(c => c.id !== dismissTarget.id))
+      setDismissTarget(null)
+    } catch(e) {
+      console.error(e)
+    } finally {
+      setDismissing(false)
+    }
   }
 
   async function startConsult(consult) {
@@ -571,7 +585,7 @@ export default function Dashboard() {
                         </button>
                       )}
                       {!isLocked && (
-                        <button onClick={() => dismissConsult(c.id)}
+                        <button onClick={() => requestDismiss(c)}
                           style={{background:'none',border:'1px solid #FECACA',color:'#DC2626',padding:'4px 8px',borderRadius:6,cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans,sans-serif'}}>
                           ✕
                         </button>
@@ -653,6 +667,52 @@ export default function Dashboard() {
         {dashTab === 'my-supervision' && isRMO && <RMOSupervisionSelfTab />}
 
       </div>
+
+      {dismissTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="dismiss-title"
+          onClick={() => !dismissing && setDismissTarget(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.6)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:9999, padding:'1rem' }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background:'white', borderRadius:12, maxWidth:440, width:'100%', padding:'1.5rem', boxShadow:'0 20px 40px rgba(0,0,0,.3)', fontFamily:'Plus Jakarta Sans,sans-serif' }}
+          >
+            <div style={{ display:'flex', alignItems:'center', gap:'.625rem', marginBottom:'.75rem' }}>
+              <div style={{ width:36, height:36, borderRadius:'50%', background:'#FEE2E2', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span style={{ color:'#DC2626', fontSize:'1.125rem', fontWeight:700 }}>!</span>
+              </div>
+              <h3 id="dismiss-title" style={{ margin:0, fontSize:'1.0625rem', fontWeight:700, color:'#0F172A' }}>Dismiss {dismissTarget.patientName}?</h3>
+            </div>
+            <p style={{ margin:'0 0 1rem 0', fontSize:'.875rem', lineHeight:1.5, color:'#334155' }}>
+              This will remove the consult from every provider queue. The patient will see a "Something went wrong" banner and be told to contact support. Their payment is NOT refunded.
+            </p>
+            <p style={{ margin:'0 0 1.25rem 0', fontSize:'.8125rem', lineHeight:1.5, color:'#64748B', background:'#F1F5F9', padding:'.625rem .75rem', borderRadius:6 }}>
+              Only use this if you're sure — for a patient who didn't answer, use <strong>No Answer</strong> instead (which marks no-show).
+            </p>
+            <div style={{ display:'flex', gap:'.5rem', justifyContent:'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setDismissTarget(null)}
+                disabled={dismissing}
+                style={{ background:'white', border:'1px solid #CBD5E1', color:'#334155', padding:'.5rem 1rem', borderRadius:6, cursor:dismissing?'wait':'pointer', fontSize:'.875rem', fontWeight:600 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDismiss}
+                disabled={dismissing}
+                style={{ background:'#DC2626', border:'1px solid #DC2626', color:'white', padding:'.5rem 1rem', borderRadius:6, cursor:dismissing?'wait':'pointer', fontSize:'.875rem', fontWeight:700, opacity:dismissing?0.7:1 }}
+              >
+                {dismissing ? 'Dismissing…' : 'Yes, dismiss'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
