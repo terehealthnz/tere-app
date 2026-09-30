@@ -21,24 +21,43 @@ function windcaveBaseUrl() {
   return process.env.WINDCAVE_BASE_URL || 'https://uat.windcave.com/api/v1'
 }
 
-// Windcave complete: POST /transactions type=complete referencing the auth
-// sessionId. Amount in dollars string. Idempotency via X-ID header.
+// Windcave complete: POST /sessions/{id}/transactions with type=complete on the
+// auth session — settles the hold. AbortController caps the request at 8s so a
+// slow Windcave doesn't blow the Vercel function timeout (default 10s → we'd
+// see a Cloudflare 502 with no diagnostic). X-ID for idempotency.
 async function captureWindcave(sessionId, amountCents) {
   const amountStr = (amountCents / 100).toFixed(2)
   const xId = randomUUID()
-  const r = await fetch(`${windcaveBaseUrl()}/transactions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept':       'application/json',
-      'Authorization': windcaveBasicAuth(),
-      'X-ID':         xId,
-    },
-    body: JSON.stringify({ type: 'complete', amount: amountStr, sessionId }),
-  })
-  const data = await r.json().catch(() => ({}))
-  const approved = r.ok && (data.responseCode === '00' || data.authorised === true)
-  return { ok: r.ok, approved, status: r.status, data }
+  const url = `${windcaveBaseUrl()}/transactions`
+  const ctl = new AbortController()
+  const timeoutId = setTimeout(() => ctl.abort(), 8000)
+  const started = Date.now()
+  console.log('[capture-payment] windcave complete →', url, { amountStr, sessionId, xId })
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept':       'application/json',
+        'Authorization': windcaveBasicAuth(),
+        'X-ID':         xId,
+      },
+      body: JSON.stringify({ type: 'complete', amount: amountStr, sessionId }),
+      signal: ctl.signal,
+    })
+    clearTimeout(timeoutId)
+    const bodyText = await r.text().catch(() => '')
+    let data = {}
+    try { data = bodyText ? JSON.parse(bodyText) : {} } catch { /* keep as text */ }
+    const approved = r.ok && (data.responseCode === '00' || data.authorised === true || data.reCo === '00')
+    console.log('[capture-payment] windcave complete ←', { status: r.status, approved, durationMs: Date.now() - started, bodyPreview: bodyText.slice(0, 400) })
+    return { ok: r.ok, approved, status: r.status, data, bodyText }
+  } catch (e) {
+    clearTimeout(timeoutId)
+    const aborted = e?.name === 'AbortError'
+    console.error('[capture-payment] windcave complete FAILED', { aborted, message: e?.message, durationMs: Date.now() - started })
+    throw e
+  }
 }
 
 function admin() {
