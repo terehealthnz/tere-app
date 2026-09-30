@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { LiveKitRoom, VideoConference, useRoomContext } from '@livekit/components-react'
+import { LiveKitRoom, VideoConference, useRoomContext, useParticipants } from '@livekit/components-react'
 import '@livekit/components-styles'
 
 // Auto-leave when the provider disconnects. LiveKit's onDisconnected only
@@ -47,6 +47,129 @@ function ProviderLeaveWatcher() {
   }, [room])
   return null
 }
+// Custom Leave button + intent modal. Replaces LiveKit's default disconnect
+// button so we can ask the patient WHY they're leaving:
+//   - "Consult complete"      → doctor's done → /done (pending final decision)
+//   - "No provider — queue"   → doctor never showed → back to /waiting/:id
+// The Back-to-Queue path is disabled if a provider was actually in the room
+// (blocks the "don't like advice → re-queue for free consult" exploit).
+function PatientLeaveButton({ consultationId }) {
+  const room = useRoomContext()
+  const navigate = useNavigate()
+  const participants = useParticipants()
+  const [open, setOpen] = useState(false)
+  const everSawProviderRef = useRef(false)
+  useEffect(() => {
+    // Any remote participant (identity NOT starting with 'patient-') counts
+    // as the provider having been present at some point.
+    const hasProvider = participants.some(p => {
+      const id = p.identity || ''
+      return !id.startsWith('patient-') && !id.startsWith('sip-patient-')
+    })
+    if (hasProvider) everSawProviderRef.current = true
+  }, [participants])
+
+  async function finish(dest) {
+    try { await room?.disconnect?.() } catch {}
+    navigate(dest)
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        style={{
+          position: 'fixed',
+          top: 'calc(12px + env(safe-area-inset-top, 0px))',
+          left: 12,
+          zIndex: 50,
+          background: '#dc2626',
+          color: 'white',
+          border: 'none',
+          borderRadius: 8,
+          padding: '.55rem .95rem',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontSize: '.875rem',
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,.35)',
+        }}
+      >
+        Leave
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+          }}
+        >
+          <div style={{
+            background: 'white', borderRadius: 12, padding: '1.5rem',
+            maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,.4)',
+          }}>
+            <h3 style={{ margin: '0 0 .75rem', fontSize: '1.125rem', color: '#0E2E38' }}>
+              Leave the call?
+            </h3>
+            <p style={{ margin: '0 0 1.25rem', color: '#374151', fontSize: '.9375rem', lineHeight: 1.5 }}>
+              Which best describes what's happening?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.6rem' }}>
+              <button
+                onClick={() => finish('/done')}
+                style={{
+                  background: '#0B6E76', color: 'white', border: 'none',
+                  borderRadius: 8, padding: '.85rem 1rem',
+                  fontSize: '.9375rem', fontWeight: 600, cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                Consult complete
+                <div style={{ fontWeight: 400, fontSize: '.8125rem', opacity: .9, marginTop: '.2rem' }}>
+                  My doctor finished the visit. Your doctor will send you a summary shortly.
+                </div>
+              </button>
+              <button
+                onClick={() => finish(`/waiting/${consultationId}`)}
+                disabled={everSawProviderRef.current}
+                title={everSawProviderRef.current ? 'The doctor was in the call — pick "Consult complete" instead.' : ''}
+                style={{
+                  background: everSawProviderRef.current ? '#e5e7eb' : '#f3f4f6',
+                  color: everSawProviderRef.current ? '#9ca3af' : '#0E2E38',
+                  border: '1px solid ' + (everSawProviderRef.current ? '#e5e7eb' : '#d1d5db'),
+                  borderRadius: 8, padding: '.85rem 1rem',
+                  fontSize: '.9375rem', fontWeight: 600,
+                  cursor: everSawProviderRef.current ? 'not-allowed' : 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                No doctor here — back to queue
+                <div style={{ fontWeight: 400, fontSize: '.8125rem', opacity: .85, marginTop: '.2rem' }}>
+                  The doctor never joined. Return to the queue and wait for the next available doctor.
+                </div>
+              </button>
+              <button
+                onClick={() => setOpen(false)}
+                style={{
+                  background: 'transparent', color: '#6b7280', border: 'none',
+                  padding: '.6rem', fontSize: '.875rem', cursor: 'pointer',
+                  marginTop: '.25rem',
+                }}
+              >
+                Cancel — stay in the call
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsult, subscribeToConsultationEnded } from '../../lib/supabase'
@@ -434,7 +557,14 @@ export default function PatientCall() {
         dynacast
         onDisconnected={() => navigate('/done')}
       >
+        {/* Hide LiveKit's built-in Leave button — we replace it with
+            <PatientLeaveButton/> which forces the intent modal (Consult
+            Complete vs No-Provider-Back-to-Queue). Without this the raw
+            LiveKit button would silently disconnect → /done, bypassing the
+            queue-restoration path when the provider never showed. */}
+        <style>{`.tere-patient-lk .lk-disconnect-button, .tere-patient-lk button[data-lk-source="disconnect"] { display: none !important; }`}</style>
         <ProviderLeaveWatcher />
+        <PatientLeaveButton consultationId={consultationId} />
         <VideoConference />
         {(() => {
           const patientLang = sessionStorage.getItem('patient_language') || 'en'
