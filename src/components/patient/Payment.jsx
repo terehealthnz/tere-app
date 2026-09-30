@@ -223,31 +223,25 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             </button>
           </div>
         ) : testPanelOpen ? (
-          <div style={{ background:'#F9FAFB', border:'1px solid #E5E7EB', borderRadius:8, padding:'.75rem', marginBottom:'.75rem' }}>
-            <label style={{ display:'block', fontSize:'.75rem', fontWeight:600, color:'#374151', marginBottom:'.35rem' }}>Test-patient password</label>
-            <div style={{ display:'flex', gap:'.4rem' }}>
-              <input type="password" value={testPassword} onChange={e => setTestPassword(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && testPassword) { setTestUnlocked(true) } }}
-                autoFocus
-                style={{ flex:1, padding:'.45rem .55rem', fontSize:'.875rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontFamily:'inherit' }} />
-              <button type="button" disabled={!testPassword}
-                onClick={() => setTestUnlocked(true)}
-                style={{ background:'#0B6E76', color:'white', border:'none', padding:'.45rem .8rem', borderRadius:6, fontSize:'.8125rem', fontWeight:600, cursor: testPassword ? 'pointer' : 'not-allowed', opacity: testPassword ? 1 : 0.5 }}>
-                Apply
-              </button>
-              <button type="button" onClick={() => { setTestPanelOpen(false); setTestPassword('') }}
-                style={{ background:'none', border:'none', color:'#6B7280', fontSize:'.75rem', cursor:'pointer' }}>
-                cancel
-              </button>
-            </div>
-            <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:'.35rem' }}>
-              The server validates the password — a wrong password will charge the full price. Verify the $0.10 preview before continuing.
-            </div>
+          <div style={{ display:'flex', gap:'.4rem', marginBottom:'.75rem' }}>
+            <input type="password" value={testPassword} onChange={e => setTestPassword(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && testPassword) { setTestUnlocked(true) } }}
+              autoFocus placeholder="Admin password"
+              style={{ flex:1, padding:'.45rem .55rem', fontSize:'.875rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontFamily:'inherit' }} />
+            <button type="button" disabled={!testPassword}
+              onClick={() => setTestUnlocked(true)}
+              style={{ background:'#0B6E76', color:'white', border:'none', padding:'.45rem .8rem', borderRadius:6, fontSize:'.8125rem', fontWeight:600, cursor: testPassword ? 'pointer' : 'not-allowed', opacity: testPassword ? 1 : 0.5 }}>
+              Apply
+            </button>
+            <button type="button" onClick={() => { setTestPanelOpen(false); setTestPassword('') }}
+              style={{ background:'none', border:'none', color:'#6B7280', fontSize:'.75rem', cursor:'pointer' }}>
+              cancel
+            </button>
           </div>
         ) : (
           <button type="button" onClick={() => setTestPanelOpen(true)}
-            style={{ display:'block', width:'100%', background:'#FFFBEB', border:'1.5px dashed #F59E0B', color:'#92400E', fontSize:'.8125rem', fontWeight:600, padding:'.55rem .75rem', borderRadius:8, cursor:'pointer', marginBottom:'.6rem', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-            🧪 Test patient — NZ$0.10 (staff only)
+            style={{ display:'block', background:'none', border:'none', color:'#9CA3AF', fontSize:'.6875rem', padding:'.25rem 0', cursor:'pointer', marginBottom:'.4rem', fontFamily:'Plus Jakarta Sans, sans-serif', textDecoration:'underline' }}>
+            Admin
           </button>
         )}
         <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full"

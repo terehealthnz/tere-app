@@ -336,6 +336,7 @@ const ROUTES = {
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
   'async-consult':             () => import('./_async-consult.js'),
   'admin-patch':               () => import('./_admin-patch.js'),
+  'admin-test-sms':            () => import('./_admin-test-sms.js'),
   'initiate-call':             () => import('./_initiate-call.js'),
   'ring-timeout':              () => import('./_ring-timeout.js'),
   'mark-no-show':              () => import('./_mark-no-show.js'),
