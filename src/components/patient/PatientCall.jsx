@@ -278,6 +278,14 @@ export default function PatientCall() {
   const [token, setToken] = useState(null)
   const [serverUrl, setServerUrl] = useState(null)
   const [error, setError] = useState(null)
+  // Permission gate — patient must click "Join video" to get a fresh
+  // browser getUserMedia prompt. Browsers only prompt on user gesture AND
+  // when permission isn't already resolved (grant OR deny). If the user
+  // previously denied, LiveKit joins the room with no local tracks and the
+  // patient sees a black screen. Explicit pre-flight surfaces denial as a
+  // clear error message instead of a silent void.
+  const [permission, setPermission] = useState('idle') // 'idle' | 'requesting' | 'granted' | 'denied'
+  const [permissionError, setPermissionError] = useState(null)
   // Consult status gate — determines whether the patient can join now, has to
   // wait through a cooldown, or has been marked no-show. See the two-attempt
   // no-show flow in supabase-no-show-migration.sql.
@@ -450,6 +458,12 @@ export default function PatientCall() {
     // broadcast to nav to /done. Skipping the token fetch prevents the
     // "Connecting to call…" spinner from hanging forever.
     if (isPhone) return
+    // Video mode — gate the token fetch on explicit camera/mic permission.
+    // If we skip this and permission was previously denied, LiveKit joins
+    // the room with no local tracks and the patient sees a black screen
+    // with no signal. The pre-flight permission check surfaces denial as
+    // a clear error we can guide them to fix.
+    if (permission !== 'granted') return
 
     async function fetchToken() {
       try {
@@ -473,7 +487,7 @@ export default function PatientCall() {
     }
 
     fetchToken()
-  }, [consultationId, navigate, gate, token, chimeMode])
+  }, [consultationId, navigate, gate, token, chimeMode, isPhone, permission])
 
   // Gated: no-show — provider tried twice and marked us as missed. Payment
   // hold has been released. Offer patient a path back into triage.
@@ -607,6 +621,64 @@ export default function PatientCall() {
           <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',color:'rgba(255,255,255,.7)',fontSize:'.75rem',padding:'3px 10px',borderRadius:'0 0 6px 6px'}}>
             Emergency? <a href="tel:111" style={{color:'white',fontWeight:700,pointerEvents:'auto'}}>Call 111</a>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Pre-flight camera/mic permission — video mode only. Browsers only
+  // prompt on user gesture AND when permission isn't already resolved,
+  // so a silent "black screen" is what you get if the user previously
+  // denied. Forcing an explicit click here re-triggers getUserMedia and
+  // surfaces denial as a helpful error instead of a void.
+  if (!isPhone && !chimeMode && permission !== 'granted') {
+    async function requestPermission() {
+      setPermission('requesting')
+      setPermissionError(null)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        // Immediately stop the tracks — LiveKit will re-acquire them when it joins.
+        // We only wanted to trigger the browser prompt + confirm access.
+        stream.getTracks().forEach(t => { try { t.stop() } catch {} })
+        setPermission('granted')
+      } catch (e) {
+        setPermission('denied')
+        setPermissionError(e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError'
+          ? 'Your browser blocked camera or microphone access. Click the camera icon in the address bar → set to "Allow" → click Try again.'
+          : e?.name === 'NotFoundError'
+            ? 'No camera or microphone found on this device. Try a different device, or the clinician will call your phone.'
+            : `Could not access camera/microphone: ${e?.message || e?.name || 'unknown error'}`)
+      }
+    }
+    return (
+      <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',padding:'2rem'}}>
+        <div style={{textAlign:'center',color:'white',maxWidth:440}}>
+          <div style={{fontSize:'3rem',marginBottom:'.75rem'}}>📹</div>
+          <div style={{fontSize:'1.375rem',fontWeight:700,marginBottom:'.5rem'}}>Ready for your video consult</div>
+          <div style={{fontSize:'.9375rem',color:'rgba(255,255,255,.7)',lineHeight:1.6,marginBottom:'1.5rem'}}>
+            {permission === 'denied'
+              ? <span style={{color:'#FCA5A5'}}>{permissionError}</span>
+              : 'Your browser will ask for access to your camera and microphone. Click Allow so your clinician can see and hear you.'}
+          </div>
+          <button
+            type="button"
+            onClick={requestPermission}
+            disabled={permission === 'requesting'}
+            style={{
+              background: '#0B6E76', color: 'white', border: 'none',
+              padding: '.9rem 2rem', borderRadius: 999, fontWeight: 700,
+              fontSize: '1rem', cursor: permission === 'requesting' ? 'wait' : 'pointer',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              minWidth: 200,
+            }}
+          >
+            {permission === 'requesting' ? 'Requesting…' : permission === 'denied' ? 'Try again' : 'Join video'}
+          </button>
+          {permission === 'denied' && (
+            <div style={{fontSize:'.8125rem',color:'rgba(255,255,255,.5)',marginTop:'1rem',lineHeight:1.5}}>
+              Still stuck? Your clinician will call your phone as a backup.
+            </div>
+          )}
         </div>
       </div>
     )
