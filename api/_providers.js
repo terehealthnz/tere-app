@@ -176,6 +176,8 @@ const UPDATE_ALLOWLIST = new Set([
   'competency_status', 'competency_notes', 'competency_assessed_at', 'competency_assessed_by',
   'probation_started_at', 'probation_min_supervised_consults', 'probation_supervised_completed',
   'scope_of_clinical_practice',
+  // On-call SMS ping opt-in + destination number (2026-09-30).
+  'mobile_phone', 'sms_on_call',
 ])
 
 // Subset of UPDATE_ALLOWLIST that a provider can edit on their OWN row via
