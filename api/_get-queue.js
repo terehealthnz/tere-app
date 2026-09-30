@@ -76,6 +76,13 @@ export default async function handler(req, res) {
     // state without a second round-trip. Gated providers can't turn it
     // off; live providers see the toggle sync back to whatever the
     // server actually applied.
+    // Scoped Plan B: server broadcasts its own build SHA on the queue
+    // response. Client compares against __BUILD_ID__ embedded at build
+    // time; on mismatch, auto-reload the queue page (safe context — no
+    // in-call/in-notes state to lose). See src/pages/clinician/ProviderApp.jsx
+    // `load()` handler and src/lib/forceRefreshApp.js.
+    const sha = process.env.VERCEL_GIT_COMMIT_SHA || 'dev'
+    res.setHeader('x-min-client-version', sha)
     res.status(200).json({ consultations, dataMode: { mode, practice, unlockAt } })
   } catch (e) {
     console.error('[get-queue]', e)

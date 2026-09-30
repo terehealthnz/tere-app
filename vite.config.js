@@ -1,7 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Embed the git SHA of this build into the client bundle. Vercel provides
+// VERCEL_GIT_COMMIT_SHA on every build. Local dev uses 'dev'. The queue
+// page compares its embedded value to the server's x-min-client-version
+// response header on every poll — mismatch → auto-reload. Scoped to the
+// queue page only so mid-call/mid-notes state isn't blown away.
+const BUILD_ID = process.env.VERCEL_GIT_COMMIT_SHA || 'dev'
+
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [react()],
   server: {
     port: 3000,

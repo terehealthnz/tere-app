@@ -1223,6 +1223,18 @@ export default function ProviderApp() {
   const load = useCallback(async () => {
     try {
       const res = await apiFetch('/api/get-queue')
+      // Scoped Plan B: if server build SHA differs from ours, auto-reload
+      // from this safe context (queue page — no in-call/notes state).
+      // Fires BEFORE we consume the JSON body so a stale bundle can't
+      // linger and misinterpret new server response shapes.
+      try {
+        const serverVersion = res.headers.get('x-min-client-version')
+        if (serverVersion) {
+          const { checkAndReloadIfStale } = await import('../../lib/forceRefreshApp')
+          const reloading = await checkAndReloadIfStale(serverVersion)
+          if (reloading) return  // page is about to reload; skip state updates
+        }
+      } catch {}
       const { consultations: data } = await res.json()
       setConsultations(data || [])
     } catch { setConsultations([]) }
