@@ -89,6 +89,13 @@ export const COMMON_ALLERGIES = [
   { id: 'grass',         label: 'Grass' },
 ]
 
+// Extra medications not present as first-class NZF entries but very
+// common self-reported. Add here if a patient tells us a med is missing
+// from the search. Merged into the NZF list before dedupe/sort.
+const EXTRA_MEDICATIONS = [
+  'Omeprazole',   // 2026-09-30: reported missing from AI triage chip search
+]
+
 // Build a lookup from the NZF formulary. Called from AITriage. Filters
 // out injection-only / infusion-only formulations that a patient is very
 // unlikely to be self-reporting as a "regular medication".
@@ -105,6 +112,12 @@ export function buildMedicationOptionsFromNzf(nzfList) {
     // Sentence-case the drug name for display (NZF stores lowercase).
     const label = name.charAt(0).toUpperCase() + name.slice(1)
     out.push({ id: key, label })
+  }
+  for (const extra of EXTRA_MEDICATIONS) {
+    const key = extra.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ id: key, label: extra })
   }
   return out.sort((a, b) => a.label.localeCompare(b.label))
 }
