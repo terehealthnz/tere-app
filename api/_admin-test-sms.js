@@ -49,12 +49,32 @@ export default async function handler(req, res) {
         })
       }
       const rawResult = await sendSms({ to, body: 'Tere: test SMS from admin diagnostic — you should be able to receive on-call pings.' })
+
+      // Extra SNS diagnostic — is the destination on the opt-out list, and
+      // is the account in sandbox mode? These are the two silent-drop
+      // scenarios where SNS returns a MessageId but no message arrives.
+      const snsDiag = { region: process.env.AWS_REGION || 'ap-southeast-2' }
+      try {
+        const { SNSClient, CheckIfPhoneNumberIsOptedOutCommand, GetSMSSandboxAccountStatusCommand } = await import('@aws-sdk/client-sns')
+        const client = new SNSClient({ region: snsDiag.region })
+        const normalisedTo = rawResult?.id ? (rawResult.to || to) : to
+        try {
+          const optOut = await client.send(new CheckIfPhoneNumberIsOptedOutCommand({ phoneNumber: normalisedTo }))
+          snsDiag.opted_out = optOut.isOptedOut
+        } catch (e) { snsDiag.opted_out_err = e?.message }
+        try {
+          const sandbox = await client.send(new GetSMSSandboxAccountStatusCommand({}))
+          snsDiag.sandbox = sandbox.IsInSandbox
+        } catch (e) { snsDiag.sandbox_err = e?.message }
+      } catch (e) { snsDiag.sdk_err = e?.message }
+
       const status = rawResult?.ok ? 200 : (rawResult?.skipped ? 200 : 502)
       return res.status(status).json({
         ok: !!rawResult?.ok,
         to,
         provider_row: me,
         sms_result: rawResult,
+        sns_diagnostic: snsDiag,
         error: rawResult?.ok ? undefined : (rawResult?.error || rawResult?.reason || 'SMS send failed'),
       })
     }
