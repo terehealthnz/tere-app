@@ -124,7 +124,7 @@ export default function ConsultationType() {
           <h1 style={{ marginBottom: '.375rem' }}>How would you like to be seen?</h1>
           <p style={{ fontSize: '.9375rem' }}>
             {isAcc
-              ? 'ACC covers the cost of your consultation. A $20 administrative fee applies for platform access, prescription processing, and after-hours availability.'
+              ? 'If your visit is for an eligible injury, ACC covers most of the consultation cost. You pay a $25 patient contribution to Tere. If ACC declines cover, our standard consult fee applies.'
               : "Book a consultation with a doctor, or send an async message for lower-urgency queries."}
           </p>
           {employerPaid && (

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { getPatientConsult } from '../../lib/supabase'
 import InsuranceReceiptUpsell from './InsuranceReceiptUpsell'
+import { ACC_PATIENT_CONTRIBUTION_CENTS } from '../../lib/consultationType'
 
 export default function PostConsult() {
   const [consult, setConsult] = useState(null)
@@ -147,7 +148,7 @@ function deriveBilling(consult) {
                   : consult.consultation_type === 'international' ? 10000
                   : 6500
   const feeDollars = feeCents / 100
-  const adminFeeDollars = isAcc ? 25 : 0
+  const adminFeeDollars = isAcc ? ACC_PATIENT_CONTRIBUTION_CENTS / 100 : 0
   const paidDollars = isEmployerPaid ? 0
                     : isAcc ? adminFeeDollars
                     : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
@@ -156,7 +157,7 @@ function deriveBilling(consult) {
     const employerName = consult.employer_name || 'your employer'
     reasoning = `This consultation is covered by ${employerName}. No charge to you.`
   } else if (isAcc) {
-    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers the cost of your consultation directly. You have been charged a $20 administrative fee for platform access, prescription processing, and after-hours availability.'
+    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers most of the consultation cost. You have been charged a $25 patient contribution to Tere.'
   } else if (consult.acc_eligible === 'yes') {
     reasoning = 'Your provider assessed the presentation as not covered by ACC. The full consultation fee applies. If you think this should be an ACC claim, message support.'
   } else {

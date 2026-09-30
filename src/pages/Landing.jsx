@@ -152,7 +152,7 @@ function Pricing() {
           One clear price
         </h2>
         <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? Just a NZ$25 co-payment. ACC covers your consultation.
+          ACC-eligible injury? NZ$25 patient contribution. ACC covers the rest, if your claim is accepted.
         </p>
         <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
           Prices in NZD · Visitors and non-residents pay a flat NZ$100 consultation fee.
@@ -293,7 +293,7 @@ function FAQ() {
   const faqs = [
     {
       q: 'Is this ACC-funded?',
-      a: 'Yes. If your condition is the result of an accident or injury, ACC covers most of the cost. You pay a flat NZ$25 co-payment. We handle the ACC claim for you.',
+      a: 'If your condition is the result of an accident or injury and ACC accepts your claim, ACC covers most of the consult cost. You pay a NZ$25 patient contribution to Tere. We lodge the ACC claim during the consultation. If ACC declines cover, our standard consult fee applies.',
     },
     {
       q: 'What can Tere Health treat?',
@@ -301,7 +301,7 @@ function FAQ() {
     },
     {
       q: 'How do I pay?',
-      a: 'Credit or debit card online, processed securely via Windcave. Payment is taken after your consultation is complete. ACC co-payments are charged at the same time.',
+      a: 'Credit or debit card online, processed securely via Windcave. Payment is taken after your consultation is complete. ACC patient contributions are charged at the same time.',
     },
     {
       q: 'Where in NZ do you cover?',

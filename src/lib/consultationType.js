@@ -8,6 +8,14 @@ export function scoreComplaint(complaint, isReturning = false, isAcc = false) {
 
 export const RESERVATION_FEE = 15
 
+// Single source of truth for what an ACC-eligible patient owes Tere.
+// This is Tere's patient contribution, not a regulated ACC amount.
+// If this ever changes, every price constant + copy across the app
+// must move in lockstep — see the pricing audit in
+// [[project-tere-pricing-audit]]. Provider-side chargeCents in
+// ProviderNotes.jsx MUST read from this rather than hardcoding.
+export const ACC_PATIENT_CONTRIBUTION_CENTS = 2500
+
 // Unified pricing — 'consult' replaces the video/phone split (provider picks
 // video vs audio inside the call, patient sees "consult"). Historical rows
 // with consultation_type='video'/'phone' still resolve to the consult price.

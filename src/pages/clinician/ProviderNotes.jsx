@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { ACC_PATIENT_CONTRIBUTION_CENTS } from '../../lib/consultationType'
 import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
 import ConfirmAccModal from '../../components/clinician/ConfirmAccModal'
@@ -992,9 +993,10 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
 
     // Flat pricing — 'consult' unified type is $65; legacy video/phone rows
     // resolve to the same $65. Message stays $25 as an async product. ACC
-    // retains the $25 co-pay pending the ACC-billing overhaul.
+    // patients owe Tere the ACC_PATIENT_CONTRIBUTION_CENTS constant (single
+    // source of truth in src/lib/consultationType.js).
     const METHOD_PRICES = { consult: 6500, video: 6500, phone: 6500, message: 2500, nz_resident: 6500, international: 10000, employee: 0 }
-    const chargeCents   = isAcc ? 2500 : (actualMethod === 'employee' ? 0 : (METHOD_PRICES[actualMethod] || 6500))
+    const chargeCents   = isAcc ? ACC_PATIENT_CONTRIBUTION_CENTS : (actualMethod === 'employee' ? 0 : (METHOD_PRICES[actualMethod] || 6500))
 
     const steps = [
       { label: 'Saving clinical notes',    status: 'pending' },

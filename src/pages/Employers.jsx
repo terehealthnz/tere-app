@@ -290,7 +290,7 @@ function AccAdvantage() {
           ))}
         </div>
         <p style={{ fontSize: '.9375rem', color: 'rgba(255,255,255,.55)', fontFamily: FF, lineHeight: 1.7 }}>
-          For non-ACC consultations (illness, repeat prescriptions), the standard Tere co-payment applies. Employer plans can choose to cover this cost or pass it to the worker.
+          For non-ACC consultations (illness, repeat prescriptions), the standard Tere consultation fee applies. Employer plans can choose to cover this cost or pass it to the worker.
         </p>
       </div>
     </section>

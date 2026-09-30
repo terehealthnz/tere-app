@@ -568,7 +568,7 @@ function AsyncMessageInner() {
               </div>
               <div style={{ padding: '.625rem 1.25rem', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', fontSize: '.7rem', color: 'rgba(212,238,240,.3)' }}>
                 <span>Ref #{refId}</span>
-                <span>{consult?.acc_eligible === 'yes' ? '$62.50 (ACC + co-payment)' : '$25'}</span>
+                <span>$25</span>
               </div>
             </div>
           )}
