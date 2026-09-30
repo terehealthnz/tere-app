@@ -1109,11 +1109,13 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         {/* Pending prescriptions list — DoseSpot-style batch review. Each row
             is a fully-composed draft; provider can remove individual rows
             before firing "Send all". Persists to sessionStorage keyed by
-            consult id so an accidental refresh doesn't lose queued drafts. */}
-        {drafts.length > 0 && (
+            consult id so an accidental refresh doesn't lose queued drafts.
+            Also shows a "current-form" preview row when the send button
+            counts it in, so the header count reconciles with the list. */}
+        {(drafts.length > 0 || (rx.medication || '').trim()) && (
           <div style={{border:'1.5px solid #C7EAEC',background:'#F7FCFC',borderRadius:8,padding:'.75rem',marginBottom:'1rem'}}>
             <div style={{fontSize:'.8125rem',fontWeight:700,color:'#0B6E76',marginBottom:'.5rem'}}>
-              📋 Pending prescriptions ({drafts.length}) — review before sending
+              📋 Pending prescriptions ({drafts.length + ((rx.medication || '').trim() ? 1 : 0)}) — review before sending
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:'.375rem'}}>
               {drafts.map(d => (
@@ -1133,6 +1135,24 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
                   </button>
                 </div>
               ))}
+              {(rx.medication || '').trim() && (
+                <div style={{display:'flex',alignItems:'flex-start',gap:'.5rem',background:'#FFFBEB',padding:'.5rem .625rem',borderRadius:6,border:'1px dashed #F59E0B'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:'.875rem',color:'var(--navy)'}}>
+                      {rx.medication.trim()}
+                      <span style={{fontSize:'.6875rem',fontWeight:600,color:'#92400E',marginLeft:'.5rem',textTransform:'uppercase',letterSpacing:'.03em'}}>in editor</span>
+                    </div>
+                    <div style={{fontSize:'.75rem',color:'var(--muted)',lineHeight:1.4}}>
+                      {(rx.directions || '').trim() || '(no directions yet)'}
+                      {rx.quantity ? ` · Qty ${rx.quantity}` : ''}
+                      {Number(rx.repeats) > 0 ? ` · ${rx.repeats} repeat${Number(rx.repeats) > 1 ? 's' : ''}` : ''}
+                    </div>
+                    <div style={{fontSize:'.6875rem',color:'#92400E',marginTop:2,fontStyle:'italic'}}>
+                      Will be sent with the batch. Click "+ Add to list" first to add another after this one.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {sendProgress && (
               <div style={{fontSize:'.75rem',color:'#0B6E76',marginTop:'.5rem',fontWeight:600}}>

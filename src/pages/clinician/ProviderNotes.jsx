@@ -1033,7 +1033,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           billing_code: durationSec >= 1800 ? 'CS2T' : 'CS1T',
           outcome, status:'complete', completed_at:consult.completed_at || now,
           consultation_duration_seconds:durationSec, consultation_type:actualMethod,
-          payment_amount:chargeCents / 100, is_acc:isAcc,
+          // Stored in cents (integer) to match every other writer of this
+          // column: _windcave-create-session, _async-consult, _convert-to-acc,
+          // NotesCompletion. Prior version divided by 100 which caused the
+          // patient receipt to render "$0.65" (65 dollars ÷ 100).
+          payment_amount:chargeCents, is_acc:isAcc,
           safety_netting_text:        (safetyNetText || '').trim(),
           safety_netting_template_id: safetyNetTemplateId || 'custom',
           safety_netting_at:          now,
