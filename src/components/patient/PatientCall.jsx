@@ -80,6 +80,46 @@ function PatientLeaveButton({ consultationId }) {
     if (hasProvider) everSawProviderRef.current = true
   }, [participants])
 
+  // BELT + BRACES for the LiveKit control-bar disconnect button. CSS in the
+  // LiveKitRoom subtree hides all known variants, but new LiveKit versions
+  // have shipped extra selectors that slip through. This click-capture layer
+  // intercepts any click that lands inside the LiveKit ControlBar on an
+  // element that identifies as a disconnect/leave/hangup control. When
+  // matched, we open the intent modal instead of letting LiveKit's default
+  // handler run.
+  useEffect(() => {
+    const isDisconnectTarget = (el) => {
+      if (!el || !(el instanceof Element)) return false
+      // Walk up 4 levels; LiveKit sometimes wraps the icon in a span inside
+      // the button, so the initial event.target may be the SVG, not the btn.
+      let node = el
+      for (let i = 0; i < 5 && node; i++) {
+        try {
+          const label = (node.getAttribute?.('aria-label') || '').toLowerCase()
+          const src   = (node.getAttribute?.('data-lk-source') || '').toLowerCase()
+          const kind  = (node.getAttribute?.('data-lk-kind') || '').toLowerCase()
+          const cls   = (node.className && node.className.baseVal !== undefined ? node.className.baseVal : node.className) || ''
+          const classStr = typeof cls === 'string' ? cls.toLowerCase() : ''
+          if (src === 'disconnect' || kind === 'disconnect') return true
+          if (classStr.includes('lk-disconnect-button')) return true
+          if (label.includes('disconnect') || label.includes('leave') || label.includes('hang up') || label.includes('end call')) return true
+        } catch {}
+        node = node.parentElement
+      }
+      return false
+    }
+    const onClick = (e) => {
+      if (!isDisconnectTarget(e.target)) return
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      setOpen(true)
+    }
+    // Capture phase so we run before LiveKit's own click handlers.
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [])
+
   async function finish(dest) {
     // Signal intent to the shared flag BEFORE disconnect so the room's
     // onDisconnected handler routes to the same destination we're about to
@@ -590,18 +630,23 @@ export default function PatientCall() {
           navigate(consultationId ? `/waiting/${consultationId}` : '/done')
         }}
       >
-        {/* Hide LiveKit's built-in disconnect button — we replace it with
-            <PatientLeaveButton/> which forces the intent modal (Consult
-            Complete vs No-Provider-Back-to-Queue). Newer LiveKit versions
-            have shipped variants of this button under different selectors,
-            so we cast a wide net. */}
+        {/* Hide LiveKit's built-in Chat + Disconnect buttons in the ControlBar
+            so only Microphone and Camera remain. Patient uses our own top-left
+            Leave button (forces the intent modal). Chat channel is unused on
+            the patient side. Cast a wide net — newer LiveKit versions have
+            shipped variants of these buttons under different selectors. */}
         <style>{`
           .tere-patient-lk .lk-disconnect-button,
           .tere-patient-lk button[data-lk-source="disconnect"],
           .tere-patient-lk .lk-button[data-lk-kind="disconnect"],
           .tere-patient-lk [aria-label*="Disconnect" i],
           .tere-patient-lk [aria-label*="Leave" i],
-          .tere-patient-lk [aria-label*="Hang up" i] {
+          .tere-patient-lk [aria-label*="Hang up" i],
+          .tere-patient-lk [aria-label*="End call" i],
+          .tere-patient-lk .lk-chat-toggle,
+          .tere-patient-lk button[data-lk-source="chat"],
+          .tere-patient-lk .lk-button[data-lk-kind="chat"],
+          .tere-patient-lk [aria-label*="Chat" i] {
             display: none !important;
           }
         `}</style>

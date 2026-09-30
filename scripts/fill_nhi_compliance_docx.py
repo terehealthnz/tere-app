@@ -34,6 +34,7 @@ from docx.shared import Cm, Inches, Pt, RGBColor
 HOME = Path.home()
 DEFAULT_EVIDENCE = HOME / 'Desktop' / 'nhi-compliance-evidence-2026-09-15.json'
 DEFAULT_OUT = HOME / 'Downloads' / 'Tere_NHI_Compliance_Filled.docx'
+NHI_SHOTS = HOME / 'Downloads' / 'nhi-shots'
 
 TEAL = RGBColor(0x0B, 0x6E, 0x76)
 GREY = RGBColor(0x37, 0x41, 0x51)
@@ -42,28 +43,67 @@ RED = RGBColor(0x99, 0x2E, 0x2E)
 # Screenshots (optional). Same pattern as fill_hpi_compliance_docx.py — if a
 # file exists, it's embedded under the answer; if not, a red placeholder is
 # written so the reviewer can see one is expected.
+#
+# All 22 mandatory scenarios now have a hi-res capture in ~/Downloads/nhi-shots/
+# (see rework 2026-09-29). Screenshots 01-11 are Admin panel captures; 14-24
+# are the "HNZ NHI FHIR — live production test" evidence renders that show the
+# full FHIR body + correlation id + userid + x-api-key. 12 stays as
+# Extra-1 (ZXE24NV new-format NHI); 13 is a live-production-verification proof
+# of the demographic-search fix (spare, embedded under General-2 as bonus).
 SCREENSHOT_PATHS = {
-    'admin-nhi-ZJS7596':    HOME / 'Downloads' / 'ZJS7596.png',
-    'admin-nhi-ZAT2348':    HOME / 'Downloads' / 'ZAT2348.png',
-    'admin-nhi-ZAT2496':    HOME / 'Downloads' / 'ZAT2496.png',
-    'admin-nhi-ZAT2518':    HOME / 'Downloads' / 'ZAT2518.png',
-    'admin-nhi-notfound':   HOME / 'Downloads' / 'ZAA0044.png',
-    'admin-nhi-malformed':  HOME / 'Downloads' / '!!invalid!!.png',
-    'admin-nhi-search':     HOME / 'Downloads' / 'Noah Owen.png',
-    'admin-nhi-validate':   HOME / 'Downloads' / 'Jamie Maraka.png',
-    # Additional strengtheners — UI screenshots for scenarios that were
-    # previously JSON-only. Files are optional; missing ones become
-    # [SCREENSHOT PENDING — …] placeholders. Filenames match the button
-    # labels in Admin → NHI Lookup (see Admin.jsx AdminNhiLookupPanel).
-    'admin-nhi-match-err-1': HOME / 'Downloads' / 'Match-Error-1.png',
-    'admin-nhi-match-err-2': HOME / 'Downloads' / 'Match-Error-2.png',
-    'admin-nhi-validate-3':  HOME / 'Downloads' / 'Validate-3.png',
-    'admin-nhi-extra-1':     HOME / 'Downloads' / 'Extra-1-ZXE24NV.png',
+    # Admin-panel captures (01-11)
+    'admin-nhi-ZJS7596':     NHI_SHOTS / '01-nhi-get-1.png',
+    'admin-nhi-ZAT2348':     NHI_SHOTS / '02-nhi-get-2.png',
+    'admin-nhi-ZAT2496':     NHI_SHOTS / '03-nhi-get-4.png',
+    'admin-nhi-ZAT2518':     NHI_SHOTS / '04-nhi-get-5.png',
+    'admin-nhi-notfound':    NHI_SHOTS / '05-nhi-get-negative.png',
+    'admin-nhi-malformed':   NHI_SHOTS / '06-nhi-get-malformed.png',
+    'admin-nhi-search':      NHI_SHOTS / '07-nhi-match-1.png',
+    'admin-nhi-match-err-1': NHI_SHOTS / '08-nhi-match-err-1.png',
+    'admin-nhi-match-err-2': NHI_SHOTS / '09-nhi-match-err-2.png',
+    'admin-nhi-validate':    NHI_SHOTS / '10-nhi-validate-1.png',
+    'admin-nhi-validate-3':  NHI_SHOTS / '11-nhi-validate-3.png',
+    # Extra-1 (new-format NHI ZXE24NV)
+    'admin-nhi-extra-1':     NHI_SHOTS / '12-nhi-extra-1.png',
+    # Live production evidence renders (14-24 — 13 is a spare fix-proof shot)
+    'live-nhi-get-3':        NHI_SHOTS / '14-nhi-get-3.png',
+    'live-nhi-get-6':        NHI_SHOTS / '15-nhi-get-6.png',
+    'live-nhi-get-7':        NHI_SHOTS / '16-nhi-get-7.png',
+    'live-nhi-get-8':        NHI_SHOTS / '17-nhi-get-8.png',
+    'live-nhi-get-9':        NHI_SHOTS / '18-nhi-get-9.png',
+    'live-nhi-get-10a':      NHI_SHOTS / '19-nhi-get-10a.png',
+    'live-nhi-get-10b':      NHI_SHOTS / '20-nhi-get-10b.png',
+    'live-nhi-get-10c':      NHI_SHOTS / '21-nhi-get-10c.png',
+    'live-nhi-match-2':      NHI_SHOTS / '22-nhi-match-2.png',
+    'live-nhi-match-3':      NHI_SHOTS / '23-nhi-match-3.png',
+    # NHI-Match-3 is a 1600 x 17586 mobile-scroll capture (aspect ~11:1). Sizing
+    # the whole thing at max_w=6.2" collapses it to 0.77" wide under the 8.5"
+    # height cap → unreadable in Word. Rework 2026-09-30: pre-sliced into 9
+    # stacked ~1600x2034 tiles (aspect ~1.27:1), each renders at 6.2" wide and
+    # ~7.9" tall (comfortably under 8.5" cap). The 9 slices reproduce the full
+    # 9-entry HNZ Bundle end-to-end with the header block (URL, x-api-key,
+    # correlation ID) on slice 01 and the searchset total=9 footer on slice 09.
+    'live-nhi-match-3-slice-01': NHI_SHOTS / '23-nhi-match-3-slice-01.png',
+    'live-nhi-match-3-slice-02': NHI_SHOTS / '23-nhi-match-3-slice-02.png',
+    'live-nhi-match-3-slice-03': NHI_SHOTS / '23-nhi-match-3-slice-03.png',
+    'live-nhi-match-3-slice-04': NHI_SHOTS / '23-nhi-match-3-slice-04.png',
+    'live-nhi-match-3-slice-05': NHI_SHOTS / '23-nhi-match-3-slice-05.png',
+    'live-nhi-match-3-slice-06': NHI_SHOTS / '23-nhi-match-3-slice-06.png',
+    'live-nhi-match-3-slice-07': NHI_SHOTS / '23-nhi-match-3-slice-07.png',
+    'live-nhi-match-3-slice-08': NHI_SHOTS / '23-nhi-match-3-slice-08.png',
+    'live-nhi-match-3-slice-09': NHI_SHOTS / '23-nhi-match-3-slice-09.png',
+    'live-nhi-validate-2':   NHI_SHOTS / '24-nhi-validate-2.png',
+    # Bonus: live production verification of the demographic-search fix
+    'fix-proof-live':        NHI_SHOTS / '13-fix-proof-live.png',
+    # Patient triage NHI Terms of Use step (General-2)
     'nhi-tou-triage':        HOME / 'Downloads' / 'nhi-tou-triage.png',
 }
 
-# Which scenario id gets which screenshot key + caption.
+# Which scenario id gets which screenshot key + caption. All 22 mandatory
+# scenarios in the evidence JSON are covered — no scenario falls back to the
+# JSON-excerpt-only rendering.
 SCENARIO_SCREENSHOTS = {
+    # Original 11 (Admin panel captures)
     'NHI-GET-1':          [('admin-nhi-ZJS7596',  'Admin NHI Lookup — GET Patient/ZJS7596 (Jamie Susan Maraka, DOB 1977-08-25) — minimum identity fields rendered.')],
     'NHI-GET-2':          [('admin-nhi-ZAT2348',  'Admin NHI Lookup — GET Patient/ZAT2348 (deceased persona) — deceased banner surfaced, onboarding blocked.')],
     'NHI-GET-4':          [('admin-nhi-ZAT2496',  'Admin NHI Lookup — GET Patient/ZAT2496 (partial birthDate "1914") — application handles partial dates without crashing.')],
@@ -75,6 +115,31 @@ SCENARIO_SCREENSHOTS = {
     'NHI-Match-Error-2':  [('admin-nhi-match-err-2', 'Admin NHI Lookup — POST /Patient/$match with birthdate only, no name → 4xx OperationOutcome; input + error surfaced.')],
     'NHI-Validate-1':     [('admin-nhi-validate', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jamie Maraka / ZJS7596 → ✓ VALIDATED, 1 certain match.')],
     'NHI-Validate-3':     [('admin-nhi-validate-3', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jaime Jones / ZJK9604 → empty Bundle (no certain match). Legitimate negative result surfaced cleanly.')],
+    # Extended 11 (live production evidence renders — full FHIR body + correlation id + userid + x-api-key visible)
+    'NHI-GET-3':          [('live-nhi-get-3',      'Live production evidence — GET Patient/ZAT2364 → full HNZ FHIR Patient rendered with correlation id, userid, and x-api-key headers visible.')],
+    'NHI-GET-6':          [('live-nhi-get-6',      'Live production evidence — GET Patient/ZBE4905 → full HNZ FHIR Patient response with headers, timestamp, and HTTP status.')],
+    'NHI-GET-7':          [('live-nhi-get-7',      'Live production evidence — GET Patient/ZUA48EH (new 7-char NHI format) → full HNZ FHIR Patient response, same code path as legacy format.')],
+    'NHI-GET-8':          [('live-nhi-get-8',      'Live production evidence — GET Patient/ZCX7065 → full HNZ FHIR Patient response with correlation id and audit headers.')],
+    'NHI-GET-9':          [('live-nhi-get-9',      'Live production evidence — GET Patient/ZJM9567 → full HNZ FHIR Patient response with correlation id and audit headers.')],
+    'NHI-GET-10a':        [('live-nhi-get-10a',    'Live production evidence — GET Patient/ZAU8023 (surname only) → full HNZ FHIR Patient response.')],
+    'NHI-GET-10b':        [('live-nhi-get-10b',    'Live production evidence — GET Patient/ZAV8657 (surname only) → full HNZ FHIR Patient response.')],
+    'NHI-GET-10c':        [('live-nhi-get-10c',    'Live production evidence — GET Patient/ZHS7524 (multiple given names) → full HNZ FHIR Patient response.')],
+    'NHI-Match-2':        [('live-nhi-match-2',    'Live production evidence — POST /Patient/$match for Summer Barbara MacKenzie → HNZ 422 OperationOutcome ("Date of Birth is required") surfaced verbatim. Marked REVIEW pending scope confirmation.')],
+    # NHI-Match-3: mobile-scroll capture is 11:1 aspect. Rendered as 9 stacked
+    # slices so the full 9-entry Bundle (top result ZMP4241 — Compliance By
+    # Thebook — sorted by descending match score) stays readable in Word.
+    'NHI-Match-3':        [
+        ('live-nhi-match-3-slice-01', 'Live production evidence — POST /Patient/$match for Compliance By Thebook F 2003-07-03 → full HNZ Bundle response (part 1 of 9). Header block: request URL, method, x-api-key, X-Correlation-Id 3603ec84-4ed1-4a2a-bcd9-360b96b8f0e7, and top of entry[0] (top result, highest match score, ZMP4241).'),
+        ('live-nhi-match-3-slice-02', 'Live production evidence — Bundle response (part 2 of 9). Continuation of entry[0]/entry[1] Patient resources with ethnicity, birth-place, citizenship, DHB extensions.'),
+        ('live-nhi-match-3-slice-03', 'Live production evidence — Bundle response (part 3 of 9). Continuation of Patient resources (identifiers, name, address, phone).'),
+        ('live-nhi-match-3-slice-04', 'Live production evidence — Bundle response (part 4 of 9). Further Patient resources with descending match scores.'),
+        ('live-nhi-match-3-slice-05', 'Live production evidence — Bundle response (part 5 of 9). Mid-Bundle Patient resources.'),
+        ('live-nhi-match-3-slice-06', 'Live production evidence — Bundle response (part 6 of 9). Continuing Patient resources.'),
+        ('live-nhi-match-3-slice-07', 'Live production evidence — Bundle response (part 7 of 9). Continuing Patient resources.'),
+        ('live-nhi-match-3-slice-08', 'Live production evidence — Bundle response (part 8 of 9). Continuing Patient resources, approaching lowest match scores.'),
+        ('live-nhi-match-3-slice-09', 'Live production evidence — Bundle response (part 9 of 9). Final Patient resources plus searchset footer with total=9 and Tere-side timing telemetry (total_ns_ms, total_hnz_ms, total_backoff_ms).'),
+    ],
+    'NHI-Validate-2':     [('live-nhi-validate-2', 'Live production evidence — POST /Patient/$match onlyCertainMatches=true for ZJS7596 Jamie Susan Maraka F 1977-08-25 → HNZ Bundle score 999, NhiPatient profile confirmed.')],
 }
 
 
@@ -134,47 +199,93 @@ def add_kv_row(table, key, val, key_bold=True, val_color=TEAL):
     r.font.color.rgb = val_color
 
 
-def add_scenario_row(table, scenario, screenshots=None):
-    """Append a 2-column row: left = HNZ-style prompt block, right = our answer.
+def _embed_bounded(paragraph, img_path, max_w_in=6.2, max_h_in=8.5):
+    """Embed a picture, honouring BOTH a max width and a max page-safe height.
 
-    Answer includes: outcome (PASS/REVIEW/FAIL), timestamp of run, correlation
-    id, HTTP status, body excerpt or error, and (optionally) a screenshot with
-    caption.
+    Root cause of the "screenshots invisible in Word" bug: long screenshots
+    (e.g. 23-nhi-match-3.png at 1600x17586) sized purely by width=6.2" gave a
+    computed height of ~68 inches; Word inlines that as a broken/empty frame
+    on Mac. Cap height at max_h_in and pick whichever dimension gives the
+    smaller scale so the image always fits on a single A4 page.
     """
-    row = table.add_row()
-    left, right = row.cells
+    try:
+        from PIL import Image as _PILImage
+        with _PILImage.open(str(img_path)) as im:
+            w_px, h_px = im.size
+    except Exception:
+        # PIL not available or read failed — fall back to width-only sizing.
+        paragraph.add_run().add_picture(str(img_path), width=Inches(max_w_in))
+        return
+    aspect = h_px / max(w_px, 1)
+    w_by_w = max_w_in
+    h_by_w = max_w_in * aspect
+    if h_by_w <= max_h_in:
+        paragraph.add_run().add_picture(str(img_path), width=Inches(w_by_w))
+    else:
+        # height-constrained
+        paragraph.add_run().add_picture(str(img_path), height=Inches(max_h_in))
 
-    # ── Left cell: Ref / Purpose / Expected ───────────────────────────────
+
+def add_scenario_row(table, scenario, screenshots=None):
+    """Append stacked full-width rows: prompt on its own row above answer+evidence.
+
+    Row 1 (full width): HNZ-style prompt block (Ref / Purpose / Expected / URL / correlation).
+    Row 2 (full width): our answer — outcome (PASS/REVIEW/FAIL), timestamp of run,
+                        HTTP status, body excerpt or error, and (mandatory for the
+                        22 compliance scenarios) a hi-res screenshot with caption.
+
+    The table is created as a single-column layout by the caller; each row here
+    merges (or just uses) that single cell so both prompt and answer render at
+    the full page width. This gives the embedded screenshots room to breathe at
+    6.2 inches wide (approx. 15.7 cm at 96 dpi) instead of the 3.3-inch cramped
+    side-by-side layout used previously.
+    """
+
+    # ── Prompt row (full-width) ───────────────────────────────────────────
+    prompt_row = table.add_row()
+    prompt_cell = prompt_row.cells[0]
+    # If the table was built with 2 cols the caller can still call in — merge
+    # so the prompt spans the full width.
+    if len(prompt_row.cells) > 1:
+        prompt_cell = prompt_cell.merge(prompt_row.cells[-1])
+    set_cell_shading(prompt_cell, 'F5F8F9')
+
     ref_id = scenario['name'].split(':', 1)[0].strip()
-    p = left.paragraphs[0]
-    r = p.add_run(f'Ref#: {ref_id}\n')
+    p = prompt_cell.paragraphs[0]
+    r = p.add_run(f'Ref#: {ref_id}')
     r.bold = True
-    r.font.size = Pt(11)
+    r.font.size = Pt(12)
+    r.font.color.rgb = TEAL
 
-    left.add_paragraph().add_run('Purpose:').bold = True
-    left.add_paragraph(scenario['purpose'])
+    prompt_cell.add_paragraph().add_run('Purpose:').bold = True
+    prompt_cell.add_paragraph(scenario['purpose'])
 
     exp = scenario.get('expected') or {}
-    left.add_paragraph().add_run('Expected outcome:').bold = True
+    prompt_cell.add_paragraph().add_run('Expected outcome:').bold = True
     exp_line = exp.get('description') or json.dumps(exp)
-    left.add_paragraph(exp_line)
+    prompt_cell.add_paragraph(exp_line)
 
     req = scenario.get('request') or {}
     if req.get('url'):
-        left.add_paragraph().add_run('Request URL:').bold = True
-        u = left.add_paragraph(req['url'])
+        prompt_cell.add_paragraph().add_run('Request URL:').bold = True
+        u = prompt_cell.add_paragraph(req['url'])
         for run in u.runs:
             run.font.size = Pt(8)
             run.font.color.rgb = GREY
     if req.get('correlation_id'):
-        cid = left.add_paragraph()
+        cid = prompt_cell.add_paragraph()
         r_c = cid.add_run(f'X-Correlation-Id: {req["correlation_id"]}')
         r_c.font.size = Pt(8)
         r_c.font.color.rgb = GREY
 
-    # ── Right cell: outcome + response + screenshot ───────────────────────
+    # ── Answer row (full-width) ───────────────────────────────────────────
+    ans_row = table.add_row()
+    ans_cell = ans_row.cells[0]
+    if len(ans_row.cells) > 1:
+        ans_cell = ans_cell.merge(ans_row.cells[-1])
+
     outcome = scenario.get('outcome', 'FAIL')
-    ans = right.paragraphs[0]
+    ans = ans_cell.paragraphs[0]
     tag = {'PASS': '✓ PASS', 'REVIEW': '⚠ REVIEW', 'FAIL': '✗ FAIL'}[outcome]
     tag_color = {'PASS': TEAL, 'REVIEW': RED, 'FAIL': RED}[outcome]
     r_tag = ans.add_run(tag)
@@ -185,12 +296,12 @@ def add_scenario_row(table, scenario, screenshots=None):
     resp = scenario.get('response') or {}
     status = resp.get('status')
     duration = scenario.get('duration_ms')
-    right.add_paragraph().add_run(
+    ans_cell.add_paragraph().add_run(
         f'HTTP {status}  ·  {duration} ms  ·  captured {datetime.now().strftime("%Y-%m-%d %H:%M NZST")}'
     ).font.size = Pt(9)
 
     if outcome == 'REVIEW':
-        note = right.add_paragraph()
+        note = ans_cell.add_paragraph()
         n = note.add_run(
             'Notes for HNZ: HIP AWS Gateway returned 403 for this operation with '
             '"Invalid key=value pair (missing equal-sign) in Authorization header". '
@@ -204,15 +315,15 @@ def add_scenario_row(table, scenario, screenshots=None):
         n.font.color.rgb = RED
 
     if resp.get('body_excerpt'):
-        right.add_paragraph().add_run('Response body (excerpt):').bold = True
-        body_p = right.add_paragraph(resp['body_excerpt'][:1500])
+        ans_cell.add_paragraph().add_run('Response body (excerpt):').bold = True
+        body_p = ans_cell.add_paragraph(resp['body_excerpt'][:1500])
         for run in body_p.runs:
             run.font.size = Pt(8)
             run.font.color.rgb = GREY
 
     if scenario.get('error'):
-        right.add_paragraph().add_run('Error:').bold = True
-        e_p = right.add_paragraph(scenario['error'])
+        ans_cell.add_paragraph().add_run('Error:').bold = True
+        e_p = ans_cell.add_paragraph(scenario['error'])
         for run in e_p.runs:
             run.font.color.rgb = RED
 
@@ -220,14 +331,14 @@ def add_scenario_row(table, scenario, screenshots=None):
         for key, caption in screenshots:
             img_path = SCREENSHOT_PATHS.get(key)
             if not img_path or not img_path.exists():
-                miss = right.add_paragraph()
+                miss = ans_cell.add_paragraph()
                 m = miss.add_run(f'[SCREENSHOT PENDING — {caption}]')
                 m.italic = True
                 m.font.color.rgb = RED
                 continue
-            p_img = right.add_paragraph()
-            p_img.add_run().add_picture(str(img_path), width=Inches(3.3))
-            cap = right.add_paragraph()
+            p_img = ans_cell.add_paragraph()
+            _embed_bounded(p_img, img_path, max_w_in=6.2, max_h_in=8.5)
+            cap = ans_cell.add_paragraph()
             r_c = cap.add_run(f'Fig: {caption}')
             r_c.italic = True
             r_c.font.color.rgb = GREY
@@ -430,11 +541,16 @@ def build(evidence: dict, out_path: Path) -> None:
     # ── Header identity block (matches HPI top-of-doc lines) ──────────────
     doc.add_paragraph()  # spacer
     prod = evidence.get('product') or {}
+    # Cover-page "Report re-rendered" date tracks the docx build (today),
+    # distinct from the "Testing start date and time" row below which tracks
+    # the underlying evidence capture (generated_at in the JSON).
+    today_nz = datetime.now().strftime('%Y-%m-%d')
     for line in [
         f'Organisation: {prod.get("organisation", "Tere Health Limited")}',
         f'Application: Tere Health (nationwide telehealth platform)',
         f'Org ID: {prod.get("organisation_id", "G11238-E")}',
         f'App ID: {prod.get("product_id", "HSAPP0404")}',
+        f'Report re-rendered: {today_nz}',
     ]:
         p = doc.add_paragraph()
         r = p.add_run(line)
@@ -547,7 +663,7 @@ def build(evidence: dict, out_path: Path) -> None:
         p_cap_hdr = doc.add_paragraph()
         p_cap_hdr.add_run('General-2 UI evidence — NHI Terms of Use step in patient triage:').bold = True
         p_img = doc.add_paragraph()
-        p_img.add_run().add_picture(str(tou_img), width=Inches(5.5))
+        _embed_bounded(p_img, tou_img, max_w_in=5.5, max_h_in=8.5)
         p_cap = doc.add_paragraph()
         r_c = p_cap.add_run('Fig: The nhi_tou consent step appearing in patient triage on prod. Message explicitly cites HNZ NHI Terms of Use link and offers Yes/No; both answers persist to consents table as consent_type=\'nhi_terms_of_use\'.')
         r_c.italic = True
@@ -590,10 +706,13 @@ def build(evidence: dict, out_path: Path) -> None:
         add_heading(doc, group_name, level=2)
         for sc in group_scenarios:
             ref = sc['name'].split(':', 1)[0].strip()
-            t = doc.add_table(rows=0, cols=2)
+            # Single-column full-width table — add_scenario_row appends a
+            # prompt row and an answer row, both spanning the full page width
+            # so the embedded hi-res screenshots render at 6.2".
+            t = doc.add_table(rows=0, cols=1)
             t.style = 'Table Grid'
             t.autofit = False
-            set_col_widths(t, [3.3, 3.7])
+            set_col_widths(t, [7.0])
             add_scenario_row(t, sc, screenshots=SCENARIO_SCREENSHOTS.get(ref))
             doc.add_paragraph()  # spacer
 
@@ -629,7 +748,7 @@ def build(evidence: dict, out_path: Path) -> None:
         p_cap_hdr = doc.add_paragraph()
         p_cap_hdr.add_run('NHI-Extra-1 UI evidence — new-format NHI ZXE24NV:').bold = True
         p_img = doc.add_paragraph()
-        p_img.add_run().add_picture(str(extra1_img), width=Inches(5.5))
+        _embed_bounded(p_img, extra1_img, max_w_in=5.5, max_h_in=8.5)
         p_cap = doc.add_paragraph()
         r_c = p_cap.add_run('Fig: Admin NHI Lookup — GET Patient/ZXE24NV (new 7-char format) — Patient resource rendered by the same code path as legacy 7-char format, no format-specific branching.')
         r_c.italic = True
