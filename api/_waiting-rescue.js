@@ -59,11 +59,21 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, alreadyWaiting: true, status: consult.status })
     }
 
-    // Only rescue statuses that are safe to flip back. In particular, we
-    // do NOT rescue 'in_progress' (provider actively working) or 'complete'/
-    // 'cancelled' (terminal). Draft/waitlisted/waiting-ish orphans get pulled
-    // back into the queue.
-    const RESCUABLE = new Set(['draft', 'waitlisted', 'vitals_requested', 'vitals_complete', 'ready'])
+    // Statuses safe to flip back to 'waiting'. Includes the "provider
+    // closed the case" trio (expired = Dismiss button, no_show = No Answer,
+    // cancelled = provider cancel) because the patient explicitly hitting
+    // "Try to rejoin the queue" is a clear signal they still want to be
+    // seen. They've already paid and triaged — forcing them through both
+    // again for a mistaken/stale close is bad UX and loses paying patients.
+    //
+    // NOT rescuable: 'in_progress' (provider actively working — would
+    // double-book), 'complete'/'notes' (finished — need a new consult),
+    // 'abandoned' (auto-lock-release marker — code path currently unused
+    // but reserved).
+    const RESCUABLE = new Set([
+      'draft', 'waitlisted', 'vitals_requested', 'vitals_complete', 'ready',
+      'expired', 'no_show', 'cancelled',
+    ])
     if (!RESCUABLE.has(consult.status)) {
       return res.status(409).json({
         error: `Cannot rejoin queue from status "${consult.status}"`,
@@ -72,9 +82,15 @@ export default async function handler(req, res) {
     }
 
     // Draft with no payment attached can't be rescued — a scraper could
-    // otherwise page providers without paying.
+    // otherwise page providers without paying. For 'expired' etc, the
+    // payment was already authorised before the provider closed the case,
+    // so we skip this check for those (payment_intent_id on the row is
+    // the proof).
     if (consult.status === 'draft' && consult.payment_status !== 'authorised') {
       return res.status(400).json({ error: 'Payment not confirmed yet — try again in a minute.' })
+    }
+    if (['expired', 'no_show', 'cancelled'].includes(consult.status) && !consult.payment_intent_id) {
+      return res.status(400).json({ error: 'This consult has no payment on file and cannot be re-opened. Please start a new consultation.' })
     }
 
     const { error: updateErr } = await supabase
