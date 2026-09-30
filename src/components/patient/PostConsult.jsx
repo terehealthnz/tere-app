@@ -149,9 +149,18 @@ function deriveBilling(consult) {
                   : 6500
   const feeDollars = feeCents / 100
   const adminFeeDollars = isAcc ? ACC_PATIENT_CONTRIBUTION_CENTS / 100 : 0
+  // Prefer the actual settled amount from Windcave complete. In prod this
+  // equals the quoted price ($25 / $65 / $100), so nothing changes visually
+  // — but it prevents the test-mode $0.10 capture from being rendered as
+  // "$65" and prevents any future price-vs-capture drift from being wrong.
+  const capturedDollars = consult.payment_captured_amount_cents != null
+    ? consult.payment_captured_amount_cents / 100
+    : null
   const paidDollars = isEmployerPaid ? 0
-                    : isAcc ? adminFeeDollars
-                    : (consult.payment_amount != null ? consult.payment_amount / 100 : feeDollars)
+                    : isAcc ? (capturedDollars != null ? capturedDollars : adminFeeDollars)
+                    : (capturedDollars != null ? capturedDollars
+                        : consult.payment_amount != null ? consult.payment_amount / 100
+                        : feeDollars)
   let reasoning = null
   if (isEmployerPaid) {
     const employerName = consult.employer_name || 'your employer'

@@ -118,6 +118,10 @@ const PATIENT_VIEW_COLUMNS = [
   // Post-consult billing surface — patient reads these to render the
   // insurance-receipt upsell and its "already purchased" state.
   'is_acc', 'acc_eligible', 'acc_claim_number', 'payment_amount',
+  // Actual settled amount from Windcave complete — patient's /done receipt
+  // prefers this over payment_amount (quoted) so test-mode $0.10 captures
+  // don't render "$65". In prod the two match.
+  'payment_captured_amount_cents', 'payment_captured_at',
   'insurance_receipt_purchased_at',
 ].join(',')
 

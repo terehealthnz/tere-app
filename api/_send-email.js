@@ -168,14 +168,23 @@ export default async function handler(req, res) {
       const { createClient } = await import('@supabase/supabase-js')
       const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
       const { data: row } = await sb.from('consultations')
-        .select('payment_amount, is_acc, consultation_type, employer_paid, employer_name, acc_claim_number')
+        .select('payment_amount, payment_captured_amount_cents, is_acc, consultation_type, employer_paid, employer_name, acc_claim_number')
         .eq('id', consultationId).single()
       if (row) {
         const isAcc = row.is_acc === true
         const isEmployerPaid = row.consultation_type === 'employee' || row.employer_paid === true
+        // Prefer the actual captured amount from Windcave settlement over the
+        // quoted payment_amount. Test-mode caps the capture to the $0.10 auth
+        // ceiling — patient shouldn't see "$65 NZD" in the email when only
+        // 10¢ moved. Fall back to payment_amount for consults that haven't
+        // captured yet (async message, employer_paid, pre-capture drafts).
+        const capturedDollars = row.payment_captured_amount_cents != null
+          ? row.payment_captured_amount_cents / 100
+          : null
+        const quotedDollars = row.payment_amount != null ? row.payment_amount / 100 : 0
         const paidDollars = isEmployerPaid ? 0
-                          : isAcc ? 25
-                          : (row.payment_amount != null ? row.payment_amount / 100 : 0)
+                          : isAcc ? (capturedDollars != null ? capturedDollars : 25)
+                          : (capturedDollars != null ? capturedDollars : quotedDollars)
         billing = {
           paidDollars,
           isAcc,
