@@ -312,6 +312,19 @@ export default async function handler(req, res) {
   if (error) { console.error('[patient-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   if (!data)  return res.status(404).json({ error: 'Consultation not found' })
 
+  // Fire on-call SMS if this PATCH just flipped the consult into the queue.
+  // employer_paid path lands here (create-consultation inserts as
+  // 'vitals_requested', then WaitingRoom PATCHes to 'waiting' post-vitals).
+  // The paying-patient path goes through windcave-fprn instead.
+  if (patch.status === 'waiting') {
+    try {
+      const { notifyOnCallProviders } = await import('./_notify-on-call.js')
+      notifyOnCallProviders({ consultationId: id }).catch(() => {})
+    } catch (e) {
+      console.error('[patient-consult] notify-on-call import failed:', e?.message || e)
+    }
+  }
+
   // If the patient changed pharmacy on this consult, propagate to their
   // patient profile so it becomes the default next visit. Best-effort — a
   // failure here doesn't roll back the consultation update.
