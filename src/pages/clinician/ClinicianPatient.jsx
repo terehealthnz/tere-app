@@ -1085,12 +1085,20 @@ export default function ClinicianPatient() {
         </>
         })()}
 
-        {/* Past Tere consultations */}
-        {history.length > 0 && (
-          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
-            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>
-              Past Tere consultations ({history.length})
+        {/* Past Tere consultations — renders always (with a "None on record"
+            empty state) so the provider always sees the section header and
+            knows where prior encounters land. Previously hidden entirely on
+            empty which made new patients look like their chart was missing a
+            key surface. */}
+        <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+          <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>
+            📋 Past Tere consultations{history.length > 0 ? ` (${history.length})` : ''}
+          </div>
+          {history.length === 0 ? (
+            <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic' }}>
+              None on record — this is the patient's first Tere consult.
             </div>
+          ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {history.map(c => {
                 const cv = c.vitals

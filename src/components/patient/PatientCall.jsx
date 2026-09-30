@@ -3,6 +3,14 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LiveKitRoom, VideoConference, useRoomContext, useParticipants } from '@livekit/components-react'
 import '@livekit/components-styles'
 
+// Shared intent flag consumed by <LiveKitRoom onDisconnected>. Any code path
+// that deliberately tears down the call sets this to 'done' or 'waiting'
+// BEFORE calling room.disconnect(). If the room disconnects without one of
+// those flags (e.g. LiveKit's built-in disconnect button slipped past our
+// CSS, network death), we default to /waiting/:id — safer than /done which
+// declares the consult complete + fires the provider-side wrap-up cascade.
+let __tereLeaveIntent = null
+
 // Auto-leave when the provider disconnects. LiveKit's onDisconnected only
 // fires when THIS client leaves, so without this watcher the patient sits
 // alone in a live room with mic + camera still hot after the provider ends
@@ -26,6 +34,9 @@ function ProviderLeaveWatcher() {
         pending = null
         try {
           if (!room.remoteParticipants || room.remoteParticipants.size === 0) {
+            // Provider intentionally left after the grace window — treat
+            // this as end-of-consult so onDisconnected routes to /done.
+            __tereLeaveIntent = 'done'
             room.disconnect()
           }
         } catch (e) { console.warn('[PatientCall] auto-leave failed:', e?.message) }
@@ -70,6 +81,11 @@ function PatientLeaveButton({ consultationId }) {
   }, [participants])
 
   async function finish(dest) {
+    // Signal intent to the shared flag BEFORE disconnect so the room's
+    // onDisconnected handler routes to the same destination we're about to
+    // navigate to. Without this the handler falls back to /waiting/:id and
+    // stomps our navigate() call.
+    __tereLeaveIntent = dest.startsWith('/waiting') ? 'waiting' : 'done'
     try { await room?.disconnect?.() } catch {}
     navigate(dest)
   }
@@ -249,9 +265,14 @@ export default function PatientCall() {
   useEffect(() => {
     if (!consultationId) return
     const ch = subscribeToConsultationEnded(consultationId, (payload) => {
+      // Signal intent so the LiveKitRoom's onDisconnected (which fires when
+      // this component unmounts) routes to the same destination — otherwise
+      // it defaults to /waiting and stomps our navigate.
       if (payload?.reason === 'call_failed') {
+        __tereLeaveIntent = 'waiting'
         navigate(`/waiting/${consultationId}`)
       } else {
+        __tereLeaveIntent = 'done'
         navigate('/done')
       }
     })
@@ -555,14 +576,35 @@ export default function PatientCall() {
         // of hard-freezing the whole call.
         adaptiveStream
         dynacast
-        onDisconnected={() => navigate('/done')}
+        onDisconnected={() => {
+          // Read + clear the shared intent flag. If a deliberate leave path
+          // (PatientLeaveButton or ProviderLeaveWatcher) set the flag before
+          // calling room.disconnect(), respect it. Otherwise default to
+          // /waiting/:id so a stray disconnect (LiveKit control bar, network
+          // death, tab background-kill) doesn't accidentally declare the
+          // consult complete + fire the provider's wrap-up cascade.
+          const intent = __tereLeaveIntent
+          __tereLeaveIntent = null
+          if (intent === 'done') return navigate('/done')
+          if (intent === 'waiting') return navigate(`/waiting/${consultationId}`)
+          navigate(consultationId ? `/waiting/${consultationId}` : '/done')
+        }}
       >
-        {/* Hide LiveKit's built-in Leave button — we replace it with
+        {/* Hide LiveKit's built-in disconnect button — we replace it with
             <PatientLeaveButton/> which forces the intent modal (Consult
-            Complete vs No-Provider-Back-to-Queue). Without this the raw
-            LiveKit button would silently disconnect → /done, bypassing the
-            queue-restoration path when the provider never showed. */}
-        <style>{`.tere-patient-lk .lk-disconnect-button, .tere-patient-lk button[data-lk-source="disconnect"] { display: none !important; }`}</style>
+            Complete vs No-Provider-Back-to-Queue). Newer LiveKit versions
+            have shipped variants of this button under different selectors,
+            so we cast a wide net. */}
+        <style>{`
+          .tere-patient-lk .lk-disconnect-button,
+          .tere-patient-lk button[data-lk-source="disconnect"],
+          .tere-patient-lk .lk-button[data-lk-kind="disconnect"],
+          .tere-patient-lk [aria-label*="Disconnect" i],
+          .tere-patient-lk [aria-label*="Leave" i],
+          .tere-patient-lk [aria-label*="Hang up" i] {
+            display: none !important;
+          }
+        `}</style>
         <ProviderLeaveWatcher />
         <PatientLeaveButton consultationId={consultationId} />
         <VideoConference />
