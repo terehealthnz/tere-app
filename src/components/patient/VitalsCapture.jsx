@@ -561,20 +561,29 @@ export default function VitalsCapture() {
     navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
   }
 
-  async function skip() {
+  async function skip(reason = 'user_declined') {
     try {
       const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
       if (cId && !cId.startsWith('demo')) {
         await patientUpdateConsultation(cId, {
           status: 'vitals_complete',
-          vitals: { skipped: true },
+          vitals: { skipped: true, skip_reason: reason, skipped_at: new Date().toISOString() },
           vitals_at: new Date().toISOString(),
         })
       } else {
-        sessionStorage.setItem('vitals', JSON.stringify({ skipped: true }))
+        sessionStorage.setItem('vitals', JSON.stringify({ skipped: true, skip_reason: reason }))
       }
     } catch {}
     navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
+  }
+
+  // Patient refuses vitals capture entirely. Documents the refusal on
+  // the consult (vitals.skipped=true, skip_reason='patient_refused') so
+  // the provider chart shows "Patient declined vitals" instead of an
+  // empty vitals panel. See EncounterActionBar / ClinicianPatient render.
+  function skipRefused() {
+    if (!window.confirm("Skip vitals for this consultation? The provider will see 'Patient declined vitals' on the chart.")) return
+    skip('patient_refused')
   }
 
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
@@ -979,6 +988,20 @@ export default function VitalsCapture() {
               {(uiState === STATES.ERROR || uiState === STATES.DONE) && (
                 <button className="btn btn-secondary btn-full" onClick={() => setManualMode(true)}>
                   {t.enterManual}
+                </button>
+              )}
+
+              {/* Patient-refuses-vitals escape hatch. Small text link so it
+                  doesn't compete with the primary capture flow, but always
+                  present so vitals is never a hard blocker. Documents the
+                  refusal on the consult record. */}
+              {uiState !== STATES.MEASURING && !manualMode && (
+                <button
+                  type="button"
+                  onClick={skipRefused}
+                  style={{ background:'none', border:'none', color:'#6B7280', fontSize:'.8125rem', textDecoration:'underline', cursor:'pointer', padding:'.5rem', marginTop:'.25rem' }}
+                >
+                  Skip — I don't want to do vitals
                 </button>
               )}
 
