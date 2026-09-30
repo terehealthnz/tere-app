@@ -11,7 +11,12 @@
 // SW version bump triggers activate() which combined with the
 // controllerchange listener in src/main.jsx forces the client to reload
 // with the new bundle within one open-cycle of the app.
-const CACHE = 'tere-v10'
+// v10→v11: launch-eve bundle push 2026-09-30. Forces every installed PWA
+// to pick up the queue-visibility gate (in_waiting_room PATCH from
+// WaitingRoom mount), patient Leave modal, and Video widget mount fixes
+// on next foreground. Without this bump, PWAs keep serving the pre-
+// launch bundle until the user manually re-installs the app.
+const CACHE = 'tere-v11'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 
