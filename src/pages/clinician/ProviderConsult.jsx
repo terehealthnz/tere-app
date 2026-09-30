@@ -136,7 +136,7 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
 // server ALSO dedups against a live sip-patient-* participant (guard A) so
 // tab-races can't double-dial. Only mounted when isPhone === false —
 // the Phone button already fired SIP immediately at call start.
-function SipFallbackTimer({ consultationId, delayMs = 15000 }) {
+function SipFallbackTimer({ consultationId, delayMs = 25000 }) {
   const participants = useParticipants()
   const firedRef = useRef(false)
   const timerRef = useRef(null)
@@ -268,7 +268,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // the LiveKit room. Drives the 90s "Return to queue" button.
   const [patientHere, setPatientHere]   = useState(false)
   const markPatientHere = useCallback(() => setPatientHere(true), [])
-  // Auto-fallback: if the patient hasn't joined the LiveKit room within 15s
+  // Auto-fallback: if the patient hasn't joined the LiveKit room within 25s
   // of the call starting, we silently trigger a SIP dial to their phone. Both
   // pathways join the same LiveKit room, so whichever connects first wins.
   // `sipFallbackFired` prevents us dialling more than once.
@@ -1061,7 +1061,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
-                {!isPhone && <SipFallbackTimer consultationId={id} delayMs={15000} />}
+                {!isPhone && <SipFallbackTimer consultationId={id} delayMs={25000} />}
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
