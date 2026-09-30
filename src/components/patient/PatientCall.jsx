@@ -630,11 +630,11 @@ export default function PatientCall() {
           navigate(consultationId ? `/waiting/${consultationId}` : '/done')
         }}
       >
-        {/* Hide LiveKit's built-in Chat + Disconnect buttons in the ControlBar
-            so only Microphone and Camera remain. Patient uses our own top-left
-            Leave button (forces the intent modal). Chat channel is unused on
-            the patient side. Cast a wide net — newer LiveKit versions have
-            shipped variants of these buttons under different selectors. */}
+        {/* Hide LiveKit's built-in Disconnect button so only Microphone,
+            Camera + Chat remain. Patient uses our own top-left Leave button
+            (forces the intent modal so a stray click can't skip the "no
+            doctor came back" path). Cast a wide net — newer LiveKit versions
+            have shipped variants of this button under different selectors. */}
         <style>{`
           .tere-patient-lk .lk-disconnect-button,
           .tere-patient-lk button[data-lk-source="disconnect"],
@@ -642,11 +642,7 @@ export default function PatientCall() {
           .tere-patient-lk [aria-label*="Disconnect" i],
           .tere-patient-lk [aria-label*="Leave" i],
           .tere-patient-lk [aria-label*="Hang up" i],
-          .tere-patient-lk [aria-label*="End call" i],
-          .tere-patient-lk .lk-chat-toggle,
-          .tere-patient-lk button[data-lk-source="chat"],
-          .tere-patient-lk .lk-button[data-lk-kind="chat"],
-          .tere-patient-lk [aria-label*="Chat" i] {
+          .tere-patient-lk [aria-label*="End call" i] {
             display: none !important;
           }
         `}</style>
