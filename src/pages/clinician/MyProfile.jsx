@@ -52,6 +52,14 @@ const SECTIONS = [
       { key: 'gst_number',  label: 'GST number',     placeholder: '123-456-789' },
     ],
   },
+  {
+    title: 'On-call SMS',
+    subtitle: 'Get a text when a new patient enters the queue. Toggle also lives in the top nav so you can flip it during a shift. Only fires 08:00-20:00 NZT, rate-limited to 1 text per 10 minutes. No patient info in the SMS.',
+    fields: [
+      { key: 'mobile_phone', label: 'Mobile number',   placeholder: '02x xxx xxxx' },
+      { key: 'sms_on_call',  label: 'Text me when a new patient enters the queue', type: 'checkbox' },
+    ],
+  },
 ]
 
 export default function MyProfile() {
@@ -68,7 +76,7 @@ export default function MyProfile() {
     if (!providerId) { navigate('/clinician'); return }
     ;(async () => {
       try {
-        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,hpi_number,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type'
+        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,hpi_number,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type,mobile_phone,sms_on_call'
         const r = await apiFetch(`/api/providers?id=${providerId}&columns=${encodeURIComponent(cols)}`)
         if (!r.ok) throw new Error(`Load failed (${r.status})`)
         const j = await r.json()

@@ -24,6 +24,73 @@ const STATUS_COLOR = { waiting:'#F59E0B', vitals_requested:'#0B6E76', vitals_com
 const STATUS_LABEL = { waiting:'Waiting', vitals_requested:'Vitals pending', vitals_complete:'Vitals ready', ready:'Ready', in_progress:'In progress' }
 const TYPE_CFG     = { video:{icon:'📹',label:'Video',c:'#0B6E76'}, phone:{icon:'📞',label:'Phone',c:'#7C3AED'}, message:{icon:'💬',label:'Message',c:'#D97706'} }
 
+// On-call SMS self-toggle in the top nav. Reads + writes providers.sms_on_call
+// via /api/providers PATCH. Requires a mobile_phone on the provider row —
+// prompts a jump to MyProfile if missing. Notifications only fire 08:00-20:00
+// NZT server-side (see api/_notify-on-call.js).
+function OnCallChip({ providerId }) {
+  const navigate = useNavigate()
+  const [on, setOn] = useState(null) // null = loading, true/false = known
+  const [hasPhone, setHasPhone] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!providerId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await apiFetch(`/api/providers?id=${providerId}&columns=sms_on_call,mobile_phone`)
+        if (!r.ok) return
+        const j = await r.json()
+        const row = j.provider || j.providers?.[0]
+        if (cancelled || !row) return
+        setOn(!!row.sms_on_call)
+        setHasPhone(!!(row.mobile_phone && String(row.mobile_phone).trim()))
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [providerId])
+
+  async function toggle() {
+    if (saving) return
+    // No phone on file — send them to profile to add one before enabling.
+    if (!hasPhone && !on) {
+      if (window.confirm('Add a mobile number in My profile first?')) {
+        navigate('/clinician/profile')
+      }
+      return
+    }
+    const next = !on
+    setSaving(true)
+    setOn(next)  // optimistic
+    try {
+      const r = await apiFetch(`/api/providers?id=${providerId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sms_on_call: next }),
+      })
+      if (!r.ok) throw new Error('save failed')
+    } catch {
+      setOn(!next)  // rollback
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (on === null) return null  // hide until loaded
+  const label = on ? '📱 SMS on' : '📱 SMS off'
+  const bg    = on ? 'rgba(16,185,129,.18)' : 'rgba(255,255,255,.1)'
+  const brd   = on ? 'rgba(16,185,129,.5)'   : 'rgba(255,255,255,.18)'
+  const clr   = on ? '#6EE7B7'               : 'rgba(255,255,255,.85)'
+  return (
+    <button onClick={toggle} disabled={saving}
+      title={on ? 'Turn off SMS pings when patients enter the queue' : 'Get an SMS when a new patient enters the queue (08:00-20:00 NZT)'}
+      style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:bg, border:`1px solid ${brd}`, color:clr, fontSize:'.75rem', cursor: saving ? 'wait' : 'pointer', fontFamily:FF, minHeight:34, flexShrink:0, fontWeight:600 }}>
+      {label}
+    </button>
+  )
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(d) {
@@ -1422,6 +1489,7 @@ export default function ProviderApp() {
       <div style={{ background:NAVY, paddingTop:'calc(.875rem + env(safe-area-inset-top))', paddingBottom:'.875rem', paddingLeft:'1.25rem', paddingRight:'1.25rem', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
         <span style={{ fontFamily:'Cormorant Garamond,Georgia,serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.4rem', letterSpacing:'.06em' }}>Tere</span>
         <div style={{ display:'flex', alignItems:'center', gap:'.5rem' }}>
+          <OnCallChip providerId={providerId} />
           <button onClick={() => navigate('/clinician/profile')}
             title="Edit my profile"
             style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:8, background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.18)', color:'rgba(255,255,255,.85)', fontSize:'.75rem', cursor:'pointer', fontFamily:FF, minHeight:34, flexShrink:0 }}>

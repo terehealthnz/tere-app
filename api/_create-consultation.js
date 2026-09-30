@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js'
 import { aiCallJSON } from './_ai.js'
 import { mintAndAttachToken } from './_patient-token.js'
 import { PROMPT_SAFETY_PREAMBLE, wrapFields } from './_prompt-safety.js'
+import { notifyOnCallProviders } from './_notify-on-call.js'
 
 // Free-text triage fields we want stored in English so the provider chart,
 // note generation, ACC/GP letters, and downstream audit trail all read in
@@ -287,6 +288,11 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server error' })
       }
       const retryToken = await mintAndAttachToken(supabase, retry.data.id)
+      // Fire on-call SMS if this consult lands straight in the queue
+      // (employer-paid path — paying patients still have to pass Windcave).
+      if (retry.data.status === 'waiting') {
+        notifyOnCallProviders({ consultationId: retry.data.id }).catch(() => {})
+      }
       return res.status(200).json({ consultation: { ...retry.data, patient_access_token: retryToken }, patient_access_token: retryToken })
     }
     console.error('[create-consultation] error failed:', error)
@@ -296,6 +302,12 @@ export default async function handler(req, res) {
   // the patient client. Pen-test M-5. Returned both at the top level and
   // nested on the consultation object for caller convenience.
   const patientToken = await mintAndAttachToken(supabase, data.id)
+  // Fire on-call SMS if this consult lands straight in the queue (employer-
+  // paid path). Paying patients hit windcave-fprn to flip to 'waiting' and
+  // fire from there.
+  if (data.status === 'waiting') {
+    notifyOnCallProviders({ consultationId: data.id }).catch(() => {})
+  }
   return res.status(200).json({
     consultation: { ...data, patient_access_token: patientToken },
     patient_access_token: patientToken,

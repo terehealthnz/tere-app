@@ -194,6 +194,8 @@ const SELF_UPDATE_ALLOWLIST = new Set([
   'signature_url',
   'bank_account', 'ird_number', 'tax_code',
   'gst_registered', 'gst_number',
+  // On-call SMS ping opt-in + destination number.
+  'mobile_phone', 'sms_on_call',
 ])
 
 // Columns any authenticated provider may read on any provider row via

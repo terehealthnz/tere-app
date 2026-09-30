@@ -135,12 +135,20 @@ export default async function handler(req, res) {
   // that payment succeeded — filter on status='draft' so we never regress
   // a consult that's already progressed past waiting.
   if (approved) {
-    const { error: promoteErr } = await supabase
+    const { data: promoted, error: promoteErr } = await supabase
       .from('consultations')
       .update({ status: 'waiting', updated_at: new Date().toISOString() })
       .eq('id', consultationId)
       .eq('status', 'draft')
+      .select('id')
     if (promoteErr) console.error('[windcave-fprn] draft→waiting promotion error:', promoteErr.message)
+    // Fire on-call SMS only when the promotion actually happened (i.e. this
+    // FPRN was the one that flipped the row). Skips duplicates if Windcave
+    // retries the webhook.
+    if (Array.isArray(promoted) && promoted.length > 0) {
+      const { notifyOnCallProviders } = await import('./_notify-on-call.js')
+      notifyOnCallProviders({ consultationId }).catch(() => {})
+    }
   }
 
   // Always 200 to Windcave so they don't retry indefinitely.
