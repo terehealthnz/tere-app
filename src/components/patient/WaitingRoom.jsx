@@ -64,6 +64,78 @@ function fmtCountdown(secs) {
   return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
 }
 
+function RejoinQueueButton({ consultationId }) {
+  const [state, setState] = useState('idle') // idle | pending | success | error | gone
+  const [message, setMessage] = useState(null)
+
+  async function rejoin() {
+    if (!consultationId || state === 'pending') return
+    setState('pending')
+    setMessage(null)
+    try {
+      const r = await apiFetch('/api/waiting-rescue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (r.ok && j.ok) {
+        setState('success')
+        setTimeout(() => window.location.reload(), 400)
+        return
+      }
+      if (r.status === 404 || j.code === 'GONE') {
+        setState('gone')
+        setMessage(j.error || 'Consultation not found.')
+        return
+      }
+      setState('error')
+      setMessage(j.error || 'Could not rejoin the queue. Please try again in a minute.')
+    } catch {
+      setState('error')
+      setMessage('Network error. Please try again.')
+    }
+  }
+
+  if (state === 'gone') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.5rem' }}>
+        <div style={{ fontSize: '.8125rem', color: '#FCA5A5', maxWidth: 280, textAlign: 'center' }}>{message}</div>
+        <a href="/" style={{ display: 'inline-block', background: '#0B6E76', color: 'white', padding: '.75rem 1.5rem', borderRadius: 999, textDecoration: 'none', fontWeight: 700, fontSize: '.9375rem' }}>
+          Start a new consultation
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '.375rem' }}>
+      <button
+        type="button"
+        onClick={rejoin}
+        disabled={state === 'pending' || state === 'success'}
+        style={{
+          background: state === 'success' ? '#16A34A' : '#0B6E76',
+          color: 'white',
+          padding: '.75rem 1.5rem',
+          borderRadius: 999,
+          border: 'none',
+          fontWeight: 700,
+          fontSize: '.9375rem',
+          cursor: state === 'pending' ? 'wait' : 'pointer',
+          opacity: state === 'pending' ? 0.7 : 1,
+          minWidth: 220,
+        }}
+      >
+        {state === 'pending' ? 'Rejoining queue…' : state === 'success' ? 'Back in queue' : 'Try to rejoin the queue'}
+      </button>
+      {state === 'error' && message && (
+        <div style={{ fontSize: '.75rem', color: '#FCA5A5', maxWidth: 280, textAlign: 'center' }}>{message}</div>
+      )}
+    </div>
+  )
+}
+
 async function ensureWaiting(consultationId) {
   if (!consultationId || consultationId.startsWith('demo')) return
   try {
@@ -490,7 +562,9 @@ export default function WaitingRoom() {
               We've been notified and our team is looking into it now. Please contact us so we can help right away.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', alignItems: 'center' }}>
-              <a href="mailto:hello@terehealth.co.nz" style={{ display: 'inline-block', background: '#0B6E76', color: 'white', padding: '.75rem 1.5rem', borderRadius: 999, textDecoration: 'none', fontWeight: 700, fontSize: '.9375rem' }}>
+              <RejoinQueueButton consultationId={consultationId} />
+              <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.5)', margin: '.25rem 0 .5rem' }}>or</div>
+              <a href="mailto:hello@terehealth.co.nz" style={{ display: 'inline-block', background: 'transparent', color: '#7FC4C8', padding: '.5rem 1rem', borderRadius: 999, textDecoration: 'underline', fontSize: '.875rem' }}>
                 Email hello@terehealth.co.nz
               </a>
               <div style={{ fontSize: '.8125rem', color: 'rgba(255,255,255,.6)', marginTop: '.5rem' }}>

@@ -334,6 +334,7 @@ const ROUTES = {
   'get-queue':                 () => import('./_get-queue.js'),
   'get-availability':          () => import('./_get-availability.js'),
   'confirm-waiting':           () => import('./_confirm-waiting.js'),
+  'waiting-rescue':            () => import('./_waiting-rescue.js'),
   'async-consult':             () => import('./_async-consult.js'),
   'admin-patch':               () => import('./_admin-patch.js'),
   'admin-test-sms':            () => import('./_admin-test-sms.js'),
