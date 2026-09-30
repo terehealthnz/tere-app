@@ -444,6 +444,12 @@ export default function PatientCall() {
     // Chime path handles its own auth via /api/chime-meeting join-patient —
     // no LiveKit token needed. Skip the fetch entirely.
     if (chimeMode) return
+    // Phone mode — audio flows over PSTN into the LiveKit room via SIP.
+    // Patient's browser doesn't need to join LiveKit at all; it just
+    // renders a "you're on a call" UI and listens for the provider_ended
+    // broadcast to nav to /done. Skipping the token fetch prevents the
+    // "Connecting to call…" spinner from hanging forever.
+    if (isPhone) return
 
     async function fetchToken() {
       try {
@@ -605,6 +611,26 @@ export default function PatientCall() {
       </div>
     )
   }
+
+  // Phone mode — provider chose "Call phone" so audio flows PSTN → SIP →
+  // LiveKit. Patient's browser doesn't join the room at all. Render a
+  // dedicated "call in progress on your phone" panel and let the
+  // provider_ended broadcast (subscribeToConsultationEnded above) redirect
+  // to /done when the provider hangs up.
+  if (isPhone) return (
+    <div style={{height:'100dvh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D1117',fontFamily:'Plus Jakarta Sans, sans-serif',padding:'2rem'}}>
+      <div style={{textAlign:'center',color:'white',maxWidth:420}}>
+        <div style={{fontSize:'3rem',marginBottom:'1rem'}}>📞</div>
+        <div style={{fontSize:'1.375rem',fontWeight:700,marginBottom:'.5rem'}}>Answer your phone</div>
+        <div style={{fontSize:'.9375rem',color:'rgba(255,255,255,.7)',lineHeight:1.6,marginBottom:'1.5rem'}}>
+          Your clinician is calling you now. Pick up the call and talk with them there — you can leave this tab open.
+        </div>
+        <div style={{fontSize:'.8125rem',color:'rgba(255,255,255,.4)',lineHeight:1.5}}>
+          This page will update when the call ends.
+        </div>
+      </div>
+    </div>
+  )
 
   // LiveKit fallback path (only reached when ?chime=0). Wait for token
   // before mounting <LiveKitRoom>. If the spinner takes more than a few
