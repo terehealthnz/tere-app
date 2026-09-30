@@ -789,11 +789,26 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultation: claimed })
     }
 
-    // Diagnostic: audit-log any write that moves a consult into a dead
-    // state (expired/cancelled/no_show/abandoned). Only Dashboard's Dismiss
-    // action is *supposed* to write status='expired'; if another code path
-    // is doing it we need to know. Fires before the UPDATE so we capture
-    // the previous status too. Logs to console (Vercel) + audit_logs table.
+    // Diagnostic: log EVERY status write to Vercel console with full context.
+    // Broader than the audit_logs insert so we still see it if the insert
+    // silently fails (e.g. RLS/trigger noise). Grep Vercel logs for
+    // '[consultations] status write' to trace every caller.
+    if ('status' in patch) {
+      console.warn(JSON.stringify({
+        tag: '[consultations] status write',
+        consultation_id: id,
+        new_status: patch.status,
+        caller_provider_id: auth.provider.id,
+        caller_name: `${auth.provider.first_name || ''} ${auth.provider.last_name || ''}`.trim(),
+        is_admin: !!auth.provider.is_admin,
+        ip: req.headers?.['x-forwarded-for'] || req.headers?.['cf-connecting-ip'] || 'unknown',
+        user_agent: (req.headers?.['user-agent'] || '').slice(0, 200),
+        referer: req.headers?.referer || null,
+        patch_keys: Object.keys(patch),
+        ts: new Date().toISOString(),
+      }))
+    }
+
     const DEAD_STATUSES = new Set(['expired', 'cancelled', 'no_show', 'abandoned'])
     if ('status' in patch && DEAD_STATUSES.has(patch.status)) {
       const { data: pre } = await supabase

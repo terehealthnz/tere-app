@@ -185,6 +185,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: `Patient may not set status to "${raw.status}"` })
     }
     patch.status = raw.status
+    // Diagnostic: log every patient-side status write (matches instrumentation
+    // in _consultations.js). Grep Vercel logs for '[patient-consult] status write'.
+    console.warn(JSON.stringify({
+      tag: '[patient-consult] status write',
+      consultation_id: id,
+      new_status: raw.status,
+      auth_via: auth.via || 'unknown',
+      ip: req.headers?.['x-forwarded-for'] || req.headers?.['cf-connecting-ip'] || 'unknown',
+      user_agent: (req.headers?.['user-agent'] || '').slice(0, 200),
+      referer: req.headers?.referer || null,
+      raw_keys: Object.keys(raw),
+      ts: new Date().toISOString(),
+    }))
   }
 
   const supabase = admin()
