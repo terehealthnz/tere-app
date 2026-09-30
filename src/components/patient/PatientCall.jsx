@@ -191,21 +191,23 @@ function PatientLeaveButton({ consultationId }) {
               </button>
               <button
                 onClick={() => finish(`/waiting/${consultationId}`)}
-                disabled={everSawProviderRef.current}
-                title={everSawProviderRef.current ? 'The doctor was in the call — pick "Consult complete" instead.' : ''}
                 style={{
-                  background: everSawProviderRef.current ? '#e5e7eb' : '#f3f4f6',
-                  color: everSawProviderRef.current ? '#9ca3af' : '#0E2E38',
-                  border: '1px solid ' + (everSawProviderRef.current ? '#e5e7eb' : '#d1d5db'),
+                  background: '#f3f4f6',
+                  color: '#0E2E38',
+                  border: '1px solid #d1d5db',
                   borderRadius: 8, padding: '.85rem 1rem',
                   fontSize: '.9375rem', fontWeight: 600,
-                  cursor: everSawProviderRef.current ? 'not-allowed' : 'pointer',
+                  cursor: 'pointer',
                   textAlign: 'left',
                 }}
               >
-                No doctor here — back to queue
+                {everSawProviderRef.current
+                  ? "Something's wrong — put me back in queue"
+                  : 'No doctor here — back to queue'}
                 <div style={{ fontWeight: 400, fontSize: '.8125rem', opacity: .85, marginTop: '.2rem' }}>
-                  The doctor never joined. Return to the queue and wait for the next available doctor.
+                  {everSawProviderRef.current
+                    ? 'Call dropped, video froze, or something else went wrong. Return to the queue for a fresh call.'
+                    : 'The doctor never joined. Return to the queue and wait for the next available doctor.'}
                 </div>
               </button>
               <button
