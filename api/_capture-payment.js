@@ -6,26 +6,13 @@
 // caller is an admin / supervisor. Prevents provider A from capturing
 // arbitrary paymentIntents belonging to provider B's patients.
 //
-// Dispatch: paymentIntentId shape tells us the provider.
-//   - Stripe:   'pi_...'  (legacy consults, pre-Windcave cutover 2026-09-10)
-//   - Windcave: UUID       (all NZ consults since Windcave cutover)
-// Stripe path uses the SDK. Windcave path POSTs a complete transaction
-// against the auth session (settles the hold). Both are idempotent.
+// Windcave-only. Stripe was ripped 2026-09-10 (task #236 + #512). This
+// endpoint POSTs a complete transaction against the auth session — settles
+// the hold. Idempotent via consult.payment_amount_nzd guard below.
 
-import Stripe from 'stripe'
 import { randomUUID } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { guardProvider } from './_auth.js'
-
-// Dispatch on Stripe's 'pi_' prefix — everything else is Windcave.
-// Previous UUID-based check was wrong: Windcave session IDs are long
-// uppercase hex WITHOUT dashes (e.g. F0000D0056D584...), so UUID_RE
-// returned false → fell through to Stripe → Stripe.paymentIntents.capture
-// threw on invalid id → 500 to client. Reproduced 2026-09-30 04:36 NZT
-// on Patrick's live E2E, capture-payment 500'd with capture never happening.
-const STRIPE_PI_RE = /^pi_[A-Za-z0-9]+$/
-function isStripeId(id) { return STRIPE_PI_RE.test(String(id || '')) }
-function isWindcaveId(id) { return !!id && !isStripeId(id) }
 
 function windcaveBasicAuth() {
   return 'Basic ' + Buffer.from(`${process.env.WINDCAVE_USERNAME}:${process.env.WINDCAVE_API_KEY}`).toString('base64')
@@ -53,8 +40,6 @@ async function captureWindcave(sessionId, amountCents) {
   const approved = r.ok && (data.responseCode === '00' || data.authorised === true)
   return { ok: r.ok, approved, status: r.status, data }
 }
-
-function getStripe() { return new Stripe(process.env.STRIPE_SECRET_KEY) }
 
 function admin() {
   return createClient(
@@ -135,53 +120,31 @@ export default async function handler(req, res) {
     effectiveAmountCents = authCeilingCents
   }
 
-  // Windcave path (all NZ consults since 2026-09-10 cutover).
-  if (isWindcaveId(paymentIntentId)) {
-    try {
-      const result = await captureWindcave(paymentIntentId, effectiveAmountCents)
-      if (!result.approved) {
-        console.error('[capture-payment] windcave complete not approved:', result.status, JSON.stringify(result.data))
-        return res.status(502).json({
-          error: 'Windcave capture not approved',
-          windcave_status: result.status,
-          windcave_body:   result.data,
-        })
-      }
-      const amountDollars = effectiveAmountCents / 100
-      try {
-        await supabase.from('consultations')
-          .update({ payment_amount_nzd: amountDollars })
-          .eq('id', consultationId)
-      } catch {}
-      return res.status(200).json({ status: 'succeeded', amount_nzd: amountDollars, provider: 'windcave', capped: effectiveAmountCents !== amount_cents })
-    } catch (e) {
-      console.error('[capture-payment] windcave error:', e?.message || e)
-      return res.status(502).json({ error: 'Windcave unreachable' })
-    }
-  }
-
-  // Stripe path (legacy — pre-Windcave-cutover consults still resolve here).
+  // Windcave-only. Stripe was ripped 2026-09-10.
   try {
-    // Idempotency key = paymentIntentId — Stripe returns the same result
-    // for repeated calls with the same key rather than double-capturing.
-    const captureOpts = amount_cents ? { amount_to_capture: amount_cents } : undefined
-    const intent = await getStripe().paymentIntents.capture(
-      paymentIntentId,
-      captureOpts,
-      { idempotencyKey: `capture:${paymentIntentId}` },
-    )
-
-    if (intent.amount_received > 0) {
-      try {
-        await supabase.from('consultations')
-          .update({ payment_amount_nzd: intent.amount_received / 100 })
-          .eq('id', consultationId)
-      } catch {}
+    const result = await captureWindcave(paymentIntentId, effectiveAmountCents)
+    if (!result.approved) {
+      console.error('[capture-payment] windcave complete not approved:', result.status, JSON.stringify(result.data))
+      return res.status(502).json({
+        error: 'Windcave capture not approved',
+        windcave_status: result.status,
+        windcave_body:   result.data,
+      })
     }
-
-    return res.status(200).json({ status: intent.status, amount_nzd: intent.amount_received / 100, provider: 'stripe' })
+    const amountDollars = effectiveAmountCents / 100
+    try {
+      await supabase.from('consultations')
+        .update({ payment_amount_nzd: amountDollars })
+        .eq('id', consultationId)
+    } catch {}
+    return res.status(200).json({
+      status: 'succeeded',
+      amount_nzd: amountDollars,
+      provider: 'windcave',
+      capped: effectiveAmountCents !== amount_cents,
+    })
   } catch (e) {
-    console.error('[capture-payment]', e?.message || e)
-    return res.status(500).json({ error: 'Payment capture failed.' })
+    console.error('[capture-payment] windcave error:', e?.message || e)
+    return res.status(502).json({ error: 'Windcave unreachable' })
   }
 }
