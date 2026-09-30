@@ -789,6 +789,42 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultation: claimed })
     }
 
+    // Diagnostic: audit-log any write that moves a consult into a dead
+    // state (expired/cancelled/no_show/abandoned). Only Dashboard's Dismiss
+    // action is *supposed* to write status='expired'; if another code path
+    // is doing it we need to know. Fires before the UPDATE so we capture
+    // the previous status too. Logs to console (Vercel) + audit_logs table.
+    const DEAD_STATUSES = new Set(['expired', 'cancelled', 'no_show', 'abandoned'])
+    if ('status' in patch && DEAD_STATUSES.has(patch.status)) {
+      const { data: pre } = await supabase
+        .from('consultations')
+        .select('status, provider_id')
+        .eq('id', id)
+        .maybeSingle()
+      const meta = {
+        consultation_id: id,
+        new_status: patch.status,
+        previous_status: pre?.status || 'unknown',
+        previous_provider_id: pre?.provider_id || null,
+        caller_provider_id: auth.provider.id,
+        caller_name: `${auth.provider.first_name || ''} ${auth.provider.last_name || ''}`.trim(),
+        ip: req.headers?.['x-forwarded-for'] || req.headers?.['cf-connecting-ip'] || 'unknown',
+        user_agent: (req.headers?.['user-agent'] || '').slice(0, 200),
+        patch_keys: Object.keys(patch),
+      }
+      console.warn('[consultations] DEAD_STATUS write:', JSON.stringify(meta))
+      try {
+        await supabase.from('audit_logs').insert({
+          event_type: `consult_status_dead_${patch.status}`,
+          provider_id: auth.provider.id,
+          provider_name: meta.caller_name,
+          resource_type: 'consultation',
+          resource_id: id,
+          metadata: meta,
+        })
+      } catch (e) { console.error('[consultations] dead-status audit insert failed:', e.message) }
+    }
+
     const { data, error } = await supabase
       .from('consultations')
       .update(patch)
