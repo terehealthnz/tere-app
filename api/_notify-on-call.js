@@ -20,7 +20,7 @@ import { sendSms } from './_sms.js'
 
 function admin() {
   return createClient(
-    process.env.SUPABASE_URL,
+    process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
@@ -44,7 +44,10 @@ function isInClinicHoursNZT() {
 export async function notifyOnCallProviders({ consultationId }) {
   try {
     if (!consultationId) return
-    if (!isInClinicHoursNZT()) return
+    if (!isInClinicHoursNZT()) {
+      console.warn('[notify-on-call] skipped — outside clinic hours 08:00-20:00 NZT', { consultationId })
+      return
+    }
 
     const supabase = admin()
 
@@ -60,11 +63,16 @@ export async function notifyOnCallProviders({ consultationId }) {
     // Fetch opted-in providers with a phone on file. Rate-limit is checked
     // in JS so the SQL stays a single fetch (partial index on sms_on_call
     // makes this cheap even at scale).
-    const { data: providers } = await supabase.from('providers')
+    const { data: providers, error: provErr } = await supabase.from('providers')
       .select('id, first_name, mobile_phone, sms_on_call_last_sent_at')
       .eq('sms_on_call', true)
       .eq('is_active', true)
       .not('mobile_phone', 'is', null)
+    if (provErr) {
+      console.warn('[notify-on-call] providers query failed', { err: provErr.message })
+      return
+    }
+    console.warn('[notify-on-call] opted-in providers', { consultationId, total: providers?.length || 0 })
     if (!providers || providers.length === 0) return
 
     const eligible = providers.filter(p => {
@@ -72,6 +80,7 @@ export async function notifyOnCallProviders({ consultationId }) {
       if (!p.sms_on_call_last_sent_at) return true
       return p.sms_on_call_last_sent_at < cutoffIso
     })
+    console.warn('[notify-on-call] eligible after rate-limit', { consultationId, eligible: eligible.length, dropped: (providers.length - eligible.length) })
     if (eligible.length === 0) return
 
     const body = 'Tere: new patient in the queue — https://terehealth.co.nz/provider'
