@@ -21,39 +21,77 @@ function windcaveBaseUrl() {
   return process.env.WINDCAVE_BASE_URL || 'https://uat.windcave.com/api/v1'
 }
 
-// Windcave complete: POST /sessions/{id}/transactions with type=complete on the
-// auth session — settles the hold. AbortController caps the request at 8s so a
-// slow Windcave doesn't blow the Vercel function timeout (default 10s → we'd
-// see a Cloudflare 502 with no diagnostic). X-ID for idempotency.
+// Windcave complete against an auth session.
+// Two-step: (1) GET the session so we can extract the AUTH transaction id;
+// (2) POST /transactions type=complete with { transactionId }. Windcave
+// rejects complete calls that reference only the sessionId with "Transaction
+// Id is required for this transaction type" (verified 2026-09-30 against
+// sec.windcave.com), so we always resolve to the txn id first.
+// AbortController caps each hop at 6s so both together stay under the Vercel
+// 10s function timeout budget. X-ID gives idempotency on the complete POST.
 async function captureWindcave(sessionId, amountCents) {
   const amountStr = (amountCents / 100).toFixed(2)
-  const xId = randomUUID()
-  const url = `${windcaveBaseUrl()}/transactions`
-  const ctl = new AbortController()
-  const timeoutId = setTimeout(() => ctl.abort(), 8000)
   const started = Date.now()
-  console.log('[capture-payment] windcave complete →', url, { amountStr, sessionId, xId })
+
+  // Step 1 — look up the session's auth transactionId.
+  const sessionCtl = new AbortController()
+  const sessionTimeout = setTimeout(() => sessionCtl.abort(), 6000)
+  let sessionData = null
   try {
-    const r = await fetch(url, {
+    const sr = await fetch(`${windcaveBaseUrl()}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'GET',
+      headers: {
+        'Accept':        'application/json',
+        'Authorization': windcaveBasicAuth(),
+      },
+      signal: sessionCtl.signal,
+    })
+    clearTimeout(sessionTimeout)
+    const bodyText = await sr.text().catch(() => '')
+    try { sessionData = bodyText ? JSON.parse(bodyText) : {} } catch { sessionData = {} }
+    if (!sr.ok) {
+      console.error('[capture-payment] session lookup failed', { status: sr.status, bodyPreview: bodyText.slice(0, 300) })
+      return { ok: false, approved: false, status: sr.status, data: sessionData, stage: 'session_lookup' }
+    }
+  } catch (e) {
+    clearTimeout(sessionTimeout)
+    console.error('[capture-payment] session lookup network error', { message: e?.message, aborted: e?.name === 'AbortError' })
+    throw e
+  }
+
+  const authTxn = (sessionData.transactions || []).find(t => t.type === 'auth' && (t.authorised === true || t.reCo === '00'))
+  const transactionId = authTxn?.id
+  if (!transactionId) {
+    console.error('[capture-payment] no auth transaction found on session', { sessionId, txns: sessionData.transactions?.length || 0 })
+    return { ok: false, approved: false, status: 409, data: sessionData, stage: 'no_auth_txn' }
+  }
+
+  // Step 2 — complete against the auth txn.
+  const xId = randomUUID()
+  const completeCtl = new AbortController()
+  const completeTimeout = setTimeout(() => completeCtl.abort(), 6000)
+  console.log('[capture-payment] windcave complete →', { transactionId, sessionId, amountStr, xId })
+  try {
+    const r = await fetch(`${windcaveBaseUrl()}/transactions`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept':       'application/json',
+        'Content-Type':  'application/json',
+        'Accept':        'application/json',
         'Authorization': windcaveBasicAuth(),
-        'X-ID':         xId,
+        'X-ID':          xId,
       },
-      body: JSON.stringify({ type: 'complete', amount: amountStr, sessionId }),
-      signal: ctl.signal,
+      body: JSON.stringify({ type: 'complete', amount: amountStr, transactionId }),
+      signal: completeCtl.signal,
     })
-    clearTimeout(timeoutId)
+    clearTimeout(completeTimeout)
     const bodyText = await r.text().catch(() => '')
     let data = {}
     try { data = bodyText ? JSON.parse(bodyText) : {} } catch { /* keep as text */ }
     const approved = r.ok && (data.responseCode === '00' || data.authorised === true || data.reCo === '00')
     console.log('[capture-payment] windcave complete ←', { status: r.status, approved, durationMs: Date.now() - started, bodyPreview: bodyText.slice(0, 400) })
-    return { ok: r.ok, approved, status: r.status, data, bodyText }
+    return { ok: r.ok, approved, status: r.status, data, bodyText, transactionId }
   } catch (e) {
-    clearTimeout(timeoutId)
+    clearTimeout(completeTimeout)
     const aborted = e?.name === 'AbortError'
     console.error('[capture-payment] windcave complete FAILED', { aborted, message: e?.message, durationMs: Date.now() - started })
     throw e
