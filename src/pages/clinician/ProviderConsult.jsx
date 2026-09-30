@@ -109,7 +109,15 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
   const participants = useParticipants()
   const stampedRef = useRef(false)
   useEffect(() => {
-    const hasPatient = participants.some(p => (p.identity || '').startsWith('patient-'))
+    // Count patient-* (browser) AND sip-patient-* (phone bridge via
+    // Telnyx SIP). The Phone-button path dials SIP directly so the
+    // patient's browser never joins — without the sip-patient-* match
+    // patientHere never flips true → widget stays on "Return to queue"
+    // / "Mark no-show" instead of showing "Consult Complete".
+    const hasPatient = participants.some(p => {
+      const id = p.identity || ''
+      return id.startsWith('patient-') || id.startsWith('sip-patient-')
+    })
     if (!hasPatient) return
     onPatientHere()
     if (stampedRef.current) return
