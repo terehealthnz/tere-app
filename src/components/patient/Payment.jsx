@@ -310,7 +310,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             <h2 style={{marginBottom:'.25rem'}}>Consultation fee</h2>
             <p style={{fontSize:'.9375rem'}}>
               Consultation with an Emergency Medicine physician
-              {accEligible === 'yes' ? ' — ACC patient contribution' : ''}
+              {accEligible === 'yes' ? ' — ACC administrative fee' : ''}
             </p>
           </div>
           <div style={{textAlign:'right'}}>
@@ -324,9 +324,9 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>
             <div style={{display:'flex',alignItems:'center',gap:'.625rem',marginBottom:'.5rem'}}>
               <span style={{fontSize:'1.1rem'}}>✓</span>
-              <strong style={{color:'#065F46'}}>ACC covered — $25 patient contribution</strong>
+              <strong style={{color:'#065F46'}}>ACC covered — $25 administrative fee</strong>
             </div>
-            <div style={{fontSize:'.8125rem',color:'#065F46'}}>If your visit is for an eligible injury, ACC covers most of the consult cost. You pay a $25 patient contribution to Tere. We lodge your ACC claim during the consultation. If ACC declines cover (for example, pre-existing conditions or gradual onset), our standard consult fee applies.</div>
+            <div style={{fontSize:'.8125rem',color:'#065F46'}}>If your visit is for an eligible injury, ACC covers the consultation. You pay a $25 administrative fee to Tere for lodging your ACC claim and looking after your records. If ACC declines cover (for example, pre-existing conditions or gradual onset), our standard consult fee applies.</div>
           </div>
         ) : (
           <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:'var(--radius-sm)',padding:'1rem',marginBottom:'1.25rem',fontSize:'.875rem',lineHeight:1.7}}>

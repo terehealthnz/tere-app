@@ -157,7 +157,7 @@ function deriveBilling(consult) {
     const employerName = consult.employer_name || 'your employer'
     reasoning = `This consultation is covered by ${employerName}. No charge to you.`
   } else if (isAcc) {
-    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers most of the consultation cost. You have been charged a $25 patient contribution to Tere.'
+    reasoning = 'Your provider assessed this as an ACC-eligible injury. ACC covers the consultation. You have been charged a $25 administrative fee for lodging your ACC claim and looking after your records.'
   } else if (consult.acc_eligible === 'yes') {
     reasoning = 'Your provider assessed the presentation as not covered by ACC. The full consultation fee applies. If you think this should be an ACC claim, message support.'
   } else {

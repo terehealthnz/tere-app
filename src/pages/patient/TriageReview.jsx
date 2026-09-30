@@ -103,7 +103,7 @@ export default function TriageReview() {
           <span style={{ fontSize:'1.25rem' }}>{consultType === 'phone' ? '📞' : consultType === 'message' ? '💬' : '📹'}</span>
           <div>
             <div style={{ fontWeight:700, color:TEAL_L, fontSize:'.9rem' }}>{TYPE_LABELS[consultType] || 'Video consultation'}</div>
-            {isAcc && <div style={{ fontSize:'.75rem', color:'rgba(212,238,240,.55)', marginTop:1 }}>$25 ACC patient contribution</div>}
+            {isAcc && <div style={{ fontSize:'.75rem', color:'rgba(212,238,240,.55)', marginTop:1 }}>$25 ACC administrative fee</div>}
           </div>
         </div>
 
