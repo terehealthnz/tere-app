@@ -190,6 +190,23 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
     dose: '', frequency: '', duration: '',
     notes: '', qty: '', repeats: 0,
   })
+  // DoseSpot-style batch drafting: provider fills the form → "Add to list"
+  // parks the composed prescription into `drafts` and clears the form so
+  // the next drug can be entered. "Send all N" fires generate-prescription-pdf
+  // for each in sequence. Each script still hits the pharmacy as its own
+  // PDF/email — data model unchanged, just batched at submit time.
+  // Persisted per consult in sessionStorage so an accidental refresh
+  // doesn't lose the provider's queued drafts.
+  const draftsKey = consult?.id ? `tere_rx_drafts_${consult.id}` : null
+  const [drafts, setDrafts] = useState(() => {
+    if (typeof window === 'undefined' || !draftsKey) return []
+    try { return JSON.parse(sessionStorage.getItem(draftsKey) || '[]') } catch { return [] }
+  })
+  useEffect(() => {
+    if (!draftsKey) return
+    try { sessionStorage.setItem(draftsKey, JSON.stringify(drafts)) } catch {}
+  }, [drafts, draftsKey])
+  const [sendProgress, setSendProgress] = useState(null) // { current, total, errors }
 
   // Re-issue prefill: when the modal is opened with a prefill payload
   // (from clicking "Re-issue" on a past prescription), populate the form
@@ -512,60 +529,159 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
     } catch {} finally { setSavingTemplate(false) }
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    // Block submit if allergen alert showing + not acknowledged.
-    const drug = (rx.medication || '').toLowerCase().trim()
-    if (drug && allergens.length > 0) {
+  // Compose the current form into a draft payload — same shape we send to
+  // /api/generate-prescription-pdf, minus the runtime provider/patient/pharmacy
+  // context (which is re-read at Send time so it always reflects the latest
+  // pharmacy pick / patient identity refresh).
+  function buildDraft() {
+    const composed = composeRx(rx)
+    return {
+      // Stable client-side id — draft-list row key + selection tracking.
+      _draftId: `d_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      drug: composed.drug,
+      directions: composed.directions,
+      dose: rx.dose,
+      quantity: rx.qty,
+      repeats: rx.repeats,
+      // Snapshot the pharmacy that was selected when the draft was added —
+      // provider could change pharmacy mid-batch, and it would be surprising
+      // if that retroactively re-routed earlier drafts.
+      pharmacy: { ...pharmacy },
+    }
+  }
+
+  // Fire one draft through generate-prescription-pdf. Returns { ok, error?, pending?, warnings? }.
+  async function sendOne(draft) {
+    const res = await apiFetch('/api/generate-prescription-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        consultationId: consult?.id,
+        providerId: sessionStorage.getItem('providerId'),
+        providerName: sessionStorage.getItem('providerDisplayName'),
+        prescriberNumber: sessionStorage.getItem('prescriberNumber'),
+        patientName: `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim(),
+        patientNhi: consult?.patient_nhi,
+        patientDob: consult?.patient_dob,
+        patientEmail: consult?.patient_email,
+        pharmacyId: draft.pharmacy.medsafeId,
+        drug: draft.drug, dose: draft.dose, directions: draft.directions,
+        quantity: draft.quantity, repeats: draft.repeats,
+        pharmacyName: draft.pharmacy.name, pharmacyHpiId: draft.pharmacy.hpiId,
+        pharmacyEmail: draft.pharmacy.email, pharmacyPhone: draft.pharmacy.phone,
+        pharmacyAddress: draft.pharmacy.address,
+        needsApproval: requiresSupervision,
+        draftedByName: sessionStorage.getItem('providerDisplayName'),
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.ok) return { ok: true, pending: data.pending, warnings: data.deliveryErrors }
+    return { ok: false, error: data.error || `HTTP ${res.status}` }
+  }
+
+  // "Add to list": run the allergen ack + interaction gates, then park the
+  // composed prescription in `drafts` and clear the form so the provider can
+  // enter the next drug. Does NOT send.
+  function handleAddToList(e) {
+    if (e) e.preventDefault()
+    const drugLc = (rx.medication || '').toLowerCase().trim()
+    if (!drugLc) {
+      setResult({ ok: false, error: 'Enter a medication before adding to the list.' })
+      return
+    }
+    if (allergens.length > 0) {
       const hits = allergens.filter(a => {
         const name = (a.allergen || '').toLowerCase()
         if (!name) return false
-        return name.includes(drug) || drug.includes(name)
+        return name.includes(drugLc) || drugLc.includes(name)
       })
       if (hits.length > 0 && !allergenAck) {
-        setResult({ ok: false, error: 'Allergen alert not acknowledged — tick the confirmation checkbox in the red banner above before submitting.' })
+        setResult({ ok: false, error: 'Allergen alert not acknowledged — tick the confirmation checkbox in the red banner above.' })
         return
       }
     }
+    if (interactions?.maxSeverity === 'major' && !interactionOverride) {
+      setResult({ ok: false, error: 'Major interaction not overridden — provide a reason before adding to the list.' })
+      return
+    }
+    setDrafts(d => [...d, buildDraft()])
+    // Clear form so the next drug can be entered. Pharmacy stays — providers
+    // usually send all drugs to the same pharmacy for a given consult.
+    setRx({ medication: '', strength: '', form: '', dose: '', frequency: '', duration: '', notes: '', qty: '', repeats: 0 })
+    setResult({ ok: true, added: true, message: 'Added to list — enter the next drug or click "Send all"' })
+    setAllergenAck(false)
+    setInteractionOverride(false)
+    setInteractions(null)
+  }
+
+  // "Send all": iterate drafts sequentially, capture per-drug success/error.
+  // Sequential (not parallel) so pharmacy inbox order matches provider order
+  // and per-drug safety failures are surfaced clearly.
+  async function handleSendAll() {
+    // If the form has a drug that hasn't been added yet, fold it in first.
+    if ((rx.medication || '').trim()) {
+      handleAddToList()
+      // handleAddToList sets drafts async; wait a tick before reading.
+      await new Promise(r => setTimeout(r, 0))
+    }
+    // Rebuild draft list from state — need to reflect the just-added row too.
+    const toSend = rx.medication.trim() ? [...drafts, buildDraft()] : drafts
+    if (toSend.length === 0) {
+      setResult({ ok: false, error: 'No prescriptions to send.' })
+      return
+    }
     setSending(true)
     setResult(null)
-    const composed = composeRx(rx)
-    try {
-      const res = await apiFetch('/api/generate-prescription-pdf', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          consultationId: consult?.id,
-          providerId: sessionStorage.getItem('providerId'),
-          providerName: sessionStorage.getItem('providerDisplayName'),
-          prescriberNumber: sessionStorage.getItem('prescriberNumber'),
-          patientName: `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim(),
-          patientNhi: consult?.patient_nhi,
-          patientDob: consult?.patient_dob,
-          patientEmail: consult?.patient_email,
-          pharmacyId: pharmacy.medsafeId,
-          drug: composed.drug, dose: rx.dose, directions: composed.directions,
-          quantity: rx.qty, repeats: rx.repeats,
-          pharmacyName: pharmacy.name, pharmacyHpiId: pharmacy.hpiId,
-          pharmacyEmail: pharmacy.email, pharmacyPhone: pharmacy.phone,
-          pharmacyAddress: pharmacy.address,
-          needsApproval: requiresSupervision,
-          draftedByName: sessionStorage.getItem('providerDisplayName'),
-        }),
-      })
-      const data = await res.json()
-      if (data.ok) {
-        setResult({ ok: true, pending: data.pending, warnings: data.deliveryErrors })
-        onDone({ type: 'prescription', drug: composed.drug, directions: composed.directions, pharmacy: pharmacy.name, pending: data.pending, timestamp: new Date().toISOString() })
-        setTimeout(() => { setResult(null); onClose() }, data.pending ? 3000 : 2000)
-      } else {
-        setResult({ ok: false, error: data.error })
+    setSendProgress({ current: 0, total: toSend.length, errors: [] })
+    const sent = []
+    const errors = []
+    let anyPending = false
+    for (let i = 0; i < toSend.length; i++) {
+      const d = toSend[i]
+      setSendProgress({ current: i + 1, total: toSend.length, errors })
+      try {
+        const r = await sendOne(d)
+        if (r.ok) {
+          sent.push(d)
+          if (r.pending) anyPending = true
+          onDone?.({
+            type: 'prescription', drug: d.drug, directions: d.directions,
+            pharmacy: d.pharmacy.name, pending: r.pending,
+            timestamp: new Date().toISOString(),
+          })
+        } else {
+          errors.push({ drug: d.drug, error: r.error })
+        }
+      } catch (e) {
+        errors.push({ drug: d.drug, error: e.message })
       }
-    } catch (e) {
-      setResult({ ok: false, error: e.message })
-    } finally {
-      setSending(false)
     }
+    setSending(false)
+    setSendProgress(null)
+    if (errors.length === 0) {
+      setResult({ ok: true, pending: anyPending, message: `✓ ${sent.length} prescription${sent.length > 1 ? 's' : ''} sent` })
+      setDrafts([])
+      try { if (draftsKey) sessionStorage.removeItem(draftsKey) } catch {}
+      setTimeout(() => { setResult(null); onClose() }, anyPending ? 3000 : 2000)
+    } else {
+      // Retain the failed ones so the provider can retry / edit / remove.
+      const failedDrugs = new Set(errors.map(e => e.drug))
+      setDrafts(toSend.filter(d => failedDrugs.has(d.drug)))
+      setResult({
+        ok: false,
+        error: `${sent.length} sent, ${errors.length} failed: ${errors.map(e => `${e.drug} (${e.error})`).join('; ')}`,
+      })
+    }
+  }
+
+  function removeDraft(id) {
+    setDrafts(d => d.filter(x => x._draftId !== id))
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    // Form submit === add current form to list. Sending is an explicit action.
+    handleAddToList()
   }
 
   return (
@@ -986,14 +1102,60 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         {canPrescribe && <div className="alert alert-info" style={{fontSize:'.8125rem',marginBottom:'1rem'}}>PDF generated &amp; emailed to pharmacy and patient. Non-controlled medications only.</div>}
         {result && (
           <div className={`alert ${result.ok ? 'alert-success' : 'alert-danger'}`} style={{marginBottom:'1rem'}}>
-            {result.ok ? (result.pending ? '⏳ Sent to supervising doctor for approval' : '✓ Prescription sent successfully') : `Error: ${result.error}`}
+            {result.added ? result.message : (result.ok ? (result.message || (result.pending ? '⏳ Sent to supervising doctor for approval' : '✓ Prescription sent successfully')) : `Error: ${result.error}`)}
             {result.warnings?.length > 0 && <div style={{fontSize:'.75rem',marginTop:4}}>⚠ {result.warnings.join('; ')}</div>}
           </div>
         )}
-        <div className="modal-footer">
+        {/* Pending prescriptions list — DoseSpot-style batch review. Each row
+            is a fully-composed draft; provider can remove individual rows
+            before firing "Send all". Persists to sessionStorage keyed by
+            consult id so an accidental refresh doesn't lose queued drafts. */}
+        {drafts.length > 0 && (
+          <div style={{border:'1.5px solid #C7EAEC',background:'#F7FCFC',borderRadius:8,padding:'.75rem',marginBottom:'1rem'}}>
+            <div style={{fontSize:'.8125rem',fontWeight:700,color:'#0B6E76',marginBottom:'.5rem'}}>
+              📋 Pending prescriptions ({drafts.length}) — review before sending
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:'.375rem'}}>
+              {drafts.map(d => (
+                <div key={d._draftId} style={{display:'flex',alignItems:'flex-start',gap:'.5rem',background:'white',padding:'.5rem .625rem',borderRadius:6,border:'1px solid #E2E8F0'}}>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:'.875rem',color:'var(--navy)'}}>{d.drug}</div>
+                    <div style={{fontSize:'.75rem',color:'var(--muted)',lineHeight:1.4}}>
+                      {d.directions}
+                      {d.quantity ? ` · Qty ${d.quantity}` : ''}
+                      {d.repeats > 0 ? ` · ${d.repeats} repeat${d.repeats > 1 ? 's' : ''}` : ''}
+                    </div>
+                    <div style={{fontSize:'.6875rem',color:'#6B7280',marginTop:2}}>→ {d.pharmacy.name || '(no pharmacy)'}</div>
+                  </div>
+                  <button type="button" onClick={() => removeDraft(d._draftId)} disabled={sending}
+                    style={{background:'none',border:'none',color:'#DC2626',fontSize:'.75rem',fontWeight:600,cursor:sending?'not-allowed':'pointer',padding:'.25rem .5rem'}}>
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            {sendProgress && (
+              <div style={{fontSize:'.75rem',color:'#0B6E76',marginTop:'.5rem',fontWeight:600}}>
+                Sending {sendProgress.current} of {sendProgress.total}…
+              </div>
+            )}
+          </div>
+        )}
+        <div className="modal-footer" style={{flexWrap:'wrap',gap:'.5rem'}}>
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending}>Cancel</button>
-          <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={sending || (interactions?.maxSeverity==='major' && !interactionOverride)}>
-            {sending ? 'Sending…' : canPrescribe ? 'Send to pharmacy' : 'Submit for approval'}
+          <button type="submit" className="btn btn-secondary" disabled={sending || (interactions?.maxSeverity==='major' && !interactionOverride)}>
+            + Add to list
+          </button>
+          <button type="button" className="btn btn-primary" style={{flex:1}}
+            onClick={handleSendAll}
+            disabled={sending || (drafts.length === 0 && !(rx.medication || '').trim()) || (interactions?.maxSeverity==='major' && !interactionOverride)}>
+            {sending
+              ? (sendProgress ? `Sending ${sendProgress.current}/${sendProgress.total}…` : 'Sending…')
+              : (() => {
+                  const n = drafts.length + ((rx.medication || '').trim() ? 1 : 0)
+                  const noun = n === 1 ? 'prescription' : 'prescriptions'
+                  return canPrescribe ? `Approve and send${n > 0 ? ` ${n} ${noun}` : ''}` : `Submit ${n > 0 ? n : ''} for approval`
+                })()}
           </button>
         </div>
       </form>
