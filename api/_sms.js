@@ -23,13 +23,21 @@ const DEFAULT_PROVIDER = 'sns'
 function normaliseNZNumber(to) {
   const raw = String(to || '').trim()
   if (!raw) return null
-  const digits = raw.replace(/\D/g, '')
+  let digits = raw.replace(/\D/g, '')
   if (!digits) return null
 
-  // User typed a leading + — trust the digits verbatim (E.164 style).
-  // Some carriers/MVNOs use non-standard-length subscriber numbers that
-  // don't match strict NZ mobile shape but still deliver; if they typed
-  // it with a + we assume they know their own number.
+  // Common typo: user typed "+64" AND kept the local "0" prefix from
+  // "029 xxx xxxx" — producing "+640..." which SNS accepts but silently
+  // drops (no phone owns that number). Collapse "640X" → "64X" as long as
+  // X is a mobile prefix (2-9) rather than another zero.
+  if (digits.startsWith('640') && digits[3] && digits[3] !== '0') {
+    digits = '64' + digits.slice(3)
+  }
+
+  // User typed a leading + — trust the digits post-collapse.
+  // E.164 allows up to 15 digits; SNS handles the rest. Some MVNOs use
+  // non-standard subscriber lengths that still deliver, so we don't
+  // hard-validate NZ mobile shape.
   if (raw.startsWith('+')) {
     if (digits.length < 7 || digits.length > 15) return null
     return '+' + digits
