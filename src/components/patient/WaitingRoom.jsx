@@ -399,11 +399,31 @@ export default function WaitingRoom() {
       if (['in_progress', 'ready'].includes(status)) { navigate('/call'); return }
     }
 
+    // Pull-based FPRN fallback (see api/_check-payment-status.js).
+    // Fires only while status='draft' — asks the server to re-query
+    // Windcave, promote if approved. Cheap: one Windcave call per 10s
+    // per genuinely-stuck patient. Auto-stops the moment status flips
+    // to waiting (server-side idempotent — filter on status='draft').
+    let paymentCheckTick = 0
+    async function checkPaymentIfDraft(status) {
+      if (status !== 'draft') return
+      // Rate limit — one check per ~10s (poll runs every 4s so gate 2 of 3).
+      if (++paymentCheckTick % 3 !== 1) return
+      try {
+        await apiFetch('/api/check-payment-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ consultationId }),
+        })
+      } catch {}
+    }
+
     const poll = async () => {
       try {
         const consult = await getPatientConsult(consultationId)
         if (!consult) return
         handleStatusChange(consult.status, consult.provider_display_name, consult.created_at)
+        checkPaymentIfDraft(consult.status)
       } catch {}
     }
 

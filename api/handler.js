@@ -400,6 +400,8 @@ const ROUTES = {
   'patient-event':             () => import('./_patient-event.js'),
   'patient-funnel':            () => import('./_patient-funnel.js'),
   'patient-stuck-alert':       () => import('./_patient-stuck-alert.js'),
+  'check-payment-status':      () => import('./_check-payment-status.js'),
+  'cron-promote-stuck-drafts': () => import('./_cron-promote-stuck-drafts.js'),
   'provider-notifications':    () => import('./_provider-notifications.js'),
 }
 
