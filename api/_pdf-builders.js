@@ -1957,12 +1957,10 @@ export async function buildMedCertPdf(data) {
       .text(`From ${nzDate(data.certFrom)} to ${nzDate(data.certTo)}`, M, flowY)
     flowY += 22
 
-    if (data.diagnosis) {
-      doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Diagnosis', M, flowY)
-      flowY += 14
-      flowY = put(data.diagnosis, M, flowY, { w: W - 100, fs: 11, color: '#1A2A33' })
-      flowY += 6
-    }
+    // Diagnosis intentionally omitted from med cert PDF. Employers only need
+    // to know that the patient was seen by a clinician and the unfitness
+    // dates/restrictions — the clinical reason stays with the patient's
+    // health record. Confirmed 2026-09-30 (Patrick).
 
     if (data.restrictions) {
       doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Restrictions / notes for employer', M, flowY)
