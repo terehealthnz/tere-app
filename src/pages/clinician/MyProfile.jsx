@@ -19,6 +19,57 @@ const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const FF = 'Plus Jakarta Sans, sans-serif'
 
+function TestSmsButton({ mobilePhone, unsavedChanges }) {
+  const [state, setState] = useState('idle') // idle | sending | ok | err
+  const [message, setMessage] = useState('')
+
+  async function send() {
+    if (state === 'sending') return
+    if (!mobilePhone) {
+      setState('err')
+      setMessage('Enter a mobile number first.')
+      return
+    }
+    if (unsavedChanges) {
+      setState('err')
+      setMessage('Save your profile first so the number is stored, then hit test.')
+      return
+    }
+    setState('sending')
+    setMessage('')
+    try {
+      const r = await apiFetch('/api/admin-test-sms?self=1')
+      const j = await r.json().catch(() => ({}))
+      if (r.ok) {
+        setState('ok')
+        setMessage(`Sent to ${j.to}. Check your phone.`)
+      } else {
+        setState('err')
+        setMessage(j.error || j.detail || `HTTP ${r.status}`)
+      }
+    } catch (e) {
+      setState('err')
+      setMessage('Network error. Try again.')
+    }
+  }
+
+  return (
+    <div style={{ margin: '0 0 .75rem', padding: '.65rem .8rem', background: '#F0F9FA', border: '1px solid #C7EAEC', borderRadius: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '.6rem', fontSize: '.8125rem' }}>
+      <button
+        type="button"
+        onClick={send}
+        disabled={state === 'sending'}
+        style={{ background: TEAL, color: 'white', border: 'none', padding: '.4rem .85rem', borderRadius: 6, fontWeight: 700, fontSize: '.8125rem', cursor: state === 'sending' ? 'wait' : 'pointer', fontFamily: FF }}
+      >
+        {state === 'sending' ? 'Sending…' : 'Send test SMS'}
+      </button>
+      {state === 'ok' && <span style={{ color: '#047857' }}>{message}</span>}
+      {state === 'err' && <span style={{ color: '#B91C1C' }}>{message}</span>}
+      {state === 'idle' && <span style={{ color: '#64748B' }}>Verify your number receives on-call pings.</span>}
+    </div>
+  )
+}
+
 const SECTIONS = [
   {
     title: 'Identity',
@@ -143,6 +194,12 @@ export default function MyProfile() {
           <section key={sec.title} style={{ background: 'white', borderRadius: 12, padding: '1.25rem', border: '1px solid #E2E8F0', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '.95rem', fontWeight: 700, color: NAVY, margin: '0 0 .35rem' }}>{sec.title}</h3>
             {sec.subtitle && <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.75rem' }}>{sec.subtitle}</div>}
+            {sec.title === 'On-call SMS' && (
+              <TestSmsButton
+                mobilePhone={form.mobile_phone}
+                unsavedChanges={form.mobile_phone !== me?.mobile_phone}
+              />
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '.75rem' }}>
               {sec.fields.map(f => {
                 // Prescriber-number quick-fill: for MCNZ-registered doctors the
