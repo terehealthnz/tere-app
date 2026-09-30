@@ -288,58 +288,55 @@ export default function VitalsCapture() {
         if (frames.length > 450) { // at least 30 seconds at 15fps
           sessionStorage.removeItem('background_rppg_frames')
           sessionStorage.removeItem('background_rppg_fps')
-          setTimeout(() => {
+          setTimeout(async () => {
             const result = processStoredFrames(frames, storedFPS)
             if (result && !result.faceWarning) {
               setVitals(result); setUiState(STATES.DONE)
               const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
 
-              // Compute SpO2 synchronously so it lands in the FIRST updateVitals
-              // PATCH alongside HR/RR. Previously we saved HR+RR immediately
-              // then fired predictBP/calculateSpO2 whose results only touched
-              // React state — provider chart showed BP + SpO2 as null forever
-              // on the background-frames path. Live-camera path already got
-              // this right; this mirrors it.
+              // Compute SpO2 + BP synchronously so both land in the SAME
+              // updateVitals PATCH as HR/RR. Previously BP was fire-and-forget
+              // and often lost to navigation. Live-camera path uses the same
+              // await-race-with-timeout pattern; keep them in sync.
               let spo2Result = null
               if (result.rawFrames?.length) {
                 try { spo2Result = calculateSpO2(result.rawFrames); if (spo2Result) setSpo2Estimate(spo2Result) } catch {}
               }
 
+              let bpString = null
+              if (result.rawFrames?.length) {
+                try {
+                  const bp = await Promise.race([
+                    (async () => {
+                      await Promise.resolve(modelReadyRef.current)
+                      const { predictBP } = await import('../../lib/bpModel')
+                      return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+                    })(),
+                    new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+                  ])
+                  if (bp) {
+                    setBpEstimate(bp)
+                    bpString = bp.systolic && bp.diastolic
+                      ? `${bp.systolic}/${bp.diastolic}`
+                      : (bp.value || null)
+                  }
+                } catch (e) {
+                  console.warn('[vitals] BP prediction failed (bg-frames path):', e?.message || e)
+                }
+              }
+
+              const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString }
               if (id && !id.startsWith('demo')) {
                 import('../../lib/supabase').then(({ updateVitals }) =>
-                  updateVitals(id, { ...result, spo2: spo2Result?.estimate || null })
+                  updateVitals(id, payload)
                 ).catch(() => {})
                 import('../../lib/api').then(({ apiFetch }) =>
                   apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'vitals_ready', consultationId:id }) }).catch(() => {})
                 ).catch(() => {})
               } else {
-                sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
+                sessionStorage.setItem('vitals', JSON.stringify(payload))
               }
 
-              // BP predictor is async (loads 1.6MB TF.js chunk). When it
-              // resolves, PATCH the consult with the string so the provider
-              // vitals bar picks it up. Same pattern as the live-camera path.
-              // Await modelReadyRef so we never predict on stale NORM.
-              if (result.rawFrames?.length) {
-                Promise.resolve(modelReadyRef.current)
-                  .then(() => import('../../lib/bpModel'))
-                  .then(({ predictBP }) => predictBP({ frames: result.rawFrames, fps: result.actualFps }, {}))
-                  .then(bp => {
-                  if (!bp) return
-                  setBpEstimate(bp)
-                  if (id && !id.startsWith('demo')) {
-                    // Merge with the previously-saved HR/RR/SpO2 (background-
-                    // frames path also affected by the REPLACE-not-merge bug
-                    // documented in the live-camera path above).
-                    const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
-                    if (bpString) {
-                      import('../../lib/supabase').then(({ updateVitals }) =>
-                        updateVitals(id, { ...(result || {}), spo2: spo2Result?.estimate || null, bp: bpString })
-                      ).catch(() => {})
-                    }
-                  }
-                }).catch(() => {})
-              }
               console.log(`Using background frames: ${frames.length} (${result.backgroundDurationSec}s)`)
               return
             }
@@ -384,44 +381,46 @@ export default function VitalsCapture() {
         setUiState(STATES.DONE)
         // Store face frames so finger scan can compute PTT
         if (result.rawFrames?.length) faceFramesRef.current = result.rawFrames
-        // BP estimate from locally trained model (dynamic import keeps TF.js out of main bundle)
-        // Runs async; when it resolves we PATCH the consult with the BP so it
-        // shows in the provider's vitals bar. Previously the estimate lived
-        // only in local React state and never persisted.
-        const consultIdForBp = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
-        if (result.rawFrames?.length) {
-          // BP always attempted — confidence chip communicates uncertainty.
-          // WAND change-notify tracked separately (task #260).
-          // Await modelReadyRef so we never predict on stale NORM.
-          Promise.resolve(modelReadyRef.current)
-            .then(() => import('../../lib/bpModel'))
-            .then(({ predictBP }) => predictBP({ frames: result.rawFrames, fps: result.actualFps }, {}))
-            .then(bp => {
-            if (!bp) return
-            setBpEstimate(bp)
-            if (consultIdForBp && !consultIdForBp.startsWith('demo')) {
-              // Merge into existing vitals payload — updateVitals REPLACES the
-              // vitals JSON column, so we must send the full set (HR/RR/SpO2 +
-              // new BP). Previously this sent only { bp } and wiped the
-              // earlier save. Verified in prod 2026-09-28: consult
-              // f600012d ended up with vitals={"bp":"121/79"} only.
-              const bpString = bp.systolic && bp.diastolic ? `${bp.systolic}/${bp.diastolic}` : (bp.value || null)
-              if (bpString) {
-                updateVitals(consultIdForBp, { ...(result || {}), spo2: spo2Result?.estimate || null, bp: bpString }).catch(() => {})
-              }
-            }
-          }).catch(() => {})
-        }
-        // SpO2: compute synchronously so it's saved with vitals (provider-only, not shown to patient)
+
+        // SpO2: compute synchronously so it lands in the single save below.
         let spo2Result = null
         if (result.rawFrames?.length) {
           try { spo2Result = calculateSpO2(result.rawFrames) } catch {}
           if (spo2Result) setSpo2Estimate(spo2Result)
         }
+
+        // BP: await the model instead of firing-and-forgetting. Previously
+        // this raced navigation — patient would leave /vitals before the
+        // async .then() resolved, so the BP PATCH never made it. Verified
+        // 2026-09-30 consult ab43681c saved HR+RR but no bp/spo2. Timeout
+        // caps the wait so a stuck model doesn't strand the patient.
+        let bpString = null
+        if (result.rawFrames?.length) {
+          try {
+            const bp = await Promise.race([
+              (async () => {
+                await Promise.resolve(modelReadyRef.current)
+                const { predictBP } = await import('../../lib/bpModel')
+                return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+              })(),
+              new Promise(resolve => setTimeout(() => resolve(null), 8000)),
+            ])
+            if (bp) {
+              setBpEstimate(bp)
+              bpString = bp.systolic && bp.diastolic
+                ? `${bp.systolic}/${bp.diastolic}`
+                : (bp.value || null)
+            }
+          } catch (e) {
+            console.warn('[vitals] BP prediction failed:', e?.message || e)
+          }
+        }
+
         const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
+        const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString }
         if (id && !id.startsWith('demo')) {
           try {
-            await updateVitals(id, { ...result, spo2: spo2Result?.estimate || null })
+            await updateVitals(id, payload)
             apiFetch('/api/push-notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -437,7 +436,7 @@ export default function VitalsCapture() {
             setError(t.vitalsSaveFail.replace('{msg}', e?.message || t.serverError))
           }
         } else {
-          sessionStorage.setItem('vitals', JSON.stringify({ ...result, spo2: spo2Result?.estimate || null }))
+          sessionStorage.setItem('vitals', JSON.stringify(payload))
         }
         streamRef.current?.getTracks().forEach(t => t.stop())
       },
