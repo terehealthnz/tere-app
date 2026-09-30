@@ -277,13 +277,14 @@ export default function WaitingRoom() {
   }, [consultationId])
 
   // Flip in_waiting_room=true so this consult becomes visible in the provider
-  // queue. Gated in api/_consultations.js filter=active — without this the
-  // consult stays hidden even with status='waiting'. Public patients hit
-  // this on arrival post-payment; employer patients hit it after vitals.
-  // Idempotent — safe to run every mount.
+  // queue as truly ready. Also promotes status → 'waiting' — employer-paid
+  // consults start as 'vitals_requested' (WorkIntake) and go through vitals
+  // (patient-consult PATCH bumps to 'vitals_complete') before landing here.
+  // The patient-consult endpoint gates status='waiting' on payment_intent_id
+  // or employer_paid=true, so this is safe for both flows and idempotent.
   useEffect(() => {
     if (!consultationId || consultationId.startsWith('demo')) return
-    patientUpdateConsultation(consultationId, { in_waiting_room: true }).catch(() => {})
+    patientUpdateConsultation(consultationId, { in_waiting_room: true, status: 'waiting' }).catch(() => {})
   }, [consultationId])
 
   // Fetch created_at for the countdown + hydrate the pharmacy card from the

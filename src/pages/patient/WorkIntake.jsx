@@ -297,8 +297,14 @@ export default function WorkIntake() {
         employerId: employer.id,
         workIntake: true,  // triggers roster check + ACC auto-populate server-side
 
-        // Skip payment gate — server sets status=waiting when employer_paid=true
-        status: 'waiting',
+        // Employer flow: intake → vitals → waiting room. We used to create as
+        // status='waiting' here so the queue picked them up, but that surfaced
+        // employees in the provider queue as ready-to-be-seen while they were
+        // still on /vitals. Now we create as 'vitals_requested' — visible in
+        // the queue (so providers can watch the pipeline) but the queue label
+        // signals "not ready yet". WaitingRoom.jsx promotes to 'waiting' on
+        // mount, once the patient has actually landed post-vitals.
+        status: 'vitals_requested',
       })
       if (pt?.id) {
         // Both keys — VitalsCapture + several other pages read `consultationId`
