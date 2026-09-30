@@ -27,13 +27,20 @@ export default async function handler(req, res) {
     // safety net when the browser lands on /waiting before the webhook
     // fires. Both promotions require payment_status='authorised' so a
     // scraper can't call this endpoint to page providers unpaid.
-    const { data: consult } = await supabase
+    const { data: consult, error: readErr } = await supabase
       .from('consultations')
       .select('status, payment_intent_id, payment_status')
       .eq('id', consultationId)
-      .single()
+      .maybeSingle()
 
-    if (!consult) return res.status(404).json({ error: 'Not found' })
+    if (readErr) {
+      console.error('[confirm-waiting] read failed:', consultationId, readErr.code, readErr.message)
+      return res.status(500).json({ error: 'Read failed', code: readErr.code })
+    }
+    if (!consult) {
+      console.warn('[confirm-waiting] row not found:', consultationId)
+      return res.status(404).json({ error: 'Not found' })
+    }
     if (consult.status !== 'waitlisted' && consult.status !== 'draft') {
       return res.status(200).json({ ok: true, status: consult.status })
     }
