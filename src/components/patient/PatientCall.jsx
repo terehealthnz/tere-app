@@ -101,6 +101,9 @@ function PatientLeaveButton({ consultationId }) {
     }
     const isLeaveButton = (btn) => {
       if (!btn || btn.tagName !== 'BUTTON') return false
+      // Never touch our own custom Leave button (which lives inside the LK
+      // subtree because it's rendered inside <LiveKitRoom>).
+      if (btn.getAttribute('data-tere-leave') === 'custom') return false
       const label = (btn.getAttribute('aria-label') || '').toLowerCase()
       const src   = (btn.getAttribute('data-lk-source') || '').toLowerCase()
       const kind  = (btn.getAttribute('data-lk-kind') || '').toLowerCase()
@@ -165,6 +168,7 @@ function PatientLeaveButton({ consultationId }) {
     <>
       <button
         onClick={() => setOpen(true)}
+        data-tere-leave="custom"
         style={{
           position: 'fixed',
           bottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
