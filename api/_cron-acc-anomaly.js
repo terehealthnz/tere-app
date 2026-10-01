@@ -43,16 +43,22 @@ export default async function handler(req, res) {
     .or('event_type.like.acc_%,event_type.like.consult_opened,event_type.like.acc_cert.%')
     .limit(50000)
 
-  // Group by provider.
+  // Group by provider. offSamples captures per-event timestamp + IP + action
+  // so the digest can show "22:30 NZT · 203.86.x.x · consult_opened" per
+  // event — the "was that me?" check needs timestamps to be useful. Capped
+  // in the email render, not here.
   const perProvider = new Map()
   for (const r of rows || []) {
     if (!r.provider_id) continue
-    const bucket = perProvider.get(r.provider_id) || { provider_name: r.provider_name, bundles: 0, certs: 0, off: 0, accConsults: [] }
+    const bucket = perProvider.get(r.provider_id) || { provider_name: r.provider_name, bundles: 0, certs: 0, off: 0, offSamples: [], accConsults: [] }
     if (r.event_type === 'acc_audit_bundle_export') bucket.bundles++
     if (String(r.event_type || '').startsWith('acc_cert.')) bucket.certs++
     // Off-hours check
     const nzHour = parseInt(new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', hour: 'numeric', hour12: false }).format(new Date(r.created_at)), 10)
-    if ((nzHour < 6 || nzHour >= 22) && (r.event_type === 'consult_opened' || String(r.event_type || '').startsWith('acc_'))) bucket.off++
+    if ((nzHour < 6 || nzHour >= 22) && (r.event_type === 'consult_opened' || String(r.event_type || '').startsWith('acc_'))) {
+      bucket.off++
+      bucket.offSamples.push({ at: r.created_at, ip: r.ip, event_type: r.event_type })
+    }
     if (r.event_type === 'consult_opened' && r.consultation_id) bucket.accConsults.push({ consultation_id: r.consultation_id, patient_ref: r.patient_ref })
     perProvider.set(r.provider_id, bucket)
   }
@@ -60,7 +66,7 @@ export default async function handler(req, res) {
   for (const [providerId, b] of perProvider) {
     if (b.bundles > ACC_BUNDLE_THRESHOLD) findings.highBundle.push({ provider_id: providerId, provider_name: b.provider_name, count: b.bundles })
     if (b.certs > ACC_CERT_THRESHOLD)     findings.highCert.push({ provider_id: providerId, provider_name: b.provider_name, count: b.certs })
-    if (b.off > 0)                        findings.offHoursAcc.push({ provider_id: providerId, provider_name: b.provider_name, count: b.off })
+    if (b.off > 0)                        findings.offHoursAcc.push({ provider_id: providerId, provider_name: b.provider_name, count: b.off, samples: b.offSamples })
   }
 
   // Stranger-lookup detection: for consult_opened events on ACC-flagged
@@ -103,7 +109,15 @@ export default async function handler(req, res) {
   }
   if (findings.offHoursAcc.length) {
     lines.push('⏰ Off-hours ACC access (22:00–06:00 NZT):')
-    findings.offHoursAcc.forEach(f => lines.push(`  • ${f.provider_name}: ${f.count} events`))
+    findings.offHoursAcc.forEach(f => {
+      lines.push(`  • ${f.provider_name}: ${f.count} events`)
+      // Show timestamps + IPs so Patrick can eyeball "all clustered from my IP
+      // = me working late" vs "03:17 from a foreign IP = call ops now".
+      const fmt = (iso) => new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', hour: '2-digit', minute: '2-digit', hour12: false, day: '2-digit', month: 'short' }).format(new Date(iso))
+      const samples = (f.samples || []).slice(0, 20)
+      samples.forEach(s => lines.push(`      - ${fmt(s.at)} NZT · ${s.ip || 'no-ip'} · ${s.event_type}`))
+      if ((f.samples || []).length > 20) lines.push(`      … + ${f.samples.length - 20} more`)
+    })
     lines.push('')
   }
   if (findings.strangerLookup.length) {
