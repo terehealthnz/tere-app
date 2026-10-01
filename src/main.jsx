@@ -78,10 +78,29 @@ try {
 // `refreshing` guard prevents the tight-loop that happens if the SW
 // claim-then-controllerchange fires while the page is already reloading.
 if ('serviceWorker' in navigator) {
-  let refreshing = false
+  // Reload-loop fix (2026-10-01): the previous `let refreshing = false` guard
+  // was module-scoped — it reset to false on every page reload, so a PWA that
+  // picked up a new SW could enter a tight loop (install→activate→
+  // controllerchange→reload→module reruns→refreshing=false→controllerchange
+  // fires on NEXT SW tick→reload again). Observed on iOS PWA on launch-eve
+  // after 3 deploys in an hour (unmount-guard + PhonePicker + ACC digest).
+  //
+  // New rule: once we reload for an SW change, we DO NOT reload again for at
+  // least 60 seconds, regardless of how many controllerchange events fire.
+  // Guard uses sessionStorage (persists across reloads within the same tab)
+  // and a timestamp so a genuinely new deploy an hour later still auto-picks
+  // up — we just can't thrash every few seconds.
+  const SW_RELOAD_KEY = 'tere_sw_reloaded_at'
+  const SW_RELOAD_COOLDOWN_MS = 60_000
+  const recentlyReloaded = () => {
+    try {
+      const t = parseInt(sessionStorage.getItem(SW_RELOAD_KEY) || '0', 10)
+      return t > 0 && (Date.now() - t) < SW_RELOAD_COOLDOWN_MS
+    } catch { return false }
+  }
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return
-    refreshing = true
+    if (recentlyReloaded()) return
+    try { sessionStorage.setItem(SW_RELOAD_KEY, String(Date.now())) } catch {}
     window.location.reload()
   })
   window.addEventListener('load', () => {
@@ -91,13 +110,15 @@ if ('serviceWorker' in navigator) {
       .catch(() => {})
   })
   // Also re-check for SW updates whenever the PWA comes back to the
-  // foreground. Fixes the case where a provider has the PWA installed,
-  // backgrounds it for hours, and never triggers a fresh 'load' event —
-  // without this, the SW never notices a new deploy is out. On
-  // foreground we ask the browser to re-fetch sw.js; if it's changed,
-  // the install→activate→controllerchange chain above fires and reloads.
+  // foreground. Debounced to at most once per 60s so backgrounding and
+  // reopening repeatedly doesn't hammer sw.js and (worst case) feed the
+  // controllerchange loop above.
+  let lastUpdateCheck = 0
   const checkForUpdate = () => {
     if (document.visibilityState !== 'visible') return
+    const now = Date.now()
+    if (now - lastUpdateCheck < 60_000) return
+    lastUpdateCheck = now
     navigator.serviceWorker.getRegistration('/sw.js')
       .then(reg => reg?.update())
       .catch(() => {})

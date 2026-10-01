@@ -16,7 +16,13 @@
 // WaitingRoom mount), patient Leave modal, and Video widget mount fixes
 // on next foreground. Without this bump, PWAs keep serving the pre-
 // launch bundle until the user manually re-installs the app.
-const CACHE = 'tere-v11'
+// v11→v12: SW reload-loop fix 2026-10-01. The previous controllerchange
+// handler had a module-scoped `refreshing` flag that reset on every reload,
+// causing a tight loop on PWAs with slightly-divergent SW state (observed
+// after 3 deploys in an hour: unmount-guard + PhonePicker + ACC digest).
+// Guard is now sessionStorage-backed with a 60s cooldown so one real
+// deploy still auto-propagates but a loop can't form.
+const CACHE = 'tere-v12'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 
