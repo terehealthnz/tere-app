@@ -244,6 +244,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   const [pharmacyQuery, setPharmacyQuery] = useState('')
   const [medsafeList, setMedsafeList] = useState(null)
   const recorderRef = useRef(null)
+  // Unmount guard: if the parent (ClinicianPatient popup) tears us down while a
+  // call is still active — e.g. provider hits "Complete Encounter" on the chart
+  // bar instead of ✓ Consult Complete on the floating widget — React just
+  // unmounts us. endCall() never runs → stopScribe() never fires → the audio
+  // blob is lost on GC and the transcript column stays null. The ref carries
+  // the LATEST closure (inCall/endingCall values + endCall fn) so the
+  // mount-only cleanup effect below can fire the correct version. Fetches
+  // started inside endCall survive the unmount; React setState warnings in
+  // that path are harmless (we're already gone).
+  const latestEndCallRef = useRef(null)
   // Captured LiveKit Room instance — populated by <RoomCapture> below when
   // <LiveKitRoom> connects. tereScribe uses it to pull the local + remote
   // audio tracks directly (avoids the empty-blob bug from grabbing a second
@@ -572,6 +582,25 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
       if (ctx) try { ctx.close() } catch {}
     }
   }, [inCall, patientHere])
+
+  // Keep the unmount-guard ref pointed at the latest closure so the cleanup
+  // effect below can fire endCall with current state values. Runs every
+  // render — cheap, no deps array needed.
+  latestEndCallRef.current = { inCall, endingCall, endCall: (p, r) => endCall(p, r) }
+
+  // Mount-only cleanup. Fires when the parent unmounts us mid-call (ending
+  // call via chart's static "Complete Encounter" button, or any navigate-away).
+  // Calls endCall(true, 'complete') so stopScribe + transcript upload still
+  // happen even though we're being torn down. endCall is fire-and-forget here
+  // because cleanups can't await — the inner fetch chains survive the unmount.
+  useEffect(() => {
+    return () => {
+      const g = latestEndCallRef.current
+      if (g?.inCall && !g.endingCall && typeof g.endCall === 'function') {
+        try { g.endCall(true, 'complete') } catch {}
+      }
+    }
+  }, [])
 
   // Auto-start scribe when entering in-call state.
   //
