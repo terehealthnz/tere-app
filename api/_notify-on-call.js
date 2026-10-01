@@ -87,7 +87,10 @@ export async function notifyOnCallProviders({ consultationId }) {
     console.warn('[notify-on-call] eligible after rate-limit', { consultationId, eligible: eligible.length, dropped: (providers.length - eligible.length) })
     if (eligible.length === 0) return
 
-    const body = 'Tere: new patient in the queue — https://terehealth.co.nz/provider'
+    // URL-free body — NZ carriers (esp 2degrees) silently drop SMS with
+    // links from unregistered sender IDs as spam. Keep text pure so delivery
+    // succeeds; the provider knows where to open the dashboard.
+    const body = 'Tere: new patient in the queue. Open your dashboard to see them.'
     const nowIso = new Date().toISOString()
 
     await Promise.allSettled(eligible.map(async p => {
