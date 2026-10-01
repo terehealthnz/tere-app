@@ -40,7 +40,7 @@ export default async function handler(req, res) {
     const supabase = admin()
     const { data: consult, error: readErr } = await supabase
       .from('consultations')
-      .select('id, status, payment_status, payment_intent_id')
+      .select('id, status, payment_status, payment_intent_id, employer_paid, consultation_type, payment_test_mode')
       .eq('id', consultationId)
       .maybeSingle()
 
@@ -86,10 +86,22 @@ export default async function handler(req, res) {
     // payment was already authorised before the provider closed the case,
     // so we skip this check for those (payment_intent_id on the row is
     // the proof).
-    if (consult.status === 'draft' && consult.payment_status !== 'authorised') {
+    //
+    // Employer-paid + payment_test_mode consults never attach a
+    // payment_intent_id because nothing was charged — the employer covers
+    // the fee server-side, or the $0.10 test override skips Windcave. In
+    // both cases the consult is legitimately entitled to re-enter the queue
+    // without a Windcave reference. Accept either proof as entitlement.
+    const hasEntitlement = (
+      consult.payment_intent_id ||
+      consult.employer_paid === true ||
+      consult.consultation_type === 'employee' ||
+      consult.payment_test_mode === true
+    )
+    if (consult.status === 'draft' && consult.payment_status !== 'authorised' && !hasEntitlement) {
       return res.status(400).json({ error: 'Payment not confirmed yet — try again in a minute.' })
     }
-    if (['expired', 'no_show', 'cancelled'].includes(consult.status) && !consult.payment_intent_id) {
+    if (['expired', 'no_show', 'cancelled'].includes(consult.status) && !hasEntitlement) {
       return res.status(400).json({ error: 'This consult has no payment on file and cannot be re-opened. Please start a new consultation.' })
     }
 

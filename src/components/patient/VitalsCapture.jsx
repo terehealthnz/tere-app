@@ -91,6 +91,17 @@ export default function VitalsCapture() {
       .then(({ loadModelFromSupabase }) => loadModelFromSupabase())
       .catch(() => null)
     import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
+
+    // If the patient previously reached /waiting then came back to vitals (back
+    // nav, retake, bookmark reload), the WaitingRoom mount flipped
+    // in_waiting_room=true and never cleared it, so they'd keep showing in the
+    // provider queue as "Vitals ready" while actually mid-rescan. Clear the
+    // flag on vitals mount — if you're on the vitals page you aren't waiting.
+    // Idempotent and safe on fresh consults where the flag was already false.
+    const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
+    if (cId && !cId.startsWith('demo')) {
+      patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
+    }
   }, [])
   const videoRef   = useRef(null)
   const canvasRef  = useRef(null)
@@ -241,12 +252,20 @@ export default function VitalsCapture() {
 
   // Request camera → inspect → checklist (or use background frames if available)
   useEffect(() => {
+    // `unmounted` races against the async getUserMedia resolution. Previously,
+    // if the user navigated to /waiting before the camera prompt resolved,
+    // cleanup fired with streamRef.current still null → when the stream later
+    // resolved it was assigned to streamRef with nothing left to stop it →
+    // camera stayed on in the waiting room. Checking this flag inside the
+    // async closure lets us stop a stream that resolved post-unmount.
+    let unmounted = false
     async function requestCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode:'user', width:640, height:480, frameRate:30 },
           audio: false,
         })
+        if (unmounted) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
         if (videoRef.current) {
           videoRef.current.srcObject = stream
@@ -350,7 +369,16 @@ export default function VitalsCapture() {
 
     requestCamera()
     return () => {
-      streamRef.current?.getTracks().forEach(t => t.stop())
+      unmounted = true
+      // Stop every stream VitalsCapture may have opened. rearStreamRef is set
+      // by startFingerScan() and was previously only stopped on scan-complete;
+      // a mid-scan unmount leaked the rear camera into whatever page the user
+      // landed on next. Explicit null-after-stop so we don't double-stop
+      // tracks that are already ended.
+      try { streamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
+      try { rearStreamRef.current?.getTracks().forEach(t => t.stop()) } catch {}
+      streamRef.current = null
+      rearStreamRef.current = null
       measureRef.current?.stop()
       clearInterval(qualityIntervalRef.current)
     }

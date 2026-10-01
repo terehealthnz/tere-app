@@ -584,12 +584,18 @@ export default function Dashboard() {
                           {c.consultation_type === 'video' ? '📹 Start call' : '📞 Start call'}
                         </button>
                       )}
-                      {!isLocked && (
-                        <button onClick={() => requestDismiss(c)}
-                          style={{background:'none',border:'1px solid #FECACA',color:'#DC2626',padding:'4px 8px',borderRadius:6,cursor:'pointer',fontSize:'.75rem',fontWeight:600,fontFamily:'Plus Jakarta Sans,sans-serif'}}>
-                          ✕
-                        </button>
-                      )}
+                      {/* Dismiss button removed from queue card 2026-10-01 — Patrick
+                          found consults mysteriously flipping to status='expired'
+                          with no audit trail. Grep confirmed Dashboard's requestDismiss
+                          was the only code path writing 'expired' to a consult. Even
+                          with the two-step modal, a provider mis-tapping ✕ next to
+                          "Start Call" then hitting the red "Yes, dismiss" (which is
+                          styled as primary — standard UX trap for destructive actions)
+                          would silently kill the patient's consult. The button is
+                          removed from this surface entirely. If a provider needs to
+                          cancel a specific consult, admin flows handle it with the
+                          correct context. requestDismiss/confirmDismiss stay in-file
+                          so a future admin-only entry point can call them. */}
                     </div>
                   </div>
                 )
