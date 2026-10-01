@@ -67,6 +67,15 @@ export class ConsultationRecorder {
     // remote audio Chime binds via bindAudioElement. Local mic is captured
     // via a fresh getUserMedia handle (see #collectChimeAudioStreams).
     this.chimeAudioEl  = opts.chimeAudioEl || null
+    // Late-joiner subscription (post-task #480 fix): with the patient-must-
+    // click-Start-Call gate, scribe begins when the provider's LiveKit room
+    // connects, which is BEFORE the patient has joined. The initial track
+    // snapshot captures only the provider's mic. We now subscribe to
+    // TrackSubscribed and splice any audio track that arrives afterwards
+    // into the WebAudio graph so the patient's half of the call lands in
+    // the transcript. _onTrackSubscribed holds the handler so stop() can
+    // detach it cleanly.
+    this._onTrackSubscribed = null
   }
 
   async start() {
@@ -93,6 +102,33 @@ export class ConsultationRecorder {
         this.sourceNodes.push(src)
       }
       this.stream = this.destinationNode.stream
+
+      // Late-joiner wiring (LiveKit path only). The initial snapshot above
+      // captured whatever tracks were published when start() ran. With the
+      // patient Start-Call gate (task #480), scribe starts the moment the
+      // provider's LiveKitRoom connects — well before the patient has
+      // clicked their Start Call button and published their mic. We now
+      // listen for TrackSubscribed and splice any audio track that arrives
+      // afterwards into the running WebAudio graph. Without this, the
+      // transcript contained only the provider's half of the call. The
+      // string literal 'trackSubscribed' avoids pulling in a livekit-client
+      // import for a single event name.
+      if (this.room) {
+        this._onTrackSubscribed = (track) => {
+          try {
+            if (track?.kind !== 'audio') return
+            const ms = track.mediaStream || (track.mediaStreamTrack && new MediaStream([track.mediaStreamTrack]))
+            if (!ms) return
+            const src = this.audioContext.createMediaStreamSource(ms)
+            src.connect(this.destinationNode)
+            this.sourceNodes.push(src)
+            console.log('[tereScribe] late audio track wired in — likely the patient joining mid-recording')
+          } catch (e) {
+            console.warn('[tereScribe] TrackSubscribed splice failed:', e?.message)
+          }
+        }
+        try { this.room.on('trackSubscribed', this._onTrackSubscribed) } catch {}
+      }
     } else {
       // Fallback path — no LiveKit tracks, so grab the mic directly.
       // Only reached from callers that don't own a Room (rare).
@@ -126,6 +162,10 @@ export class ConsultationRecorder {
         // Clean up any resources we own. LiveKit tracks (roomTracks path) are
         // owned by the Room, so we DO NOT stop them — only the mic stream we
         // opened ourselves (fallbackStream) + any WebAudio nodes.
+        if (this.room && this._onTrackSubscribed) {
+          try { this.room.off('trackSubscribed', this._onTrackSubscribed) } catch {}
+          this._onTrackSubscribed = null
+        }
         try { this.sourceNodes.forEach(n => n.disconnect()) } catch {}
         try { this.destinationNode?.disconnect?.() } catch {}
         try { this.audioContext?.close?.() } catch {}
