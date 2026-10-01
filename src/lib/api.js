@@ -78,6 +78,13 @@ export async function apiFetch(path, options = {}) {
   // context. Cookie-based auth closes Blacklock WEB-0923-0655443636.
   const res = await fetch(path, { credentials: 'include', ...options, headers })
 
+  // Any successful authenticated response proves the current session is
+  // alive. Clear the reload flag so a FUTURE expiry (3-hour marathon
+  // sessions) can trigger a fresh reload instead of silently failing.
+  if (res.ok && typeof window !== 'undefined') {
+    try { sessionStorage.removeItem('tere_auth_reload') } catch {}
+  }
+
   // MFA-mandatory: if the server rejects with MFA_REQUIRED, the caller is
   // an authenticated provider who hasn't enrolled TOTP yet. Punt the whole
   // window to the enrollment page — no dashboard access until enrolled.
@@ -95,6 +102,40 @@ export async function apiFetch(path, options = {}) {
           window.location.href = '/clinician/mfa-required'
         }
       } catch { /* not a JSON body, or already consumed — safe to ignore */ }
+    }
+  }
+
+  // 401 auto-recovery: a provider's long-running session can expire mid-flow
+  // (Supabase JWT refresh fails, cookie TTL hits, idle re-auth fires in a
+  // background tab). The next provider API call returns 401, which many
+  // components don't guard — the error bubbles to <ChunkErrorBoundary> and
+  // the user sees "Something went wrong" on an otherwise-recoverable
+  // state. Instead: reload the current URL once per session. On reload,
+  // Supabase auto-refreshes the JWT and the server re-reads the cookie;
+  // if auth is genuinely dead the login page handles it, otherwise the
+  // user is back in action with the same route. Guarded against loops
+  // with a sessionStorage key (same pattern as the chunk-reload path).
+  //
+  // Only triggers on provider surfaces — patient flows have their own
+  // consultation-token recovery and shouldn't force-reload.
+  if (res.status === 401 && typeof window !== 'undefined') {
+    const pathname = window.location.pathname
+    const isProviderSurface =
+      pathname.startsWith('/clinician') ||
+      pathname.startsWith('/provider') ||
+      pathname.startsWith('/admin')
+    const isAuthEndpoint =
+      /\/api\/(provider-auth|provider-session|provider-logout|provider-mfa|forgot-password|reset-password)\b/.test(String(path))
+    if (isProviderSurface && !isAuthEndpoint) {
+      const key = 'tere_auth_reload'
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, String(Date.now()))
+        console.warn('[apiFetch] 401 on provider surface — reloading to refresh session', { path })
+        window.location.reload()
+      }
+      // If we're already past the reload (session truly dead), let the 401
+      // propagate so the caller can show "please log in" copy instead of
+      // looping. The flag clears next session.
     }
   }
 

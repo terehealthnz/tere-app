@@ -11,6 +11,28 @@ import { loadFlags } from './lib/featureFlags'
 // back to their default (off).
 loadFlags().catch(() => {})
 
+// Global unhandled-rejection catcher. Async errors (fetch failures, awaited
+// Promises that reject) don't hit React error boundaries. On a long-running
+// provider session, an expired cookie / stale JWT typically surfaces as an
+// unhandled rejection from an in-flight API call — the component doesn't
+// crash, but the user hits a dead loading state. Reload once to recover,
+// same session-key guard as the 401 handler in apiFetch so we don't loop.
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (e) => {
+    const msg = String(e?.reason?.message || e?.reason || '')
+    const authSignal = /401|unauth|session|expired|forbidden|jwt/i.test(msg)
+    if (!authSignal) return
+    const path = window.location.pathname
+    const providerSurface = path.startsWith('/clinician') || path.startsWith('/provider') || path.startsWith('/admin')
+    if (!providerSurface) return
+    const key = 'tere_auth_reload'
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, String(Date.now()))
+    console.warn('[main] auth-shaped unhandled rejection — reloading', { msg })
+    window.location.reload()
+  })
+}
+
 // One-tap test bootstrap. Open a URL like:
 //   https://terehealth.co.nz/call?token=<uuid>&consultId=<uuid>
 // on any device (phone, laptop) and jump straight into the call as the
