@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 
 export default function Login() {
@@ -89,7 +89,13 @@ export default function Login() {
 
               {mode === 'password' && (
                 <div className="form-group">
-                  <label className="form-label">Password</label>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline' }}>
+                    <label className="form-label">Password</label>
+                    <Link to="/clinician/forgot-password"
+                      style={{ fontSize:'0.75rem', color:'var(--teal-light)', textDecoration:'none' }}>
+                      Forgot password?
+                    </Link>
+                  </div>
                   <input type="password" className="form-input" value={password}
                     onChange={e => setPassword(e.target.value)}
                     autoComplete="current-password" required />
