@@ -932,6 +932,10 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           // rural / mobile patients.
           adaptiveStream
           dynacast
+          // Force TURN relay over TCP/443 so patients on corporate/hotel
+          // firewalls that block UDP WebRTC still connect (looks like HTTPS).
+          // ~50ms latency hit; worth it for universal reach.
+          connectOptions={{ rtcConfig: { iceTransportPolicy: 'relay' } }}
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />
@@ -1102,6 +1106,8 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           data-lk-theme="default"
           adaptiveStream
           dynacast
+          // See popup-mode LiveKitRoom above — force TURN relay for firewall traversal.
+          connectOptions={{ rtcConfig: { iceTransportPolicy: 'relay' } }}
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />

@@ -760,6 +760,14 @@ export default function PatientCall() {
         // of hard-freezing the whole call.
         adaptiveStream
         dynacast
+        // Force every connection through LiveKit Cloud's TURN relay over
+        // TCP/443. Direct peer connections need outbound UDP which many
+        // corporate / hotel / school firewalls silently block, producing
+        // the "stuck on Connecting…" black screen. Relay traffic looks
+        // like HTTPS so it tunnels through anything that allows web
+        // browsing. ~50ms latency hit (imperceptible for voice/video),
+        // works universally.
+        connectOptions={{ rtcConfig: { iceTransportPolicy: 'relay' } }}
         onDisconnected={() => {
           // Read + clear the shared intent flag. If a deliberate leave path
           // (PatientLeaveButton or ProviderLeaveWatcher) set the flag before
