@@ -25,9 +25,14 @@ if (typeof window !== 'undefined') {
     const path = window.location.pathname
     const providerSurface = path.startsWith('/clinician') || path.startsWith('/provider') || path.startsWith('/admin')
     if (!providerSurface) return
-    const key = 'tere_auth_reload'
-    if (sessionStorage.getItem(key)) return
-    sessionStorage.setItem(key, String(Date.now()))
+    // Shares the same cooldown key as apiFetch's 401 path so an auth-shape
+    // rejection and a 401 can't double-fire inside the window. See api.js.
+    const AUTH_RELOAD_KEY = 'tere_auth_reload_at'
+    const AUTH_RELOAD_COOLDOWN_MS = 60_000
+    let lastReloadAt = 0
+    try { lastReloadAt = parseInt(sessionStorage.getItem(AUTH_RELOAD_KEY) || '0', 10) } catch {}
+    if (Date.now() - lastReloadAt < AUTH_RELOAD_COOLDOWN_MS) return
+    try { sessionStorage.setItem(AUTH_RELOAD_KEY, String(Date.now())) } catch {}
     console.warn('[main] auth-shaped unhandled rejection — reloading', { msg })
     window.location.reload()
   })

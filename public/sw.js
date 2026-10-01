@@ -22,7 +22,11 @@
 // after 3 deploys in an hour: unmount-guard + PhonePicker + ACC digest).
 // Guard is now sessionStorage-backed with a 60s cooldown so one real
 // deploy still auto-propagates but a loop can't form.
-const CACHE = 'tere-v12'
+// v12→v13: Second reload loop fix 2026-10-01. apiFetch's 401 handler used
+// the same clear-on-2xx binary flag pattern, which looped when
+// provider-notifications 401'd while consultations 200'd. Switched to
+// timestamp cooldown. Bump CACHE so PWAs on v12 pick up v13 immediately.
+const CACHE = 'tere-v13'
 // Static assets that don't rev between deploys — safe to cache.
 const SHELL = ['/tere-logo.png', '/manifest.json']
 

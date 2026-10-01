@@ -78,12 +78,12 @@ export async function apiFetch(path, options = {}) {
   // context. Cookie-based auth closes Blacklock WEB-0923-0655443636.
   const res = await fetch(path, { credentials: 'include', ...options, headers })
 
-  // Any successful authenticated response proves the current session is
-  // alive. Clear the reload flag so a FUTURE expiry (3-hour marathon
-  // sessions) can trigger a fresh reload instead of silently failing.
-  if (res.ok && typeof window !== 'undefined') {
-    try { sessionStorage.removeItem('tere_auth_reload') } catch {}
-  }
+  // Note (2026-10-01): previously we cleared `tere_auth_reload` on every 2xx
+  // so a future expiry could re-trigger reload. That created a reload loop
+  // when one endpoint (e.g. provider-notifications) 401'd while another
+  // (e.g. consultations) 200'd — the 2xx cleared the flag, next 401 set it
+  // and reloaded again. The 401 path below now uses a timestamp cooldown
+  // instead of a binary flag, so we never need to clear it from here.
 
   // MFA-mandatory: if the server rejects with MFA_REQUIRED, the caller is
   // an authenticated provider who hasn't enrolled TOTP yet. Punt the whole
@@ -127,15 +127,21 @@ export async function apiFetch(path, options = {}) {
     const isAuthEndpoint =
       /\/api\/(provider-auth|provider-session|provider-logout|provider-mfa|forgot-password|reset-password)\b/.test(String(path))
     if (isProviderSurface && !isAuthEndpoint) {
-      const key = 'tere_auth_reload'
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, String(Date.now()))
+      // Timestamp cooldown — writes "when we last auto-reloaded" and refuses
+      // to reload again within AUTH_RELOAD_COOLDOWN_MS. Previously used a
+      // clear-on-2xx binary flag which looped when one endpoint 401'd while
+      // another 200'd in the same session (2026-10-01 incident).
+      const AUTH_RELOAD_KEY = 'tere_auth_reload_at'
+      const AUTH_RELOAD_COOLDOWN_MS = 60_000
+      let lastReloadAt = 0
+      try { lastReloadAt = parseInt(sessionStorage.getItem(AUTH_RELOAD_KEY) || '0', 10) } catch {}
+      if (Date.now() - lastReloadAt >= AUTH_RELOAD_COOLDOWN_MS) {
+        try { sessionStorage.setItem(AUTH_RELOAD_KEY, String(Date.now())) } catch {}
         console.warn('[apiFetch] 401 on provider surface — reloading to refresh session', { path })
         window.location.reload()
       }
-      // If we're already past the reload (session truly dead), let the 401
-      // propagate so the caller can show "please log in" copy instead of
-      // looping. The flag clears next session.
+      // Within cooldown — let the 401 propagate so the caller can show
+      // "please log in" copy instead of looping.
     }
   }
 
