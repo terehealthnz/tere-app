@@ -4,6 +4,8 @@ import { apiFetch } from '../../lib/api'
 import { createConsultation } from '../../lib/supabase'
 import { useAutoT } from '../../lib/i18n'
 import DobPicker from '../../components/DobPicker'
+import PhonePicker from '../../components/PhonePicker'
+import AddressAutocomplete from '../../components/AddressAutocomplete'
 import { isClinicOpen } from '../../lib/clinicHours'
 
 // /work/[slug]/intake — streamlined B2B intake form.
@@ -166,7 +168,11 @@ export default function WorkIntake() {
     return () => { cancelled = true }
   }, [slug])
 
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phone.trim() || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent
+  // Phone must be E.164 (PhonePicker emits "+64..."); email just needs to be
+  // non-empty. One of the two is enough so providers always have a callback
+  // channel. Mirrors AITriage's /^\+\d{6,15}$/ check on patient_phone.
+  const phoneValid = /^\+\d{6,15}$/.test(String(phone || '').trim())
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
@@ -398,13 +404,19 @@ export default function WorkIntake() {
             )}
 
             <label style={label}>{t.phoneLabel}</label>
-            <input style={inp} type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder={t.phonePlaceholder} autoComplete="tel" />
+            <PhonePicker value={phone} onChange={setPhone} />
 
             <label style={label}>{t.emailLabel}</label>
             <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t.emailPlaceholder} autoComplete="email" />
 
             <label style={label}>{t.addressLabel}</label>
-            <input style={inp} type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder={t.addressPlaceholder} autoComplete="street-address" />
+            <AddressAutocomplete
+              value={address}
+              onChange={setAddress}
+              onSelect={s => setAddress(s.display_name)}
+              placeholder={t.addressPlaceholder}
+              inputStyle={inp}
+            />
 
             <label style={label}>{t.nhiLabel}</label>
             <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} placeholder="ABC1234" maxLength={7} autoComplete="off" />
