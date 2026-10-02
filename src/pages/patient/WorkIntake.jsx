@@ -49,6 +49,15 @@ export default function WorkIntake() {
   const [address, setAddress] = useState('')
   const [nhi, setNhi] = useState('')
   const [chief, setChief] = useState('')
+  // Work injury + ACC fields (2026-10-02). Employees skip triage, so
+  // acc_eligible defaulted to 'no' and ACC45 claims never fired for
+  // workplace injuries. Collecting the three ACC fields + three-part
+  // consent here mirrors what AITriage captures for public patients.
+  const [isWorkInjury, setIsWorkInjury] = useState(false)
+  const [injuryDate, setInjuryDate] = useState('')
+  const [injuryDescription, setInjuryDescription] = useState('')
+  const [bodyPart, setBodyPart] = useState('')
+  const [accConsent, setAccConsent] = useState(false)
   // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Required — same 8
   // options as AITriage's imaging_clinic step, plus an explicit "not sure"
   // value so the worker has to actively acknowledge the choice. Empty
@@ -172,7 +181,14 @@ export default function WorkIntake() {
   // non-empty. One of the two is enough so providers always have a callback
   // channel. Mirrors AITriage's /^\+\d{6,15}$/ check on patient_phone.
   const phoneValid = /^\+\d{6,15}$/.test(String(phone || '').trim())
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent
+  // When isWorkInjury is ticked, ACC45 lodgement needs injury date,
+  // mechanism, body part, and the three-part ACC consent. All four are
+  // mandatory in that path — the ACC45 form can't be lodged without them
+  // and we don't want to collect them half-way after the call starts.
+  const accFieldsValid = !isWorkInjury || (
+    !!injuryDate && injuryDescription.trim().length >= 5 && bodyPart.trim().length >= 2 && accConsent
+  )
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
@@ -303,6 +319,15 @@ export default function WorkIntake() {
         employerId: employer.id,
         workIntake: true,  // triggers roster check + ACC auto-populate server-side
 
+        // ACC: when the worker ticked "work injury" above, pass through the
+        // injury details + three-part consent so Finalise fires the ACC45
+        // claim automatically (same path as public patients who said YES in
+        // triage). Null / no-op when not a work injury.
+        accEligible:   isWorkInjury ? 'yes' : 'no',
+        injuryDate:    isWorkInjury ? injuryDate : null,
+        injuryDetails: isWorkInjury ? `${bodyPart.trim()} — ${injuryDescription.trim()}` : null,
+        accConsent:    isWorkInjury && accConsent,
+
         // Employer flow: intake → vitals → waiting room. We used to create as
         // status='waiting' here so the queue picked them up, but that surfaced
         // employees in the provider queue as ready-to-be-seen while they were
@@ -423,6 +448,33 @@ export default function WorkIntake() {
 
             <label style={label}>{t.problemLabel}</label>
             <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder={t.problemPlaceholder} />
+
+            {/* Work injury → ACC fields. Collecting the injury date, mechanism,
+                body part, and three-part ACC consent here means Finalise can
+                lodge the ACC45 automatically on behalf of the employee, no
+                provider typing required mid-call. */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.25rem', marginBottom: isWorkInjury ? '.75rem' : '1rem', cursor: 'pointer', color: 'rgba(255,255,255,.9)', fontSize: '.875rem', lineHeight: 1.5 }}>
+              <input type="checkbox" checked={isWorkInjury} onChange={e => setIsWorkInjury(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
+              <span><strong>This was a work injury</strong> — happened at work or because of work. Tick to lodge an ACC claim.</span>
+            </label>
+
+            {isWorkInjury && (
+              <div style={{ background: 'rgba(11,110,118,.18)', border: '1px solid rgba(127,196,200,.3)', borderRadius: 10, padding: '.9rem 1rem', marginBottom: '1rem' }}>
+                <label style={{ ...label, marginTop: 0 }}>When did it happen?</label>
+                <input style={inp} type="date" value={injuryDate} onChange={e => setInjuryDate(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+
+                <label style={label}>Which body part?</label>
+                <input style={inp} type="text" value={bodyPart} onChange={e => setBodyPart(e.target.value)} placeholder="e.g. right hand, left ankle, lower back" />
+
+                <label style={label}>How did it happen?</label>
+                <textarea style={{ ...inp, minHeight: 70, resize: 'vertical' }} value={injuryDescription} onChange={e => setInjuryDescription(e.target.value)} placeholder="e.g. cut hand on mussel line pulley while hauling" />
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.5rem', marginBottom: 0, cursor: 'pointer', color: 'rgba(255,255,255,.9)', fontSize: '.8125rem', lineHeight: 1.55 }}>
+                  <input type="checkbox" checked={accConsent} onChange={e => setAccConsent(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
+                  <span>I consent to ACC being billed for this treatment, to Tere Health sharing information with ACC about this injury, and to being treated under ACC cover.</span>
+                </label>
+              </div>
+            )}
 
             {/* Required imaging region — mirrors AITriage's imaging_clinic
                 step so the provider isn't left guessing from address on
