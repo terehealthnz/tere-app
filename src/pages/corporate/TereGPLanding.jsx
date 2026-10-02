@@ -55,7 +55,7 @@ export default function TereGPLanding() {
             padding: '8px 16px', borderRadius: 99,
             fontWeight: 700, textDecoration: 'none',
           }}>
-            Urgent care
+            Tere Health
           </a>
         </div>
       </nav>
@@ -142,10 +142,10 @@ export default function TereGPLanding() {
             maxWidth: 560, marginLeft: 'auto', marginRight: 'auto',
           }}>
             <div style={{ fontWeight: 700, color: 'white', marginBottom: 4 }}>
-              Need urgent care now?
+              Need care today?
             </div>
-            Tere Health urgent-care telehealth (acute illness, injuries,
-            after-hours, ACC) is open today at{' '}
+            Tere Health telehealth (acute &amp; emergent care, after-hours, ACC)
+            is open today at{' '}
             <a href="https://terehealth.co.nz" style={{ color: BRAND.tealLight, fontWeight: 600 }}>
               terehealth.co.nz
             </a>. Tere GP is a separate product; both are run by Tere Health Ltd.
