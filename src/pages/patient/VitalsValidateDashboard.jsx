@@ -1561,6 +1561,51 @@ export default function VitalsValidateDashboard() {
   const [reprocessStatus, setReprocessStatus] = useState('')
   const [reprocessingHr, setReprocessingHr] = useState(false)
   const [reprocessHrStatus, setReprocessHrStatus] = useState('')
+  // v3-rerun predictions keyed by reading id, for the Readings-tab comparison
+  // column. Computed in the background after readings load so the table paints
+  // fast and v3 numbers trickle in. Uses the currently-promoted server model
+  // (same as live /vitals) so the column shows what prod would say now.
+  const [v3Rerun, setV3Rerun] = useState({})
+  const [v3RerunStatus, setV3RerunStatus] = useState('')
+  useEffect(() => {
+    if (!readings.length) return
+    let cancelled = false
+    async function run() {
+      setV3RerunStatus('loading model…')
+      try {
+        const [{ loadActiveV3ModelFromServer, predictV3FromFrames }] = await Promise.all([
+          import('../../lib/bpModelV3'),
+        ])
+        const model = await loadActiveV3ModelFromServer()
+        if (cancelled) return
+        if (!model) { setV3RerunStatus('no v3 model promoted'); return }
+        const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+        const withFrames = readings.filter(r => r.raw_rppg_signal?.frames?.length)
+        setV3RerunStatus(`predicting ${withFrames.length}…`)
+        const out = {}
+        for (let i = 0; i < withFrames.length; i++) {
+          if (cancelled) return
+          const r = withFrames[i]
+          const sub = r.subject_id ? subMap[r.subject_id] : {}
+          const fps = r.raw_rppg_signal?.fps || 30
+          if (i % 10 === 0) await new Promise(res => setTimeout(res, 0))
+          try {
+            const pred = predictV3FromFrames(model, r.raw_rppg_signal.frames, fps, sub)
+            if (pred && !pred.skipped) out[r.id] = { sys: pred.systolic, dia: pred.diastolic }
+            else out[r.id] = { skipped: true, reason: pred?.reason }
+          } catch { out[r.id] = { skipped: true, reason: 'error' } }
+        }
+        if (!cancelled) {
+          setV3Rerun(out)
+          setV3RerunStatus(`done · ${Object.values(out).filter(v => !v.skipped).length}/${withFrames.length} predicted`)
+        }
+      } catch (e) {
+        if (!cancelled) setV3RerunStatus(`load failed: ${e.message || e}`)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [readings, subjects])
 
   const loadData = useCallback(() => {
     setLoading(true); setLoadError(null)
@@ -1944,10 +1989,13 @@ export default function VitalsValidateDashboard() {
                     </button>
                   )}
                 </div>
+              {v3RerunStatus && (
+                <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>v3 rerun — {v3RerunStatus}</div>
+              )}
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
                 <thead>
                   <tr>
-                    {['Date','Subject','BP','Manual HR','Tere HR','Diff','RR','Conf %','Notes'].map(h => (
+                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','RR','Conf %','Notes'].map(h => (
                       <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -1956,11 +2004,18 @@ export default function VitalsValidateDashboard() {
                   {filtered.map(r => {
                     const diff = r.hr_difference
                     const dc = diff == null ? '#6B7280' : diff <= 5 ? '#10B981' : diff <= 10 ? '#F59E0B' : '#EF4444'
+                    const v3 = v3Rerun[r.id]
+                    const v3Str = v3?.skipped ? `skip` : v3 ? `${v3.sys}/${v3.dia}` : '…'
+                    const sysErr = v3 && !v3.skipped && r.manual_systolic ? v3.sys - r.manual_systolic : null
+                    const sysErrAbs = sysErr != null ? Math.abs(sysErr) : null
+                    const sysErrColor = sysErr == null ? '#9CA3AF' : sysErrAbs <= 5 ? '#10B981' : sysErrAbs <= 10 ? '#F59E0B' : '#EF4444'
                     return (
                       <tr key={r.id} style={{ borderBottom: '1px solid #F9FAFB' }}>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280', whiteSpace: 'nowrap' }}>{new Date(r.recorded_at).toLocaleDateString()}</td>
                         <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: TEAL }}>{r.subject_code || '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.manual_systolic && r.manual_diastolic ? `${r.manual_systolic}/${r.manual_diastolic}` : '—'}</td>
+                        <td style={{ padding: '.5rem .75rem', color: v3?.skipped ? '#9CA3AF' : NAVY, fontStyle: v3?.skipped ? 'italic' : 'normal' }}>{v3Str}</td>
+                        <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: sysErrColor }}>{sysErr != null ? `${sysErr > 0 ? '+' : ''}${sysErr}` : '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.manual_hr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.tere_hr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: dc }}>{diff != null ? `±${diff}` : '—'}</td>
