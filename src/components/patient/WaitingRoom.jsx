@@ -604,30 +604,13 @@ export default function WaitingRoom() {
           {t.requestSubmitted}
         </h1>
 
-        {/* Timer */}
-        {afterHours ? (
-          <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
-            <div style={{ fontSize: '2rem', fontWeight: 700, color: 'rgba(212,238,240,.9)' }}>{t.from8am}</div>
-            <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
-              {t.yourDoctorWhenAvailable}
-            </div>
-          </div>
-        ) : secsLeft !== null && (
-          <div style={{ marginBottom: '1.25rem', animation: 'fadeUp .5s .45s both', textAlign: 'center' }}>
-            <div style={{
-              fontFamily: 'monospace',
-              fontSize: '2.25rem',
-              fontWeight: 700,
-              letterSpacing: '.06em',
-              color: secsLeft <= 0 ? '#EF4444' : secsLeft < 1800 ? '#FBBF24' : 'rgba(212,238,240,.9)',
-            }}>
-              {secsLeft <= 0 ? t.windowClosed : fmtCountdown(secsLeft)}
-            </div>
-            <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.3)', marginTop: '.25rem' }}>
-              {t.timeRemaining}
-            </div>
-          </div>
-        )}
+        {/* Countdown removed 2026-10-01 — the 2-hour window + "Window closed"
+            red state read as broken when a patient waited past the deadline,
+            and the countdown spooked people who are expecting to be seen in
+            minutes. The reassuring body copy below ("within 2 hours") still
+            sets expectations; a hard-ticking clock turned into stress for no
+            upside. secsLeft state + tick effect left in place in case we
+            want to revive it as a soft indicator later. */}
 
         <p style={{ color: 'rgba(255,255,255,.55)', fontSize: '1rem', lineHeight: 1.7, maxWidth: 320, margin: '0 0 2rem', animation: 'fadeUp .5s .5s both' }}>
           {(() => {
