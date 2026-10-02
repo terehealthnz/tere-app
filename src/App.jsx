@@ -157,6 +157,7 @@ const HipaaNotice         = lazy(() => import('./pages/us/HipaaNotice'))
 const AULanding           = lazy(() => import('./pages/au/AULanding'))
 const TereCorporate       = lazy(() => import('./pages/corporate/TereCorporate'))
 const TereGPLanding       = lazy(() => import('./pages/corporate/TereGPLanding'))
+const TereGPStart         = lazy(() => import('./pages/corporate/TereGPStart'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -203,8 +204,16 @@ function StartRouter() {
   const region = detectRegion()
   if (region === REGIONS.US) return <USStart />
   if (region === REGIONS.CORP) {
-    // Corporate host has no intake — send /start visitors to the NZ
-    // patient service (most likely intent for someone typing tere.co.nz).
+    // Behind-beta Tere GP intake: /gp-start sets this flag then nav's to
+    // /start. When set, run the NZ intake flow directly on tere.co.nz
+    // instead of redirecting to terehealth.co.nz, so the full consult
+    // (triage → vitals → payment → waiting → call) can be exercised
+    // against the GP product URL. Flag is cleared when the patient
+    // session ends.
+    const gpMode = (() => { try { return sessionStorage.getItem('tere_gp_consult') === '1' } catch { return false } })()
+    if (gpMode) return <TereIntro />
+    // Default: corporate host has no acute intake — send /start visitors
+    // to the NZ patient service.
     if (typeof window !== 'undefined') window.location.href = 'https://terehealth.co.nz/start'
     return null
   }
@@ -251,6 +260,12 @@ export default function App() {
             when tere.co.nz was repurposed as the Tere GP coming-soon
             product landing. */}
         <Route path="/corporate"              element={<TereCorporate />} />
+        {/* Behind-beta Tere GP intake. Not linked from the public TereGPLanding.
+            Sets a sessionStorage flag + navigates to /start; StartRouter's CORP
+            branch respects the flag and runs the full NZ intake flow on
+            tere.co.nz instead of redirecting away. Consult is tagged
+            consult_mode='gp' via src/lib/supabase.js createConsultation. */}
+        <Route path="/gp-start"               element={<TereGPStart />} />
         <Route path="/start"                  element={<StartRouter />} />
         <Route path="/notice-of-privacy-practices" element={<HipaaNotice />} />
         <Route path="/consent"                element={<ConsentPage />} />

@@ -22,6 +22,14 @@ export const supabase = createClient(
   key || 'placeholder'
 )
 
+// Tere GP beta: /gp-start sets sessionStorage.tere_gp_consult=1 before
+// navigating into the normal intake flow. createConsultation reads it so
+// the resulting row is tagged consult_mode='gp'. SSR-safe.
+function gpConsultFlagged() {
+  try { return typeof sessionStorage !== 'undefined' && sessionStorage.getItem('tere_gp_consult') === '1' }
+  catch { return false }
+}
+
 // ── Research field helpers ────────────────────────────────────────────────────
 
 function calcAgeBand(dob) {
@@ -180,6 +188,11 @@ export async function createConsultation(data) {
     // match against employer_employees and ACC field auto-populate. Server
     // strips this key before insert so it never lands in the DB.
     ...(data.workIntake === true ? { __work_intake: true } : {}),
+    // Behind-beta Tere GP flow: /gp-start sets this sessionStorage flag so
+    // the consult is tagged consult_mode='gp' from creation. Everything
+    // else (triage, vitals, provider UI) is identical to the acute flow
+    // until GP-specific features (enrolment, GMS, recall) land.
+    ...(gpConsultFlagged() ? { consult_mode: 'gp' } : {}),
   }
 
   const res = await apiFetch('/api/create-consultation', {
