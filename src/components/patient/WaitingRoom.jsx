@@ -442,6 +442,45 @@ export default function WaitingRoom() {
   // consult id) so admin gets an email + SMS.
   const [stuckState, setStuckState] = useState(null)     // null | 'dead' | 'stuck_draft'
   const stuckAlertFiredRef = useRef(false)
+  // Silent auto-rescue (added 2026-10-01 live-ops): fire /api/waiting-rescue
+  // whenever a dead status is detected. If 3 consecutive rescues fail — i.e.
+  // the server really can't recover the consult — THEN flip to the visible
+  // stuck banner. Otherwise the patient never sees "Something went wrong".
+  const autoRescueFiringRef = useRef(false)      // in-flight de-dup
+  const autoRescueFailuresRef = useRef(0)        // consecutive failures
+  const MAX_AUTO_RESCUE_FAILURES = 3
+
+  async function autoRescue(observedStatus) {
+    if (autoRescueFiringRef.current) return
+    autoRescueFiringRef.current = true
+    try {
+      const r = await apiFetch('/api/waiting-rescue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consultationId }),
+      })
+      if (r.ok) {
+        autoRescueFailuresRef.current = 0
+        // Next poll tick will see status='waiting' and setStuckState(null).
+        return
+      }
+      autoRescueFailuresRef.current += 1
+      // Rescue failed too many times in a row — surface the real banner so
+      // the patient has an escape hatch (email + 111 call-to-action).
+      if (autoRescueFailuresRef.current >= MAX_AUTO_RESCUE_FAILURES) {
+        setStuckState('dead')
+        fireStuckAlert(`status_${observedStatus}_rescue_failed`)
+      }
+    } catch {
+      autoRescueFailuresRef.current += 1
+      if (autoRescueFailuresRef.current >= MAX_AUTO_RESCUE_FAILURES) {
+        setStuckState('dead')
+        fireStuckAlert(`status_${observedStatus}_rescue_network_error`)
+      }
+    } finally {
+      autoRescueFiringRef.current = false
+    }
+  }
 
   async function fireStuckAlert(reason) {
     if (stuckAlertFiredRef.current) return
@@ -464,9 +503,16 @@ export default function WaitingRoom() {
 
     function checkStuck(status, created) {
       if (DEAD_STATUSES.has(status)) {
-        setStuckState('dead')
-        fireStuckAlert(`status_${status}`)
-        return true
+        // LIVE patients hit this on 2026-10-01. Something off-repo (pg_cron,
+        // trigger, or human admin action) is flipping paying consults to
+        // DEAD_STATUSES minutes after the client lands on /waiting. Root
+        // cause is not yet pinned down. In the meantime, auto-rescue silently
+        // so the patient never sees the error page — rescue flips status
+        // back to 'waiting' server-side. If the mystery writer re-expires,
+        // the next 10s poll re-rescues. Only fire the visible stuck banner
+        // if N consecutive auto-rescues fail (handled via the hits counter).
+        autoRescue(status)
+        return false  // don't flip stuckState — rescue is in flight
       }
       if (status === 'draft' && created && (Date.now() - new Date(created).getTime()) > STUCK_DRAFT_THRESHOLD_MS) {
         setStuckState('stuck_draft')
@@ -476,10 +522,10 @@ export default function WaitingRoom() {
       // Status is healthy — clear any stale stuck flag from a prior tick.
       // Without this reset, a successful /api/waiting-rescue (status flipped
       // back to 'waiting' server-side) left stuckState='dead' locally and
-      // the banner kept rendering forever. Rejoin re-fire would reload the
-      // page which was the only way to clear it.
+      // the banner kept rendering forever.
       setStuckState(null)
       stuckAlertFiredRef.current = false
+      autoRescueFailuresRef.current = 0
       return false
     }
 
