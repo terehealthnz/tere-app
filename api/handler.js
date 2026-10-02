@@ -375,6 +375,7 @@ const ROUTES = {
   'validation-subjects':       () => import('./_validation-subjects.js'),
   'validation-readings':       () => import('./_validation-readings.js'),
   'model-version':             () => import('./_model-version.js'),
+  'bp-v2-model':               () => import('./_bp-v2-model.js'),
   'consultations':             () => import('./_consultations.js'),
   'create-consultation':       () => import('./_create-consultation.js'),
   'patient-consult':            () => import('./_patient-consult.js'),

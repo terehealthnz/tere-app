@@ -94,10 +94,19 @@ export default function VitalsCapture() {
   // = constant mean prediction. Threading at least the DOB-derived age lets
   // the model emit at least one varying feature per patient.
   const subjectRef = useRef({})
+  // BP v2 (ridge) model — loaded in parallel to v15. Default display stays
+  // v15 unless localStorage.tere_bp_display_version === 'v2'. v2 is always
+  // computed when available so console logs expose both predictions for
+  // ongoing A/B without needing to flip the display.
+  const v2ModelRef = useRef(null)
   useEffect(() => {
     modelReadyRef.current = import('../../lib/bpModel')
       .then(({ loadModelFromSupabase }) => loadModelFromSupabase())
       .catch(() => null)
+    import('../../lib/bpModelV2')
+      .then(({ loadActiveV2ModelFromServer }) => loadActiveV2ModelFromServer())
+      .then(m => { v2ModelRef.current = m })
+      .catch(() => {})
     import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
 
     // If the patient previously reached /waiting then came back to vitals (back
@@ -360,11 +369,24 @@ export default function VitalsCapture() {
                     })(),
                     new Promise(resolve => setTimeout(() => resolve(null), 8000)),
                   ])
-                  if (bp) {
-                    setBpEstimate(bp)
-                    bpString = bp.systolic && bp.diastolic
-                      ? `${bp.systolic}/${bp.diastolic}`
-                      : (bp.value || null)
+                  // v2 ridge in parallel. Default display = v15. Flip to v2
+                  // by setting localStorage.tere_bp_display_version = 'v2' on
+                  // the device. Always logs both for A/B visibility.
+                  let display = bp
+                  try {
+                    if (v2ModelRef.current) {
+                      const { predictV2FromFrames } = await import('../../lib/bpModelV2')
+                      const bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
+                      console.log('[bp] v15=', bp && `${bp.systolic}/${bp.diastolic}`, '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(skip: ${bp2?.reason || 'no-model'})`)
+                      const preferV2 = typeof window !== 'undefined' && window.localStorage?.getItem('tere_bp_display_version') === 'v2'
+                      if (preferV2 && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                    }
+                  } catch (e) { console.warn('[bp] v2 parallel failed:', e?.message || e) }
+                  if (display) {
+                    setBpEstimate(display)
+                    bpString = display.systolic && display.diastolic
+                      ? `${display.systolic}/${display.diastolic}`
+                      : (display.value || null)
                   }
                 } catch (e) {
                   console.warn('[vitals] BP prediction failed (bg-frames path):', e?.message || e)
@@ -460,11 +482,23 @@ export default function VitalsCapture() {
               })(),
               new Promise(resolve => setTimeout(() => resolve(null), 8000)),
             ])
-            if (bp) {
-              setBpEstimate(bp)
-              bpString = bp.systolic && bp.diastolic
-                ? `${bp.systolic}/${bp.diastolic}`
-                : (bp.value || null)
+            // v2 ridge in parallel. Default display = v15. Flip to v2 by
+            // setting localStorage.tere_bp_display_version='v2' on the device.
+            let display = bp
+            try {
+              if (v2ModelRef.current) {
+                const { predictV2FromFrames } = await import('../../lib/bpModelV2')
+                const bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
+                console.log('[bp] v15=', bp && `${bp.systolic}/${bp.diastolic}`, '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(skip: ${bp2?.reason || 'no-model'})`)
+                const preferV2 = typeof window !== 'undefined' && window.localStorage?.getItem('tere_bp_display_version') === 'v2'
+                if (preferV2 && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+              }
+            } catch (e) { console.warn('[bp] v2 parallel failed:', e?.message || e) }
+            if (display) {
+              setBpEstimate(display)
+              bpString = display.systolic && display.diastolic
+                ? `${display.systolic}/${display.diastolic}`
+                : (display.value || null)
             }
           } catch (e) {
             console.warn('[vitals] BP prediction failed:', e?.message || e)

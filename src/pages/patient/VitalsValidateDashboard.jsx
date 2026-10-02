@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, supabase } from '../../lib/supabase'
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
-import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model } from '../../lib/bpModelV2'
+import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
 import { fitSpO2Calibration } from '../../lib/spo2'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -192,6 +192,30 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [v2Running, setV2Running]   = useState(false)
   const [v2Progress, setV2Progress] = useState('')
   const [v2Error, setV2Error]       = useState('')
+  const [v2Lambda, setV2Lambda]     = useState(1.0)
+  const [v2Sweep, setV2Sweep]       = useState(null)      // [{lambda, trainMae, valMae, best?}]
+  const [v2Promoting, setV2Promoting] = useState(false)
+  const [v2ActiveServer, setV2ActiveServer] = useState(null)  // row returned from /api/bp-v2-model
+  const [v2Display, setV2Display]   = useState(() => (typeof window !== 'undefined' && localStorage.getItem('tere_bp_display_version')) === 'v2' ? 'v2' : 'v15')
+
+  // Keep the display-version localStorage flag in sync with the toggle.
+  // Live /vitals reads this on every scan to decide which model's number to
+  // show the patient — v15 remains the default.
+  function toggleDisplay(ver) {
+    setV2Display(ver)
+    if (typeof window !== 'undefined') localStorage.setItem('tere_bp_display_version', ver)
+  }
+
+  // Load whatever model is currently promoted on the server so the dashboard
+  // shows "server has X, local has Y" context before you promote. Hits the
+  // endpoint directly (not loadActiveV2ModelFromServer, which strips the row
+  // metadata we need for the status line) so we see trained_at + val MAE.
+  useEffect(() => {
+    fetch('/api/bp-v2-model', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(row => setV2ActiveServer(row))
+      .catch(() => {})
+  }, [])
 
   const ready = isBPReliable()
 
@@ -269,7 +293,7 @@ function BPAnalysisPanel({ readings, subjects }) {
 
     let model
     try {
-      model = trainRidgeBp(features, labels, { lambda: 1.0, valFrac: 0.2 })
+      model = trainRidgeBp(features, labels, { lambda: v2Lambda, valFrac: 0.2 })
     } catch (e) {
       setV2Error(`Train failed: ${e.message || e}`)
       setV2Running(false); setV2Progress('')
@@ -293,8 +317,79 @@ function BPAnalysisPanel({ readings, subjects }) {
     setV2Running(false)
   }
 
+  // λ sweep — train at [0.01, 0.1, 1, 10, 100] on the current feature set,
+  // show val MAE for each, auto-pick the knee. Shares the seeded split with
+  // trainRidgeBp so differences across rows reflect ridge strength not noise.
+  async function runLambdaSweep() {
+    setV2Running(true); setV2Error(''); setV2Progress('Collecting features…')
+    const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+    const withBoth = readings.filter(r =>
+      r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+    )
+    const features = []
+    const labels = []
+    for (let i = 0; i < withBoth.length; i++) {
+      const r = withBoth[i]
+      const sub = r.subject_id ? subMap[r.subject_id] : {}
+      const fps = r.raw_rppg_signal?.fps || 30
+      if (i % 10 === 0) await new Promise(res => setTimeout(res, 0))
+      try {
+        const feats = framesToV2Features(r.raw_rppg_signal.frames, fps, sub)
+        if (feats) { features.push(feats); labels.push([r.manual_systolic, r.manual_diastolic]) }
+      } catch {}
+    }
+    if (features.length < 20) {
+      setV2Error(`Only ${features.length} usable signals — need ≥20 for sweep.`)
+      setV2Running(false); setV2Progress('')
+      return
+    }
+    setV2Progress('Sweeping λ…')
+    await new Promise(res => setTimeout(res, 0))
+    const results = sweepLambda(features, labels, [0.01, 0.1, 1, 10, 100])
+    setV2Sweep(results)
+    const best = results.find(r => r.best)
+    if (best) setV2Lambda(best.lambda)
+    setV2Progress('')
+    setV2Running(false)
+  }
+
+  async function handlePromoteV2() {
+    if (!v2Model) return
+    setV2Promoting(true); setV2Error('')
+    try {
+      await promoteV2Model(v2Model, `Promoted from VV dashboard · n=${v2Model.meta?.n} · val MAE sys ${v2Model.meta?.valMae?.sys} dia ${v2Model.meta?.valMae?.dia}`)
+      // Re-fetch server-active to update the status line.
+      const resp = await fetch('/api/bp-v2-model', { credentials: 'include' })
+      if (resp.ok) setV2ActiveServer(await resp.json())
+    } catch (e) {
+      setV2Error(`Promote failed: ${e.message || e}`)
+    } finally {
+      setV2Promoting(false)
+    }
+  }
+
   const stats   = computeBPStats(bpPreds)
   const v2Stats = computeBPStats(v2Preds)
+
+  // "Mean baseline" — what MAE would we get if we just predicted the cuff
+  // mean for every reading? v2 only earns a promote if it beats this. We
+  // compute it off cuff values the v15 panel already loaded, so it's defined
+  // whenever stats is defined.
+  const meanBaseline = stats && (() => {
+    const cuffSysMean = stats.cuffSysMean
+    const cuffDiaMean = stats.cuffDiaMean
+    const sysErrs = bpPreds.map(p => Math.abs(p.actualSys - cuffSysMean))
+    const diaErrs = bpPreds.map(p => Math.abs(p.actualDia - cuffDiaMean))
+    return {
+      sysMae: +(sysErrs.reduce((a, b) => a + b, 0) / sysErrs.length).toFixed(1),
+      diaMae: +(diaErrs.reduce((a, b) => a + b, 0) / diaErrs.length).toFixed(1),
+    }
+  })()
+  // v2 "beats mean?" check — compare val MAE (held-out numbers) against the
+  // mean-emitter baseline. Both must be lower before promotion is sensible.
+  const v2BeatsMean = meanBaseline && v2Model?.meta?.valMae
+    ? (v2Model.meta.valMae.sys <= meanBaseline.sysMae && v2Model.meta.valMae.dia <= meanBaseline.diaMae)
+    : null
 
   return (
     <div>
@@ -340,9 +435,20 @@ function BPAnalysisPanel({ readings, subjects }) {
           style={{ background: ready ? TEAL : '#9CA3AF', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: ready && !running ? 'pointer' : 'not-allowed', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           {running ? progress : 'Run BP analysis (v15 MLP)'}
         </button>
+        <button onClick={runLambdaSweep} disabled={v2Running}
+          style={{ background: 'white', color: NAVY, border: `1.5px solid ${NAVY}`, borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v2Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {v2Running && v2Progress.includes('Sweep') ? v2Progress : 'λ sweep'}
+        </button>
+        <label style={{ fontSize: '.8rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+          λ =
+          <select value={v2Lambda} onChange={e => setV2Lambda(parseFloat(e.target.value))}
+            style={{ padding: '.3rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8rem' }}>
+            {[0.01, 0.1, 1, 10, 100].map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </label>
         <button onClick={trainAndRunV2} disabled={v2Running}
           style={{ background: NAVY, color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v2Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          {v2Running ? v2Progress : 'Train & run v2 (ridge)'}
+          {v2Running && !v2Progress.includes('Sweep') ? v2Progress : `Train & run v2 (λ=${v2Lambda})`}
         </button>
         {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>v15 not yet trained or insufficient samples</span>}
         {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v15: {bpPreds.length}</span>}
@@ -415,22 +521,103 @@ function BPAnalysisPanel({ readings, subjects }) {
         </div>
       )}
 
-      {/* v2 panel — ridge model on 6 waveform morphology features + age + sex.
-          Runs on exactly the same stored signals so numbers are directly
-          comparable to v15. Localstorage-only; no live wiring until proven. */}
-      {(v2Model || v2Preds.length > 0) && (
+      {/* v2 panel — ridge regression on 10 waveform + HR/HRV features + age +
+          sex. Runs on exactly the same stored signals so numbers are directly
+          comparable to v15. Local-only until promoted; promote writes to
+          bp_v2_models in Supabase and live /vitals mounts load it. */}
+      {(v2Model || v2Preds.length > 0 || v2Sweep || v2ActiveServer) && (
         <div style={{
           borderTop: '2px solid #E5E7EB',
           paddingTop: '1.5rem',
           marginTop: '2rem',
           marginBottom: '1.5rem',
         }}>
-          <div style={{ fontSize: '.95rem', fontWeight: 800, color: NAVY, marginBottom: '.5rem' }}>
-            v2 ridge regression — waveform morphology
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '.5rem', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: '.95rem', fontWeight: 800, color: NAVY }}>
+              v2 ridge regression — waveform morphology + HR/HRV
+            </div>
+            {/* Live-display toggle. Flips the localStorage flag read by
+                VitalsCapture on next scan. Only affects THIS device. */}
+            <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', borderRadius: 99, padding: 3 }}>
+              {['v15', 'v2'].map(v => (
+                <button key={v} onClick={() => toggleDisplay(v)}
+                  style={{
+                    padding: '.3rem .8rem', border: 'none', borderRadius: 99, fontSize: '.72rem', fontWeight: 700,
+                    background: v2Display === v ? NAVY : 'transparent',
+                    color:      v2Display === v ? 'white' : '#6B7280',
+                    cursor: 'pointer',
+                  }}>
+                  Live display: {v}
+                </button>
+              ))}
+            </div>
           </div>
           <div style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '1rem', lineHeight: 1.5 }}>
-            Closed-form ridge on 6 pulse-wave features (upstroke time, augmentation index, pulse width ½, area ratio, dicrotic notch delay, SDPPG b/a) + age + sex. 9 parameters vs v15's ~50k. Local only — nothing wired into live /vitals yet.
+            Closed-form ridge on 10 physiology features (upstroke time, augmentation index, pulse width ½, area ratio, dicrotic notch delay, SDPPG b/a, HR, HRV SDNN, HRV RMSSD, notch position) + age + sex. 13 parameters vs v15's ~50k. Promote writes to bp_v2_models; live /vitals shows the promoted model's number if "Live display: v2" is set on the device.
           </div>
+
+          {/* Server-active status */}
+          <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.75rem' }}>
+            {v2ActiveServer
+              ? <>Server active: trained {v2ActiveServer.trained_at ? new Date(v2ActiveServer.trained_at).toLocaleString() : '—'} · val MAE ±{v2ActiveServer.val_mae_sys ?? '?'}/±{v2ActiveServer.val_mae_dia ?? '?'} · λ={v2ActiveServer.lambda ?? '?'} · n={v2ActiveServer.n_training ?? '?'}</>
+              : <>No v2 model promoted on server yet. Live /vitals is v15-only until a model is promoted.</>}
+          </div>
+
+          {/* λ sweep results */}
+          {v2Sweep && (
+            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '.72rem', fontWeight: 800, color: NAVY, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>λ sweep (val MAE on held-out 20%)</div>
+              <table style={{ width: '100%', fontSize: '.78rem', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr><th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>λ</th>
+                      <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>Train sys/dia</th>
+                      <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>Val sys/dia</th>
+                      <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}></th></tr>
+                </thead>
+                <tbody>
+                  {v2Sweep.map(r => (
+                    <tr key={r.lambda} style={{ background: r.best ? '#F0FDF4' : 'transparent' }}>
+                      <td style={{ padding: '.25rem .5rem', fontWeight: 700, color: NAVY }}>{r.lambda}</td>
+                      <td style={{ padding: '.25rem .5rem', color: '#6B7280' }}>{r.trainMae ? `±${r.trainMae.sys}/±${r.trainMae.dia}` : '—'}</td>
+                      <td style={{ padding: '.25rem .5rem', color: NAVY, fontWeight: 600 }}>{r.valMae ? `±${r.valMae.sys}/±${r.valMae.dia}` : (r.error || '—')}</td>
+                      <td style={{ padding: '.25rem .5rem' }}>{r.best && <span style={{ color: '#065F46', fontWeight: 700, fontSize: '.7rem' }}>↳ best</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ fontSize: '.7rem', color: '#6B7280', marginTop: '.4rem' }}>Picked best λ into dropdown — click "Train & run v2" to retrain at that setting.</div>
+            </div>
+          )}
+
+          {/* Beats mean baseline + Promote button */}
+          {v2Model?.meta && meanBaseline && (
+            <div style={{
+              background: v2BeatsMean ? '#F0FDF4' : '#FEF2F2',
+              border: `1px solid ${v2BeatsMean ? '#BBF7D0' : '#FECACA'}`,
+              borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.75rem',
+            }}>
+              <div style={{ fontSize: '.78rem', color: v2BeatsMean ? '#065F46' : '#991B1B', lineHeight: 1.5 }}>
+                <strong>{v2BeatsMean ? '✓ v2 beats mean baseline' : '✗ v2 does NOT beat mean baseline'}</strong><br />
+                v2 val MAE: ±{v2Model.meta.valMae.sys}/±{v2Model.meta.valMae.dia} &nbsp;·&nbsp;
+                "always predict mean" MAE: ±{meanBaseline.sysMae}/±{meanBaseline.diaMae}
+                {!v2BeatsMean && <> &nbsp;→ v2 is adding noise, not signal. Don't promote.</>}
+              </div>
+              <button onClick={handlePromoteV2}
+                disabled={v2Promoting || !v2BeatsMean}
+                title={v2BeatsMean ? 'Promote this model to prod (admin only)' : 'Promote disabled — v2 does not beat mean baseline'}
+                style={{
+                  background: v2BeatsMean && !v2Promoting ? NAVY : '#D1D5DB',
+                  color: 'white', border: 'none', borderRadius: 99,
+                  padding: '.5rem 1rem', fontWeight: 700, fontSize: '.78rem',
+                  cursor: v2BeatsMean && !v2Promoting ? 'pointer' : 'not-allowed',
+                  fontFamily: 'Plus Jakarta Sans, sans-serif',
+                  whiteSpace: 'nowrap',
+                }}>
+                {v2Promoting ? 'Promoting…' : 'Promote to prod'}
+              </button>
+            </div>
+          )}
 
           {v2Model?.meta && (
             <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.78rem', color: NAVY }}>

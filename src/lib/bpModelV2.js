@@ -227,7 +227,29 @@ function pulseWidth50(signal, peaks, feet, fps) {
   return median(widths)
 }
 
-// Extract 6 pulse-morphology features + age + sex. Returns null if the
+// Heart-rate / HRV from peak times. Fed in alongside the morphology features
+// because resting HR and short-term RR variability are both well-documented BP
+// correlates — HR scales roughly linearly with cardiac output; low HRV
+// (sympathetic tone) tracks higher BP.
+function hrAndHrv(peaks, fps) {
+  if (peaks.length < 3) return { hr: null, hrvSdnn: null, hrvRmssd: null }
+  const rr = []  // RR intervals in milliseconds
+  for (let i = 1; i < peaks.length; i++) rr.push(((peaks[i] - peaks[i - 1]) / fps) * 1000)
+  // Reject physiologically implausible intervals (HR < 40 or > 180 bpm).
+  const clean = rr.filter(ms => ms >= 333 && ms <= 1500)
+  if (clean.length < 2) return { hr: null, hrvSdnn: null, hrvRmssd: null }
+  const mean = clean.reduce((a, b) => a + b, 0) / clean.length
+  const hr = 60000 / mean
+  let varSum = 0
+  for (const v of clean) varSum += (v - mean) ** 2
+  const sdnn = Math.sqrt(varSum / clean.length)
+  let sqDiff = 0
+  for (let i = 1; i < clean.length; i++) sqDiff += (clean[i] - clean[i - 1]) ** 2
+  const rmssd = clean.length > 1 ? Math.sqrt(sqDiff / (clean.length - 1)) : 0
+  return { hr, hrvSdnn: sdnn, hrvRmssd: rmssd }
+}
+
+// Extract pulse-morphology + HR/HRV features + age + sex. Returns null if the
 // signal doesn't produce enough valid pulses to compute them.
 export function extractBpV2Features(cleanSignal, fps, subject = {}) {
   const peaks = findPeaks(cleanSignal, fps)
@@ -310,8 +332,25 @@ export function extractBpV2Features(cleanSignal, fps, subject = {}) {
   const age = Number(subject.age) || Number(subject.patient_age) || 40
   const sex = (subject.sex === 'male' || subject.patient_sex === 'male') ? 1 : 0
 
+  // HR / HRV features.
+  const { hr, hrvSdnn, hrvRmssd } = hrAndHrv(peaks, fps)
+  if (hr == null) return null  // if we can't resolve HR, upstream pipeline is broken
+
+  // Dicrotic notch position within the beat, normalised 0–1. (notch time
+  // minus peak time) / (next foot minus peak time) = where in diastole the
+  // reflection sits. Shifts earlier as BP rises.
+  const notchPosRatios = []
+  for (let p = 0; p < peaks.length - 1; p++) {
+    const nIdx = notches[p]
+    if (nIdx == null) continue
+    const total = feet[p] - peaks[p]
+    if (total > 2) notchPosRatios.push((nIdx - peaks[p]) / total)
+  }
+  const peakToNotchRatio = median(notchPosRatios) ?? 0.5
+
   return {
     upstrokeTime, augIndex, pulseWidth50: pw50, areaRatio, notchDelay, sdppgBA,
+    hr, hrvSdnn: hrvSdnn ?? 0, hrvRmssd: hrvRmssd ?? 0, peakToNotchRatio,
     age, sex,
     _nPulses: peaks.length - 1,
     _signalLength: cleanSignal.length / fps,
@@ -346,10 +385,19 @@ export function framesToV2Features(frames, fps, subject) {
 // Training on 155 samples with 8 features (6 waveform + age + sex) + bias
 // = 9 columns including intercept. 155 ≫ 9² = 81, well-conditioned.
 
-const FEATURE_NAMES_V2 = ['upstrokeTime', 'augIndex', 'pulseWidth50', 'areaRatio', 'notchDelay', 'sdppgBA', 'age', 'sex']
+const FEATURE_NAMES_V2 = [
+  'upstrokeTime', 'augIndex', 'pulseWidth50', 'areaRatio', 'notchDelay', 'sdppgBA',
+  'hr', 'hrvSdnn', 'hrvRmssd', 'peakToNotchRatio',
+  'age', 'sex',
+]
 
 function featureVector(f) {
-  return [f.upstrokeTime, f.augIndex, f.pulseWidth50, f.areaRatio, f.notchDelay, f.sdppgBA, f.age, f.sex, 1]
+  return [
+    f.upstrokeTime, f.augIndex, f.pulseWidth50, f.areaRatio, f.notchDelay, f.sdppgBA,
+    f.hr, f.hrvSdnn, f.hrvRmssd, f.peakToNotchRatio,
+    f.age, f.sex,
+    1,  // bias
+  ]
 }
 
 // Standardise feature columns (zero mean, unit SD) so ridge penalty treats
@@ -501,6 +549,33 @@ export function trainRidgeBp(features, labels, { lambda = 1.0, valFrac = 0.2 } =
   }
 }
 
+// Train at multiple λ values and return val MAE for each. Used by the
+// dashboard to pick the knee without eyeballing. Shares the same seeded
+// shuffle as trainRidgeBp so the split is identical across λ values and
+// MAE differences reflect ridge strength, not resampling noise.
+export function sweepLambda(features, labels, lambdas = [0.01, 0.1, 1, 10, 100]) {
+  const results = []
+  for (const lambda of lambdas) {
+    try {
+      const m = trainRidgeBp(features, labels, { lambda, valFrac: 0.2 })
+      results.push({
+        lambda,
+        trainMae: m.meta.trainMae,
+        valMae: m.meta.valMae,
+      })
+    } catch (e) {
+      results.push({ lambda, error: e.message || String(e) })
+    }
+  }
+  // Pick the λ with the lowest combined val MAE (sys + dia).
+  const scored = results.filter(r => r.valMae)
+  if (scored.length) {
+    scored.sort((a, b) => (a.valMae.sys + a.valMae.dia) - (b.valMae.sys + b.valMae.dia))
+    scored[0].best = true
+  }
+  return results
+}
+
 export function predictRidgeBp(model, features) {
   const vec = featureVector(features)
   const stdVec = new Array(vec.length)
@@ -525,6 +600,51 @@ export function loadV2Model() {
     const s = localStorage.getItem(V2_MODEL_KEY)
     return s ? JSON.parse(s) : null
   } catch { return null }
+}
+
+// ─── Server-side promotion (active model lives in bp_v2_models table) ─────────
+//
+// loadActiveV2ModelFromServer() is the entry point for the live /vitals
+// surface: fetch the row currently marked is_active=true, hydrate the ridge
+// weights, return a model object identical in shape to trainRidgeBp() output.
+// Falls back to localStorage if the fetch fails (dev offline, Vercel glitch),
+// and finally to null so callers can skip the v2 prediction silently.
+export async function loadActiveV2ModelFromServer() {
+  try {
+    const resp = await fetch('/api/bp-v2-model', { credentials: 'include' })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const row = await resp.json()
+    if (!row || !row.model_json) return loadV2Model()  // fall back to local
+    return row.model_json
+  } catch (e) {
+    console.warn('[bpV2] server load failed, falling back to localStorage:', e?.message || e)
+    return loadV2Model()
+  }
+}
+
+// Promote the given trained model to prod. Admin-only (enforced server-side).
+// Server deactivates any current active row and makes the new one active.
+export async function promoteV2Model(model, notes = '') {
+  const resp = await fetch('/api/bp-v2-model', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model_json:    model,
+      n_training:    model?.meta?.n ?? null,
+      n_val:         model?.meta?.nVal ?? null,
+      val_mae_sys:   model?.meta?.valMae?.sys ?? null,
+      val_mae_dia:   model?.meta?.valMae?.dia ?? null,
+      lambda:        model?.meta?.lambda ?? null,
+      feature_names: model?.featureNames ?? null,
+      notes,
+    }),
+  })
+  if (!resp.ok) {
+    const t = await resp.text().catch(() => '')
+    throw new Error(`Promote failed (${resp.status}): ${t}`)
+  }
+  return resp.json()
 }
 
 // ─── Convenience: predict directly from stored frames + subject ───────────────
