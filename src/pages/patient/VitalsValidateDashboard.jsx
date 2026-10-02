@@ -4,7 +4,7 @@ import { getValidationReadings, getValidationSubjects, getModelVersions, getTrai
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
-import { trainV3, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model } from '../../lib/bpModelV3'
+import { trainV3, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees } from '../../lib/bpModelV3'
 import { fitSpO2Calibration } from '../../lib/spo2'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -215,6 +215,7 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [v3Trees, setV3Trees]       = useState(50)
   const [v3Depth, setV3Depth]       = useState(3)
   const [v3Lr, setV3Lr]             = useState(0.1)
+  const [v3Sweep, setV3Sweep]       = useState(null)  // [{nTrees, trainMae, valMae, best?}]
 
   // Keep the display-version localStorage flag in sync with the toggle.
   // Live /vitals reads this on every scan to decide which model's number to
@@ -434,6 +435,42 @@ function BPAnalysisPanel({ readings, subjects }) {
     setV3Running(false)
   }
 
+  // Tree-count sweep for v3 — mirror of the λ sweep for v2. Trains at
+  // [10, 20, 30, 50, 100] on the same seeded split so val MAE differences
+  // reflect model capacity, not resampling noise.
+  async function runTreeSweep() {
+    setV3Running(true); setV3Error(''); setV3Progress('Extracting features…')
+    const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+    const withBoth = readings.filter(r =>
+      r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+    )
+    const features = []
+    const labels = []
+    for (let i = 0; i < withBoth.length; i++) {
+      const r = withBoth[i]
+      const sub = r.subject_id ? subMap[r.subject_id] : {}
+      const fps = r.raw_rppg_signal?.fps || 30
+      if (i % 5 === 0) await new Promise(res => setTimeout(res, 0))
+      try {
+        const feats = framesToV3Features(r.raw_rppg_signal.frames, fps, sub)
+        if (feats) { features.push(feats); labels.push([r.manual_systolic, r.manual_diastolic]) }
+      } catch {}
+    }
+    if (features.length < 20) {
+      setV3Error(`Only ${features.length} usable signals — need ≥20 for sweep.`)
+      setV3Running(false); setV3Progress('')
+      return
+    }
+    setV3Progress('Sweeping tree counts (10/20/30/50/100)…')
+    await new Promise(res => setTimeout(res, 0))
+    const results = sweepTrees(features, labels, [10, 20, 30, 50, 100], { depth: v3Depth, lr: v3Lr })
+    setV3Sweep(results)
+    const best = results.find(r => r.best)
+    if (best) setV3Trees(best.nTrees)
+    setV3Progress('')
+    setV3Running(false)
+  }
+
   async function handlePromoteV3() {
     if (!v3Model) return
     setV3Promoting(true); setV3Error('')
@@ -545,9 +582,20 @@ function BPAnalysisPanel({ readings, subjects }) {
           style={{ background: NAVY, color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v2Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           {v2Running && !v2Progress.includes('Sweep') ? v2Progress : `Train & run v2 (λ=${v2Lambda})`}
         </button>
+        <button onClick={runTreeSweep} disabled={v3Running}
+          style={{ background: 'white', color: '#7C3AED', border: `1.5px solid #7C3AED`, borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v3Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {v3Running && v3Progress.includes('Sweeping tree') ? v3Progress : 'v3 tree sweep'}
+        </button>
+        <label style={{ fontSize: '.8rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+          v3 trees =
+          <select value={v3Trees} onChange={e => setV3Trees(parseInt(e.target.value, 10))}
+            style={{ padding: '.3rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8rem' }}>
+            {[10, 20, 30, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
         <button onClick={trainAndRunV3} disabled={v3Running}
           style={{ background: '#7C3AED', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v3Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          {v3Running ? v3Progress : `Train & run v3 (POS + GBM)`}
+          {v3Running && !v3Progress.includes('Sweeping tree') ? v3Progress : `Train & run v3 (${v3Trees} trees)`}
         </button>
         {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>v15 not yet trained or insufficient samples</span>}
         {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v15: {bpPreds.length}</span>}
@@ -819,6 +867,38 @@ function BPAnalysisPanel({ readings, subjects }) {
             </div>
 
             {v3Error && <div style={{ fontSize: '.78rem', color: '#EF4444', marginBottom: '.5rem' }}>{v3Error}</div>}
+
+            {/* Tree-count sweep results. Picks the knee (fewest trees within
+                0.3 mmHg of best val MAE) to reduce overfitting. */}
+            {v3Sweep && (
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem' }}>
+                <div style={{ fontSize: '.72rem', fontWeight: 800, color: NAVY, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: '.5rem' }}>Tree-count sweep (val MAE on held-out 20%)</div>
+                <table style={{ width: '100%', fontSize: '.78rem', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr><th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>trees</th>
+                        <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>Train sys/dia</th>
+                        <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>Val sys/dia</th>
+                        <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}>Overfit (val/train)</th>
+                        <th style={{ textAlign: 'left', color: '#6B7280', fontWeight: 700, padding: '.25rem .5rem' }}></th></tr>
+                  </thead>
+                  <tbody>
+                    {v3Sweep.map(r => {
+                      const overfit = r.trainMae && r.valMae ? (r.valMae.sys / r.trainMae.sys).toFixed(1) : '—'
+                      return (
+                        <tr key={r.nTrees} style={{ background: r.best ? '#F0FDF4' : 'transparent' }}>
+                          <td style={{ padding: '.25rem .5rem', fontWeight: 700, color: NAVY }}>{r.nTrees}</td>
+                          <td style={{ padding: '.25rem .5rem', color: '#6B7280' }}>{r.trainMae ? `±${r.trainMae.sys}/±${r.trainMae.dia}` : '—'}</td>
+                          <td style={{ padding: '.25rem .5rem', color: NAVY, fontWeight: 600 }}>{r.valMae ? `±${r.valMae.sys}/±${r.valMae.dia}` : (r.error || '—')}</td>
+                          <td style={{ padding: '.25rem .5rem', color: overfit !== '—' && parseFloat(overfit) > 2 ? '#EF4444' : '#6B7280' }}>{overfit !== '—' ? `${overfit}×` : '—'}</td>
+                          <td style={{ padding: '.25rem .5rem' }}>{r.best && <span style={{ color: '#065F46', fontWeight: 700, fontSize: '.7rem' }}>↳ best (knee)</span>}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '.7rem', color: '#6B7280', marginTop: '.4rem' }}>Picked knee into dropdown — click "Train & run v3" to retrain at that setting. Lower overfit (val/train) = model generalises better to unseen patients.</div>
+              </div>
+            )}
 
             {v3Model?.meta && (
               <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.78rem', color: NAVY }}>

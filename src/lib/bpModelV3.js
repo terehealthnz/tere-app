@@ -575,6 +575,37 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
   }
 }
 
+// Tree-count sweep — train at a range of nTrees values on the SAME seeded
+// split and surface val MAE for each. Used to find the overfit knee without
+// eyeballing. 50 depth-3 trees on 125 samples overfit 3× (train 3.1 / val
+// 9.3); the sweep lets us pick the smallest tree count that holds val MAE
+// without memorising the training set.
+export function sweepTrees(features, labels, treeCounts = [10, 20, 30, 50, 100], { depth = 3, lr = 0.1 } = {}) {
+  const results = []
+  for (const nTrees of treeCounts) {
+    try {
+      const m = trainV3(features, labels, { nTrees, depth, lr, valFrac: 0.2 })
+      results.push({
+        nTrees,
+        trainMae: m.meta.trainMae,
+        valMae: m.meta.valMae,
+      })
+    } catch (e) {
+      results.push({ nTrees, error: e.message || String(e) })
+    }
+  }
+  // Best = lowest combined val MAE (sys + dia). Overfit guard: among models
+  // within 0.3 mmHg of the lowest-val-MAE one, prefer fewer trees.
+  const scored = results.filter(r => r.valMae)
+  if (scored.length) {
+    const bestVal = Math.min(...scored.map(r => r.valMae.sys + r.valMae.dia))
+    const nearBest = scored.filter(r => (r.valMae.sys + r.valMae.dia) <= bestVal + 0.3)
+    nearBest.sort((a, b) => a.nTrees - b.nTrees)
+    nearBest[0].best = true
+  }
+  return results
+}
+
 export function predictV3(model, features) {
   const x = featureVec(features)
   const sys = Math.round(Math.max(70, Math.min(200, predictGbm(model.sysModel, x))))
