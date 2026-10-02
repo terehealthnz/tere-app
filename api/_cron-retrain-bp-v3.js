@@ -38,24 +38,27 @@ const LR         = 0.1
 const VAL_FRAC   = 0.2
 const MIN_NEW_SAMPLES = 10  // don't retrain if fewer than 10 new rows since last promote
 
-// 3-sigma outlier filter anchored to NZ adult population BP distribution.
-// Reference: HNZ adult BP registry + NHS England adult BP survey, both
-// published 2024. Anchored to the reference distribution (not the training
-// data mean) so bad actors can't shift the "mean" to defeat the gate — if
-// 50 attackers each submit 170/105, those rows still fall outside the
-// anchor range and get dropped before training.
-//   SBP: mean 120, SD 15 → 3-SD range 75-165
-//   DBP: mean  75, SD 10 → 3-SD range 45-105
+// Clinical plausibility bounds anchored to NZ adult BP. Asymmetric on
+// the upper SBP end to deliberately include stage-2 hypertensives
+// (160-185 sys) — these are the exact patients we most want the model
+// trained on, not filtered out. Fixed bounds (not SD-based) because:
+//   1. Anchor is independent of training data, so bad actors can't
+//      shift the mean to defeat the filter by submitting many rows.
+//   2. Asymmetric upper allows real severe hypertension while still
+//      excluding hypertensive-crisis (190+) that needs clinical review
+//      not model fodder, and typos (300/200).
+//
+// Lower SBP 75: below hypotensive-shock threshold → likely typo.
+// Upper SBP 185: covers normal → stage-2 hypertension.
+// Lower DBP 45: below diastolic-shock → likely typo.
+// Upper DBP 115: covers normal → stage-2 (DBP > 115 is hypertensive urgency).
 const BP_ANCHOR = {
-  sysMean: 120, sysSd: 15,
-  diaMean:  75, diaSd: 10,
-  sigmas:    3,
+  sysMin: 75,  sysMax: 185,
+  diaMin: 45,  diaMax: 115,
 }
 function withinAnchor(sys, dia) {
-  return (
-    Math.abs(sys - BP_ANCHOR.sysMean) <= BP_ANCHOR.sigmas * BP_ANCHOR.sysSd &&
-    Math.abs(dia - BP_ANCHOR.diaMean) <= BP_ANCHOR.sigmas * BP_ANCHOR.diaSd
-  )
+  return sys >= BP_ANCHOR.sysMin && sys <= BP_ANCHOR.sysMax
+      && dia >= BP_ANCHOR.diaMin && dia <= BP_ANCHOR.diaMax
 }
 
 export default async function handler(req, res) {
