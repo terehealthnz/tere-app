@@ -218,6 +218,11 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [v3Trees, setV3Trees]       = useState(50)
   const [v3Depth, setV3Depth]       = useState(3)
   const [v3Lr, setV3Lr]             = useState(0.1)
+  // Tail-boost: multiplier on how much hypertensive samples pull the GBM
+  // leaves away from mean regression. 0 = legacy uniform weighting; 2 is
+  // the current default. Higher values follow tails harder but can over-
+  // shoot normals.
+  const [v3TailBoost, setV3TailBoost] = useState(2)
   const [v3Sweep, setV3Sweep]       = useState(null)  // [{nTrees, trainMae, valMae, best?}]
 
   // Keep the display-version localStorage flag in sync with the toggle.
@@ -410,11 +415,11 @@ function BPAnalysisPanel({ readings, subjects }) {
       setV3Running(false); setV3Progress('')
       return
     }
-    setV3Progress(`Training ${v3Trees} trees depth=${v3Depth} lr=${v3Lr} on ${features.length}…`)
+    setV3Progress(`Training ${v3Trees} trees depth=${v3Depth} lr=${v3Lr} tailBoost=${v3TailBoost} on ${features.length}…`)
     await new Promise(res => setTimeout(res, 0))
     let model
     try {
-      model = trainV3(features, labels, { nTrees: v3Trees, depth: v3Depth, lr: v3Lr, valFrac: 0.2 })
+      model = trainV3(features, labels, { nTrees: v3Trees, depth: v3Depth, lr: v3Lr, valFrac: 0.2, tailBoost: v3TailBoost })
     } catch (e) {
       setV3Error(`Train failed: ${e.message || e}`)
       setV3Running(false); setV3Progress('')
@@ -466,7 +471,7 @@ function BPAnalysisPanel({ readings, subjects }) {
     }
     setV3Progress('Sweeping tree counts (10/20/30/50/100)…')
     await new Promise(res => setTimeout(res, 0))
-    const results = sweepTrees(features, labels, [10, 20, 30, 50, 100], { depth: v3Depth, lr: v3Lr })
+    const results = sweepTrees(features, labels, [10, 20, 30, 50, 100], { depth: v3Depth, lr: v3Lr, tailBoost: v3TailBoost })
     setV3Sweep(results)
     const best = results.find(r => r.best)
     if (best) setV3Trees(best.nTrees)
@@ -598,6 +603,14 @@ function BPAnalysisPanel({ readings, subjects }) {
           <select value={v3Trees} onChange={e => setV3Trees(parseInt(e.target.value, 10))}
             style={{ padding: '.3rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8rem' }}>
             {[10, 20, 30, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <label style={{ fontSize: '.8rem', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '.4rem' }}
+          title="How hard the GBM leans toward hypertensive/hypotensive samples. 0 = uniform. 2 = default. Higher = follows tails harder but risks overshooting normals.">
+          tailBoost =
+          <select value={v3TailBoost} onChange={e => setV3TailBoost(parseFloat(e.target.value))}
+            style={{ padding: '.3rem .5rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8rem' }}>
+            {[0, 1, 2, 3, 4].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
         </label>
         <button onClick={trainAndRunV3} disabled={v3Running}

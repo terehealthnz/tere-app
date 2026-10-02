@@ -36,6 +36,11 @@ const KNEE_TREES = 20
 const DEPTH      = 3
 const LR         = 0.1
 const VAL_FRAC   = 0.2
+// Hypertensive sample weighting (Tier 1 fix for GBM mean-regression at the
+// tails). 2.0 ≈ 6-7× pull on sys 170 / dia 115 so leaves don't average
+// severe hypertensives into normals. Keep in step with the UI default on
+// VitalsValidateDashboard so manual + automated runs are comparable.
+const TAIL_BOOST = 2.0
 const MIN_NEW_SAMPLES = 10  // don't retrain if fewer than 10 new rows since last promote
 
 // Clinical plausibility bounds anchored to NZ adult BP. Asymmetric on
@@ -160,7 +165,7 @@ export default async function handler(req, res) {
   // 5. Train at the known knee.
   let model
   try {
-    model = trainV3(features, labels, { nTrees: KNEE_TREES, depth: DEPTH, lr: LR, valFrac: VAL_FRAC })
+    model = trainV3(features, labels, { nTrees: KNEE_TREES, depth: DEPTH, lr: LR, valFrac: VAL_FRAC, tailBoost: TAIL_BOOST })
   } catch (e) {
     audit.reasons.push(`training failed: ${e.message || e}`)
     console.error('[cron-retrain-bp-v3] train failed:', e)

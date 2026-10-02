@@ -450,31 +450,40 @@ const FEATURE_NAMES_V3 = [
 
 function featureVec(f) { return FEATURE_NAMES_V3.map(k => f[k]) }
 
-// Grow one regression tree by greedy variance reduction. depth=0 → leaf.
-function growTree(X, y, depth, minLeaf = 3) {
+// Grow one regression tree by greedy weighted variance reduction. depth=0 → leaf.
+// Weights allow tail samples (hypertensives) to pull more at every split so the
+// leaves don't average them into mean-regression. Pass weights=null for unweighted.
+function growTree(X, y, w, depth, minLeaf = 3) {
   const n = y.length
-  const meanY = y.reduce((a, b) => a + b, 0) / n
+  const weights = w || new Array(n).fill(1)
+  let totalW = 0, sumWY = 0
+  for (let i = 0; i < n; i++) { totalW += weights[i]; sumWY += weights[i] * y[i] }
+  const meanY = totalW > 0 ? sumWY / totalW : 0
   if (depth === 0 || n <= minLeaf) {
     return { leaf: true, value: meanY }
   }
   let bestFeat = -1, bestThr = 0, bestGain = 0
-  const totalVar = y.reduce((s, v) => s + (v - meanY) ** 2, 0)
+  let totalVar = 0
+  for (let i = 0; i < n; i++) totalVar += weights[i] * (y[i] - meanY) ** 2
   for (let f = 0; f < X[0].length; f++) {
     const vals = X.map(row => row[f])
     const sorted = [...new Set(vals)].sort((a, b) => a - b)
-    // candidate thresholds: midpoints of adjacent unique values
     for (let i = 0; i < sorted.length - 1; i++) {
       const thr = (sorted[i] + sorted[i + 1]) / 2
-      let lY = [], rY = []
+      let lY = [], rY = [], lW = [], rW = []
       for (let k = 0; k < n; k++) {
-        if (X[k][f] <= thr) lY.push(y[k])
-        else rY.push(y[k])
+        if (X[k][f] <= thr) { lY.push(y[k]); lW.push(weights[k]) }
+        else                { rY.push(y[k]); rW.push(weights[k]) }
       }
       if (lY.length < minLeaf || rY.length < minLeaf) continue
-      const lMean = lY.reduce((a, b) => a + b, 0) / lY.length
-      const rMean = rY.reduce((a, b) => a + b, 0) / rY.length
-      const lVar = lY.reduce((s, v) => s + (v - lMean) ** 2, 0)
-      const rVar = rY.reduce((s, v) => s + (v - rMean) ** 2, 0)
+      let lTotW = 0, lSumWY = 0, rTotW = 0, rSumWY = 0
+      for (let m = 0; m < lY.length; m++) { lTotW += lW[m]; lSumWY += lW[m] * lY[m] }
+      for (let m = 0; m < rY.length; m++) { rTotW += rW[m]; rSumWY += rW[m] * rY[m] }
+      const lMean = lTotW > 0 ? lSumWY / lTotW : 0
+      const rMean = rTotW > 0 ? rSumWY / rTotW : 0
+      let lVar = 0, rVar = 0
+      for (let m = 0; m < lY.length; m++) lVar += lW[m] * (lY[m] - lMean) ** 2
+      for (let m = 0; m < rY.length; m++) rVar += rW[m] * (rY[m] - rMean) ** 2
       const gain = totalVar - (lVar + rVar)
       if (gain > bestGain) {
         bestGain = gain; bestFeat = f; bestThr = thr
@@ -489,8 +498,8 @@ function growTree(X, y, depth, minLeaf = 3) {
   }
   return {
     leaf: false, feature: bestFeat, threshold: bestThr,
-    left:  growTree(lIdx.map(i => X[i]), lIdx.map(i => y[i]), depth - 1, minLeaf),
-    right: growTree(rIdx.map(i => X[i]), rIdx.map(i => y[i]), depth - 1, minLeaf),
+    left:  growTree(lIdx.map(i => X[i]), lIdx.map(i => y[i]), lIdx.map(i => weights[i]), depth - 1, minLeaf),
+    right: growTree(rIdx.map(i => X[i]), rIdx.map(i => y[i]), rIdx.map(i => weights[i]), depth - 1, minLeaf),
   }
 }
 
@@ -501,18 +510,51 @@ function predictTree(tree, x) {
 
 // Fit a single BP output (sys OR dia) with gradient boosting on regression
 // trees. Returns { init, trees[], lr }. Prediction = init + lr * Σ trees.
-function fitGbm(X, y, { nTrees = 50, depth = 3, lr = 0.1 } = {}) {
-  const init = y.reduce((a, b) => a + b, 0) / y.length
+// `weights` lets tail samples pull leaves harder — critical to stop the GBM
+// from mean-regressing hypertensives into the training mean. Pass null for
+// uniform weighting.
+function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1 } = {}) {
+  // Weighted mean for init so the first tree's residuals aren't biased.
+  let totalW = 0, sumWY = 0
+  const w = weights || new Array(y.length).fill(1)
+  for (let i = 0; i < y.length; i++) { totalW += w[i]; sumWY += w[i] * y[i] }
+  const init = totalW > 0 ? sumWY / totalW : y.reduce((a, b) => a + b, 0) / y.length
   const residuals = y.map(v => v - init)
   const trees = []
   for (let t = 0; t < nTrees; t++) {
-    const tree = growTree(X, residuals, depth)
+    const tree = growTree(X, residuals, w, depth)
     trees.push(tree)
     for (let i = 0; i < y.length; i++) {
       residuals[i] -= lr * predictTree(tree, X[i])
     }
   }
   return { init, trees, lr }
+}
+
+// Per-sample tail weights for sys-BP training. Anchored to NZ adult population
+// (SBP mean 120, SD 15) NOT the training mean — attackers (or imbalanced data)
+// can't shift the anchor. Linear growth beyond ~0.7σ from the mean so normals
+// stay at weight 1 and hypertensives (sys≈170 → z≈3.3) get ~6-7× pull.
+//
+// tailBoost controls aggressiveness: 0 = uniform (unchanged behaviour), 2 =
+// strong tail pull (default), higher = model follows tails harder but risks
+// overshooting normal patients. 2 is a sane start for the current dataset.
+function tailWeightsSys(labels, tailBoost = 2.0) {
+  const SYS_MEAN = 120, SYS_SIGMA = 15
+  return labels.map(l => {
+    const z = Math.abs(l[0] - SYS_MEAN) / SYS_SIGMA
+    return 1 + tailBoost * Math.max(0, z - 0.7)
+  })
+}
+
+// Same recipe for dia. Anchor DBP mean 75, SD 10. Hypertensive-urgency DBP
+// 115 → z=4 → weight ~7.6× at default boost.
+function tailWeightsDia(labels, tailBoost = 2.0) {
+  const DIA_MEAN = 75, DIA_SIGMA = 10
+  return labels.map(l => {
+    const z = Math.abs(l[1] - DIA_MEAN) / DIA_SIGMA
+    return 1 + tailBoost * Math.max(0, z - 0.7)
+  })
 }
 
 function predictGbm(model, x) {
@@ -522,7 +564,10 @@ function predictGbm(model, x) {
 }
 
 // Train v3: feature extraction already done. labels = [[sys, dia], ...].
-export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, valFrac = 0.2 } = {}) {
+// tailBoost controls hypertensive sample weighting. 0 = uniform (legacy
+// behaviour before this change). Default 2.0 = ~6-7× pull at sys 170 /
+// dia 115. Set via `tailBoost: n` in the options object.
+export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, valFrac = 0.2, tailBoost = 2.0 } = {}) {
   if (features.length < 20) throw new Error('need ≥20 training samples')
   const n = features.length
   const nVal = Math.max(1, Math.round(n * valFrac))
@@ -539,9 +584,16 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
   const X_train = trainIdx.map(i => featureVec(features[i]))
   const y_sys   = trainIdx.map(i => labels[i][0])
   const y_dia   = trainIdx.map(i => labels[i][1])
+  const trainLabels = trainIdx.map(i => labels[i])
 
-  const sysModel = fitGbm(X_train, y_sys, { nTrees, depth, lr })
-  const diaModel = fitGbm(X_train, y_dia, { nTrees, depth, lr })
+  // Tail-boosted weights so hypertensives / hypotensives aren't averaged
+  // into the training mean. Independent per sys/dia head so each gets its
+  // own appropriate rebalancing.
+  const sysW = tailBoost > 0 ? tailWeightsSys(trainLabels, tailBoost) : null
+  const diaW = tailBoost > 0 ? tailWeightsDia(trainLabels, tailBoost) : null
+
+  const sysModel = fitGbm(X_train, y_sys, sysW, { nTrees, depth, lr })
+  const diaModel = fitGbm(X_train, y_dia, diaW, { nTrees, depth, lr })
 
   // Train MAE
   let maeSysT = 0, maeDiaT = 0
@@ -551,16 +603,26 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
   }
   maeSysT /= X_train.length; maeDiaT /= X_train.length
 
-  // Val MAE on held-out
+  // Val MAE on held-out — overall + split by BP band so we can see if the
+  // tail-boost actually improved hypertensive accuracy without regressing normals.
   const X_val = valIdx.map(i => featureVec(features[i]))
   const y_sysV = valIdx.map(i => labels[i][0])
   const y_diaV = valIdx.map(i => labels[i][1])
   let maeSysV = 0, maeDiaV = 0
+  let errSysHigh = [], errSysNorm = []
   for (let i = 0; i < X_val.length; i++) {
-    maeSysV += Math.abs(predictGbm(sysModel, X_val[i]) - y_sysV[i])
-    maeDiaV += Math.abs(predictGbm(diaModel, X_val[i]) - y_diaV[i])
+    const predS = predictGbm(sysModel, X_val[i])
+    const predD = predictGbm(diaModel, X_val[i])
+    const eS = Math.abs(predS - y_sysV[i])
+    const eD = Math.abs(predD - y_diaV[i])
+    maeSysV += eS
+    maeDiaV += eD
+    if (y_sysV[i] >= 140) errSysHigh.push(eS)
+    else                  errSysNorm.push(eS)
   }
   maeSysV /= X_val.length; maeDiaV /= X_val.length
+  const maeSysHigh = errSysHigh.length ? +(errSysHigh.reduce((a, b) => a + b, 0) / errSysHigh.length).toFixed(1) : null
+  const maeSysNorm = errSysNorm.length ? +(errSysNorm.reduce((a, b) => a + b, 0) / errSysNorm.length).toFixed(1) : null
 
   return {
     sysModel, diaModel,
@@ -569,6 +631,8 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
       n: X_train.length, nVal: X_val.length,
       trainMae: { sys: +maeSysT.toFixed(1), dia: +maeDiaT.toFixed(1) },
       valMae:   { sys: +maeSysV.toFixed(1), dia: +maeDiaV.toFixed(1) },
+      valMaeSysByBand: { high_ge_140: maeSysHigh, normal_lt_140: maeSysNorm, nHigh: errSysHigh.length, nNormal: errSysNorm.length },
+      tailBoost,
       nTrees, depth, lr,
       trainedAt: new Date().toISOString(),
     },
@@ -580,15 +644,16 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
 // eyeballing. 50 depth-3 trees on 125 samples overfit 3× (train 3.1 / val
 // 9.3); the sweep lets us pick the smallest tree count that holds val MAE
 // without memorising the training set.
-export function sweepTrees(features, labels, treeCounts = [10, 20, 30, 50, 100], { depth = 3, lr = 0.1 } = {}) {
+export function sweepTrees(features, labels, treeCounts = [10, 20, 30, 50, 100], { depth = 3, lr = 0.1, tailBoost = 2.0 } = {}) {
   const results = []
   for (const nTrees of treeCounts) {
     try {
-      const m = trainV3(features, labels, { nTrees, depth, lr, valFrac: 0.2 })
+      const m = trainV3(features, labels, { nTrees, depth, lr, valFrac: 0.2, tailBoost })
       results.push({
         nTrees,
         trainMae: m.meta.trainMae,
         valMae: m.meta.valMae,
+        valMaeSysByBand: m.meta.valMaeSysByBand,
       })
     } catch (e) {
       results.push({ nTrees, error: e.message || String(e) })
