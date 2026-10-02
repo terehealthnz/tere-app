@@ -187,6 +187,7 @@ export default function VitalsCapture() {
   const [cuffPhase,  setCuffPhase]  = useState('ask')   // 'ask' | 'input' | 'submitting' | 'submitted' | 'declined'
   const [cuffSys,    setCuffSys]    = useState('')
   const [cuffDia,    setCuffDia]    = useState('')
+  const [cuffHr,     setCuffHr]     = useState('')   // optional — most cuffs display HR too
   const [cuffError,  setCuffError]  = useState('')
   const [scanMode,     setScanMode]     = useState('face') // 'face' | 'finger'
   const [faceBox,      setFaceBox]      = useState(null)   // normalised { x,y,w,h } from FaceMesh
@@ -723,6 +724,13 @@ export default function VitalsCapture() {
     if (!Number.isFinite(sys) || sys < 70 || sys > 250)   { setCuffError('Systolic must be 70–250'); return }
     if (!Number.isFinite(dia) || dia < 40 || dia > 150)   { setCuffError('Diastolic must be 40–150'); return }
     if (dia >= sys)                                       { setCuffError('Diastolic should be lower than systolic'); return }
+    // HR is optional. If the user entered something, validate it; blank is fine.
+    const hrRaw = cuffHr.trim()
+    let hr = null
+    if (hrRaw) {
+      hr = parseInt(hrRaw, 10)
+      if (!Number.isFinite(hr) || hr < 40 || hr > 180)    { setCuffError('Heart rate must be 40–180 bpm (or leave blank)'); return }
+    }
 
     setCuffPhase('submitting')
     try {
@@ -750,7 +758,7 @@ export default function VitalsCapture() {
         subjectCode:     subject?.subject_code || null,
         manualSystolic:  sys,
         manualDiastolic: dia,
-        manualHr:        null,
+        manualHr:        hr,  // optional — null if patient left blank
         tereHr:          vitals?.hr || null,
         tereRr:          vitals?.rr || null,
         tereSpo2:        spo2Estimate?.estimate || null,
@@ -1155,7 +1163,8 @@ export default function VitalsCapture() {
                   {(cuffPhase === 'input' || cuffPhase === 'submitting') && (
                     <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:12,padding:'.875rem 1rem',marginBottom:'.75rem'}}>
                       <div style={{fontWeight:700,color:'#0D2B45',fontSize:'.95rem',marginBottom:'.5rem'}}>Enter your cuff reading</div>
-                      <div style={{display:'flex',gap:'.5rem',alignItems:'center',marginBottom:'.5rem'}}>
+                      <div style={{fontSize:'.72rem',color:'#6B7280',marginBottom:'.5rem'}}>Blood pressure (required)</div>
+                      <div style={{display:'flex',gap:'.5rem',alignItems:'center',marginBottom:'.6rem'}}>
                         <input type="number" inputMode="numeric" placeholder="Systolic (e.g. 124)" value={cuffSys}
                           onChange={e => setCuffSys(e.target.value)} disabled={cuffPhase === 'submitting'}
                           style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid #D1D5DB',borderRadius:8,fontSize:'1rem',fontFamily:'inherit',outline:'none',minWidth:0}} />
@@ -1163,6 +1172,12 @@ export default function VitalsCapture() {
                         <input type="number" inputMode="numeric" placeholder="Diastolic (e.g. 82)" value={cuffDia}
                           onChange={e => setCuffDia(e.target.value)} disabled={cuffPhase === 'submitting'}
                           style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid #D1D5DB',borderRadius:8,fontSize:'1rem',fontFamily:'inherit',outline:'none',minWidth:0}} />
+                      </div>
+                      <div style={{fontSize:'.72rem',color:'#6B7280',marginBottom:'.5rem'}}>Heart rate (optional — most cuffs show this too)</div>
+                      <div style={{marginBottom:'.5rem'}}>
+                        <input type="number" inputMode="numeric" placeholder="HR in bpm (e.g. 72)" value={cuffHr}
+                          onChange={e => setCuffHr(e.target.value)} disabled={cuffPhase === 'submitting'}
+                          style={{width:'100%',padding:'.6rem .75rem',border:'1.5px solid #D1D5DB',borderRadius:8,fontSize:'1rem',fontFamily:'inherit',outline:'none',boxSizing:'border-box'}} />
                       </div>
                       {cuffError && <div style={{fontSize:'.78rem',color:'#DC2626',marginBottom:'.5rem'}}>{cuffError}</div>}
                       <div style={{display:'flex',gap:'.5rem'}}>
