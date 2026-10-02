@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, supabase } from '../../lib/supabase'
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
+import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model } from '../../lib/bpModelV2'
 import { fitSpO2Calibration } from '../../lib/spo2'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -181,6 +182,17 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [latestPred, setLatestPred] = useState(null)
   const [progress, setProgress] = useState('')
 
+  // v2 ridge model — runs completely in parallel to the v15 MLP. Separate
+  // state, separate storage (localStorage only, no Supabase). Purpose: A/B
+  // against v15 on the same 155+ stored signals to see if a 9-param ridge
+  // on waveform morphology beats the mean-collapsed v15 MLP. If it does,
+  // we promote it; until then, nothing in the live /vitals flow changes.
+  const [v2Model, setV2Model]       = useState(() => loadV2Model())
+  const [v2Preds, setV2Preds]       = useState([])
+  const [v2Running, setV2Running]   = useState(false)
+  const [v2Progress, setV2Progress] = useState('')
+  const [v2Error, setV2Error]       = useState('')
+
   const ready = isBPReliable()
 
   async function runAnalysis() {
@@ -215,7 +227,74 @@ function BPAnalysisPanel({ readings, subjects }) {
     setRunning(false)
   }
 
-  const stats = computeBPStats(bpPreds)
+  // Train the ridge-v2 model on every stored (frames + cuff) pair, then
+  // predict over the same set so we can A/B against v15 side-by-side.
+  // Deterministic 80/20 split happens inside trainRidgeBp.
+  async function trainAndRunV2() {
+    setV2Running(true); setV2Error(''); setV2Progress('Collecting signals…')
+    const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+    const withBoth = readings.filter(r =>
+      r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+    )
+
+    const features = []
+    const labels   = []
+    const indexedForPred = []  // keep rows that produced features for later pred
+
+    for (let i = 0; i < withBoth.length; i++) {
+      const r   = withBoth[i]
+      const sub = r.subject_id ? subMap[r.subject_id] : {}
+      const fps = r.raw_rppg_signal?.fps || 30
+      setV2Progress(`Extracting features ${i + 1}/${withBoth.length}…`)
+      // yield to the event loop every 10 rows so the UI stays responsive
+      if (i % 10 === 0) await new Promise(res => setTimeout(res, 0))
+      try {
+        const feats = framesToV2Features(r.raw_rppg_signal.frames, fps, sub)
+        if (feats) {
+          features.push(feats)
+          labels.push([r.manual_systolic, r.manual_diastolic])
+          indexedForPred.push({ r, sub, fps, feats })
+        }
+      } catch {}
+    }
+
+    if (features.length < 20) {
+      setV2Error(`Only ${features.length} usable signals — need ≥20 to train.`)
+      setV2Running(false); setV2Progress('')
+      return
+    }
+
+    setV2Progress(`Training ridge on ${features.length} samples…`)
+    await new Promise(res => setTimeout(res, 0))
+
+    let model
+    try {
+      model = trainRidgeBp(features, labels, { lambda: 1.0, valFrac: 0.2 })
+    } catch (e) {
+      setV2Error(`Train failed: ${e.message || e}`)
+      setV2Running(false); setV2Progress('')
+      return
+    }
+    saveV2Model(model)
+    setV2Model(model)
+
+    setV2Progress('Predicting…')
+    await new Promise(res => setTimeout(res, 0))
+    const preds = indexedForPred.map(({ r, feats }) => {
+      const p = predictRidgeBp(model, feats)
+      return {
+        id: r.id, date: r.recorded_at, subject: r.subject_code,
+        actualSys: r.manual_systolic, actualDia: r.manual_diastolic,
+        predSys: p.systolic, predDia: p.diastolic,
+      }
+    })
+    setV2Preds(preds)
+    setV2Progress('')
+    setV2Running(false)
+  }
+
+  const stats   = computeBPStats(bpPreds)
+  const v2Stats = computeBPStats(v2Preds)
 
   return (
     <div>
@@ -256,13 +335,19 @@ function BPAnalysisPanel({ readings, subjects }) {
       )}
 
       {/* Run button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         <button onClick={runAnalysis} disabled={running || !ready}
           style={{ background: ready ? TEAL : '#9CA3AF', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: ready && !running ? 'pointer' : 'not-allowed', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          {running ? progress : 'Run BP analysis'}
+          {running ? progress : 'Run BP analysis (v15 MLP)'}
         </button>
-        {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>Model not yet trained or insufficient samples</span>}
-        {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>{bpPreds.length} readings analysed</span>}
+        <button onClick={trainAndRunV2} disabled={v2Running}
+          style={{ background: NAVY, color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v2Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {v2Running ? v2Progress : 'Train & run v2 (ridge)'}
+        </button>
+        {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>v15 not yet trained or insufficient samples</span>}
+        {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v15: {bpPreds.length}</span>}
+        {v2Preds.length > 0 && !v2Running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v2: {v2Preds.length}</span>}
+        {v2Error && <span style={{ fontSize: '.8rem', color: '#EF4444' }}>{v2Error}</span>}
       </div>
 
       {/* Aggregate stats */}
@@ -324,9 +409,98 @@ function BPAnalysisPanel({ readings, subjects }) {
       {/* Scatter chart */}
       {bpPreds.length > 0 && (
         <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY, marginBottom: '.75rem' }}>Predicted vs Actual BP</div>
+          <div style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY, marginBottom: '.75rem' }}>v15 — Predicted vs Actual BP</div>
           <BPScatterChart bpPreds={bpPreds} />
           <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: '.5rem' }}>Teal = systolic · amber = diastolic · dashed = perfect agreement</div>
+        </div>
+      )}
+
+      {/* v2 panel — ridge model on 6 waveform morphology features + age + sex.
+          Runs on exactly the same stored signals so numbers are directly
+          comparable to v15. Localstorage-only; no live wiring until proven. */}
+      {(v2Model || v2Preds.length > 0) && (
+        <div style={{
+          borderTop: '2px solid #E5E7EB',
+          paddingTop: '1.5rem',
+          marginTop: '2rem',
+          marginBottom: '1.5rem',
+        }}>
+          <div style={{ fontSize: '.95rem', fontWeight: 800, color: NAVY, marginBottom: '.5rem' }}>
+            v2 ridge regression — waveform morphology
+          </div>
+          <div style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '1rem', lineHeight: 1.5 }}>
+            Closed-form ridge on 6 pulse-wave features (upstroke time, augmentation index, pulse width ½, area ratio, dicrotic notch delay, SDPPG b/a) + age + sex. 9 parameters vs v15's ~50k. Local only — nothing wired into live /vitals yet.
+          </div>
+
+          {v2Model?.meta && (
+            <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.78rem', color: NAVY }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.5rem' }}>
+                <div><span style={{ color: '#6B7280' }}>Train MAE sys:</span> <strong>±{v2Model.meta.trainMae?.sys}</strong></div>
+                <div><span style={{ color: '#6B7280' }}>Train MAE dia:</span> <strong>±{v2Model.meta.trainMae?.dia}</strong></div>
+                <div><span style={{ color: '#6B7280' }}>Val MAE sys:</span> <strong style={{ color: v2Model.meta.valMae?.sys <= 10 ? '#10B981' : '#F59E0B' }}>±{v2Model.meta.valMae?.sys}</strong></div>
+                <div><span style={{ color: '#6B7280' }}>Val MAE dia:</span> <strong style={{ color: v2Model.meta.valMae?.dia <= 8 ? '#10B981' : '#F59E0B' }}>±{v2Model.meta.valMae?.dia}</strong></div>
+              </div>
+              <div style={{ marginTop: '.4rem', fontSize: '.7rem', color: '#9CA3AF' }}>
+                Trained on {v2Model.meta.n} / val on {v2Model.meta.nVal} · λ={v2Model.meta.lambda} · {v2Model.meta.trainedAt ? new Date(v2Model.meta.trainedAt).toLocaleString() : '—'}
+              </div>
+            </div>
+          )}
+
+          {v2Stats && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem', marginBottom: '1rem' }}>
+                {[
+                  { label: 'v2 Sys MAE', value: `±${v2Stats.sysMae} mmHg`, color: parseFloat(v2Stats.sysMae) <= 10 ? '#10B981' : parseFloat(v2Stats.sysMae) <= 15 ? '#F59E0B' : '#EF4444' },
+                  { label: 'v2 Dia MAE', value: `±${v2Stats.diaMae} mmHg`, color: parseFloat(v2Stats.diaMae) <= 10 ? '#10B981' : parseFloat(v2Stats.diaMae) <= 15 ? '#F59E0B' : '#EF4444' },
+                  { label: 'v2 Within ±10', value: `${v2Stats.within10Pct}%`, color: v2Stats.within10Pct >= 70 ? '#10B981' : '#F59E0B' },
+                  { label: 'v2 Within ±15', value: `${v2Stats.within15Pct}%`, color: v2Stats.within15Pct >= 85 ? '#10B981' : '#F59E0B' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: '#F9FAFB', borderRadius: 12, padding: '.75rem', textAlign: 'center' }}>
+                    <div style={{ fontWeight: 800, fontSize: '1.1rem', color }}>{value}</div>
+                    <div style={{ fontSize: '.7rem', color: '#6B7280', marginTop: '.2rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{
+                background: v2Stats.collapsed ? '#FEF2F2' : '#F0FDF4',
+                border: `1px solid ${v2Stats.collapsed ? '#FECACA' : '#BBF7D0'}`,
+                borderRadius: 12, padding: '1rem', marginBottom: '1.5rem',
+              }}>
+                <div style={{ fontSize: '.7rem', fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: v2Stats.collapsed ? '#991B1B' : '#065F46', marginBottom: '.5rem' }}>
+                  {v2Stats.collapsed ? '⚠ v2 mean-collapse too' : '✓ v2 varies with input'}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.5rem', fontSize: '.75rem', color: NAVY }}>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pred SBP</div>
+                    <div style={{ fontWeight: 700 }}>{v2Stats.predSysMean} ± {v2Stats.predSysSd}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Cuff SBP</div>
+                    <div style={{ fontWeight: 700 }}>{v2Stats.cuffSysMean} ± {v2Stats.cuffSysSd}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pred DBP</div>
+                    <div style={{ fontWeight: 700 }}>{v2Stats.predDiaMean} ± {v2Stats.predDiaSd}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Cuff DBP</div>
+                    <div style={{ fontWeight: 700 }}>{v2Stats.cuffDiaMean} ± {v2Stats.cuffDiaSd}</div>
+                  </div>
+                </div>
+                <div style={{ marginTop: '.5rem', fontSize: '.7rem', color: '#6B7280', lineHeight: 1.4 }}>
+                  v15 pred SD was {stats?.predSysSd ?? '—'} vs v2 pred SD {v2Stats.predSysSd}. v2 is {v2Stats.predSysSd > (stats?.predSysSd || 0) ? 'spreading wider' : 'at least as flat'} than v15.
+                </div>
+              </div>
+
+              {v2Preds.length > 0 && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY, marginBottom: '.75rem' }}>v2 — Predicted vs Actual BP</div>
+                  <BPScatterChart bpPreds={v2Preds} />
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
