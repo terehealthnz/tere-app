@@ -387,7 +387,7 @@ export default function VitalsCapture() {
                   // v2 ridge + v3 GBM in parallel. Default display = v15. Flip
                   // with localStorage.tere_bp_display_version ∈ {v2, v3}. All
                   // three logged every scan for A/B visibility.
-                  let display = bp
+                  let display = null  // v3-only: no v15 fallback (mean-emitter is misleading)
                   let bp2 = null, bp3 = null
                   try {
                     if (v2ModelRef.current) {
@@ -398,18 +398,21 @@ export default function VitalsCapture() {
                       const { predictV3FromFrames } = await import('../../lib/bpModelV3')
                       bp3 = predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
                     }
-                    // v3 is the default display since 2026-10-02 — v15 is a
-                    // mean emitter and v2 is barely better than mean. v3 is
-                    // the only one that actually tracks cuff variance. flag
-                    // can still force v15 or v2 for A/B on specific devices.
+                    // v3 ONLY as of 2026-10-02 — v15 is a confirmed mean emitter
+                    // (always ~120/79) and showing its number when v3 skipped is
+                    // actively misleading (patient thinks they got measured when
+                    // they didn't). If v3 doesn't produce a prediction we show
+                    // nothing. Debug/A-B override still works via localStorage.
                     const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
+                    // (display is declared in outer scope so the if-block below can read it)
                     if (bp3 && !bp3.skipped && flag !== 'v15' && flag !== 'v2') display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
-                    else if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                    else if (flag === 'v2'  && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                    else if (flag === 'v15' && bp) display = bp  // debug-only path
                     console.log('[bp]',
                       'v15=', bp && `${bp.systolic}/${bp.diastolic}`,
                       '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(${bp2?.reason || 'no-model'})`,
                       '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`,
-                      `→ display=${display?.source || 'v15'}`)
+                      `→ display=${display?.source || 'NONE (v3 skipped, no fallback)'}`)
                   } catch (e) { console.warn('[bp] v2/v3 parallel failed:', e?.message || e) }
                   if (display) {
                     setBpEstimate(display)
@@ -710,6 +713,21 @@ export default function VitalsCapture() {
   function skipRefused() {
     if (!window.confirm("Skip vitals for this consultation? The provider will see 'Patient declined vitals' on the chart.")) return
     skip('patient_refused')
+  }
+
+  // Shared navigation hop into the waiting room. Called from the main
+  // Continue button and from the abnormal-gate modal's "Continue anyway"
+  // option so both paths persist attempt metadata identically.
+  async function proceedToWaiting() {
+    if (attemptCount > 1 && vitals) {
+      try {
+        const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
+        if (cId && !cId.startsWith('demo')) {
+          await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
+        }
+      } catch {}
+    }
+    navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
   }
 
   // Submit the patient's self-measured cuff reading alongside the scan frames
@@ -1204,18 +1222,12 @@ export default function VitalsCapture() {
                   {canContinue ? (
                     <button className="btn btn-primary btn-full" onClick={async () => {
                       if (abnormalCheck.abnormal && attemptCount < 2) {
+                        // Show the gate but no longer BLOCK — patient can
+                        // choose "Continue anyway" from inside the modal.
                         setShowAbnormalGate(true)
                         return
                       }
-                      if (attemptCount > 1 && vitals) {
-                        try {
-                          const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
-                          if (cId && !cId.startsWith('demo')) {
-                            await updateVitals(cId, { ...vitals, attempts: attemptCount, retake_reason: 'abnormal_first_reading' })
-                          }
-                        } catch {}
-                      }
-                      navigate(makeConsultUrl('/waiting', (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id')) || sessionStorage.getItem('consultation_id') || 'demo'))
+                      await proceedToWaiting()
                     }}>
                       {t.continueBtn}
                     </button>
@@ -1346,6 +1358,16 @@ export default function VitalsCapture() {
                 className="btn btn-secondary btn-full"
                 onClick={() => { setShowAbnormalGate(false); setManualMode(true) }}>
                 {t.gotOwnReadings}
+              </button>
+              {/* Patient's choice — recommend retake but don't force it.
+                  The provider still sees the reading flagged as abnormal
+                  on the chart; this is an informed-decision moment, not
+                  a hard block. */}
+              <button
+                className="btn btn-full"
+                style={{ background: 'transparent', color: '#6B7280', border: 'none', textDecoration: 'underline', fontSize: '.875rem', padding: '.5rem', cursor: 'pointer' }}
+                onClick={async () => { setShowAbnormalGate(false); await proceedToWaiting() }}>
+                Continue anyway
               </button>
             </div>
           </div>

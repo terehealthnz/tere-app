@@ -14,6 +14,7 @@ export default function AddressAutocomplete({
   value = '',
   onChange,
   onSelect,
+  onFocus,
   placeholder = 'Start typing your address…',
   disabled = false,
   required = false,
@@ -148,7 +149,7 @@ export default function AddressAutocomplete({
         type="text"
         value={query}
         onChange={e => { setQuery(e.target.value); onChange?.(e.target.value); setOpen(true); setFocus(-1) }}
-        onFocus={() => setOpen(true)}
+        onFocus={e => { setOpen(true); onFocus?.(e) }}
         onKeyDown={onKeyDown}
         disabled={disabled}
         required={required}

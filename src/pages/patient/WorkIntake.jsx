@@ -457,19 +457,23 @@ export default function WorkIntake() {
             <PhonePicker value={phone} onChange={setPhone} />
 
             <label style={label}>{t.emailLabel}</label>
-            <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t.emailPlaceholder} autoComplete="email" />
+            {/* onFocus select() — if the field is prefilled from the employer
+                roster, clicking selects the whole value so typing replaces it
+                in one keystroke instead of forcing the worker to delete first. */}
+            <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} onFocus={e => e.target.select()} placeholder={t.emailPlaceholder} autoComplete="email" />
 
             <label style={label}>{t.addressLabel}</label>
             <AddressAutocomplete
               value={address}
               onChange={setAddress}
               onSelect={s => setAddress(s.display_name)}
+              onFocus={e => e.target.select()}
               placeholder={t.addressPlaceholder}
               inputStyle={inp}
             />
 
             <label style={label}>{t.nhiLabel}</label>
-            <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} placeholder="ABC1234" maxLength={7} autoComplete="off" />
+            <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} onFocus={e => e.target.select()} placeholder="ABC1234" maxLength={7} autoComplete="off" />
 
             {/* Biometrics — shared dark-themed BiometricsForm (unit toggles
                 cm↔ft/in + kg↔lb, defaults to metric, always submits
