@@ -312,6 +312,13 @@ export default function Dashboard() {
   const [dashTab, setDashTab]              = useState('queue')
   const [consultations, setConsultations] = useState([])
   const [loading, setLoading]             = useState(true)
+  // Surface auth / fetch failures instead of rendering a silent empty queue.
+  // The PWA path hit this on 2026-10-02: expired session cookie → /api/get-queue
+  // returned 401 → catch block set consultations=[] → UI identical to "no
+  // patients", so provider couldn't tell they were just logged out. Inbox tab
+  // showed "No provider credential (session cookie required)" the whole time
+  // because it surfaces its error state.
+  const [queueError, setQueueError]       = useState(null)
   const [joiningId, setJoiningId]         = useState(null)
   const [todaysConsults, setTodaysConsults] = useState([])
   const [referralBadge, setReferralBadge] = useState(0)
@@ -335,11 +342,23 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     try {
       const res = await apiFetch('/api/get-queue')
-      if (!res.ok) throw new Error('queue fetch failed')
+      if (!res.ok) {
+        // Surface the specific failure instead of swallowing. 401 is the
+        // overwhelmingly common case on PWAs — expired session cookie.
+        let msg
+        if (res.status === 401) msg = 'Session expired — tap Sign out and sign in again to see the queue.'
+        else if (res.status === 403) msg = 'Access denied — your account may not have provider permissions.'
+        else msg = `Queue fetch failed (HTTP ${res.status}). Pull to refresh.`
+        setQueueError(msg)
+        setConsultations([])
+        return
+      }
       const { consultations: data } = await res.json()
+      setQueueError(null)
       setConsultations(data || [])
     } catch (e) {
       console.error('Queue load error:', e)
+      setQueueError('Network error loading queue — pull to refresh or check your connection.')
       setConsultations([])
     } finally { setLoading(false) }
   }, [])
@@ -482,6 +501,11 @@ export default function Dashboard() {
 
           {loading ? (
             <div style={{textAlign:'center',padding:'3rem'}}><div className="spinner" /></div>
+          ) : queueError ? (
+            <div className="card" style={{padding:'1rem 1.25rem',background:'#FEF2F2',border:'1px solid #FECACA',color:'#991B1B',fontSize:'.9375rem',lineHeight:1.5}}>
+              <div style={{fontWeight:700,marginBottom:4}}>Queue couldn't load</div>
+              <div>{queueError}</div>
+            </div>
           ) : consultations.filter(c => c.consultation_type !== 'message').length === 0 ? (
             <div className="card" style={{textAlign:'center',padding:'3rem'}}>
               <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>✓</div>

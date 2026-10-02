@@ -127,21 +127,44 @@ export async function apiFetch(path, options = {}) {
     const isAuthEndpoint =
       /\/api\/(provider-auth|provider-session|provider-logout|provider-mfa|forgot-password|reset-password)\b/.test(String(path))
     if (isProviderSurface && !isAuthEndpoint) {
-      // Timestamp cooldown — writes "when we last auto-reloaded" and refuses
-      // to reload again within AUTH_RELOAD_COOLDOWN_MS. Previously used a
-      // clear-on-2xx binary flag which looped when one endpoint 401'd while
-      // another 200'd in the same session (2026-10-01 incident).
+      // Dead-cookie recovery (2026-10-02): previously this did
+      // window.location.reload() which just reloaded the same route — if the
+      // cookie was genuinely dead, Dashboard reloaded, 401'd again, cooldown
+      // suppressed the next reload, provider got stuck on an empty queue with
+      // no visible logout. PWAs hit this most because their cookies live
+      // longer than browser tabs. Now: clear the sessionStorage auth flags
+      // AND navigate to the login route, so Login.jsx renders the sign-in
+      // form instead of its "already logged in → bounce to dashboard" path.
       const AUTH_RELOAD_KEY = 'tere_auth_reload_at'
       const AUTH_RELOAD_COOLDOWN_MS = 60_000
       let lastReloadAt = 0
       try { lastReloadAt = parseInt(sessionStorage.getItem(AUTH_RELOAD_KEY) || '0', 10) } catch {}
       if (Date.now() - lastReloadAt >= AUTH_RELOAD_COOLDOWN_MS) {
-        try { sessionStorage.setItem(AUTH_RELOAD_KEY, String(Date.now())) } catch {}
-        console.warn('[apiFetch] 401 on provider surface — reloading to refresh session', { path })
-        window.location.reload()
+        try {
+          sessionStorage.setItem(AUTH_RELOAD_KEY, String(Date.now()))
+          // Clear every provider-session flag so Login.jsx's "already signed
+          // in" bounce doesn't ping-pong us straight back to the dashboard
+          // on a dead cookie. See src/components/clinician/Login.jsx mount
+          // effect — it reads clinicianAuth + providerId and redirects.
+          const authKeys = [
+            'clinicianAuth', 'providerId', 'providerSessionId', 'providerDisplayName',
+            'providerIsAdmin', 'providerIsProvider', 'providerIsSupervisor', 'providerIsBillingAdmin',
+            'providerCanPrescribe', 'providerCanRefer', 'providerCanAcc',
+            'providerRequiresSupervision', 'providerEmail', 'providerColor', 'providerType',
+            'providerSupervisorId', 'providerMfaEnabled', 'providerComplianceCompleted',
+            'prescriberNumber', 'providerCpn', 'providerHpiNumber',
+          ]
+          for (const k of authKeys) { try { sessionStorage.removeItem(k) } catch {} }
+        } catch {}
+        console.warn('[apiFetch] 401 on provider surface — session dead, routing to login', { path })
+        // Use location.href so the full app bundle re-boots cleanly (SW,
+        // state, everything). PWAs that stayed logged in forever on dead
+        // cookies now get bounced to login, matching desktop behaviour.
+        window.location.href = '/clinician'
       }
       // Within cooldown — let the 401 propagate so the caller can show
-      // "please log in" copy instead of looping.
+      // "please log in" copy (Dashboard's queueError banner, etc.) instead
+      // of looping.
     }
   }
 
