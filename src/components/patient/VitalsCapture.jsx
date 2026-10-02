@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames, calculatePTT } from '../../lib/rppg'
-import { updateVitals, patientUpdateConsultation, patientGetConsultation } from '../../lib/supabase'
+import { updateVitals, patientUpdateConsultation, patientGetConsultation, saveValidationSubject, saveValidationReading } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
 import { makeConsultUrl } from '../../lib/consultUrl'
@@ -179,6 +179,15 @@ export default function VitalsCapture() {
   const [ovalColor,  setOvalColor]  = useState('#F59E0B')  // amber default
   const [bpEstimate,   setBpEstimate]   = useState(null)
   const [spo2Estimate, setSpo2Estimate] = useState(null)
+  // "Have a cuff?" contribution flow. Patient-contributed cuff + scan pair
+  // flows into validation_readings so the v3 model keeps improving on real
+  // rural users, not just the lab cohort. 'ask' → shown by default after a
+  // successful scan; patient can decline or submit; 'submitted' shows a
+  // thank-you and keeps the flow moving.
+  const [cuffPhase,  setCuffPhase]  = useState('ask')   // 'ask' | 'input' | 'submitting' | 'submitted' | 'declined'
+  const [cuffSys,    setCuffSys]    = useState('')
+  const [cuffDia,    setCuffDia]    = useState('')
+  const [cuffError,  setCuffError]  = useState('')
   const [scanMode,     setScanMode]     = useState('face') // 'face' | 'finger'
   const [faceBox,      setFaceBox]      = useState(null)   // normalised { x,y,w,h } from FaceMesh
   const [attemptCount,   setAttemptCount]   = useState(0)     // Increments each DONE. Abnormal-retake gate uses this: first abnormal blocks Continue, second attempt lets it through so genuinely sick patients aren't looped forever.
@@ -702,6 +711,61 @@ export default function VitalsCapture() {
     skip('patient_refused')
   }
 
+  // Submit the patient's self-measured cuff reading alongside the scan frames
+  // to validation_readings. Anonymised — we create a one-shot
+  // validation_subject with just demographic buckets, no name/NHI/consult link.
+  // This is the "every cuff-equipped rural patient becomes a training sample"
+  // loop. Fails silently so a save hiccup never blocks the flow.
+  async function submitCuffReading() {
+    setCuffError('')
+    const sys = parseInt(cuffSys, 10)
+    const dia = parseInt(cuffDia, 10)
+    if (!Number.isFinite(sys) || sys < 70 || sys > 250)   { setCuffError('Systolic must be 70–250'); return }
+    if (!Number.isFinite(dia) || dia < 40 || dia > 150)   { setCuffError('Diastolic must be 40–150'); return }
+    if (dia >= sys)                                       { setCuffError('Diastolic should be lower than systolic'); return }
+
+    setCuffPhase('submitting')
+    try {
+      const sub = subjectRef.current || {}
+      const framesForSave = faceFramesRef.current || vitals?.rawFrames || null
+      const fpsForSave    = vitals?.actualFps || 30
+
+      // Create a one-shot anonymous subject so the FK on validation_readings
+      // resolves and the diversity dashboard can slice by demographics.
+      const subject = await saveValidationSubject({
+        subjectCode: `cuff-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        firstName:   'Anonymous',  // no PII — this is a research donor record, not a patient
+        age:         sub.age || null,
+        sex:         sub.sex || null,
+        heightCm:    sub.height_cm || null,
+        weightKg:    sub.weight_kg || null,
+        hasHypertension: 'unknown',
+        hasDiabetes:     'unknown',
+        hasRegularMedications: false,
+      }).catch(e => { console.warn('[cuff] subject create failed:', e?.message); return null })
+
+      await saveValidationReading({
+        subjectId:       subject?.id || null,
+        subjectCode:     subject?.subject_code || null,
+        manualSystolic:  sys,
+        manualDiastolic: dia,
+        manualHr:        null,
+        tereHr:          vitals?.hr || null,
+        tereRr:          vitals?.rr || null,
+        tereSpo2:        spo2Estimate?.estimate || null,
+        rawRppgSignal:   framesForSave ? { frames: framesForSave, fps: fpsForSave } : null,
+        deviceInfo:      deviceInfo || null,
+        notes:           `patient_contributed · scan_bp=${bpEstimate ? `${bpEstimate.systolic}/${bpEstimate.diastolic}` : 'none'} · source=${bpEstimate?.source || 'none'}`,
+      })
+
+      setCuffPhase('submitted')
+    } catch (e) {
+      console.warn('[cuff] save failed:', e?.message || e)
+      setCuffError('Could not save — but your consult is unaffected. Please continue.')
+      setCuffPhase('input')  // let them retry or move on
+    }
+  }
+
   const hrStatus = vitals?.hr ? (vitals.hr < 60 || vitals.hr > 100 ? 'warning' : 'normal') : 'normal'
   const rrStatus = vitals?.rr ? (vitals.rr < 12 || vitals.rr > 20 ? 'warning' : 'normal') : 'normal'
 
@@ -1064,6 +1128,63 @@ export default function VitalsCapture() {
                       </div>
                     </div>
                   )}
+
+                  {/* Cuff-contribution card. Shown after a successful scan;
+                      optional, non-blocking. Patient-contributed cuff + scan
+                      pairs flow into validation_readings and feed future
+                      v3 retrains. See submitCuffReading() for the save path. */}
+                  {cuffPhase === 'ask' && !vitals?.skipped && (
+                    <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:12,padding:'.875rem 1rem',marginBottom:'.75rem'}}>
+                      <div style={{fontWeight:700,color:'#0D2B45',fontSize:'.95rem',marginBottom:'.25rem'}}>Have a blood pressure cuff at home?</div>
+                      <div style={{fontSize:'.8125rem',color:'#4B5563',lineHeight:1.45,marginBottom:'.6rem'}}>
+                        Help other rural patients — add your cuff reading alongside your scan to improve BP accuracy for everyone. Fully anonymous.
+                      </div>
+                      <div style={{display:'flex',gap:'.5rem'}}>
+                        <button type="button" onClick={() => setCuffPhase('input')}
+                          style={{flex:1,background:'#0B6E76',color:'white',border:'none',borderRadius:8,padding:'.6rem 1rem',fontWeight:700,fontSize:'.875rem',cursor:'pointer',fontFamily:'inherit'}}>
+                          Yes, I have one
+                        </button>
+                        <button type="button" onClick={() => setCuffPhase('declined')}
+                          style={{flex:1,background:'white',color:'#6B7280',border:'1px solid #D1D5DB',borderRadius:8,padding:'.6rem 1rem',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'inherit'}}>
+                          No, skip
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {(cuffPhase === 'input' || cuffPhase === 'submitting') && (
+                    <div style={{background:'#F0F9FA',border:'1px solid #D4EEF0',borderRadius:12,padding:'.875rem 1rem',marginBottom:'.75rem'}}>
+                      <div style={{fontWeight:700,color:'#0D2B45',fontSize:'.95rem',marginBottom:'.5rem'}}>Enter your cuff reading</div>
+                      <div style={{display:'flex',gap:'.5rem',alignItems:'center',marginBottom:'.5rem'}}>
+                        <input type="number" inputMode="numeric" placeholder="Systolic (e.g. 124)" value={cuffSys}
+                          onChange={e => setCuffSys(e.target.value)} disabled={cuffPhase === 'submitting'}
+                          style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid #D1D5DB',borderRadius:8,fontSize:'1rem',fontFamily:'inherit',outline:'none',minWidth:0}} />
+                        <span style={{color:'#6B7280',fontWeight:700}}>/</span>
+                        <input type="number" inputMode="numeric" placeholder="Diastolic (e.g. 82)" value={cuffDia}
+                          onChange={e => setCuffDia(e.target.value)} disabled={cuffPhase === 'submitting'}
+                          style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid #D1D5DB',borderRadius:8,fontSize:'1rem',fontFamily:'inherit',outline:'none',minWidth:0}} />
+                      </div>
+                      {cuffError && <div style={{fontSize:'.78rem',color:'#DC2626',marginBottom:'.5rem'}}>{cuffError}</div>}
+                      <div style={{display:'flex',gap:'.5rem'}}>
+                        <button type="button" onClick={submitCuffReading} disabled={cuffPhase === 'submitting'}
+                          style={{flex:1,background:'#0B6E76',color:'white',border:'none',borderRadius:8,padding:'.6rem 1rem',fontWeight:700,fontSize:'.875rem',cursor:cuffPhase === 'submitting' ? 'default' : 'pointer',fontFamily:'inherit',opacity:cuffPhase === 'submitting' ? 0.6 : 1}}>
+                          {cuffPhase === 'submitting' ? 'Saving…' : 'Submit'}
+                        </button>
+                        <button type="button" onClick={() => setCuffPhase('declined')} disabled={cuffPhase === 'submitting'}
+                          style={{background:'white',color:'#6B7280',border:'1px solid #D1D5DB',borderRadius:8,padding:'.6rem 1rem',fontWeight:600,fontSize:'.875rem',cursor:'pointer',fontFamily:'inherit'}}>
+                          Skip
+                        </button>
+                      </div>
+                      <div style={{fontSize:'.72rem',color:'#9CA3AF',marginTop:'.4rem',lineHeight:1.4}}>
+                        Stored anonymously with your scan frames to improve BP accuracy. Not linked to your name or NHI.
+                      </div>
+                    </div>
+                  )}
+                  {cuffPhase === 'submitted' && (
+                    <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:12,padding:'.75rem 1rem',marginBottom:'.75rem',fontSize:'.875rem',color:'#065F46'}}>
+                      ✓ Thanks — your reading will help improve BP accuracy for other rural patients.
+                    </div>
+                  )}
+
                   {canContinue ? (
                     <button className="btn btn-primary btn-full" onClick={async () => {
                       if (abnormalCheck.abnormal && attemptCount < 2) {
