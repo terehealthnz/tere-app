@@ -1,11 +1,19 @@
 // Compound biometrics capture (sex + height + weight with unit toggles) for
-// the AI triage flow. Fills patient_sex / patient_height_cm / patient_weight_kg
-// on the consult so VitalsCapture can hand varying demographic features to
-// predictBP(). Prior to this, the live /vitals flow passed subject={} and the
-// BP model collapsed to the training mean on every patient (dashboard replay
-// shows SBP SD ~1.1 vs cuff SD ~12.5 when subject is empty).
+// the AI triage flow + employer intake. Fills patient_sex / patient_height_cm /
+// patient_weight_kg on the consult so VitalsCapture can hand varying
+// demographic features to predictBP(). Prior to this, the live /vitals flow
+// passed subject={} and the BP model collapsed to the training mean on every
+// patient (dashboard replay shows SBP SD ~1.1 vs cuff SD ~12.5 when subject
+// is empty).
+//
+// Defaults: metric (cm + kg). Toggles let a US tourist flip to in/lb without
+// a schema change — stored values are always normalised to cm + kg before
+// submit, matching the DB CHECK constraints.
+//
+// Theme: `dark` prop renders on dark/navy backgrounds (used by WorkIntake);
+// omit for the default light theme used by AITriage.
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 
 const SEX_CHOICES = [
   { value: 'female',             label: 'Female' },
@@ -14,17 +22,16 @@ const SEX_CHOICES = [
   { value: 'prefer_not_to_say',  label: 'Prefer not to say' },
 ]
 
-// Imperial → metric conversions. inch → cm, lb → kg. Rounded to 1 dp.
 const inchToCm = (inches) => Math.round(inches * 2.54 * 10) / 10
 const lbToKg   = (lb)     => Math.round(lb * 0.453592 * 10) / 10
 
-export default function BiometricsForm({ onSubmit, disabled }) {
+export default function BiometricsForm({ onSubmit, onChange, disabled, dark = false, embedded = false }) {
   const [sex, setSex] = useState('')
-  const [heightUnit, setHeightUnit] = useState('cm')  // 'cm' | 'ftin'
+  const [heightUnit, setHeightUnit] = useState('cm')  // default metric
   const [heightCm, setHeightCm]     = useState('')
   const [heightFt, setHeightFt]     = useState('')
   const [heightIn, setHeightIn]     = useState('')
-  const [weightUnit, setWeightUnit] = useState('kg')  // 'kg' | 'lb'
+  const [weightUnit, setWeightUnit] = useState('kg')  // default metric
   const [weightKg, setWeightKg]     = useState('')
   const [weightLb, setWeightLb]     = useState('')
 
@@ -53,34 +60,95 @@ export default function BiometricsForm({ onSubmit, disabled }) {
 
   const valid = sex && heightCmNum != null && weightKgNum != null
 
+  // Embedded mode (WorkIntake): fire onChange on every value change so the
+  // parent form can keep its own state in sync without needing the standalone
+  // Continue button. Always normalised to cm/kg regardless of unit toggle.
+  useEffect(() => {
+    if (!embedded || !onChange) return
+    onChange({
+      patient_sex: sex || null,
+      patient_height_cm: heightCmNum,
+      patient_weight_kg: weightKgNum,
+      valid,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sex, heightCmNum, weightKgNum, valid, embedded])
+
   function handleSubmit() {
     if (!valid) return
-    onSubmit({
+    onSubmit?.({
       patient_sex: sex,
       patient_height_cm: heightCmNum,
       patient_weight_kg: weightKgNum,
     })
   }
 
+  // Theme tokens — swap between light (AITriage) and dark (WorkIntake navy).
+  const TEAL = '#0B6E76'
+  const TEAL_LIGHT = '#D4EEF0'
+  const t = dark ? {
+    labelColor:  'rgba(255,255,255,.9)',
+    chipBg:      'rgba(255,255,255,.08)',
+    chipBorder:  '1px solid rgba(255,255,255,.25)',
+    chipColor:   'rgba(255,255,255,.85)',
+    chipActiveBorder: `1.5px solid ${TEAL_LIGHT}`,
+    chipActiveBg:     TEAL,
+    chipActiveColor:  'white',
+    toggleBg:     'rgba(255,255,255,.06)',
+    toggleBorder: '1px solid rgba(255,255,255,.2)',
+    toggleColor:  'rgba(255,255,255,.65)',
+    toggleActiveBg:    TEAL,
+    toggleActiveColor: 'white',
+    inputBg:      'rgba(255,255,255,.08)',
+    inputBorder:  '1.5px solid rgba(255,255,255,.25)',
+    inputColor:   'white',
+    btnActiveBg:    TEAL,
+    btnActiveColor: 'white',
+    btnDisabledBg:  'rgba(255,255,255,.1)',
+    btnDisabledColor: 'rgba(255,255,255,.4)',
+  } : {
+    labelColor:  'var(--text)',
+    chipBg:      'white',
+    chipBorder:  '1px solid var(--border)',
+    chipColor:   'var(--text)',
+    chipActiveBorder: `1.5px solid ${TEAL}`,
+    chipActiveBg:     TEAL,
+    chipActiveColor:  'white',
+    toggleBg:     'transparent',
+    toggleBorder: '1px solid var(--border)',
+    toggleColor:  'var(--text-muted, #6B7280)',
+    toggleActiveBg:    TEAL,
+    toggleActiveColor: 'white',
+    inputBg:      'white',
+    inputBorder:  '1.5px solid var(--border)',
+    inputColor:   'var(--text)',
+    btnActiveBg:    TEAL,
+    btnActiveColor: 'white',
+    btnDisabledBg:  '#E5E7EB',
+    btnDisabledColor: '#9CA3AF',
+  }
+
   const row = { padding: '0 1rem 10px', maxWidth: 600, margin: '0 auto', width: '100%', boxSizing: 'border-box' }
-  const label = { fontSize: '.75rem', fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }
+  const label = { fontSize: '.75rem', fontWeight: 700, color: t.labelColor, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 6 }
   const chipBtn = (active) => ({
     padding: '7px 14px', borderRadius: 99, fontSize: '.8125rem', fontWeight: 600,
-    border: active ? '1.5px solid var(--teal)' : '1px solid var(--border)',
-    background: active ? 'var(--teal)' : 'white',
-    color: active ? 'white' : 'var(--text)',
+    border: active ? t.chipActiveBorder : t.chipBorder,
+    background: active ? t.chipActiveBg : t.chipBg,
+    color: active ? t.chipActiveColor : t.chipColor,
     cursor: 'pointer', fontFamily: 'inherit',
   })
   const unitToggle = (active) => ({
     padding: '5px 11px', borderRadius: 6, fontSize: '.75rem', fontWeight: 700,
-    border: '1px solid var(--border)',
-    background: active ? 'var(--teal)' : 'transparent',
-    color: active ? 'white' : 'var(--text-muted, #6B7280)',
+    border: t.toggleBorder,
+    background: active ? t.toggleActiveBg : t.toggleBg,
+    color: active ? t.toggleActiveColor : t.toggleColor,
     cursor: 'pointer', fontFamily: 'inherit',
   })
   const input = {
-    padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8,
-    fontSize: '1rem', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box',
+    padding: '10px 12px', border: t.inputBorder, borderRadius: 8,
+    background: t.inputBg, color: t.inputColor,
+    fontSize: '1rem', fontFamily: 'inherit', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
   }
 
   return (
@@ -140,20 +208,22 @@ export default function BiometricsForm({ onSubmit, disabled }) {
         )}
       </div>
 
-      {/* Submit */}
-      <div style={{ ...row, paddingTop: 6 }}>
-        <button type="button" onClick={handleSubmit} disabled={!valid || disabled}
-          style={{
-            width: '100%', padding: '14px 20px', borderRadius: 10,
-            background: valid && !disabled ? 'var(--teal)' : '#E5E7EB',
-            color: valid && !disabled ? 'white' : '#9CA3AF',
-            border: 'none',
-            fontSize: '1rem', fontWeight: 700, fontFamily: 'inherit',
-            cursor: valid && !disabled ? 'pointer' : 'default',
-          }}>
-          Continue
-        </button>
-      </div>
+      {/* Submit — hidden in embedded mode (parent form owns the submit) */}
+      {!embedded && (
+        <div style={{ ...row, paddingTop: 6 }}>
+          <button type="button" onClick={handleSubmit} disabled={!valid || disabled}
+            style={{
+              width: '100%', padding: '14px 20px', borderRadius: 10,
+              background: valid && !disabled ? t.btnActiveBg : t.btnDisabledBg,
+              color:      valid && !disabled ? t.btnActiveColor : t.btnDisabledColor,
+              border: 'none',
+              fontSize: '1rem', fontWeight: 700, fontFamily: 'inherit',
+              cursor: valid && !disabled ? 'pointer' : 'default',
+            }}>
+            Continue
+          </button>
+        </div>
+      )}
     </div>
   )
 }
