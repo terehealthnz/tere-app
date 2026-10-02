@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
@@ -6105,6 +6105,11 @@ function EmployersPanel() {
                   </button>
                 </div>
               </div>
+              <EmployerRoster
+                employer={emp}
+                currentCount={employeeCounts[emp.id] || 0}
+                onCountChange={(delta) => setEmployeeCounts(c => ({ ...c, [emp.id]: Math.max(0, (c[emp.id] || 0) + delta) }))}
+              />
             </div>
           ))}
         </div>
@@ -6112,6 +6117,214 @@ function EmployersPanel() {
       <div style={{ marginTop: '1rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, fontSize: '.8125rem', color: '#6B7280' }}>
         CSV format: <code style={{ fontFamily: 'monospace' }}>first_name,last_name,dob,address,phone,email,nhi,employee_id</code> — header row required. Only first_name and last_name are required; everything else is optional and pre-fills the worker's booking form.
       </div>
+    </div>
+  )
+}
+
+// Collapsed per-employer roster drawer. "Manage employees" toggles a list of
+// everyone currently on the employer's roster, with an inline add form and
+// per-row delete. Avoids forcing the admin to re-upload a full CSV when a
+// single person joins or leaves. Lazy-loads: only fetches when expanded.
+function EmployerRoster({ employer, currentCount, onCountChange }) {
+  const [open, setOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [rows, setRows] = React.useState(null)
+  const [err, setErr] = React.useState(null)
+  const [draft, setDraft] = React.useState({ first_name:'', last_name:'', dob:'', email:'', phone:'' })
+  const [saving, setSaving] = React.useState(false)
+  const [filter, setFilter] = React.useState('')
+  const [confirmDelete, setConfirmDelete] = React.useState(null)
+
+  async function load() {
+    setLoading(true); setErr(null)
+    try {
+      const data = await getEmployerEmployees(employer.id)
+      setRows(data)
+    } catch (e) {
+      setErr(e.message || 'Failed to load employees')
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function toggle() {
+    const next = !open
+    setOpen(next)
+    if (next && rows === null) load()
+  }
+
+  async function addOne() {
+    const first = draft.first_name.trim()
+    const last  = draft.last_name.trim()
+    if (!first || !last) return
+    setSaving(true); setErr(null)
+    try {
+      const inserted = await addEmployerEmployees([{
+        employer_id: employer.id,
+        first_name:  first,
+        last_name:   last,
+        dob:         draft.dob || null,
+        email:       draft.email.trim() || null,
+        phone:       draft.phone.trim() || null,
+      }])
+      setRows(rs => [...(inserted || []), ...(rs || [])]
+        .sort((a, b) => String(a.last_name || '').localeCompare(String(b.last_name || ''))))
+      onCountChange?.(+(inserted?.length || 1))
+      setDraft({ first_name:'', last_name:'', dob:'', email:'', phone:'' })
+    } catch (e) {
+      setErr(e.message || 'Failed to add employee')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function removeOne(id) {
+    setErr(null)
+    try {
+      await deleteEmployerEmployee(id)
+      setRows(rs => (rs || []).filter(r => r.id !== id))
+      onCountChange?.(-1)
+      setConfirmDelete(null)
+    } catch (e) {
+      setErr(e.message || 'Failed to delete')
+    }
+  }
+
+  const filtered = React.useMemo(() => {
+    if (!rows) return []
+    const q = filter.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter(r =>
+      (r.first_name || '').toLowerCase().includes(q) ||
+      (r.last_name  || '').toLowerCase().includes(q) ||
+      (r.email      || '').toLowerCase().includes(q) ||
+      (r.phone      || '').toLowerCase().includes(q)
+    )
+  }, [rows, filter])
+
+  const canAdd = draft.first_name.trim() && draft.last_name.trim()
+  const inputStyle = { padding:'6px 10px', border:'1px solid #D1D5DB', borderRadius:6, fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', outline:'none' }
+  const smCell = { fontSize:'.8125rem', color:'#374151' }
+  const smMuted = { fontSize:'.75rem', color:'#9CA3AF' }
+
+  return (
+    <div style={{ marginTop: '.75rem', borderTop: '1px dashed #E2E8F0', paddingTop: '.75rem' }}>
+      <button
+        type="button"
+        onClick={toggle}
+        style={{
+          background:'none', border:'none', padding:0, cursor:'pointer',
+          color:'#0B6E76', fontSize:'.8125rem', fontWeight:600,
+          fontFamily:'Plus Jakarta Sans, sans-serif',
+          display:'inline-flex', alignItems:'center', gap:6,
+        }}>
+        <span style={{ fontSize:'.6875rem' }}>{open ? '▾' : '▸'}</span>
+        {open ? 'Hide employees' : `Manage employees (${currentCount})`}
+      </button>
+
+      {open && (
+        <div style={{ marginTop: '.75rem', background:'white', borderRadius:8, border:'1px solid #E2E8F0', padding:'.875rem' }}>
+          {/* Inline add form */}
+          <div style={{ marginBottom:'.75rem' }}>
+            <div style={{ fontSize:'.75rem', fontWeight:700, color:'#0D2B45', marginBottom:6, textTransform:'uppercase', letterSpacing:'.04em' }}>
+              Add employee
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr)) auto', gap:'.5rem', alignItems:'center' }}>
+              <input placeholder="First name *" value={draft.first_name}
+                onChange={e => setDraft(d => ({ ...d, first_name: e.target.value }))} style={inputStyle} />
+              <input placeholder="Last name *"  value={draft.last_name}
+                onChange={e => setDraft(d => ({ ...d, last_name: e.target.value }))} style={inputStyle} />
+              <input placeholder="DOB (YYYY-MM-DD)" value={draft.dob}
+                onChange={e => setDraft(d => ({ ...d, dob: e.target.value }))} style={inputStyle} />
+              <input placeholder="Email" type="email" value={draft.email}
+                onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} style={inputStyle} />
+              <input placeholder="Phone" value={draft.phone}
+                onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} style={inputStyle} />
+              <button onClick={addOne} disabled={!canAdd || saving}
+                style={{
+                  background: canAdd ? '#0B6E76' : '#E5E7EB',
+                  color: canAdd ? 'white' : '#9CA3AF',
+                  border:'none', padding:'7px 14px', borderRadius:6,
+                  cursor: canAdd ? 'pointer' : 'default',
+                  fontSize:'.8125rem', fontWeight:700,
+                  fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap',
+                }}>
+                {saving ? 'Adding…' : '+ Add'}
+              </button>
+            </div>
+          </div>
+
+          {/* Roster list */}
+          {loading ? (
+            <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'.8125rem' }}>Loading roster…</div>
+          ) : err ? (
+            <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#991B1B', padding:'.5rem .75rem', borderRadius:6, fontSize:'.8125rem' }}>{err}</div>
+          ) : rows && rows.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'.8125rem' }}>No employees on roster yet — add one above or upload a CSV.</div>
+          ) : rows && rows.length > 0 ? (
+            <>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.5rem', gap:'.5rem' }}>
+                <input
+                  placeholder={`Filter ${rows.length} employee${rows.length === 1 ? '' : 's'}…`}
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                  style={{ ...inputStyle, flex:1, maxWidth:260 }}
+                />
+                <span style={{ fontSize:'.75rem', color:'#9CA3AF' }}>
+                  {filter ? `${filtered.length} / ${rows.length}` : `${rows.length} total`}
+                </span>
+              </div>
+              <div style={{ maxHeight: 320, overflowY:'auto', border:'1px solid #F3F4F6', borderRadius:6 }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                  <thead>
+                    <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                      <th style={{ padding:'6px 10px', fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em' }}>Name</th>
+                      <th style={{ padding:'6px 10px', fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em' }}>DOB</th>
+                      <th style={{ padding:'6px 10px', fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em' }}>Contact</th>
+                      <th style={{ padding:'6px 10px', width:40 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(r => (
+                      <tr key={r.id} style={{ borderTop:'1px solid #F3F4F6' }}>
+                        <td style={{ padding:'7px 10px', ...smCell, fontWeight:600, color:'#0D2B45' }}>
+                          {r.last_name}, {r.first_name}
+                        </td>
+                        <td style={{ padding:'7px 10px', ...smCell }}>{r.dob || <span style={smMuted}>—</span>}</td>
+                        <td style={{ padding:'7px 10px', ...smMuted }}>
+                          {r.email || ''}{r.email && r.phone ? ' · ' : ''}{r.phone || ''}
+                          {!r.email && !r.phone && '—'}
+                        </td>
+                        <td style={{ padding:'4px 6px', textAlign:'right' }}>
+                          {confirmDelete === r.id ? (
+                            <span style={{ display:'inline-flex', gap:4 }}>
+                              <button onClick={() => removeOne(r.id)}
+                                style={{ background:'#DC2626', color:'white', border:'none', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem', fontWeight:700 }}>
+                                Delete
+                              </button>
+                              <button onClick={() => setConfirmDelete(null)}
+                                style={{ background:'none', color:'#6B7280', border:'1px solid #E5E7EB', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem' }}>
+                                Cancel
+                              </button>
+                            </span>
+                          ) : (
+                            <button onClick={() => setConfirmDelete(r.id)}
+                              title="Remove from roster"
+                              style={{ background:'none', color:'#DC2626', border:'none', padding:'3px 6px', borderRadius:4, cursor:'pointer', fontSize:'1rem', lineHeight:1 }}>
+                              ×
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }

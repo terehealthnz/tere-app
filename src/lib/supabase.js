@@ -744,6 +744,26 @@ export async function getEmployerEmployeeCounts() {
   return counts || {}
 }
 
+export async function getEmployerEmployees(employerId) {
+  if (!employerId) return []
+  const res = await apiFetch(`/api/employer-employees?employerId=${encodeURIComponent(employerId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getEmployerEmployees HTTP ${res.status}`)
+  }
+  const { employees } = await res.json()
+  return employees || []
+}
+
+export async function deleteEmployerEmployee(id) {
+  const res = await apiFetch(`/api/employer-employees?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `deleteEmployerEmployee HTTP ${res.status}`)
+  }
+  return true
+}
+
 // ── Audit log ────────────────────────────────────────────────────────────────
 
 export async function writeAuditLog(action, metadata = null) {
