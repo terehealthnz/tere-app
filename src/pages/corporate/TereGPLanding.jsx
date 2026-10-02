@@ -55,7 +55,7 @@ export default function TereGPLanding() {
             padding: '8px 16px', borderRadius: 99,
             fontWeight: 700, textDecoration: 'none',
           }}>
-            Tere Health
+            Acute care
           </a>
         </div>
       </nav>
