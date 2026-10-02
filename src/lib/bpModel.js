@@ -633,15 +633,23 @@ export async function trainModel(readings, onProgress, reason = 'manual_trigger'
   const yStdArr  = await yStd.array()
   yVar.dispose()
 
-  let model
-  try {
-    model = await tf.loadLayersModel(MODEL_KEY)
-    model.compile({ optimizer: tf.train.adam(0.0003), loss: 'meanSquaredError', metrics: ['mae'] })
-    console.log('[vitalsModel] continuing from existing model')
-  } catch {
-    model = buildModel()
-    console.log('[vitalsModel] new model')
-  }
+  // Always build fresh — do NOT continue training from the existing
+  // IndexedDB model. Rationale: the model has been fine-tuned across 15+
+  // generations of continue-training. L2 regularization (0.001) + MSE loss
+  // + mean-centered label normalization meant each retrain started from a
+  // low-loss "predict the mean" basin and never had enough gradient to
+  // escape — the final-layer BP weights decayed toward zero. Confirmed
+  // via dashboard replay: predicted SBP SD ~1.1 vs cuff SD ~12.5, and
+  // live /vitals with real demographics still outputs ~121/79 ± 5 mmHg
+  // regardless of patient. Random init gives the optimizer a non-trivial
+  // starting loss, which produces real gradients that can compete with
+  // L2 pull. If the mean-collapse hypothesis is correct, pred SBP SD on
+  // the next dashboard run should jump substantially. If not, the
+  // features themselves don't carry enough BP signal and the real fix is
+  // a different architecture (task #517, raw-signal DL model).
+  // Patrick 2026-10-02 — reverting takes <5 min if the result is worse.
+  const model = buildModel()
+  console.log('[vitalsModel] fresh model (random init, no continue-train)')
 
   const EPOCHS = 100
   const history = await model.fit(xs, ysNorm, {
