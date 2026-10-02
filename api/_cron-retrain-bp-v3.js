@@ -38,6 +38,26 @@ const LR         = 0.1
 const VAL_FRAC   = 0.2
 const MIN_NEW_SAMPLES = 10  // don't retrain if fewer than 10 new rows since last promote
 
+// 3-sigma outlier filter anchored to NZ adult population BP distribution.
+// Reference: HNZ adult BP registry + NHS England adult BP survey, both
+// published 2024. Anchored to the reference distribution (not the training
+// data mean) so bad actors can't shift the "mean" to defeat the gate — if
+// 50 attackers each submit 170/105, those rows still fall outside the
+// anchor range and get dropped before training.
+//   SBP: mean 120, SD 15 → 3-SD range 75-165
+//   DBP: mean  75, SD 10 → 3-SD range 45-105
+const BP_ANCHOR = {
+  sysMean: 120, sysSd: 15,
+  diaMean:  75, diaSd: 10,
+  sigmas:    3,
+}
+function withinAnchor(sys, dia) {
+  return (
+    Math.abs(sys - BP_ANCHOR.sysMean) <= BP_ANCHOR.sigmas * BP_ANCHOR.sysSd &&
+    Math.abs(dia - BP_ANCHOR.diaMean) <= BP_ANCHOR.sigmas * BP_ANCHOR.diaSd
+  )
+}
+
 export default async function handler(req, res) {
   if (!verifyCronSecret(req)) {
     return res.status(401).json({ error: 'Unauthorised' })
@@ -79,11 +99,22 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true, promoted: false, audit })
   }
 
-  // 3. Extract features. Mirrors the dashboard trainAndRunV3 loop.
+  // 3. Extract features + apply 3-sigma anchor filter. Mirrors the dashboard
+  //    trainAndRunV3 loop, with the anti-poisoning gate layered in: any cuff
+  //    value outside 3 SD of the published NZ adult BP distribution is dropped
+  //    before training. Catches typos, coordinated attacks, and legitimate
+  //    hypertensive crises that need clinical review not model fodder.
   const features = []
   const labels = []
   let nSkippedExtraction = 0
+  let nFilteredOutlier = 0
   for (const r of readings) {
+    // Outlier filter FIRST (cheap). If the cuff is implausible, don't even
+    // bother extracting features.
+    if (!withinAnchor(r.manual_systolic, r.manual_diastolic)) {
+      nFilteredOutlier++
+      continue
+    }
     const sub = r.validation_subjects || {}
     const frames = r.raw_rppg_signal?.frames
     const fps    = r.raw_rppg_signal?.fps || 30
@@ -103,6 +134,12 @@ export default async function handler(req, res) {
   }
   audit.n_features_extracted = features.length
   audit.n_skipped_extraction = nSkippedExtraction
+  audit.n_filtered_outlier   = nFilteredOutlier
+  // Spike guard: alarming % of filtered rows means we're probably under
+  // active poisoning. Log it so the admin digest surfaces it the next day.
+  if (nFilteredOutlier > 0 && nFilteredOutlier / (readings.length || 1) > 0.1) {
+    audit.reasons.push(`WARNING: ${nFilteredOutlier}/${readings.length} rows (${(100 * nFilteredOutlier / readings.length).toFixed(0)}%) filtered as outliers — possible poisoning attempt`)
+  }
 
   if (features.length < 20) {
     audit.reasons.push(`only ${features.length} rows produced features (need ≥ 20)`)

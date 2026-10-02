@@ -745,6 +745,7 @@ export default function VitalsCapture() {
       }).catch(e => { console.warn('[cuff] subject create failed:', e?.message); return null })
 
       await saveValidationReading({
+        isPatientContribution: true,  // triggers server-side range + rate-limit gates
         subjectId:       subject?.id || null,
         subjectCode:     subject?.subject_code || null,
         manualSystolic:  sys,

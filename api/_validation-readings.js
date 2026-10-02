@@ -84,6 +84,40 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     const d = req.body || {}
 
+    // Anti-poisoning gates for patient-contributed cuff readings (flagged
+    // client-side with isPatientContribution=true via VitalsCapture.jsx).
+    // Provider-authed research scans bypass these — researchers can enter
+    // extreme values intentionally for calibration studies.
+    //
+    // Three defences:
+    //   1. Physiological range: sys 80-220, dia 50-130, pulse pressure 20-80
+    //   2. Per-IP rate limit: 3 contributions / 24h / IP
+    //   3. (3-sigma outlier filter runs separately at retrain time)
+    //
+    // Caller passes { isPatientContribution: true, manualSystolic, manualDiastolic }.
+    if (d.isPatientContribution) {
+      const sys = Number(d.manualSystolic)
+      const dia = Number(d.manualDiastolic)
+      if (!Number.isFinite(sys) || sys < 80 || sys > 220) {
+        return res.status(400).json({ error: `Systolic ${sys} is outside the physiologically plausible range (80-220).`, code: 'BP_RANGE' })
+      }
+      if (!Number.isFinite(dia) || dia < 50 || dia > 130) {
+        return res.status(400).json({ error: `Diastolic ${dia} is outside the physiologically plausible range (50-130).`, code: 'BP_RANGE' })
+      }
+      const pp = sys - dia
+      if (pp < 20 || pp > 80) {
+        return res.status(400).json({ error: `Pulse pressure (sys-dia) ${pp} is implausible — did you swap the values or mistype?`, code: 'BP_PP' })
+      }
+      // In-memory rate limit: 3 per 24h per IP. Lambda cold starts reset the
+      // counter, but combined with the 3-sigma filter at retrain this is
+      // sufficient for all but a highly-coordinated attack. Shared helper is
+      // declared below the handler.
+      const ip = String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim()
+      if (checkCuffRateLimit(ip)) {
+        return res.status(429).json({ error: 'You can contribute up to 3 cuff readings per day. Thanks for helping!', code: 'CUFF_RATE_LIMIT' })
+      }
+    }
+
     // Dedup: reject if this subject already has a reading. Public flow
     // (/vitals-validate for FB campaign etc.) is anon and enforces
     // one-reading-per-person. Clinicians using the validation dashboard for
@@ -182,4 +216,25 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: 'Method not allowed' })
+}
+
+// Per-IP cuff-contribution rate limit — 3 per 24h. In-memory per lambda; cold
+// starts reset the counter so a determined attacker across many lambdas could
+// get a few more through, but the 3-sigma filter at retrain time catches
+// systematic poisoning regardless. Not persisted to Supabase to keep the
+// hot write path lean.
+const CUFF_RATE_LIMIT_MAX    = 3
+const CUFF_RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000  // 24h
+const CUFF_IP_WINDOWS = new Map()  // ip → { count, reset }
+
+function checkCuffRateLimit(ip) {
+  const now = Date.now()
+  const entry = CUFF_IP_WINDOWS.get(ip)
+  if (!entry || now > entry.reset) {
+    CUFF_IP_WINDOWS.set(ip, { count: 1, reset: now + CUFF_RATE_LIMIT_WINDOW })
+    return false
+  }
+  entry.count++
+  if (entry.count > CUFF_RATE_LIMIT_MAX) return true  // limited
+  return false
 }
