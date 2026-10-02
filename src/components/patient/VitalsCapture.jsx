@@ -388,13 +388,18 @@ export default function VitalsCapture() {
                       const { predictV3FromFrames } = await import('../../lib/bpModelV3')
                       bp3 = predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
                     }
+                    // v3 is the default display since 2026-10-02 — v15 is a
+                    // mean emitter and v2 is barely better than mean. v3 is
+                    // the only one that actually tracks cuff variance. flag
+                    // can still force v15 or v2 for A/B on specific devices.
+                    const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
+                    if (bp3 && !bp3.skipped && flag !== 'v15' && flag !== 'v2') display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+                    else if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
                     console.log('[bp]',
                       'v15=', bp && `${bp.systolic}/${bp.diastolic}`,
                       '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(${bp2?.reason || 'no-model'})`,
-                      '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`)
-                    const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
-                    if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
-                    if (flag === 'v3' && bp3 && !bp3.skipped) display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+                      '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`,
+                      `→ display=${display?.source || 'v15'}`)
                   } catch (e) { console.warn('[bp] v2/v3 parallel failed:', e?.message || e) }
                   if (display) {
                     setBpEstimate(display)

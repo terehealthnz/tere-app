@@ -197,10 +197,13 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [v2Sweep, setV2Sweep]       = useState(null)      // [{lambda, trainMae, valMae, best?}]
   const [v2Promoting, setV2Promoting] = useState(false)
   const [v2ActiveServer, setV2ActiveServer] = useState(null)  // row returned from /api/bp-v2-model
+  // Default display is v3 since the 2026-10-02 promote — v15 is a mean
+  // emitter, v2 is marginal. Flag only exists to force v15 or v2 for
+  // A/B testing on a specific device.
   const [v2Display, setV2Display]   = useState(() => {
-    if (typeof window === 'undefined') return 'v15'
+    if (typeof window === 'undefined') return 'v3'
     const v = localStorage.getItem('tere_bp_display_version')
-    return v === 'v2' || v === 'v3' ? v : 'v15'
+    return v === 'v15' || v === 'v2' ? v : 'v3'
   })
 
   // v3 state — gradient-boost model on POS + multi-window features. Trained
