@@ -365,6 +365,10 @@ export default function WorkIntake() {
         sessionStorage.setItem('consultation_id', pt.id)
         sessionStorage.setItem('consultationId',  pt.id)
       }
+      // Stash the slug so VitalsCapture's "Back to intake" button can route
+      // back to /work/[slug]/intake instead of the public /triage flow
+      // (where an employee would be stuck re-triaging as a paying patient).
+      sessionStorage.setItem('employee_intake_slug', slug)
       // Route through vitals capture like paying patients — provider needs
       // HR/SpO2/RR/BP for triage regardless of who's paying. The vitals page
       // already flows into the waiting room after capture (or Skip).

@@ -1057,7 +1057,11 @@ export default function VitalsCapture() {
               {uiState !== STATES.MEASURING && (
                 <button className="btn btn-secondary btn-full" onClick={() => {
                   streamRef.current?.getTracks().forEach(track => track.stop())
-                  navigate('/triage')
+                  // Employee flow routes back to its own /work/[slug]/intake
+                  // form, not the public AI triage. WorkIntake stashes the
+                  // slug in sessionStorage before navigating here.
+                  const empSlug = sessionStorage.getItem('employee_intake_slug')
+                  navigate(empSlug ? `/work/${empSlug}` : '/triage')
                 }}>
                   {t.backIntake}
                 </button>
