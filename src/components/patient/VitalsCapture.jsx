@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames, calculatePTT } from '../../lib/rppg'
-import { updateVitals, patientUpdateConsultation } from '../../lib/supabase'
+import { updateVitals, patientUpdateConsultation, patientGetConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
 import { makeConsultUrl } from '../../lib/consultUrl'
@@ -86,6 +86,14 @@ export default function VitalsCapture() {
   // background-frames + live scan paths gate their BP dispatch on this
   // promise resolving before starting.
   const modelReadyRef = useRef(null)
+  // Patient demographics for BP prediction. Previously the live /vitals flow
+  // passed subject={} to predictBP, which made all 5 demographic features
+  // in extractFeatures fall back to population defaults — identical for every
+  // patient. The BP model (trained on the VV dataset where demographics vary)
+  // leans heavily on those slots for its BP output, so constant demographics
+  // = constant mean prediction. Threading at least the DOB-derived age lets
+  // the model emit at least one varying feature per patient.
+  const subjectRef = useRef({})
   useEffect(() => {
     modelReadyRef.current = import('../../lib/bpModel')
       .then(({ loadModelFromSupabase }) => loadModelFromSupabase())
@@ -101,6 +109,23 @@ export default function VitalsCapture() {
     const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
     if (cId && !cId.startsWith('demo')) {
       patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
+      // Fetch DOB + sex off the consult once so BP prediction gets a varying
+      // demographic feature per patient. Fire-and-forget; if it hasn't
+      // resolved by the time predictBP runs we just fall back to {}.
+      patientGetConsultation(cId).then(c => {
+        if (!c) return
+        const sub = {}
+        if (c.patient_dob) {
+          const birth = new Date(c.patient_dob)
+          if (!isNaN(birth)) {
+            const diffMs = Date.now() - birth.getTime()
+            const age = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000))
+            if (age > 0 && age < 120) sub.age = age
+          }
+        }
+        if (c.patient_sex) sub.sex = c.patient_sex   // 'male' | 'female' | other
+        subjectRef.current = sub
+      }).catch(() => {})
     }
   }, [])
   const videoRef   = useRef(null)
@@ -329,7 +354,7 @@ export default function VitalsCapture() {
                     (async () => {
                       await Promise.resolve(modelReadyRef.current)
                       const { predictBP } = await import('../../lib/bpModel')
-                      return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+                      return predictBP({ frames: result.rawFrames, fps: result.actualFps }, subjectRef.current || {})
                     })(),
                     new Promise(resolve => setTimeout(() => resolve(null), 8000)),
                   ])
@@ -429,7 +454,7 @@ export default function VitalsCapture() {
               (async () => {
                 await Promise.resolve(modelReadyRef.current)
                 const { predictBP } = await import('../../lib/bpModel')
-                return predictBP({ frames: result.rawFrames, fps: result.actualFps }, {})
+                return predictBP({ frames: result.rawFrames, fps: result.actualFps }, subjectRef.current || {})
               })(),
               new Promise(resolve => setTimeout(() => resolve(null), 8000)),
             ])
