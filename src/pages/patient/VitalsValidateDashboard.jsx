@@ -504,14 +504,18 @@ function BPAnalysisPanel({ readings, subjects }) {
   const v2Stats = computeBPStats(v2Preds)
 
   // "Mean baseline" — what MAE would we get if we just predicted the cuff
-  // mean for every reading? v2 only earns a promote if it beats this. We
-  // compute it off cuff values the v15 panel already loaded, so it's defined
-  // whenever stats is defined.
-  const meanBaseline = stats && (() => {
-    const cuffSysMean = stats.cuffSysMean
-    const cuffDiaMean = stats.cuffDiaMean
-    const sysErrs = bpPreds.map(p => Math.abs(p.actualSys - cuffSysMean))
-    const diaErrs = bpPreds.map(p => Math.abs(p.actualDia - cuffDiaMean))
+  // mean for every reading? Any v2/v3 model only earns a promote if it beats
+  // this. Compute directly from the readings table (not from v15 preds) so
+  // the baseline is available even if nobody clicked "Run v15" — otherwise
+  // the Promote button stays hidden on v2 and v3 banners until someone runs
+  // the v15 model, which has nothing to do with the gate.
+  const meanBaseline = (() => {
+    const withCuff = readings.filter(r => r.manual_systolic && r.manual_diastolic)
+    if (!withCuff.length) return null
+    const cuffSysMean = withCuff.reduce((s, r) => s + r.manual_systolic, 0) / withCuff.length
+    const cuffDiaMean = withCuff.reduce((s, r) => s + r.manual_diastolic, 0) / withCuff.length
+    const sysErrs = withCuff.map(r => Math.abs(r.manual_systolic - cuffSysMean))
+    const diaErrs = withCuff.map(r => Math.abs(r.manual_diastolic - cuffDiaMean))
     return {
       sysMae: +(sysErrs.reduce((a, b) => a + b, 0) / sysErrs.length).toFixed(1),
       diaMae: +(diaErrs.reduce((a, b) => a + b, 0) / diaErrs.length).toFixed(1),
