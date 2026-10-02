@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
@@ -6134,6 +6134,53 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
   const [saving, setSaving] = React.useState(false)
   const [filter, setFilter] = React.useState('')
   const [confirmDelete, setConfirmDelete] = React.useState(null)
+  const [editingId, setEditingId] = React.useState(null)
+  const [editDraft, setEditDraft] = React.useState(null)
+  const [savingEditId, setSavingEditId] = React.useState(null)
+
+  function startEdit(r) {
+    setConfirmDelete(null)
+    setEditingId(r.id)
+    setEditDraft({
+      first_name: r.first_name || '',
+      last_name:  r.last_name  || '',
+      dob:        r.dob        || '',
+      email:      r.email      || '',
+      phone:      r.phone      || '',
+    })
+    setErr(null)
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setEditDraft(null)
+  }
+
+  async function saveEdit(id) {
+    if (!editDraft) return
+    const first = editDraft.first_name.trim()
+    const last  = editDraft.last_name.trim()
+    if (!first || !last) { setErr('First and last name are required'); return }
+    setSavingEditId(id); setErr(null)
+    try {
+      const patch = {
+        first_name: first,
+        last_name:  last,
+        dob:        editDraft.dob || null,
+        email:      editDraft.email.trim() || null,
+        phone:      editDraft.phone.trim() || null,
+      }
+      const updated = await updateEmployerEmployee(id, patch)
+      setRows(rs => (rs || []).map(r => r.id === id ? { ...r, ...(updated || patch) } : r)
+        .sort((a, b) => String(a.last_name || '').localeCompare(String(b.last_name || ''))))
+      setEditingId(null)
+      setEditDraft(null)
+    } catch (e) {
+      setErr(e.message || 'Failed to save')
+    } finally {
+      setSavingEditId(null)
+    }
+  }
 
   async function load() {
     setLoading(true); setErr(null)
@@ -6286,38 +6333,88 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(r => (
-                      <tr key={r.id} style={{ borderTop:'1px solid #F3F4F6' }}>
-                        <td style={{ padding:'7px 10px', ...smCell, fontWeight:600, color:'#0D2B45' }}>
-                          {r.last_name}, {r.first_name}
-                        </td>
-                        <td style={{ padding:'7px 10px', ...smCell }}>{r.dob || <span style={smMuted}>—</span>}</td>
-                        <td style={{ padding:'7px 10px', ...smMuted }}>
-                          {r.email || ''}{r.email && r.phone ? ' · ' : ''}{r.phone || ''}
-                          {!r.email && !r.phone && '—'}
-                        </td>
-                        <td style={{ padding:'4px 6px', textAlign:'right' }}>
-                          {confirmDelete === r.id ? (
-                            <span style={{ display:'inline-flex', gap:4 }}>
-                              <button onClick={() => removeOne(r.id)}
-                                style={{ background:'#DC2626', color:'white', border:'none', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem', fontWeight:700 }}>
-                                Delete
-                              </button>
-                              <button onClick={() => setConfirmDelete(null)}
-                                style={{ background:'none', color:'#6B7280', border:'1px solid #E5E7EB', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem' }}>
-                                Cancel
-                              </button>
-                            </span>
-                          ) : (
-                            <button onClick={() => setConfirmDelete(r.id)}
-                              title="Remove from roster"
-                              style={{ background:'none', color:'#DC2626', border:'none', padding:'3px 6px', borderRadius:4, cursor:'pointer', fontSize:'1rem', lineHeight:1 }}>
-                              ×
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {filtered.map(r => {
+                      const isEditing = editingId === r.id
+                      const isSaving  = savingEditId === r.id
+                      if (isEditing) {
+                        const inpSm = { ...inputStyle, padding:'4px 7px', fontSize:'.75rem', width:'100%', boxSizing:'border-box' }
+                        return (
+                          <tr key={r.id} style={{ borderTop:'1px solid #F3F4F6', background:'#F0F9FA' }}>
+                            <td style={{ padding:'5px 8px' }}>
+                              <div style={{ display:'flex', gap:4 }}>
+                                <input placeholder="First" value={editDraft.first_name}
+                                  onChange={e => setEditDraft(d => ({ ...d, first_name: e.target.value }))} style={inpSm} />
+                                <input placeholder="Last" value={editDraft.last_name}
+                                  onChange={e => setEditDraft(d => ({ ...d, last_name: e.target.value }))} style={inpSm} />
+                              </div>
+                            </td>
+                            <td style={{ padding:'5px 8px' }}>
+                              <input placeholder="YYYY-MM-DD" value={editDraft.dob}
+                                onChange={e => setEditDraft(d => ({ ...d, dob: e.target.value }))} style={inpSm} />
+                            </td>
+                            <td style={{ padding:'5px 8px' }}>
+                              <div style={{ display:'flex', gap:4 }}>
+                                <input placeholder="Email" type="email" value={editDraft.email}
+                                  onChange={e => setEditDraft(d => ({ ...d, email: e.target.value }))} style={inpSm} />
+                                <input placeholder="Phone" value={editDraft.phone}
+                                  onChange={e => setEditDraft(d => ({ ...d, phone: e.target.value }))} style={inpSm} />
+                              </div>
+                            </td>
+                            <td style={{ padding:'4px 6px', textAlign:'right', whiteSpace:'nowrap' }}>
+                              <span style={{ display:'inline-flex', gap:4 }}>
+                                <button onClick={() => saveEdit(r.id)} disabled={isSaving}
+                                  style={{ background:'#0B6E76', color:'white', border:'none', padding:'3px 10px', borderRadius:4, cursor: isSaving ? 'default' : 'pointer', fontSize:'.6875rem', fontWeight:700, opacity: isSaving ? .6 : 1 }}>
+                                  {isSaving ? 'Saving…' : 'Save'}
+                                </button>
+                                <button onClick={cancelEdit} disabled={isSaving}
+                                  style={{ background:'none', color:'#6B7280', border:'1px solid #E5E7EB', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem' }}>
+                                  Cancel
+                                </button>
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      }
+                      return (
+                        <tr key={r.id} style={{ borderTop:'1px solid #F3F4F6' }}>
+                          <td style={{ padding:'7px 10px', ...smCell, fontWeight:600, color:'#0D2B45' }}>
+                            {r.last_name}, {r.first_name}
+                          </td>
+                          <td style={{ padding:'7px 10px', ...smCell }}>{r.dob || <span style={smMuted}>—</span>}</td>
+                          <td style={{ padding:'7px 10px', ...smMuted }}>
+                            {r.email || ''}{r.email && r.phone ? ' · ' : ''}{r.phone || ''}
+                            {!r.email && !r.phone && '—'}
+                          </td>
+                          <td style={{ padding:'4px 6px', textAlign:'right', whiteSpace:'nowrap' }}>
+                            {confirmDelete === r.id ? (
+                              <span style={{ display:'inline-flex', gap:4 }}>
+                                <button onClick={() => removeOne(r.id)}
+                                  style={{ background:'#DC2626', color:'white', border:'none', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem', fontWeight:700 }}>
+                                  Delete
+                                </button>
+                                <button onClick={() => setConfirmDelete(null)}
+                                  style={{ background:'none', color:'#6B7280', border:'1px solid #E5E7EB', padding:'3px 8px', borderRadius:4, cursor:'pointer', fontSize:'.6875rem' }}>
+                                  Cancel
+                                </button>
+                              </span>
+                            ) : (
+                              <span style={{ display:'inline-flex', gap:2 }}>
+                                <button onClick={() => startEdit(r)}
+                                  title="Edit employee"
+                                  style={{ background:'none', color:'#2563EB', border:'none', padding:'3px 6px', borderRadius:4, cursor:'pointer', fontSize:'.875rem', lineHeight:1 }}>
+                                  ✎
+                                </button>
+                                <button onClick={() => setConfirmDelete(r.id)}
+                                  title="Remove from roster"
+                                  style={{ background:'none', color:'#DC2626', border:'none', padding:'3px 6px', borderRadius:4, cursor:'pointer', fontSize:'1rem', lineHeight:1 }}>
+                                  ×
+                                </button>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

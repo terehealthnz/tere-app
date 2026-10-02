@@ -764,6 +764,19 @@ export async function deleteEmployerEmployee(id) {
   return true
 }
 
+export async function updateEmployerEmployee(id, patch) {
+  const res = await apiFetch(`/api/employer-employees?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch || {}),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateEmployerEmployee HTTP ${res.status}`)
+  }
+  const { employee } = await res.json()
+  return employee
+}
+
 // ── Audit log ────────────────────────────────────────────────────────────────
 
 export async function writeAuditLog(action, metadata = null) {

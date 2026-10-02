@@ -67,6 +67,28 @@ export default async function handler(req, res) {
     return res.status(200).json({ employees: data || [], inserted: clean.length })
   }
 
+  if (req.method === 'PATCH') {
+    const { id } = req.query || {}
+    if (!id) return res.status(400).json({ error: 'id query param required' })
+    const body = req.body || {}
+    // Explicit allowlist. employer_id is NOT patchable here — moving an
+    // employee between employers requires delete + re-add to avoid
+    // silently cross-contaminating rosters.
+    const patch = {}
+    if ('first_name'  in body) patch.first_name  = body.first_name  || null
+    if ('last_name'   in body) patch.last_name   = body.last_name   || null
+    if ('dob'         in body) patch.dob         = body.dob         || null
+    if ('email'       in body) patch.email       = body.email       || null
+    if ('phone'       in body) patch.phone       = body.phone       || null
+    if ('address'     in body) patch.address     = body.address     || null
+    if ('nhi'         in body) patch.nhi         = body.nhi ? String(body.nhi).toUpperCase().trim() : null
+    if ('employee_id' in body) patch.employee_id = body.employee_id || null
+    if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No patchable fields in body' })
+    const { data, error } = await supabase.from('employer_employees').update(patch).eq('id', id).select().single()
+    if (error) { console.error('[employer-employees] patch failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    return res.status(200).json({ employee: data })
+  }
+
   if (req.method === 'DELETE') {
     const { id } = req.query || {}
     if (!id) return res.status(400).json({ error: 'id query param required' })
