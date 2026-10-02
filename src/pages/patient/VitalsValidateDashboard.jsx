@@ -4,6 +4,7 @@ import { getValidationReadings, getValidationSubjects, getModelVersions, getTrai
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
+import { trainV3, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model } from '../../lib/bpModelV3'
 import { fitSpO2Calibration } from '../../lib/spo2'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
@@ -196,7 +197,24 @@ function BPAnalysisPanel({ readings, subjects }) {
   const [v2Sweep, setV2Sweep]       = useState(null)      // [{lambda, trainMae, valMae, best?}]
   const [v2Promoting, setV2Promoting] = useState(false)
   const [v2ActiveServer, setV2ActiveServer] = useState(null)  // row returned from /api/bp-v2-model
-  const [v2Display, setV2Display]   = useState(() => (typeof window !== 'undefined' && localStorage.getItem('tere_bp_display_version')) === 'v2' ? 'v2' : 'v15')
+  const [v2Display, setV2Display]   = useState(() => {
+    if (typeof window === 'undefined') return 'v15'
+    const v = localStorage.getItem('tere_bp_display_version')
+    return v === 'v2' || v === 'v3' ? v : 'v15'
+  })
+
+  // v3 state — gradient-boost model on POS + multi-window features. Trained
+  // and promoted independently of v2 (separate table, separate flag value).
+  const [v3Model, setV3Model]       = useState(() => loadV3Model())
+  const [v3Preds, setV3Preds]       = useState([])
+  const [v3Running, setV3Running]   = useState(false)
+  const [v3Progress, setV3Progress] = useState('')
+  const [v3Error, setV3Error]       = useState('')
+  const [v3Promoting, setV3Promoting] = useState(false)
+  const [v3ActiveServer, setV3ActiveServer] = useState(null)
+  const [v3Trees, setV3Trees]       = useState(50)
+  const [v3Depth, setV3Depth]       = useState(3)
+  const [v3Lr, setV3Lr]             = useState(0.1)
 
   // Keep the display-version localStorage flag in sync with the toggle.
   // Live /vitals reads this on every scan to decide which model's number to
@@ -214,6 +232,10 @@ function BPAnalysisPanel({ readings, subjects }) {
     fetch('/api/bp-v2-model', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(row => setV2ActiveServer(row))
+      .catch(() => {})
+    fetch('/api/bp-v3-model', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(row => setV3ActiveServer(row))
       .catch(() => {})
   }, [])
 
@@ -353,6 +375,79 @@ function BPAnalysisPanel({ readings, subjects }) {
     setV2Running(false)
   }
 
+  // Train + run v3 (gradient boost on POS multi-window features). Separate
+  // state so you can A/B v2 vs v3 side-by-side on the same 155 scans.
+  async function trainAndRunV3() {
+    setV3Running(true); setV3Error(''); setV3Progress('Extracting features (POS + multi-window)…')
+    const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+    const withBoth = readings.filter(r =>
+      r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+    )
+    const features = []
+    const labels = []
+    const indexed = []
+    for (let i = 0; i < withBoth.length; i++) {
+      const r = withBoth[i]
+      const sub = r.subject_id ? subMap[r.subject_id] : {}
+      const fps = r.raw_rppg_signal?.fps || 30
+      setV3Progress(`Features ${i + 1}/${withBoth.length}…`)
+      if (i % 5 === 0) await new Promise(res => setTimeout(res, 0))
+      try {
+        const feats = framesToV3Features(r.raw_rppg_signal.frames, fps, sub)
+        if (feats) {
+          features.push(feats)
+          labels.push([r.manual_systolic, r.manual_diastolic])
+          indexed.push({ r, feats })
+        }
+      } catch {}
+    }
+    if (features.length < 20) {
+      setV3Error(`Only ${features.length} usable signals — need ≥20 to train.`)
+      setV3Running(false); setV3Progress('')
+      return
+    }
+    setV3Progress(`Training ${v3Trees} trees depth=${v3Depth} lr=${v3Lr} on ${features.length}…`)
+    await new Promise(res => setTimeout(res, 0))
+    let model
+    try {
+      model = trainV3(features, labels, { nTrees: v3Trees, depth: v3Depth, lr: v3Lr, valFrac: 0.2 })
+    } catch (e) {
+      setV3Error(`Train failed: ${e.message || e}`)
+      setV3Running(false); setV3Progress('')
+      return
+    }
+    saveV3Model(model)
+    setV3Model(model)
+
+    setV3Progress('Predicting…')
+    await new Promise(res => setTimeout(res, 0))
+    const preds = indexed.map(({ r, feats }) => {
+      const p = predictV3(model, feats)
+      return {
+        id: r.id, date: r.recorded_at, subject: r.subject_code,
+        actualSys: r.manual_systolic, actualDia: r.manual_diastolic,
+        predSys: p.systolic, predDia: p.diastolic,
+      }
+    })
+    setV3Preds(preds)
+    setV3Progress('')
+    setV3Running(false)
+  }
+
+  async function handlePromoteV3() {
+    if (!v3Model) return
+    setV3Promoting(true); setV3Error('')
+    try {
+      await promoteV3Model(v3Model, `Promoted from VV dashboard · n=${v3Model.meta?.n} · val MAE sys ${v3Model.meta?.valMae?.sys} dia ${v3Model.meta?.valMae?.dia}`)
+      const resp = await fetch('/api/bp-v3-model', { credentials: 'include' })
+      if (resp.ok) setV3ActiveServer(await resp.json())
+    } catch (e) {
+      setV3Error(`Promote failed: ${e.message || e}`)
+    } finally {
+      setV3Promoting(false)
+    }
+  }
+
   async function handlePromoteV2() {
     if (!v2Model) return
     setV2Promoting(true); setV2Error('')
@@ -450,6 +545,10 @@ function BPAnalysisPanel({ readings, subjects }) {
           style={{ background: NAVY, color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v2Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           {v2Running && !v2Progress.includes('Sweep') ? v2Progress : `Train & run v2 (λ=${v2Lambda})`}
         </button>
+        <button onClick={trainAndRunV3} disabled={v3Running}
+          style={{ background: '#7C3AED', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v3Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {v3Running ? v3Progress : `Train & run v3 (POS + GBM)`}
+        </button>
         {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>v15 not yet trained or insufficient samples</span>}
         {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v15: {bpPreds.length}</span>}
         {v2Preds.length > 0 && !v2Running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v2: {v2Preds.length}</span>}
@@ -539,7 +638,7 @@ function BPAnalysisPanel({ readings, subjects }) {
             {/* Live-display toggle. Flips the localStorage flag read by
                 VitalsCapture on next scan. Only affects THIS device. */}
             <div style={{ display: 'flex', gap: 4, background: '#F3F4F6', borderRadius: 99, padding: 3 }}>
-              {['v15', 'v2'].map(v => (
+              {['v15', 'v2', 'v3'].map(v => (
                 <button key={v} onClick={() => toggleDisplay(v)}
                   style={{
                     padding: '.3rem .8rem', border: 'none', borderRadius: 99, fontSize: '.72rem', fontWeight: 700,
@@ -690,6 +789,103 @@ function BPAnalysisPanel({ readings, subjects }) {
           )}
         </div>
       )}
+
+      {/* v3 panel — Tier 1 face-only: POS, multi-pass windowing, 4 added features,
+          gradient-boost trees. Separate server table + promote, same mean-baseline
+          gate as v2. Compact layout: stats row + beats-mean banner + scatter. */}
+      {(v3Model || v3Preds.length > 0 || v3ActiveServer) && (() => {
+        const v3Stats = computeBPStats(v3Preds)
+        const v3BeatsMean = meanBaseline && v3Model?.meta?.valMae
+          ? (v3Model.meta.valMae.sys <= meanBaseline.sysMae && v3Model.meta.valMae.dia <= meanBaseline.diaMae)
+          : null
+        return (
+          <div style={{
+            borderTop: '2px solid #E5E7EB',
+            paddingTop: '1.5rem',
+            marginTop: '2rem',
+            marginBottom: '1.5rem',
+          }}>
+            <div style={{ fontSize: '.95rem', fontWeight: 800, color: NAVY, marginBottom: '.5rem' }}>
+              v3 gradient-boost — POS + multi-pass windowing (face-only)
+            </div>
+            <div style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '1rem', lineHeight: 1.5 }}>
+              POS (Wang 2017) replaces CHROM. Features extracted from 5+ overlapping 10s windows per scan, median across windows. Added perfusion index, stiffness index, reflection coefficient, spectral entropy. 50 depth-3 regression trees, lr=0.1. No per-subject calibration, no second sensor.
+            </div>
+
+            <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.75rem' }}>
+              {v3ActiveServer
+                ? <>Server active: trained {v3ActiveServer.trained_at ? new Date(v3ActiveServer.trained_at).toLocaleString() : '—'} · val MAE ±{v3ActiveServer.val_mae_sys ?? '?'}/±{v3ActiveServer.val_mae_dia ?? '?'} · {v3ActiveServer.n_trees ?? '?'} trees · n={v3ActiveServer.n_training ?? '?'}</>
+                : <>No v3 model promoted on server yet.</>}
+            </div>
+
+            {v3Error && <div style={{ fontSize: '.78rem', color: '#EF4444', marginBottom: '.5rem' }}>{v3Error}</div>}
+
+            {v3Model?.meta && (
+              <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.78rem', color: NAVY }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.5rem' }}>
+                  <div><span style={{ color: '#6B7280' }}>Train MAE sys:</span> <strong>±{v3Model.meta.trainMae?.sys}</strong></div>
+                  <div><span style={{ color: '#6B7280' }}>Train MAE dia:</span> <strong>±{v3Model.meta.trainMae?.dia}</strong></div>
+                  <div><span style={{ color: '#6B7280' }}>Val MAE sys:</span> <strong style={{ color: v3Model.meta.valMae?.sys <= 10 ? '#10B981' : '#F59E0B' }}>±{v3Model.meta.valMae?.sys}</strong></div>
+                  <div><span style={{ color: '#6B7280' }}>Val MAE dia:</span> <strong style={{ color: v3Model.meta.valMae?.dia <= 7.5 ? '#10B981' : '#F59E0B' }}>±{v3Model.meta.valMae?.dia}</strong></div>
+                </div>
+                <div style={{ marginTop: '.4rem', fontSize: '.7rem', color: '#9CA3AF' }}>
+                  n={v3Model.meta.n} / val={v3Model.meta.nVal} · {v3Model.meta.nTrees} trees · depth={v3Model.meta.depth} · lr={v3Model.meta.lr} · {v3Model.meta.trainedAt ? new Date(v3Model.meta.trainedAt).toLocaleString() : '—'}
+                </div>
+              </div>
+            )}
+
+            {v3Stats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.75rem', marginBottom: '1rem' }}>
+                {[
+                  { label: 'v3 Sys MAE (all)', value: `±${v3Stats.sysMae}`, color: parseFloat(v3Stats.sysMae) <= 10 ? '#10B981' : '#F59E0B' },
+                  { label: 'v3 Dia MAE (all)', value: `±${v3Stats.diaMae}`, color: parseFloat(v3Stats.diaMae) <= 7.5 ? '#10B981' : '#F59E0B' },
+                  { label: 'Pred SBP SD',      value: `${v3Stats.predSysSd}`,  color: v3Stats.predSysSd > 5 ? '#10B981' : '#EF4444' },
+                  { label: 'Pred DBP SD',      value: `${v3Stats.predDiaSd}`,  color: v3Stats.predDiaSd > 4 ? '#10B981' : '#EF4444' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} style={{ background: '#F9FAFB', borderRadius: 12, padding: '.75rem', textAlign: 'center' }}>
+                    <div style={{ fontWeight: 800, fontSize: '1.1rem', color }}>{value}</div>
+                    <div style={{ fontSize: '.68rem', color: '#6B7280', marginTop: '.2rem' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {v3Model?.meta && meanBaseline && (
+              <div style={{
+                background: v3BeatsMean ? '#F0FDF4' : '#FEF2F2',
+                border: `1px solid ${v3BeatsMean ? '#BBF7D0' : '#FECACA'}`,
+                borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.75rem',
+              }}>
+                <div style={{ fontSize: '.78rem', color: v3BeatsMean ? '#065F46' : '#991B1B', lineHeight: 1.5 }}>
+                  <strong>{v3BeatsMean ? '✓ v3 beats mean baseline' : '✗ v3 does NOT beat mean baseline'}</strong><br />
+                  v3 val MAE: ±{v3Model.meta.valMae.sys}/±{v3Model.meta.valMae.dia} &nbsp;·&nbsp;
+                  mean baseline: ±{meanBaseline.sysMae}/±{meanBaseline.diaMae}
+                </div>
+                <button onClick={handlePromoteV3}
+                  disabled={v3Promoting || !v3BeatsMean}
+                  title={v3BeatsMean ? 'Promote v3 to prod (admin only)' : 'Promote disabled — v3 does not beat mean baseline'}
+                  style={{
+                    background: v3BeatsMean && !v3Promoting ? '#7C3AED' : '#D1D5DB',
+                    color: 'white', border: 'none', borderRadius: 99,
+                    padding: '.5rem 1rem', fontWeight: 700, fontSize: '.78rem',
+                    cursor: v3BeatsMean && !v3Promoting ? 'pointer' : 'not-allowed',
+                    whiteSpace: 'nowrap',
+                  }}>
+                  {v3Promoting ? 'Promoting…' : 'Promote v3 to prod'}
+                </button>
+              </div>
+            )}
+
+            {v3Preds.length > 0 && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ fontSize: '.85rem', fontWeight: 600, color: NAVY, marginBottom: '.75rem' }}>v3 — Predicted vs Actual BP</div>
+                <BPScatterChart bpPreds={v3Preds} />
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Per-reading table */}
       {bpPreds.length > 0 && (

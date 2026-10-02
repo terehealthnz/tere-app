@@ -58,7 +58,9 @@ function fft(re, im) {
 
 // Zero-phase FFT bandpass. Pads to next power of 2, zeros bins outside
 // [lowHz, highHz], inverse-transforms.
-function bandpass(signal, fps, lowHz, highHz) {
+// Exported so bpModelV3.js can reuse the same filter without duplicating the
+// FFT primitive. Behaviour unchanged.
+export function bandpass(signal, fps, lowHz, highHz) {
   const n = nextPow2(signal.length)
   const re = new Array(n).fill(0)
   const im = new Array(n).fill(0)
@@ -75,7 +77,7 @@ function bandpass(signal, fps, lowHz, highHz) {
 }
 
 // Linear detrend (removes drift, keeps pulsatile component).
-function detrend(signal) {
+export function detrend(signal) {
   const n = signal.length
   const xMean = (n - 1) / 2
   let yMean = 0
@@ -120,7 +122,7 @@ function chromRppg(rgbFrames) {
 }
 
 // Normalise to zero mean, unit variance (z-score).
-function zscore(signal) {
+export function zscore(signal) {
   const n = signal.length
   if (n === 0) return signal
   let m = 0
@@ -142,7 +144,7 @@ function diff(signal) {
 // ─── Landmark detection (peaks, feet, dicrotic notches) ───────────────────────
 
 // Peaks: local maxima above 0 with min 0.4s separation (physiological HR < 150).
-function findPeaks(signal, fps) {
+export function findPeaks(signal, fps) {
   const minDist = Math.floor(fps * 0.4)
   const peaks = []
   for (let i = 1; i < signal.length - 1; i++) {
@@ -159,7 +161,7 @@ function findPeaks(signal, fps) {
 
 // Foot = minimum between two adjacent peaks. Returns one foot per inter-peak
 // interval (so len = peaks.length - 1).
-function findFeet(signal, peaks) {
+export function findFeet(signal, peaks) {
   const feet = []
   for (let p = 0; p < peaks.length - 1; p++) {
     const a = peaks[p], b = peaks[p + 1]
@@ -173,7 +175,7 @@ function findFeet(signal, peaks) {
 // Dicrotic notch = local minimum in 2nd-derivative between a peak and the
 // NEXT foot (i.e. on the downstroke). Returns null for pulses where no
 // clear notch is detectable.
-function findNotches(signal, peaks, feet) {
+export function findNotches(signal, peaks, feet) {
   const sdppg = diff(diff(signal))
   const notches = []
   for (let p = 0; p < peaks.length - 1; p++) {

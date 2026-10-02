@@ -99,6 +99,7 @@ export default function VitalsCapture() {
   // computed when available so console logs expose both predictions for
   // ongoing A/B without needing to flip the display.
   const v2ModelRef = useRef(null)
+  const v3ModelRef = useRef(null)
   useEffect(() => {
     modelReadyRef.current = import('../../lib/bpModel')
       .then(({ loadModelFromSupabase }) => loadModelFromSupabase())
@@ -106,6 +107,10 @@ export default function VitalsCapture() {
     import('../../lib/bpModelV2')
       .then(({ loadActiveV2ModelFromServer }) => loadActiveV2ModelFromServer())
       .then(m => { v2ModelRef.current = m })
+      .catch(() => {})
+    import('../../lib/bpModelV3')
+      .then(({ loadActiveV3ModelFromServer }) => loadActiveV3ModelFromServer())
+      .then(m => { v3ModelRef.current = m })
       .catch(() => {})
     import('../../lib/spo2').then(({ loadSpO2CalibrationFromSupabase }) => loadSpO2CalibrationFromSupabase()).catch(() => {})
 
@@ -369,19 +374,28 @@ export default function VitalsCapture() {
                     })(),
                     new Promise(resolve => setTimeout(() => resolve(null), 8000)),
                   ])
-                  // v2 ridge in parallel. Default display = v15. Flip to v2
-                  // by setting localStorage.tere_bp_display_version = 'v2' on
-                  // the device. Always logs both for A/B visibility.
+                  // v2 ridge + v3 GBM in parallel. Default display = v15. Flip
+                  // with localStorage.tere_bp_display_version ∈ {v2, v3}. All
+                  // three logged every scan for A/B visibility.
                   let display = bp
+                  let bp2 = null, bp3 = null
                   try {
                     if (v2ModelRef.current) {
                       const { predictV2FromFrames } = await import('../../lib/bpModelV2')
-                      const bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
-                      console.log('[bp] v15=', bp && `${bp.systolic}/${bp.diastolic}`, '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(skip: ${bp2?.reason || 'no-model'})`)
-                      const preferV2 = typeof window !== 'undefined' && window.localStorage?.getItem('tere_bp_display_version') === 'v2'
-                      if (preferV2 && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                      bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
                     }
-                  } catch (e) { console.warn('[bp] v2 parallel failed:', e?.message || e) }
+                    if (v3ModelRef.current) {
+                      const { predictV3FromFrames } = await import('../../lib/bpModelV3')
+                      bp3 = predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
+                    }
+                    console.log('[bp]',
+                      'v15=', bp && `${bp.systolic}/${bp.diastolic}`,
+                      '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(${bp2?.reason || 'no-model'})`,
+                      '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`)
+                    const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
+                    if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                    if (flag === 'v3' && bp3 && !bp3.skipped) display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+                  } catch (e) { console.warn('[bp] v2/v3 parallel failed:', e?.message || e) }
                   if (display) {
                     setBpEstimate(display)
                     bpString = display.systolic && display.diastolic
@@ -482,18 +496,27 @@ export default function VitalsCapture() {
               })(),
               new Promise(resolve => setTimeout(() => resolve(null), 8000)),
             ])
-            // v2 ridge in parallel. Default display = v15. Flip to v2 by
-            // setting localStorage.tere_bp_display_version='v2' on the device.
+            // v2 ridge + v3 GBM in parallel. Default display = v15. Flip with
+            // localStorage.tere_bp_display_version ∈ {v2, v3}.
             let display = bp
+            let bp2 = null, bp3 = null
             try {
               if (v2ModelRef.current) {
                 const { predictV2FromFrames } = await import('../../lib/bpModelV2')
-                const bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
-                console.log('[bp] v15=', bp && `${bp.systolic}/${bp.diastolic}`, '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(skip: ${bp2?.reason || 'no-model'})`)
-                const preferV2 = typeof window !== 'undefined' && window.localStorage?.getItem('tere_bp_display_version') === 'v2'
-                if (preferV2 && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+                bp2 = predictV2FromFrames(v2ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
               }
-            } catch (e) { console.warn('[bp] v2 parallel failed:', e?.message || e) }
+              if (v3ModelRef.current) {
+                const { predictV3FromFrames } = await import('../../lib/bpModelV3')
+                bp3 = predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
+              }
+              console.log('[bp]',
+                'v15=', bp && `${bp.systolic}/${bp.diastolic}`,
+                '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(${bp2?.reason || 'no-model'})`,
+                '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`)
+              const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
+              if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+              if (flag === 'v3' && bp3 && !bp3.skipped) display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+            } catch (e) { console.warn('[bp] v2/v3 parallel failed:', e?.message || e) }
             if (display) {
               setBpEstimate(display)
               bpString = display.systolic && display.diastolic
