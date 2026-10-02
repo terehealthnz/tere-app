@@ -74,6 +74,7 @@
     { "path": "/api/cron-clinical-anomalies",   "schedule": "0 21 * * *" },
     { "path": "/api/cron-chime-cleanup",        "schedule": "0 15 * * *" },
     { "path": "/api/cron-pretriage-cleanup",    "schedule": "15 4 * * *" },
-    { "path": "/api/cron-promote-stuck-drafts", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron-promote-stuck-drafts", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron-retrain-bp-v3",        "schedule": "0 14 * * *" }
   ]
 }

@@ -309,6 +309,7 @@ const ROUTES = {
   'verify-acc':                () => import('./_verify-acc.js'),
   'schedule':                  () => import('./_schedule.js'),
   'cron-availability':         () => import('./_cron-availability.js'),
+  'cron-retrain-bp-v3':        () => import('./_cron-retrain-bp-v3.js'),
   'cron-interview-reminders':  () => import('./_cron-interview-reminders.js'),
   'cron-retention-purge':      () => import('./_cron-retention-purge.js'),
   'cron-complaint-deadlines':  () => import('./_cron-complaint-deadlines.js'),
