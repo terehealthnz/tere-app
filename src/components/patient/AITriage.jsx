@@ -9,6 +9,7 @@ import { isNZ } from '../../lib/region'
 import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
 import DobPicker from '../DobPicker'
+import BiometricsForm from './BiometricsForm'
 import PhonePicker from '../PhonePicker'
 import ChipMultiSelect from './ChipMultiSelect'
 import nzfFormulary from '../../lib/nzf-formulary.json'
@@ -302,7 +303,13 @@ const STEPS = [
   { id:'tobacco', message:"Do you currently smoke or use tobacco?", field:'tobacco_use_raw', type:'yesno', validate:()=>true, next:'tobacco_amount' },
   { id:'tobacco_amount', message:"How much would you say?", field:'tobacco_amount', type:'choices', choices:['Occasional (social smoker)','1–10 per day','10–20 per day','20+ per day'], validate:()=>true, next:'alcohol' },
   { id:'alcohol', message:"Do you drink alcohol?", field:'alcohol_use_raw', type:'yesno', validate:()=>true, next:'alcohol_amount' },
-  { id:'alcohol_amount', message:"Roughly how much per week?", field:'alcohol_amount', type:'choices', choices:['Occasional (1–2 drinks/week)','Moderate (3–7 drinks/week)','Heavy (8–14 drinks/week)','Very heavy (15+ drinks/week)'], validate:()=>true, next:'photo' },
+  { id:'alcohol_amount', message:"Roughly how much per week?", field:'alcohol_amount', type:'choices', choices:['Occasional (1–2 drinks/week)','Moderate (3–7 drinks/week)','Heavy (8–14 drinks/week)','Very heavy (15+ drinks/week)'], validate:()=>true, next:'biometrics' },
+  // Biometrics (sex + height + weight). Clinical fundamentals the doctor
+  // needs on the chart (weight-based prescribing, BMI, age/sex-adjusted
+  // reference ranges). Also feeds the camera-BP pipeline so predictBP()
+  // sees varying demographic features per patient instead of population
+  // defaults. All three in a single compound step via BiometricsForm.
+  { id:'biometrics', message:"A few quick details for the doctor — sex, height and weight. These go on your chart.", field:'biometrics_raw', type:'biometrics', validate:()=>true, next:'photo' },
   // AI transcription / recording consent is now captured earlier on /consent
   // (see ConsentPage HDC + rights_check). Do not re-ask here.
   { id:'photo', message:"Can you take a photo of the affected area? Tap the camera icon — it really helps the doctor.", field:'photo_response', type:'photo', validate:()=>true, next:'done' },
@@ -1124,6 +1131,9 @@ export default function AITriage() {
         gpName: data.gp_name || '',
         gpEmail: data.gp_email || '',
         gpClinic: data.gp_clinic || '',
+        patientSex:      data.patient_sex       || null,
+        patientWeightKg: data.patient_weight_kg || null,
+        patientHeightCm: data.patient_height_cm || null,
         hdcRightsAccepted: true,
         researchConsent: data.research_consent_raw === 'yes' || sessionStorage.getItem('research_consent') === 'yes',
         tobaccoUse: data.tobacco_use_raw === 'yes' ? 'yes' : (data.tobacco_use_raw === 'no' ? 'no' : null),
@@ -2045,7 +2055,28 @@ export default function AITriage() {
         />
       )}
 
-      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && step?.type !== 'chip_multi' && !tereTyping && (
+      {/* Compound biometrics capture (sex + height + weight with unit toggles).
+          Single step that writes patient_sex / patient_height_cm /
+          patient_weight_kg to data in one go, then advances. These flow into
+          createConsultation and VitalsCapture's subjectRef so predictBP() has
+          varying demographic features per patient. */}
+      {step?.type === 'biometrics' && !tereTyping && (
+        <BiometricsForm
+          key={step.id}
+          disabled={saving}
+          onSubmit={(bio) => {
+            // Human-readable summary for the chat transcript.
+            const sexLabel = { female: 'Female', male: 'Male', other: 'Other', prefer_not_to_say: 'Prefer not to say' }[bio.patient_sex] || bio.patient_sex
+            const summary = `${sexLabel} · ${bio.patient_height_cm} cm · ${bio.patient_weight_kg} kg`
+            // Stash the structured values into data so the next step (and
+            // createConsultation at the end of triage) pick them up.
+            setData(d => ({ ...d, ...bio }))
+            handleSendValue(summary)
+          }}
+        />
+      )}
+
+      {step?.skippable && step?.type !== 'pharmacy' && step?.type !== 'gp_picker' && step?.type !== 'gp_clinic_picker' && step?.type !== 'chip_multi' && step?.type !== 'biometrics' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <button onClick={()=>handleSendValue('skip')} className="btn"
             style={{width:'100%',background:'transparent',border:'1.5px solid var(--border)',color:'var(--muted)',fontWeight:600}}>
@@ -2073,7 +2104,7 @@ export default function AITriage() {
         {/* Chat-style free-text bar. Hidden on picker steps so patients
             can't sidestep the dropdown by typing here — the picker's
             own Continue/Send button is the only path forward. */}
-        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker' || step?.type === 'chip_multi') && (
+        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker' || step?.type === 'chip_multi' || step?.type === 'biometrics') && (
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>

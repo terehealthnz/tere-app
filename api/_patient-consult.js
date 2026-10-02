@@ -115,6 +115,10 @@ const PATIENT_VIEW_COLUMNS = [
   'pharmacy', 'pharmacy_id',
   // Imaging region — waiting-room card renders + change-picker uses this.
   'preferred_imaging_region_id',
+  // Patient biometrics — VitalsCapture.jsx re-reads these at mount so the
+  // on-device BP model's extractFeatures sees per-patient demographics
+  // instead of population defaults (fixes BP mean-collapse symptom).
+  'patient_dob', 'patient_sex', 'patient_weight_kg', 'patient_height_cm',
   // Post-consult billing surface — patient reads these to render the
   // insurance-receipt upsell and its "already purchased" state.
   'is_acc', 'acc_eligible', 'acc_claim_number', 'payment_amount',

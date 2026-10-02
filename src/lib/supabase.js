@@ -148,6 +148,13 @@ export async function createConsultation(data) {
     gp_name:                      data.gpName || null,
     gp_email:                     data.gpEmail || null,
     gp_clinic:                    data.gpClinic || null,
+    // Patient biometrics captured in AI triage (BiometricsForm). Clinical
+    // fundamentals for weight-based prescribing + BMI, and also fed into
+    // VitalsCapture's subjectRef so predictBP sees varying demographic
+    // features per patient.
+    patient_sex:                  data.patientSex || null,
+    patient_weight_kg:            data.patientWeightKg != null ? Number(data.patientWeightKg) : null,
+    patient_height_cm:            data.patientHeightCm != null ? Number(data.patientHeightCm) : null,
     preferred_imaging_region_id:  data.preferredImagingRegionId || null,
     interpreter_requested:        data.interpreterRequested || false,
     interpreter_language:         data.interpreterLanguage || null,

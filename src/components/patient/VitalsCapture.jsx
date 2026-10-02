@@ -124,6 +124,8 @@ export default function VitalsCapture() {
           }
         }
         if (c.patient_sex) sub.sex = c.patient_sex   // 'male' | 'female' | other
+        if (c.patient_weight_kg != null) sub.weight_kg = Number(c.patient_weight_kg)
+        if (c.patient_height_cm != null) sub.height_cm = Number(c.patient_height_cm)
         subjectRef.current = sub
       }).catch(() => {})
     }
