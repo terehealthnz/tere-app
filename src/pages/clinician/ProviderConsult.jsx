@@ -715,6 +715,32 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
       ? 'call_failed'
       : (providerInitiated ? 'provider_ended' : 'provider_left')
     broadcastConsultationEnded(id, broadcastReason).catch(() => {})
+
+    // Explicitly stop every local track (mic + camera) BEFORE calling
+    // room.disconnect(). LiveKit's disconnect closes the WebSocket + server
+    // participant but DOES NOT reliably stop the underlying MediaStreamTrack
+    // — on iOS Safari this leaves the orange mic indicator on in the status
+    // bar until GC eventually releases the stream, which can be minutes
+    // later and is a bad trust signal for providers. Reported 2026-10-02.
+    try {
+      const local = scribeRoomRef.current?.localParticipant
+      if (local) {
+        const pubs = [
+          ...(local.audioTrackPublications?.values?.() || []),
+          ...(local.videoTrackPublications?.values?.() || []),
+        ]
+        for (const pub of pubs) {
+          try {
+            // LiveKit's track.stop() stops the underlying MediaStreamTrack;
+            // setMicrophoneEnabled(false) / setCameraEnabled(false) would also
+            // work but we need both so the direct track.stop is simpler.
+            pub?.track?.stop?.()
+            pub?.track?.mediaStreamTrack?.stop?.()
+          } catch {}
+        }
+      }
+    } catch (e) { console.warn('[endCall] local track stop:', e?.message) }
+
     try { await scribeRoomRef.current?.disconnect?.() } catch (e) { console.warn('[endCall] room.disconnect:', e?.message) }
 
     // Failed calls skip notes entirely — no transcript, no notes_draft save,
