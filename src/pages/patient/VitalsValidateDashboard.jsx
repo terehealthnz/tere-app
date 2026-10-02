@@ -40,12 +40,36 @@ function computeBPStats(bpPreds) {
   const within15Sys = bpPreds.filter(p => Math.abs(p.predSys - p.actualSys) <= 15).length
   const within10Dia = bpPreds.filter(p => Math.abs(p.predDia - p.actualDia) <= 10).length
   const within15Dia = bpPreds.filter(p => Math.abs(p.predDia - p.actualDia) <= 15).length
+  // Mean-collapse signal. If pred SD is small (<5) while cuff SD is wide
+  // (>12), the model is emitting the training mean regardless of input.
+  // Shown on the dashboard so we don't have to eyeball 150+ rows.
+  const sd = (arr) => {
+    const m = arr.reduce((a, b) => a + b, 0) / arr.length
+    return Math.sqrt(arr.map(x => (x - m) ** 2).reduce((a, b) => a + b, 0) / arr.length)
+  }
+  const mean = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length
+  const predSys = bpPreds.map(p => p.predSys)
+  const cuffSys = bpPreds.map(p => p.actualSys)
+  const predDia = bpPreds.map(p => p.predDia)
+  const cuffDia = bpPreds.map(p => p.actualDia)
+  const predSysSd = +sd(predSys).toFixed(1)
+  const cuffSysSd = +sd(cuffSys).toFixed(1)
+  const predDiaSd = +sd(predDia).toFixed(1)
+  const cuffDiaSd = +sd(cuffDia).toFixed(1)
+  const predSysMean = +mean(predSys).toFixed(1)
+  const cuffSysMean = +mean(cuffSys).toFixed(1)
+  const predDiaMean = +mean(predDia).toFixed(1)
+  const cuffDiaMean = +mean(cuffDia).toFixed(1)
+  const collapsed = predSysSd < 5 && cuffSysSd > 12
   return {
     sysMae, diaMae, n,
     within10Pct: Math.round(((within10Sys + within10Dia) / (n * 2)) * 100),
     within15Pct: Math.round(((within15Sys + within15Dia) / (n * 2)) * 100),
     within10SysPct: Math.round((within10Sys / n) * 100),
     within10DiaPct: Math.round((within10Dia / n) * 100),
+    predSysSd, cuffSysSd, predDiaSd, cuffDiaSd,
+    predSysMean, cuffSysMean, predDiaMean, cuffDiaMean,
+    collapsed,
   }
 }
 
@@ -255,6 +279,45 @@ function BPAnalysisPanel({ readings, subjects }) {
               <div style={{ fontSize: '.7rem', color: '#6B7280', marginTop: '.2rem' }}>{label}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Mean-collapse diagnostic. If pred-SD is tight while cuff-SD is
+          wide, the model is emitting the training mean regardless of
+          input. Shown here so it's visible at a glance instead of having
+          to eyeball 150+ rows. */}
+      {stats && (
+        <div style={{
+          background: stats.collapsed ? '#FEF2F2' : '#F0FDF4',
+          border: `1px solid ${stats.collapsed ? '#FECACA' : '#BBF7D0'}`,
+          borderRadius: 12, padding: '1rem', marginBottom: '1.5rem',
+        }}>
+          <div style={{ fontSize: '.7rem', fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: stats.collapsed ? '#991B1B' : '#065F46', marginBottom: '.5rem' }}>
+            {stats.collapsed ? '⚠ Mean-collapse detected' : '✓ Model varies with input'}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '.5rem', fontSize: '.75rem', color: NAVY }}>
+            <div>
+              <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pred SBP</div>
+              <div style={{ fontWeight: 700 }}>{stats.predSysMean} ± {stats.predSysSd}</div>
+            </div>
+            <div>
+              <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Cuff SBP</div>
+              <div style={{ fontWeight: 700 }}>{stats.cuffSysMean} ± {stats.cuffSysSd}</div>
+            </div>
+            <div>
+              <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pred DBP</div>
+              <div style={{ fontWeight: 700 }}>{stats.predDiaMean} ± {stats.predDiaSd}</div>
+            </div>
+            <div>
+              <div style={{ color: '#6B7280', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>Cuff DBP</div>
+              <div style={{ fontWeight: 700 }}>{stats.cuffDiaMean} ± {stats.cuffDiaSd}</div>
+            </div>
+          </div>
+          <div style={{ marginTop: '.5rem', fontSize: '.7rem', color: '#6B7280', lineHeight: 1.4 }}>
+            {stats.collapsed
+              ? `Prediction spread (SD ${stats.predSysSd}) is tight while cuff spread (SD ${stats.cuffSysSd}) is wide — model is emitting ~${stats.predSysMean}/${stats.predDiaMean} regardless of patient. Likely training-mean collapse (narrow-variance training data).`
+              : `Prediction spread (SD ${stats.predSysSd}) tracks cuff spread (SD ${stats.cuffSysSd}) — model is differentiating across patients.`}
+          </div>
         </div>
       )}
 
