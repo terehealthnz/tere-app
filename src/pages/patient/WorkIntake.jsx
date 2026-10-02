@@ -58,6 +58,16 @@ export default function WorkIntake() {
   const [injuryDescription, setInjuryDescription] = useState('')
   const [bodyPart, setBodyPart] = useState('')
   const [accConsent, setAccConsent] = useState(false)
+  // Biometrics (sex + height + weight). Clinical fundamentals the doctor
+  // needs on the chart (weight-based prescribing, BMI, age/sex reference
+  // ranges). Also feeds VitalsCapture's subjectRef so predictBP sees
+  // real demographics per patient instead of population defaults. Height
+  // + weight are collected in metric only on this form — employees in NZ
+  // workplaces know their kg/cm. (AITriage has the kg/lb + cm/ft toggle
+  // for the public flow.)
+  const [patientSex, setPatientSex]   = useState('')
+  const [heightCm, setHeightCm]       = useState('')
+  const [weightKg, setWeightKg]       = useState('')
   // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Required — same 8
   // options as AITriage's imaging_clinic step, plus an explicit "not sure"
   // value so the worker has to actively acknowledge the choice. Empty
@@ -188,7 +198,13 @@ export default function WorkIntake() {
   const accFieldsValid = !isWorkInjury || (
     !!injuryDate && injuryDescription.trim().length >= 5 && bodyPart.trim().length >= 2 && accConsent
   )
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid
+  // Biometrics: sex required, height 50-250 cm, weight 20-400 kg (match
+  // the DB CHECK constraints on consultations.patient_height_cm /
+  // patient_weight_kg so the server never 500s on a bad payload).
+  const heightValid = (() => { const n = parseFloat(heightCm); return isFinite(n) && n > 50 && n < 250 })()
+  const weightValid = (() => { const n = parseFloat(weightKg); return isFinite(n) && n > 20 && n < 400 })()
+  const bioValid    = !!patientSex && heightValid && weightValid
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid && bioValid
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
@@ -328,6 +344,14 @@ export default function WorkIntake() {
         injuryDetails: isWorkInjury ? `${bodyPart.trim()} — ${injuryDescription.trim()}` : null,
         accConsent:    isWorkInjury && accConsent,
 
+        // Biometrics — mirrors the AITriage BiometricsForm. Required to
+        // submit (see bioValid). Stored on consultations.patient_sex /
+        // patient_weight_kg / patient_height_cm and threaded into
+        // VitalsCapture subjectRef for per-patient demographic BP features.
+        patientSex,
+        patientWeightKg: parseFloat(weightKg),
+        patientHeightCm: parseFloat(heightCm),
+
         // Employer flow: intake → vitals → waiting room. We used to create as
         // status='waiting' here so the queue picked them up, but that surfaced
         // employees in the provider queue as ready-to-be-seen while they were
@@ -445,6 +469,46 @@ export default function WorkIntake() {
 
             <label style={label}>{t.nhiLabel}</label>
             <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} placeholder="ABC1234" maxLength={7} autoComplete="off" />
+
+            {/* Biometrics (sex / height / weight). Inline here (not shared
+                BiometricsForm) because WorkIntake runs the dark-navy theme
+                and the shared component is light-themed for AITriage. */}
+            <label style={label}>Sex</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '.75rem' }}>
+              {[
+                { v: 'female',            l: 'Female' },
+                { v: 'male',              l: 'Male' },
+                { v: 'other',             l: 'Other' },
+                { v: 'prefer_not_to_say', l: 'Prefer not to say' },
+              ].map(o => {
+                const active = patientSex === o.v
+                return (
+                  <button key={o.v} type="button" onClick={() => setPatientSex(o.v)}
+                    style={{
+                      padding: '8px 14px', borderRadius: 99, fontSize: '.875rem', fontWeight: 600,
+                      border: active ? `1.5px solid ${TEAL_LIGHT}` : '1px solid rgba(255,255,255,.25)',
+                      background: active ? TEAL : 'rgba(255,255,255,.08)',
+                      color: active ? 'white' : 'rgba(255,255,255,.85)',
+                      cursor: 'pointer', fontFamily: FF,
+                    }}>
+                    {o.l}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.25rem' }}>
+              <div>
+                <label style={label}>Height (cm)</label>
+                <input style={inp} type="number" inputMode="decimal" placeholder="e.g. 170"
+                  value={heightCm} onChange={e => setHeightCm(e.target.value)} />
+              </div>
+              <div>
+                <label style={label}>Weight (kg)</label>
+                <input style={inp} type="number" inputMode="decimal" placeholder="e.g. 75"
+                  value={weightKg} onChange={e => setWeightKg(e.target.value)} />
+              </div>
+            </div>
 
             <label style={label}>{t.problemLabel}</label>
             <textarea style={{ ...inp, minHeight: 90, resize: 'vertical' }} value={chief} onChange={e => setChief(e.target.value)} placeholder={t.problemPlaceholder} />
