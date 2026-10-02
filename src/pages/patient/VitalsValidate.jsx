@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { loadFaceMesh, inspectDevice, calibrateRPPG, MultiPassMeasurement, getAmbientTemp, processStoredFrames, PASS_COUNT } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading, getTrainableReadings, getValidationReadingCount, getValidationReadings, getValidationSubjectsWithLastScan, uploadScanVideo, supabase } from '../../lib/supabase'
 import { trainModel, predictBP, getLocalMeta, loadModelFromSupabase } from '../../lib/bpModel'
+import { loadActiveV3ModelFromServer, predictV3FromFrames } from '../../lib/bpModelV3'
 import { calculateSpO2, fitSpO2Calibration, getSpO2Calibration, loadSpO2CalibrationFromSupabase } from '../../lib/spo2'
 
 const TEAL = '#0B6E76'
@@ -196,6 +197,12 @@ export default function VitalsValidate() {
   const mediaRecorderRef = useRef(null)
   const videoChunksRef  = useRef([])
   const videoBlobRef    = useRef(null)
+  // v3 BP model — loaded on mount, same source as live /vitals so the
+  // research operator sees the same BP the production flow would show.
+  const v3ModelRef      = useRef(null)
+  useEffect(() => {
+    loadActiveV3ModelFromServer().then(m => { v3ModelRef.current = m }).catch(() => {})
+  }, [])
   const [cameraError, setCameraError] = useState(null)
   const [scanPhase, setScanPhase]     = useState('idle')
   const [scanError, setScanError]     = useState(null)
@@ -419,9 +426,20 @@ export default function VitalsValidate() {
           setVitals(result); setScanPhase('done'); stopCamera(); setPhase('step3')
           if (result.rawFrames) {
             const signal = { frames: result.rawFrames, fps: result.actualFps }
-            predictBP(signal, selectedSubject || {})
-              .then(est => { if (est) setBpEstimate(est) })
-              .catch(() => {})
+            // v3-only (matches live /vitals as of 2026-10-02). v15 still
+            // computed in parallel and logged for research comparison, but
+            // display uses v3 or nothing. Operator sees the same BP a real
+            // patient would get on the clinical surface.
+            Promise.all([
+              predictBP(signal, selectedSubject || {}).catch(() => null),
+              v3ModelRef.current ? Promise.resolve(predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, selectedSubject || {})) : Promise.resolve(null),
+            ]).then(([v15Est, v3Est]) => {
+              console.log('[vv-bp]',
+                'v15=', v15Est && `${v15Est.systolic}/${v15Est.diastolic}`,
+                '| v3=', v3Est && !v3Est.skipped ? `${v3Est.systolic}/${v3Est.diastolic}` : `(${v3Est?.reason || 'no-model'})`)
+              if (v3Est && !v3Est.skipped) setBpEstimate({ systolic: v3Est.systolic, diastolic: v3Est.diastolic, source: 'v3-gbm' })
+              // else: no display — matches /vitals honesty policy
+            })
             try {
               const spo2 = calculateSpO2(result.rawFrames, selectedSubject?.fitzpatrick_scale)
               if (spo2) setSpo2Estimate(spo2)
