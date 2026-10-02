@@ -514,9 +514,10 @@ export default function VitalsCapture() {
               })(),
               new Promise(resolve => setTimeout(() => resolve(null), 8000)),
             ])
-            // v2 ridge + v3 GBM in parallel. Default display = v15. Flip with
-            // localStorage.tere_bp_display_version ∈ {v2, v3}.
-            let display = bp
+            // v3-ONLY (2026-10-02). v15 is a confirmed mean emitter; showing
+            // its number when v3 skipped is misleading. If v3 doesn't produce
+            // a prediction, display stays null and no BP is shown.
+            let display = null
             let bp2 = null, bp3 = null
             try {
               if (v2ModelRef.current) {
@@ -527,13 +528,15 @@ export default function VitalsCapture() {
                 const { predictV3FromFrames } = await import('../../lib/bpModelV3')
                 bp3 = predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, subjectRef.current || {})
               }
+              const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
+              if (bp3 && !bp3.skipped && flag !== 'v15' && flag !== 'v2') display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+              else if (flag === 'v2'  && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
+              else if (flag === 'v15' && bp) display = bp
               console.log('[bp]',
                 'v15=', bp && `${bp.systolic}/${bp.diastolic}`,
                 '| v2=', bp2 && !bp2.skipped ? `${bp2.systolic}/${bp2.diastolic}` : `(${bp2?.reason || 'no-model'})`,
-                '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`)
-              const flag = typeof window !== 'undefined' ? window.localStorage?.getItem('tere_bp_display_version') : null
-              if (flag === 'v2' && bp2 && !bp2.skipped) display = { systolic: bp2.systolic, diastolic: bp2.diastolic, source: 'v2-ridge' }
-              if (flag === 'v3' && bp3 && !bp3.skipped) display = { systolic: bp3.systolic, diastolic: bp3.diastolic, source: 'v3-gbm' }
+                '| v3=', bp3 && !bp3.skipped ? `${bp3.systolic}/${bp3.diastolic}` : `(${bp3?.reason || 'no-model'})`,
+                `→ display=${display?.source || 'NONE (v3 skipped, no fallback)'}`)
             } catch (e) { console.warn('[bp] v2/v3 parallel failed:', e?.message || e) }
             if (display) {
               setBpEstimate(display)
@@ -587,6 +590,11 @@ export default function VitalsCapture() {
     setFaceBox(null)
     setError('')
     setShowAbnormalGate(false)
+    // Clear stale per-scan state too — otherwise a retake shows the previous
+    // scan's BP/SpO2 until the new one computes, which looks like the model
+    // emitted the old value (especially if the new scan ends up with no BP).
+    setBpEstimate(null)
+    setSpo2Estimate(null)
     // Re-open camera if closed
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
