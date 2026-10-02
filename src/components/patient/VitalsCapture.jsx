@@ -1240,9 +1240,21 @@ export default function VitalsCapture() {
                       {t.continueBtn}
                     </button>
                   ) : (
-                    <button className="btn btn-primary btn-full" onClick={retake}>
-                      {t.retakeScan}
-                    </button>
+                    // Missing-vitals branch: recommend retake but let the
+                    // patient bypass. Common with v3-only now — any scan where
+                    // v3 skips (poor SQI) lands here with BP in missingVitals.
+                    // Forcing endless retakes isn't acceptable.
+                    <>
+                      <button className="btn btn-primary btn-full" onClick={retake}>
+                        {t.retakeScan}
+                      </button>
+                      <button
+                        className="btn btn-full"
+                        style={{ background: 'transparent', color: '#6B7280', border: 'none', textDecoration: 'underline', fontSize: '.875rem', padding: '.5rem', cursor: 'pointer', marginTop: '.25rem' }}
+                        onClick={async () => { await proceedToWaiting() }}>
+                        Continue anyway
+                      </button>
+                    </>
                   )}
                   {canContinue && vitals?.numericConfidence < 50 && (
                     <button className="btn btn-secondary btn-full" onClick={retake}>
