@@ -473,6 +473,13 @@ export default function WaitingRoom() {
         fireStuckAlert('stuck_draft_15min')
         return true
       }
+      // Status is healthy — clear any stale stuck flag from a prior tick.
+      // Without this reset, a successful /api/waiting-rescue (status flipped
+      // back to 'waiting' server-side) left stuckState='dead' locally and
+      // the banner kept rendering forever. Rejoin re-fire would reload the
+      // page which was the only way to clear it.
+      setStuckState(null)
+      stuckAlertFiredRef.current = false
       return false
     }
 
