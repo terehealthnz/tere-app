@@ -100,16 +100,16 @@ export async function sendProviderWelcomeEmail(provider, initialPin) {
             <div style="font-weight:700;color:#0B6E76;margin-bottom:.5rem">First-time login</div>
             <table style="border-collapse:collapse">
               <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Sign-in page</td><td><a href="${loginUrl}" style="color:#0B6E76">${loginUrl}</a></td></tr>
-              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Initial PIN</td><td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:1.1rem;letter-spacing:.05em">${pin}</td></tr>
+              <tr><td style="padding:4px 12px 4px 0;color:#4B5563">Temporary password</td><td style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:1.1rem;letter-spacing:.05em">${pin}</td></tr>
             </table>
-            <div style="margin-top:.75rem;font-size:.85rem;color:#B45309"><strong>You'll be asked to change this PIN on your first login</strong> — pick something only you know.</div>
+            <div style="margin-top:.75rem;font-size:.85rem;color:#B45309"><strong>You'll be asked to set your own password on first login</strong> — pick something only you know.</div>
           </div>
 
           <p style="font-weight:700;margin-bottom:.4rem">What to do first</p>
           <ol style="margin-top:0;padding-left:1.25rem">
             <li>Open the sign-in page and find <strong>your name</strong> in the list — tap your tile.</li>
-            <li>Enter the initial PIN above.</li>
-            <li>Set a new PIN when prompted.</li>
+            <li>Enter the temporary password above.</li>
+            <li>Set your own password when prompted.</li>
             <li>Complete your profile — MCNZ number, HPI-CPN, ACC provider number (if you're ACC-registered), specialty, prescribing signature, and any other details we still need.</li>
             <li>Turn on two-factor authentication (TOTP) from your profile — it's a two-minute setup and required for prescribing.</li>
           </ol>
@@ -403,7 +403,7 @@ export default async function handler(req, res) {
         ok: true,
         email: target.email,
         newPin,
-        note: 'PIN rotated + welcome email re-sent. Provider must change PIN on next login.',
+        note: 'Password rotated + welcome email re-sent. Provider must change password on next login.',
       })
     }
     // Server-mediated signature upload — replaces the previous client-side
@@ -541,7 +541,7 @@ export default async function handler(req, res) {
     return res.status(201).json({
       provider: created,
       initialPin: finalPin,
-      note: 'Initial PIN. Share securely with the new provider. They will be prompted to change it on first login.',
+      note: 'Temporary password. Share securely with the new provider. They will be prompted to set their own on first login.',
     })
   }
 

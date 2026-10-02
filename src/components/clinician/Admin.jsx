@@ -1808,11 +1808,11 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
 
           {/* PIN */}
           <div style={sectionStyle}>
-            <div style={sectionTitle}>Login PIN</div>
+            <div style={sectionTitle}>Temporary password</div>
             <div>
-              <div style={labelStyle}>Initial PIN (4–8 digits) — leave blank to auto-generate</div>
+              <div style={labelStyle}>Temporary password (4–8 digits) — leave blank to auto-generate</div>
               <input value={form.pin} onChange={e => set('pin', e.target.value.replace(/[^0-9]/g,'').slice(0,8))} style={{ ...inputStyle, fontFamily:'monospace', fontSize:'1rem', letterSpacing:'.1em' }} placeholder="Leave blank to auto-generate" />
-              <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:6 }}>Provider will be forced to change this PIN on first login.</div>
+              <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:6 }}>Provider will be forced to set their own password on first login.</div>
             </div>
           </div>
         </form>
@@ -2598,8 +2598,8 @@ function ProvidersPanel() {
         <div style={{ background:'#F0FDF4', border:'1px solid #86EFAC', borderRadius:8, padding:'.875rem 1rem', marginBottom:'1rem', fontSize:'.875rem' }}>
           <div style={{ color:'#065F46', fontWeight:700, marginBottom:4 }}>✓ Provider created: {createdNotice.provider.first_name} {createdNotice.provider.last_name}</div>
           <div style={{ color:'#065F46' }}>
-            Initial PIN: <code style={{ background:'white', padding:'2px 8px', borderRadius:4, fontSize:'1rem', fontWeight:700, letterSpacing:'.15em' }}>{createdNotice.initialPin}</code>
-            &nbsp;— share with them securely. They'll be prompted to change it on first login.
+            Temporary password: <code style={{ background:'white', padding:'2px 8px', borderRadius:4, fontSize:'1rem', fontWeight:700, letterSpacing:'.15em' }}>{createdNotice.initialPin}</code>
+            &nbsp;— share with them securely. They'll be prompted to set their own password on first login.
           </div>
           {createdNotice.supervisionPlan?.signedUrl && (
             <div style={{ marginTop:10, padding:'.625rem .75rem', background:'white', borderRadius:6, border:'1px solid #A7F3D0' }}>
@@ -2750,7 +2750,7 @@ function ProvidersPanel() {
                     )}
                     {p.email && (
                       <button onClick={async () => {
-                        const confirmed = window.confirm(`Rotate ${displayName}'s PIN and re-send welcome email to ${p.email}?\n\nTheir current PIN will stop working immediately.`)
+                        const confirmed = window.confirm(`Rotate ${displayName}'s password and re-send welcome email to ${p.email}?\n\nTheir current password will stop working immediately.`)
                         if (!confirmed) return
                         setSaving(p.id)
                         try {
@@ -2762,11 +2762,11 @@ function ProvidersPanel() {
                           })
                           const data = await r.json()
                           if (!r.ok) { alert(data.error || 'Resend failed'); return }
-                          alert(`Welcome email re-sent to ${data.email}.\n\nBackup PIN (in case the email bounces):\n${data.newPin}\n\nProvider will be forced to change PIN on next login.`)
+                          alert(`Welcome email re-sent to ${data.email}.\n\nBackup temporary password (in case the email bounces):\n${data.newPin}\n\nProvider will be forced to set a new password on next login.`)
                         } catch (e) { alert(e.message) }
                         finally { setSaving(null) }
                       }} disabled={saving === p.id}
-                        title="Rotate PIN + re-send the welcome email with new sign-in details"
+                        title="Rotate password + re-send the welcome email with new sign-in details"
                         style={{ background:'#FEF3C7', color:'#92400E', border:'none', padding:'4px 10px', borderRadius:6, cursor:'pointer', fontSize:'.75rem', fontFamily:'Plus Jakarta Sans, sans-serif', whiteSpace:'nowrap', fontWeight:600 }}>
                         {saving === p.id ? '…' : '📧 Resend welcome'}
                       </button>

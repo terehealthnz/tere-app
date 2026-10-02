@@ -197,18 +197,18 @@ function ReauthModal({ onSuccess, onLogout }) {
         <div style={{ fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', color: '#94a3b8', fontWeight: 700 }}>Session paused</div>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>Confirm it's you, {displayName}</div>
         <div style={{ fontSize: 13, color: '#475569', marginTop: 8, lineHeight: 1.5 }}>
-          You've been inactive for 15 minutes. Enter your PIN to resume — this protects patient data if your device was left unattended.
+          You've been inactive for 15 minutes. Enter your password to resume — this protects patient data if your device was left unattended.
         </div>
 
         {!needsMfa ? (
           <input
             type="password"
-            inputMode="numeric"
             autoFocus
-            placeholder="PIN"
+            placeholder="Password"
             value={pin}
-            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-            style={{ marginTop: 16, width: '100%', padding: '12px 14px', fontSize: 18, border: '1px solid #cbd5e1', borderRadius: 10, letterSpacing: 4, textAlign: 'center', boxSizing: 'border-box' }}
+            onChange={e => setPin(e.target.value)}
+            autoComplete="current-password"
+            style={{ marginTop: 16, width: '100%', padding: '12px 14px', fontSize: 18, border: '1px solid #cbd5e1', borderRadius: 10, textAlign: 'center', boxSizing: 'border-box' }}
           />
         ) : (
           <>
