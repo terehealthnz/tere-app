@@ -56,6 +56,19 @@ export default function ClinicianLogin() {
   const [needsMfa, setNeedsMfa] = useState(false)
   const [mfaCode, setMfaCode] = useState('')
 
+  // If the provider is already signed in and lands back on /clinician — via
+  // browser-back from /clinician/profile, a bookmark, direct URL typing —
+  // bounce them straight into the app instead of rendering the login UI.
+  // Previously this looked exactly like being logged out (full email+password
+  // form, no visible session state) even though sessionStorage was intact,
+  // and the first click re-logged them in silently. Reported 2026-10-01.
+  useEffect(() => {
+    if (sessionStorage.getItem('clinicianAuth') === '1' && sessionStorage.getItem('providerId')) {
+      navigate('/clinician/dashboard', { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Check for remembered device on mount. Saved blob may be from the old
   // (providerId-based) or new (email-based) format — accept either.
   useEffect(() => {
