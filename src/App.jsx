@@ -156,6 +156,7 @@ const USStart             = lazy(() => import('./pages/us/USStart'))
 const HipaaNotice         = lazy(() => import('./pages/us/HipaaNotice'))
 const AULanding           = lazy(() => import('./pages/au/AULanding'))
 const TereCorporate       = lazy(() => import('./pages/corporate/TereCorporate'))
+const TereGPLanding       = lazy(() => import('./pages/corporate/TereGPLanding'))
 
 const Spinner = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', background: '#F7F5F0' }}>
@@ -179,7 +180,14 @@ function PwaRoot() {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === 'au') {
       return <AULanding />
     }
-    return <TereCorporate />
+    // tere.co.nz is being repurposed 2026-10-01 from "corporate pitch page"
+    // into the Tere GP (virtual general practice) product. The GP flow
+    // itself isn't built yet, so the root serves a Coming Soon / Beta
+    // landing with Marlborough PHO + Triple O partnership context. The
+    // previous TereCorporate page is still reachable at /corporate on
+    // BOTH tere.co.nz and terehealth.co.nz (same React component, same
+    // deployment — stays inside Blacklock's pentest coverage).
+    return <TereGPLanding />
   }
   if (region === REGIONS.US) return <USLanding />
   if (region === REGIONS.AU) return <AULanding />
@@ -237,6 +245,12 @@ export default function App() {
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />
+        {/* Corporate / partnership page — same component on both domains.
+            tere.co.nz/corporate and terehealth.co.nz/corporate both land
+            here. Previously served at tere.co.nz/ root; moved 2026-10-01
+            when tere.co.nz was repurposed as the Tere GP coming-soon
+            product landing. */}
+        <Route path="/corporate"              element={<TereCorporate />} />
         <Route path="/start"                  element={<StartRouter />} />
         <Route path="/notice-of-privacy-practices" element={<HipaaNotice />} />
         <Route path="/consent"                element={<ConsentPage />} />
