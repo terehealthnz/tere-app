@@ -755,10 +755,13 @@ export default function AITriage() {
       return
     }
 
-    // Skip alcohol_amount if patient doesn't drink
+    // Skip alcohol_amount if patient doesn't drink, but ALWAYS continue
+    // to biometrics (sex/height/weight) — the previous jump to 'photo' on
+    // alcohol=no silently skipped biometrics entirely. Patrick 2026-10-03
+    // flagged that non-drinkers never got the sex/height/weight step.
     if (step.id === 'alcohol') {
       setData(newData)
-      advanceToStep(processed === 'yes' ? 'alcohol_amount' : 'photo', newData)
+      advanceToStep(processed === 'yes' ? 'alcohol_amount' : 'biometrics', newData)
       return
     }
 

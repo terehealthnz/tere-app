@@ -302,6 +302,32 @@ export default async function handler(req, res) {
   // the patient client. Pen-test M-5. Returned both at the top level and
   // nested on the consultation object for caller convenience.
   const patientToken = await mintAndAttachToken(supabase, data.id)
+
+  // Mirror the pharmacy pick onto the patient profile so future consults
+  // default to it (Patrick 2026-10-03: "preferred pharmacy isn't being saved
+  // on employee to the profile"). _patient-consult.js:335 already does this
+  // on PATCH when the provider or patient changes mid-consult, but employee
+  // WorkIntake creates and never patches, so the initial choice was being
+  // dropped. We ONLY write when the patient has no pharmacy_id yet to avoid
+  // clobbering a provider-set preference from a prior visit.
+  if (data.patient_id && data.pharmacy_id) {
+    try {
+      const { data: existing } = await supabase
+        .from('patients')
+        .select('pharmacy_id')
+        .eq('id', data.patient_id)
+        .maybeSingle()
+      if (!existing?.pharmacy_id) {
+        await supabase
+          .from('patients')
+          .update({ pharmacy_id: data.pharmacy_id, pharmacy_name: data.pharmacy || null, updated_at: new Date().toISOString() })
+          .eq('id', data.patient_id)
+      }
+    } catch (e) {
+      console.error('[create-consultation] pharmacy -> patient sync failed:', e?.message || e)
+    }
+  }
+
   // Fire on-call SMS if this consult lands straight in the queue (employer-
   // paid path). Paying patients hit windcave-fprn to flip to 'waiting' and
   // fire from there.
