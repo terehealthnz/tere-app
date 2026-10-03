@@ -423,13 +423,20 @@ export default function VitalsValidate() {
             }
             try { rec.stop() } catch {}
           }
-          setVitals(result); setScanPhase('done'); stopCamera(); setPhase('step3')
+          setVitals(result); setScanPhase('done'); stopCamera(); setPhase('autosave')
+          let spo2Fresh = null
           if (result.rawFrames) {
             const signal = { frames: result.rawFrames, fps: result.actualFps }
+            try {
+              spo2Fresh = calculateSpO2(result.rawFrames, selectedSubject?.fitzpatrick_scale)
+              if (spo2Fresh) setSpo2Estimate(spo2Fresh)
+            } catch {}
             // v3-only (matches live /vitals as of 2026-10-02). v15 still
             // computed in parallel and logged for research comparison, but
             // display uses v3 or nothing. Operator sees the same BP a real
-            // patient would get on the clinical surface.
+            // patient would get on the clinical surface. Once predictions are
+            // in, auto-save with the fresh values (handleSave overrides let
+            // us skip waiting for React to flush state).
             Promise.all([
               predictBP(signal, selectedSubject || {}).catch(() => null),
               v3ModelRef.current ? Promise.resolve(predictV3FromFrames(v3ModelRef.current, result.rawFrames, result.actualFps, selectedSubject || {})) : Promise.resolve(null),
@@ -438,12 +445,10 @@ export default function VitalsValidate() {
                 'v15=', v15Est && `${v15Est.systolic}/${v15Est.diastolic}`,
                 '| v3=', v3Est && !v3Est.skipped ? `${v3Est.systolic}/${v3Est.diastolic}` : `(${v3Est?.reason || 'no-model'})`)
               if (v3Est && !v3Est.skipped) setBpEstimate({ systolic: v3Est.systolic, diastolic: v3Est.diastolic, source: 'v3-gbm' })
-              // else: no display — matches /vitals honesty policy
+              handleSave({ vitals: result, spo2Estimate: spo2Fresh })
             })
-            try {
-              const spo2 = calculateSpO2(result.rawFrames, selectedSubject?.fitzpatrick_scale)
-              if (spo2) setSpo2Estimate(spo2)
-            } catch {}
+          } else {
+            handleSave({ vitals: result, spo2Estimate: null })
           }
           setBpModelMeta(getLocalMeta())
         },
@@ -556,19 +561,24 @@ export default function VitalsValidate() {
     } catch {}
   }, [trainingPhase, selectedSubject, bpEstimate, manual, bpModelMeta, triggerTraining])
 
-  const handleSave = async () => {
+  // overrides lets the scan-complete auto-save call us with fresh result
+  // before React has flushed `vitals` / `spo2Estimate` state. Review-screen
+  // Save button calls with no args and reads from state as before.
+  const handleSave = async (overrides = {}) => {
     setSaving(true); setSaveError(null)
     try {
+      const v   = overrides.vitals       ?? vitals
+      const sp2 = overrides.spo2Estimate ?? spo2Estimate
       // Twice-verified extraction. Run #1 = the live MultiPassMeasurement
       // result already in `vitals` (3 internal passes, current pipeline).
       // Run #2 = re-extract from the stored frames via processStoredFrames
       // (single-pass, same algorithm but different aggregation path). If both
       // agree within 5 bpm, the HR is "verified"; otherwise "unreliable".
-      const run1 = { hr: vitals?.hr ?? null, rr: vitals?.rr ?? null, source: 'live_multipass' }
+      const run1 = { hr: v?.hr ?? null, rr: v?.rr ?? null, source: 'live_multipass' }
       let run2 = { hr: null, rr: null, source: 'reprocess_stored' }
-      if (vitals?.rawFrames?.length) {
+      if (v?.rawFrames?.length) {
         try {
-          const r = processStoredFrames(vitals.rawFrames, vitals.actualFps || 30)
+          const r = processStoredFrames(v.rawFrames, v.actualFps || 30)
           if (r) run2 = { hr: r.hr ?? null, rr: r.rr ?? null, source: 'reprocess_stored', sigQuality: r.numericConfidence }
         } catch (e) { console.warn('Verification reprocess failed:', e.message) }
       }
@@ -598,20 +608,20 @@ export default function VitalsValidate() {
         manualTemperature: manual.temperature ? parseFloat(manual.temperature) : null,
         ambientTemp:     ambientTemp ?? null,
         tereHr:          finalHr,
-        tereRr:          vitals?.rr || null,
+        tereRr:          v?.rr || null,
         manualSpO2:      manualSpO2 ? parseInt(manualSpO2) : null,
-        tereSpo2:        spo2Estimate?.estimate || null,
-        rawRppgSignal:   vitals?.rawFrames
-          ? { frames: vitals.rawFrames, fps: vitals.actualFps, numericConfidence: vitals.numericConfidence }
+        tereSpo2:        sp2?.estimate || null,
+        rawRppgSignal:   v?.rawFrames
+          ? { frames: v.rawFrames, fps: v.actualFps, numericConfidence: v.numericConfidence }
           : null,
         deviceInfo,
         notes:             reviewNotes.trim() || null,
         sessionConditions: manual.notes.trim() || null,
-        hrvSdnn:    vitals?.hrv?.sdnn   || null,
-        hrvRmssd:   vitals?.hrv?.rmssd  || null,
-        hrvPnn50:   vitals?.hrv?.pnn50  || null,
-        afScore:    vitals?.afDetection?.score        || null,
-        afLikelihood: vitals?.afDetection?.likelihood || null,
+        hrvSdnn:    v?.hrv?.sdnn   || null,
+        hrvRmssd:   v?.hrv?.rmssd  || null,
+        hrvPnn50:   v?.hrv?.pnn50  || null,
+        afScore:    v?.afDetection?.score        || null,
+        afLikelihood: v?.afDetection?.likelihood || null,
         afConfirmed:    afConfirmed ?? null,
         afConfirmedBy:  afConfirmedBy || null,
         videoUrl,
@@ -1022,7 +1032,39 @@ export default function VitalsValidate() {
     )
   }
 
-  // ── Step 3: Review + save ─────────────────────────────────────────────────────
+  // ── Autosave: scan done → predict → save, no user interaction ────────────────
+  // Replaces the old Step 3 review screen for the hands-off flow Patrick asked
+  // for (2026-10-02). Step 3 is still reachable for debug but the live scan
+  // path jumps straight here after MultiPassMeasurement completes. If the save
+  // fails, the saveError block lets the user retry without re-scanning.
+
+  if (phase === 'autosave') {
+    return (
+      <PageWrap>
+        <SubjectBadge subject={selectedSubject} />
+        <Card>
+          <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+            {saveError ? (
+              <>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#EF4444', marginBottom: '.5rem' }}>Save failed</div>
+                <div style={{ color: '#6B7280', fontSize: '.9rem', marginBottom: '1rem' }}>{saveError}</div>
+                <Btn onClick={() => handleSave()} disabled={saving} style={{ width: '100%' }}>
+                  {saving ? 'Retrying…' : 'Try again'}
+                </Btn>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '1.15rem', fontWeight: 700, color: NAVY, marginBottom: '.4rem' }}>Saving your reading…</div>
+                <div style={{ color: '#6B7280', fontSize: '.9rem' }}>Processing BP + SpO2, uploading video.</div>
+              </>
+            )}
+          </div>
+        </Card>
+      </PageWrap>
+    )
+  }
+
+  // ── Step 3: Review + save (legacy, still reachable for debug) ────────────────
 
   if (phase === 'step3') {
     const hrDiff = vitals?.hr && manual.hr ? Math.abs(vitals.hr - parseInt(manual.hr)) : null
