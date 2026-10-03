@@ -633,8 +633,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // then got { room: null }, silently produced no audio, and the transcript
   // was empty. Now we wait on scribeRoomReady (or chimeAudioElRef for the
   // Chime path) so we only kick off scribe when we actually have audio.
+  //
+  // 2026-10-03 (Patrick): orange mic indicator stayed on after a call.
+  // Root cause: endCall()'s stopScribe flips scribeState back to 'idle'
+  // but inCall stays true until status flips, so this effect re-fired,
+  // started scribe a SECOND time — by then LiveKit had already
+  // disconnected so tereScribe fell through to its getUserMedia
+  // fallback, grabbing a fresh mic that nothing ever released. Gating
+  // on endingCall prevents the re-start.
   useEffect(() => {
-    if (!inCall || scribeState !== 'idle') return
+    if (!inCall || endingCall || scribeState !== 'idle') return
     if (chimeMode) {
       // Chime path — chimeAudioElRef is populated via ChimeCall's
       // onAudioElReady prop. If it's still null we can't scribe yet.
@@ -645,7 +653,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     }
     startScribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inCall, scribeRoomReady, chimeMode, scribeState])
+  }, [inCall, endingCall, scribeRoomReady, chimeMode, scribeState])
 
   async function initiateCall() {
     setCalling(true)
