@@ -44,21 +44,25 @@ const TAIL_BOOST = 2.0
 const MIN_NEW_SAMPLES = 10  // don't retrain if fewer than 10 new rows since last promote
 
 // Clinical plausibility bounds anchored to NZ adult BP. Asymmetric on
-// the upper SBP end to deliberately include stage-2 hypertensives
-// (160-185 sys) — these are the exact patients we most want the model
-// trained on, not filtered out. Fixed bounds (not SD-based) because:
+// the upper SBP end to deliberately include stage-2 and hypertensive-
+// urgency readings (160-200 sys) — these are the exact patients we most
+// want the model trained on, not filtered out. Fixed bounds (not SD-based)
+// because:
 //   1. Anchor is independent of training data, so bad actors can't
 //      shift the mean to defeat the filter by submitting many rows.
 //   2. Asymmetric upper allows real severe hypertension while still
-//      excluding hypertensive-crisis (190+) that needs clinical review
+//      excluding hypertensive-crisis (>200) that needs clinical review
 //      not model fodder, and typos (300/200).
 //
+// Upper raised from 185 → 200 on 2026-10-03 (Patrick): data is sparse
+// above 150 so we want to keep every real hypertensive we can.
+//
 // Lower SBP 75: below hypotensive-shock threshold → likely typo.
-// Upper SBP 185: covers normal → stage-2 hypertension.
+// Upper SBP 200: covers normal → hypertensive-urgency.
 // Lower DBP 45: below diastolic-shock → likely typo.
 // Upper DBP 115: covers normal → stage-2 (DBP > 115 is hypertensive urgency).
 const BP_ANCHOR = {
-  sysMin: 75,  sysMax: 185,
+  sysMin: 75,  sysMax: 200,
   diaMin: 45,  diaMax: 115,
 }
 function withinAnchor(sys, dia) {
