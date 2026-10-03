@@ -842,11 +842,11 @@ export default function VitalsValidate() {
                   <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate * <span style={{ fontWeight: 400, color: '#EF4444' }}>(required)</span></label>
+                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span></label>
                   <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input type="number" min="30" max="220" value={manual.hr} onChange={e => setManual(p => ({ ...p, hr: e.target.value }))} placeholder="e.g. 72" required
-                      style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: manual.hr ? '1.5px solid #D1D5DB' : '2px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                      style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #D1D5DB', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                     <span style={{ fontSize: '.875rem', color: '#6B7280' }}>bpm</span>
                   </div>
                 </div>
@@ -873,7 +873,7 @@ export default function VitalsValidate() {
               <strong>Before you submit:</strong> because the study is anonymous, once you press Save we cannot identify which record is yours and cannot withdraw an individual submission later. Pressing "Save & start scan" means you are 18+ and consent to your anonymous data being used as described in the <a href="/vitals-validate/participant-info" target="_blank" rel="noopener" style={{ color: TEAL, fontWeight: 700 }}>Participant Information Sheet</a>.
             </div>
             <div style={{ display: 'flex', gap: '.75rem', marginTop: '.5rem' }}>
-              <Btn onClick={handleCreateSubject} disabled={savingSubject || !manual.systolic || !manual.diastolic || !manual.hr} style={{ width: '100%' }}>
+              <Btn onClick={handleCreateSubject} disabled={savingSubject || !manual.systolic || !manual.diastolic} style={{ width: '100%' }}>
                 {savingSubject ? 'Saving…' : 'Save & start scan →'}
               </Btn>
             </div>
@@ -886,7 +886,7 @@ export default function VitalsValidate() {
   // ── Step 1: Manual readings ───────────────────────────────────────────────────
 
   if (phase === 'step1') {
-    const canProceed = manual.systolic && manual.diastolic && manual.hr
+    const canProceed = manual.systolic && manual.diastolic
     return (
       <PageWrap>
         <SubjectBadge subject={selectedSubject} onSwitch={goToSelect} />
@@ -904,7 +904,7 @@ export default function VitalsValidate() {
               <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-              <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate * <span style={{ fontWeight: 400, color: '#EF4444' }}>(required)</span></label>
+              <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span></label>
               <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>
                 Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.
               </p>
@@ -914,7 +914,7 @@ export default function VitalsValidate() {
                   onChange={e => setManual(p => ({ ...p, hr: e.target.value }))}
                   placeholder="e.g. 72"
                   required
-                  style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: manual.hr ? '1.5px solid #D1D5DB' : '2px solid #F59E0B', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: 110, padding: '8px 12px', borderRadius: 8, border: '1.5px solid #D1D5DB', fontSize: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', boxSizing: 'border-box' }}
                 />
                 <span style={{ fontSize: '.875rem', color: '#6B7280' }}>bpm</span>
               </div>
