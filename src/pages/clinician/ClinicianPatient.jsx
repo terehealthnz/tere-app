@@ -763,15 +763,17 @@ export default function ClinicianPatient() {
 
         {/* Vitals trend — combines current consult + past encounters, sorted
             newest first. Only rows that captured at least one vital appear.
-            Simple table for spotting BP / HR / SpO₂ drift over time. */}
+            Simple table for spotting BP / HR / SpO₂ drift over time. Each
+            past row is clickable → opens the source consult's note modal
+            (NOW row isn't clickable, provider's already in that consult). */}
         {(() => {
           const rows = [
-            ...(v && !v.skipped && (v.hr || v.rr || v.spo2 || v.bp || v.temperature) ? [{ date: consult.created_at, v, current: true }] : []),
+            ...(v && !v.skipped && (v.hr || v.rr || v.spo2 || v.bp || v.temperature) ? [{ date: consult.created_at, v, current: true, src: consult }] : []),
             ...history
               .filter(c => c.vitals && !c.vitals.skipped && (c.vitals.hr || c.vitals.rr || c.vitals.spo2 || c.vitals.bp || c.vitals.temperature))
-              .map(c => ({ date: c.created_at, v: c.vitals, current: false })),
+              .map(c => ({ date: c.created_at, v: c.vitals, current: false, src: c })),
           ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 12)
-          if (rows.length < 2) return null
+          if (rows.length < 1) return null
           return (
             <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
               <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
@@ -790,8 +792,15 @@ export default function ClinicianPatient() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={i} style={{ borderTop: '1px solid #F1F5F9', background: r.current ? '#F0F9FA' : 'transparent' }}>
+                    {rows.map((r, i) => {
+                      const clickable = !r.current && r.src
+                      return (
+                      <tr key={i}
+                        onClick={clickable ? () => setNoteModal(r.src) : undefined}
+                        onMouseEnter={clickable ? e => { e.currentTarget.style.background = '#F1F5F9' } : undefined}
+                        onMouseLeave={clickable ? e => { e.currentTarget.style.background = 'transparent' } : undefined}
+                        title={clickable ? 'Click to open this encounter' : undefined}
+                        style={{ borderTop: '1px solid #F1F5F9', background: r.current ? '#F0F9FA' : 'transparent', cursor: clickable ? 'pointer' : 'default', transition: 'background .12s' }}>
                         <td style={{ padding: '.5rem .625rem', color: NAVY, fontFamily: FF, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
                           {new Date(r.date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: '2-digit' })}
                           {r.current && <span style={{ marginLeft: 4, background: TEAL, color: 'white', fontSize: '.5625rem', fontWeight: 700, padding: '1px 5px', borderRadius: 99, verticalAlign: 'middle' }}>NOW</span>}
@@ -802,12 +811,12 @@ export default function ClinicianPatient() {
                         <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.bp ? NAVY : '#D1D5DB' }}>{r.v.bp || '—'}</td>
                         <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.v.temperature ? '#DC2626' : '#D1D5DB' }}>{r.v.temperature ? `${r.v.temperature}°` : '—'}</td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
               <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: '.5rem' }}>
-                Newest first. Highlighted row = current encounter. SpO₂ shown for readings above the confidence threshold; camera-based BP is experimental and not clinically validated.
+                Newest first. Highlighted row = current encounter. Click any past row to open that encounter. SpO₂ shown for readings above the confidence threshold; camera-based BP is experimental and not clinically validated.
               </div>
             </div>
           )
