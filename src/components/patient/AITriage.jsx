@@ -1407,9 +1407,12 @@ export default function AITriage() {
     const q = pharmacyQuery.trim().toLowerCase()
     if (q.length < 2 || !pharmacyIndex) { setPharmacyResults([]); return }
     setPharmacyLoading(true)
-    // Substring match. Prefer name matches, then address / town / region matches —
-    // the address string carries the actual city/suburb (Picton, Howick, Blenheim)
-    // whereas `town` is the broader HNZ district (Nelson Marlborough, Counties Manukau).
+    // Token match (2026-10-03): the old substring match required the FULL
+    // query to appear in one field, so "chemist warehouse blenheim" never
+    // matched "Chemist Warehouse Springlands" whose town is Blenheim. Now
+    // every whitespace token must match somewhere across name+address+
+    // town+region. Name hits still rank above address/town hits.
+    const tokens = q.split(/\s+/).filter(t => t.length >= 2)
     const nameHits = []
     const otherHits = []
     for (const p of pharmacyIndex) {
@@ -1417,8 +1420,10 @@ export default function AITriage() {
       const address = (p.address       || '').toLowerCase()
       const town    = (p.town          || '').toLowerCase()
       const region  = (p.region        || '').toLowerCase()
-      if (name.includes(q)) nameHits.push(p)
-      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      const haystack = `${name} ${address} ${town} ${region}`
+      if (!tokens.every(t => haystack.includes(t))) continue
+      if (tokens.every(t => name.includes(t))) nameHits.push(p)
+      else otherHits.push(p)
       if (nameHits.length + otherHits.length >= 40) break
     }
     setPharmacyResults([...nameHits, ...otherHits].slice(0, 8))

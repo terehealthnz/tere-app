@@ -49,6 +49,12 @@ export default function WorkIntake() {
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
   const [nhi, setNhi] = useState('')
+  // GP contact for continuity of care (2026-10-03). Optional — the main
+  // triage flow collects this via its own picker; employee flow needs a
+  // simpler free-text equivalent so the provider can forward the visit
+  // summary to the worker's GP after the consult.
+  const [gpName,  setGpName]  = useState('')
+  const [gpEmail, setGpEmail] = useState('')
   const [chief, setChief] = useState('')
   // Work injury + ACC fields (2026-10-02). Employees skip triage, so
   // acc_eligible defaulted to 'no' and ACC45 claims never fired for
@@ -151,8 +157,13 @@ export default function WorkIntake() {
         // Only fill empty fields — never clobber what the worker has typed.
         // prefillDone gate makes changing DOB after a match not re-fire fills.
         if (!prefillDone && body.prefill) {
+          // Treat IETF reserved example domains (example.com/org/net) as
+          // "no real email" so test-data in the employer row doesn't fill
+          // the field with you@example.com that the worker then has to
+          // delete. Patrick flagged 2026-10-03.
+          const isExampleEmail = e => typeof e === 'string' && /@(example\.(com|org|net)|test\.com)$/i.test(e.trim())
           if (!phone   && body.prefill.phone)   setPhone(body.prefill.phone)
-          if (!email   && body.prefill.email)   setEmail(body.prefill.email)
+          if (!email   && body.prefill.email && !isExampleEmail(body.prefill.email))   setEmail(body.prefill.email)
           if (!address && body.prefill.address) setAddress(body.prefill.address)
           if (!nhi     && body.prefill.nhi)     setNhi(body.prefill.nhi)
           setPrefillDone(true)
@@ -218,19 +229,29 @@ export default function WorkIntake() {
     return () => { cancelled = true }
   }, [pharmacyIndex])
 
-  // Simple substring search over the register. Name matches rank above
-  // town/address matches. Capped at 8 rows so the dropdown fits on screen.
+  // Token-based search over the register (2026-10-03): the old substring
+  // match required the FULL query to appear in one field, so "chemist
+  // warehouse blenheim" never matched "Chemist Warehouse Springlands"
+  // whose town is Blenheim. Now we tokenise on whitespace and require
+  // every token to appear SOMEWHERE across name+address+town — name hits
+  // still rank above pure address/town hits. Capped at 8 rows.
   useEffect(() => {
-    const q = pharmacyQuery.trim().toLowerCase()
-    if (q.length < 2 || !pharmacyIndex) { setPharmacyResults([]); return }
+    const raw = pharmacyQuery.trim().toLowerCase()
+    if (raw.length < 2 || !pharmacyIndex) { setPharmacyResults([]); return }
+    const tokens = raw.split(/\s+/).filter(t => t.length >= 2)
+    if (!tokens.length) { setPharmacyResults([]); return }
     const nameHits = []
     const otherHits = []
     for (const p of pharmacyIndex) {
       const name = (p.premises_name || '').toLowerCase()
       const addr = (p.address || '').toLowerCase()
       const town = (p.town || '').toLowerCase()
-      if (name.includes(q)) nameHits.push(p)
-      else if (addr.includes(q) || town.includes(q)) otherHits.push(p)
+      const haystack = `${name} ${addr} ${town}`
+      const allMatch = tokens.every(t => haystack.includes(t))
+      if (!allMatch) continue
+      const allInName = tokens.every(t => name.includes(t))
+      if (allInName) nameHits.push(p)
+      else otherHits.push(p)
       if (nameHits.length + otherHits.length >= 40) break
     }
     setPharmacyResults([...nameHits, ...otherHits].slice(0, 8))
@@ -315,6 +336,12 @@ export default function WorkIntake() {
         email:     email.trim() || null,
         address:   address.trim() || null,
         nhi:       nhi.trim().toUpperCase().replace(/\s+/g, '') || null,
+        // GP for continuity of care (2026-10-03). Keys match createConsultation's
+        // existing gpName/gpEmail mapping which lands on consultations.gp_name /
+        // consultations.gp_email — provider notes flow auto-sends the GP summary
+        // email after the consult if an email is present.
+        gpName:    gpName.trim()  || null,
+        gpEmail:   gpEmail.trim() || null,
         complaint: chief.trim(),
         preferredImagingRegionId: imagingRegion === 'not_sure' ? null : (imagingRegion || null),
         pharmacyId: selectedPharmacy?.id || null,
@@ -474,6 +501,16 @@ export default function WorkIntake() {
 
             <label style={label}>{t.nhiLabel}</label>
             <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} onFocus={e => e.target.select()} placeholder="ABC1234" maxLength={7} autoComplete="off" />
+
+            {/* GP for continuity of care — optional. Lets the provider send
+                the visit summary to the worker's regular GP so the ongoing
+                record stays complete. Mirrors the triage flow's continuity
+                step; keeping it free-text here (no picker) because employees
+                are usually in a rush and this isn't a blocker. */}
+            <label style={label}>GP name <span style={{ fontWeight: 400, color: 'rgba(255,255,255,.5)' }}>(optional)</span></label>
+            <input style={inp} type="text" value={gpName} onChange={e => setGpName(e.target.value)} onFocus={e => e.target.select()} placeholder="e.g. Dr Smith · Picton Medical Centre" autoComplete="off" />
+            <label style={label}>GP email <span style={{ fontWeight: 400, color: 'rgba(255,255,255,.5)' }}>(optional)</span></label>
+            <input style={inp} type="email" value={gpEmail} onChange={e => setGpEmail(e.target.value)} onFocus={e => e.target.select()} placeholder="reception@gpclinic.co.nz" autoComplete="off" />
 
             {/* Biometrics — shared dark-themed BiometricsForm (unit toggles
                 cm↔ft/in + kg↔lb, defaults to metric, always submits

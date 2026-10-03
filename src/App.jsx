@@ -1,5 +1,26 @@
-import React, { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { Suspense, lazy, useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+
+// Global click delegate for .navbar-brand so the Tere wordmark is
+// clickable → "/" on every page without having to touch 25+ components
+// one at a time (Patrick 2026-10-03). Cheaper than wrapping each span.
+function BrandClickHandler() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const onClick = (e) => {
+      const el = e.target.closest?.('.navbar-brand')
+      if (!el) return
+      // Already-wired elements (VitalsCapture etc.) set their own onClick
+      // via React handlers; those bubble DOM clicks here too, so the extra
+      // navigate('/') is harmless — react-router dedupes identical nav.
+      e.preventDefault()
+      navigate('/')
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [navigate])
+  return null
+}
 
 function isChunkError(error) {
   const msg = error?.message || ''
@@ -251,6 +272,7 @@ export default function App() {
     <SessionIdleGuard />
     <StuckHelperWidget />
     <FunnelTracker />
+    <BrandClickHandler />
     <Suspense fallback={<Spinner />}>
       <Routes>
         <Route path="/"                       element={<PwaRoot />} />

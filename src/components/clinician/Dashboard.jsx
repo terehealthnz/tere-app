@@ -599,28 +599,12 @@ export default function Dashboard() {
                       ) : null}
                     </div>
                     <div style={{fontSize:'.8125rem',color:'var(--muted)'}}>{timeAgo(c.created_at)}</div>
-                    <div onClick={e => e.stopPropagation()} style={{ display:'flex', gap:6, alignItems:'center' }}>
-                      {!isLocked && (
-                        <button
-                          onClick={() => navigate('/provider/consult/' + c.id)}
-                          disabled={joiningId === c.id}
-                          style={{ background:'#0B6E76', border:'none', color:'white', padding:'6px 14px', borderRadius:6, cursor: joiningId === c.id ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700, fontFamily:'Plus Jakarta Sans,sans-serif', whiteSpace:'nowrap' }}>
-                          {c.consultation_type === 'video' ? '📹 Start call' : '📞 Start call'}
-                        </button>
-                      )}
-                      {/* Dismiss button removed from queue card 2026-10-01 — Patrick
-                          found consults mysteriously flipping to status='expired'
-                          with no audit trail. Grep confirmed Dashboard's requestDismiss
-                          was the only code path writing 'expired' to a consult. Even
-                          with the two-step modal, a provider mis-tapping ✕ next to
-                          "Start Call" then hitting the red "Yes, dismiss" (which is
-                          styled as primary — standard UX trap for destructive actions)
-                          would silently kill the patient's consult. The button is
-                          removed from this surface entirely. If a provider needs to
-                          cancel a specific consult, admin flows handle it with the
-                          correct context. requestDismiss/confirmDismiss stay in-file
-                          so a future admin-only entry point can call them. */}
-                    </div>
+                    {/* Start Call button removed from queue 2026-10-03 (Patrick) —
+                        going straight to the call surprised the provider when they
+                        wanted to review the chart first. The row itself is already
+                        clickable (line ~539) → navigates to /clinician/patient/<id>
+                        where the provider can then start the call from the chart's
+                        in-context Call button once ready. */}
                   </div>
                 )
               })}

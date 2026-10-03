@@ -303,14 +303,19 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
     if (!medsafeList) return []
     const q = pharmacyQuery.trim().toLowerCase()
     if (q.length < 2) return []
+    // Token match (2026-10-03) — see AITriage/WorkIntake comment.
+    const tokens = q.split(/\s+/).filter(t => t.length >= 2)
+    if (!tokens.length) return []
     const nameHits = [], otherHits = []
     for (const p of medsafeList) {
       const name    = (p.premises_name || '').toLowerCase()
       const address = (p.address       || '').toLowerCase()
       const town    = (p.town          || '').toLowerCase()
       const region  = (p.region        || '').toLowerCase()
-      if (name.includes(q)) nameHits.push(p)
-      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      const haystack = `${name} ${address} ${town} ${region}`
+      if (!tokens.every(t => haystack.includes(t))) continue
+      if (tokens.every(t => name.includes(t))) nameHits.push(p)
+      else otherHits.push(p)
       if (nameHits.length + otherHits.length >= 40) break
     }
     return [...nameHits, ...otherHits].slice(0, 8)
