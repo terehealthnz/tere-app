@@ -193,6 +193,11 @@ export default function VitalsCapture() {
   const [faceBox,      setFaceBox]      = useState(null)   // normalised { x,y,w,h } from FaceMesh
   const [attemptCount,   setAttemptCount]   = useState(0)     // Increments each DONE. Abnormal-retake gate uses this: first abnormal blocks Continue, second attempt lets it through so genuinely sick patients aren't looped forever.
   const [showAbnormalGate, setShowAbnormalGate] = useState(false)
+  // When updateVitals() PATCH fails post-scan we stash the id+payload so the
+  // DONE panel can show a Retry button. Prevents the silent-drop bug where
+  // vitals showed to the patient but never reached the provider's chart.
+  const [pendingSave,  setPendingSave]  = useState(null)
+  const [retryingSave, setRetryingSave] = useState(false)
   const rearStreamRef  = useRef(null)
   const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
 
@@ -554,19 +559,22 @@ export default function VitalsCapture() {
         if (id && !id.startsWith('demo')) {
           try {
             await updateVitals(id, payload)
+            setPendingSave(null)
             apiFetch('/api/push-notify', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ type:'vitals_ready', consultationId:id }),
             }).catch(() => {})
           } catch (e) {
-            // Bug hunt (task #526): vitals were silently dropped when the
-            // PATCH failed (typically a stale patient_access_token from an
-            // earlier consult attempt in the same tab, returning 403). Log
-            // and surface a warning so the patient knows to retry rather
-            // than presenting an empty vitals row to the provider queue.
+            // Vitals were silently dropped (task #526) when the PATCH failed —
+            // typically a stale patient_access_token returning 403. The error
+            // used to only render in STATES.ERROR, but a successful scan sits
+            // in STATES.DONE, so the warning was swallowed. Now we also stash
+            // {id, payload} so the DONE panel can show a Retry button that
+            // re-sends without forcing a re-scan.
             console.error('[vitals] save failed:', e?.message || e, { consultationId: id })
             setError(t.vitalsSaveFail.replace('{msg}', e?.message || t.serverError))
+            setPendingSave({ id, payload })
           }
         } else {
           sessionStorage.setItem('vitals', JSON.stringify(payload))
@@ -583,12 +591,35 @@ export default function VitalsCapture() {
     await measureRef.current.start(videoRef.current, canvasRef.current, calibration, quality)
   }
 
+  // Retry the last failed vitals PATCH without re-scanning. Called from the
+  // Retry button on the DONE panel when the first POST hit a 403 / network
+  // blip and the vitals never landed on the consultation row.
+  async function retrySave() {
+    if (!pendingSave || retryingSave) return
+    setRetryingSave(true); setError('')
+    try {
+      await updateVitals(pendingSave.id, pendingSave.payload)
+      setPendingSave(null)
+      apiFetch('/api/push-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type:'vitals_ready', consultationId: pendingSave.id }),
+      }).catch(() => {})
+    } catch (e) {
+      console.error('[vitals] retry save failed:', e?.message || e)
+      setError(t.vitalsSaveFail.replace('{msg}', e?.message || t.serverError))
+    } finally {
+      setRetryingSave(false)
+    }
+  }
+
   async function retake() {
     setVitals(null)
     setProgress(0)
     setLiveHR(null)
     setFaceBox(null)
     setError('')
+    setPendingSave(null)
     setShowAbnormalGate(false)
     // Clear stale per-scan state too — otherwise a retake shows the previous
     // scan's BP/SpO2 until the new one computes, which looks like the model
@@ -1155,6 +1186,22 @@ export default function VitalsCapture() {
 
               {uiState === STATES.DONE && (
                 <>
+                  {/* Save-failed banner: shown when updateVitals PATCH failed
+                      after the scan completed. Without this the error was
+                      silently swallowed (DONE state doesn't render ERROR-state
+                      error text), and the patient saw their vitals locally
+                      while the provider's chart stayed blank. */}
+                  {pendingSave && (
+                    <div style={{background:'#FEE2E2',border:'1px solid #FCA5A5',borderRadius:8,padding:'.75rem .875rem',marginBottom:'.75rem',fontSize:'.875rem',color:'#991B1B'}}>
+                      <strong>Vitals didn't reach the clinician.</strong>
+                      {error ? <> {error}</> : <> Save failed — your reading is on this device but the server didn't accept it.</>}
+                      <div style={{marginTop:'.5rem',display:'flex',gap:'.5rem',flexWrap:'wrap'}}>
+                        <button className="btn btn-primary" style={{padding:'.4rem .9rem',fontSize:'.85rem'}} onClick={retrySave} disabled={retryingSave}>
+                          {retryingSave ? 'Retrying…' : 'Try again'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {missingVitals.length > 0 && (
                     <div style={{background:'#FEF3C7',border:'1px solid #FDE68A',borderRadius:8,padding:'.75rem .875rem',marginBottom:'.75rem',fontSize:'.875rem',color:'#78350F'}}>
                       <strong>{t.missingReadings}</strong> {missingVitals.join(', ')}.

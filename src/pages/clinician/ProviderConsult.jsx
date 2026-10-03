@@ -602,6 +602,28 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     }
   }, [])
 
+  // Tab-close safety net. React cleanups don't fire on raw browser close
+  // (ctrl/cmd-W, X button, hard navigate to a non-React URL), so the patient
+  // was being left in a live LiveKit room with camera + mic on until the
+  // 20s LiveKit grace period on their side timed out — Patrick confirmed
+  // 2026-10-03 that his test patient's phone stayed hot after he closed
+  // the provider tab. We fire the provider_left broadcast synchronously-ish
+  // from pagehide/beforeunload so patient's subscribeToConsultationEnded
+  // routes them to /done immediately.
+  useEffect(() => {
+    const onExit = () => {
+      const g = latestEndCallRef.current
+      if (!g?.inCall || g.endingCall) return
+      try { broadcastConsultationEnded(id, 'provider_left').catch(() => {}) } catch {}
+    }
+    window.addEventListener('beforeunload', onExit)
+    window.addEventListener('pagehide',     onExit)
+    return () => {
+      window.removeEventListener('beforeunload', onExit)
+      window.removeEventListener('pagehide',     onExit)
+    }
+  }, [id])
+
   // Auto-start scribe when entering in-call state.
   //
   // Bug fix: previously depended only on [inCall]. On the LiveKit path,

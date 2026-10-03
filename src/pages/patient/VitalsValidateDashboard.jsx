@@ -493,6 +493,72 @@ function BPAnalysisPanel({ readings, subjects }) {
     }
   }
 
+  // One-shot: train v3 at knee defaults (20 trees, tailBoost=2 — same recipe
+  // as nightly cron), compare to server-active val MAE, auto-promote if
+  // better. For when Patrick wants latest data in prod without clicking
+  // through tree sweep → train → promote. Mirrors the gated behaviour of
+  // api/_cron-retrain-bp-v3.js but trainable + promotable from the UI.
+  async function oneShotRetrainV3() {
+    setV3Running(true); setV3Error(''); setV3Progress('Retrain v3: extracting features…')
+    try {
+      const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+      const withBoth = readings.filter(r =>
+        r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+      )
+      const features = []
+      const labels = []
+      const indexed = []
+      for (let i = 0; i < withBoth.length; i++) {
+        const r = withBoth[i]
+        const sub = r.subject_id ? subMap[r.subject_id] : {}
+        const fps = r.raw_rppg_signal?.fps || 30
+        if (i % 5 === 0) await new Promise(res => setTimeout(res, 0))
+        try {
+          const feats = framesToV3Features(r.raw_rppg_signal.frames, fps, sub)
+          if (feats) { features.push(feats); labels.push([r.manual_systolic, r.manual_diastolic]); indexed.push({ r, feats }) }
+        } catch {}
+      }
+      if (features.length < 20) {
+        setV3Error(`Only ${features.length} usable signals — need ≥20 to retrain.`)
+        return
+      }
+      setV3Progress(`Retrain v3: training 20 trees tailBoost=2 on ${features.length}…`)
+      await new Promise(res => setTimeout(res, 0))
+      const model = trainV3(features, labels, { nTrees: 20, depth: 3, lr: 0.1, valFrac: 0.2, tailBoost: 2 })
+      saveV3Model(model)
+      setV3Model(model)
+      // Populate the preds table so the scatter + readings column reflect
+      // the new model regardless of promote outcome.
+      setV3Preds(indexed.map(({ r, feats }) => {
+        const p = predictV3(model, feats)
+        return { id: r.id, date: r.recorded_at, subject: r.subject_code, actualSys: r.manual_systolic, actualDia: r.manual_diastolic, predSys: p.systolic, predDia: p.diastolic }
+      }))
+      // Promote gate: new val sys MAE must be ≤ server active sys MAE, dia
+      // within +0.5 tolerance. Same thresholds as the nightly cron so manual
+      // and automated runs can't disagree about what's safe to promote.
+      const newSys = model.meta?.valMae?.sys
+      const newDia = model.meta?.valMae?.dia
+      const activeSys = v3ActiveServer?.meta?.valMae?.sys
+      const activeDia = v3ActiveServer?.meta?.valMae?.dia
+      if (activeSys != null && (newSys > activeSys || newDia > activeDia + 0.5)) {
+        setV3Progress(`Trained val ${newSys}/${newDia} vs active ${activeSys}/${activeDia} — not promoting (regression).`)
+        return
+      }
+      setV3Progress(`Trained val ${newSys}/${newDia} — promoting…`)
+      await promoteV3Model(model, `Retrain-v3 button · n=${model.meta?.n} · val sys ${newSys} dia ${newDia} · tailBoost=2`)
+      const resp = await fetch('/api/bp-v3-model', { credentials: 'include' })
+      if (resp.ok) setV3ActiveServer(await resp.json())
+      setV3Progress(`✓ Promoted · val sys ±${newSys} dia ±${newDia}`)
+    } catch (e) {
+      setV3Error(`Retrain v3 failed: ${e.message || e}`)
+    } finally {
+      setV3Running(false)
+      // Leave the status line showing for a few seconds so Patrick can read
+      // the promote/regression outcome, then clear.
+      setTimeout(() => setV3Progress(''), 6000)
+    }
+  }
+
   async function handlePromoteV2() {
     if (!v2Model) return
     setV2Promoting(true); setV2Error('')
@@ -616,6 +682,11 @@ function BPAnalysisPanel({ readings, subjects }) {
         <button onClick={trainAndRunV3} disabled={v3Running}
           style={{ background: '#7C3AED', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v3Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           {v3Running && !v3Progress.includes('Sweeping tree') ? v3Progress : `Train & run v3 (${v3Trees} trees)`}
+        </button>
+        <button onClick={oneShotRetrainV3} disabled={v3Running}
+          title="One-click: train v3 at the proven knee (20 trees, tailBoost=2) and auto-promote if it beats the current prod model. Same gates as the nightly cron."
+          style={{ background: '#059669', color: 'white', border: 'none', borderRadius: 99, padding: '.5rem 1.25rem', fontWeight: 700, fontSize: '.85rem', cursor: v3Running ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          {v3Running && v3Progress.startsWith('Retrain v3') ? v3Progress : '🔄 Retrain v3'}
         </button>
         {!ready && <span style={{ fontSize: '.8rem', color: '#9CA3AF' }}>v15 not yet trained or insufficient samples</span>}
         {bpPreds.length > 0 && !running && <span style={{ fontSize: '.8rem', color: '#6B7280' }}>v15: {bpPreds.length}</span>}
