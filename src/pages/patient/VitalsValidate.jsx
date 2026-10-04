@@ -852,7 +852,7 @@ export default function VitalsValidate() {
                   <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span></label>
+                  <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(if available)</span></label>
                   <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.</p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <input type="number" min="30" max="220" value={manual.hr} onChange={e => setManual(p => ({ ...p, hr: e.target.value }))} placeholder="e.g. 72" required
@@ -883,7 +883,9 @@ export default function VitalsValidate() {
               <strong>Before you submit:</strong> because the study is anonymous, once you press Save we cannot identify which record is yours and cannot withdraw an individual submission later. Pressing "Save & start scan" means you are 18+ and consent to your anonymous data being used as described in the <a href="/vitals-validate/participant-info" target="_blank" rel="noopener" style={{ color: TEAL, fontWeight: 700 }}>Participant Information Sheet</a>.
             </div>
             <div style={{ display: 'flex', gap: '.75rem', marginTop: '.5rem' }}>
-              <Btn onClick={handleCreateSubject} disabled={savingSubject || !manual.systolic || !manual.diastolic} style={{ width: '100%' }}>
+              <Btn onClick={handleCreateSubject}
+                disabled={savingSubject || !(manual.hr || (manual.systolic && manual.diastolic))}
+                style={{ width: '100%' }}>
                 {savingSubject ? 'Saving…' : 'Save & start scan →'}
               </Btn>
             </div>
@@ -896,7 +898,9 @@ export default function VitalsValidate() {
   // ── Step 1: Manual readings ───────────────────────────────────────────────────
 
   if (phase === 'step1') {
-    const canProceed = manual.systolic && manual.diastolic
+    // Enter HR OR BP (not both required) — contributor may only have a
+    // pulse ox or only a cuff. Patrick 2026-10-03.
+    const canProceed = manual.hr || (manual.systolic && manual.diastolic)
     return (
       <PageWrap>
         <SubjectBadge subject={selectedSubject} onSwitch={goToSelect} />
@@ -910,11 +914,11 @@ export default function VitalsValidate() {
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1.25rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
-              <Field label="Systolic (mmHg)" value={manual.systolic} onChange={v => setManual(p => ({ ...p, systolic: v }))} type="number" min="60" max="250" placeholder="120" />
-              <Field label="Diastolic (mmHg)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
+              <Field label="Systolic (mmHg, if available)" value={manual.systolic} onChange={v => setManual(p => ({ ...p, systolic: v }))} type="number" min="60" max="250" placeholder="120" />
+              <Field label="Diastolic (mmHg, if available)" value={manual.diastolic} onChange={v => setManual(p => ({ ...p, diastolic: v }))} type="number" min="40" max="150" placeholder="80" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '.25rem' }}>
-              <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional)</span></label>
+              <label style={{ fontSize: '.85rem', fontWeight: 700, color: NAVY }}>Heart rate <span style={{ fontWeight: 400, color: '#6B7280' }}>(if available)</span></label>
               <p style={{ fontSize: '.75rem', color: '#6B7280', margin: '2px 0 6px' }}>
                 Count your pulse for 30 seconds and multiply by 2, or use a smartwatch reading.
               </p>
