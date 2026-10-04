@@ -139,7 +139,7 @@ export default function RppgReplay() {
         variants[r.id] = runAllHRVariants(frames, fps, sub)
       } catch (e) {
         results[r.id] = { hr: null, rr: null, ok: false, reason: e?.message || 'error' }
-        variants[r.id] = { variant1: null, variant2: null, variant5: null, variant6: null }
+        variants[r.id] = { variant1: null, variant2: null, variant5: null, variant6: null, variant7: null, variant8: null, variant9: null }
       }
       setProgress({ done: i + 1, total: readings.length })
     }
@@ -178,10 +178,8 @@ export default function RppgReplay() {
     if (!nResults) return null
     const errors = {
       baseline: [],
-      variant1: [],
-      variant2: [],
-      variant5: [],
-      variant6: [],
+      variant1: [], variant2: [], variant5: [], variant6: [],
+      variant7: [], variant8: [], variant9: [],
     }
     for (const r of readings) {
       if (r.manual_hr == null) continue
@@ -192,12 +190,18 @@ export default function RppgReplay() {
       if (v?.variant2 != null) errors.variant2.push(v.variant2 - r.manual_hr)
       if (v?.variant5 != null) errors.variant5.push(v.variant5 - r.manual_hr)
       if (v?.variant6 != null) errors.variant6.push(v.variant6 - r.manual_hr)
+      if (v?.variant7 != null) errors.variant7.push(v.variant7 - r.manual_hr)
+      if (v?.variant8 != null) errors.variant8.push(v.variant8 - r.manual_hr)
+      if (v?.variant9 != null) errors.variant9.push(v.variant9 - r.manual_hr)
     }
     const results = [
       { key: 'baseline', label: 'Baseline (live pipeline)',       mae: mae(errors.baseline), rmse: rmse(errors.baseline), n: errors.baseline.length },
       { key: 'variant1', label: '#1 Multi-window voting',         mae: mae(errors.variant1), rmse: rmse(errors.variant1), n: errors.variant1.length },
       { key: 'variant2', label: '#2 Bidirectional harmonic check', mae: mae(errors.variant2), rmse: rmse(errors.variant2), n: errors.variant2.length },
       { key: 'variant5', label: '#5 Bayesian age prior',          mae: mae(errors.variant5), rmse: rmse(errors.variant5), n: errors.variant5.length },
+      { key: 'variant7', label: '#7 PBV (blood volume vector)',   mae: mae(errors.variant7), rmse: rmse(errors.variant7), n: errors.variant7.length },
+      { key: 'variant8', label: '#8 Multi-ROI (needs re-capture)', mae: mae(errors.variant8), rmse: rmse(errors.variant8), n: errors.variant8.length },
+      { key: 'variant9', label: '#9 IBI direct peak detection',   mae: mae(errors.variant9), rmse: rmse(errors.variant9), n: errors.variant9.length },
       { key: 'variant6', label: '#6 DL model (deferred #517)',     mae: mae(errors.variant6), rmse: rmse(errors.variant6), n: errors.variant6.length },
     ]
     const valid = results.filter(r => r.mae != null && r.n > 0)

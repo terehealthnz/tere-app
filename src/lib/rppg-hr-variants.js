@@ -159,12 +159,143 @@ export function hrVariant6_dl(/* frames, fps, subject */) {
   return null
 }
 
+// ── Variant #7: PBV (Plane-orthogonal / Blood Volume vector, Wang 2016) ──────
+// Project RGB onto the known blood-volume signature direction. Classical
+// method often reported to beat CHROM/POS on darker Fitzpatrick skin
+// tones. Uses the covariance-based projection W = C^-1 * v where v is
+// the normalized skin PBV vector [0.329, 0.712, 0.619] and C is the
+// RGB covariance over the scan window. Pulse is then W^T * [Rn, Gn, Bn].
+// Feeds the same resample → detrend → denoise → dominantFreq tail as
+// the other variants so the only thing changing is the pulse extraction.
+export function hrVariant7_pbv(frames, fps) {
+  const rgb = frames.map(f => [f.r, f.g, f.b])
+  const ts  = frames.map((f, i) => f.t || f.timestamp || i * (1000 / fps))
+  const actualFps = ts.length > 1 ? (ts.length / (ts[ts.length - 1] - ts[0]) * 1000) : fps
+  const relTs = ts.map(t => t - ts[0])
+  const pulse = pbvPulse(rgb)
+  if (!pulse) return null
+  const resampled = resample(pulse, relTs, RESAMPLE_FPS)
+  const det = detrend(resampled)
+  const clean = denoiseSignal(det, RESAMPLE_FPS)
+  const hz = dominantFreq(clean, HR_LOW_HZ, HR_HIGH_HZ, RESAMPLE_FPS)
+  if (!hz || hz <= 0) return null
+  return Math.round(hz * 60)
+}
+
+function pbvPulse(rgb) {
+  const n = rgb.length
+  if (n < 30) return null
+  let mR = 0, mG = 0, mB = 0
+  for (const [r, g, b] of rgb) { mR += r; mG += g; mB += b }
+  mR /= n; mG /= n; mB /= n
+  if (mR <= 0 || mG <= 0 || mB <= 0) return null
+  const Rn = rgb.map(([r]) => r / mR - 1)
+  const Gn = rgb.map(([,g]) => g / mG - 1)
+  const Bn = rgb.map(([,,b]) => b / mB - 1)
+  // Known skin PBV vector (Wang 2016).
+  const pbv = [0.329, 0.712, 0.619]
+  const nrm = Math.hypot(...pbv)
+  const v = pbv.map(x => x / nrm)
+  // 3x3 covariance matrix of [Rn, Gn, Bn].
+  const C = [[0,0,0],[0,0,0],[0,0,0]]
+  for (let i = 0; i < n; i++) {
+    const c = [Rn[i], Gn[i], Bn[i]]
+    for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[j][k] += c[j] * c[k]
+  }
+  for (let j = 0; j < 3; j++) for (let k = 0; k < 3; k++) C[j][k] /= n
+  // Solve W = C^-1 * v.
+  const Cinv = invert3x3(C)
+  if (!Cinv) return null
+  const W = [
+    Cinv[0][0]*v[0] + Cinv[0][1]*v[1] + Cinv[0][2]*v[2],
+    Cinv[1][0]*v[0] + Cinv[1][1]*v[1] + Cinv[1][2]*v[2],
+    Cinv[2][0]*v[0] + Cinv[2][1]*v[1] + Cinv[2][2]*v[2],
+  ]
+  const pulse = new Array(n)
+  for (let i = 0; i < n; i++) pulse[i] = W[0]*Rn[i] + W[1]*Gn[i] + W[2]*Bn[i]
+  return pulse
+}
+
+function invert3x3(M) {
+  const [[a,b,c],[d,e,f],[g,h,i]] = M
+  const det = a*(e*i - f*h) - b*(d*i - f*g) + c*(d*h - e*g)
+  if (Math.abs(det) < 1e-12) return null
+  const inv = 1 / det
+  return [
+    [ (e*i - f*h)*inv, -(b*i - c*h)*inv,  (b*f - c*e)*inv],
+    [-(d*i - f*g)*inv,  (a*i - c*g)*inv, -(a*f - c*d)*inv],
+    [ (d*h - e*g)*inv, -(a*h - b*g)*inv,  (a*e - b*d)*inv],
+  ]
+}
+
+// ── Variant #8: multi-ROI (STUB — not testable on stored data) ──────────────
+// Would split face into forehead + L cheek + R cheek, extract pulse from
+// each separately, median-vote HR per region. Catches localised noise
+// (shadow on one cheek) that whole-face mean averages into the signal.
+// NOT TESTABLE on existing validation_readings: raw_rppg_signal.frames
+// stores a single [r,g,b] per frame (whole-face mean), not per-region.
+// Would need upstream capture change in rppg.js to store per-ROI RGB.
+// Returns null so the leaderboard shows "needs capture change" status.
+export function hrVariant8_multiROI(/* frames, fps */) {
+  return null
+}
+
+// ── Variant #9: IBI direct peak detection ───────────────────────────────────
+// Instead of FFT peak-pick in frequency domain, find systolic peaks in
+// the time-domain pulse signal and compute HR from the median inter-beat
+// interval. Robust to amplitude modulation that fools FFT (where strong
+// AM at a given frequency can create spurious spectral peaks). Rouast
+// 2018. Uses the same preprocess as baseline then switches to time-domain.
+export function hrVariant9_ibi(frames, fps) {
+  const { clean } = preprocess(frames, fps)
+  if (!clean || clean.length < 60) return null
+  const peaks = findPulsePeaks(clean, RESAMPLE_FPS)
+  if (peaks.length < 3) return null
+  const ibis = []
+  for (let i = 1; i < peaks.length; i++) {
+    const dtSec = (peaks[i] - peaks[i-1]) / RESAMPLE_FPS
+    // Keep only intervals within physiological HR range (40–200 bpm).
+    if (dtSec >= 60/200 && dtSec <= 60/40) ibis.push(dtSec)
+  }
+  if (!ibis.length) return null
+  // Median IBI → HR (robust to outlier beats from noise).
+  const sorted = [...ibis].sort((a, b) => a - b)
+  const medianIBI = sorted[Math.floor(sorted.length / 2)]
+  return Math.round(60 / medianIBI)
+}
+
+function findPulsePeaks(sig, fs) {
+  // Minimum spacing between peaks: 40 bpm → 1.5 sec → 1.5*fs samples.
+  // Enforce this to avoid double-counting the dicrotic notch as a beat.
+  const minSpacing = Math.round(0.3 * fs)  // 0.3 sec ≈ 200 bpm max
+  // Amplitude threshold: 40% of max absolute value (keep real beats,
+  // drop noise ripples).
+  let maxAbs = 0
+  for (const x of sig) { const a = Math.abs(x); if (a > maxAbs) maxAbs = a }
+  const threshold = 0.3 * maxAbs
+  const peaks = []
+  for (let i = 1; i < sig.length - 1; i++) {
+    if (sig[i] > sig[i-1] && sig[i] >= sig[i+1] && sig[i] > threshold) {
+      if (peaks.length === 0 || i - peaks[peaks.length - 1] >= minSpacing) {
+        peaks.push(i)
+      } else if (sig[i] > sig[peaks[peaks.length - 1]]) {
+        // Replace the previous peak if this one is taller within the spacing window.
+        peaks[peaks.length - 1] = i
+      }
+    }
+  }
+  return peaks
+}
+
 // Convenience: run all variants + return a dict for the replay table.
 export function runAllHRVariants(frames, fps, subject = {}) {
   const out = {}
   try { out.variant1 = hrVariant1_multiWindow(frames, fps) } catch { out.variant1 = null }
   try { out.variant2 = hrVariant2_harmonic(frames, fps) } catch { out.variant2 = null }
   try { out.variant5 = hrVariant5_bayesian(frames, fps, subject) } catch { out.variant5 = null }
-  out.variant6 = null  // deferred
+  out.variant6 = null  // deferred DL (task #517)
+  try { out.variant7 = hrVariant7_pbv(frames, fps) } catch { out.variant7 = null }
+  out.variant8 = null  // not testable on stored data (whole-face RGB only)
+  try { out.variant9 = hrVariant9_ibi(frames, fps) } catch { out.variant9 = null }
   return out
 }
