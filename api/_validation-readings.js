@@ -179,6 +179,14 @@ export default async function handler(req, res) {
     if (d.meRppgHr != null)             payload.me_rppg_hr = Math.round(d.meRppgHr)
     if (d.meRppgConfidence !== undefined) payload.me_rppg_confidence = d.meRppgConfidence
     if (d.meRppgMeanErr != null)        payload.me_rppg_mean_err = d.meRppgMeanErr
+    // Dual-ROI PTT (Qiu et al. ICMI'25). Pulse delay between forehead + palm.
+    // 1/PTT linearly correlates with SBP via Moens-Korteweg — captured for
+    // Phase 1 regression on Tere's own paired cuff data.
+    if (d.palmPttMs != null)        payload.palm_ptt_ms = d.palmPttMs
+    if (d.palmPttStdMs != null)     payload.palm_ptt_std_ms = d.palmPttStdMs
+    if (d.palmPttOrder !== undefined) payload.palm_ptt_order = d.palmPttOrder
+    if (d.palmPttBeats != null)     payload.palm_ptt_beats = d.palmPttBeats
+    if (d.palmDetectRate != null)   payload.palm_detect_rate = d.palmDetectRate
 
     const { data: reading, error } = await supabase
       .from('validation_readings')

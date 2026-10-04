@@ -2122,7 +2122,7 @@ export default function VitalsValidateDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
                 <thead>
                   <tr>
-                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','ME-HR','ME diff','RR','Conf %','Notes','Actions'].map(h => (
+                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','ME-HR','ME diff','PTT (ms)','RR','Conf %','Notes','Actions'].map(h => (
                       <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -2153,6 +2153,19 @@ export default function VitalsValidateDashboard() {
                           const meDiff = (r.manual_hr && r.me_rppg_hr) ? Math.abs(r.manual_hr - r.me_rppg_hr) : null
                           const mc = meDiff == null ? '#6B7280' : meDiff <= 5 ? '#10B981' : meDiff <= 10 ? '#F59E0B' : '#EF4444'
                           return <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: mc }}>{meDiff != null ? `±${meDiff}` : '—'}</td>
+                        })()}
+                        {/* Dual-ROI PTT (Qiu et al. ICMI'25). Shows mean ms ± std,
+                            with order code: FF = face-first, PF = palm-first, MX = mixed.
+                            Mean <20ms + low std + decent beat count = reliable signal. */}
+                        {(() => {
+                          if (r.palm_ptt_ms == null) return <td style={{ padding: '.5rem .75rem', color: '#9CA3AF' }}>—</td>
+                          const code = r.palm_ptt_order === 'face_first' ? 'FF' : r.palm_ptt_order === 'palm_first' ? 'PF' : 'MX'
+                          const stdOk = r.palm_ptt_std_ms != null && r.palm_ptt_std_ms < 30
+                          return (
+                            <td style={{ padding: '.5rem .75rem', color: stdOk ? NAVY : '#9CA3AF', fontWeight: stdOk ? 700 : 400 }} title={`${r.palm_ptt_beats || 0} beats matched, palm seen ${Math.round((r.palm_detect_rate || 0) * 100)}% of scan`}>
+                              {r.palm_ptt_ms}±{r.palm_ptt_std_ms ?? '?'} <span style={{ fontSize: '.65rem', color: '#6B7280' }}>{code}</span>
+                            </td>
+                          )
                         })()}
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.tere_rr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.raw_rppg_signal?.numericConfidence ?? '—'}</td>

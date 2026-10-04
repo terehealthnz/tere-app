@@ -412,6 +412,23 @@ export default function VitalsValidate() {
         }
       } catch (e) { console.warn('MediaRecorder not available:', e.message) }
 
+      // PTT prototype — dual-ROI pulse transit time tracker. Runs in parallel
+      // to the classical face scan. If the patient holds their palm up next to
+      // their face, we measure the time delay between pulse arrival at
+      // forehead vs palm. 1/PTT linearly correlates with SBP (Moens-Korteweg).
+      // Phase 1: capture only, no BP regression yet — need paired data first.
+      let palmTracker = null
+      try {
+        const { PalmPttTracker } = await import('../../lib/palmPtt')
+        palmTracker = new PalmPttTracker()
+        await palmTracker.init()
+        palmTracker.start(videoRef.current)
+        console.log('[ptt] palm tracker started')
+      } catch (e) {
+        console.warn('[ptt] palm tracker init failed, continuing without:', e?.message || e)
+        palmTracker = null
+      }
+
       const m = new MultiPassMeasurement(
         (pct, hr, pass, _t, mPct) => { setProgress(pct); setLiveHR(hr); setPassNum(pass); setMotionPct(mPct || 0) },
 
@@ -427,6 +444,17 @@ export default function VitalsValidate() {
             }
             try { rec.stop() } catch {}
           }
+          // Stop the PTT tracker and attach its result to the vitals payload
+          // so handleSave can persist it alongside the classical measurements.
+          let palmPttResult = null
+          try {
+            if (palmTracker) {
+              palmPttResult = palmTracker.stop()
+              palmTracker.close()
+              console.log('[ptt] result:', palmPttResult)
+            }
+          } catch (e) { console.warn('[ptt] stop failed:', e?.message || e) }
+          if (palmPttResult) result.palmPtt = palmPttResult
           setVitals(result); setScanPhase('done'); stopCamera(); setPhase('autosave')
           let spo2Fresh = null
           if (result.rawFrames) {
@@ -634,6 +662,11 @@ export default function VitalsValidate() {
         meRppgHr:         v?.meRppg?.hr || null,
         meRppgConfidence: v?.meRppg?.confidence || null,
         meRppgMeanErr:    v?.meRppg?.meanErr ?? null,
+        palmPttMs:        v?.palmPtt?.pttMs ?? null,
+        palmPttStdMs:     v?.palmPtt?.pttStdMs ?? null,
+        palmPttOrder:     v?.palmPtt?.pttOrder || null,
+        palmPttBeats:     v?.palmPtt?.beatsMatched ?? null,
+        palmDetectRate:   v?.palmPtt?.palmDetectionRate ?? null,
       })
       setPhase('saved')
       smartRetrain()
@@ -1029,6 +1062,9 @@ export default function VitalsValidate() {
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: '.7rem', fontWeight: 700, color: '#6B7280', letterSpacing: '.12em', textTransform: 'uppercase' }}>Measuring vitals</div>
                 <div style={{ fontSize: '.85rem', color: '#6B7280', marginTop: '.5rem' }}>Hold still…</div>
+                <div style={{ marginTop: '.5rem', padding: '.4rem .7rem', background: '#EEF2FF', border: '1.5px solid #A5B4FC', borderRadius: 6, fontSize: '.75rem', color: '#3730A3' }}>
+                  🖐️ Optional: hold your palm up next to your face for a second pulse signal
+                </div>
               </div>
             )}
             {scanPhase === 'error' && (
