@@ -14,9 +14,26 @@ import { MeRppgTracker } from './meRppg'
 export async function replayVideoThroughMeRppg(videoUrl, onProgress) {
   if (!videoUrl) throw new Error('No videoUrl supplied')
 
+  // Fetch the video to a Blob first then feed it to the <video> element via a
+  // blob: URL. If we point video.src directly at the Supabase signed URL the
+  // browser caches the response WITHOUT a CORS-safe tag and every subsequent
+  // getImageData() silently throws SecurityError — tracker ends up with 0
+  // frames and the batch button reports "failed" for most rows. Blob URLs are
+  // same-origin, so canvas can never be tainted. Costs one extra network RT
+  // and ~1-2 MB of memory per video — fine for sequential batch.
+  let blobUrl = null
+  try {
+    const resp = await fetch(videoUrl, { credentials: 'omit' })
+    if (!resp.ok) throw new Error(`fetch ${resp.status} — signed URL expired or 403?`)
+    const blob = await resp.blob()
+    if (blob.size < 1000) throw new Error(`video too small (${blob.size}B) — upload may have been truncated`)
+    blobUrl = URL.createObjectURL(blob)
+  } catch (e) {
+    throw new Error(`Video fetch failed: ${e?.message || e}`)
+  }
+
   // Hidden video + canvas scaffolding — mimics the live scan layout.
   const video = document.createElement('video')
-  video.crossOrigin = 'anonymous'
   video.playsInline = true
   video.muted = true
   video.preload = 'auto'
@@ -34,10 +51,10 @@ export async function replayVideoThroughMeRppg(videoUrl, onProgress) {
   const mesh = await loadFaceMesh()
   await tracker.init()
 
-  video.src = videoUrl
+  video.src = blobUrl
   await new Promise((resolve, reject) => {
     video.onloadedmetadata = () => resolve()
-    video.onerror = () => reject(new Error('Video load failed — signed URL expired or CORS blocked?'))
+    video.onerror = () => reject(new Error('Video decode failed — codec unsupported by this browser?'))
   })
   canvas.width = video.videoWidth
   canvas.height = video.videoHeight
@@ -108,8 +125,20 @@ export async function replayVideoThroughMeRppg(videoUrl, onProgress) {
   canvas.remove()
   faceCanvas.remove()
   tracker.terminate()
+  if (blobUrl) URL.revokeObjectURL(blobUrl)
 
-  if (!summary) throw new Error(`ME-rPPG produced no HR — only ${framesFedToTracker} frames reached the tracker (need ~300)`)
+  if (!summary) {
+    // Diagnose with real counts so the batch button's failure message is
+    // actionable instead of just "failed". Three failure modes:
+    //   framesSeen 0           → video decode didn't produce frames (codec/duration)
+    //   framesSeen high, Tracker low → face mesh missed the face (lighting / angle)
+    //   framesFedToTracker ok but no HR → BVP buffer didn't reach the 300-sample
+    //     Welch window (video <10s or scan was mostly motion-rejected)
+    const detail = `seen=${framesSeen} face=${framesFedToTracker} dur=${duration?.toFixed(1)}s`
+    if (framesSeen === 0) throw new Error(`ME-rPPG failed: video decoded 0 frames (${detail})`)
+    if (framesFedToTracker < 150) throw new Error(`ME-rPPG failed: face detected on ${framesFedToTracker} frames only — scan too dark or face off-camera (${detail})`)
+    throw new Error(`ME-rPPG failed: tracker didn't produce HR despite ${framesFedToTracker} frames — model warmup incomplete (${detail})`)
+  }
 
   return {
     hr: Math.round(summary.hr),
