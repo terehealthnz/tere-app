@@ -390,7 +390,11 @@ export default function VitalsValidate() {
         withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection'),
       ])
       setDeviceInfo(info)
-      const calibration = { ...calibrateRPPG(info), captureRaw: true }
+      // meRppg: true runs the DL rPPG track (arxiv 2504.01774) in parallel to
+      // the classical pipeline so we can score DL vs baseline on paired manual
+      // readings. Only on /vitals-validate — the DL model loads ~12 MB of
+      // ONNX + state, too heavy for the live patient-facing /vitals flow.
+      const calibration = { ...calibrateRPPG(info), captureRaw: true, meRppg: true }
       setScanPhase('measuring')
 
       // Start recording the camera stream — needed so we can reprocess later
@@ -627,6 +631,9 @@ export default function VitalsValidate() {
         videoUrl,
         hrQuality,
         extractionRuns: [run1, run2],
+        meRppgHr:         v?.meRppg?.hr || null,
+        meRppgConfidence: v?.meRppg?.confidence || null,
+        meRppgMeanErr:    v?.meRppg?.meanErr ?? null,
       })
       setPhase('saved')
       smartRetrain()

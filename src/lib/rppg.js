@@ -1005,6 +1005,8 @@ export class RppgMeasurement {
     this.hrHighHz   = calibration.highFreq  || HR_HIGH_HZ
     this.captureRaw = calibration.captureRaw || false
     this.rawFrames  = []
+    this.meRppgTracker = calibration.meRppgTracker || null  // shared ME-rPPG DL tracker (optional)
+    this.meRppgCanvas  = null
     this.running=true; this.rgbBuffer=[]; this.timestamps=[]
     this.prevRgb=null; this.skinWeights=null
     this.startTime=performance.now()
@@ -1053,6 +1055,35 @@ export class RppgMeasurement {
           this.onFaceBox({ x: minX, y: Math.max(0, minY - padY), w: maxX - minX, h: Math.min(1, maxY - minY + padY) })
         }
         const rgb=sampleROI(this.canvasEl,results.multiFaceLandmarks[0],this.canvasEl.width,this.canvasEl.height)
+        // Parallel DL rPPG track (ME-rPPG, arXiv 2504.01774). Shares the same
+        // face landmarks the classical path uses — we expand the mesh bbox by
+        // 20% to include forehead (matches the demo's bbox), resize to 36×36,
+        // and push to the worker-backed tracker. Gated behind calibration
+        // flag so this only runs in VitalsValidate scans.
+        if (this.meRppgTracker && this.meRppgTracker.isReady()) {
+          try {
+            const lms = results.multiFaceLandmarks[0]
+            let minX=1,minY=1,maxX=0,maxY=0
+            for (const l of lms) { if(l.x<minX)minX=l.x; if(l.y<minY)minY=l.y; if(l.x>maxX)maxX=l.x; if(l.y>maxY)maxY=l.y }
+            const cw = this.canvasEl.width, ch = this.canvasEl.height
+            let bx = minX*cw, by = minY*ch, bw = (maxX-minX)*cw, bh = (maxY-minY)*ch
+            bh *= 1.2; by -= bh * 0.2 / 1.2  // demo-style forehead expansion
+            bx = Math.max(0, Math.round(bx)); by = Math.max(0, Math.round(by))
+            bw = Math.min(Math.round(bw), cw - bx); bh = Math.min(Math.round(bh), ch - by)
+            if (bw > 20 && bh > 20) {
+              if (!this.meRppgCanvas) {
+                this.meRppgCanvas = document.createElement('canvas')
+                this.meRppgCanvas.width = 36; this.meRppgCanvas.height = 36
+              }
+              const mctx = this.meRppgCanvas.getContext('2d')
+              mctx.imageSmoothingEnabled = true
+              mctx.imageSmoothingQuality = 'high'
+              mctx.drawImage(this.canvasEl, bx, by, bw, bh, 0, 0, 36, 36)
+              const idata = mctx.getImageData(0, 0, 36, 36)
+              this.meRppgTracker.pushFrame(idata.data, now)
+            }
+          } catch (e) { /* ignore ME-rPPG errors — baseline track continues */ }
+        }
         if(rgb) {
           const isMotion = this.prevRgb
             ? Math.abs(rgb[0]-this.prevRgb[0]) + Math.abs(rgb[1]-this.prevRgb[1]) + Math.abs(rgb[2]-this.prevRgb[2]) > MOTION_THRESHOLD
@@ -1195,10 +1226,31 @@ export class MultiPassMeasurement {
     const passSec  = Math.round(totalSec / PASS_COUNT)
     const results  = []
 
-    for (let i = 0; i < PASS_COUNT; i++) {
-      if (this.stopped) return
+    // Spin up a single ME-rPPG tracker that lives across all passes. The DL
+    // model is stateful (37 hidden-state tensors carried across frames + a
+    // 300-sample sliding Welch window) so re-creating per pass would waste
+    // the warmup and shred the BVP series.
+    let meRppgTracker = null
+    if (calibration.meRppg) {
       try {
-        const result = await this._runPass(videoEl, canvasEl, { ...calibration, windowSec: passSec }, i, deviceQuality)
+        const { MeRppgTracker } = await import('./meRppg')
+        meRppgTracker = new MeRppgTracker()
+        await meRppgTracker.init()
+        console.log('[me-rppg] tracker ready')
+      } catch (e) {
+        console.warn('[me-rppg] init failed, continuing without:', e?.message || e)
+        meRppgTracker = null
+      }
+    }
+
+    for (let i = 0; i < PASS_COUNT; i++) {
+      if (this.stopped) break
+      try {
+        const result = await this._runPass(
+          videoEl, canvasEl,
+          { ...calibration, windowSec: passSec, meRppgTracker },
+          i, deviceQuality,
+        )
         if (result) {
           results.push(result)
           console.log(`Pass ${i+1}/${PASS_COUNT}:`, { hr: result.hr, rr: result.rr, conf: result.numericConfidence })
@@ -1207,9 +1259,30 @@ export class MultiPassMeasurement {
       if (i < PASS_COUNT - 1 && !this.stopped) await new Promise(r => setTimeout(r, 800))
     }
 
+    // Grab final ME-rPPG HR before terminating workers.
+    let meRppgSummary = null
+    if (meRppgTracker) {
+      const latest = meRppgTracker.getLatestHR()
+      if (latest) {
+        meRppgSummary = {
+          hr: Math.round(latest.hr),
+          confidence: latest.confidence,
+          meanErr: Number(latest.meanErr.toFixed(4)),
+          bvpSamples: latest.bvpSamples,
+          source: 'me-rppg-v1',
+        }
+        console.log('[me-rppg] final HR:', meRppgSummary.hr, 'conf:', meRppgSummary.confidence)
+      } else {
+        console.log('[me-rppg] no final HR — insufficient samples or still warming up')
+      }
+      meRppgTracker.terminate()
+    }
+
     if (this.stopped) return
     if (!results.length) { this.onError('Measurement failed. Ensure your face is visible and well lit.'); return }
-    this.onComplete(this._aggregate(results))
+    const aggregated = this._aggregate(results)
+    if (meRppgSummary) aggregated.meRppg = meRppgSummary
+    this.onComplete(aggregated)
   }
 
   _runPass(videoEl, canvasEl, calibration, passIdx, deviceQuality) {

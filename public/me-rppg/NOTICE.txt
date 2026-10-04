@@ -1,0 +1,4 @@
+Memory-efficient Low-latency Remote Photoplethysmography through Temporal-Spatial State Space Duality
+Kegang Wang et al., 2026 — arxiv 2504.01774
+Source: https://github.com/Health-HCI-Group/ME-rPPG-demo (Apache-2.0)
+Vendored into Tere Health VitalsValidate for comparative evaluation only.

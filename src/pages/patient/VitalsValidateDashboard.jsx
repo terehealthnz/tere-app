@@ -78,15 +78,17 @@ function computeBPStats(bpPreds) {
 function exportCSV(readings, subjects) {
   const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
   const rows = [
-    ['Date','Subject','Age','Sex','Fitzpatrick','Systolic','Diastolic','Manual HR','Tere HR','HR Diff','Tere RR','Confidence %','Notes','Conditions'],
+    ['Date','Subject','Age','Sex','Fitzpatrick','Systolic','Diastolic','Manual HR','Tere HR','HR Diff','ME-rPPG HR','ME-rPPG Diff','ME-rPPG Conf','Tere RR','Confidence %','Notes','Conditions'],
     ...readings.map(r => {
       const sub = r.subject_id ? subMap[r.subject_id] : null
+      const meDiff = (r.manual_hr && r.me_rppg_hr) ? Math.abs(r.manual_hr - r.me_rppg_hr) : null
       return [
         new Date(r.recorded_at).toISOString(),
         r.subject_code || '',
         sub?.age || '', sub?.sex || '', sub?.fitzpatrick_scale || '',
         r.manual_systolic || '', r.manual_diastolic || '', r.manual_hr || '',
         r.tere_hr || '', r.hr_difference != null ? r.hr_difference : '',
+        r.me_rppg_hr || '', meDiff != null ? meDiff : '', r.me_rppg_confidence || '',
         r.tere_rr || '', r.raw_rppg_signal?.numericConfidence || '',
         (r.notes || '').replace(/,/g, ';').replace(/\n/g, ' '),
         (r.session_conditions || '').replace(/,/g, ';').replace(/\n/g, ' '),
@@ -2079,7 +2081,7 @@ export default function VitalsValidateDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
                 <thead>
                   <tr>
-                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','RR','Conf %','Notes','Actions'].map(h => (
+                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','ME-HR','ME diff','RR','Conf %','Notes','Actions'].map(h => (
                       <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -2103,6 +2105,14 @@ export default function VitalsValidateDashboard() {
                         <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.manual_hr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.tere_hr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: dc }}>{diff != null ? `±${diff}` : '—'}</td>
+                        {/* ME-rPPG DL parallel track — compare at a glance to the classical Diff.
+                            Shows "—" for pre-2026-10-03 rows that pre-date the column. */}
+                        <td style={{ padding: '.5rem .75rem', color: NAVY }}>{r.me_rppg_hr ?? '—'}</td>
+                        {(() => {
+                          const meDiff = (r.manual_hr && r.me_rppg_hr) ? Math.abs(r.manual_hr - r.me_rppg_hr) : null
+                          const mc = meDiff == null ? '#6B7280' : meDiff <= 5 ? '#10B981' : meDiff <= 10 ? '#F59E0B' : '#EF4444'
+                          return <td style={{ padding: '.5rem .75rem', fontWeight: 700, color: mc }}>{meDiff != null ? `±${meDiff}` : '—'}</td>
+                        })()}
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.tere_rr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.raw_rppg_signal?.numericConfidence ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.notes || ''}>{r.notes || ''}</td>

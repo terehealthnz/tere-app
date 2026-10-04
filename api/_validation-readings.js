@@ -173,6 +173,12 @@ export default async function handler(req, res) {
     if (d.videoUrl !== undefined)       payload.video_url = d.videoUrl
     if (d.hrQuality !== undefined)      payload.hr_quality = d.hrQuality
     if (d.extractionRuns !== undefined) payload.extraction_runs = d.extractionRuns
+    // ME-rPPG DL parallel track (arxiv 2504.01774). Classical baseline stays
+    // in tere_hr; this column lets us compare without disrupting dashboards
+    // that already read tere_hr. Diff vs manual_hr computed by callers.
+    if (d.meRppgHr != null)             payload.me_rppg_hr = Math.round(d.meRppgHr)
+    if (d.meRppgConfidence !== undefined) payload.me_rppg_confidence = d.meRppgConfidence
+    if (d.meRppgMeanErr != null)        payload.me_rppg_mean_err = d.meRppgMeanErr
 
     const { data: reading, error } = await supabase
       .from('validation_readings')

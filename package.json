@@ -53,6 +53,7 @@
     "livekit-client": "^2.19.0",
     "livekit-server-sdk": "^2.15.3",
     "marked": "^18.0.6",
+    "onnxruntime-web": "^1.18.0",
     "pdf-lib": "^1.17.1",
     "pdfkit": "^0.18.0",
     "puppeteer-core": "^25.10.0",
