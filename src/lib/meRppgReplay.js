@@ -32,16 +32,24 @@ export async function replayVideoThroughMeRppg(videoUrl, onProgress) {
     throw new Error(`Video fetch failed: ${e?.message || e}`)
   }
 
-  // Hidden video + canvas scaffolding — mimics the live scan layout.
+  // Hidden-but-not-tiny video + canvas scaffolding. Chrome 108+ auto-pauses
+  // "video-only background media" (muted + visually hidden/1px) to save power.
+  // First few replays work because the batch-button click gesture is still
+  // active, but after the gesture expires every subsequent .play() throws
+  // "The play() request was interrupted because video-only background media
+  // was paused to save power". Fix: give the element a real pixel footprint
+  // (160×120) so Chrome's heuristic treats it as a real player, and shove it
+  // off-screen with transform instead of width:1px.
   const video = document.createElement('video')
   video.playsInline = true
   video.muted = true
   video.preload = 'auto'
-  video.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none'
+  video.setAttribute('disableRemotePlayback', '')
+  video.style.cssText = 'position:fixed;left:0;top:0;width:160px;height:120px;opacity:0.01;pointer-events:none;transform:translate(-10000px,-10000px);z-index:-1'
   document.body.appendChild(video)
 
   const canvas = document.createElement('canvas')
-  canvas.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none'
+  canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;transform:translate(-10000px,-10000px)'
   document.body.appendChild(canvas)
 
   const faceCanvas = document.createElement('canvas')
