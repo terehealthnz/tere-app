@@ -1206,16 +1206,21 @@ export default function AdminApp() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Content. On wide desktops the panels stretched the whole viewport
+          (Patrick 2026-10-03) so dense tables became hard to scan. Cap the
+          inner column at ~1400px and centre it; small screens still get
+          full-bleed because width:100% wins against the cap. */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
-        {tab === 'dashboard' && <DashboardTab />}
-        {tab === 'messages'  && <AdminMessagesTab setMsgBadge={setMsgBadge} />}
-        {tab === 'tere-chat' && <TereChatTab />}
-        {tab === 'analytics' && <AnalyticsTab />}
-        {tab === 'bookings'  && <BookingsTab />}
-        {tab === 'employers' && <EmployersTab />}
-        {tab === 'research'  && <ResearchTab />}
-        {tab === 'settings'  && <SettingsTab navigate={navigate} displayName={displayName} />}
+        <div style={{ maxWidth: 1400, margin: '0 auto', width: '100%' }}>
+          {tab === 'dashboard' && <DashboardTab />}
+          {tab === 'messages'  && <AdminMessagesTab setMsgBadge={setMsgBadge} />}
+          {tab === 'tere-chat' && <TereChatTab />}
+          {tab === 'analytics' && <AnalyticsTab />}
+          {tab === 'bookings'  && <BookingsTab />}
+          {tab === 'employers' && <EmployersTab />}
+          {tab === 'research'  && <ResearchTab />}
+          {tab === 'settings'  && <SettingsTab navigate={navigate} displayName={displayName} />}
+        </div>
       </div>
 
       {/* Bottom nav — in-flow, no position:fixed */}

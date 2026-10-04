@@ -3408,12 +3408,19 @@ function PendingApprovalsPanel() {
   function Row({ type, id, created_at, patient, drafter, description }) {
     const mins = Math.floor((Date.now() - new Date(created_at)) / 60000)
     const isUrgent = mins > 30
+    // Humanize age (Patrick 2026-10-03). Previously "19040m" for a 13-day-old
+    // item was unreadable. Now <60m stays "Xm", <24h is "Xh Ym", else "Xd Yh".
+    const ageLabel = mins < 60
+      ? `${mins}m`
+      : mins < 1440
+        ? `${Math.floor(mins / 60)}h ${mins % 60}m`
+        : `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`
     const typeColors = { Prescription: ['#EDE9FE','#7C3AED'], Referral: ['#FEF3C7','#92400E'], ACC: ['#D1FAE5','#065F46'] }
     const [bg, fg] = typeColors[type] || ['#F3F4F6','#6B7280']
     return (
       <tr style={{ borderBottom: '1px solid #F3F4F6', background: isUrgent ? '#FFF5F5' : 'transparent' }}>
         <td style={{ padding: '8px', whiteSpace: 'nowrap', fontSize: '.8125rem', color: isUrgent ? '#DC2626' : '#9CA3AF', fontWeight: isUrgent ? 700 : 400 }}>
-          {mins}m {isUrgent && '⚠'}
+          {ageLabel} {isUrgent && '⚠'}
         </td>
         <td style={{ padding: '8px' }}><span style={{ background: bg, color: fg, fontSize: '.6875rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99 }}>{type}</span></td>
         <td style={{ padding: '8px', fontWeight: 600 }}>{patient}</td>
