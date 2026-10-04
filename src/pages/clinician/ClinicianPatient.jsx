@@ -213,6 +213,13 @@ export default function ClinicianPatient() {
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFile, setUploadFile]   = useState(null)
   const [editField, setEditField] = useState(null) // 'medications' | 'allergies' | 'history'
+  // Patient demographics edit modal (2026-10-03). Opens when provider clicks
+  // "Edit patient" in the Patient info header; writes back to patients.* AND
+  // consultations.patient_* so both the master record and the current chart
+  // view update at once. Audit trail is server-side on both PATCH endpoints.
+  const [editPatientOpen,  setEditPatientOpen]  = useState(false)
+  const [editPatientDraft, setEditPatientDraft] = useState(null)
+  const [savingPatientEdit, setSavingPatientEdit] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [callError, setCallError] = useState(null)
@@ -525,6 +532,108 @@ export default function ClinicianPatient() {
         patientName={[consult?.patient_first_name, consult?.patient_last_name].filter(Boolean).join(' ')}
       />
 
+      {/* Patient demographics edit modal (2026-10-03). Provider-only; both
+          the master patients.* record AND the current consultations.patient_*
+          snapshot are updated so the chart reflects immediately. If no
+          patient row exists yet (first-visit anonymous) we create one so
+          the edit becomes the canonical record for future consults. */}
+      {editPatientOpen && editPatientDraft && (
+        <div onClick={() => !savingPatientEdit && setEditPatientOpen(false)}
+          style={{ position:'fixed', inset:0, background:'rgba(15,23,42,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'white', borderRadius:16, maxWidth:520, width:'100%', maxHeight:'90vh', overflow:'auto', padding:'1.5rem', fontFamily:FF }}>
+            <div style={{ fontWeight:700, color:NAVY, fontSize:'1.05rem', marginBottom:'.25rem' }}>Edit patient details</div>
+            <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'1rem' }}>Updates the master record + this encounter. Audit-logged.</div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.75rem' }}>
+              {[
+                { k:'first_name', label:'First name', type:'text',  w:1 },
+                { k:'last_name',  label:'Last name',  type:'text',  w:1 },
+                { k:'dob',        label:'Date of birth', type:'date', w:1 },
+                { k:'nhi',        label:'NHI',         type:'text',  w:1, upper:true, maxLength:7 },
+                { k:'phone',      label:'Phone',       type:'tel',   w:1 },
+                { k:'email',      label:'Email',       type:'email', w:1 },
+                { k:'address',    label:'Address',     type:'text',  w:2 },
+              ].map(f => (
+                <div key={f.k} style={{ gridColumn: f.w === 2 ? '1 / -1' : 'auto' }}>
+                  <label style={{ display:'block', fontSize:'.7rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:4 }}>{f.label}</label>
+                  <input
+                    type={f.type}
+                    value={editPatientDraft[f.k] || ''}
+                    maxLength={f.maxLength}
+                    onChange={e => setEditPatientDraft(d => ({ ...d, [f.k]: f.upper ? e.target.value.toUpperCase() : e.target.value }))}
+                    style={{ width:'100%', padding:'.5rem .65rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontSize:'.9rem', fontFamily:FF, boxSizing:'border-box' }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:'.6rem', marginTop:'1.25rem', justifyContent:'flex-end' }}>
+              <button onClick={() => !savingPatientEdit && setEditPatientOpen(false)} disabled={savingPatientEdit}
+                style={{ background:'white', border:'1.5px solid #E2E8F0', color:NAVY, padding:'.5rem 1rem', borderRadius:6, fontFamily:FF, fontSize:'.85rem', fontWeight:700, cursor: savingPatientEdit ? 'not-allowed' : 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={async () => {
+                setSavingPatientEdit(true)
+                try {
+                  const d = editPatientDraft
+                  // 1) Patients master record. Create-if-missing mirrors the
+                  //    saveNote pattern at ~L1385 so first-visit anon rows
+                  //    get a persistent patients row on first edit.
+                  let pat = patient
+                  if (!pat) {
+                    pat = await createPatient({
+                      firstName: d.first_name, lastName: d.last_name,
+                      dob: d.dob || null, nhi: d.nhi || null,
+                      phone: d.phone || null, email: d.email || null,
+                    })
+                    if (pat?.id) {
+                      await updateConsultation(id, { patient_id: pat.id })
+                      setConsult(c => c ? { ...c, patient_id: pat.id } : c)
+                    }
+                  }
+                  if (pat?.id) {
+                    await updatePatient(pat.id, {
+                      first_name: d.first_name || null,
+                      last_name:  d.last_name  || null,
+                      dob:        d.dob        || null,
+                      nhi:        d.nhi        || null,
+                      phone:      d.phone      || null,
+                      email:      d.email      || null,
+                      address:    d.address    || null,
+                    })
+                    setPatient(p => ({ ...(p || pat), ...d }))
+                  }
+                  // 2) Mirror onto current consultations snapshot so the
+                  //    chart reflects the edit without a full refetch.
+                  await updateConsultation(id, {
+                    patient_first_name: d.first_name || null,
+                    patient_last_name:  d.last_name  || null,
+                    patient_dob:        d.dob        || null,
+                    patient_nhi:        d.nhi        || null,
+                    patient_phone:      d.phone      || null,
+                    patient_email:      d.email      || null,
+                    patient_address:    d.address    || null,
+                  })
+                  setConsult(c => c ? {
+                    ...c,
+                    patient_first_name: d.first_name, patient_last_name: d.last_name,
+                    patient_dob: d.dob, patient_nhi: d.nhi,
+                    patient_phone: d.phone, patient_email: d.email, patient_address: d.address,
+                  } : c)
+                  setEditPatientOpen(false)
+                } catch (e) {
+                  alert(`Save failed: ${e?.message || e}`)
+                } finally {
+                  setSavingPatientEdit(false)
+                }
+              }} disabled={savingPatientEdit}
+                style={{ background:TEAL, color:'white', border:'none', padding:'.5rem 1rem', borderRadius:6, fontFamily:FF, fontSize:'.85rem', fontWeight:700, cursor: savingPatientEdit ? 'wait' : 'pointer' }}>
+                {savingPatientEdit ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* HDC Right 8 support-person question — moved from chart-open mount
           to the Complete Encounter wrap-up (activeNotes gate) because the
           provider can only answer this after seeing/hearing the patient's
@@ -669,13 +778,31 @@ export default function ClinicianPatient() {
         <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>Patient information</div>
-            {consult.patient_nhi && (
-              <button onClick={() => setAccessHistoryOpen(true)}
-                title="See who has accessed this patient's chart"
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => {
+                setEditPatientDraft({
+                  first_name: consult.patient_first_name || '',
+                  last_name:  consult.patient_last_name  || '',
+                  dob:        consult.patient_dob        || '',
+                  nhi:        consult.patient_nhi        || '',
+                  phone:      consult.patient_phone      || '',
+                  email:      consult.patient_email      || '',
+                  address:    consult.patient_address    || '',
+                })
+                setEditPatientOpen(true)
+              }}
+                title="Edit patient demographics (DOB, name, phone, email, NHI, address)"
                 style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '4px 10px', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }}>
-                🔍 Access history
+                ✏️ Edit patient
               </button>
-            )}
+              {consult.patient_nhi && (
+                <button onClick={() => setAccessHistoryOpen(true)}
+                  title="See who has accessed this patient's chart"
+                  style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '4px 10px', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                  🔍 Access history
+                </button>
+              )}
+            </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />

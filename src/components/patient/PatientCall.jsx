@@ -381,6 +381,17 @@ export default function PatientCall() {
           setGate('no_show')
           return
         }
+        // Post-consult statuses: patient already saw the provider. Hitting
+        // the back button on /done shouldn't remount LiveKit (Patrick
+        // 2026-10-03). Route them forward to /done instead of re-opening
+        // the call. Previously these statuses fell through to the
+        // "Normal fresh call" default below and the call UI mounted,
+        // triggering camera + mic + a stale room join.
+        if (['completed','complete','notes_pending','notes_signed','closed','archived'].includes(c.status)) {
+          __tereLeaveIntent = 'done'
+          navigate('/done')
+          return
+        }
         const cd = c.cooldown_until ? new Date(c.cooldown_until) : null
         if (cd && cd > new Date()) {
           setCooldownUntil(cd)
