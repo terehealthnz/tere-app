@@ -35,6 +35,8 @@ import {
   autocorrPeak,
   welchHR,
   processStoredFrames,
+  chromRPPG,
+  posAlgorithm,
 } from './rppg.js'
 
 // Preprocess once; variants share this output.
@@ -287,6 +289,42 @@ function findPulsePeaks(sig, fs) {
   return peaks
 }
 
+// ── Variants #10/#11/#12: single-method isolation (Patrick 2026-10-03) ──────
+// The CHILL paper (Nature NPJ Digital Medicine 2025) found POS alone beat
+// their 4-method ensemble AND all 4 DL methods, scoring 1.1 bpm MAE on
+// their low-light dataset. Our current baseline blends CHROM+POS+Green
+// SNR-weighted — if that ensemble is hurting us (noise averaging in on
+// scans where one method is clearly cleanest), isolating each method tells
+// us. Pipeline is same for all three: extract one pulse → resample →
+// detrend → denoise → dominantFreq.
+function hrSingleMethodHR(frames, fps, extractor) {
+  const rgb = frames.map(f => [f.r, f.g, f.b])
+  const ts  = frames.map((f, i) => f.t || f.timestamp || i * (1000 / fps))
+  const actualFps = ts.length > 1 ? (ts.length / (ts[ts.length - 1] - ts[0]) * 1000) : fps
+  const relTs = ts.map(t => t - ts[0])
+  const pulse = extractor(rgb, actualFps)
+  if (!pulse || !pulse.length) return null
+  const resampled = resample(pulse, relTs, RESAMPLE_FPS)
+  const det = detrend(resampled)
+  const clean = denoiseSignal(det, RESAMPLE_FPS)
+  const hz = dominantFreq(clean, HR_LOW_HZ, HR_HIGH_HZ, RESAMPLE_FPS)
+  if (!hz || hz <= 0) return null
+  return Math.round(hz * 60)
+}
+
+export function hrVariant10_posOnly(frames, fps) {
+  return hrSingleMethodHR(frames, fps, (rgb) => posAlgorithm(rgb, 48))
+}
+
+export function hrVariant11_chromOnly(frames, fps) {
+  return hrSingleMethodHR(frames, fps, (rgb, actualFps) => chromRPPG(rgb, actualFps))
+}
+
+export function hrVariant12_greenOnly(frames, fps) {
+  // Green channel alone — classical rPPG baseline, just the inverted G channel.
+  return hrSingleMethodHR(frames, fps, (rgb) => rgb.map(([, g]) => -g))
+}
+
 // Convenience: run all variants + return a dict for the replay table.
 export function runAllHRVariants(frames, fps, subject = {}) {
   const out = {}
@@ -297,5 +335,8 @@ export function runAllHRVariants(frames, fps, subject = {}) {
   try { out.variant7 = hrVariant7_pbv(frames, fps) } catch { out.variant7 = null }
   out.variant8 = null  // not testable on stored data (whole-face RGB only)
   try { out.variant9 = hrVariant9_ibi(frames, fps) } catch { out.variant9 = null }
+  try { out.variant10 = hrVariant10_posOnly(frames, fps) } catch { out.variant10 = null }
+  try { out.variant11 = hrVariant11_chromOnly(frames, fps) } catch { out.variant11 = null }
+  try { out.variant12 = hrVariant12_greenOnly(frames, fps) } catch { out.variant12 = null }
   return out
 }

@@ -761,7 +761,7 @@ export function welchHR(signal, fps) {
 
 // ── CHROM algorithm ────────────────────────────────────────────────────────────
 
-function chromRPPG(rgb, fps) {
+export function chromRPPG(rgb, fps) {
   if (rgb.length < 20) return new Array(rgb.length).fill(0)
   const Xs = rgb.map(f => {
     const s = f[0] + f[1] + f[2] || 1
@@ -780,7 +780,7 @@ function chromRPPG(rgb, fps) {
 
 // ── POS algorithm (improved windowed version) ──────────────────────────────────
 
-function posAlgorithm(rgb, windowSize = 48) {
+export function posAlgorithm(rgb, windowSize = 48) {
   const n = rgb.length; if (n < windowSize * 2) return new Array(n).fill(0)
   const H = new Array(n).fill(0)
   for (let t = windowSize; t < n; t++) {
