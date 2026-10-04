@@ -1844,6 +1844,20 @@ export async function updateValidationHrRr(id, tereHr, tereRr, manualHr, opts = 
   }
 }
 
+// Backfill ME-rPPG DL HR on a historical reading by replaying the stored
+// scan video through the DL pipeline. Caller runs the replay client-side
+// (see replayVideoThroughMeRppg) then posts the result here.
+export async function updateValidationMeRppg(id, { hr, confidence, meanErr }) {
+  const res = await apiFetch(`/api/validation-readings?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ meRppgHr: hr, meRppgConfidence: confidence, meRppgMeanErr: meanErr }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updateValidationMeRppg HTTP ${res.status}`)
+  }
+}
+
 // Provider-only hard delete of a validation_readings row. Guarded server-
 // side by guardProvider and audit-logged. UI confirmation lives at the
 // dashboard button so callers can assume the user already confirmed.

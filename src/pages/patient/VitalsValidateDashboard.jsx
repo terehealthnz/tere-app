@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, deleteValidationReading, supabase } from '../../lib/supabase'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, updateValidationMeRppg, deleteValidationReading, supabase } from '../../lib/supabase'
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
@@ -1653,6 +1653,9 @@ export default function VitalsValidateDashboard() {
   // (same as live /vitals) so the column shows what prod would say now.
   const [v3Rerun, setV3Rerun] = useState({})
   const [v3RerunStatus, setV3RerunStatus] = useState('')
+  // ME-rPPG DL replay — per-row running state + bulk-replay progress label.
+  const [meRunning, setMeRunning] = useState({})
+  const [meBatchStatus, setMeBatchStatus] = useState('')
   useEffect(() => {
     if (!readings.length) return
     let cancelled = false
@@ -2078,6 +2081,44 @@ export default function VitalsValidateDashboard() {
               {v3RerunStatus && (
                 <div style={{ fontSize: '.72rem', color: '#6B7280', marginBottom: '.5rem' }}>v3 rerun — {v3RerunStatus}</div>
               )}
+              {/* Batch ME-rPPG replay — iterates rows that have a stored video
+                  but no DL prediction yet, decodes each video and backfills.
+                  ~15s per video, sequential (parallel replays blow the ONNX
+                  worker memory on phones). Patrick 2026-10-03 — the "we save
+                  video, so use it" ask. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '.5rem' }}>
+                <button
+                  disabled={!!meBatchStatus}
+                  onClick={async () => {
+                    const todo = readings.filter(r => r.video_url && r.me_rppg_hr == null)
+                    if (!todo.length) { alert('All readings with a stored video already have ME-rPPG predictions.'); return }
+                    if (!window.confirm(`Replay ${todo.length} video${todo.length>1?'s':''} through ME-rPPG? Takes ~15s each (~${Math.ceil(todo.length*17/60)} min total).`)) return
+                    setMeBatchStatus(`0/${todo.length}`)
+                    const { replayVideoThroughMeRppg } = await import('../../lib/meRppgReplay')
+                    let done = 0, failed = 0
+                    for (const r of todo) {
+                      setMeBatchStatus(`${done+1}/${todo.length}${failed ? ` (${failed} failed)` : ''}`)
+                      try {
+                        const out = await replayVideoThroughMeRppg(r.video_url)
+                        await updateValidationMeRppg(r.id, { hr: out.hr, confidence: out.confidence, meanErr: out.meanErr })
+                        setReadings(prev => prev.map(x => x.id === r.id ? { ...x, me_rppg_hr: out.hr, me_rppg_confidence: out.confidence, me_rppg_mean_err: out.meanErr } : x))
+                        done++
+                      } catch (e) {
+                        console.warn(`[me-rppg batch] row ${r.id} failed:`, e?.message || e)
+                        failed++
+                      }
+                    }
+                    setMeBatchStatus('')
+                    alert(`ME-rPPG batch replay complete: ${done} filled${failed ? `, ${failed} failed (check console)` : ''}.`)
+                  }}
+                  style={{ background: meBatchStatus ? '#F3F4F6' : 'white', color: '#3730A3', border: '1.5px solid #A5B4FC', borderRadius: 6, padding: '.3rem .7rem', fontSize: '.75rem', fontWeight: 700, cursor: meBatchStatus ? 'wait' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  {meBatchStatus ? `🧠 ME-rPPG batch — ${meBatchStatus}` : '🧠 Replay all missing ME-rPPG'}
+                </button>
+                <span style={{ fontSize: '.7rem', color: '#6B7280' }}>
+                  {readings.filter(r => r.video_url && r.me_rppg_hr == null).length} row(s) with stored video need backfill
+                </span>
+              </div>
+
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
                 <thead>
                   <tr>
@@ -2150,6 +2191,41 @@ export default function VitalsValidateDashboard() {
                             title="Re-run current v3 model against this reading's stored rPPG signal"
                             style={{ background: 'white', color: '#065F46', border: '1.5px solid #6EE7B7', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                             🔄 Re-eval
+                          </button>
+                          {/* ME-rPPG DL replay (Patrick 2026-10-03). Needs the full
+                              scan video — we store the WebM in scan-videos bucket with
+                              a 5-year signed URL on video_url. Classical v3 above
+                              re-uses the collapsed-mean-RGB rawFrames, but ME-rPPG
+                              needs facial pixels so it HAS to re-decode the video.
+                              15 sec of real-time inference per click (model plays
+                              video back at 1x). On success, PATCHes me_rppg_hr/conf
+                              and the ME-HR + ME diff columns update in-place next
+                              reload. */}
+                          <button
+                            disabled={!!meRunning[r.id] || !r.video_url}
+                            onClick={async () => {
+                              if (!r.video_url) {
+                                alert('No stored scan video — this reading pre-dates video capture.')
+                                return
+                              }
+                              setMeRunning(prev => ({ ...prev, [r.id]: 'loading…' }))
+                              try {
+                                const { replayVideoThroughMeRppg } = await import('../../lib/meRppgReplay')
+                                const out = await replayVideoThroughMeRppg(
+                                  r.video_url,
+                                  (pct) => setMeRunning(prev => ({ ...prev, [r.id]: `${pct}%` })),
+                                )
+                                await updateValidationMeRppg(r.id, { hr: out.hr, confidence: out.confidence, meanErr: out.meanErr })
+                                setReadings(prev => prev.map(x => x.id === r.id ? { ...x, me_rppg_hr: out.hr, me_rppg_confidence: out.confidence, me_rppg_mean_err: out.meanErr } : x))
+                                setMeRunning(prev => { const n = { ...prev }; delete n[r.id]; return n })
+                              } catch (e) {
+                                alert(`ME-rPPG replay failed: ${e?.message || e}`)
+                                setMeRunning(prev => { const n = { ...prev }; delete n[r.id]; return n })
+                              }
+                            }}
+                            title={r.video_url ? 'Replay stored scan video through ME-rPPG (takes ~15s)' : 'No stored video for this reading'}
+                            style={{ background: 'white', color: r.video_url ? '#3730A3' : '#9CA3AF', border: `1.5px solid ${r.video_url ? '#A5B4FC' : '#E5E7EB'}`, borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: r.video_url ? 'pointer' : 'not-allowed', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            {meRunning[r.id] ? `🧠 ${meRunning[r.id]}` : '🧠 ME-rPPG'}
                           </button>
                           {/* Admin-only delete. Server guard requires provider auth;
                               dashboard is already provider-gated via /api/validation-

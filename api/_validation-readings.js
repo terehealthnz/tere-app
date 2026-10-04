@@ -212,6 +212,11 @@ export default async function handler(req, res) {
     if (p.tereHr !== undefined || p.tereRr !== undefined || p.hrQuality !== undefined) {
       patch.reprocessed_at = new Date().toISOString()
     }
+    // ME-rPPG backfill path — replayVideoThroughMeRppg hits this to write the
+    // DL HR back on historical rows that pre-date the parallel-track commit.
+    if (p.meRppgHr !== undefined) patch.me_rppg_hr = p.meRppgHr
+    if (p.meRppgConfidence !== undefined) patch.me_rppg_confidence = p.meRppgConfidence
+    if (p.meRppgMeanErr !== undefined) patch.me_rppg_mean_err = p.meRppgMeanErr
 
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'Nothing to update — patch body is empty' })
