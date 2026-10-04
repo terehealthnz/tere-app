@@ -95,6 +95,10 @@ export class ConsultationRecorder {
     if (mixedStreams.length > 0) {
       const AC = window.AudioContext || window.webkitAudioContext
       this.audioContext = new AC()
+      // iOS Safari starts AudioContext suspended if construction didn't happen
+      // directly in a user-gesture handler. On the provider side scribe fires
+      // on room-connect which is already async, so resume() unblocks it.
+      try { if (this.audioContext.state === 'suspended') await this.audioContext.resume() } catch {}
       this.destinationNode = this.audioContext.createMediaStreamDestination()
       for (const mediaStream of mixedStreams) {
         const src = this.audioContext.createMediaStreamSource(mediaStream)
@@ -143,11 +147,35 @@ export class ConsultationRecorder {
     }
 
     this.chunks = []
-    this.mediaRecorder = new MediaRecorder(this.stream, {
-      mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : 'audio/webm'
+    // iOS Safari (and Chrome-on-iOS, which is Safari underneath) do NOT
+    // support audio/webm. Trying to construct MediaRecorder with
+    // mimeType:'audio/webm' throws NotSupportedError, start() rejects, and
+    // scribe silently never records anything — which is exactly what Patrick
+    // saw on his phone 2026-10-03. Pick the first supported type from a
+    // priority-ordered list; if none, construct without options so the
+    // browser picks its own default. Deepgram transcribes mp4/aac/webm all
+    // fine. The chosen type also gets stamped on the Blob in stop() so the
+    // Content-Type header to /api/transcribe matches the container.
+    const PREFERRED_TYPES = [
+      'audio/webm;codecs=opus',  // desktop Chrome / Firefox / Edge
+      'audio/webm',               // older desktop fallback
+      'audio/mp4;codecs=mp4a.40.2', // iOS Safari preferred (AAC-LC)
+      'audio/mp4',                // iOS Safari fallback
+      'audio/aac',                // some Android browsers
+    ]
+    const picked = PREFERRED_TYPES.find(t => {
+      try { return MediaRecorder.isTypeSupported(t) } catch { return false }
     })
+    this.recorderMime = picked || ''
+    try {
+      this.mediaRecorder = picked
+        ? new MediaRecorder(this.stream, { mimeType: picked })
+        : new MediaRecorder(this.stream)
+    } catch (e) {
+      console.error('[tereScribe] MediaRecorder construction failed:', e?.message, 'picked:', picked)
+      // Last-ditch: try without options so the browser picks whatever it can.
+      this.mediaRecorder = new MediaRecorder(this.stream)
+    }
     this.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data) }
     this.mediaRecorder.start(1000)
   }
@@ -158,7 +186,11 @@ export class ConsultationRecorder {
       // with an empty blob so the caller's error handling kicks in cleanly.
       if (!this.mediaRecorder) return resolve(new Blob([], { type: 'audio/webm' }))
       this.mediaRecorder.onstop = () => {
-        const blob = new Blob(this.chunks, { type: 'audio/webm' })
+        // Stamp the blob with whatever container the recorder actually used
+        // (iOS: audio/mp4, desktop: audio/webm) so Deepgram gets the right
+        // Content-Type via transcribeAudio() below.
+        const blobType = this.mediaRecorder.mimeType || this.recorderMime || 'audio/webm'
+        const blob = new Blob(this.chunks, { type: blobType })
         // Clean up any resources we own. LiveKit tracks (roomTracks path) are
         // owned by the Room, so we DO NOT stop them — only the mic stream we
         // opened ourselves (fallbackStream) + any WebAudio nodes.

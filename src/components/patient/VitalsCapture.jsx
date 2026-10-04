@@ -122,12 +122,26 @@ export default function VitalsCapture() {
     // Idempotent and safe on fresh consults where the flag was already false.
     const cId = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
     if (cId && !cId.startsWith('demo')) {
-      patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
       // Fetch DOB + sex off the consult once so BP prediction gets a varying
       // demographic feature per patient. Fire-and-forget; if it hasn't
       // resolved by the time predictBP runs we just fall back to {}.
       patientGetConsultation(cId).then(c => {
-        if (!c) return
+        if (!c) {
+          patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
+          return
+        }
+        // Back-nav from /waiting shouldn't force a re-scan. If vitals are
+        // already saved, bounce the patient straight back to the waiting room
+        // instead of remounting the capture UI (which also re-opens the
+        // camera + fires another provider notification on save). Patrick
+        // 2026-10-03.
+        const vitalsAlreadyDone = c.vitals && (c.vitals.hr != null || c.vitals.heartRate != null || c.vitals.source === 'manual' || c.vitals.skipped)
+        const postVitalsStatus = ['vitals_complete','ready','in_progress','waitlisted','complete','completed','closed','archived'].includes(c.status)
+        if (vitalsAlreadyDone || postVitalsStatus) {
+          navigate(makeConsultUrl('/waiting', cId))
+          return
+        }
+        patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
         const sub = {}
         if (c.patient_dob) {
           const birth = new Date(c.patient_dob)
@@ -198,6 +212,23 @@ export default function VitalsCapture() {
   // vitals showed to the patient but never reached the provider's chart.
   const [pendingSave,  setPendingSave]  = useState(null)
   const [retryingSave, setRetryingSave] = useState(false)
+
+  // One notification per consult, not per save. Each successful save path
+  // (initial, background, retake, manual-entry, retry) used to fire its own
+  // /api/push-notify, so a patient who retook three times paged the provider
+  // four times. Patrick 2026-10-03. Session-scoped so it survives unmount
+  // but naturally resets if the patient closes the tab.
+  function notifyVitalsReadyOnce(consultId) {
+    if (!consultId) return
+    const key = `vitals_notified_${consultId}`
+    try { if (sessionStorage.getItem(key)) return } catch {}
+    apiFetch('/api/push-notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type:'vitals_ready', consultationId: consultId }),
+    }).catch(() => {})
+    try { sessionStorage.setItem(key, '1') } catch {}
+  }
   const rearStreamRef  = useRef(null)
   const faceFramesRef  = useRef(null)  // stores raw frames from face scan for PTT
 
@@ -435,9 +466,7 @@ export default function VitalsCapture() {
                 import('../../lib/supabase').then(({ updateVitals }) =>
                   updateVitals(id, payload)
                 ).catch(() => {})
-                import('../../lib/api').then(({ apiFetch }) =>
-                  apiFetch('/api/push-notify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ type:'vitals_ready', consultationId:id }) }).catch(() => {})
-                ).catch(() => {})
+                notifyVitalsReadyOnce(id)
               } else {
                 sessionStorage.setItem('vitals', JSON.stringify(payload))
               }
@@ -560,11 +589,7 @@ export default function VitalsCapture() {
           try {
             await updateVitals(id, payload)
             setPendingSave(null)
-            apiFetch('/api/push-notify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ type:'vitals_ready', consultationId:id }),
-            }).catch(() => {})
+            notifyVitalsReadyOnce(id)
           } catch (e) {
             // Vitals were silently dropped (task #526) when the PATCH failed —
             // typically a stale patient_access_token returning 403. The error
@@ -600,11 +625,7 @@ export default function VitalsCapture() {
     try {
       await updateVitals(pendingSave.id, pendingSave.payload)
       setPendingSave(null)
-      apiFetch('/api/push-notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type:'vitals_ready', consultationId: pendingSave.id }),
-      }).catch(() => {})
+      notifyVitalsReadyOnce(pendingSave.id)
     } catch (e) {
       console.error('[vitals] retry save failed:', e?.message || e)
       setError(t.vitalsSaveFail.replace('{msg}', e?.message || t.serverError))
@@ -713,11 +734,7 @@ export default function VitalsCapture() {
     if (cId && !cId.startsWith('demo')) {
       try {
         await updateVitals(cId, result)
-        apiFetch('/api/push-notify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type:'vitals_ready', consultationId:cId }),
-        }).catch(() => {})
+        notifyVitalsReadyOnce(cId)
       } catch (e) {
         console.error('[vitals] manual save failed:', e?.message || e, { consultationId: cId })
         setError(t.vitalsManualFail.replace('{msg}', e?.message || t.serverError))
