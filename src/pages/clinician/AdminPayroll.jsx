@@ -548,9 +548,10 @@ export default function AdminPayroll({ embedded = false }) {
         </div>
       )}
 
-      {/* Payroll rates note */}
+      {/* Contractor tax disclaimer. Rates removed 2026-10-03 — per-provider
+          rates now live on the provider card (base_rate), hardcoded figures
+          were drifting out of sync. */}
       <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:10, padding:'.875rem 1rem', fontSize:'.8125rem', color:'#78350F', lineHeight:1.6 }}>
-        <strong>Rates:</strong> $20 per video/phone consultation · $10 per message consultation.
         This is a record of contractor earnings. Contractors are responsible for their own tax.
         Tere Health does not deduct PAYE.
       </div>
