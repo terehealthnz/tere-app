@@ -19,8 +19,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase, getValidationReadings } from '../../lib/supabase'
+import { supabase, getValidationReadings, getValidationSubjects } from '../../lib/supabase'
 import { processStoredFramesMultiPass, processStoredFrames } from '../../lib/rppg'
+import { runAllHRVariants } from '../../lib/rppg-hr-variants'
 
 function fmtHr(v) {
   if (v == null || Number.isNaN(v)) return '—'
@@ -55,6 +56,11 @@ export default function RppgReplay() {
   const [replaying, setReplaying] = useState(false)
   const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [replayResults, setReplayResults] = useState({}) // {readingId: {hr, rr, numericConfidence, source}}
+  // HR variant results keyed by reading id (Patrick 2026-10-03). Shape:
+  // {readingId: {variant1, variant2, variant5, variant6}} where each is bpm or null.
+  const [variantResults, setVariantResults] = useState({})
+  // Subjects for variant #5 (age-conditional Bayesian prior).
+  const [subjects, setSubjects] = useState([])
 
   // Auth gate — same pattern as VitalsValidateDashboard.
   useEffect(() => {
@@ -76,7 +82,10 @@ export default function RppgReplay() {
   const loadData = useCallback(async () => {
     setLoading(true); setLoadError(null)
     try {
-      const rows = await getValidationReadings()
+      const [rows, subs] = await Promise.all([
+        getValidationReadings(),
+        getValidationSubjects().catch(() => []),
+      ])
       // Only keep rows where both ground-truth HR and stored signal exist —
       // everything else can't participate in the comparison anyway.
       // Filter physiologically-implausible manual entries (typos like 589)
@@ -89,6 +98,7 @@ export default function RppgReplay() {
         r.raw_rppg_signal.frames.length > 60
       )
       setReadings(usable)
+      setSubjects(subs || [])
     } catch (e) {
       setLoadError(e?.message || String(e))
     } finally { setLoading(false) }
@@ -99,8 +109,11 @@ export default function RppgReplay() {
   async function runReplay() {
     setReplaying(true)
     setReplayResults({})
+    setVariantResults({})
     setProgress({ done: 0, total: readings.length })
     const results = {}
+    const variants = {}
+    const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
     for (let i = 0; i < readings.length; i++) {
       const r = readings[i]
       try {
@@ -109,10 +122,9 @@ export default function RppgReplay() {
         // Yield to the UI thread every 5 items so the progress bar can paint
         // and the tab stays responsive during long batches.
         if (i > 0 && i % 5 === 0) await new Promise(r => setTimeout(r, 0))
-        // Use multi-pass aggregation — the live pipeline runs 3 passes and
-        // robust-medians the results, so this is the only fair reproduction
-        // of what shipped. Single-pass processStoredFrames() reports 3× the
-        // MAE because it's a different algorithm.
+        // Baseline — multi-pass aggregation matches what the live pipeline
+        // ships. Single-pass processStoredFrames() reports ~3× MAE because
+        // it's a different algorithm.
         const out = processStoredFramesMultiPass(frames, fps) || processStoredFrames(frames, fps)
         results[r.id] = out ? {
           hr: out.hr, rr: out.rr,
@@ -120,12 +132,19 @@ export default function RppgReplay() {
           numericConfidence: out.numericConfidence,
           ok: true,
         } : { hr: null, rr: null, ok: false, reason: 'no result' }
+        // HR A/B variants (Patrick 2026-10-03). Baseline (results[r.id].hr)
+        // + 3 candidate algorithms + 1 deferred DL slot. All compared
+        // against manual_hr for apples-to-apples MAE.
+        const sub = r.subject_id ? (subMap[r.subject_id] || {}) : {}
+        variants[r.id] = runAllHRVariants(frames, fps, sub)
       } catch (e) {
         results[r.id] = { hr: null, rr: null, ok: false, reason: e?.message || 'error' }
+        variants[r.id] = { variant1: null, variant2: null, variant5: null, variant6: null }
       }
       setProgress({ done: i + 1, total: readings.length })
     }
     setReplayResults(results)
+    setVariantResults(variants)
     setReplaying(false)
   }
 
@@ -148,6 +167,48 @@ export default function RppgReplay() {
       replayRmse:   rmse(rows.map(x => x.errReplay)),
     }
   }, [readings, replayResults])
+
+  // HR variant leaderboard (Patrick 2026-10-03). Computes MAE for each
+  // candidate HR algorithm vs manual_hr (ground truth), ranks them, and
+  // highlights the winner. Baseline = current live pipeline (replay).
+  // Promotion decision gate: winner's MAE must beat baseline MAE AND
+  // be lower than baseline-minus-threshold to be worth a code change.
+  const variantMetrics = useMemo(() => {
+    const nResults = Object.keys(variantResults).length
+    if (!nResults) return null
+    const errors = {
+      baseline: [],
+      variant1: [],
+      variant2: [],
+      variant5: [],
+      variant6: [],
+    }
+    for (const r of readings) {
+      if (r.manual_hr == null) continue
+      const replay = replayResults[r.id]
+      const v = variantResults[r.id]
+      if (replay?.hr != null) errors.baseline.push(replay.hr - r.manual_hr)
+      if (v?.variant1 != null) errors.variant1.push(v.variant1 - r.manual_hr)
+      if (v?.variant2 != null) errors.variant2.push(v.variant2 - r.manual_hr)
+      if (v?.variant5 != null) errors.variant5.push(v.variant5 - r.manual_hr)
+      if (v?.variant6 != null) errors.variant6.push(v.variant6 - r.manual_hr)
+    }
+    const results = [
+      { key: 'baseline', label: 'Baseline (live pipeline)',       mae: mae(errors.baseline), rmse: rmse(errors.baseline), n: errors.baseline.length },
+      { key: 'variant1', label: '#1 Multi-window voting',         mae: mae(errors.variant1), rmse: rmse(errors.variant1), n: errors.variant1.length },
+      { key: 'variant2', label: '#2 Bidirectional harmonic check', mae: mae(errors.variant2), rmse: rmse(errors.variant2), n: errors.variant2.length },
+      { key: 'variant5', label: '#5 Bayesian age prior',          mae: mae(errors.variant5), rmse: rmse(errors.variant5), n: errors.variant5.length },
+      { key: 'variant6', label: '#6 DL model (deferred #517)',     mae: mae(errors.variant6), rmse: rmse(errors.variant6), n: errors.variant6.length },
+    ]
+    const valid = results.filter(r => r.mae != null && r.n > 0)
+    const sorted = [...valid].sort((a, b) => a.mae - b.mae)
+    const winner = sorted[0]
+    const baseline = results.find(r => r.key === 'baseline')
+    const improvement = winner && baseline && baseline.mae != null && winner.key !== 'baseline'
+      ? baseline.mae - winner.mae
+      : 0
+    return { results, winner, baseline, improvement }
+  }, [readings, replayResults, variantResults])
 
   // RR-specific metrics. No ground truth in validation_readings (no manual_rr
   // column — RR is hard to self-measure), so we can't do a MAE. Instead we
@@ -248,6 +309,71 @@ export default function RppgReplay() {
             <Stat label="Replay HR — MAE"  value={metrics.replayMae?.toFixed(2) ?? '—'} unit="bpm" />
             <Stat label="Replay HR — RMSE" value={metrics.replayRmse?.toFixed(2) ?? '—'} unit="bpm" />
           </div>
+
+          {/* HR variant leaderboard (Patrick 2026-10-03). Ranks baseline +
+              candidate algorithms by MAE vs manual_hr. Winner highlighted;
+              promotion only recommended if improvement > ~1 bpm (noise
+              floor). Pattern mirrors BP v2/v3 train+promote: see the win
+              empirically on real data before changing live code. */}
+          {variantMetrics && (
+            <div style={{background:'#EEF2FF',border:'1px solid #C7D2FE',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
+              <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
+                <div style={{fontSize:'.75rem',fontWeight:700,color:'#3730A3',textTransform:'uppercase',letterSpacing:'.05em'}}>
+                  HR algorithm leaderboard — candidates vs baseline
+                </div>
+                {variantMetrics.winner && variantMetrics.winner.key !== 'baseline' && variantMetrics.improvement > 1 && (
+                  <div style={{background:'#D1FAE5',color:'#065F46',padding:'3px 10px',borderRadius:99,fontSize:'.7rem',fontWeight:700}}>
+                    ✓ WINNER beats baseline by {variantMetrics.improvement.toFixed(2)} bpm — consider promoting
+                  </div>
+                )}
+                {variantMetrics.winner && variantMetrics.winner.key === 'baseline' && (
+                  <div style={{background:'#FEF3C7',color:'#78350F',padding:'3px 10px',borderRadius:99,fontSize:'.7rem',fontWeight:700}}>
+                    Baseline still best — no variant improves
+                  </div>
+                )}
+                {variantMetrics.winner && variantMetrics.winner.key !== 'baseline' && variantMetrics.improvement <= 1 && (
+                  <div style={{background:'#FEF3C7',color:'#78350F',padding:'3px 10px',borderRadius:99,fontSize:'.7rem',fontWeight:700}}>
+                    Candidate leads but delta &lt; 1 bpm — within noise, don't promote
+                  </div>
+                )}
+              </div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.85rem'}}>
+                <thead>
+                  <tr style={{color:'#3730A3'}}>
+                    <th style={{textAlign:'left',padding:'.3rem .5rem',fontWeight:700}}>Algorithm</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>n</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>MAE (bpm)</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>RMSE (bpm)</th>
+                    <th style={{textAlign:'right',padding:'.3rem .5rem',fontWeight:700}}>vs baseline</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {variantMetrics.results.map(r => {
+                    const isWinner = variantMetrics.winner?.key === r.key
+                    const delta = r.mae != null && variantMetrics.baseline?.mae != null
+                      ? variantMetrics.baseline.mae - r.mae
+                      : null
+                    return (
+                      <tr key={r.key} style={{background: isWinner ? '#D1FAE5' : 'transparent', fontWeight: isWinner ? 700 : 400}}>
+                        <td style={{padding:'.4rem .5rem',color:'#1F2937'}}>{isWinner && '🏆 '}{r.label}</td>
+                        <td style={{padding:'.4rem .5rem',textAlign:'right',color:'#6B7280'}}>{r.n || '—'}</td>
+                        <td style={{padding:'.4rem .5rem',textAlign:'right',color:'#1F2937'}}>{r.mae != null ? r.mae.toFixed(2) : '—'}</td>
+                        <td style={{padding:'.4rem .5rem',textAlign:'right',color:'#6B7280'}}>{r.rmse != null ? r.rmse.toFixed(2) : '—'}</td>
+                        <td style={{padding:'.4rem .5rem',textAlign:'right',color: delta == null ? '#9CA3AF' : delta > 0 ? '#065F46' : delta < 0 ? '#991B1B' : '#6B7280'}}>
+                          {r.key === 'baseline' ? '—' : delta == null ? '—' : (delta > 0 ? '+' : '') + delta.toFixed(2)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div style={{fontSize:'.75rem',color:'#4B5563',marginTop:'.6rem',lineHeight:1.5}}>
+                Promotion rule: if a candidate's MAE is &gt;1 bpm lower than baseline, swap it into
+                <code style={{background:'#E0E7FF',padding:'1px 4px',borderRadius:3,margin:'0 3px'}}>processStoredFrames</code>
+                via a code change (no runtime flag — algorithm swaps ship as code). &lt;1 bpm = noise.
+              </div>
+            </div>
+          )}
 
           <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
             <div style={{fontSize:'.75rem',fontWeight:700,color:'#92400E',textTransform:'uppercase',letterSpacing:'.05em',marginBottom:'.75rem'}}>

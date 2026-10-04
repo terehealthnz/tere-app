@@ -7,9 +7,9 @@
  */
 
 const WINDOW_SEC   = 80
-const RESAMPLE_FPS = 30
-const HR_LOW_HZ    = 0.75
-const HR_HIGH_HZ   = 3.5
+export const RESAMPLE_FPS = 30
+export const HR_LOW_HZ    = 0.75
+export const HR_HIGH_HZ   = 3.5
 const RR_LOW_HZ    = 0.13
 const RR_HIGH_HZ   = 0.5
 export const PASS_COUNT   = 4
@@ -160,13 +160,13 @@ export function getRobustAverage(values) {
 function mean(a)  { return a.reduce((s,v)=>s+v,0)/a.length }
 function std(a)   { const m=mean(a); return Math.sqrt(mean(a.map(v=>(v-m)**2))) }
 function hanning(n) { return Array.from({length:n},(_,i)=>0.5*(1-Math.cos(2*Math.PI*i/(n-1)))) }
-function detrend(a) {
+export function detrend(a) {
   const n=a.length; if(n<2) return a
   const xm=(n-1)/2, ym=mean(a)
   const slope=a.reduce((s,v,i)=>s+(i-xm)*(v-ym),0)/a.reduce((s,_,i)=>s+(i-xm)**2,0)
   return a.map((v,i)=>v-(slope*(i-xm)+ym))
 }
-function resample(values, timestamps, targetFps) {
+export function resample(values, timestamps, targetFps) {
   if (values.length<2) return values
   const tStart=timestamps[0], tEnd=timestamps[timestamps.length-1], dt=1000/targetFps
   const out=[]; let j=0
@@ -231,7 +231,7 @@ function bandpassFilter(signal, fps, lowHz, highHz) {
 
 // ── Signal denoising ──────────────────────────────────────────────────────────
 
-function denoiseSignal(signal, fps) {
+export function denoiseSignal(signal, fps) {
   const N = signal.length
   if (N < 10) return signal
   const trendWindow = Math.floor(fps * 3)
@@ -467,7 +467,7 @@ export function calculatePTT(faceFrames, handFrames, fps = 30) {
 
 // ── Legacy FFT helpers (kept for backward compat) ─────────────────────────────
 
-function fftMagnitudes(signal) {
+export function fftMagnitudes(signal) {
   const n = nextPow2(signal.length)
   const win = hanning(signal.length)
   const re  = [...signal.map((v,i)=>v*win[i]), ...new Array(n-signal.length).fill(0)]
@@ -482,7 +482,7 @@ function fftMagnitudes(signal) {
 // short windows and taking the modal HR, windows where the cardiac signal
 // outshouts the drift outvote the rest. Tested at MAE 5.9 bpm vs 22.9 bpm
 // for the same data on the previous single-window pipeline.
-function dominantFreq(signal, lowHz, highHz, fs) {
+export function dominantFreq(signal, lowHz, highHz, fs) {
   const {mags,n}=fftMagnitudes(signal)
   const freqRes=fs/n
   let maxAmp=0, domFreq=0
@@ -696,7 +696,7 @@ function signalSNR(signal, peakFreq, fs) {
   return avgNoise>0?mags[peakBin]/avgNoise:0
 }
 
-function autocorrPeak(signal, lowHz, highHz, fs) {
+export function autocorrPeak(signal, lowHz, highHz, fs) {
   const n=signal.length
   const minLag=Math.floor(fs/highHz), maxLag=Math.floor(fs/lowHz)
   let bestLag=0, bestVal=-Infinity
@@ -721,7 +721,7 @@ function calcSignalSNR(signal, fps) {
   return totalPower > 0 ? hrPower / totalPower : 0
 }
 
-function welchHR(signal, fps) {
+export function welchHR(signal, fps) {
   const n = signal.length
   const segLen = Math.max(Math.floor(fps * 8), 64)
   const overlap = Math.floor(segLen * 0.5)
@@ -797,7 +797,7 @@ function posAlgorithm(rgb, windowSize = 48) {
 
 // ── SNR-weighted ensemble: CHROM + POS + Green ─────────────────────────────────
 
-function extractPulseSignal(rgb, fps) {
+export function extractPulseSignal(rgb, fps) {
   const green = rgb.map(f => f[1])
 
   const chromSig = chromRPPG(rgb, fps)
