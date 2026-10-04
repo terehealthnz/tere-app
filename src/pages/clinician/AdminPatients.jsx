@@ -68,7 +68,9 @@ function JourneyTimeline({ consult }) {
   )
 }
 
-function EditableField({ label, value, onSave }) {
+// inputType: 'textarea' (default) | 'text' | 'date'. Date renders a native
+// <input type="date"> and formats the saved ISO yyyy-MM-dd on display.
+function EditableField({ label, value, onSave, inputType = 'textarea' }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value || '')
   const [saving, setSaving]   = useState(false)
@@ -79,6 +81,15 @@ function EditableField({ label, value, onSave }) {
     setSaving(false)
     setEditing(false)
   }
+
+  const display = (() => {
+    if (!value) return <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>—</span>
+    if (inputType === 'date') {
+      const d = new Date(value)
+      if (!isNaN(d)) return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    }
+    return value
+  })()
 
   return (
     <div style={{ marginBottom: '1rem' }}>
@@ -91,8 +102,13 @@ function EditableField({ label, value, onSave }) {
       </div>
       {editing ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={3}
-            style={{ width: '100%', padding: '.5rem .625rem', border: '1.5px solid #D1D5DB', borderRadius: 7, fontFamily: FF, fontSize: '.875rem', resize: 'vertical', boxSizing: 'border-box' }} />
+          {inputType === 'textarea' ? (
+            <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={3}
+              style={{ width: '100%', padding: '.5rem .625rem', border: '1.5px solid #D1D5DB', borderRadius: 7, fontFamily: FF, fontSize: '.875rem', resize: 'vertical', boxSizing: 'border-box' }} />
+          ) : (
+            <input type={inputType} value={draft} onChange={e => setDraft(e.target.value)}
+              style={{ width: '100%', padding: '.5rem .625rem', border: '1.5px solid #D1D5DB', borderRadius: 7, fontFamily: FF, fontSize: '.875rem', boxSizing: 'border-box' }} />
+          )}
           <button onClick={save} disabled={saving}
             style={{ alignSelf: 'flex-end', background: TEAL, color: 'white', border: 'none', borderRadius: 7, padding: '6px 14px', fontWeight: 700, fontSize: '.8125rem', cursor: 'pointer', fontFamily: FF, opacity: saving ? .6 : 1 }}>
             {saving ? 'Saving…' : 'Save'}
@@ -100,7 +116,7 @@ function EditableField({ label, value, onSave }) {
         </div>
       ) : (
         <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-          {value || <span style={{ color: '#9CA3AF', fontStyle: 'italic' }}>—</span>}
+          {display}
         </div>
       )}
     </div>
@@ -192,6 +208,13 @@ function PatientProfile({ patientId, onClose, onMerge }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
         {/* Left column */}
         <div>
+          <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Identity</div>
+            <EditableField label="First name" value={patient.first_name} inputType="text" onSave={v => save('first_name', v.trim())} />
+            <EditableField label="Last name"  value={patient.last_name}  inputType="text" onSave={v => save('last_name', v.trim())} />
+            <EditableField label="Date of birth" value={patient.date_of_birth} inputType="date" onSave={v => save('date_of_birth', v || null)} />
+          </div>
+
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '1rem' }}>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Contact</div>
             <EditableField label="Phone"  value={patient.phone}  onSave={v => save('phone', v)} />
