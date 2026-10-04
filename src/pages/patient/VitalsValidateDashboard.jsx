@@ -2106,7 +2106,41 @@ export default function VitalsValidateDashboard() {
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.tere_rr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.raw_rppg_signal?.numericConfidence ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.notes || ''}>{r.notes || ''}</td>
-                        <td style={{ padding: '.5rem .75rem', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '.5rem .75rem', whiteSpace: 'nowrap', display: 'flex', gap: 6 }}>
+                          {/* Per-row v3 re-eval (Patrick 2026-10-03). The dashboard
+                              auto-reruns v3 for every reading on page load, but after
+                              hitting the Retrain v3 button the cached v3Rerun is stale
+                              until the user reloads. This button fetches the currently
+                              promoted v3 model fresh and re-predicts just this one row,
+                              writing back into v3Rerun[r.id] so the v3 column updates
+                              in place. Doesn't touch DB — purely a "what would prod
+                              say now" lookup. */}
+                          <button
+                            onClick={async () => {
+                              if (!r.raw_rppg_signal?.frames?.length) {
+                                alert('No stored rPPG frames for this reading — nothing to re-evaluate.')
+                                return
+                              }
+                              try {
+                                const { loadActiveV3ModelFromServer, predictV3FromFrames } = await import('../../lib/bpModelV3')
+                                const model = await loadActiveV3ModelFromServer()
+                                if (!model) { alert('No v3 model promoted on server yet.'); return }
+                                const sub = r.subject_id ? (subjects.find(s => s.id === r.subject_id) || {}) : {}
+                                const fps = r.raw_rppg_signal?.fps || 30
+                                const pred = predictV3FromFrames(model, r.raw_rppg_signal.frames, fps, sub)
+                                if (!pred || pred.skipped) {
+                                  alert(`v3 skipped this row: ${pred?.reason || 'unknown'}`)
+                                  return
+                                }
+                                setV3Rerun(prev => ({ ...prev, [r.id]: { sys: pred.systolic, dia: pred.diastolic } }))
+                              } catch (e) {
+                                alert(`Re-eval failed: ${e?.message || e}`)
+                              }
+                            }}
+                            title="Re-run current v3 model against this reading's stored rPPG signal"
+                            style={{ background: 'white', color: '#065F46', border: '1.5px solid #6EE7B7', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            🔄 Re-eval
+                          </button>
                           {/* Admin-only delete. Server guard requires provider auth;
                               dashboard is already provider-gated via /api/validation-
                               readings' guardProvider on PATCH/DELETE. Confirm dialog
