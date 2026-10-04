@@ -164,20 +164,26 @@ export default async function handler(req, res) {
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       if (!data) return res.status(404).json({ error: 'Consultation not found' })
 
-      // Break-glass gate on off-queue chart access (task #414). A consult
-      // counts as "active queue" if:
-      //   - status is one of the live-workflow states (waiting/vitals/ready/reviewing)
-      //   - OR the caller is the currently-assigned provider
-      // Anything else (completed, no-show, cancelled, or another provider's
-      // active chart) requires the caller to have posted a break-glass
-      // justification via /api/consult-break-glass in the last 60 minutes.
-      // Admins + supervisors + billing_admins are still gated — the whole
-      // point is to force a documented reason for every off-queue view.
-      const ACTIVE_STATES = new Set(['waiting', 'vitals_complete', 'ready', 'reviewing'])
+      // Break-glass gate on off-queue chart access (task #414, tightened
+      // 2026-10-03 after Patrick flagged being able to revisit his supervisor
+      // Dr Rachel Thomas's chart with no justification because he'd been the
+      // attending provider on a prior consult). A consult counts as "active
+      // queue" ONLY if status is a live-workflow state (waiting through
+      // in_progress). Any post-call state (complete, completed, no_show,
+      // cancelled, archived, closed) requires a break-glass justification
+      // via /api/consult-break-glass in the last 60 minutes — including the
+      // original attending provider revisiting their own completed charts.
+      // Rationale: the ClinicianPatient view surfaces the full longitudinal
+      // record (every past consult, structured history, meds, Reports) via
+      // the patient_id join, not just the one consult the provider ran.
+      // Letting the assigned provider skip break-glass forever means one
+      // legitimate consult grants perpetual snoop rights. Admins and
+      // supervisors are still gated — the whole point is to force a
+      // documented reason for every off-queue view.
+      const ACTIVE_STATES = new Set(['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing', 'in_progress'])
       const callerId = auth.provider?.id || null
       const isActiveState = ACTIVE_STATES.has(data.status)
-      const isAssignedToCaller = data.provider_id && callerId && data.provider_id === callerId
-      if (!isActiveState && !isAssignedToCaller) {
+      if (!isActiveState) {
         // Check for a recent break-glass grant.
         const sixtyMinAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
         const { data: recent } = await supabase.from('audit_logs')
