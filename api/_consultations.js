@@ -183,7 +183,20 @@ export default async function handler(req, res) {
       const ACTIVE_STATES = new Set(['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'reviewing', 'in_progress'])
       const callerId = auth.provider?.id || null
       const isActiveState = ACTIVE_STATES.has(data.status)
-      if (!isActiveState) {
+      // Narrow carve-out (Patrick 2026-10-03): if the call just ended and
+      // the attending provider still owes notes on this consult, let them
+      // open the chart to finish the signoff without break-glass. This is
+      // the "active workflow notes" case — the provider's own current
+      // chart, not a historical one. Guard tightly: must be status=complete
+      // AND notes_finalised=false AND the caller IS the attending provider.
+      // Any other post-call state (notes signed, no-show, cancelled) OR an
+      // admin / different provider still requires break-glass.
+      const isCallerPendingNotes = data.status === 'complete'
+        && data.notes_finalised === false
+        && data.provider_id
+        && callerId
+        && data.provider_id === callerId
+      if (!isActiveState && !isCallerPendingNotes) {
         // Check for a recent break-glass grant.
         const sixtyMinAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
         const { data: recent } = await supabase.from('audit_logs')
