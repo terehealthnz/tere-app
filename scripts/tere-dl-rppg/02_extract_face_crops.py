@@ -18,6 +18,7 @@ Usage:
 
 import json
 import sys
+import urllib.request
 from pathlib import Path
 
 import cv2
@@ -31,7 +32,30 @@ CROP_SIZE = 72
 FOREHEAD_X_RANGE = (0.30, 0.70)
 FOREHEAD_Y_RANGE = (0.00, 0.18)
 
-HAAR_CASCADE_PATH = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+# Python 3.14's opencv wheel ships without the Haar cascade XMLs that older
+# versions bundled under cv2.data.haarcascades. Fall back to a known-good
+# path (./data/haarcascade_frontalface_default.xml); auto-download if missing.
+HAAR_LOCAL_PATH = Path(__file__).parent / "data" / "haarcascade_frontalface_default.xml"
+HAAR_URL = "https://raw.githubusercontent.com/opencv/opencv/master/data/haarcascades/haarcascade_frontalface_default.xml"
+
+
+def resolve_haar_path() -> str:
+    """Prefer cv2's bundled XML if present, otherwise ensure a local copy."""
+    try:
+        bundled = Path(cv2.data.haarcascades) / "haarcascade_frontalface_default.xml"
+        if bundled.exists() and bundled.stat().st_size > 10_000:
+            return str(bundled)
+    except Exception:
+        pass
+    if not HAAR_LOCAL_PATH.exists():
+        HAAR_LOCAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        print(f"cv2.data path missing or empty, downloading Haar XML to {HAAR_LOCAL_PATH} ...")
+        urllib.request.urlretrieve(HAAR_URL, HAAR_LOCAL_PATH)
+        print(f"Downloaded {HAAR_LOCAL_PATH.stat().st_size // 1024} KB")
+    return str(HAAR_LOCAL_PATH)
+
+
+HAAR_CASCADE_PATH = resolve_haar_path()
 
 
 def extract_crops_from_video(video_path: Path, crop_dir: Path, reading_id: str):
@@ -140,17 +164,23 @@ def main(manifest_path: str):
             "recorded_at": row.get("recorded_at"),
         })
 
+    print(f"\nExtracted {extracted}, skipped {skipped} (no video), failed {failed}.")
+
+    if not rows:
+        print("No rows extracted — nothing to label. Fix the extraction errors above and re-run.")
+        return
+
     df = pd.DataFrame(rows)
     # Drop rows without a manual_hr label — can't train against them
-    labelled = df[df["manual_hr"].notna()].reset_index(drop=True)
+    labelled = df[df["manual_hr"].notna()].reset_index(drop=True) if "manual_hr" in df.columns else df.iloc[0:0]
     labels_path = Path(__file__).parent / "data" / "labels.csv"
     labelled.to_csv(labels_path, index=False)
 
-    print(f"\nExtracted {extracted}, skipped {skipped} (no video), failed {failed}.")
     print(f"Labelled rows (manual_hr present): {len(labelled)} of {len(df)}")
-    print(f"Unique subjects: {labelled['subject_id'].nunique()}")
-    print(f"Mean frames per clip: {labelled['frames'].mean():.0f}")
-    print(f"Manual HR range: {labelled['manual_hr'].min()}-{labelled['manual_hr'].max()} bpm")
+    if len(labelled):
+        print(f"Unique subjects: {labelled['subject_id'].nunique()}")
+        print(f"Mean frames per clip: {labelled['frames'].mean():.0f}")
+        print(f"Manual HR range: {labelled['manual_hr'].min()}-{labelled['manual_hr'].max()} bpm")
     print(f"Labels saved: {labels_path}")
     print(f"Crops in: {crop_dir}")
 
