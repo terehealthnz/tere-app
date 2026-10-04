@@ -44,7 +44,14 @@ def ensure_model():
 
 
 def make_detector():
-    base_options = mp_python.BaseOptions(model_asset_path=str(MODEL_PATH))
+    # Explicitly pin to CPU delegate — MediaPipe's Metal/GPU path crashes on
+    # Apple Silicon when the FaceLandmarker TensorsToDetectionsCalculator can't
+    # initialise DrishtiMetalHelper. Browser-side GPU works via WebGL, but the
+    # Python tasks-vision bindings don't fall back cleanly, so we force CPU.
+    base_options = mp_python.BaseOptions(
+        model_asset_path=str(MODEL_PATH),
+        delegate=mp_python.BaseOptions.Delegate.CPU,
+    )
     options = mp_vision.FaceLandmarkerOptions(
         base_options=base_options,
         running_mode=mp_vision.RunningMode.VIDEO,
