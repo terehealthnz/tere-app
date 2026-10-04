@@ -1844,6 +1844,20 @@ export async function updateValidationHrRr(id, tereHr, tereRr, manualHr, opts = 
   }
 }
 
+// Provider-only hard delete of a validation_readings row. Guarded server-
+// side by guardProvider and audit-logged. UI confirmation lives at the
+// dashboard button so callers can assume the user already confirmed.
+export async function deleteValidationReading(id) {
+  const res = await apiFetch(`/api/validation-readings?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `deleteValidationReading HTTP ${res.status}`)
+  }
+  return res.json().catch(() => ({}))
+}
+
 // Model versions read stays direct because it doesn't contain PHI — just
 // training metrics + weight blobs. Kept as an anon-readable table for now.
 // The insert path (saveTrainedModel in bpModel.js) goes through

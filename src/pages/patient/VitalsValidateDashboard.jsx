@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, supabase } from '../../lib/supabase'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, deleteValidationReading, supabase } from '../../lib/supabase'
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
@@ -2079,7 +2079,7 @@ export default function VitalsValidateDashboard() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.85rem' }}>
                 <thead>
                   <tr>
-                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','RR','Conf %','Notes'].map(h => (
+                    {['Date','Subject','Cuff BP','v3 BP','BP err','Manual HR','Tere HR','Diff','RR','Conf %','Notes','Actions'].map(h => (
                       <th key={h} style={{ padding: '.5rem .75rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
@@ -2106,6 +2106,29 @@ export default function VitalsValidateDashboard() {
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.tere_rr ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280' }}>{r.raw_rppg_signal?.numericConfidence ?? '—'}</td>
                         <td style={{ padding: '.5rem .75rem', color: '#6B7280', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.notes || ''}>{r.notes || ''}</td>
+                        <td style={{ padding: '.5rem .75rem', whiteSpace: 'nowrap' }}>
+                          {/* Admin-only delete. Server guard requires provider auth;
+                              dashboard is already provider-gated via /api/validation-
+                              readings' guardProvider on PATCH/DELETE. Confirm dialog
+                              shows the reading identifiers so you can't nuke the wrong
+                              row by muscle memory. Optimistic row-filter — if the DELETE
+                              fails the next getValidationReadings refresh restores it. */}
+                          <button
+                            onClick={async () => {
+                              const label = `${r.subject_code || '?'} · ${new Date(r.recorded_at).toLocaleDateString()} · ${r.manual_systolic ?? '?'}/${r.manual_diastolic ?? '?'} · HR cuff ${r.manual_hr ?? '?'} vs tere ${r.tere_hr ?? '?'}`
+                              if (!window.confirm(`Delete this reading permanently?\n\n${label}\n\nThis also removes it from future BP model retrains.`)) return
+                              try {
+                                await deleteValidationReading(r.id)
+                                setReadings(prev => prev.filter(x => x.id !== r.id))
+                              } catch (e) {
+                                alert(`Delete failed: ${e?.message || e}`)
+                              }
+                            }}
+                            title="Delete this reading (provider-only, audit-logged)"
+                            style={{ background: 'white', color: '#B91C1C', border: '1.5px solid #FCA5A5', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            🗑️ Delete
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}

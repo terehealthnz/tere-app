@@ -215,6 +215,37 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
+  if (req.method === 'DELETE') {
+    // Provider-only — one-row hard delete for bad readings that would
+    // poison BP training (big HR mismatch, obvious artefact, cuff typo).
+    // Patrick 2026-10-03: replaces the SQL-console round-trip with an
+    // in-dashboard button. Audit-logged so there's always a trail.
+    const auth = await guardProvider(req, res)
+    if (!auth) return
+    const { id } = req.query || {}
+    if (!id) return res.status(400).json({ error: 'id query param is required' })
+    // Fetch first so the audit payload has the row's identifying fields.
+    const { data: row } = await supabase
+      .from('validation_readings')
+      .select('id, subject_code, recorded_at, manual_systolic, manual_diastolic, manual_hr, tere_hr')
+      .eq('id', id)
+      .maybeSingle()
+    if (!row) return res.status(404).json({ error: 'Reading not found' })
+    const { error } = await supabase.from('validation_readings').delete().eq('id', id)
+    if (error) { console.error('[validation-readings] delete failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    try {
+      await supabase.from('audit_log').insert({
+        actor_type: 'provider',
+        actor_id: auth.providerId,
+        action: 'validation_reading.delete',
+        target_type: 'validation_reading',
+        target_id: id,
+        details: row,
+      })
+    } catch {}
+    return res.status(200).json({ ok: true, deleted: row })
+  }
+
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
