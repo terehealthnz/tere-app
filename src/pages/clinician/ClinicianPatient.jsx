@@ -949,6 +949,66 @@ export default function ClinicianPatient() {
           )
         })()}
 
+        {/* Biometrics history (2026-10-03). Aggregated per-encounter height/
+            weight/sex captured at triage so provider can see weight drift,
+            unexplained loss, growth-chart-style trends. Important for the
+            future GP line where longitudinal weight matters (meds dosing,
+            thyroid, chronic disease monitoring, paeds). Clickable rows
+            open the source encounter — same UX pattern as the Vitals
+            trend table above. */}
+        {(() => {
+          const hasBio = c => c?.patient_weight_kg != null || c?.patient_height_cm != null || c?.patient_sex
+          const rows = [
+            ...(hasBio(consult) ? [{ date: consult.created_at, c: consult, current: true, src: consult }] : []),
+            ...history.filter(hasBio).map(c => ({ date: c.created_at, c, current: false, src: c })),
+          ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 12)
+          if (rows.length < 1) return null
+          const bmi = (w, h) => (w && h && h > 50) ? (w / Math.pow(h / 100, 2)).toFixed(1) : null
+          return (
+            <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.75rem' }}>
+                Biometrics history <span style={{ fontWeight: 400, color: '#9CA3AF', fontSize: '.75rem' }}>· last {rows.length} encounter{rows.length === 1 ? '' : 's'}</span>
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8125rem', fontFamily: 'ui-monospace, Menlo, monospace', minWidth: 380 }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC' }}>
+                      {['Date','Weight','Height','BMI','Sex'].map(h => (
+                        <th key={h} style={{ textAlign: h === 'Date' ? 'left' : 'right', padding: '.5rem .625rem', color: '#6B7280', fontWeight: 700, fontSize: '.6875rem', textTransform: 'uppercase', letterSpacing: '.04em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const clickable = !r.current && r.src
+                      const b = bmi(r.c.patient_weight_kg, r.c.patient_height_cm)
+                      return (
+                      <tr key={i}
+                        onClick={clickable ? () => setNoteModal(r.src) : undefined}
+                        onMouseEnter={clickable ? e => { e.currentTarget.style.background = '#F1F5F9' } : undefined}
+                        onMouseLeave={clickable ? e => { e.currentTarget.style.background = 'transparent' } : undefined}
+                        title={clickable ? 'Click to open this encounter' : undefined}
+                        style={{ borderTop: '1px solid #F1F5F9', background: r.current ? '#F0F9FA' : 'transparent', cursor: clickable ? 'pointer' : 'default', transition: 'background .12s' }}>
+                        <td style={{ padding: '.5rem .625rem', color: NAVY, fontFamily: FF, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
+                          {new Date(r.date).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: '2-digit' })}
+                          {r.current && <span style={{ marginLeft: 4, background: TEAL, color: 'white', fontSize: '.5625rem', fontWeight: 700, padding: '1px 5px', borderRadius: 99, verticalAlign: 'middle' }}>NOW</span>}
+                        </td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.c.patient_weight_kg ? NAVY : '#D1D5DB' }}>{r.c.patient_weight_kg ? `${r.c.patient_weight_kg} kg` : '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.c.patient_height_cm ? NAVY : '#D1D5DB' }}>{r.c.patient_height_cm ? `${r.c.patient_height_cm} cm` : '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: b ? NAVY : '#D1D5DB', fontWeight: b ? 600 : 400 }}>{b || '—'}</td>
+                        <td style={{ padding: '.5rem .625rem', textAlign: 'right', color: r.c.patient_sex ? '#6B7280' : '#D1D5DB' }}>{r.c.patient_sex || '—'}</td>
+                      </tr>
+                    )})}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: '.5rem' }}>
+                Newest first. BMI = kg / m². Weight/height captured at each triage; useful for drift (unexplained loss, med dosing) and future longitudinal GP care.
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Structured patient history (task #223). Renders alongside the
             free-text EditableCards above during the transition. Once every
             patient has been reviewed and either structured-out or the
