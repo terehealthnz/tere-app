@@ -15,6 +15,7 @@ matplotlib>=3.9.0       # Training curves + validation plots
 # ONNX export (step 5). Pinned to match the onnxruntime-web@1.18.0 we ship.
 onnx>=1.16.0
 onnxruntime>=1.18.0
+onnxscript>=0.1.0           # Required by torch.onnx.export in torch 2.3+
 
 # Supabase client — not used in training, but 01_download_videos.py uses
 # requests + manifest JSON, no supabase-py needed. Keeping requests pinned

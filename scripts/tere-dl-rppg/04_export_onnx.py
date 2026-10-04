@@ -41,8 +41,8 @@ def main(ckpt_path: str):
     torch.onnx.export(
         model, dummy, str(out_onnx),
         input_names=["clip"],
-        output_names=["bvp"],
-        dynamic_axes={"clip": {0: "batch"}, "bvp": {0: "batch"}},
+        output_names=["hr"],
+        dynamic_axes={"clip": {0: "batch"}, "hr": {0: "batch"}},
         opset_version=17,
         do_constant_folding=True,
     )
@@ -51,8 +51,8 @@ def main(ckpt_path: str):
     onnx.checker.check_model(onnx_model)
 
     sess = ort.InferenceSession(str(out_onnx), providers=["CPUExecutionProvider"])
-    out = sess.run(["bvp"], {"clip": dummy.numpy()})[0]
-    print(f"ONNX smoke test — input {dummy.shape} → BVP output {out.shape}")
+    out = sess.run(["hr"], {"clip": dummy.numpy()})[0]
+    print(f"ONNX smoke test — input {dummy.shape} → HR output {out.shape}, sample value: {float(out.flat[0]):.1f} bpm")
 
     PUBLIC_DIR.mkdir(parents=True, exist_ok=True)
     public_onnx = PUBLIC_DIR / "model.onnx"
