@@ -2045,6 +2045,43 @@ export default function VitalsValidateDashboard() {
           <button onClick={() => exportCSV(readings, subjects)} style={{ marginLeft: 'auto', padding: '.85rem 1.1rem', background: 'none', border: 'none', color: TEAL, fontWeight: 700, fontSize: '.85rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
             Export CSV
           </button>
+          {/* Tere-DL training manifest — exports JSON for the local Python
+              training pipeline in scripts/tere-dl-rppg/. Only includes rows
+              with both video_url + manual_hr (needed for supervised training).
+              Patrick 2026-10-04. */}
+          <button onClick={() => {
+            const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+            const trainable = readings.filter(r => r.video_url && r.manual_hr)
+            const manifest = trainable.map(r => {
+              const sub = r.subject_id ? subMap[r.subject_id] : null
+              return {
+                id: r.id,
+                subject_id: r.subject_id,
+                subject_code: r.subject_code,
+                video_url: r.video_url,
+                manual_hr: r.manual_hr,
+                manual_systolic: r.manual_systolic,
+                manual_diastolic: r.manual_diastolic,
+                manual_spo2: r.manual_spo2,
+                tere_hr: r.tere_hr,
+                me_rppg_hr: r.me_rppg_hr,
+                age: sub?.age,
+                sex: sub?.sex,
+                fitzpatrick: sub?.fitzpatrick_scale,
+                recorded_at: r.recorded_at,
+              }
+            })
+            const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url; a.download = 'tere-dl-manifest.json'; a.click()
+            URL.revokeObjectURL(url)
+            const n = trainable.length
+            const subs = new Set(trainable.map(r => r.subject_id).filter(Boolean)).size
+            alert(`Exported ${n} trainable readings across ${subs} subjects to tere-dl-manifest.json.\n\nNext: drop this file into scripts/tere-dl-rppg/ on your Mac and run:\n  bash run_all.sh`)
+          }} style={{ padding: '.85rem 1.1rem', background: 'none', border: 'none', color: '#3730A3', fontWeight: 700, fontSize: '.85rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+            🧠 Export Tere-DL manifest
+          </button>
         </div>
 
         <div style={{ padding: '1.25rem', overflowX: 'auto' }}>
