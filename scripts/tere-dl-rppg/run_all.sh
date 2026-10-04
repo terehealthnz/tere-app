@@ -42,13 +42,14 @@ echo "[2/4] Extracting face crops..."
 python 02_extract_face_crops.py "$MANIFEST"
 
 echo ""
-echo "[3/4] Training model (overnight on MPS)..."
-python 03_train.py --epochs 50
+echo "[3/4] Training 5-model ensemble (overnight on MPS)..."
+python 03b_train_ensemble.py --n 5 --epochs 50
 
 echo ""
-echo "[4/4] Exporting ONNX..."
-LATEST_CKPT=$(ls -t models/tere-dl-*.pt | head -1)
-python 04_export_onnx.py "$LATEST_CKPT"
+echo "[4/4] Exporting ensemble ONNX..."
+LATEST_MANIFEST=$(ls -t models/ens-*-manifest.json | head -1)
+LATEST_TAG=$(basename "$LATEST_MANIFEST" -manifest.json)
+python 04_export_onnx.py --ensemble "$LATEST_TAG"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"

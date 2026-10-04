@@ -208,14 +208,25 @@ def main():
     parser.add_argument("--val-subjects", type=int, default=5)
     parser.add_argument("--patience", type=int, default=15,
                         help="Early stop if val MAE hasn't improved in N epochs")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for train/val split, torch init, and augmentation RNG")
+    parser.add_argument("--run-id", type=str, default=None,
+                        help="Override auto-timestamp — used by ensemble trainer to tag runs")
     args = parser.parse_args()
 
+    # Make this run reproducible-ish given the seed. Different seeds → different
+    # models that an ensemble can average over. We vary train/val split so each
+    # ensemble member sees a slightly different training distribution.
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
     labels_df = pd.read_csv(DATA_DIR / "labels.csv")
-    print(f"Loaded {len(labels_df)} labelled clips from {labels_df['subject_id'].nunique()} subjects")
+    print(f"Loaded {len(labels_df)} labelled clips from {labels_df['subject_id'].nunique()} subjects (seed={args.seed})")
 
     splitter = GroupShuffleSplit(n_splits=1,
                                   test_size=args.val_subjects / labels_df['subject_id'].nunique(),
-                                  random_state=42)
+                                  random_state=args.seed)
     train_idx, val_idx = next(splitter.split(labels_df, groups=labels_df['subject_id']))
     train_df = labels_df.iloc[train_idx]
     val_df = labels_df.iloc[val_idx]
@@ -236,7 +247,7 @@ def main():
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    ts = args.run_id or datetime.now().strftime("%Y%m%d-%H%M%S")
     log = []
     best_mae = float("inf")
     epochs_since_best = 0
