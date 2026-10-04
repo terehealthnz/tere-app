@@ -14,6 +14,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# MPS has a growing but incomplete op coverage. Fall back to CPU for any ops
+# PyTorch hasn't implemented on Metal yet (adaptive_avg_pool3d etc). Trainingk
+# stays on MPS for the vast majority of compute.
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+
 MANIFEST=${1:-tere-dl-manifest.json}
 
 if [ ! -f "$MANIFEST" ]; then

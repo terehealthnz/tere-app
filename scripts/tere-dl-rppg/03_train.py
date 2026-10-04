@@ -130,7 +130,9 @@ class TereDLrPPG(nn.Module):
         self.tsm5 = TemporalShiftBlock()
         self.conv5 = nn.Conv3d(hidden * 2, hidden * 4, kernel_size=(1, 3, 3), padding=(0, 1, 1))
         self.bn5 = nn.BatchNorm3d(hidden * 4)
-        self.pool3 = nn.AdaptiveAvgPool3d((None, 1, 1))  # (B, 128, T, 1, 1)
+        # Note: MPS doesn't implement adaptive_avg_pool3d yet. We collapse the
+        # H/W dims via tensor .mean() in forward() instead — mathematically
+        # equivalent, no missing-op risk.
 
         self.proj = nn.Linear(hidden * 4, 1)              # per-frame BVP scalar
 
@@ -143,8 +145,9 @@ class TereDLrPPG(nn.Module):
         x = F.relu(self.bn4(self.conv4(self.tsm4(x))))
         x = self.pool2(x)
         x = F.relu(self.bn5(self.conv5(self.tsm5(x))))
-        x = self.pool3(x)                                 # (B, 128, T, 1, 1)
-        x = x.squeeze(-1).squeeze(-1).transpose(1, 2)     # (B, T, 128)
+        # Spatial global average pool: (B, 128, T, H, W) → (B, T, 128)
+        x = x.mean(dim=(3, 4))                            # (B, 128, T)
+        x = x.transpose(1, 2)                             # (B, T, 128)
         bvp = self.proj(x).squeeze(-1)                    # (B, T)
         return bvp
 
