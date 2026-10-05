@@ -513,19 +513,33 @@ function predictTree(tree, x) {
 // `weights` lets tail samples pull leaves harder — critical to stop the GBM
 // from mean-regressing hypertensives into the training mean. Pass null for
 // uniform weighting.
-function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1 } = {}) {
+//
+// asymmetricPenalty > 1 amplifies the residual for samples the model is
+// currently under-predicting (true > pred). Clinical rationale: missing a
+// hypertensive is more dangerous than falsely flagging a normotensive, so
+// train the GBM to err high rather than low. Default 1 = symmetric MAE/MSE.
+function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1, asymmetricPenalty = 1.0 } = {}) {
   // Weighted mean for init so the first tree's residuals aren't biased.
   let totalW = 0, sumWY = 0
   const w = weights || new Array(y.length).fill(1)
   for (let i = 0; i < y.length; i++) { totalW += w[i]; sumWY += w[i] * y[i] }
   const init = totalW > 0 ? sumWY / totalW : y.reduce((a, b) => a + b, 0) / y.length
-  const residuals = y.map(v => v - init)
+  // Running predictions so we can detect under-prediction per round.
+  const preds = new Array(y.length).fill(init)
+  const residuals = new Array(y.length)
+  for (let i = 0; i < y.length; i++) residuals[i] = y[i] - preds[i]
   const trees = []
   for (let t = 0; t < nTrees; t++) {
-    const tree = growTree(X, residuals, w, depth)
+    // Amplify under-prediction residuals so the next tree focuses there.
+    const workingResid = asymmetricPenalty > 1
+      ? residuals.map(r => r > 0 ? r * asymmetricPenalty : r)
+      : residuals
+    const tree = growTree(X, workingResid, w, depth)
     trees.push(tree)
     for (let i = 0; i < y.length; i++) {
-      residuals[i] -= lr * predictTree(tree, X[i])
+      const step = lr * predictTree(tree, X[i])
+      preds[i] += step
+      residuals[i] = y[i] - preds[i]
     }
   }
   return { init, trees, lr }
@@ -557,6 +571,57 @@ function tailWeightsDia(labels, tailBoost = 2.0) {
   })
 }
 
+// LDS (Label Distribution Smoothing, Yang et al. ICML 2021). Instead of
+// linearly amplifying by z-score (what tailBoost does), LDS estimates the
+// EFFECTIVE label density by Gaussian-kernel-smoothing the empirical
+// histogram, then weights each sample inversely proportional to its smoothed
+// density. Normotensive-dense regions get down-weighted; sparse hypertensive
+// and low-normal tails get up-weighted. More formally correct than tailBoost
+// for mixed-sparsity distributions. Returns weights normalised so mean = 1.
+function tailWeightsLDS(labels, idx, { kernelSigma = 12, maxWeight = 10, binWidth = 5 } = {}) {
+  const vals = labels.map(l => l[idx])
+  const minV = Math.min(...vals), maxV = Math.max(...vals)
+  // Bin the labels.
+  const nBins = Math.max(2, Math.ceil((maxV - minV) / binWidth) + 1)
+  const bins = new Array(nBins).fill(0)
+  for (const v of vals) {
+    const b = Math.min(nBins - 1, Math.floor((v - minV) / binWidth))
+    bins[b]++
+  }
+  // Gaussian-smooth the histogram.
+  const kernelRadius = Math.max(1, Math.ceil(kernelSigma / binWidth * 3))
+  const smoothed = new Array(nBins).fill(0)
+  for (let i = 0; i < nBins; i++) {
+    let num = 0, den = 0
+    for (let j = Math.max(0, i - kernelRadius); j <= Math.min(nBins - 1, i + kernelRadius); j++) {
+      const dist = (j - i) * binWidth
+      const k = Math.exp(-(dist * dist) / (2 * kernelSigma * kernelSigma))
+      num += k * bins[j]
+      den += k
+    }
+    smoothed[i] = den > 0 ? num / den : 0
+  }
+  // Weight = 1 / smoothed_density (inverse of effective frequency).
+  const rawWeights = vals.map(v => {
+    const b = Math.min(nBins - 1, Math.floor((v - minV) / binWidth))
+    return smoothed[b] > 0 ? 1 / smoothed[b] : maxWeight
+  })
+  // Clamp + normalise so mean weight = 1 (keeps overall learning rate stable).
+  const clamped = rawWeights.map(w => Math.min(maxWeight, w))
+  const mean = clamped.reduce((a, b) => a + b, 0) / clamped.length
+  return clamped.map(w => w / mean)
+}
+
+// Subject-level reweighting. Each unique subject contributes equally to the
+// training signal — stops longitudinal subjects (TERE-003 with 20 scans)
+// from dominating single-scan subjects (TERE-190 with 1 scan). Pass
+// subjectIds parallel to labels. Weight = 1 / countOfSubject.
+function subjectLevelWeights(subjectIds) {
+  const counts = {}
+  for (const id of subjectIds) counts[id] = (counts[id] || 0) + 1
+  return subjectIds.map(id => 1 / counts[id])
+}
+
 function predictGbm(model, x) {
   let s = model.init
   for (const tree of model.trees) s += model.lr * predictTree(tree, x)
@@ -567,7 +632,25 @@ function predictGbm(model, x) {
 // tailBoost controls hypertensive sample weighting. 0 = uniform (legacy
 // behaviour before this change). Default 2.0 = ~6-7× pull at sys 170 /
 // dia 115. Set via `tailBoost: n` in the options object.
-export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, valFrac = 0.2, tailBoost = 2.0 } = {}) {
+//
+// weightingMode:
+//   'tailBoost' (default) — linear z-score amplification, capped by tailBoost
+//   'lds'                 — kernel-smoothed inverse density (Yang 2021).
+//                           More principled on multi-tail distributions.
+//   'subject'             — equalise contribution per unique subject, needs
+//                           subjectIds option.
+//   'none'                — uniform weights.
+//
+// asymmetricPenalty > 1 amplifies under-prediction residuals during training.
+// 3.0 is a reasonable clinical setting (missing high BP is 3× worse than
+// over-flagging). Default 1.0 = symmetric.
+export function trainV3(features, labels, {
+  nTrees = 50, depth = 3, lr = 0.1, valFrac = 0.2,
+  tailBoost = 2.0,
+  weightingMode = 'tailBoost',
+  asymmetricPenalty = 1.0,
+  subjectIds = null,
+} = {}) {
   if (features.length < 20) throw new Error('need ≥20 training samples')
   const n = features.length
   const nVal = Math.max(1, Math.round(n * valFrac))
@@ -585,15 +668,26 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
   const y_sys   = trainIdx.map(i => labels[i][0])
   const y_dia   = trainIdx.map(i => labels[i][1])
   const trainLabels = trainIdx.map(i => labels[i])
+  const trainSubjectIds = subjectIds ? trainIdx.map(i => subjectIds[i]) : null
 
-  // Tail-boosted weights so hypertensives / hypotensives aren't averaged
-  // into the training mean. Independent per sys/dia head so each gets its
-  // own appropriate rebalancing.
-  const sysW = tailBoost > 0 ? tailWeightsSys(trainLabels, tailBoost) : null
-  const diaW = tailBoost > 0 ? tailWeightsDia(trainLabels, tailBoost) : null
+  // Choose weighting strategy. Each sys/dia head gets its own weight vector
+  // because the two tails live at different distances from mean.
+  let sysW, diaW
+  if (weightingMode === 'lds') {
+    sysW = tailWeightsLDS(trainLabels, 0, { kernelSigma: 12 })
+    diaW = tailWeightsLDS(trainLabels, 1, { kernelSigma: 8 })
+  } else if (weightingMode === 'subject' && trainSubjectIds) {
+    const subjW = subjectLevelWeights(trainSubjectIds)
+    sysW = subjW; diaW = subjW
+  } else if (weightingMode === 'none') {
+    sysW = null; diaW = null
+  } else {
+    sysW = tailBoost > 0 ? tailWeightsSys(trainLabels, tailBoost) : null
+    diaW = tailBoost > 0 ? tailWeightsDia(trainLabels, tailBoost) : null
+  }
 
-  const sysModel = fitGbm(X_train, y_sys, sysW, { nTrees, depth, lr })
-  const diaModel = fitGbm(X_train, y_dia, diaW, { nTrees, depth, lr })
+  const sysModel = fitGbm(X_train, y_sys, sysW, { nTrees, depth, lr, asymmetricPenalty })
+  const diaModel = fitGbm(X_train, y_dia, diaW, { nTrees, depth, lr, asymmetricPenalty })
 
   // Train MAE
   let maeSysT = 0, maeDiaT = 0
@@ -609,7 +703,8 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
   const y_sysV = valIdx.map(i => labels[i][0])
   const y_diaV = valIdx.map(i => labels[i][1])
   let maeSysV = 0, maeDiaV = 0
-  let errSysHigh = [], errSysNorm = []
+  let errSysHigh = [], errSysNorm = [], errSysLow = []
+  let errSysHighSigned = []  // signed error for high band — negative = under-predict (clinical risk)
   for (let i = 0; i < X_val.length; i++) {
     const predS = predictGbm(sysModel, X_val[i])
     const predD = predictGbm(diaModel, X_val[i])
@@ -617,12 +712,16 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
     const eD = Math.abs(predD - y_diaV[i])
     maeSysV += eS
     maeDiaV += eD
-    if (y_sysV[i] >= 140) errSysHigh.push(eS)
-    else                  errSysNorm.push(eS)
+    if (y_sysV[i] >= 140) { errSysHigh.push(eS); errSysHighSigned.push(predS - y_sysV[i]) }
+    else if (y_sysV[i] < 110) errSysLow.push(eS)
+    else errSysNorm.push(eS)
   }
   maeSysV /= X_val.length; maeDiaV /= X_val.length
-  const maeSysHigh = errSysHigh.length ? +(errSysHigh.reduce((a, b) => a + b, 0) / errSysHigh.length).toFixed(1) : null
-  const maeSysNorm = errSysNorm.length ? +(errSysNorm.reduce((a, b) => a + b, 0) / errSysNorm.length).toFixed(1) : null
+  const mean = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
+  const maeSysHigh = mean(errSysHigh)
+  const maeSysNorm = mean(errSysNorm)
+  const maeSysLow  = mean(errSysLow)
+  const biasSysHigh = mean(errSysHighSigned)  // negative = systematic under-prediction (bad)
 
   return {
     sysModel, diaModel,
@@ -631,12 +730,46 @@ export function trainV3(features, labels, { nTrees = 50, depth = 3, lr = 0.1, va
       n: X_train.length, nVal: X_val.length,
       trainMae: { sys: +maeSysT.toFixed(1), dia: +maeDiaT.toFixed(1) },
       valMae:   { sys: +maeSysV.toFixed(1), dia: +maeDiaV.toFixed(1) },
-      valMaeSysByBand: { high_ge_140: maeSysHigh, normal_lt_140: maeSysNorm, nHigh: errSysHigh.length, nNormal: errSysNorm.length },
-      tailBoost,
+      valMaeSysByBand: {
+        high_ge_140: maeSysHigh,
+        normal_110_139: maeSysNorm,
+        low_lt_110: maeSysLow,
+        nHigh: errSysHigh.length, nNormal: errSysNorm.length, nLow: errSysLow.length,
+        biasHigh: biasSysHigh,
+      },
+      weightingMode, tailBoost, asymmetricPenalty,
       nTrees, depth, lr,
       trainedAt: new Date().toISOString(),
     },
   }
+}
+
+// Variant sweep — train multiple weighting/loss combinations on the SAME
+// seeded split and surface per-variant val MAE across BP bands. Use this to
+// A/B test imbalanced-regression methods without having to promote models
+// to prod. Returns an array of { label, meta } ready for leaderboard display.
+export function trainV3VariantSweep(features, labels, subjectIds, { nTrees = 20, depth = 3, lr = 0.1 } = {}) {
+  const common = { nTrees, depth, lr, valFrac: 0.2 }
+  const variants = [
+    { label: 'Baseline (tailBoost=2)',       opts: { ...common, weightingMode: 'tailBoost', tailBoost: 2 } },
+    { label: 'tailBoost=4 (cap)',            opts: { ...common, weightingMode: 'tailBoost', tailBoost: 4 } },
+    { label: 'tailBoost=6 (over-cap)',       opts: { ...common, weightingMode: 'tailBoost', tailBoost: 6 } },
+    { label: 'tailBoost=8 (aggressive)',     opts: { ...common, weightingMode: 'tailBoost', tailBoost: 8 } },
+    { label: 'LDS (kernel density)',         opts: { ...common, weightingMode: 'lds' } },
+    { label: 'LDS + asymmetric 3×',          opts: { ...common, weightingMode: 'lds', asymmetricPenalty: 3 } },
+    { label: 'tailBoost=4 + asymmetric 3×',  opts: { ...common, weightingMode: 'tailBoost', tailBoost: 4, asymmetricPenalty: 3 } },
+    { label: 'Subject-equalised + tB=2',     opts: { ...common, weightingMode: 'subject', tailBoost: 2, subjectIds } },
+  ]
+  const results = []
+  for (const v of variants) {
+    try {
+      const m = trainV3(features, labels, v.opts)
+      results.push({ label: v.label, meta: m.meta, ok: true })
+    } catch (e) {
+      results.push({ label: v.label, error: e?.message || String(e), ok: false })
+    }
+  }
+  return results
 }
 
 // Tree-count sweep — train at a range of nTrees values on the SAME seeded

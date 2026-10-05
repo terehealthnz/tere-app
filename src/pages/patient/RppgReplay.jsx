@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, getValidationReadings, getValidationSubjects } from '../../lib/supabase'
 import { processStoredFramesMultiPass, processStoredFrames } from '../../lib/rppg'
 import { runAllHRVariants } from '../../lib/rppg-hr-variants'
+import { trainV3VariantSweep, framesToV3Features } from '../../lib/bpModelV3'
 
 function fmtHr(v) {
   if (v == null || Number.isNaN(v)) return '—'
@@ -61,6 +62,12 @@ export default function RppgReplay() {
   const [variantResults, setVariantResults] = useState({})
   // Subjects for variant #5 (age-conditional Bayesian prior).
   const [subjects, setSubjects] = useState([])
+  // BP variant sweep (imbalanced-regression experiment). Read-only — never promotes.
+  // Compares baseline tailBoost vs tailBoost=4/6/8 vs LDS vs asymmetric loss vs
+  // subject-equalised weighting on the SAME seeded split. Pure experimental harness.
+  const [bpSweepResults, setBpSweepResults] = useState(null)
+  const [bpSweepRunning, setBpSweepRunning] = useState(false)
+  const [bpSweepProgress, setBpSweepProgress] = useState('')
 
   // Auth gate — same pattern as VitalsValidateDashboard.
   useEffect(() => {
@@ -105,6 +112,54 @@ export default function RppgReplay() {
   }, [])
 
   useEffect(() => { if (authed === true) loadData() }, [authed, loadData])
+
+  // Compare 8 BP weighting/loss variants on the same seeded split. No promote,
+  // no API calls — pure in-browser experiment. Writes to component state only.
+  async function compareBpVariants() {
+    setBpSweepRunning(true); setBpSweepResults(null)
+    setBpSweepProgress('BP variant sweep: extracting features…')
+    try {
+      const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+      // Need manual BP ground truth + stored signal for every row we feed.
+      const withBp = readings.filter(r =>
+        r.raw_rppg_signal?.frames?.length && r.manual_systolic && r.manual_diastolic
+      )
+      const features = []
+      const labels = []
+      const subjectIds = []
+      for (let i = 0; i < withBp.length; i++) {
+        const r = withBp[i]
+        const sub = r.subject_id ? subMap[r.subject_id] : {}
+        const fps = r.raw_rppg_signal?.fps || 30
+        if (i % 5 === 0) {
+          setBpSweepProgress(`BP variant sweep: extracting features ${i}/${withBp.length}…`)
+          await new Promise(res => setTimeout(res, 0))
+        }
+        try {
+          const feats = framesToV3Features(r.raw_rppg_signal.frames, fps, sub)
+          if (feats) {
+            features.push(feats)
+            labels.push([r.manual_systolic, r.manual_diastolic])
+            subjectIds.push(r.subject_id || `anon-${i}`)
+          }
+        } catch {}
+      }
+      if (features.length < 20) {
+        setBpSweepProgress(`Only ${features.length} usable BP signals — need ≥20 to sweep.`)
+        return
+      }
+      setBpSweepProgress(`BP variant sweep: training 8 variants on ${features.length} samples…`)
+      await new Promise(res => setTimeout(res, 0))
+      const variants = trainV3VariantSweep(features, labels, subjectIds, { nTrees: 20, depth: 3, lr: 0.1 })
+      setBpSweepResults({ n: features.length, variants, generatedAt: new Date().toISOString() })
+      setBpSweepProgress(`✓ Sweep complete · ${variants.filter(v => v.ok).length}/${variants.length} variants trained`)
+    } catch (e) {
+      setBpSweepProgress(`Sweep failed: ${e?.message || e}`)
+    } finally {
+      setBpSweepRunning(false)
+      setTimeout(() => setBpSweepProgress(''), 8000)
+    }
+  }
 
   async function runReplay() {
     setReplaying(true)
@@ -310,7 +365,102 @@ export default function RppgReplay() {
             <button onClick={loadData} disabled={replaying} style={{padding:'.6rem 1.1rem',background:'white',color:'#374151',border:'1.5px solid #E5E7EB',borderRadius:8,fontWeight:600,cursor:'pointer',fontSize:'.9rem'}}>
               Refresh list
             </button>
+            <button
+              onClick={compareBpVariants}
+              disabled={bpSweepRunning || readings.length === 0}
+              title="Experimental: train 8 BP weighting/loss variants (tailBoost 2/4/6/8, LDS, LDS+asym, tailBoost=4+asym, subject-eq) on the SAME split. Shows per-band val MAE leaderboard. Does NOT promote."
+              style={{padding:'.6rem 1.1rem',background:'#DC2626',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:bpSweepRunning?'not-allowed':'pointer',opacity:bpSweepRunning||readings.length===0?.5:1,fontSize:'.9rem'}}>
+              {bpSweepRunning ? (bpSweepProgress || 'Comparing BP variants…') : '🧪 Compare BP variants'}
+            </button>
+            {!bpSweepRunning && bpSweepProgress && (
+              <span style={{fontSize:'.8rem',color:bpSweepProgress.startsWith('✓')?'#059669':'#B91C1C'}}>{bpSweepProgress}</span>
+            )}
           </div>
+
+          {/* BP variant leaderboard — imbalanced-regression sandbox. Train-side
+              experiment, no promotion. Mirror of the HR leaderboard pattern
+              but for v3 BP's GBM retrain. */}
+          {bpSweepResults && (
+            <div style={{background:'#FEF2F2',border:'1px solid #FCA5A5',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
+                <div>
+                  <div style={{fontSize:'.75rem',fontWeight:700,color:'#991B1B',textTransform:'uppercase',letterSpacing:'.05em'}}>
+                    🧪 BP variant leaderboard · experiment · n={bpSweepResults.n}
+                  </div>
+                  <div style={{fontSize:'.7rem',color:'#7F1D1D',marginTop:2}}>
+                    Lower = better. Winner per column highlighted. <strong>No model is promoted.</strong>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setBpSweepResults(null)}
+                  style={{background:'none',border:'1px solid #FCA5A5',color:'#991B1B',borderRadius:6,padding:'.3rem .6rem',fontSize:'.75rem',cursor:'pointer'}}>
+                  Clear
+                </button>
+              </div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.85rem'}}>
+                  <thead>
+                    <tr style={{color:'#991B1B'}}>
+                      <th style={{textAlign:'left',padding:'.4rem .5rem',fontWeight:700}}>Variant</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Overall systolic MAE on held-out validation set">Sys MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Overall diastolic MAE on held-out validation set">Dia MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#B91C1C'}} title="MAE on hypertensive band (SBP ≥ 140). Clinical safety number.">High MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="MAE on normotensive band (110-139 SBP). Represents the bulk of patients.">Norm MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#2563EB'}} title="MAE on low-normal band (SBP < 110). Tail check.">Low MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Signed bias on high band. Negative = systematic under-prediction of hypertensives (clinically dangerous).">High bias</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const ok = bpSweepResults.variants.filter(r => r.ok)
+                      const minHigh = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.high_ge_140 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minNorm = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.normal_110_139 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minLow  = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.low_lt_110 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minSys  = Math.min(...ok.map(r => r.meta?.valMae?.sys ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minDia  = Math.min(...ok.map(r => r.meta?.valMae?.dia ?? Infinity).filter(x => Number.isFinite(x)))
+                      return bpSweepResults.variants.map((r, idx) => {
+                        if (!r.ok) {
+                          return (
+                            <tr key={idx} style={{borderTop:'1px solid #FECACA',color:'#9CA3AF'}}>
+                              <td style={{padding:'.4rem .5rem'}}>{r.label}</td>
+                              <td colSpan={6} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
+                            </tr>
+                          )
+                        }
+                        const sys = r.meta?.valMae?.sys
+                        const dia = r.meta?.valMae?.dia
+                        const high = r.meta?.valMaeSysByBand?.high_ge_140
+                        const norm = r.meta?.valMaeSysByBand?.normal_110_139
+                        const low  = r.meta?.valMaeSysByBand?.low_lt_110
+                        const bias = r.meta?.valMaeSysByBand?.biasHigh
+                        const cell = (v, isWinner, color) => (
+                          <td style={{padding:'.4rem .5rem',textAlign:'right',fontWeight:isWinner?700:400,color:isWinner?'#065F46':color,background:isWinner?'#D1FAE5':'transparent'}}>
+                            {v == null ? '—' : v}
+                          </td>
+                        )
+                        return (
+                          <tr key={idx} style={{borderTop:'1px solid #FECACA'}}>
+                            <td style={{padding:'.4rem .5rem',color:'#1F2937'}}>{r.label}</td>
+                            {cell(sys, sys === minSys, '#374151')}
+                            {cell(dia, dia === minDia, '#374151')}
+                            {cell(high, high === minHigh, '#B91C1C')}
+                            {cell(norm, norm === minNorm, '#374151')}
+                            {cell(low, low === minLow, '#2563EB')}
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',color:bias == null?'#9CA3AF':bias < -3?'#B91C1C':bias > 3?'#D97706':'#374151'}}>
+                              {bias == null ? '—' : (bias > 0 ? '+' : '') + bias}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{fontSize:'.7rem',color:'#7F1D1D',marginTop:'.75rem',lineHeight:1.5}}>
+                <strong>How to read:</strong> "High MAE" is the clinical-safety number — lower = better hypertensive detection. "High bias" negative = model systematically under-predicts hypertensives (dangerous). To ship a winner: manually set its weighting mode as the default in <code>trainV3</code>, then click 🔄 Retrain v3 on the Vitals Validate dashboard.
+              </div>
+            </div>
+          )}
 
           <div style={{background:'#F9FAFB',border:'1px solid #E5E7EB',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'.75rem',display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))',gap:'.75rem'}}>
             <Stat label="Readings" value={metrics.n} />
