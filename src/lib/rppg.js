@@ -918,7 +918,7 @@ export async function findFaceRegion(ctx, canvasW, canvasH) {
 
 // ── Multi-ROI weighted extraction ─────────────────────────────────────────────
 
-function sampleROI(canvas, landmarks, w, h) {
+export function sampleROI(canvas, landmarks, w, h) {
   const ctx = canvas.getContext('2d', {willReadFrequently:true})
   if (!ctx) return null
 

@@ -6,6 +6,7 @@ import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, r
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
 import { trainV3, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees, trainV3VariantSweep } from '../../lib/bpModelV3'
 import { fitSpO2Calibration } from '../../lib/spo2'
+import VideoUploadModal from '../../components/vitals-validate/VideoUploadModal'
 const TEAL = '#0B6E76'
 const NAVY = '#0D2B45'
 const BG   = '#F7F5F0'
@@ -1746,6 +1747,7 @@ export default function VitalsValidateDashboard() {
   const navigate = useNavigate()
   // `null` = still checking, `false` = redirecting to login, `true` = active session.
   const [authed, setAuthed]       = useState(null)
+  const [showVideoUpload, setShowVideoUpload] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -1982,11 +1984,21 @@ export default function VitalsValidateDashboard() {
           <Link to="/rppg-replay" style={{ marginLeft: 'auto', fontSize: '.85rem', color: NAVY, fontWeight: 600, textDecoration: 'none', background: 'white', border: '1.5px solid #E5E7EB', borderRadius: 99, padding: '.4rem 1rem' }}>
             rPPG replay
           </Link>
+          <button onClick={() => setShowVideoUpload(true)} style={{ fontSize: '.85rem', color: NAVY, fontWeight: 600, background: 'white', border: '1.5px solid #E5E7EB', borderRadius: 99, padding: '.4rem 1rem', cursor: 'pointer' }}>
+            ⬆ Upload video
+          </button>
           <Link to="/vitals-validate" style={{ fontSize: '.85rem', color: TEAL, fontWeight: 700, textDecoration: 'none', background: TEAL + '15', borderRadius: 99, padding: '.4rem 1rem' }}>
             + New reading
           </Link>
         </div>
         {children}
+        {showVideoUpload && (
+          <VideoUploadModal
+            onClose={() => setShowVideoUpload(false)}
+            existingSubjects={subjects}
+            onSaved={() => { setShowVideoUpload(false); loadData() }}
+          />
+        )}
       </div>
     </div>
   )
