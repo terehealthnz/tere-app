@@ -143,17 +143,23 @@ export default async function handler(req, res) {
       }
     }
 
-    const hrDiff = (d.manualHr && d.tereHr) ? Math.abs(d.manualHr - d.tereHr) : null
+    // HR/RR columns are Postgres `integer` — callers that compute HR from
+    // peak detection may legitimately produce floats (e.g. 76.9 bpm from
+    // median-IBI). Round at the server so no caller has to remember.
+    const manualHrInt = d.manualHr != null ? Math.round(d.manualHr) : null
+    const tereHrInt   = d.tereHr   != null ? Math.round(d.tereHr)   : null
+    const tereRrInt   = d.tereRr   != null ? Math.round(d.tereRr)   : null
+    const hrDiff = (manualHrInt != null && tereHrInt != null) ? Math.abs(manualHrInt - tereHrInt) : null
     const payload = {
       subject_id:         d.subjectId || null,
       subject_code:       d.subjectCode || null,
       manual_systolic:    d.manualSystolic || null,
       manual_diastolic:   d.manualDiastolic || null,
-      manual_hr:          d.manualHr || null,
+      manual_hr:          manualHrInt,
       manual_temperature: d.manualTemperature || null,
       ambient_temp:       d.ambientTemp ?? null,
-      tere_hr:            d.tereHr || null,
-      tere_rr:            d.tereRr || null,
+      tere_hr:            tereHrInt,
+      tere_rr:            tereRrInt,
       hr_difference:      hrDiff,
       raw_rppg_signal:    d.rawRppgSignal || null,
       device_info:        d.deviceInfo || null,
@@ -193,7 +199,18 @@ export default async function handler(req, res) {
       .insert(payload)
       .select()
       .single()
-    if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+    if (error) {
+      console.error('[validation-readings] insert failed:', error)
+      // Authenticated providers get the real Postgres error back — this
+      // flow is admin-only (dashboard / upload modal) so no risk of
+      // leaking schema details to anon callers.
+      let isProvider = false
+      try { await requireProvider(req); isProvider = true } catch {}
+      return res.status(500).json({
+        error: isProvider ? `Postgres: ${error.message || error.code || 'unknown'}` : 'Server error',
+        ...(isProvider ? { code: error.code, details: error.details, hint: error.hint } : {}),
+      })
+    }
     return res.status(200).json({ reading })
   }
 
@@ -211,11 +228,14 @@ export default async function handler(req, res) {
     // older algorithm runs). Default is defensive: only overwrite when a real
     // value is provided.
     const force = !!p.forceOverwrite
+    const tereHrInt = p.tereHr != null ? Math.round(p.tereHr) : null
+    const tereRrInt = p.tereRr != null ? Math.round(p.tereRr) : null
+    const manualHrInt = p.manualHr != null ? Math.round(p.manualHr) : null
     if (force || p.tereHr != null) {
-      patch.tere_hr = p.tereHr ?? null
-      patch.hr_difference = (p.tereHr != null && p.manualHr != null) ? Math.abs(p.tereHr - p.manualHr) : null
+      patch.tere_hr = tereHrInt
+      patch.hr_difference = (tereHrInt != null && manualHrInt != null) ? Math.abs(tereHrInt - manualHrInt) : null
     }
-    if (force || p.tereRr != null) patch.tere_rr = p.tereRr ?? null
+    if (force || p.tereRr != null) patch.tere_rr = tereRrInt
     if (p.hrQuality !== undefined) patch.hr_quality = p.hrQuality
     if (p.tereHr !== undefined || p.tereRr !== undefined || p.hrQuality !== undefined) {
       patch.reprocessed_at = new Date().toISOString()
