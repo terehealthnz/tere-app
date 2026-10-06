@@ -127,6 +127,53 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
   return null
 }
 
+// PhoneRingback — plays a NZ-style double-ring (400+450Hz, 0.4s on / 0.2s off /
+// 0.4s on / 2.0s off) through the provider's speakers while a Phone call is
+// waiting for the SIP leg to answer. Without this the provider hears nothing
+// between clicking 📞 Phone and the carrier connecting (5–15s of silence that
+// looks like a broken call). Stops the moment a sip-patient-* participant
+// appears in the room. Also unmounts cleanly when `enabled` flips false.
+function PhoneRingback({ enabled }) {
+  const participants = useParticipants()
+  const sipHere = participants.some(p => (p.identity || '').startsWith('sip-patient-'))
+  const shouldPlay = enabled && !sipHere
+  useEffect(() => {
+    if (!shouldPlay) return
+    const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)
+    if (!AC) return
+    const ctx = new AC()
+    const osc1 = ctx.createOscillator(); osc1.frequency.value = 400
+    const osc2 = ctx.createOscillator(); osc2.frequency.value = 450
+    const gain = ctx.createGain(); gain.gain.value = 0
+    osc1.connect(gain); osc2.connect(gain); gain.connect(ctx.destination)
+    osc1.start(); osc2.start()
+    let stopped = false
+    const scheduleRing = (t) => {
+      const g = gain.gain
+      g.setValueAtTime(0, t)
+      g.linearRampToValueAtTime(0.08, t + 0.02)
+      g.setValueAtTime(0.08, t + 0.38)
+      g.linearRampToValueAtTime(0, t + 0.40)
+      g.setValueAtTime(0, t + 0.60)
+      g.linearRampToValueAtTime(0.08, t + 0.62)
+      g.setValueAtTime(0.08, t + 0.98)
+      g.linearRampToValueAtTime(0, t + 1.00)
+    }
+    const loop = () => {
+      if (stopped) return
+      scheduleRing(ctx.currentTime)
+      setTimeout(loop, 3000)
+    }
+    loop()
+    return () => {
+      stopped = true
+      try { osc1.stop(); osc2.stop() } catch {}
+      try { ctx.close() } catch {}
+    }
+  }, [shouldPlay])
+  return null
+}
+
 // RR-specific badge — tiered display driven by fusion metadata (rr_source)
 // via getRrDisplay(). Shows a small caption when confidence is medium/low
 // so providers know which readings to weight more carefully. See
@@ -1055,6 +1102,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+                <PhoneRingback enabled={isPhone} />
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
@@ -1209,6 +1257,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
           />
           <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
+          <PhoneRingback enabled={isPhone} />
           {subtitlesAvailable && (
             <CallSubtitles
               viewerRole="provider"
