@@ -135,8 +135,15 @@ function PatientPresenceStamp({ consultationId, onPatientHere }) {
 // appears in the room. Also unmounts cleanly when `enabled` flips false.
 function PhoneRingback({ enabled }) {
   const participants = useParticipants()
-  const sipHere = participants.some(p => (p.identity || '').startsWith('sip-patient-'))
-  const shouldPlay = enabled && !sipHere
+  // Any non-provider participant means the call has connected — whether the
+  // patient answered via SIP (phone) or opened the SMS link in a browser
+  // (patient-*). Earlier version only matched sip-patient-* so ringback kept
+  // playing over the live call audio when the patient joined browser-side.
+  const patientHere = participants.some(p => {
+    const id = p.identity || ''
+    return id.startsWith('patient-') || id.startsWith('sip-patient-')
+  })
+  const shouldPlay = enabled && !patientHere
   useEffect(() => {
     if (!shouldPlay) return
     const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)
@@ -167,6 +174,11 @@ function PhoneRingback({ enabled }) {
     loop()
     return () => {
       stopped = true
+      // Cancel any already-scheduled gain ramps and snap to silence BEFORE
+      // tearing down oscillators + context — otherwise a few hundred ms of
+      // tail audio can leak through after the SIP leg answers.
+      try { gain.gain.cancelScheduledValues(ctx.currentTime) } catch {}
+      try { gain.gain.setValueAtTime(0, ctx.currentTime) } catch {}
       try { osc1.stop(); osc2.stop() } catch {}
       try { ctx.close() } catch {}
     }
