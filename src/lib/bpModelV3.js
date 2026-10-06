@@ -764,7 +764,17 @@ export function trainV3VariantSweep(features, labels, subjectIds, { nTrees = 20,
   for (const v of variants) {
     try {
       const m = trainV3(features, labels, v.opts)
-      results.push({ label: v.label, meta: m.meta, ok: true })
+      // Keep the trained models so a winner can be promoted straight from the
+      // sweep leaderboard without re-training. Previously we dropped them —
+      // RppgReplay.jsx needs them to call promoteV3Model.
+      results.push({
+        label: v.label,
+        meta: m.meta,
+        sysModel: m.sysModel,
+        diaModel: m.diaModel,
+        featureNames: m.featureNames,
+        ok: true,
+      })
     } catch (e) {
       results.push({ label: v.label, error: e?.message || String(e), ok: false })
     }

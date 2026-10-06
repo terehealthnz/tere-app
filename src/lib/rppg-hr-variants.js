@@ -325,6 +325,43 @@ export function hrVariant12_greenOnly(frames, fps) {
   return hrSingleMethodHR(frames, fps, (rgb) => rgb.map(([, g]) => -g))
 }
 
+// ── Variant #13: POS + peak counting (ETL path replica) (Patrick 2026-10-05) ──
+// Mirrors run_v3_on_vv_subject.mjs's HR extraction. Diagnosed on VV-SUB01:
+// the live processStoredFrames pipeline gave HR 45 bpm (spectral latched onto
+// a sub-harmonic artefact) while this ETL path gave 73 bpm (ground truth 79).
+// Difference: this uses POS-only (no CHROM/Green blend) + direct peak counting
+// (not Welch/FFT), which is harmonic-resistant by construction. Baseline uses
+// a blended-signal spectral peak so can lock onto strong sub-harmonic noise.
+// If this variant beats baseline on hyper-error cases across the full 170-row
+// corpus without regressing low-SQI cases, port it into processStoredFrames.
+export function hrVariant13_posPeakCount(frames, fps) {
+  const rgb = frames.map(f => [f.r, f.g, f.b])
+  const ts  = frames.map((f, i) => f.t || f.timestamp || i * (1000 / fps))
+  const actualFps = ts.length > 1 ? (ts.length / (ts[ts.length - 1] - ts[0]) * 1000) : fps
+  const relTs = ts.map(t => t - ts[0])
+
+  // POS algorithm only — matches posRppg from bpModelV3.js used by the ETL.
+  const pulse = posAlgorithm(rgb, 48)
+  if (!pulse || !pulse.length) return null
+
+  const resampled = resample(pulse, relTs, RESAMPLE_FPS)
+  const det = detrend(resampled)
+  const clean = denoiseSignal(det, RESAMPLE_FPS)
+
+  // Direct peak counting on the clean POS waveform. 60/median(IBI) → HR.
+  const peaks = findPulsePeaks(clean, RESAMPLE_FPS)
+  if (peaks.length < 3) return null
+  const ibis = []
+  for (let i = 1; i < peaks.length; i++) {
+    const dtSec = (peaks[i] - peaks[i - 1]) / RESAMPLE_FPS
+    if (dtSec >= 60 / 200 && dtSec <= 60 / 40) ibis.push(dtSec)
+  }
+  if (!ibis.length) return null
+  const sorted = [...ibis].sort((a, b) => a - b)
+  const medianIBI = sorted[Math.floor(sorted.length / 2)]
+  return Math.round(60 / medianIBI)
+}
+
 // Convenience: run all variants + return a dict for the replay table.
 export function runAllHRVariants(frames, fps, subject = {}) {
   const out = {}
@@ -338,5 +375,6 @@ export function runAllHRVariants(frames, fps, subject = {}) {
   try { out.variant10 = hrVariant10_posOnly(frames, fps) } catch { out.variant10 = null }
   try { out.variant11 = hrVariant11_chromOnly(frames, fps) } catch { out.variant11 = null }
   try { out.variant12 = hrVariant12_greenOnly(frames, fps) } catch { out.variant12 = null }
+  try { out.variant13 = hrVariant13_posPeakCount(frames, fps) } catch { out.variant13 = null }
   return out
 }

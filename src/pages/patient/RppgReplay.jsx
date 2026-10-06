@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, getValidationReadings, getValidationSubjects } from '../../lib/supabase'
 import { processStoredFramesMultiPass, processStoredFrames } from '../../lib/rppg'
 import { runAllHRVariants } from '../../lib/rppg-hr-variants'
-import { trainV3VariantSweep, framesToV3Features } from '../../lib/bpModelV3'
+import { trainV3VariantSweep, framesToV3Features, promoteV3Model, saveV3Model } from '../../lib/bpModelV3'
 
 function fmtHr(v) {
   if (v == null || Number.isNaN(v)) return '—'
@@ -62,7 +62,9 @@ export default function RppgReplay() {
   const [variantResults, setVariantResults] = useState({})
   // Subjects for variant #5 (age-conditional Bayesian prior).
   const [subjects, setSubjects] = useState([])
-  // BP variant sweep (imbalanced-regression experiment). Read-only — never promotes.
+  // BP variant sweep (imbalanced-regression experiment).
+  const [promoteStatus, setPromoteStatus] = useState('')  // per-row promote state keyed by variant idx
+
   // Compares baseline tailBoost vs tailBoost=4/6/8 vs LDS vs asymmetric loss vs
   // subject-equalised weighting on the SAME seeded split. Pure experimental harness.
   const [bpSweepResults, setBpSweepResults] = useState(null)
@@ -194,7 +196,7 @@ export default function RppgReplay() {
         variants[r.id] = runAllHRVariants(frames, fps, sub)
       } catch (e) {
         results[r.id] = { hr: null, rr: null, ok: false, reason: e?.message || 'error' }
-        variants[r.id] = { variant1: null, variant2: null, variant5: null, variant6: null, variant7: null, variant8: null, variant9: null, variant10: null, variant11: null, variant12: null }
+        variants[r.id] = { variant1: null, variant2: null, variant5: null, variant6: null, variant7: null, variant8: null, variant9: null, variant10: null, variant11: null, variant12: null, variant13: null }
       }
       setProgress({ done: i + 1, total: readings.length })
     }
@@ -235,7 +237,7 @@ export default function RppgReplay() {
       baseline: [],
       variant1: [], variant2: [], variant5: [], variant6: [],
       variant7: [], variant8: [], variant9: [],
-      variant10: [], variant11: [], variant12: [],
+      variant10: [], variant11: [], variant12: [], variant13: [],
     }
     for (const r of readings) {
       if (r.manual_hr == null) continue
@@ -252,6 +254,7 @@ export default function RppgReplay() {
       if (v?.variant10 != null) errors.variant10.push(v.variant10 - r.manual_hr)
       if (v?.variant11 != null) errors.variant11.push(v.variant11 - r.manual_hr)
       if (v?.variant12 != null) errors.variant12.push(v.variant12 - r.manual_hr)
+      if (v?.variant13 != null) errors.variant13.push(v.variant13 - r.manual_hr)
     }
     const results = [
       { key: 'baseline', label: 'Baseline (live ensemble)',        mae: mae(errors.baseline), rmse: rmse(errors.baseline), n: errors.baseline.length },
@@ -263,6 +266,7 @@ export default function RppgReplay() {
       { key: 'variant5', label: '#5 Bayesian age prior',            mae: mae(errors.variant5), rmse: rmse(errors.variant5), n: errors.variant5.length },
       { key: 'variant7', label: '#7 PBV (blood volume vector)',     mae: mae(errors.variant7), rmse: rmse(errors.variant7), n: errors.variant7.length },
       { key: 'variant9', label: '#9 IBI direct peak detection',     mae: mae(errors.variant9), rmse: rmse(errors.variant9), n: errors.variant9.length },
+      { key: 'variant13', label: '#13 POS + peak count (ETL replica)', mae: mae(errors.variant13), rmse: rmse(errors.variant13), n: errors.variant13.length },
       { key: 'variant8', label: '#8 Multi-ROI (needs re-capture)',  mae: mae(errors.variant8), rmse: rmse(errors.variant8), n: errors.variant8.length },
       { key: 'variant6', label: '#6 DL model (deferred #517)',       mae: mae(errors.variant6), rmse: rmse(errors.variant6), n: errors.variant6.length },
     ]
@@ -408,6 +412,7 @@ export default function RppgReplay() {
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="MAE on normotensive band (110-139 SBP). Represents the bulk of patients.">Norm MAE</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#2563EB'}} title="MAE on low-normal band (SBP < 110). Tail check.">Low MAE</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Signed bias on high band. Negative = systematic under-prediction of hypertensives (clinically dangerous).">High bias</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Promote this trained variant to prod. Replaces current /api/bp-v3-model.">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -423,7 +428,7 @@ export default function RppgReplay() {
                           return (
                             <tr key={idx} style={{borderTop:'1px solid #FECACA',color:'#9CA3AF'}}>
                               <td style={{padding:'.4rem .5rem'}}>{r.label}</td>
-                              <td colSpan={6} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
+                              <td colSpan={7} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
                             </tr>
                           )
                         }
@@ -438,6 +443,8 @@ export default function RppgReplay() {
                             {v == null ? '—' : v}
                           </td>
                         )
+                        const rowStatus = promoteStatus && promoteStatus.startsWith(`${idx}:`) ? promoteStatus.slice(String(idx).length + 1) : ''
+                        const canPromote = !!(r.sysModel && r.diaModel)
                         return (
                           <tr key={idx} style={{borderTop:'1px solid #FECACA'}}>
                             <td style={{padding:'.4rem .5rem',color:'#1F2937'}}>{r.label}</td>
@@ -449,6 +456,28 @@ export default function RppgReplay() {
                             <td style={{padding:'.4rem .5rem',textAlign:'right',color:bias == null?'#9CA3AF':bias < -3?'#B91C1C':bias > 3?'#D97706':'#374151'}}>
                               {bias == null ? '—' : (bias > 0 ? '+' : '') + bias}
                             </td>
+                            <td style={{padding:'.4rem .5rem',textAlign:'right'}}>
+                              {canPromote ? (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm(`Promote "${r.label}" to prod? This replaces the live v3 model served to /vitals.`)) return
+                                    setPromoteStatus(`${idx}:promoting…`)
+                                    try {
+                                      const model = { sysModel: r.sysModel, diaModel: r.diaModel, featureNames: r.featureNames, meta: r.meta }
+                                      saveV3Model(model)
+                                      await promoteV3Model(model, `Sweep leaderboard promotion: ${r.label}`)
+                                      setPromoteStatus(`${idx}:✓ promoted`)
+                                    } catch (e) {
+                                      setPromoteStatus(`${idx}:✗ ${e.message || e}`)
+                                    }
+                                  }}
+                                  disabled={!!promoteStatus && promoteStatus.endsWith('promoting…')}
+                                  style={{background:'#991B1B',color:'white',border:'none',borderRadius:6,padding:'.3rem .55rem',fontSize:'.7rem',fontWeight:700,cursor:'pointer',opacity:promoteStatus.endsWith('promoting…')?.5:1,whiteSpace:'nowrap'}}>
+                                  Promote
+                                </button>
+                              ) : <span style={{color:'#9CA3AF',fontSize:'.7rem'}}>—</span>}
+                              {rowStatus && <div style={{fontSize:'.65rem',marginTop:2,color:rowStatus.startsWith('✓')?'#065F46':rowStatus.startsWith('✗')?'#B91C1C':'#7F1D1D'}}>{rowStatus}</div>}
+                            </td>
                           </tr>
                         )
                       })
@@ -457,7 +486,7 @@ export default function RppgReplay() {
                 </table>
               </div>
               <div style={{fontSize:'.7rem',color:'#7F1D1D',marginTop:'.75rem',lineHeight:1.5}}>
-                <strong>How to read:</strong> "High MAE" is the clinical-safety number — lower = better hypertensive detection. "High bias" negative = model systematically under-predicts hypertensives (dangerous). To ship a winner: manually set its weighting mode as the default in <code>trainV3</code>, then click 🔄 Retrain v3 on the Vitals Validate dashboard.
+                <strong>How to read:</strong> "High MAE" is the clinical-safety number — lower = better hypertensive detection. "High bias" negative = model systematically under-predicts hypertensives (dangerous). <strong>Click "Promote" to ship that variant live</strong> — it replaces the current /api/bp-v3-model served to /vitals. Browser localStorage copy is updated too so the dashboard uses the new model on next load.
               </div>
             </div>
           )}
