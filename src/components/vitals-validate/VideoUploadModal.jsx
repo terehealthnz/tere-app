@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { loadFaceMesh, sampleROI } from '../../lib/rppg'
 import { saveValidationSubject, saveValidationReading } from '../../lib/supabase'
-import { predictV3FromFrames, loadActiveV3ModelFromServer } from '../../lib/bpModelV3'
+import { predictV3FromFrames, loadActiveV3ModelFromServer, framesToV3Features } from '../../lib/bpModelV3'
 
 const TEAL = '#38B2AC'
 const NAVY = '#0E2E38'
@@ -23,6 +23,7 @@ export default function VideoUploadModal({ onClose, onSaved, existingSubjects = 
   const canvasRef = useRef(null)
   const framesRef = useRef([])
   const fpsRef    = useRef(30)
+  const featsRef  = useRef(null)  // v3 features from extraction — carries tereHr for the save step
 
   // Form state
   const [subjectCode, setSubjectCode] = useState('')
@@ -130,10 +131,13 @@ export default function VideoUploadModal({ onClose, onSaved, existingSubjects = 
       setProgress(`Captured ${frames.length} frames @ ~${fpsRef.current} fps. Running v3 preview…`)
 
       // Run v3 preview so admin can sanity-check the extraction before submit.
+      // Also extract features once (predictV3FromFrames does this internally but
+      // throws them away) so we can grab tereHr/tereRr for the save payload.
+      const sub = { age: Number(age) || null, sex: sex || null, fitzpatrickScale: Number(fitzpatrick) || null }
+      featsRef.current = framesToV3Features(frames, fpsRef.current, sub)
       try {
         const model = await loadActiveV3ModelFromServer()
         if (model) {
-          const sub = { age: Number(age) || null, sex: sex || null, fitzpatrickScale: Number(fitzpatrick) || null }
           const pred = predictV3FromFrames(model, frames, fpsRef.current, sub)
           if (pred && !pred.skipped) {
             setPreview({ sys: pred.systolic, dia: pred.diastolic })
@@ -181,9 +185,9 @@ export default function VideoUploadModal({ onClose, onSaved, existingSubjects = 
         manualDiastolic: Number(dia),
         manualHr:   hr ? Number(hr) : null,
         manualSpO2: spo2 ? Number(spo2) : null,
-        tereHr: null,
-        tereRr: null,
-        tereSpo2: null,
+        tereHr: featsRef.current?.hr != null ? Math.round(featsRef.current.hr * 10) / 10 : null,
+        tereRr: null,  // RR isn't a v3 feature — would need a separate respiratoryFreqHz call
+        tereSpo2: null,  // SpO2 needs the full posRppg R-channel pipeline, out of scope here
         rawRppgSignal: {
           frames: framesRef.current,
           fps: fpsRef.current,
@@ -330,7 +334,7 @@ export default function VideoUploadModal({ onClose, onSaved, existingSubjects = 
             <div style={{ background: '#F0FDFA', border: `1.5px solid ${TEAL}33`, padding: '1rem', borderRadius: 10, marginBottom: '1rem' }}>
               <div style={{ fontSize: '.75rem', fontWeight: 700, color: NAVY, marginBottom: '.5rem' }}>EXTRACTION COMPLETE</div>
               <div style={{ fontSize: '.9rem', color: NAVY }}>{frameCount} face frames captured at ~{fpsRef.current} fps</div>
-              <div style={{ fontSize: '.75rem', color: '#6B7280', marginTop: 4 }}>Reference BP: {sys}/{dia} mmHg</div>
+              <div style={{ fontSize: '.75rem', color: '#6B7280', marginTop: 4 }}>Reference BP: {sys}/{dia} mmHg · Tere HR (extracted): {featsRef.current?.hr != null ? `${Math.round(featsRef.current.hr * 10) / 10} bpm` : '—'}</div>
             </div>
 
             <div style={{ background: '#FAFAFA', border: '1.5px solid #E5E7EB', padding: '1rem', borderRadius: 10, marginBottom: '1rem' }}>

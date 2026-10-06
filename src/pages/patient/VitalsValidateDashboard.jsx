@@ -1779,6 +1779,8 @@ export default function VitalsValidateDashboard() {
   const [reprocessStatus, setReprocessStatus] = useState('')
   const [reprocessingHr, setReprocessingHr] = useState(false)
   const [reprocessHrStatus, setReprocessHrStatus] = useState('')
+  // Per-row HR/RR reprocess state keyed by reading id → 'running' | 'done' | 'failed:<msg>'
+  const [rowHrState, setRowHrState] = useState({})
   // v3-rerun predictions keyed by reading id, for the Readings-tab comparison
   // column. Computed in the background after readings load so the table paints
   // fast and v3 numbers trickle in. Uses the currently-promoted server model
@@ -2383,6 +2385,37 @@ export default function VitalsValidateDashboard() {
                             title="Re-run current v3 model against this reading's stored rPPG signal"
                             style={{ background: 'white', color: '#065F46', border: '1.5px solid #6EE7B7', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                             🔄 Re-eval
+                          </button>
+                          {/* Per-row HR/RR reprocess (Patrick 2026-10-05). Same path as
+                              the bulk "Reprocess HR & RR" button but for just this reading.
+                              Useful after an upload-modal save that didn't compute Tere HR,
+                              or after a signal-pipeline fix when you don't want to touch
+                              every row. Writes tere_hr/tere_rr back to Supabase. */}
+                          <button
+                            disabled={rowHrState[r.id] === 'running' || !r.raw_rppg_signal?.frames?.length}
+                            onClick={async () => {
+                              if (!r.raw_rppg_signal?.frames?.length) {
+                                alert('No stored rPPG frames for this reading — nothing to reprocess.')
+                                return
+                              }
+                              setRowHrState(prev => ({ ...prev, [r.id]: 'running' }))
+                              try {
+                                const fps = r.raw_rppg_signal.fps || 30
+                                const result = processStoredFramesMultiPass(r.raw_rppg_signal.frames, fps)
+                                if (!result) throw new Error('pipeline returned null')
+                                const newQuality = result.hr != null ? 'extracted' : 'no_signal'
+                                await updateValidationHrRr(r.id, result.hr ?? null, result.rr ?? null, r.manual_hr ?? null, { forceOverwrite: true, hrQuality: newQuality })
+                                // Patch local state so the row updates without a full reload.
+                                setReadings(prev => prev.map(x => x.id === r.id ? { ...x, tere_hr: result.hr ?? null, tere_rr: result.rr ?? null, hr_quality: newQuality } : x))
+                                setRowHrState(prev => ({ ...prev, [r.id]: 'done' }))
+                              } catch (e) {
+                                setRowHrState(prev => ({ ...prev, [r.id]: 'failed:' + (e.message || e) }))
+                                alert(`Reprocess HR/RR failed: ${e.message || e}`)
+                              }
+                            }}
+                            title="Re-derive Tere HR & RR from stored rPPG frames for this row only"
+                            style={{ background: 'white', color: '#1E40AF', border: '1.5px solid #93C5FD', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: rowHrState[r.id] === 'running' ? 'wait' : 'pointer', opacity: !r.raw_rppg_signal?.frames?.length ? .4 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            {rowHrState[r.id] === 'running' ? '…' : '🔁 HR/RR'}
                           </button>
                           {/* ME-rPPG DL replay (Patrick 2026-10-03). Needs the full
                               scan video — we store the WebM in scan-videos bucket with
