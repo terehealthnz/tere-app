@@ -2386,36 +2386,77 @@ export default function VitalsValidateDashboard() {
                             style={{ background: 'white', color: '#065F46', border: '1.5px solid #6EE7B7', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                             🔄 Re-eval
                           </button>
-                          {/* Per-row HR/RR reprocess (Patrick 2026-10-05). Same path as
-                              the bulk "Reprocess HR & RR" button but for just this reading.
-                              Useful after an upload-modal save that didn't compute Tere HR,
-                              or after a signal-pipeline fix when you don't want to touch
-                              every row. Writes tere_hr/tere_rr back to Supabase. */}
+                          {/* Per-row HR/RR reprocess (Patrick 2026-10-05, Option B 2026-10-06).
+                              Current-best policy: if the row has a stored video, pull it and
+                              run ME-rPPG DL for HR (fuses with classical for RR, since ME-rPPG
+                              is HR-only). Else fall back to classical-only reprocess from
+                              stored mean-RGB frames. Updates tere_hr/tere_rr AND me_rppg_hr
+                              so historical columns stay consistent with current pipeline. */}
                           <button
-                            disabled={rowHrState[r.id] === 'running' || !r.raw_rppg_signal?.frames?.length}
+                            disabled={rowHrState[r.id] === 'running' || (!r.raw_rppg_signal?.frames?.length && !r.video_url)}
                             onClick={async () => {
-                              if (!r.raw_rppg_signal?.frames?.length) {
-                                alert('No stored rPPG frames for this reading — nothing to reprocess.')
+                              if (!r.raw_rppg_signal?.frames?.length && !r.video_url) {
+                                alert('No stored rPPG frames or video for this reading — nothing to reprocess.')
                                 return
                               }
                               setRowHrState(prev => ({ ...prev, [r.id]: 'running' }))
                               try {
-                                const fps = r.raw_rppg_signal.fps || 30
-                                const result = processStoredFramesMultiPass(r.raw_rppg_signal.frames, fps)
-                                if (!result) throw new Error('pipeline returned null')
-                                const newQuality = result.hr != null ? 'extracted' : 'no_signal'
-                                await updateValidationHrRr(r.id, result.hr ?? null, result.rr ?? null, r.manual_hr ?? null, { forceOverwrite: true, hrQuality: newQuality })
-                                // Patch local state so the row updates without a full reload.
-                                setReadings(prev => prev.map(x => x.id === r.id ? { ...x, tere_hr: result.hr ?? null, tere_rr: result.rr ?? null, hr_quality: newQuality } : x))
-                                setRowHrState(prev => ({ ...prev, [r.id]: 'done' }))
+                                let dlHr = null, dlConf = null, dlErr = null
+                                // Phase 1: if video is available, run ME-rPPG DL for the HR.
+                                if (r.video_url) {
+                                  setRowHrState(prev => ({ ...prev, [r.id]: 'DL on video…' }))
+                                  const { replayVideoThroughMeRppg } = await import('../../lib/meRppgReplay')
+                                  const out = await replayVideoThroughMeRppg(
+                                    r.video_url,
+                                    (pct) => setRowHrState(prev => ({ ...prev, [r.id]: `DL ${pct}%` })),
+                                  )
+                                  dlHr = out.hr
+                                  dlConf = out.confidence
+                                  dlErr = out.meanErr
+                                }
+                                // Phase 2: classical pass on stored frames — still needed for
+                                // RR (DL path is HR-only) and as fallback HR if no video.
+                                let classicalHr = null, classicalRr = null
+                                if (r.raw_rppg_signal?.frames?.length) {
+                                  setRowHrState(prev => ({ ...prev, [r.id]: 'classical pass…' }))
+                                  const fps = r.raw_rppg_signal.fps || 30
+                                  const result = processStoredFramesMultiPass(r.raw_rppg_signal.frames, fps)
+                                  if (result) {
+                                    classicalHr = result.hr ?? null
+                                    classicalRr = result.rr ?? null
+                                  }
+                                }
+                                // Fusion policy: DL HR wins when available (more accurate on
+                                // low-SQI signals), classical for RR, classical HR as fallback.
+                                const finalHr = dlHr != null ? dlHr : classicalHr
+                                const finalRr = classicalRr
+                                const newQuality = finalHr != null ? (dlHr != null ? 'dl_me_rppg' : 'extracted') : 'no_signal'
+                                if (finalHr == null && finalRr == null) throw new Error('both DL and classical returned null')
+                                // Write HR/RR to tere_* columns.
+                                await updateValidationHrRr(r.id, finalHr, finalRr, r.manual_hr ?? null, { forceOverwrite: true, hrQuality: newQuality })
+                                // Also write ME-rPPG columns if we ran the DL path.
+                                if (dlHr != null) {
+                                  await updateValidationMeRppg(r.id, { hr: dlHr, confidence: dlConf, meanErr: dlErr })
+                                }
+                                setReadings(prev => prev.map(x => x.id === r.id ? {
+                                  ...x,
+                                  tere_hr: finalHr, tere_rr: finalRr, hr_quality: newQuality,
+                                  ...(dlHr != null ? { me_rppg_hr: dlHr, me_rppg_confidence: dlConf, me_rppg_mean_err: dlErr } : {}),
+                                } : x))
+                                setRowHrState(prev => ({ ...prev, [r.id]: dlHr != null ? 'done · DL' : 'done · classical' }))
                               } catch (e) {
                                 setRowHrState(prev => ({ ...prev, [r.id]: 'failed:' + (e.message || e) }))
-                                alert(`Reprocess HR/RR failed: ${e.message || e}`)
+                                alert(`Reprocess failed: ${e.message || e}`)
                               }
                             }}
-                            title="Re-derive Tere HR & RR from stored rPPG frames for this row only"
-                            style={{ background: 'white', color: '#1E40AF', border: '1.5px solid #93C5FD', borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: rowHrState[r.id] === 'running' ? 'wait' : 'pointer', opacity: !r.raw_rppg_signal?.frames?.length ? .4 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            {rowHrState[r.id] === 'running' ? '…' : '🔁 HR/RR'}
+                            title={r.video_url
+                              ? "Reprocess: ME-rPPG DL on stored video for HR + classical for RR (current-best)"
+                              : "Reprocess: classical pipeline on stored frames (no video available)"
+                            }
+                            style={{ background: 'white', color: r.video_url ? '#065F46' : '#1E40AF', border: `1.5px solid ${r.video_url ? '#6EE7B7' : '#93C5FD'}`, borderRadius: 6, padding: '.25rem .55rem', fontSize: '.7rem', fontWeight: 700, cursor: rowHrState[r.id] === 'running' ? 'wait' : 'pointer', opacity: (!r.raw_rppg_signal?.frames?.length && !r.video_url) ? .4 : 1, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                            {rowHrState[r.id] && rowHrState[r.id] !== 'done · DL' && rowHrState[r.id] !== 'done · classical' && !rowHrState[r.id].startsWith('failed:')
+                              ? rowHrState[r.id]
+                              : (r.video_url ? '🔁 DL+RR' : '🔁 HR/RR')}
                           </button>
                           {/* ME-rPPG DL replay (Patrick 2026-10-03). Needs the full
                               scan video — we store the WebM in scan-videos bucket with
