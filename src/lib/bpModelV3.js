@@ -292,6 +292,146 @@ function hrAndHrv(peaks, fps) {
   return { hr, hrvSdnn: sdnn, hrvRmssd: rmssd }
 }
 
+// ─── 2026-10 additions: features surfaced by 2024-26 rPPG → BP literature ─────
+
+// Full SDPPG fiducial set (Takazawa 1998, re-validated Al-Fahoum/Rizzi 2024-25).
+// Returns per-beat {a,b,c,d,e} amplitudes extracted from the second derivative.
+// a = first positive peak (early systolic acceleration), b = first negative
+// valley after a (deceleration), c = next positive peak (reflected wave early),
+// d = next negative valley (late reflected), e = last positive peak (dicrotic
+// marker). Beat window = foot_i → foot_{i+1}. Returns {ca,da,ea,agi} medians.
+//
+// Captures the compliant-aorta regime where hypotensive readings live — the
+// single feature `sdppgBA` already in use collapses most of this signal.
+function sdppgFullIndices(sdppg, peaks, feet) {
+  const cas = [], das = [], eas = [], agis = []
+  for (let p = 0; p < peaks.length - 1; p++) {
+    const footStart = p > 0 ? feet[p - 1] : null
+    const footEnd = feet[p]
+    if (footStart == null || footEnd == null || footEnd - footStart < 10) continue
+    const extrema = []
+    for (let i = footStart + 1; i < footEnd - 1; i++) {
+      const prev = sdppg[i - 1], here = sdppg[i], next = sdppg[i + 1]
+      if (here > prev && here > next) extrema.push({ idx: i, val: here, sign: +1 })
+      else if (here < prev && here < next) extrema.push({ idx: i, val: here, sign: -1 })
+    }
+    if (extrema.length < 5) continue
+    let a = null, b = null, c = null, d = null, e = null
+    for (const ex of extrema) {
+      if (a == null && ex.sign === +1) { a = ex.val; continue }
+      if (a != null && b == null && ex.sign === -1) { b = ex.val; continue }
+      if (b != null && c == null && ex.sign === +1) { c = ex.val; continue }
+      if (c != null && d == null && ex.sign === -1) { d = ex.val; continue }
+      if (d != null && e == null && ex.sign === +1) { e = ex.val; break }
+    }
+    if (a == null || b == null || c == null || d == null || e == null) continue
+    if (Math.abs(a) < 1e-4) continue
+    cas.push(c / a)
+    das.push(d / a)
+    eas.push(e / a)
+    agis.push((b - c - d - e) / a)
+  }
+  return { sdppgCA: median(cas), sdppgDA: median(das), sdppgEA: median(eas), agi: median(agis) }
+}
+
+// Inflection-Point Area (Elgendi 2012, re-used Heliyon 2024 top-10 PPG features).
+// Three sub-areas across the pulse: A1=foot→peak (systolic rise), A2=peak→notch
+// (systolic decay), A3=notch→next-foot (diastolic). IPA = A3 / (A1 + A2). High
+// IPA correlates with lower peripheral resistance / more compliant vessels.
+function inflectionPointArea(signal, peaks, feet, notches) {
+  const ipas = [], a12s = [], a23s = []
+  for (let p = 0; p < peaks.length - 1; p++) {
+    const nIdx = notches[p]
+    const footStart = p > 0 ? feet[p - 1] : null
+    const footEnd = feet[p]
+    if (nIdx == null || footStart == null || footEnd == null) continue
+    if (!(footStart < peaks[p] && peaks[p] < nIdx && nIdx < footEnd)) continue
+    const base = Math.min(signal[footStart], signal[footEnd])
+    let a1 = 0, a2 = 0, a3 = 0
+    for (let i = footStart; i < peaks[p]; i++) a1 += Math.max(0, signal[i] - base)
+    for (let i = peaks[p]; i < nIdx; i++)       a2 += Math.max(0, signal[i] - base)
+    for (let i = nIdx; i < footEnd; i++)        a3 += Math.max(0, signal[i] - base)
+    const denom12 = a1 + a2
+    if (denom12 > 0.1) {
+      ipas.push(a3 / denom12)
+      if (a2 > 0.1) a12s.push(a1 / a2)
+      if (a3 > 0.1) a23s.push(a2 / a3)
+    }
+  }
+  return { ipa: median(ipas), a1Over2: median(a12s), a2Over3: median(a23s) }
+}
+
+// Generalised pulse-width at an arbitrary height fraction (default 0.5 = PW50).
+// PW25 captures late-systolic shoulder shape; PW75 captures peak sharpness. The
+// ratio PW75/PW25 is a dimensionless "pulse peakedness" that varies with
+// vascular compliance.
+function pulseWidthAt(signal, peaks, feet, fps, fraction = 0.5) {
+  const widths = []
+  for (let p = 0; p < peaks.length - 1; p++) {
+    const peakIdx = peaks[p]
+    const footStart = p > 0 ? feet[p - 1] : Math.max(0, peakIdx - Math.floor(fps * 0.5))
+    const footEnd = feet[p]
+    if (footEnd <= peakIdx || peakIdx <= footStart) continue
+    const peakVal = signal[peakIdx]
+    const base = Math.min(signal[footStart], signal[footEnd])
+    const thresh = base + (peakVal - base) * fraction
+    let left = null, right = null
+    for (let i = footStart; i < peakIdx; i++) {
+      if (signal[i] <= thresh && signal[i + 1] > thresh) { left = i; break }
+    }
+    for (let i = peakIdx; i < footEnd; i++) {
+      if (signal[i] >= thresh && signal[i + 1] < thresh) { right = i; break }
+    }
+    if (left != null && right != null) widths.push((right - left) / fps)
+  }
+  return median(widths)
+}
+
+// Autonomic / baroreflex proxy: ratio of pulse-spectrum power in LF
+// (0.04-0.15 Hz) vs HF (0.15-0.4 Hz) sub-cardiac bands. True PRV LF/HF needs
+// ≥25 s of IBI series which we do not have per window; the sub-cardiac
+// envelope captures a related signal (baroreflex at ~0.1 Hz, respiration
+// at ~0.25 Hz). Hypovolaemia + vagal-dominant states (which trend hypotensive)
+// shift this ratio.
+function autonomicLfHf(signal, fps) {
+  const { freqs, power } = spectrumPower(signal, fps)
+  let lf = 0, hf = 0
+  for (let i = 0; i < freqs.length; i++) {
+    if (freqs[i] >= 0.04 && freqs[i] < 0.15) lf += power[i]
+    else if (freqs[i] >= 0.15 && freqs[i] < 0.40) hf += power[i]
+  }
+  if (hf < 1e-9) return null
+  return lf / hf
+}
+
+// Signal moments on the clean pulse — Elgendi "optimal SQI" 2016. Skewness is
+// the single best SQI discriminator in that work; low-perfusion (hypotensive)
+// beats have characteristically different skew/kurt vs normotensive clean beats.
+function signalMoments(signal) {
+  const n = signal.length
+  if (n < 10) return { skew: null, kurt: null }
+  let m = 0
+  for (const v of signal) m += v
+  m /= n
+  let m2 = 0, m3 = 0, m4 = 0
+  for (const v of signal) {
+    const d = v - m
+    m2 += d * d; m3 += d * d * d; m4 += d * d * d * d
+  }
+  m2 /= n; m3 /= n; m4 /= n
+  const sd = Math.sqrt(m2)
+  if (sd < 1e-9) return { skew: null, kurt: null }
+  return { skew: m3 / (sd * sd * sd), kurt: m4 / (sd * sd * sd * sd) - 3 }
+}
+
+// Augmentation Index normalised to HR=75 bpm (Townsend 2015). Classic
+// Vicorder/Mobil-O-Graph BP correlate; removes the HR confound of raw AugIndex
+// so the gradient-boost can use AugIndex-shape without re-learning HR dependence.
+function aix75(augIndexVal, hrVal) {
+  if (!Number.isFinite(augIndexVal) || !Number.isFinite(hrVal)) return null
+  return augIndexVal + 0.39 * (75 - hrVal) / 100  // scaled to similar magnitude as augIndex
+}
+
 // ─── Full feature extraction on one clean window ──────────────────────────────
 
 function extractV3FeaturesOneWindow(cleanSignal, preBpSignal, fps, subject) {
@@ -363,9 +503,20 @@ function extractV3FeaturesOneWindow(cleanSignal, preBpSignal, fps, subject) {
   const se = spectralEntropy(cleanSignal, fps)
   const sqi = signalQualityIndex(cleanSignal, fps)
 
+  // 2026-10 additions from rPPG literature survey
+  const augIndexMed = median(aiVals)
+  const sdppgFull = sdppgFullIndices(sdppg, peaks, feet)
+  const ipaOut = inflectionPointArea(cleanSignal, peaks, feet, notches)
+  const pw25 = pulseWidthAt(cleanSignal, peaks, feet, fps, 0.25)
+  const pw75 = pulseWidthAt(cleanSignal, peaks, feet, fps, 0.75)
+  const pwRatio = (pw25 != null && pw75 != null && pw25 > 1e-6) ? pw75 / pw25 : null
+  const lfhf = autonomicLfHf(cleanSignal, fps)
+  const { skew, kurt } = signalMoments(cleanSignal)
+  const aixN = aix75(augIndexMed, hr)
+
   return {
     upstrokeTime:     median(upstrokes),
-    augIndex:         median(aiVals),
+    augIndex:         augIndexMed,
     pulseWidth50:     pw50,
     areaRatio:        median(areaRatios),
     notchDelay:       median(notchDelays),
@@ -379,6 +530,21 @@ function extractV3FeaturesOneWindow(cleanSignal, preBpSignal, fps, subject) {
     reflectionCoeff:  rc,
     spectralEntropy:  se,
     sqi,
+    // 2026-10 additions
+    sdppgCA:          sdppgFull.sdppgCA,
+    sdppgDA:          sdppgFull.sdppgDA,
+    sdppgEA:          sdppgFull.sdppgEA,
+    agi:              sdppgFull.agi,
+    ipa:              ipaOut.ipa,
+    a1Over2:          ipaOut.a1Over2,
+    a2Over3:          ipaOut.a2Over3,
+    pw25,
+    pw75,
+    pwRatio,
+    lfhf,
+    pulseSkew:        skew,
+    pulseKurt:        kurt,
+    aix75:            aixN,
   }
 }
 
@@ -414,12 +580,23 @@ export function framesToV3Features(frames, fps, subject = {}) {
   // that failed in some windows (so the model always sees a numeric vector).
   const keys = ['upstrokeTime','augIndex','pulseWidth50','areaRatio','notchDelay','sdppgBA',
                 'hr','hrvSdnn','hrvRmssd','peakToNotchRatio',
-                'perfusionIndex','stiffnessIndex','reflectionCoeff','spectralEntropy','sqi']
+                'perfusionIndex','stiffnessIndex','reflectionCoeff','spectralEntropy','sqi',
+                // 2026-10 additions
+                'sdppgCA','sdppgDA','sdppgEA','agi',
+                'ipa','a1Over2','a2Over3',
+                'pw25','pw75','pwRatio',
+                'lfhf','pulseSkew','pulseKurt','aix75']
   const out = {}
   const defaults = {
     upstrokeTime: 0.15, augIndex: 0.5, pulseWidth50: 0.35, areaRatio: 1.0, notchDelay: 0.25,
     sdppgBA: -0.6, hr: 70, hrvSdnn: 40, hrvRmssd: 30, peakToNotchRatio: 0.5,
     perfusionIndex: 1.0, stiffnessIndex: 7.0, reflectionCoeff: 0.5, spectralEntropy: 0.5, sqi: 0.3,
+    // 2026-10 defaults — SDPPG ratios anchored to healthy-adult norms (Takazawa);
+    // morphology ratios + widths anchored to the dataset-wide expected medians.
+    sdppgCA: -0.3, sdppgDA: -0.2, sdppgEA: 0.1, agi: -0.5,
+    ipa: 2.0, a1Over2: 0.5, a2Over3: 0.5,
+    pw25: 0.5, pw75: 0.2, pwRatio: 0.4,
+    lfhf: 1.5, pulseSkew: 0, pulseKurt: 0, aix75: 0.5,
   }
   for (const k of keys) {
     const vals = perWindow.map(w => w[k]).filter(v => Number.isFinite(v))
@@ -441,11 +618,21 @@ export function framesToV3Features(frames, fps, subject = {}) {
 // boosting (fit residuals). Each tree is {feature, threshold, left, right,
 // value} nodes. Serialises to compact JSON. Deterministic.
 
+// IMPORTANT: features are index-addressed in trained models — new features MUST
+// be appended, never inserted mid-list. The current prod model's trees reference
+// `age`/`sex` at indices 15/16; shifting those indices silently serves wrong
+// predictions. All 2026-10 additions therefore go AFTER age/sex.
 const FEATURE_NAMES_V3 = [
   'upstrokeTime','augIndex','pulseWidth50','areaRatio','notchDelay','sdppgBA',
   'hr','hrvSdnn','hrvRmssd','peakToNotchRatio',
   'perfusionIndex','stiffnessIndex','reflectionCoeff','spectralEntropy','sqi',
   'age','sex',
+  // 2026-10 additions from rPPG literature survey (14 new features — appended
+  // so index-addressed prod models trained pre-2026-10 keep working)
+  'sdppgCA','sdppgDA','sdppgEA','agi',
+  'ipa','a1Over2','a2Over3',
+  'pw25','pw75','pwRatio',
+  'lfhf','pulseSkew','pulseKurt','aix75',
 ]
 
 function featureVec(f) { return FEATURE_NAMES_V3.map(k => f[k]) }
@@ -514,11 +701,29 @@ function predictTree(tree, x) {
 // from mean-regressing hypertensives into the training mean. Pass null for
 // uniform weighting.
 //
-// asymmetricPenalty > 1 amplifies the residual for samples the model is
-// currently under-predicting (true > pred). Clinical rationale: missing a
-// hypertensive is more dangerous than falsely flagging a normotensive, so
-// train the GBM to err high rather than low. Default 1 = symmetric MAE/MSE.
-function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1, asymmetricPenalty = 1.0 } = {}) {
+// 2026-10 additions from imbalanced-regression survey:
+//
+// lossMode:
+//   'mse'      (default) — pseudo-residual = y − ŷ (standard GBM / L2 boosting)
+//   'quantile' — pseudo-residual = sign(y − ŷ) at τ=0.5 (L1/LAD boosting,
+//                converges to conditional median; less mean-pulled than MSE
+//                on skewed targets).
+//
+// asymPenaltyMode:
+//   'highOnly' (legacy) — amplify residual whenever (y > ŷ). Only correct for
+//                         hypertensive misses. Keeps backward-compat.
+//   'tailAware'         — amplify over-prediction on the low tail AND
+//                         under-prediction on the high tail, with per-head
+//                         thresholds supplied in `lowThr` / `highThr`. Fixes
+//                         the paradox where the one-sided penalty actively
+//                         degrades Low MAE because it pushes predictions up.
+function fitGbm(X, y, weights, {
+  nTrees = 50, depth = 3, lr = 0.1,
+  asymmetricPenalty = 1.0,
+  asymPenaltyMode = 'highOnly',
+  lowThr = 110, highThr = 140,
+  lossMode = 'mse',
+} = {}) {
   // Weighted mean for init so the first tree's residuals aren't biased.
   let totalW = 0, sumWY = 0
   const w = weights || new Array(y.length).fill(1)
@@ -530,11 +735,31 @@ function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1, asymmetricPen
   for (let i = 0; i < y.length; i++) residuals[i] = y[i] - preds[i]
   const trees = []
   for (let t = 0; t < nTrees; t++) {
-    // Amplify under-prediction residuals so the next tree focuses there.
-    const workingResid = asymmetricPenalty > 1
-      ? residuals.map(r => r > 0 ? r * asymmetricPenalty : r)
-      : residuals
-    const tree = growTree(X, workingResid, w, depth)
+    // Convert residuals to pseudo-residuals per loss mode.
+    let working
+    if (lossMode === 'quantile') {
+      // L1-boosting at τ=0.5. Each sample contributes a unit step in the
+      // sign of its residual; leaves converge to the weighted median.
+      working = residuals.map(r => Math.sign(r) * 0.5)
+    } else {
+      working = residuals
+    }
+    // Apply asymmetric penalty on top of the chosen loss mode.
+    if (asymmetricPenalty > 1) {
+      if (asymPenaltyMode === 'tailAware') {
+        working = working.map((r, i) => {
+          const yi = y[i]
+          // Over-predicting a hypotensive (we think they're normal, they're not)
+          if (yi < lowThr && r < 0) return r * asymmetricPenalty
+          // Under-predicting a hypertensive (we think they're normal, they're not)
+          if (yi >= highThr && r > 0) return r * asymmetricPenalty
+          return r
+        })
+      } else {
+        working = working.map(r => r > 0 ? r * asymmetricPenalty : r)
+      }
+    }
+    const tree = growTree(X, working, w, depth)
     trees.push(tree)
     for (let i = 0; i < y.length; i++) {
       const step = lr * predictTree(tree, X[i])
@@ -543,6 +768,169 @@ function fitGbm(X, y, weights, { nTrees = 50, depth = 3, lr = 0.1, asymmetricPen
     }
   }
   return { init, trees, lr }
+}
+
+// ─── Phi-relevance + SERA weighting (Silva/Ribeiro 2022) ──────────────────────
+//
+// Relevance function phi(y) ∈ [0,1] that assigns high weight to tail labels and
+// low weight to normotensive mass. Implemented as a double-sigmoid centred on
+// the clinical tail boundaries (low 110, high 160 for SBP; low 60, high 90 for
+// DBP). Softer than a hard-threshold phi so the gradient stays smooth and the
+// GBM doesn't develop a step at the boundary.
+//
+// SERA (Squared-Error-Relevance-Area): gradient becomes 2·phi(y)·(ŷ−y) and
+// hessian 2·phi(y). In our weight-based GBM that is exactly equivalent to
+// per-sample weight = phi(y) — hence SERA slots in as a `weightingMode='sera'`
+// instead of needing a bespoke loss. Reference: Silva/Ribeiro et al. 2022
+// "Model Optimization in Imbalanced Regression" (arXiv:2206.09991), TMLR.
+function phiRelevance(labelsSubset, idx, lowCentre, highCentre, slope = 5) {
+  // Base weight 0.2 for normals, up to ~1.0 at the tail centres and beyond.
+  // Keeps a nonzero contribution from normals so leaves can still estimate the
+  // conditional mean in the dense band.
+  return labelsSubset.map(l => {
+    const y = l[idx]
+    const lowSig  = 1 / (1 + Math.exp((y - lowCentre) / slope))
+    const highSig = 1 / (1 + Math.exp((highCentre - y) / slope))
+    return 0.2 + 0.8 * Math.max(lowSig, highSig)
+  })
+}
+
+// ─── SMOGN (Branco 2017) tail synthesis — model-agnostic preprocessing ────────
+//
+// For each rare training sample (phi(y) above a relevance threshold) generate K
+// synthetic rows by linearly interpolating between the sample and one of its
+// k-NN rare neighbours, then adding small Gaussian noise. Target label is
+// interpolated too. Used BEFORE training so any downstream GBM/loss sees the
+// expanded dataset.
+//
+// 2026 benchmarks (CARTGen-IR, WSMOTER papers) consistently show preprocessing
+// synthesis is the single biggest tail-MAE win per hour of work.
+function smognAugment(features, labels, subjectIds, {
+  k = 5, oversampleFactor = 3, noiseFrac = 0.05,
+  lowThrSys = 110, highThrSys = 160,
+} = {}) {
+  const idxs = []
+  for (let i = 0; i < labels.length; i++) {
+    const s = labels[i][0]
+    if (s < lowThrSys || s >= highThrSys) idxs.push(i)
+  }
+  if (idxs.length < 2) return { features, labels, subjectIds }  // nothing to synthesise
+
+  const outF = [...features]
+  const outL = [...labels]
+  const outS = subjectIds ? [...subjectIds] : null
+
+  // Pre-vectorise features for distance calc (reuse featureVec).
+  const vecs = idxs.map(i => featureVec(features[i]))
+
+  // Simple z-score normalisation per feature across the rare pool.
+  const dim = vecs[0].length
+  const mu = new Array(dim).fill(0), sd = new Array(dim).fill(0)
+  for (let d = 0; d < dim; d++) {
+    for (const v of vecs) mu[d] += (Number.isFinite(v[d]) ? v[d] : 0)
+    mu[d] /= vecs.length
+  }
+  for (let d = 0; d < dim; d++) {
+    for (const v of vecs) sd[d] += ((Number.isFinite(v[d]) ? v[d] : mu[d]) - mu[d]) ** 2
+    sd[d] = Math.sqrt(sd[d] / vecs.length) || 1
+  }
+  const znorm = v => v.map((x, d) => ((Number.isFinite(x) ? x : mu[d]) - mu[d]) / sd[d])
+  const zvecs = vecs.map(znorm)
+
+  for (let anchor = 0; anchor < idxs.length; anchor++) {
+    const anchorIdx = idxs[anchor]
+    // k-NN among other rare samples (euclidean on z-normalised features).
+    const dists = []
+    for (let j = 0; j < zvecs.length; j++) {
+      if (j === anchor) continue
+      let d2 = 0
+      for (let f = 0; f < dim; f++) {
+        const diff = zvecs[anchor][f] - zvecs[j][f]
+        d2 += diff * diff
+      }
+      dists.push({ j, d: d2 })
+    }
+    dists.sort((a, b) => a.d - b.d)
+    const neighbours = dists.slice(0, Math.min(k, dists.length))
+
+    for (let r = 0; r < oversampleFactor; r++) {
+      if (neighbours.length === 0) break
+      const nb = neighbours[r % neighbours.length]
+      const partner = idxs[nb.j]
+      const t = Math.random()  // interpolation factor
+      const newF = {}
+      for (const key of Object.keys(features[anchorIdx])) {
+        const a = features[anchorIdx][key]
+        const b = features[partner][key]
+        if (typeof a === 'number' && typeof b === 'number') {
+          const base = a + t * (b - a)
+          const noise = (Math.random() - 0.5) * noiseFrac * Math.abs(base || 1)
+          newF[key] = base + noise
+        } else {
+          newF[key] = a  // non-numeric fields copied as-is (e.g. _nWindows)
+        }
+      }
+      const newSys = labels[anchorIdx][0] + t * (labels[partner][0] - labels[anchorIdx][0])
+      const newDia = labels[anchorIdx][1] + t * (labels[partner][1] - labels[anchorIdx][1])
+      outF.push(newF)
+      outL.push([newSys, newDia])
+      if (outS) outS.push(subjectIds[anchorIdx] + '_syn')
+    }
+  }
+  return { features: outF, labels: outL, subjectIds: outS }
+}
+
+// ─── Stratified-by-SBP-band + subject-grouped val split ───────────────────────
+//
+// Replaces the random seeded shuffle. Buckets labels into (<110, 110-139, ≥140)
+// and takes `valFrac` from each bucket, ensuring the Low band is never empty.
+// If subjectIds supplied, ensures no subject appears in both train and val.
+// Deterministic via multiplicative hash (same seed recipe as the random path).
+function stratifiedSplit(labels, valFrac = 0.2, subjectIds = null, lowThr = 110, highThr = 140) {
+  const n = labels.length
+  const buckets = { low: [], mid: [], high: [] }
+  for (let i = 0; i < n; i++) {
+    const s = labels[i][0]
+    if (s < lowThr) buckets.low.push(i)
+    else if (s >= highThr) buckets.high.push(i)
+    else buckets.mid.push(i)
+  }
+  // Deterministic shuffle per bucket.
+  const shuf = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (i * 2654435761 >>> 0) % (i + 1)
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
+  }
+  const trainIdx = [], valIdx = []
+  const seenValSubjects = new Set()
+  for (const key of ['low', 'mid', 'high']) {
+    const b = shuf([...buckets[key]])
+    const nValBucket = Math.max(1, Math.round(b.length * valFrac))
+    let placed = 0
+    for (let i = 0; i < b.length; i++) {
+      const idx = b[i]
+      const subj = subjectIds ? subjectIds[idx] : null
+      if (placed < nValBucket && (!subj || !seenValSubjects.has(subj))) {
+        valIdx.push(idx)
+        if (subj) seenValSubjects.add(subj)
+        placed++
+      } else {
+        trainIdx.push(idx)
+      }
+    }
+  }
+  // If subject grouping bumped a sample from val to train, enforce train-side
+  // subject exclusion too.
+  if (subjectIds) {
+    const trainFiltered = []
+    for (const idx of trainIdx) {
+      if (!seenValSubjects.has(subjectIds[idx])) trainFiltered.push(idx)
+    }
+    return { trainIdx: trainFiltered, valIdx }
+  }
+  return { trainIdx, valIdx }
 }
 
 // Per-sample tail weights for sys-BP training. Anchored to NZ adult population
@@ -649,26 +1037,48 @@ export function trainV3(features, labels, {
   tailBoost = 2.0,
   weightingMode = 'tailBoost',
   asymmetricPenalty = 1.0,
+  asymPenaltyMode = 'highOnly',
+  lossMode = 'mse',
+  splitMode = 'random',      // 'random' | 'stratified'
   subjectIds = null,
+  smogn = false,             // run SMOGN tail synthesis on the training half
+  smognOversample = 3,
 } = {}) {
   if (features.length < 20) throw new Error('need ≥20 training samples')
   const n = features.length
   const nVal = Math.max(1, Math.round(n * valFrac))
 
-  // Seeded shuffle (same recipe as v2 for comparability).
-  const order = Array.from({ length: n }, (_, i) => i)
-  for (let i = n - 1; i > 0; i--) {
-    const j = (i * 2654435761 >>> 0) % (i + 1)
-    ;[order[i], order[j]] = [order[j], order[i]]
+  // Choose split strategy.
+  let trainIdx, valIdx
+  if (splitMode === 'stratified') {
+    const sp = stratifiedSplit(labels, valFrac, subjectIds)
+    trainIdx = sp.trainIdx; valIdx = sp.valIdx
+  } else {
+    // Seeded shuffle (same recipe as v2 for comparability).
+    const order = Array.from({ length: n }, (_, i) => i)
+    for (let i = n - 1; i > 0; i--) {
+      const j = (i * 2654435761 >>> 0) % (i + 1)
+      ;[order[i], order[j]] = [order[j], order[i]]
+    }
+    trainIdx = order.slice(nVal)
+    valIdx   = order.slice(0, nVal)
   }
-  const trainIdx = order.slice(nVal)
-  const valIdx   = order.slice(0, nVal)
 
-  const X_train = trainIdx.map(i => featureVec(features[i]))
-  const y_sys   = trainIdx.map(i => labels[i][0])
-  const y_dia   = trainIdx.map(i => labels[i][1])
-  const trainLabels = trainIdx.map(i => labels[i])
-  const trainSubjectIds = subjectIds ? trainIdx.map(i => subjectIds[i]) : null
+  // Build train-side arrays. SMOGN runs on the train split only — val must
+  // stay untouched for honest MAE.
+  let trainFeats = trainIdx.map(i => features[i])
+  let trainLabels = trainIdx.map(i => labels[i])
+  let trainSubjectIds = subjectIds ? trainIdx.map(i => subjectIds[i]) : null
+  if (smogn) {
+    const aug = smognAugment(trainFeats, trainLabels, trainSubjectIds, { oversampleFactor: smognOversample })
+    trainFeats = aug.features
+    trainLabels = aug.labels
+    trainSubjectIds = aug.subjectIds
+  }
+
+  const X_train = trainFeats.map(f => featureVec(f))
+  const y_sys   = trainLabels.map(l => l[0])
+  const y_dia   = trainLabels.map(l => l[1])
 
   // Choose weighting strategy. Each sys/dia head gets its own weight vector
   // because the two tails live at different distances from mean.
@@ -676,6 +1086,9 @@ export function trainV3(features, labels, {
   if (weightingMode === 'lds') {
     sysW = tailWeightsLDS(trainLabels, 0, { kernelSigma: 12 })
     diaW = tailWeightsLDS(trainLabels, 1, { kernelSigma: 8 })
+  } else if (weightingMode === 'sera') {
+    sysW = phiRelevance(trainLabels, 0, 110, 160, 5)
+    diaW = phiRelevance(trainLabels, 1, 60, 90, 3)
   } else if (weightingMode === 'subject' && trainSubjectIds) {
     const subjW = subjectLevelWeights(trainSubjectIds)
     sysW = subjW; diaW = subjW
@@ -686,8 +1099,10 @@ export function trainV3(features, labels, {
     diaW = tailBoost > 0 ? tailWeightsDia(trainLabels, tailBoost) : null
   }
 
-  const sysModel = fitGbm(X_train, y_sys, sysW, { nTrees, depth, lr, asymmetricPenalty })
-  const diaModel = fitGbm(X_train, y_dia, diaW, { nTrees, depth, lr, asymmetricPenalty })
+  const sysOpts = { nTrees, depth, lr, asymmetricPenalty, asymPenaltyMode, lossMode, lowThr: 110, highThr: 140 }
+  const diaOpts = { nTrees, depth, lr, asymmetricPenalty, asymPenaltyMode, lossMode, lowThr: 60,  highThr: 90  }
+  const sysModel = fitGbm(X_train, y_sys, sysW, sysOpts)
+  const diaModel = fitGbm(X_train, y_dia, diaW, diaOpts)
 
   // Train MAE
   let maeSysT = 0, maeDiaT = 0
@@ -705,6 +1120,7 @@ export function trainV3(features, labels, {
   let maeSysV = 0, maeDiaV = 0
   let errSysHigh = [], errSysNorm = [], errSysLow = []
   let errSysHighSigned = []  // signed error for high band — negative = under-predict (clinical risk)
+  let errSysLowSigned = []   // signed error for low band  — positive = over-predict (clinical risk)
   for (let i = 0; i < X_val.length; i++) {
     const predS = predictGbm(sysModel, X_val[i])
     const predD = predictGbm(diaModel, X_val[i])
@@ -713,7 +1129,7 @@ export function trainV3(features, labels, {
     maeSysV += eS
     maeDiaV += eD
     if (y_sysV[i] >= 140) { errSysHigh.push(eS); errSysHighSigned.push(predS - y_sysV[i]) }
-    else if (y_sysV[i] < 110) errSysLow.push(eS)
+    else if (y_sysV[i] < 110) { errSysLow.push(eS); errSysLowSigned.push(predS - y_sysV[i]) }
     else errSysNorm.push(eS)
   }
   maeSysV /= X_val.length; maeDiaV /= X_val.length
@@ -722,6 +1138,7 @@ export function trainV3(features, labels, {
   const maeSysNorm = mean(errSysNorm)
   const maeSysLow  = mean(errSysLow)
   const biasSysHigh = mean(errSysHighSigned)  // negative = systematic under-prediction (bad)
+  const biasSysLow  = mean(errSysLowSigned)   // positive = systematic over-prediction (bad — collapses hypotensives into mean)
 
   return {
     sysModel, diaModel,
@@ -736,8 +1153,114 @@ export function trainV3(features, labels, {
         low_lt_110: maeSysLow,
         nHigh: errSysHigh.length, nNormal: errSysNorm.length, nLow: errSysLow.length,
         biasHigh: biasSysHigh,
+        biasLow: biasSysLow,
       },
       weightingMode, tailBoost, asymmetricPenalty,
+      asymPenaltyMode, lossMode, splitMode, smogn,
+      nTrees, depth, lr,
+      trainedAt: new Date().toISOString(),
+    },
+  }
+}
+
+// ─── Mixture-of-Experts BP model (Dec 2025 cuffless-BP MoE paper) ─────────────
+//
+// Trains three sub-models on the SAME split:
+//   (a) router        — binary GBM, labels = {y_sys < 110}, predicts P(low)
+//   (b) low specialist — regression GBM trained ONLY on sys<115 (buffer=+5)
+//                        with SMOGN augmentation; dedicated to the hypotensive
+//                        regime where the generalist collapses to the mean
+//   (c) generalist     — standard LDS-weighted GBM across the full dataset
+//
+// At inference: predict P(low) via router; if > 0.5 use specialist, else
+// generalist. Soft-blend variant below.
+export function trainV3MoE(features, labels, subjectIds, {
+  nTrees = 20, depth = 3, lr = 0.1, valFrac = 0.2,
+  routerThreshold = 0.5,
+  lowBuffer = 5,
+} = {}) {
+  if (features.length < 20) throw new Error('need ≥20 training samples')
+  const sp = stratifiedSplit(labels, valFrac, subjectIds)
+  const trainIdx = sp.trainIdx, valIdx = sp.valIdx
+  const trainFeats  = trainIdx.map(i => features[i])
+  const trainLabels = trainIdx.map(i => labels[i])
+  const trainSubjs  = subjectIds ? trainIdx.map(i => subjectIds[i]) : null
+
+  // Router: binary GBM, isLow = sys < 110.
+  const routerY = trainLabels.map(l => l[0] < 110 ? 1 : 0)
+  const X_all = trainFeats.map(f => featureVec(f))
+  const routerModel = fitGbm(X_all, routerY, null, { nTrees, depth, lr })
+
+  // Low specialist: only sys < 115 (+5 buffer); SMOGN-augmented.
+  const lowKeep = []
+  for (let i = 0; i < trainLabels.length; i++) if (trainLabels[i][0] < 110 + lowBuffer) lowKeep.push(i)
+  let lowFeats = lowKeep.map(i => trainFeats[i])
+  let lowLabels = lowKeep.map(i => trainLabels[i])
+  let lowSubjs = trainSubjs ? lowKeep.map(i => trainSubjs[i]) : null
+  if (lowFeats.length >= 10) {
+    const aug = smognAugment(lowFeats, lowLabels, lowSubjs, { oversampleFactor: 4 })
+    lowFeats = aug.features; lowLabels = aug.labels; lowSubjs = aug.subjectIds
+  }
+  const X_low = lowFeats.map(f => featureVec(f))
+  const sysSpec = lowFeats.length >= 10
+    ? fitGbm(X_low, lowLabels.map(l => l[0]), phiRelevance(lowLabels, 0, 110, 160), { nTrees, depth, lr })
+    : null
+  const diaSpec = lowFeats.length >= 10
+    ? fitGbm(X_low, lowLabels.map(l => l[1]), phiRelevance(lowLabels, 1, 60, 90),   { nTrees, depth, lr })
+    : null
+
+  // Generalist: LDS-weighted on full training set.
+  const sysGen = fitGbm(X_all, trainLabels.map(l => l[0]), tailWeightsLDS(trainLabels, 0, { kernelSigma: 12 }),
+    { nTrees, depth, lr })
+  const diaGen = fitGbm(X_all, trainLabels.map(l => l[1]), tailWeightsLDS(trainLabels, 1, { kernelSigma: 8  }),
+    { nTrees, depth, lr })
+
+  const predMoE = (x) => {
+    const p = predictGbm(routerModel, x)
+    const useSpec = sysSpec && p > routerThreshold
+    const sys = useSpec ? predictGbm(sysSpec, x) : predictGbm(sysGen, x)
+    const dia = useSpec ? predictGbm(diaSpec, x) : predictGbm(diaGen, x)
+    return { sys, dia, pLow: p, routed: useSpec ? 'specialist' : 'generalist' }
+  }
+
+  // Val MAE under the MoE routing.
+  const X_val = valIdx.map(i => featureVec(features[i]))
+  const y_sysV = valIdx.map(i => labels[i][0])
+  const y_diaV = valIdx.map(i => labels[i][1])
+  let maeSysV = 0, maeDiaV = 0
+  let errHigh = [], errNorm = [], errLow = [], errHighS = [], errLowS = []
+  let routedSpec = 0
+  for (let i = 0; i < X_val.length; i++) {
+    const out = predMoE(X_val[i])
+    if (out.routed === 'specialist') routedSpec++
+    const eS = Math.abs(out.sys - y_sysV[i])
+    const eD = Math.abs(out.dia - y_diaV[i])
+    maeSysV += eS; maeDiaV += eD
+    if      (y_sysV[i] >= 140) { errHigh.push(eS); errHighS.push(out.sys - y_sysV[i]) }
+    else if (y_sysV[i] <  110) { errLow.push(eS);  errLowS.push(out.sys - y_sysV[i])  }
+    else                        errNorm.push(eS)
+  }
+  maeSysV /= X_val.length; maeDiaV /= X_val.length
+  const mean = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
+
+  return {
+    routerModel, sysSpec, diaSpec, sysGen, diaGen,
+    featureNames: FEATURE_NAMES_V3,
+    predMoE,
+    meta: {
+      n: trainIdx.length, nVal: X_val.length,
+      valMae: { sys: +maeSysV.toFixed(1), dia: +maeDiaV.toFixed(1) },
+      valMaeSysByBand: {
+        high_ge_140: mean(errHigh),
+        normal_110_139: mean(errNorm),
+        low_lt_110: mean(errLow),
+        nHigh: errHigh.length, nNormal: errNorm.length, nLow: errLow.length,
+        biasHigh: mean(errHighS),
+        biasLow:  mean(errLowS),
+      },
+      weightingMode: 'moe',
+      routedSpec, routedGen: X_val.length - routedSpec,
+      specialistTrainN: lowFeats.length,
       nTrees, depth, lr,
       trainedAt: new Date().toISOString(),
     },
@@ -751,6 +1274,7 @@ export function trainV3(features, labels, {
 export function trainV3VariantSweep(features, labels, subjectIds, { nTrees = 20, depth = 3, lr = 0.1 } = {}) {
   const common = { nTrees, depth, lr, valFrac: 0.2 }
   const variants = [
+    // ─── Legacy variants (kept for continuity with the pre-2026-10 leaderboard) ───
     { label: 'Baseline (tailBoost=2)',       opts: { ...common, weightingMode: 'tailBoost', tailBoost: 2 } },
     { label: 'tailBoost=4 (cap)',            opts: { ...common, weightingMode: 'tailBoost', tailBoost: 4 } },
     { label: 'tailBoost=6 (over-cap)',       opts: { ...common, weightingMode: 'tailBoost', tailBoost: 6 } },
@@ -759,6 +1283,38 @@ export function trainV3VariantSweep(features, labels, subjectIds, { nTrees = 20,
     { label: 'LDS + asymmetric 3×',          opts: { ...common, weightingMode: 'lds', asymmetricPenalty: 3 } },
     { label: 'tailBoost=4 + asymmetric 3×',  opts: { ...common, weightingMode: 'tailBoost', tailBoost: 4, asymmetricPenalty: 3 } },
     { label: 'Subject-equalised + tB=2',     opts: { ...common, weightingMode: 'subject', tailBoost: 2, subjectIds } },
+
+    // ─── 2026-10 additions from literature survey ──────────────────────────────
+    // Fix for the one-sided asymmetric bug: amplify over-prediction on low tail
+    // AND under-prediction on high tail. Expected to lift Low MAE where the
+    // previous "LDS + asymmetric 3×" variant actively degraded it.
+    { label: 'LDS + tail-aware asym 3×',     opts: { ...common, weightingMode: 'lds',
+                                                     asymmetricPenalty: 3, asymPenaltyMode: 'tailAware' } },
+    // SERA loss (Silva/Ribeiro 2022, TMLR) — phi-weighted gradient, tree-native,
+    // the single most-cited GBM-native imbalanced-regression loss.
+    { label: 'SERA (phi-weighted)',          opts: { ...common, weightingMode: 'sera' } },
+    { label: 'SERA + tail-aware asym 3×',    opts: { ...common, weightingMode: 'sera',
+                                                     asymmetricPenalty: 3, asymPenaltyMode: 'tailAware' } },
+    // SMOGN preprocessing (Branco 2017; 2026 benchmarks confirm top-of-family) —
+    // synthesises 3× extra low-tail samples before training.
+    { label: 'SMOGN + tB=2',                 opts: { ...common, weightingMode: 'tailBoost', tailBoost: 2,
+                                                     smogn: true, smognOversample: 3, subjectIds } },
+    { label: 'SMOGN + SERA',                 opts: { ...common, weightingMode: 'sera',
+                                                     smogn: true, smognOversample: 3, subjectIds } },
+    // Quantile GBM at τ=0.5 (L1/LAD boosting). Median prediction less mean-pulled
+    // than MSE conditional mean on skewed targets.
+    { label: 'Quantile τ=0.5 + LDS',         opts: { ...common, weightingMode: 'lds', lossMode: 'quantile' } },
+    // Stratified-by-SBP-band val split — fixes the Low MAE 22.5 tie across many
+    // variants (same ~2-5 low val samples each time). Also honest baseline for CI.
+    { label: 'Stratified val + LDS',         opts: { ...common, weightingMode: 'lds', splitMode: 'stratified', subjectIds } },
+    { label: 'Stratified + SMOGN + SERA',    opts: { ...common, weightingMode: 'sera',
+                                                     splitMode: 'stratified',
+                                                     smogn: true, smognOversample: 3, subjectIds } },
+    // Full stack: everything the two surveys recommend, in one bundle.
+    { label: '★ Full stack (strat+SMOGN+SERA+tailAware)',
+      opts: { ...common, weightingMode: 'sera', splitMode: 'stratified',
+              smogn: true, smognOversample: 3,
+              asymmetricPenalty: 3, asymPenaltyMode: 'tailAware', subjectIds } },
   ]
   const results = []
   for (const v of variants) {
@@ -778,6 +1334,24 @@ export function trainV3VariantSweep(features, labels, subjectIds, { nTrees = 20,
     } catch (e) {
       results.push({ label: v.label, error: e?.message || String(e), ok: false })
     }
+  }
+
+  // Mixture-of-Experts variant — different model shape (router + two sub-models),
+  // so trained via its own function and reported without a Promote button
+  // (promote path doesn't yet handle composite models).
+  try {
+    const moe = trainV3MoE(features, labels, subjectIds, { nTrees, depth, lr })
+    results.push({
+      label: 'MoE (router + low-specialist + generalist)',
+      meta: moe.meta,
+      sysModel: null,  // composite — no single sysModel to promote
+      diaModel: null,
+      featureNames: moe.featureNames,
+      ok: true,
+      isMoE: true,
+    })
+  } catch (e) {
+    results.push({ label: 'MoE (router + low-specialist + generalist)', error: e?.message || String(e), ok: false })
   }
   return results
 }
@@ -815,7 +1389,14 @@ export function sweepTrees(features, labels, treeCounts = [10, 20, 30, 50, 100],
 }
 
 export function predictV3(model, features) {
-  const x = featureVec(features)
+  // Use the MODEL's own featureNames (not the module constant) so a model
+  // trained with a different feature count — e.g. a pre-2026-10 prod model
+  // with 17 features vs the current 31-feature extractor — still serves
+  // correctly after the extractor was expanded.
+  const names = Array.isArray(model.featureNames) && model.featureNames.length > 0
+    ? model.featureNames
+    : FEATURE_NAMES_V3
+  const x = names.map(k => features[k])
   const sys = Math.round(Math.max(70, Math.min(200, predictGbm(model.sysModel, x))))
   const dia = Math.round(Math.max(40, Math.min(130, predictGbm(model.diaModel, x))))
   return { systolic: sys, diastolic: dia, source: 'v3-gbm' }

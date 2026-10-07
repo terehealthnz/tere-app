@@ -372,7 +372,7 @@ export default function RppgReplay() {
             <button
               onClick={compareBpVariants}
               disabled={bpSweepRunning || readings.length === 0}
-              title="Experimental: train 8 BP weighting/loss variants (tailBoost 2/4/6/8, LDS, LDS+asym, tailBoost=4+asym, subject-eq) on the SAME split. Shows per-band val MAE leaderboard. Does NOT promote."
+              title="Experimental: trains 16 BP variants on the SAME split — legacy (tailBoost 2/4/6/8, LDS, LDS+asym, tailBoost=4+asym, subject-eq) + 2026-10 additions (SERA phi-weighted, SMOGN tail-synthesis, quantile τ=0.5, stratified val split, tail-aware asymmetric penalty, full stack, Mixture-of-Experts). Does NOT promote."
               style={{padding:'.6rem 1.1rem',background:'#DC2626',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:bpSweepRunning?'not-allowed':'pointer',opacity:bpSweepRunning||readings.length===0?.5:1,fontSize:'.9rem'}}>
               {bpSweepRunning ? (bpSweepProgress || 'Comparing BP variants…') : '🧪 Compare BP variants'}
             </button>
@@ -410,8 +410,9 @@ export default function RppgReplay() {
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Overall diastolic MAE on held-out validation set">Dia MAE</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#B91C1C'}} title="MAE on hypertensive band (SBP ≥ 140). Clinical safety number.">High MAE</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="MAE on normotensive band (110-139 SBP). Represents the bulk of patients.">Norm MAE</th>
-                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#2563EB'}} title="MAE on low-normal band (SBP < 110). Tail check.">Low MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#2563EB'}} title="MAE on low-normal band (SBP < 110). Tail check. Small subscript = n in band — treat Low MAE at nLow < 10 as noisy.">Low MAE</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Signed bias on high band. Negative = systematic under-prediction of hypertensives (clinically dangerous).">High bias</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Signed bias on low band. Positive = systematic over-prediction of hypotensives (collapses them into the normotensive mean — the current Low MAE wall).">Low bias</th>
                       <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}} title="Promote this trained variant to prod. Replaces current /api/bp-v3-model.">Action</th>
                     </tr>
                   </thead>
@@ -428,7 +429,7 @@ export default function RppgReplay() {
                           return (
                             <tr key={idx} style={{borderTop:'1px solid #FECACA',color:'#9CA3AF'}}>
                               <td style={{padding:'.4rem .5rem'}}>{r.label}</td>
-                              <td colSpan={7} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
+                              <td colSpan={8} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
                             </tr>
                           )
                         }
@@ -438,6 +439,8 @@ export default function RppgReplay() {
                         const norm = r.meta?.valMaeSysByBand?.normal_110_139
                         const low  = r.meta?.valMaeSysByBand?.low_lt_110
                         const bias = r.meta?.valMaeSysByBand?.biasHigh
+                        const biasL = r.meta?.valMaeSysByBand?.biasLow
+                        const nLow = r.meta?.valMaeSysByBand?.nLow
                         const cell = (v, isWinner, color) => (
                           <td style={{padding:'.4rem .5rem',textAlign:'right',fontWeight:isWinner?700:400,color:isWinner?'#065F46':color,background:isWinner?'#D1FAE5':'transparent'}}>
                             {v == null ? '—' : v}
@@ -452,9 +455,15 @@ export default function RppgReplay() {
                             {cell(dia, dia === minDia, '#374151')}
                             {cell(high, high === minHigh, '#B91C1C')}
                             {cell(norm, norm === minNorm, '#374151')}
-                            {cell(low, low === minLow, '#2563EB')}
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',fontWeight:low === minLow?700:400,color:low === minLow?'#065F46':'#2563EB',background:low === minLow?'#D1FAE5':'transparent'}}>
+                              {low == null ? '—' : low}
+                              {nLow != null && <span style={{fontSize:'.65rem',opacity:0.6,marginLeft:4}}>n={nLow}</span>}
+                            </td>
                             <td style={{padding:'.4rem .5rem',textAlign:'right',color:bias == null?'#9CA3AF':bias < -3?'#B91C1C':bias > 3?'#D97706':'#374151'}}>
                               {bias == null ? '—' : (bias > 0 ? '+' : '') + bias}
+                            </td>
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',color:biasL == null?'#9CA3AF':biasL > 3?'#B91C1C':biasL < -3?'#D97706':'#374151'}}>
+                              {biasL == null ? '—' : (biasL > 0 ? '+' : '') + biasL}
                             </td>
                             <td style={{padding:'.4rem .5rem',textAlign:'right'}}>
                               {canPromote ? (
@@ -486,7 +495,7 @@ export default function RppgReplay() {
                 </table>
               </div>
               <div style={{fontSize:'.7rem',color:'#7F1D1D',marginTop:'.75rem',lineHeight:1.5}}>
-                <strong>How to read:</strong> "High MAE" is the clinical-safety number — lower = better hypertensive detection. "High bias" negative = model systematically under-predicts hypertensives (dangerous). <strong>Click "Promote" to ship that variant live</strong> — it replaces the current /api/bp-v3-model served to /vitals. Browser localStorage copy is updated too so the dashboard uses the new model on next load.
+                <strong>How to read:</strong> "High MAE" + "Low MAE" are the clinical-safety numbers — lower = better tail detection. "High bias" negative = model under-predicts hypertensives (dangerous). "Low bias" positive = model over-predicts hypotensives (collapses them to the normotensive mean — this is the wall the previous variants hit). Small "n=X" beside Low MAE is the band's val-sample count — at n&lt;10 the number is noisy; prefer the Stratified-val variants there. <strong>Click "Promote" to ship that variant live</strong> — it replaces the current /api/bp-v3-model served to /vitals. MoE row has no Promote button yet (composite router+specialist+generalist model shape not supported by the promote path).
               </div>
             </div>
           )}
