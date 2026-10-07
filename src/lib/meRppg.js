@@ -181,6 +181,28 @@ export class MeRppgTracker {
     }
   }
 
+  // 2026-10 addition: expose the Kalman-smoothed BVP waveform so BP feature
+  // extraction (bpModelV3.extractV3FeaturesFromPulse) can run on ME-rPPG output
+  // instead of POS. Returns {bvp: Float64Array, t: Float64Array (seconds), fps}.
+  // fps estimated from timestamps (model is clipped to real frame rate rather
+  // than assumed 30).
+  getBvpWaveform() {
+    if (!this.bvpSeries.length) return null
+    const n = this.bvpSeries.length
+    const bvp = new Float64Array(n)
+    const t = new Float64Array(n)
+    for (let i = 0; i < n; i++) {
+      bvp[i] = this.bvpSeries[i].bvp
+      t[i] = this.bvpSeries[i].t
+    }
+    let fps = 30
+    if (n >= 2) {
+      const dur = t[n - 1] - t[0]
+      if (dur > 0.1) fps = (n - 1) / dur
+    }
+    return { bvp, t, fps }
+  }
+
   reset() {
     this.inputQueueCount = 0
     this.dropCount = 30

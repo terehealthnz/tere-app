@@ -548,6 +548,67 @@ function extractV3FeaturesOneWindow(cleanSignal, preBpSignal, fps, subject) {
   }
 }
 
+// 2026-10 addition: BP feature extraction from an already-extracted pulse
+// waveform (e.g. ME-rPPG output, PhysNet, or any other 1-D BVP signal). Skips
+// the POS stage used by framesToV3Features and runs the same window-based
+// morphology/HRV/spectral/SDPPG extractor as the POS path. Returned feature
+// shape is identical to framesToV3Features so trainV3VariantSweep is a drop-in
+// swap.
+//
+// Called by the rPPG Replay dashboard's "Compare BP variants on ME-rPPG
+// features" button once per reading, after replayVideoThroughMeRppgForBp
+// decodes the stored scan video.
+export function pulseToV3Features(pulseSamples, fps, subject = {}) {
+  if (!pulseSamples || pulseSamples.length < fps * 10) return null
+  const windowLen = Math.floor(fps * 10)
+  const step = Math.floor(windowLen / 2)
+  const windows = []
+  for (let start = 0; start + windowLen <= pulseSamples.length; start += step) {
+    windows.push(Array.from(pulseSamples.slice(start, start + windowLen)))
+  }
+  if (windows.length === 0) windows.push(Array.from(pulseSamples))
+
+  const perWindow = []
+  for (const w of windows) {
+    // Treat the input waveform as our "posRaw" — bandpass+zscore matches the
+    // POS path so downstream morphology code sees the same signal shape.
+    const bp = bandpass(detrend(w), fps, 0.7, 4.0)
+    const clean = zscore(bp)
+    const sqi = signalQualityIndex(clean, fps)
+    if (sqi < 0.15) continue
+    const feats = extractV3FeaturesOneWindow(clean, w, fps, subject)
+    if (feats) perWindow.push(feats)
+  }
+  if (perWindow.length === 0) return null
+
+  const keys = ['upstrokeTime','augIndex','pulseWidth50','areaRatio','notchDelay','sdppgBA',
+                'hr','hrvSdnn','hrvRmssd','peakToNotchRatio',
+                'perfusionIndex','stiffnessIndex','reflectionCoeff','spectralEntropy','sqi',
+                'sdppgCA','sdppgDA','sdppgEA','agi',
+                'ipa','a1Over2','a2Over3',
+                'pw25','pw75','pwRatio',
+                'lfhf','pulseSkew','pulseKurt','aix75']
+  const out = {}
+  const defaults = {
+    upstrokeTime: 0.15, augIndex: 0.5, pulseWidth50: 0.35, areaRatio: 1.0, notchDelay: 0.25,
+    sdppgBA: -0.6, hr: 70, hrvSdnn: 40, hrvRmssd: 30, peakToNotchRatio: 0.5,
+    perfusionIndex: 1.0, stiffnessIndex: 7.0, reflectionCoeff: 0.5, spectralEntropy: 0.5, sqi: 0.3,
+    sdppgCA: -0.3, sdppgDA: -0.2, sdppgEA: 0.1, agi: -0.5,
+    ipa: 2.0, a1Over2: 0.5, a2Over3: 0.5,
+    pw25: 0.5, pw75: 0.2, pwRatio: 0.4,
+    lfhf: 1.5, pulseSkew: 0, pulseKurt: 0, aix75: 0.5,
+  }
+  for (const k of keys) {
+    const vals = perWindow.map(w => w[k]).filter(v => Number.isFinite(v))
+    out[k] = vals.length > 0 ? median(vals) : defaults[k]
+  }
+  out._nWindows = perWindow.length
+  out._nWindowsTried = windows.length
+  out.age = Number(subject.age) || Number(subject.patient_age) || 40
+  out.sex = (subject.sex === 'male' || subject.patient_sex === 'male') ? 1 : 0
+  return out
+}
+
 // Multi-pass windowing: five 10s windows across the scan with 50% overlap
 // (so 60s scan → 11 windows). Extract features per window, take median across
 // windows. Reduces per-feature noise ~2× when the signal is reasonably clean

@@ -156,3 +156,132 @@ export async function replayVideoThroughMeRppg(videoUrl, onProgress) {
     bvpSamples: summary.bvpSamples,
   }
 }
+
+// 2026-10 addition: same replay but returns the full BVP waveform + fps so BP
+// feature extraction can run against ME-rPPG's output instead of the classical
+// POS waveform. HR is also returned alongside — "two for the price of one video
+// decode". Called per-reading by the rPPG Replay dashboard's "Compare BP
+// variants on ME-rPPG features" button.
+//
+// This duplicates most of replayVideoThroughMeRppg because both need to live
+// side-by-side: the HR-only version is called from VitalsValidateDashboard for
+// the ME-rPPG HR backfill; refactoring into a shared helper would be ideal but
+// is a bigger cleanup than this change warrants.
+export async function replayVideoThroughMeRppgForBp(videoUrl, onProgress) {
+  if (!videoUrl) throw new Error('No videoUrl supplied')
+
+  let blobUrl = null
+  try {
+    const resp = await fetch(videoUrl, { credentials: 'omit' })
+    if (!resp.ok) throw new Error(`fetch ${resp.status} — signed URL expired or 403?`)
+    const blob = await resp.blob()
+    if (blob.size < 1000) throw new Error(`video too small (${blob.size}B) — upload may have been truncated`)
+    blobUrl = URL.createObjectURL(blob)
+  } catch (e) {
+    throw new Error(`Video fetch failed: ${e?.message || e}`)
+  }
+
+  const video = document.createElement('video')
+  video.playsInline = true
+  video.muted = true
+  video.preload = 'auto'
+  video.setAttribute('disableRemotePlayback', '')
+  video.style.cssText = 'position:fixed;left:0;top:0;width:160px;height:120px;opacity:0.01;pointer-events:none;transform:translate(-10000px,-10000px);z-index:-1'
+  document.body.appendChild(video)
+
+  const canvas = document.createElement('canvas')
+  canvas.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;transform:translate(-10000px,-10000px)'
+  document.body.appendChild(canvas)
+
+  const faceCanvas = document.createElement('canvas')
+  faceCanvas.width = 36; faceCanvas.height = 36
+
+  const tracker = new MeRppgTracker()
+  const mesh = await loadFaceMesh()
+  await tracker.init()
+
+  video.src = blobUrl
+  await new Promise((resolve, reject) => {
+    video.onloadedmetadata = () => resolve()
+    video.onerror = () => reject(new Error('Video decode failed — codec unsupported by this browser?'))
+  })
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const duration = video.duration
+
+  let framesSeen = 0
+  let framesFedToTracker = 0
+
+  const processFrame = async () => {
+    try {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      await mesh.send({ image: canvas })
+      const result = mesh._latest
+      if (result?.multiFaceLandmarks?.[0]) {
+        const lms = result.multiFaceLandmarks[0]
+        let minX=1,minY=1,maxX=0,maxY=0
+        for (const l of lms) { if(l.x<minX)minX=l.x; if(l.y<minY)minY=l.y; if(l.x>maxX)maxX=l.x; if(l.y>maxY)maxY=l.y }
+        const cw = canvas.width, ch = canvas.height
+        let bx = minX*cw, by = minY*ch, bw = (maxX-minX)*cw, bh = (maxY-minY)*ch
+        bh *= 1.2; by -= bh * 0.2 / 1.2
+        bx = Math.max(0, Math.round(bx)); by = Math.max(0, Math.round(by))
+        bw = Math.min(Math.round(bw), cw - bx); bh = Math.min(Math.round(bh), ch - by)
+        if (bw > 20 && bh > 20) {
+          const mctx = faceCanvas.getContext('2d')
+          mctx.imageSmoothingEnabled = true
+          mctx.imageSmoothingQuality = 'high'
+          mctx.drawImage(canvas, bx, by, bw, bh, 0, 0, 36, 36)
+          const idata = mctx.getImageData(0, 0, 36, 36)
+          tracker.pushFrame(idata.data, video.currentTime * 1000)
+          framesFedToTracker++
+        }
+      }
+      framesSeen++
+      if (onProgress && framesSeen % 10 === 0) {
+        onProgress(Math.min(100, Math.round((video.currentTime / duration) * 100)))
+      }
+    } catch (e) { /* swallow single-frame errors */ }
+  }
+
+  await video.play()
+  await new Promise((resolve) => {
+    const supportsRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype
+    const tick = async () => {
+      await processFrame()
+      if (video.ended || video.currentTime >= duration - 0.05) { resolve(); return }
+      if (supportsRVFC) video.requestVideoFrameCallback(tick)
+      else requestAnimationFrame(() => tick())
+    }
+    if (supportsRVFC) video.requestVideoFrameCallback(tick)
+    else requestAnimationFrame(() => tick())
+    video.onended = () => resolve()
+  })
+
+  await new Promise(r => setTimeout(r, 1200))
+  const summary = tracker.getLatestHR()
+  const wave = tracker.getBvpWaveform()
+
+  // Cleanup
+  video.src = ''
+  video.remove()
+  canvas.remove()
+  faceCanvas.remove()
+  tracker.terminate()
+  if (blobUrl) URL.revokeObjectURL(blobUrl)
+
+  if (!wave || wave.bvp.length < 100) {
+    const detail = `seen=${framesSeen} face=${framesFedToTracker} dur=${duration?.toFixed(1)}s bvp=${wave?.bvp?.length ?? 0}`
+    if (framesSeen === 0) throw new Error(`ME-rPPG failed: video decoded 0 frames (${detail})`)
+    if (framesFedToTracker < 150) throw new Error(`ME-rPPG failed: face detected on ${framesFedToTracker} frames only — scan too dark or face off-camera (${detail})`)
+    throw new Error(`ME-rPPG failed: BVP buffer short (${detail})`)
+  }
+
+  return {
+    hr: summary ? Math.round(summary.hr) : null,
+    bvp: wave.bvp,              // Float64Array of pulse samples
+    fps: wave.fps,              // estimated from frame timestamps
+    nSamples: wave.bvp.length,
+    framesProcessed: framesFedToTracker,
+  }
+}

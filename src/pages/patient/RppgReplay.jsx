@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, getValidationReadings, getValidationSubjects } from '../../lib/supabase'
 import { processStoredFramesMultiPass, processStoredFrames } from '../../lib/rppg'
 import { runAllHRVariants } from '../../lib/rppg-hr-variants'
-import { trainV3VariantSweep, framesToV3Features, promoteV3Model, saveV3Model } from '../../lib/bpModelV3'
+import { trainV3VariantSweep, framesToV3Features, pulseToV3Features, promoteV3Model, saveV3Model } from '../../lib/bpModelV3'
 
 function fmtHr(v) {
   if (v == null || Number.isNaN(v)) return '—'
@@ -70,6 +70,14 @@ export default function RppgReplay() {
   const [bpSweepResults, setBpSweepResults] = useState(null)
   const [bpSweepRunning, setBpSweepRunning] = useState(false)
   const [bpSweepProgress, setBpSweepProgress] = useState('')
+
+  // 2026-10 addition: parallel sweep using ME-rPPG as the pulse extractor
+  // instead of POS. Features cached in bpMeFeaturesCache keyed by reading id
+  // so the slow decode+inference pass doesn't repeat on re-sweep.
+  const [bpMeSweepResults, setBpMeSweepResults] = useState(null)
+  const [bpMeSweepRunning, setBpMeSweepRunning] = useState(false)
+  const [bpMeSweepProgress, setBpMeSweepProgress] = useState('')
+  const [bpMeFeaturesCache, setBpMeFeaturesCache] = useState({})  // {readingId: {features, labels[2], subjectId}}
 
   // Auth gate — same pattern as VitalsValidateDashboard.
   useEffect(() => {
@@ -160,6 +168,99 @@ export default function RppgReplay() {
     } finally {
       setBpSweepRunning(false)
       setTimeout(() => setBpSweepProgress(''), 8000)
+    }
+  }
+
+  // 2026-10 addition: run the full variant sweep against features extracted
+  // from ME-rPPG's BVP waveform instead of POS. Each reading's video is
+  // decoded + run through the ME-rPPG ONNX stack, so this is MUCH slower than
+  // the POS sweep (~5-10s per reading × ~500 readings = 40-80 minutes). Cached
+  // in bpMeFeaturesCache so re-runs skip the decode step.
+  //
+  // Rationale: POS mean-regresses hypotensives because low perfusion → noisy
+  // waveform → bad morphology features. ME-rPPG is a 580KB neural extractor
+  // claimed to produce cleaner waveforms at the same input SNR, so morphology
+  // features should carry more real signal and the GBM should distinguish
+  // hypotensive pulses from noisy-normotensive ones.
+  //
+  // Note on the ceiling (arXiv 2606.03802, "Template Collapse"): recent work
+  // argues face-video rPPG has an information-theoretic cap on morphology
+  // recovery. The current POS pipeline's Sys 11.2 MAE may already be close to
+  // that cap. ME-rPPG could help if the current waveforms are much worse than
+  // the cap allows; otherwise the gain will be small. The point of running
+  // this is to find out, not to prove a prior.
+  async function compareBpVariantsMeRppg() {
+    setBpMeSweepRunning(true); setBpMeSweepResults(null)
+    setBpMeSweepProgress('ME-rPPG BP sweep: scanning readings…')
+    try {
+      const subMap = Object.fromEntries(subjects.map(s => [s.id, s]))
+      // Need video_url + manual BP for every row. Readings without stored
+      // video can't be re-extracted — skip them (classical POS sweep still
+      // covers those via raw_rppg_signal.frames).
+      const withBpAndVideo = readings.filter(r =>
+        r.video_url && r.manual_systolic && r.manual_diastolic
+      )
+      if (withBpAndVideo.length < 20) {
+        setBpMeSweepProgress(`Only ${withBpAndVideo.length} readings have video + manual BP — need ≥20.`)
+        return
+      }
+
+      const { replayVideoThroughMeRppgForBp } = await import('../../lib/meRppgReplay')
+      const features = []
+      const labels = []
+      const subjectIds = []
+      let skipped = 0, failed = 0
+      let newCache = { ...bpMeFeaturesCache }
+
+      for (let i = 0; i < withBpAndVideo.length; i++) {
+        const r = withBpAndVideo[i]
+        setBpMeSweepProgress(`ME-rPPG extraction ${i + 1}/${withBpAndVideo.length} · cached=${Object.keys(newCache).length} failed=${failed}`)
+        await new Promise(res => setTimeout(res, 0))
+
+        // Cache hit — reuse the features from a previous run.
+        if (newCache[r.id]?.features) {
+          features.push(newCache[r.id].features)
+          labels.push(newCache[r.id].labels)
+          subjectIds.push(newCache[r.id].subjectId)
+          continue
+        }
+
+        const sub = r.subject_id ? subMap[r.subject_id] : {}
+        try {
+          const out = await replayVideoThroughMeRppgForBp(r.video_url)
+          if (!out || !out.bvp || out.bvp.length < out.fps * 20) {
+            skipped++; continue  // need at least 20s of pulse to pull windowed features
+          }
+          const feats = pulseToV3Features(out.bvp, out.fps, sub)
+          if (!feats) { skipped++; continue }
+          const subjId = r.subject_id || `anon-${i}`
+          features.push(feats)
+          labels.push([r.manual_systolic, r.manual_diastolic])
+          subjectIds.push(subjId)
+          newCache[r.id] = { features: feats, labels: [r.manual_systolic, r.manual_diastolic], subjectId: subjId }
+          // Persist incrementally so a mid-run reload doesn't lose everything.
+          if (i % 10 === 0) setBpMeFeaturesCache({ ...newCache })
+        } catch (e) {
+          failed++
+          console.warn(`[me-rppg sweep] reading ${r.id} failed:`, e?.message || e)
+        }
+      }
+      setBpMeFeaturesCache(newCache)
+
+      if (features.length < 20) {
+        setBpMeSweepProgress(`Only ${features.length} usable ME-rPPG features — need ≥20 to sweep. (skipped=${skipped} failed=${failed})`)
+        return
+      }
+      setBpMeSweepProgress(`ME-rPPG sweep: training variants on ${features.length} samples (skipped=${skipped} failed=${failed})…`)
+      await new Promise(res => setTimeout(res, 0))
+      const variants = trainV3VariantSweep(features, labels, subjectIds, { nTrees: 20, depth: 3, lr: 0.1 })
+      setBpMeSweepResults({ n: features.length, variants, skipped, failed, generatedAt: new Date().toISOString() })
+      setBpMeSweepProgress(`✓ ME-rPPG sweep complete · ${variants.filter(v => v.ok).length}/${variants.length} variants trained · n=${features.length}`)
+    } catch (e) {
+      setBpMeSweepProgress(`ME-rPPG sweep failed: ${e?.message || e}`)
+    } finally {
+      setBpMeSweepRunning(false)
+      setTimeout(() => setBpMeSweepProgress(''), 15000)
     }
   }
 
@@ -379,6 +480,16 @@ export default function RppgReplay() {
             {!bpSweepRunning && bpSweepProgress && (
               <span style={{fontSize:'.8rem',color:bpSweepProgress.startsWith('✓')?'#059669':'#B91C1C'}}>{bpSweepProgress}</span>
             )}
+            <button
+              onClick={compareBpVariantsMeRppg}
+              disabled={bpMeSweepRunning || readings.length === 0}
+              title="SLOW (~5-10s per reading × ~500 = 40-80 min on first run). For each reading with a stored video, decode → ME-rPPG ONNX → BVP waveform → BP features, then run the full 16-variant sweep on those features. Features cached in memory so re-sweeps are instant. Lets you compare ME-rPPG waveforms vs POS waveforms as the upstream extractor."
+              style={{padding:'.6rem 1.1rem',background:'#4338CA',color:'white',border:'none',borderRadius:8,fontWeight:700,cursor:bpMeSweepRunning?'not-allowed':'pointer',opacity:bpMeSweepRunning||readings.length===0?.5:1,fontSize:'.9rem'}}>
+              {bpMeSweepRunning ? (bpMeSweepProgress || 'ME-rPPG sweep…') : '🧠 Compare on ME-rPPG features'}
+            </button>
+            {!bpMeSweepRunning && bpMeSweepProgress && (
+              <span style={{fontSize:'.8rem',color:bpMeSweepProgress.startsWith('✓')?'#059669':'#4338CA'}}>{bpMeSweepProgress}</span>
+            )}
           </div>
 
           {/* BP variant leaderboard — imbalanced-regression sandbox. Train-side
@@ -496,6 +607,103 @@ export default function RppgReplay() {
               </div>
               <div style={{fontSize:'.7rem',color:'#7F1D1D',marginTop:'.75rem',lineHeight:1.5}}>
                 <strong>How to read:</strong> "High MAE" + "Low MAE" are the clinical-safety numbers — lower = better tail detection. "High bias" negative = model under-predicts hypertensives (dangerous). "Low bias" positive = model over-predicts hypotensives (collapses them to the normotensive mean — this is the wall the previous variants hit). Small "n=X" beside Low MAE is the band's val-sample count — at n&lt;10 the number is noisy; prefer the Stratified-val variants there. <strong>Click "Promote" to ship that variant live</strong> — it replaces the current /api/bp-v3-model served to /vitals. MoE row has no Promote button yet (composite router+specialist+generalist model shape not supported by the promote path).
+              </div>
+            </div>
+          )}
+
+          {/* ME-rPPG leaderboard — parallel to the POS one, same 16 variants but
+              features extracted from the ME-rPPG neural waveform instead of POS.
+              Lets you compare whether a cleaner extractor moves the Low tail
+              that pure weighting couldn't fix. */}
+          {bpMeSweepResults && (
+            <div style={{background:'#EEF2FF',border:'1px solid #A5B4FC',borderRadius:10,padding:'1rem 1.25rem',marginBottom:'1rem'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:'.75rem',flexWrap:'wrap',gap:'.5rem'}}>
+                <div>
+                  <div style={{fontSize:'.75rem',fontWeight:700,color:'#3730A3',textTransform:'uppercase',letterSpacing:'.05em'}}>
+                    🧠 ME-rPPG BP variant leaderboard · experiment · n={bpMeSweepResults.n}
+                    {bpMeSweepResults.skipped > 0 && <span style={{color:'#6D28D9',marginLeft:8,fontWeight:400}}>· {bpMeSweepResults.skipped} skipped</span>}
+                    {bpMeSweepResults.failed > 0 && <span style={{color:'#B91C1C',marginLeft:8,fontWeight:400}}>· {bpMeSweepResults.failed} failed</span>}
+                  </div>
+                  <div style={{fontSize:'.75rem',color:'#4338CA',marginTop:4}}>
+                    Features extracted from ME-rPPG neural waveform (arXiv 2504.01774) — not POS. Same 16 variants. Direct A/B against the red leaderboard above.
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setBpMeSweepResults(null); setBpMeFeaturesCache({}) }}
+                  style={{background:'none',border:'1px solid #A5B4FC',color:'#3730A3',borderRadius:6,padding:'.3rem .6rem',fontSize:'.75rem',cursor:'pointer'}}>
+                  Clear + drop cache
+                </button>
+              </div>
+              <div style={{overflowX:'auto'}}>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:'.85rem'}}>
+                  <thead>
+                    <tr style={{color:'#3730A3'}}>
+                      <th style={{textAlign:'left',padding:'.4rem .5rem',fontWeight:700}}>Variant</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}}>Sys MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}}>Dia MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#B91C1C'}}>High MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}}>Norm MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700,color:'#2563EB'}}>Low MAE</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}}>High bias</th>
+                      <th style={{textAlign:'right',padding:'.4rem .5rem',fontWeight:700}}>Low bias</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const ok = bpMeSweepResults.variants.filter(r => r.ok)
+                      const minHigh = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.high_ge_140 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minNorm = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.normal_110_139 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minLow  = Math.min(...ok.map(r => r.meta?.valMaeSysByBand?.low_lt_110 ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minSys  = Math.min(...ok.map(r => r.meta?.valMae?.sys ?? Infinity).filter(x => Number.isFinite(x)))
+                      const minDia  = Math.min(...ok.map(r => r.meta?.valMae?.dia ?? Infinity).filter(x => Number.isFinite(x)))
+                      return bpMeSweepResults.variants.map((r, idx) => {
+                        if (!r.ok) {
+                          return (
+                            <tr key={idx} style={{borderTop:'1px solid #C7D2FE',color:'#9CA3AF'}}>
+                              <td style={{padding:'.4rem .5rem'}}>{r.label}</td>
+                              <td colSpan={7} style={{padding:'.4rem .5rem',fontStyle:'italic'}}>failed: {r.error}</td>
+                            </tr>
+                          )
+                        }
+                        const sys = r.meta?.valMae?.sys
+                        const dia = r.meta?.valMae?.dia
+                        const high = r.meta?.valMaeSysByBand?.high_ge_140
+                        const norm = r.meta?.valMaeSysByBand?.normal_110_139
+                        const low  = r.meta?.valMaeSysByBand?.low_lt_110
+                        const bias = r.meta?.valMaeSysByBand?.biasHigh
+                        const biasL = r.meta?.valMaeSysByBand?.biasLow
+                        const nLow = r.meta?.valMaeSysByBand?.nLow
+                        const cell = (v, isWinner, color) => (
+                          <td style={{padding:'.4rem .5rem',textAlign:'right',fontWeight:isWinner?700:400,color:isWinner?'#065F46':color,background:isWinner?'#D1FAE5':'transparent'}}>
+                            {v == null ? '—' : v}
+                          </td>
+                        )
+                        return (
+                          <tr key={idx} style={{borderTop:'1px solid #C7D2FE'}}>
+                            <td style={{padding:'.4rem .5rem',color:'#1F2937'}}>{r.label}</td>
+                            {cell(sys, sys === minSys, '#374151')}
+                            {cell(dia, dia === minDia, '#374151')}
+                            {cell(high, high === minHigh, '#B91C1C')}
+                            {cell(norm, norm === minNorm, '#374151')}
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',fontWeight:low === minLow?700:400,color:low === minLow?'#065F46':'#2563EB',background:low === minLow?'#D1FAE5':'transparent'}}>
+                              {low == null ? '—' : low}
+                              {nLow != null && <span style={{fontSize:'.65rem',opacity:0.6,marginLeft:4}}>n={nLow}</span>}
+                            </td>
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',color:bias == null?'#9CA3AF':bias < -3?'#B91C1C':bias > 3?'#D97706':'#374151'}}>
+                              {bias == null ? '—' : (bias > 0 ? '+' : '') + bias}
+                            </td>
+                            <td style={{padding:'.4rem .5rem',textAlign:'right',color:biasL == null?'#9CA3AF':biasL > 3?'#B91C1C':biasL < -3?'#D97706':'#374151'}}>
+                              {biasL == null ? '—' : (biasL > 0 ? '+' : '') + biasL}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{fontSize:'.7rem',color:'#3730A3',marginTop:'.75rem',lineHeight:1.5}}>
+                <strong>Reading this against the POS leaderboard above:</strong> if ME-rPPG Low MAE &lt; POS Low MAE on the same variant, the cleaner upstream waveform is unblocking features that POS was mushing. If they're similar, the Template Collapse ceiling (arXiv 2606.03802) is the real limit, not the extractor. No Promote buttons yet — ME-rPPG features need a serving-side swap in /api/bp-v3-model + /vitals before any ME-rPPG model can go live.
               </div>
             </div>
           )}
