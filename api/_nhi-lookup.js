@@ -345,8 +345,11 @@ export default async function handler(req, res) {
     let matchMode = cleanNhi ? 'certain' : 'searched'
     if (diag) diag.attempts.push({ n: 1, onlyCertain: !!cleanNhi, status, body, sent: { given, family, dobIso, hasAddress: !!parsedAddress } })
 
-    // 404 on the $match route means "operation not found" — treat as unavailable.
-    if (status === 404) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
+    // 404 on $match: for demographic-only search, treat as unavailable (route
+    // issue). For manual NHI entry, 404 means HNZ doesn't recognise that NHI —
+    // fall through so the differentiation logic below can GET /Patient/{nhi}
+    // and route to not_found / deceased / name_mismatch correctly.
+    if (status === 404 && !cleanNhi) return res.status(200).json({ enabled: true, matched: false, reason: 'lookup_unavailable' })
     if (status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
 
     let entries = body?.resourceType === 'Bundle' ? (body.entry || []) : []
