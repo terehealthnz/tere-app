@@ -390,6 +390,18 @@ export default function ClinicianPatient() {
             setRadReferrals([])
           }
         }
+        // NHI refresh runs on the consult's patient_nhi regardless of whether
+        // we have a linked patients row. Keeps the deceased/mismatch/stale
+        // banners firing for admin-created test consults + any consult where
+        // the patient hasn't been onboarded to a patients row yet.
+        if (data?.patient_nhi && !data?.patient_id) {
+          setNhiBusy(true)
+          apiFetch(`/api/nhi-refresh?consultationId=${encodeURIComponent(id)}`, { method: 'POST' })
+            .then(r => r.ok ? r.json() : null)
+            .then(j => { if (j && j.ok) setNhiCheck(j) })
+            .catch(() => {})
+            .finally(() => setNhiBusy(false))
+        }
       } catch {} finally { setLoading(false) }
     }
     if (id) { setLoading(true); load() }
