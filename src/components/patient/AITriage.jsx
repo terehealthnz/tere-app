@@ -296,6 +296,16 @@ const STEPS = [
   { id:'nhi', message:"We couldn't auto-match you in the NHI by name and date of birth. If you know your NHI number, please enter it (e.g. ABC1234 or ZXE24NV) — otherwise say 'skip' and the consult will still proceed.", field:'patient_nhi', validate:()=>true, next:'pharmacy', skippable:true, transform:v=>{const l=v.trim().toLowerCase();return ['skip','no','none','n/a','nope','not sure','idk','dont know',"don't know","i don't know"].includes(l)?'':v.trim().toUpperCase().replace(/[^A-Z0-9]/g,'')} },
   { id:'nhi_confirm', message:(d)=>`Found ${d.nhi_display_name || 'a match'}, born ${d.nhi_display_dob || d.patient_dob_raw || ''} — is that you?`, field:'nhi_confirm_raw', type:'yesno', validate:()=>true, next:'pharmacy' },
   { id:'nhi_retry', message:"That NHI number doesn't seem to match your name and date of birth. Would you like to try again or skip?", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
+  // Noel 2026-10-07 ask: distinguish name_mismatch from not_found so the patient
+  // sees two visibly different outcomes. Same two choices, but the copy makes
+  // clear whether HNZ KNOWS this NHI (mismatch) vs doesn't recognise it at all.
+  { id:'nhi_mismatch_retry', message:"We found that NHI number in Health New Zealand's system, but the name and date of birth on file don't match what you entered. This usually means a typo in one of those fields. Would you like to try again or skip?", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
+  { id:'nhi_notfound_retry', message:"We couldn't find that NHI number in Health New Zealand's system. Please double-check the number (NHIs are usually 3 letters + 4 digits, e.g. ABC1234, or new format like ZXE24NV), or skip and we'll proceed without it.", field:'nhi_retry_choice', type:'choices', choices:['Try again','Skip'], validate:()=>true, next:'pharmacy' },
+  // Terminal halt when HNZ reports the NHI as deceased. No "retry" option —
+  // the patient must contact support to resolve the identity mismatch before
+  // any consultation can proceed. Clinician-side also gates prescribing on the
+  // same deceased flag (ClinicianPatient.jsx dark banner).
+  { id:'nhi_deceased_halt', message:"Thank you — we're unable to continue this consultation online. The NHI number you entered is recorded as deceased on the National Health Index. This almost always means the number was mistyped. Please double-check the NHI, or email terehealthnz@gmail.com so we can help sort it out. (For urgent care right now, dial 111 or visit your nearest Emergency Department.)", field:'nhi_deceased_ack', type:'choices', choices:['I understand'], validate:()=>true, next:'nhi_deceased_halt' },
   { id:'pharmacy', message:"What's your preferred pharmacy? Type the name and suburb (e.g. Unichem Whanganui).", field:'pharmacy', type:'pharmacy', validate:(v)=>!!(v && String(v).trim().length > 0), error:"Please pick a pharmacy from the list — we need this to send any prescription. It also tells the doctor where you can physically get to today.", next:'gp_name' },
   { id:'gp_name', message:"Do you have a regular GP or family doctor? If so, what's their name?", field:'gp_name', type:'gp_picker', validate:()=>true, next:'gp_clinic', skippable:true, transform:v=>['skip','no','none','n/a','nope','no thanks'].includes(v.trim().toLowerCase())?'':v.trim() },
   { id:'gp_confirm', message:(d)=>`Found ${d.gp_name} at ${d.gp_clinic} — is that right? We'll send them a copy of your notes automatically.`, field:'gp_confirm_raw', type:'yesno', validate:()=>true, next:'tobacco' },
@@ -908,7 +918,23 @@ export default function AITriage() {
           advanceToStep('nhi_confirm', withDisplay)
           return
         }
-        // Mismatch / not_found / deceased — ask patient to retry or skip.
+        // Deceased → terminal halt (clinician + patient both blocked). Keeps
+        // the NHI on-row so the halt step can reference it.
+        if (body.reason === 'deceased') {
+          advanceToStep('nhi_deceased_halt', newData)
+          return
+        }
+        // Route not_found vs name_mismatch to distinct steps so the patient
+        // sees differentiated UX per Noel 2026-10-07 compliance review ask.
+        if (body.reason === 'not_found') {
+          advanceToStep('nhi_notfound_retry', newData)
+          return
+        }
+        if (body.reason === 'name_mismatch') {
+          advanceToStep('nhi_mismatch_retry', newData)
+          return
+        }
+        // Fallback (ambiguous / rate_limited / lookup_failed / unknown) → generic retry.
         advanceToStep('nhi_retry', newData)
         return
       } catch {
@@ -932,8 +958,10 @@ export default function AITriage() {
       return
     }
 
-    // NHI retry — "Try again" jumps back to nhi; "Skip" advances.
-    if (step.id === 'nhi_retry') {
+    // NHI retry — "Try again" jumps back to nhi; "Skip" advances. Covers all
+    // three retry variants (generic nhi_retry + the mismatch/not-found splits
+    // added for IN-3589).
+    if (step.id === 'nhi_retry' || step.id === 'nhi_mismatch_retry' || step.id === 'nhi_notfound_retry') {
       if (String(processed || '').toLowerCase().includes('try')) {
         const cleared = { ...newData, patient_nhi: '' }
         setData(cleared)
@@ -941,6 +969,15 @@ export default function AITriage() {
       } else {
         advanceToStep('pharmacy', newData)
       }
+      return
+    }
+
+    // NHI deceased halt — terminal step. Patient taps acknowledgement, flow
+    // stays halted (no advance). Clinician gate on same deceased flag lives
+    // in ClinicianPatient.jsx (dark banner + Rx/Referral disabled).
+    if (step.id === 'nhi_deceased_halt') {
+      // Intentionally no advanceToStep call — the triage ends here. Patient
+      // must contact support to resolve the deceased flag.
       return
     }
 
