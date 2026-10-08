@@ -277,11 +277,19 @@ export async function replayVideoThroughMeRppgForBp(videoUrl, onProgress) {
     throw new Error(`ME-rPPG failed: BVP buffer short (${detail})`)
   }
 
+  // Override wave.fps (unreliable — see getBvpWaveform note) with the true
+  // sample rate: samples produced / video seconds. This is what downstream
+  // BP feature extraction treats as sample rate, so it must match reality.
+  const trueFps = duration > 0.1 ? wave.bvp.length / duration : 30
+  const safeFps = Number.isFinite(trueFps) && trueFps >= 10 && trueFps <= 120 ? trueFps : 30
+
   return {
     hr: summary ? Math.round(summary.hr) : null,
     bvp: wave.bvp,              // Float64Array of pulse samples
-    fps: wave.fps,              // estimated from frame timestamps
+    fps: safeFps,               // samples/sec, derived from video.duration + bvp.length
+    fpsEstimated: wave.fps,     // kept for debugging; worker timestamps are ms-epoch so unreliable
     nSamples: wave.bvp.length,
     framesProcessed: framesFedToTracker,
+    videoDuration: duration,
   }
 }

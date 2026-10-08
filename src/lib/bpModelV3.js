@@ -559,9 +559,13 @@ function extractV3FeaturesOneWindow(cleanSignal, preBpSignal, fps, subject) {
 // features" button once per reading, after replayVideoThroughMeRppgForBp
 // decodes the stored scan video.
 export function pulseToV3Features(pulseSamples, fps, subject = {}) {
+  // Guard against upstream fps bugs — a 0 or NaN fps would make windowLen=0
+  // and the window loop would infinite-push empty slices until the Array hits
+  // its 2^32 limit → RangeError. Also guard against obviously-wrong rates.
+  if (!Number.isFinite(fps) || fps < 10 || fps > 120) return null
   if (!pulseSamples || pulseSamples.length < fps * 10) return null
-  const windowLen = Math.floor(fps * 10)
-  const step = Math.floor(windowLen / 2)
+  const windowLen = Math.max(1, Math.floor(fps * 10))
+  const step = Math.max(1, Math.floor(windowLen / 2))
   const windows = []
   for (let start = 0; start + windowLen <= pulseSamples.length; start += step) {
     windows.push(Array.from(pulseSamples.slice(start, start + windowLen)))

@@ -228,11 +228,20 @@ export default function RppgReplay() {
         const sub = r.subject_id ? subMap[r.subject_id] : {}
         try {
           const out = await replayVideoThroughMeRppgForBp(r.video_url)
-          if (!out || !out.bvp || out.bvp.length < out.fps * 20) {
+          if (!out || !out.bvp || !Number.isFinite(out.fps) || out.fps < 10 || out.fps > 120) {
+            skipped++
+            console.warn(`[me-rppg sweep] reading ${r.id} skipped: bad fps/bvp (fps=${out?.fps} n=${out?.bvp?.length})`)
+            continue
+          }
+          if (out.bvp.length < out.fps * 20) {
             skipped++; continue  // need at least 20s of pulse to pull windowed features
           }
           const feats = pulseToV3Features(out.bvp, out.fps, sub)
-          if (!feats) { skipped++; continue }
+          if (!feats) {
+            skipped++
+            console.warn(`[me-rppg sweep] reading ${r.id} skipped: pulseToV3Features returned null (fps=${out.fps} n=${out.bvp.length})`)
+            continue
+          }
           const subjId = r.subject_id || `anon-${i}`
           features.push(feats)
           labels.push([r.manual_systolic, r.manual_diastolic])

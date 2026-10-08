@@ -182,10 +182,14 @@ export class MeRppgTracker {
   }
 
   // 2026-10 addition: expose the Kalman-smoothed BVP waveform so BP feature
-  // extraction (bpModelV3.extractV3FeaturesFromPulse) can run on ME-rPPG output
-  // instead of POS. Returns {bvp: Float64Array, t: Float64Array (seconds), fps}.
-  // fps estimated from timestamps (model is clipped to real frame rate rather
-  // than assumed 30).
+  // extraction (bpModelV3.pulseToV3Features) can run on ME-rPPG output instead
+  // of POS. Returns {bvp: Float64Array, t: Float64Array (ms epoch), fps}.
+  //
+  // NOTE: the fps field returned here is unreliable because onnxWorker.js
+  // stamps each output with `Date.now()` (ms epoch), not the input frame
+  // timestamp. Prefer passing a known video-rate override from the caller
+  // (e.g. framesProcessed / video.duration). We still compute an estimate so
+  // standalone callers get something sane.
   getBvpWaveform() {
     if (!this.bvpSeries.length) return null
     const n = this.bvpSeries.length
@@ -195,11 +199,13 @@ export class MeRppgTracker {
       bvp[i] = this.bvpSeries[i].bvp
       t[i] = this.bvpSeries[i].t
     }
+    // t[] is ms epoch (worker uses Date.now). Convert to seconds for fps.
     let fps = 30
     if (n >= 2) {
-      const dur = t[n - 1] - t[0]
-      if (dur > 0.1) fps = (n - 1) / dur
+      const durSec = (t[n - 1] - t[0]) / 1000
+      if (durSec > 0.5) fps = (n - 1) / durSec
     }
+    if (!Number.isFinite(fps) || fps < 5 || fps > 240) fps = 30
     return { bvp, t, fps }
   }
 
