@@ -137,6 +137,10 @@ export default function ConsultView() {
   const [transcript, setTranscript] = useState('')
   const [actions, setActions] = useState([])
   const [modals, setModals] = useState({ rx:false, xr:false, acc:false })
+  // NHI deceased/mismatch/stale check — mirrors ClinicianPatient. Populated by
+  // POST /api/nhi-refresh on mount when consult.patient_nhi is set. Gates the
+  // Rx + XR buttons on deceased per Noel's IN-3589 compliance feedback.
+  const [nhiCheck, setNhiCheck] = useState(null)
   const [vitalsConfirmed, setVitalsConfirmed] = useState(false)
   const [lkToken, setLkToken] = useState(null)
   const [lkUrl, setLkUrl] = useState(null)
@@ -204,6 +208,11 @@ export default function ConsultView() {
         if (data?.patient_nhi) {
           apiFetch(`/api/patient-flags?patient_nhi=${data.patient_nhi}`)
             .then(r => r.json()).then(d => setPatientFlags(d.flags || [])).catch(() => {})
+          // Refresh HNZ NHI snapshot — gates Rx/XR on deceased + surfaces drift.
+          apiFetch(`/api/nhi-refresh?consultationId=${encodeURIComponent(id)}`, { method: 'POST' })
+            .then(r => r.ok ? r.json() : null)
+            .then(j => { if (j && j.ok) setNhiCheck(j) })
+            .catch(() => {})
         }
       } catch {
         // Demo mode
@@ -467,6 +476,24 @@ export default function ConsultView() {
           ))}
         </div>
 
+        {/* NHI deceased + mismatch + stale banners. Dark grey = deceased
+            (gates Rx/XR), amber = demographics drift vs HNZ, blue = cache
+            older than 24h (auto-refresh runs anyway). Mirrors ClinicianPatient. */}
+        {nhiCheck?.deceased && (
+          <div style={{background:'#1F2937',color:'#F3F4F6',padding:'.625rem 1rem',borderBottom:'2px solid #111827',flexShrink:0}}>
+            <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'#F9FAFB',marginBottom:'.125rem'}}>Patient deceased (NHI)</div>
+            <div style={{fontSize:'.8125rem',color:'#D1D5DB'}}>
+              Date of death: {nhiCheck.deceasedDateTime || 'not recorded'}. Prescribing and referrals are disabled on this consult.
+            </div>
+          </div>
+        )}
+        {nhiCheck?.mismatch && nhiCheck.mismatch.fields?.length > 0 && !nhiCheck.deceased && (
+          <div style={{background:'#FEF3C7',borderBottom:'2px solid #D97706',padding:'.5rem 1rem',flexShrink:0}}>
+            <div style={{fontSize:'.7rem',fontWeight:700,textTransform:'uppercase',letterSpacing:'.05em',color:'#92400E',marginBottom:'.125rem'}}>NHI mismatch ({nhiCheck.mismatch.fields.join(', ')})</div>
+            <div style={{fontSize:'.8125rem',color:'#78350F'}}>Confirm identity with the patient before proceeding with prescribing or referrals.</div>
+          </div>
+        )}
+
         {/* Patient flags banner */}
         {patientFlags.length > 0 && (
           <div style={{background:'#FEF2F2',borderBottom:'2px solid #DC2626',padding:'.5rem 1rem',flexShrink:0}}>
@@ -696,10 +723,10 @@ export default function ConsultView() {
         {/* Action buttons */}
         <div style={{borderTop:'1px solid var(--border)',padding:'.75rem',flexShrink:0,display:'flex',flexDirection:'column',gap:'.5rem'}}>
           <div style={{display:'grid',gridTemplateColumns: isNZ() ? '1fr 1fr 1fr' : '1fr 1fr',gap:'.5rem'}}>
-            <button onClick={() => setModals(m=>({...m,rx:true}))} style={{background:'#EDE9FE',color:'#5B21B6',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+            <button onClick={() => setModals(m=>({...m,rx:true}))} disabled={!!nhiCheck?.deceased} title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — prescribing disabled' : ''} style={{background: nhiCheck?.deceased ? '#E5E7EB' : '#EDE9FE',color: nhiCheck?.deceased ? '#9CA3AF' : '#5B21B6',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
               💊 Rx
             </button>
-            <button onClick={() => setModals(m=>({...m,xr:true}))} style={{background:'#FEF3C7',color:'#92400E',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor:'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
+            <button onClick={() => setModals(m=>({...m,xr:true}))} disabled={!!nhiCheck?.deceased} title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — referrals disabled' : ''} style={{background: nhiCheck?.deceased ? '#E5E7EB' : '#FEF3C7',color: nhiCheck?.deceased ? '#9CA3AF' : '#92400E',border:'none',padding:'8px 4px',borderRadius:'var(--radius-sm)',fontSize:'.8125rem',fontWeight:600,cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer',fontFamily:'Plus Jakarta Sans,sans-serif'}}>
               🩻 XR
             </button>
             {isNZ() && (
@@ -811,8 +838,8 @@ export default function ConsultView() {
       })()}
 
       {/* Modals */}
-      <PrescribeModal open={modals.rx} onClose={() => setModals(m=>({...m,rx:false}))} consult={consult} onDone={addAction} />
-      <XrayModal open={modals.xr} onClose={() => setModals(m=>({...m,xr:false}))} consult={consult} onDone={addAction} />
+      <PrescribeModal open={modals.rx && !nhiCheck?.deceased} onClose={() => setModals(m=>({...m,rx:false}))} consult={consult} onDone={addAction} />
+      <XrayModal open={modals.xr && !nhiCheck?.deceased} onClose={() => setModals(m=>({...m,xr:false}))} consult={consult} onDone={addAction} />
       <ACCModal open={modals.acc} onClose={() => setModals(m=>({...m,acc:false}))} consult={consult} onDone={addAction} />
       {showAccConvert && (
         <ConvertToAccModal

@@ -209,6 +209,13 @@ export default function ClinicianPatient() {
   const [allergens, setAllergens]     = useState([])
   const [medications, setMedications] = useState([])
   const [conditions, setConditions]   = useState([])
+  // HNZ NHI refresh snapshot for this consult. Shape: { deceased, deceasedDateTime,
+  // mismatch: { fields: [...], hnz: {...} } | null, hnz: {...}, fetched_at, cached }.
+  // Null until first fetch resolves. Drives 3 banners + the prescribe-deceased
+  // gate. Compliance evidence for NHI-GET-8 (change-notify) + clinician deceased
+  // check + mismatch flag per IN-3589.
+  const [nhiCheck, setNhiCheck]   = useState(null)
+  const [nhiBusy, setNhiBusy]     = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadTitle, setUploadTitle] = useState('')
   const [uploadFile, setUploadFile]   = useState(null)
@@ -364,6 +371,17 @@ export default function ClinicianPatient() {
           // have a patient_id FK yet (it uses NHI + name + DOB for matching).
           const nhi = pt?.nhi || data?.patient_nhi
           if (nhi) {
+            // Compliance ask IN-3589 (Noel 2026-10-07): on consult open, refresh
+            // the stored HNZ NHI snapshot and compare against on-row demographics.
+            // Server returns cached data if <24h old (STALE_MS), otherwise does
+            // a live HNZ GET. Drives the deceased/mismatch/stale banners rendered
+            // below InfoRow and gates the prescribe/referral buttons.
+            setNhiBusy(true)
+            apiFetch(`/api/nhi-refresh?consultationId=${encodeURIComponent(id)}`, { method: 'POST' })
+              .then(r => r.ok ? r.json() : null)
+              .then(j => { if (j && j.ok) setNhiCheck(j) })
+              .catch(() => {})
+              .finally(() => setNhiBusy(false))
             apiFetch(`/api/radiology-referrals?patient_nhi=${encodeURIComponent(nhi)}&columns=id,created_at,investigation,urgency,clinical_indication,referral_status,approval_status,provider_name,result_received_at`)
               .then(r => r.json())
               .then(d => setRadReferrals(Array.isArray(d?.referrals) ? d.referrals : []))
@@ -646,7 +664,7 @@ export default function ClinicianPatient() {
           pre-filled with the previous script's medication/dose/pharmacy.
           Provider reviews and can adjust anything before sending. */}
       <PrescribeModal
-        open={!!reissuePrefill}
+        open={!!reissuePrefill && !nhiCheck?.deceased}
         onClose={() => setReissuePrefill(null)}
         consult={consult}
         prefill={reissuePrefill}
@@ -804,6 +822,57 @@ export default function ClinicianPatient() {
               )}
             </div>
           </div>
+          {/* NHI compliance banners (IN-3589). Three states, exclusive by severity:
+              deceased > mismatch > stale. Rendered above InfoRow so they're the
+              first thing the clinician sees. The deceased banner is also what
+              the prescribe + referral buttons key off to disable themselves. */}
+          {nhiCheck?.deceased && (
+            <div style={{ background: '#1F2937', color: '#FFFFFF', borderRadius: 8, padding: '.9rem 1rem', marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+              <div style={{ fontSize: '1.5rem' }}>⚰️</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '.9375rem', fontWeight: 800 }}>Patient marked deceased in NHI</div>
+                <div style={{ fontSize: '.8125rem', opacity: .85 }}>
+                  Date of death: {nhiCheck.deceasedDateTime || 'not recorded'}. Prescribing and referrals are disabled on this consult.
+                  Verified against HNZ NHI at {new Date(nhiCheck.fetched_at).toLocaleString('en-NZ')}. (NHI-GET-8)
+                </div>
+              </div>
+            </div>
+          )}
+          {!nhiCheck?.deceased && nhiCheck?.mismatch && (
+            <div style={{ background: '#FEF3C7', color: '#78350F', border: '1px solid #FBBF24', borderRadius: 8, padding: '.9rem 1rem', marginBottom: '.75rem', display: 'flex', alignItems: 'center', gap: '.75rem' }}>
+              <div style={{ fontSize: '1.5rem' }}>⚠</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '.9375rem', fontWeight: 800 }}>Demographics differ from HNZ NHI record</div>
+                <div style={{ fontSize: '.8125rem' }}>
+                  Fields that disagree: <strong>{nhiCheck.mismatch.fields.join(', ')}</strong>.
+                  HNZ holds: {nhiCheck.hnz?.name || '?'}, DOB {nhiCheck.hnz?.dob || '?'}.
+                  Confirm identity with the patient before proceeding with prescribing or referrals.
+                </div>
+              </div>
+            </div>
+          )}
+          {!nhiCheck?.deceased && !nhiCheck?.mismatch && nhiCheck?.cached && nhiCheck?.fetched_at && (
+            // Stale: cache served without a live refresh. 24h cutoff lives server-side;
+            // the server only returns cached=true when the data was still inside the
+            // STALE_MS window. Shown as info-level so clinicians know when the check
+            // was last live-verified against HNZ.
+            <div style={{ background: '#EFF6FF', color: '#1E3A8A', border: '1px solid #BFDBFE', borderRadius: 8, padding: '.6rem .9rem', marginBottom: '.75rem', fontSize: '.8125rem' }}>
+              ✓ NHI verified against HNZ at {new Date(nhiCheck.fetched_at).toLocaleString('en-NZ')} — demographics match, patient alive.
+              <button
+                onClick={() => {
+                  setNhiBusy(true)
+                  apiFetch(`/api/nhi-refresh?consultationId=${encodeURIComponent(id)}&force=1`, { method: 'POST' })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(j => { if (j && j.ok) setNhiCheck(j) })
+                    .catch(() => {})
+                    .finally(() => setNhiBusy(false))
+                }}
+                disabled={nhiBusy}
+                style={{ marginLeft: '.75rem', background: 'none', border: 'none', color: '#1D4ED8', fontWeight: 700, cursor: 'pointer', fontSize: '.8125rem' }}>
+                {nhiBusy ? 'refreshing…' : 'Refresh from NHI'}
+              </button>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
             <InfoRow label="NHI" value={consult.patient_nhi} />
@@ -1158,8 +1227,9 @@ export default function ClinicianPatient() {
                     {r.delivery_status && <span>· {r.delivery_status}</span>}
                     <button
                       onClick={() => setReissuePrefill(r)}
-                      style={{ marginLeft: 'auto', background: TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}
-                      title="Open Prescribe with this script pre-filled — review + send as fresh script">
+                      disabled={!!nhiCheck?.deceased}
+                      style={{ marginLeft: 'auto', background: nhiCheck?.deceased ? '#9CA3AF' : TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '.75rem', fontWeight: 700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', fontFamily: FF }}
+                      title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — prescribing disabled' : 'Open Prescribe with this script pre-filled — review + send as fresh script'}>
                       🔁 Re-issue
                     </button>
                   </div>

@@ -429,6 +429,9 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   const [noteConfirmed, setNoteConfirmed] = useState(false)
   const [modals,        setModals]        = useState({ rx: false, xr: false, medcert: false })
   const [medCertSent,   setMedCertSent]   = useState(false)
+  // NHI deceased check — mirrors ClinicianPatient + ConsultView. Blocks Rx + XR
+  // when HNZ reports patient deceased. Populated by POST /api/nhi-refresh on load.
+  const [nhiCheck,      setNhiCheck]      = useState(null)
 
   // Work / ACC / outcome
   const [workCapacity,   setWorkCapacity]   = useState('fit')
@@ -603,6 +606,14 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         const data = await loadWithRetry()
         setConsult(data)
         setActualMethod(data.consultation_type || sessionStorage.getItem('consultationType') || 'video')
+
+        // Refresh HNZ NHI snapshot for deceased/mismatch gates on Rx + XR.
+        if (data?.patient_nhi) {
+          apiFetch(`/api/nhi-refresh?consultationId=${encodeURIComponent(data.id)}`, { method: 'POST' })
+            .then(r => r.ok ? r.json() : null)
+            .then(j => { if (j && j.ok) setNhiCheck(j) })
+            .catch(() => {})
+        }
 
         // Hydrate the Diagnosis section from persisted consult data — so a
         // page reload or provider returning later still sees the diagnosis
@@ -1656,16 +1667,30 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
 
         {/* Rx / XR actions */}
         <div style={{ background:'white', borderRadius:14, padding:'1rem 1.25rem', marginBottom:12, border:'1px solid #E2E8F0' }}>
+          {nhiCheck?.deceased && (
+            <div style={{ background:'#1F2937', color:'#F9FAFB', padding:'.5rem .75rem', borderRadius:8, marginBottom:10, fontSize:'.8125rem' }}>
+              <strong>Patient deceased (NHI).</strong> Date of death: {nhiCheck.deceasedDateTime || 'not recorded'}. Prescribing and referrals are disabled.
+            </div>
+          )}
+          {nhiCheck?.mismatch && nhiCheck.mismatch.fields?.length > 0 && !nhiCheck.deceased && (
+            <div style={{ background:'#FEF3C7', border:'1px solid #D97706', padding:'.5rem .75rem', borderRadius:8, marginBottom:10, fontSize:'.8125rem', color:'#78350F' }}>
+              <strong>NHI mismatch ({nhiCheck.mismatch.fields.join(', ')}).</strong> Confirm identity with the patient before prescribing or referring.
+            </div>
+          )}
           <div style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', marginBottom:10 }}>Actions</div>
           <div style={{ display:'flex', gap:8, marginBottom: actionsRef.current.length ? 10 : 0 }}>
             {!isFinalised && !isAlreadyResponded && (
               <>
                 <button onClick={() => setModals(m => ({ ...m, rx:true }))}
-                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  disabled={!!nhiCheck?.deceased}
+                  title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — prescribing disabled' : ''}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: nhiCheck?.deceased ? '#F3F4F6' : 'white', color: nhiCheck?.deceased ? '#9CA3AF' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                   💊 Prescribe
                 </button>
                 <button onClick={() => setModals(m => ({ ...m, xr:true }))}
-                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background:'white', color:NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  disabled={!!nhiCheck?.deceased}
+                  title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — referrals disabled' : ''}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: nhiCheck?.deceased ? '#F3F4F6' : 'white', color: nhiCheck?.deceased ? '#9CA3AF' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                   🩻 Imaging
                 </button>
                 <button onClick={() => setModals(m => ({ ...m, medcert:true }))}
@@ -2416,13 +2441,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       )}
 
       <PrescribeModal
-        open={modals.rx}
+        open={modals.rx && !nhiCheck?.deceased}
         onClose={() => setModals(m => ({ ...m, rx:false }))}
         consult={consult}
         onDone={action => { addAction(action); setModals(m => ({ ...m, rx:false })) }}
       />
       <XrayModal
-        open={modals.xr}
+        open={modals.xr && !nhiCheck?.deceased}
         onClose={() => setModals(m => ({ ...m, xr:false }))}
         consult={consult}
         onDone={action => { addAction(action); setModals(m => ({ ...m, xr:false })) }}
