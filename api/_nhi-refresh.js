@@ -123,7 +123,7 @@ export default async function handler(req, res) {
   const token = await _getToken()
   if (!token) return res.status(200).json({ ok: true, enabled: true, lookup_available: false })
 
-  const base = process.env.NHI_FHIR_BASE
+  const base = process.env.NHI_FHIR_BASE || process.env.NHI_BASE_URL
   const { randomUUID } = await import('node:crypto')
   const corrId = randomUUID()
   const r = await globalThis.fetch(`${base}/Patient/${encodeURIComponent(consult.patient_nhi)}`, {
@@ -186,8 +186,14 @@ async function _getToken() {
   const url      = process.env.NHI_TOKEN_URL
   const clientId = process.env.NHI_CLIENT_ID
   const secret   = process.env.NHI_CLIENT_SECRET
-  const scope    = process.env.NHI_SCOPE
-  if (!url || !clientId || !secret || !scope) return null
+  // Env var is NHI_SCOPES (plural) matching _nhi-lookup.js. Falls back to the
+  // three HNZ UAT-granted scopes if the env isn't set.
+  const scope    = process.env.NHI_SCOPES || [
+    'https://api.hip.digital.health.nz/fhir/system/Patient.r',
+    'https://api.hip.digital.health.nz/fhir/system/Patient.s',
+    'https://api.hip.digital.health.nz/fhir/system/Patient.v',
+  ].join(' ')
+  if (!url || !clientId || !secret) return null
   const params = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: secret, scope })
   try {
     const r = await globalThis.fetch(url, {
