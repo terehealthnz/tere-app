@@ -128,10 +128,12 @@ export default async function handler(req, res) {
   const corrId = randomUUID()
   const r = await globalThis.fetch(`${base}/Patient/${encodeURIComponent(consult.patient_nhi)}`, {
     headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/fhir+json',
+      Authorization:      `Bearer ${token}`,
+      Accept:             'application/fhir+json',
+      'x-api-key':        process.env.NHI_CLIENT_ID,
+      userid:             `tere-provider-${auth.providerId || 'unknown'}`,
       'X-Correlation-Id': corrId,
-      userid: `tere-provider-${auth.providerId || 'unknown'}`,
+      'User-Agent':       'TereHealth/1.0 (server; NHI FHIR proxy)',
     },
   })
   const bodyText = await r.text()
