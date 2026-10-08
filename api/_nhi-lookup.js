@@ -368,18 +368,41 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4xx (typically 422 for bad input) — surface as no match, benign.
-    if (status >= 400) {
-      return res.status(200).json({ enabled: true, matched: false, reason: cleanNhi ? 'name_mismatch' : 'not_found', ...(diag ? { diag } : {}) })
-    }
-
-    if (entries.length === 0) {
-      return res.status(200).json({
-        enabled: true,
-        matched: false,
-        reason: cleanNhi ? 'name_mismatch' : 'not_found',
-        ...(diag ? { diag } : {}),
-      })
+    // 4xx (typically 422 for bad input) or empty bundle — Validate said no.
+    // For MANUAL NHI entries we need to differentiate three real-world cases
+    // so the patient-facing retry UX can be specific (IN-3589 ask, 2026-10-07):
+    //   - not_found    HNZ has no such NHI
+    //   - deceased     NHI exists but patient is deceased on record
+    //   - name_mismatch NHI exists, patient alive, but Validate rejected name/DOB
+    // Validate alone can't tell us which — it only returns an empty/error bundle.
+    // So on Validate failure WITH a manual NHI, follow up with GET Patient/{nhi}
+    // and use the HNZ response to pick the correct reason. For demographic-only
+    // search (no NHI), we can't do the GET, so fall back to the legacy not_found.
+    if ((status >= 400 || entries.length === 0)) {
+      if (cleanNhi) {
+        const getRes = await callGetPatient(token, cleanNhi, outboundCtx)
+        if (diag) diag.attempts.push({ n: 'post-validate GET', status: getRes.status, body: getRes.body })
+        // 404 or similar → NHI genuinely doesn't exist in HNZ.
+        if (getRes.status === 404) {
+          return res.status(200).json({ enabled: true, matched: false, reason: 'not_found', ...(diag ? { diag } : {}) })
+        }
+        if (getRes.status === 429) return res.status(200).json({ enabled: true, matched: false, reason: 'rate_limited' })
+        // 200 → NHI exists. Check deceased before falling back to name_mismatch.
+        if (getRes.status === 200 && getRes?.body?.resourceType === 'Patient') {
+          const getPatient = parseFhirPatient(getRes.body)
+          if (getPatient?.deceased) {
+            return res.status(200).json({ enabled: true, matched: false, reason: 'deceased', ...(diag ? { diag } : {}) })
+          }
+          // NHI exists + alive but Validate rejected → actual name/DOB mismatch.
+          return res.status(200).json({ enabled: true, matched: false, reason: 'name_mismatch', ...(diag ? { diag } : {}) })
+        }
+        // Any other GET outcome → treat as mismatch (conservative — don't claim
+        // a NHI doesn't exist when we only know Validate failed and GET was weird).
+        return res.status(200).json({ enabled: true, matched: false, reason: 'name_mismatch', ...(diag ? { diag } : {}) })
+      }
+      // Demographic-only path: no NHI to GET, so stick with the original
+      // not_found signal (empty Bundle on a Search means HNZ found nobody).
+      return res.status(200).json({ enabled: true, matched: false, reason: 'not_found', ...(diag ? { diag } : {}) })
     }
 
     // Take the first (highest-scored) entry. When Validate mode with an
