@@ -73,6 +73,13 @@ export async function inspectDevice(videoElement) {
   return new Promise((resolve) => {
     let frameCount = 0, startTime = null
     const pixelQualities = []
+    // Prefer rVFC so we measure camera fps, not display refresh fps.
+    // When the camera outruns the display (e.g. 60fps camera on 60Hz screen),
+    // rAF would cap at the display rate; rVFC gives the true camera rate.
+    const useVfc = typeof videoElement.requestVideoFrameCallback === 'function'
+    const scheduleNext = (cb) => useVfc
+      ? videoElement.requestVideoFrameCallback((_, md) => cb(md?.mediaTime != null ? md.mediaTime * 1000 : performance.now()))
+      : requestAnimationFrame(cb)
 
     const measureFrame = (timestamp) => {
       if (!startTime) startTime = timestamp
@@ -99,7 +106,7 @@ export async function inspectDevice(videoElement) {
       }
 
       if (elapsed < 2000) {
-        requestAnimationFrame(measureFrame)
+        scheduleNext(measureFrame)
       } else {
         const fps = (frameCount / elapsed) * 1000
         const avgBrightness = pixelQualities.length ? pixelQualities.reduce((s, q) => s + q.avg, 0) / pixelQualities.length : 128
@@ -111,7 +118,7 @@ export async function inspectDevice(videoElement) {
         resolve(info)
       }
     }
-    requestAnimationFrame(measureFrame)
+    scheduleNext(measureFrame)
   })
 }
 
@@ -1122,7 +1129,15 @@ export class RppgMeasurement {
     } else { this.onProgress(pct,null,motionPct) }
 
     if(elapsed>=this.windowSec){this.stop();this._calculate();return}
-    this.rafId=requestAnimationFrame(()=>this._tick())
+    // Prefer requestVideoFrameCallback: fires once per CAMERA frame rather than
+    // once per DISPLAY refresh. Lets us sample 60fps video on a 60Hz display
+    // AND 120fps video on a 120Hz display. Fallback to rAF where unsupported
+    // (older Safari, some embedded WebViews).
+    if (this.videoEl.requestVideoFrameCallback) {
+      this.rafId = this.videoEl.requestVideoFrameCallback(() => this._tick())
+    } else {
+      this.rafId = requestAnimationFrame(() => this._tick())
+    }
   }
 
   _calculate() {
@@ -1206,7 +1221,15 @@ export class RppgMeasurement {
     }
   }
 
-  stop() { this.running=false; if(this.rafId) cancelAnimationFrame(this.rafId) }
+  stop() {
+    this.running = false
+    if (this.rafId) {
+      // rVFC uses cancelVideoFrameCallback; rAF uses cancelAnimationFrame.
+      // Try rVFC first (silently no-ops if the id came from rAF).
+      try { this.videoEl?.cancelVideoFrameCallback?.(this.rafId) } catch {}
+      try { cancelAnimationFrame(this.rafId) } catch {}
+    }
+  }
 }
 
 // ── Multi-pass measurement ─────────────────────────────────────────────────────

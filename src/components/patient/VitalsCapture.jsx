@@ -348,11 +348,44 @@ export default function VitalsCapture() {
     let unmounted = false
     async function requestCamera() {
       try {
+        // Ask for the highest frame rate the device will serve. Browser
+        // picks the best match from the `advanced` list and silently drops
+        // to the base constraint if 60fps isn't available — never fails.
+        // 720p is the pivot: higher resolutions cap at 30fps on most mobile
+        // cameras, 720p unlocks 60fps on iPhone 11+ / Pixel 6+ / Samsung S22+.
+        // iOS caps WebRTC at 60fps (120/240 slow-mo isn't exposed to getUserMedia).
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode:'user', width:640, height:480, frameRate:30 },
+          video: {
+            facingMode: 'user',
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 60, max: 240, min: 15 },
+            advanced: [
+              { frameRate: 240 },
+              { frameRate: 120 },
+              { frameRate: 60 },
+              { frameRate: 30 },
+            ],
+          },
           audio: false,
         })
         if (unmounted) { stream.getTracks().forEach(t => t.stop()); return }
+        // Log what the device actually delivered — critical to know for
+        // post-hoc data analysis (reading our stored `fps` field alone can
+        // hide a 60fps-requested-but-30fps-delivered mismatch).
+        try {
+          const t0 = stream.getVideoTracks()[0]
+          const s = t0?.getSettings?.() || {}
+          const caps = t0?.getCapabilities?.() || {}
+          const camMax = caps.frameRate && typeof caps.frameRate === 'object'
+            ? caps.frameRate.max
+            : caps.frameRate
+          console.log('[VitalsCapture] camera delivered:', {
+            fps: s.frameRate, width: s.width, height: s.height,
+            cam_max_fps: camMax, device: s.deviceId?.slice(0, 8),
+          })
+          sessionStorage.setItem('vitals_capture_fps', String(s.frameRate || ''))
+        } catch (_) {}
         streamRef.current = stream
         if (videoRef.current) {
           videoRef.current.srcObject = stream
@@ -649,8 +682,21 @@ export default function VitalsCapture() {
     setSpo2Estimate(null)
     // Re-open camera if closed
     try {
+      // Retry-camera path on retry flow — same high-fps constraints as the
+      // initial request (see useEffect above for rationale).
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode:'user', width:640, height:480, frameRate:30 },
+        video: {
+          facingMode: 'user',
+          width:  { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 60, max: 240, min: 15 },
+          advanced: [
+            { frameRate: 240 },
+            { frameRate: 120 },
+            { frameRate: 60 },
+            { frameRate: 30 },
+          ],
+        },
         audio: false,
       })
       streamRef.current = stream
