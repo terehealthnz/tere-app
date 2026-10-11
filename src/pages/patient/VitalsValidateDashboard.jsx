@@ -4,7 +4,7 @@ import { getValidationReadings, getValidationSubjects, getModelVersions, getTrai
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
-import { trainV3, trainV3Async, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees, trainV3VariantSweep } from '../../lib/bpModelV3'
+import { trainV3, trainV3Async, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees, sweepTreesAsync, trainV3VariantSweep } from '../../lib/bpModelV3'
 import { fitSpO2Calibration } from '../../lib/spo2'
 import VideoUploadModal from '../../components/vitals-validate/VideoUploadModal'
 const TEAL = '#0B6E76'
@@ -483,7 +483,11 @@ function BPAnalysisPanel({ readings, subjects }) {
     }
     setV3Progress('Sweeping tree counts (10/20/30/50/100)…')
     await new Promise(res => setTimeout(res, 0))
-    const results = sweepTrees(features, labels, [10, 20, 30, 50, 100], { depth: v3Depth, lr: v3Lr, tailBoost: v3TailBoost })
+    const results = await sweepTreesAsync(
+      features, labels, [10, 20, 30, 50, 100],
+      { depth: v3Depth, lr: v3Lr, tailBoost: v3TailBoost },
+      (msg) => setV3Progress(`Sweeping tree counts: ${msg}`)
+    )
     setV3Sweep(results)
     const best = results.find(r => r.best)
     if (best) setV3Trees(best.nTrees)

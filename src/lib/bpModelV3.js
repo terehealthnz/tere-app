@@ -1590,6 +1590,39 @@ export function sweepTrees(features, labels, treeCounts = [10, 20, 30, 50, 100],
       results.push({ nTrees, error: e.message || String(e) })
     }
   }
+  return _rankSweep(results)
+}
+
+// Async mirror of sweepTrees — trains each tree-count with trainV3Async so the
+// browser stays responsive during the ~210-tree sweep (10+20+30+50+100 × 2 heads).
+// Reports per-nTrees progress through the callback.
+export async function sweepTreesAsync(features, labels, treeCounts = [10, 20, 30, 50, 100], { depth = 3, lr = 0.1, tailBoost = 2.0 } = {}, onProgress = null) {
+  const results = []
+  for (let i = 0; i < treeCounts.length; i++) {
+    const nTrees = treeCounts[i]
+    if (onProgress) onProgress(`Sweep ${i + 1}/${treeCounts.length}: ${nTrees} trees`)
+    try {
+      const m = await trainV3Async(
+        features, labels,
+        { nTrees, depth, lr, valFrac: 0.2, tailBoost },
+        (msg) => onProgress && onProgress(`Sweep ${i + 1}/${treeCounts.length} (${nTrees} trees): ${msg}`)
+      )
+      results.push({
+        nTrees,
+        trainMae: m.meta.trainMae,
+        valMae: m.meta.valMae,
+        valMaeSysByBand: m.meta.valMaeSysByBand,
+      })
+    } catch (e) {
+      results.push({ nTrees, error: e.message || String(e) })
+    }
+    // Extra breather between sweep iterations
+    await new Promise(res => setTimeout(res, 0))
+  }
+  return _rankSweep(results)
+}
+
+function _rankSweep(results) {
   // Best = lowest combined val MAE (sys + dia). Overfit guard: among models
   // within 0.3 mmHg of the lowest-val-MAE one, prefer fewer trees.
   const scored = results.filter(r => r.valMae)
