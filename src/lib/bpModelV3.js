@@ -952,6 +952,8 @@ export async function trainV3Async(features, labels, opts = {}, onProgress = nul
   let maeSysV = 0, maeDiaV = 0
   const errSysHigh = [], errSysNorm = [], errSysLow = []
   const errSysHighSigned = [], errSysLowSigned = []
+  const errDiaHigh = [], errDiaNorm = [], errDiaLow = []
+  const errDiaHighSigned = [], errDiaLowSigned = []
   for (let i = 0; i < X_val.length; i++) {
     const predS = predictGbm(sysModel, X_val[i])
     const predD = predictGbm(diaModel, X_val[i])
@@ -961,6 +963,9 @@ export async function trainV3Async(features, labels, opts = {}, onProgress = nul
     if (y_sysV[i] >= 140) { errSysHigh.push(eS); errSysHighSigned.push(predS - y_sysV[i]) }
     else if (y_sysV[i] < 110) { errSysLow.push(eS); errSysLowSigned.push(predS - y_sysV[i]) }
     else errSysNorm.push(eS)
+    if (y_diaV[i] >= 90)      { errDiaHigh.push(eD); errDiaHighSigned.push(predD - y_diaV[i]) }
+    else if (y_diaV[i] < 60)  { errDiaLow.push(eD);  errDiaLowSigned.push(predD - y_diaV[i]) }
+    else                       errDiaNorm.push(eD)
   }
   maeSysV /= X_val.length; maeDiaV /= X_val.length
   const mean = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
@@ -975,6 +980,11 @@ export async function trainV3Async(features, labels, opts = {}, onProgress = nul
         high_ge_140: mean(errSysHigh), normal_110_139: mean(errSysNorm), low_lt_110: mean(errSysLow),
         nHigh: errSysHigh.length, nNormal: errSysNorm.length, nLow: errSysLow.length,
         biasHigh: mean(errSysHighSigned), biasLow: mean(errSysLowSigned),
+      },
+      valMaeDiaByBand: {
+        high_ge_90: mean(errDiaHigh), normal_60_89: mean(errDiaNorm), low_lt_60: mean(errDiaLow),
+        nHigh: errDiaHigh.length, nNormal: errDiaNorm.length, nLow: errDiaLow.length,
+        biasHigh: mean(errDiaHighSigned), biasLow: mean(errDiaLowSigned),
       },
       weightingMode, tailBoost, asymmetricPenalty,
       asymPenaltyMode, lossMode, splitMode, smogn,
@@ -1335,6 +1345,10 @@ export function trainV3(features, labels, {
   let errSysHigh = [], errSysNorm = [], errSysLow = []
   let errSysHighSigned = []  // signed error for high band — negative = under-predict (clinical risk)
   let errSysLowSigned = []   // signed error for low band  — positive = over-predict (clinical risk)
+  // DBP banding (hyper ≥90, normal 60-89, low <60) — same structure as SBP so the
+  // promote gate can compare both channels on tails against mean-baseline.
+  let errDiaHigh = [], errDiaNorm = [], errDiaLow = []
+  let errDiaHighSigned = [], errDiaLowSigned = []
   for (let i = 0; i < X_val.length; i++) {
     const predS = predictGbm(sysModel, X_val[i])
     const predD = predictGbm(diaModel, X_val[i])
@@ -1345,14 +1359,17 @@ export function trainV3(features, labels, {
     if (y_sysV[i] >= 140) { errSysHigh.push(eS); errSysHighSigned.push(predS - y_sysV[i]) }
     else if (y_sysV[i] < 110) { errSysLow.push(eS); errSysLowSigned.push(predS - y_sysV[i]) }
     else errSysNorm.push(eS)
+    if (y_diaV[i] >= 90)      { errDiaHigh.push(eD); errDiaHighSigned.push(predD - y_diaV[i]) }
+    else if (y_diaV[i] < 60)  { errDiaLow.push(eD);  errDiaLowSigned.push(predD - y_diaV[i]) }
+    else                       errDiaNorm.push(eD)
   }
   maeSysV /= X_val.length; maeDiaV /= X_val.length
   const mean = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
   const maeSysHigh = mean(errSysHigh)
   const maeSysNorm = mean(errSysNorm)
   const maeSysLow  = mean(errSysLow)
-  const biasSysHigh = mean(errSysHighSigned)  // negative = systematic under-prediction (bad)
-  const biasSysLow  = mean(errSysLowSigned)   // positive = systematic over-prediction (bad — collapses hypotensives into mean)
+  const biasSysHigh = mean(errSysHighSigned)
+  const biasSysLow  = mean(errSysLowSigned)
 
   return {
     sysModel, diaModel,
@@ -1368,6 +1385,14 @@ export function trainV3(features, labels, {
         nHigh: errSysHigh.length, nNormal: errSysNorm.length, nLow: errSysLow.length,
         biasHigh: biasSysHigh,
         biasLow: biasSysLow,
+      },
+      valMaeDiaByBand: {
+        high_ge_90: mean(errDiaHigh),
+        normal_60_89: mean(errDiaNorm),
+        low_lt_60: mean(errDiaLow),
+        nHigh: errDiaHigh.length, nNormal: errDiaNorm.length, nLow: errDiaLow.length,
+        biasHigh: mean(errDiaHighSigned),
+        biasLow: mean(errDiaLowSigned),
       },
       weightingMode, tailBoost, asymmetricPenalty,
       asymPenaltyMode, lossMode, splitMode, smogn,

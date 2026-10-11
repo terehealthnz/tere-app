@@ -651,9 +651,25 @@ function BPAnalysisPanel({ readings, subjects }) {
     const cuffDiaMean = withCuff.reduce((s, r) => s + r.manual_diastolic, 0) / withCuff.length
     const sysErrs = withCuff.map(r => Math.abs(r.manual_systolic - cuffSysMean))
     const diaErrs = withCuff.map(r => Math.abs(r.manual_diastolic - cuffDiaMean))
+    // Per-band MAE for mean-predictor. Clinical gate uses tails because mean-emitter
+    // trivially wins aggregate (by construction) but is useless on hyper/hypo —
+    // which are the only cases that matter clinically for a BP screening tool.
+    const mean1 = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
+    const sysHyperErrs = withCuff.filter(r => r.manual_systolic >= 140).map(r => Math.abs(r.manual_systolic - cuffSysMean))
+    const sysNormErrs  = withCuff.filter(r => r.manual_systolic >= 110 && r.manual_systolic < 140).map(r => Math.abs(r.manual_systolic - cuffSysMean))
+    const sysLowErrs   = withCuff.filter(r => r.manual_systolic < 110).map(r => Math.abs(r.manual_systolic - cuffSysMean))
+    const diaHyperErrs = withCuff.filter(r => r.manual_diastolic >= 90).map(r => Math.abs(r.manual_diastolic - cuffDiaMean))
+    const diaNormErrs  = withCuff.filter(r => r.manual_diastolic >= 60 && r.manual_diastolic < 90).map(r => Math.abs(r.manual_diastolic - cuffDiaMean))
+    const diaLowErrs   = withCuff.filter(r => r.manual_diastolic < 60).map(r => Math.abs(r.manual_diastolic - cuffDiaMean))
     return {
       sysMae: +(sysErrs.reduce((a, b) => a + b, 0) / sysErrs.length).toFixed(1),
       diaMae: +(diaErrs.reduce((a, b) => a + b, 0) / diaErrs.length).toFixed(1),
+      sysMean: +cuffSysMean.toFixed(1),
+      diaMean: +cuffDiaMean.toFixed(1),
+      sysHyperMae: mean1(sysHyperErrs), sysNormMae: mean1(sysNormErrs), sysLowMae: mean1(sysLowErrs),
+      diaHyperMae: mean1(diaHyperErrs), diaNormMae: mean1(diaNormErrs), diaLowMae: mean1(diaLowErrs),
+      nSysHyper: sysHyperErrs.length, nSysNorm: sysNormErrs.length, nSysLow: sysLowErrs.length,
+      nDiaHyper: diaHyperErrs.length, nDiaNorm: diaNormErrs.length, nDiaLow: diaLowErrs.length,
     }
   })()
   // v2 "beats mean?" check — compare val MAE (held-out numbers) against the
@@ -1079,8 +1095,29 @@ function BPAnalysisPanel({ readings, subjects }) {
           gate as v2. Compact layout: stats row + beats-mean banner + scatter. */}
       {(v3Model || v3Preds.length > 0 || v3ActiveServer) && (() => {
         const v3Stats = computeBPStats(v3Preds)
-        const v3BeatsMean = meanBaseline && v3Model?.meta?.valMae
-          ? (v3Model.meta.valMae.sys <= meanBaseline.sysMae && v3Model.meta.valMae.dia <= meanBaseline.diaMae)
+        // Clinical-tail gate (replaced the aggregate-only gate 2026-10-11): a
+        // mean-emitter trivially wins aggregate MAE on the normotensive bulk, but
+        // is useless on hyper/hypo — which are the only cases that matter for a
+        // BP screening tool. Promote when the model beats mean on at least one
+        // tail AND aggregate doesn't drift by more than clinically-negligible
+        // amounts (SBP ≤+0.5 mmHg, DBP ≤+1.5 mmHg).
+        const vb = v3Model?.meta?.valMaeSysByBand
+        const dbb = v3Model?.meta?.valMaeDiaByBand
+        const mb = meanBaseline
+        const beatsOnTail = mb && vb
+          ? ( (vb.nHigh >= 3 && mb.sysHyperMae != null && vb.high_ge_140 + 3 <= mb.sysHyperMae)
+           || (vb.nLow  >= 3 && mb.sysLowMae   != null && vb.low_lt_110   + 3 <= mb.sysLowMae)
+           || (dbb && dbb.nHigh >= 3 && mb.diaHyperMae != null && dbb.high_ge_90 + 3 <= mb.diaHyperMae)
+           || (dbb && dbb.nLow  >= 3 && mb.diaLowMae   != null && dbb.low_lt_60  + 3 <= mb.diaLowMae) )
+          : false
+        const sysOK = mb && v3Model?.meta?.valMae
+          ? v3Model.meta.valMae.sys <= mb.sysMae + 0.5
+          : false
+        const diaOK = mb && v3Model?.meta?.valMae
+          ? v3Model.meta.valMae.dia <= mb.diaMae + 1.5
+          : false
+        const v3BeatsMean = mb && v3Model?.meta?.valMae
+          ? (sysOK && diaOK && beatsOnTail)
           : null
         return (
           <div style={{
@@ -1167,6 +1204,58 @@ function BPAnalysisPanel({ readings, subjects }) {
             )}
 
             {v3Model?.meta && meanBaseline && (
+              <>
+              {/* Tail breakdown — this is the clinically-meaningful comparison. Mean-emitter
+                  trivially wins aggregate MAE because the normotensive bulk sits near the mean,
+                  but is useless when truth is in hyper/hypo. Gate requires v3 beats mean on
+                  at least one tail by ≥3 mmHg AND aggregate drift stays bounded. */}
+              <div style={{
+                background: '#FAFAFA', border: '1px solid #E5E7EB',
+                borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.5rem',
+                fontSize: '.74rem', color: '#374151',
+              }}>
+                <div style={{ fontWeight: 700, color: NAVY, marginBottom: '.4rem' }}>
+                  Band breakdown — v3 vs mean-emitter (mean sys={meanBaseline.sysMean}, dia={meanBaseline.diaMean})
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.72rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #E5E7EB', color: '#6B7280' }}>
+                      <th style={{ textAlign: 'left', padding: '.25rem .5rem' }}>Band</th>
+                      <th style={{ textAlign: 'right', padding: '.25rem .5rem' }}>n</th>
+                      <th style={{ textAlign: 'right', padding: '.25rem .5rem' }}>v3 MAE</th>
+                      <th style={{ textAlign: 'right', padding: '.25rem .5rem' }}>mean MAE</th>
+                      <th style={{ textAlign: 'right', padding: '.25rem .5rem' }}>Δ</th>
+                      <th style={{ textAlign: 'right', padding: '.25rem .5rem' }}>v3 bias</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { label: 'SBP hyper (≥140)',  n: v3Model.meta.valMaeSysByBand?.nHigh,   v3: v3Model.meta.valMaeSysByBand?.high_ge_140,    mean: meanBaseline.sysHyperMae, bias: v3Model.meta.valMaeSysByBand?.biasHigh },
+                      { label: 'SBP normal (110-139)', n: v3Model.meta.valMaeSysByBand?.nNormal, v3: v3Model.meta.valMaeSysByBand?.normal_110_139, mean: meanBaseline.sysNormMae },
+                      { label: 'SBP low (<110)',    n: v3Model.meta.valMaeSysByBand?.nLow,    v3: v3Model.meta.valMaeSysByBand?.low_lt_110,     mean: meanBaseline.sysLowMae,   bias: v3Model.meta.valMaeSysByBand?.biasLow },
+                      { label: 'DBP hyper (≥90)',   n: v3Model.meta.valMaeDiaByBand?.nHigh,   v3: v3Model.meta.valMaeDiaByBand?.high_ge_90,     mean: meanBaseline.diaHyperMae, bias: v3Model.meta.valMaeDiaByBand?.biasHigh },
+                      { label: 'DBP normal (60-89)', n: v3Model.meta.valMaeDiaByBand?.nNormal, v3: v3Model.meta.valMaeDiaByBand?.normal_60_89,   mean: meanBaseline.diaNormMae },
+                      { label: 'DBP low (<60)',     n: v3Model.meta.valMaeDiaByBand?.nLow,    v3: v3Model.meta.valMaeDiaByBand?.low_lt_60,      mean: meanBaseline.diaLowMae,   bias: v3Model.meta.valMaeDiaByBand?.biasLow },
+                    ].map(({ label, n, v3, mean, bias }, i) => {
+                      const delta = (v3 != null && mean != null) ? +(v3 - mean).toFixed(1) : null
+                      const wins = delta != null && delta <= -3
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                          <td style={{ padding: '.25rem .5rem' }}>{label}</td>
+                          <td style={{ textAlign: 'right', padding: '.25rem .5rem' }}>{n ?? '—'}</td>
+                          <td style={{ textAlign: 'right', padding: '.25rem .5rem', fontWeight: 700, color: wins ? '#059669' : '#111827' }}>{v3 != null ? '±' + v3 : '—'}</td>
+                          <td style={{ textAlign: 'right', padding: '.25rem .5rem', color: '#6B7280' }}>{mean != null ? '±' + mean : '—'}</td>
+                          <td style={{ textAlign: 'right', padding: '.25rem .5rem', color: delta == null ? '#9CA3AF' : delta <= -3 ? '#059669' : delta >= 3 ? '#DC2626' : '#6B7280', fontWeight: wins ? 700 : 400 }}>{delta != null ? (delta > 0 ? '+' + delta : delta) : '—'}</td>
+                          <td style={{ textAlign: 'right', padding: '.25rem .5rem', color: '#6B7280' }}>{bias != null ? (bias > 0 ? '+' + bias : bias) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '.68rem', color: '#6B7280', marginTop: '.5rem', lineHeight: 1.4 }}>
+                  Δ ≤ −3 (green) = v3 beats mean-emitter on that band by ≥3 mmHg. Bias &lt; 0 on hyper = under-predicting (clinical risk); bias &gt; 0 on low = over-predicting (collapsing hypotensives into mean).
+                </div>
+              </div>
               <div style={{
                 background: v3BeatsMean ? '#F0FDF4' : '#FEF2F2',
                 border: `1px solid ${v3BeatsMean ? '#BBF7D0' : '#FECACA'}`,
@@ -1174,9 +1263,10 @@ function BPAnalysisPanel({ readings, subjects }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '.75rem',
               }}>
                 <div style={{ fontSize: '.78rem', color: v3BeatsMean ? '#065F46' : '#991B1B', lineHeight: 1.5 }}>
-                  <strong>{v3BeatsMean ? '✓ v3 beats mean baseline' : '✗ v3 does NOT beat mean baseline'}</strong><br />
-                  v3 val MAE: ±{v3Model.meta.valMae.sys}/±{v3Model.meta.valMae.dia} &nbsp;·&nbsp;
-                  mean baseline: ±{meanBaseline.sysMae}/±{meanBaseline.diaMae}
+                  <strong>{v3BeatsMean ? '✓ v3 beats mean baseline on tails (clinical gate)' : '✗ v3 does not clear clinical gate'}</strong><br />
+                  v3 aggregate: ±{v3Model.meta.valMae.sys}/±{v3Model.meta.valMae.dia} &nbsp;·&nbsp;
+                  mean aggregate: ±{meanBaseline.sysMae}/±{meanBaseline.diaMae}&nbsp;·&nbsp;
+                  gate: sys ≤ mean+0.5, dia ≤ mean+1.5, AND beats mean on ≥1 tail by ≥3 mmHg
                 </div>
                 <button onClick={handlePromoteV3}
                   disabled={v3Promoting || !v3BeatsMean}
@@ -1191,6 +1281,7 @@ function BPAnalysisPanel({ readings, subjects }) {
                   {v3Promoting ? 'Promoting…' : 'Promote v3 to prod'}
                 </button>
               </div>
+              </>
             )}
 
             {v3Preds.length > 0 && (
