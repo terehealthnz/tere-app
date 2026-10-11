@@ -835,6 +835,155 @@ function fitGbm(X, y, weights, {
   return { init, trees, lr }
 }
 
+// Async mirror of fitGbm that yields to the main thread between trees so the
+// browser stays responsive during VitalsValidate dashboard training. Server
+// callers (api/_cron-retrain-bp-v3.js) keep the sync fitGbm. Yield cadence
+// defaults to every tree because growTree is the hot loop and single-tree
+// time (~200ms for n~450) is already past the 50ms responsiveness threshold.
+async function fitGbmAsync(X, y, weights, opts = {}, onTree = null) {
+  const { nTrees = 50, depth = 3, lr = 0.1,
+          asymmetricPenalty = 1.0, asymPenaltyMode = 'highOnly',
+          lowThr = 110, highThr = 140, lossMode = 'mse' } = opts
+  let totalW = 0, sumWY = 0
+  const w = weights || new Array(y.length).fill(1)
+  for (let i = 0; i < y.length; i++) { totalW += w[i]; sumWY += w[i] * y[i] }
+  const init = totalW > 0 ? sumWY / totalW : y.reduce((a, b) => a + b, 0) / y.length
+  const preds = new Array(y.length).fill(init)
+  const residuals = new Array(y.length)
+  for (let i = 0; i < y.length; i++) residuals[i] = y[i] - preds[i]
+  const trees = []
+  for (let t = 0; t < nTrees; t++) {
+    let working
+    if (lossMode === 'quantile') working = residuals.map(r => Math.sign(r) * 0.5)
+    else working = residuals
+    if (asymmetricPenalty > 1) {
+      if (asymPenaltyMode === 'tailAware') {
+        working = working.map((r, i) => {
+          const yi = y[i]
+          if (yi < lowThr && r < 0) return r * asymmetricPenalty
+          if (yi >= highThr && r > 0) return r * asymmetricPenalty
+          return r
+        })
+      } else {
+        working = working.map(r => r > 0 ? r * asymmetricPenalty : r)
+      }
+    }
+    const tree = growTree(X, working, w, depth)
+    trees.push(tree)
+    for (let i = 0; i < y.length; i++) {
+      const step = lr * predictTree(tree, X[i])
+      preds[i] += step
+      residuals[i] = y[i] - preds[i]
+    }
+    if (onTree) onTree(t + 1, nTrees)
+    // Yield to main thread so React can paint and the browser stays responsive.
+    await new Promise(res => setTimeout(res, 0))
+  }
+  return { init, trees, lr }
+}
+
+// Async mirror of trainV3 — same logic, uses fitGbmAsync so browser stays
+// responsive. Signature matches trainV3 plus an optional progress callback.
+export async function trainV3Async(features, labels, opts = {}, onProgress = null) {
+  const {
+    nTrees = 50, depth = 3, lr = 0.1, valFrac = 0.2,
+    tailBoost = 2.0, weightingMode = 'tailBoost',
+    asymmetricPenalty = 1.0, asymPenaltyMode = 'highOnly',
+    lossMode = 'mse', splitMode = 'random',
+    subjectIds = null, smogn = false, smognOversample = 3,
+  } = opts
+  if (features.length < 20) throw new Error('need ≥20 training samples')
+  const n = features.length
+  const nVal = Math.max(1, Math.round(n * valFrac))
+  let trainIdx, valIdx
+  if (splitMode === 'stratified') {
+    const sp = stratifiedSplit(labels, valFrac, subjectIds)
+    trainIdx = sp.trainIdx; valIdx = sp.valIdx
+  } else {
+    const order = Array.from({ length: n }, (_, i) => i)
+    for (let i = n - 1; i > 0; i--) {
+      const j = (i * 2654435761 >>> 0) % (i + 1)
+      ;[order[i], order[j]] = [order[j], order[i]]
+    }
+    trainIdx = order.slice(nVal)
+    valIdx = order.slice(0, nVal)
+  }
+  let trainFeats = trainIdx.map(i => features[i])
+  let trainLabels = trainIdx.map(i => labels[i])
+  let trainSubjectIds = subjectIds ? trainIdx.map(i => subjectIds[i]) : null
+  if (smogn) {
+    const aug = smognAugment(trainFeats, trainLabels, trainSubjectIds, { oversampleFactor: smognOversample })
+    trainFeats = aug.features; trainLabels = aug.labels; trainSubjectIds = aug.subjectIds
+  }
+  const X_train = trainFeats.map(f => featureVec(f))
+  const y_sys = trainLabels.map(l => l[0])
+  const y_dia = trainLabels.map(l => l[1])
+  let sysW, diaW
+  if (weightingMode === 'lds') {
+    sysW = tailWeightsLDS(trainLabels, 0, { kernelSigma: 12 })
+    diaW = tailWeightsLDS(trainLabels, 1, { kernelSigma: 8 })
+  } else if (weightingMode === 'sera') {
+    sysW = phiRelevance(trainLabels, 0, 110, 160, 5)
+    diaW = phiRelevance(trainLabels, 1, 60, 90, 3)
+  } else if (weightingMode === 'subject' && trainSubjectIds) {
+    const subjW = subjectLevelWeights(trainSubjectIds)
+    sysW = subjW; diaW = subjW
+  } else if (weightingMode === 'none') {
+    sysW = null; diaW = null
+  } else {
+    sysW = tailBoost > 0 ? tailWeightsSys(trainLabels, tailBoost) : null
+    diaW = tailBoost > 0 ? tailWeightsDia(trainLabels, tailBoost) : null
+  }
+  const sysOpts = { nTrees, depth, lr, asymmetricPenalty, asymPenaltyMode, lossMode, lowThr: 110, highThr: 140 }
+  const diaOpts = { nTrees, depth, lr, asymmetricPenalty, asymPenaltyMode, lossMode, lowThr: 60,  highThr: 90  }
+  const sysModel = await fitGbmAsync(X_train, y_sys, sysW, sysOpts,
+    (t, total) => onProgress && onProgress(`sys ${t}/${total}`))
+  const diaModel = await fitGbmAsync(X_train, y_dia, diaW, diaOpts,
+    (t, total) => onProgress && onProgress(`dia ${t}/${total}`))
+  let maeSysT = 0, maeDiaT = 0
+  for (let i = 0; i < X_train.length; i++) {
+    maeSysT += Math.abs(predictGbm(sysModel, X_train[i]) - y_sys[i])
+    maeDiaT += Math.abs(predictGbm(diaModel, X_train[i]) - y_dia[i])
+  }
+  maeSysT /= X_train.length; maeDiaT /= X_train.length
+  const X_val = valIdx.map(i => featureVec(features[i]))
+  const y_sysV = valIdx.map(i => labels[i][0])
+  const y_diaV = valIdx.map(i => labels[i][1])
+  let maeSysV = 0, maeDiaV = 0
+  const errSysHigh = [], errSysNorm = [], errSysLow = []
+  const errSysHighSigned = [], errSysLowSigned = []
+  for (let i = 0; i < X_val.length; i++) {
+    const predS = predictGbm(sysModel, X_val[i])
+    const predD = predictGbm(diaModel, X_val[i])
+    const eS = Math.abs(predS - y_sysV[i])
+    const eD = Math.abs(predD - y_diaV[i])
+    maeSysV += eS; maeDiaV += eD
+    if (y_sysV[i] >= 140) { errSysHigh.push(eS); errSysHighSigned.push(predS - y_sysV[i]) }
+    else if (y_sysV[i] < 110) { errSysLow.push(eS); errSysLowSigned.push(predS - y_sysV[i]) }
+    else errSysNorm.push(eS)
+  }
+  maeSysV /= X_val.length; maeDiaV /= X_val.length
+  const mean = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null
+  return {
+    sysModel, diaModel,
+    featureNames: FEATURE_NAMES_V3,
+    meta: {
+      n: X_train.length, nVal: X_val.length,
+      trainMae: { sys: +maeSysT.toFixed(1), dia: +maeDiaT.toFixed(1) },
+      valMae:   { sys: +maeSysV.toFixed(1), dia: +maeDiaV.toFixed(1) },
+      valMaeSysByBand: {
+        high_ge_140: mean(errSysHigh), normal_110_139: mean(errSysNorm), low_lt_110: mean(errSysLow),
+        nHigh: errSysHigh.length, nNormal: errSysNorm.length, nLow: errSysLow.length,
+        biasHigh: mean(errSysHighSigned), biasLow: mean(errSysLowSigned),
+      },
+      weightingMode, tailBoost, asymmetricPenalty,
+      asymPenaltyMode, lossMode, splitMode, smogn,
+      nTrees, depth, lr,
+      trainedAt: new Date().toISOString(),
+    },
+  }
+}
+
 // ─── Phi-relevance + SERA weighting (Silva/Ribeiro 2022) ──────────────────────
 //
 // Relevance function phi(y) ∈ [0,1] that assigns high weight to tail labels and

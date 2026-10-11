@@ -4,7 +4,7 @@ import { getValidationReadings, getValidationSubjects, getModelVersions, getTrai
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
-import { trainV3, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees, trainV3VariantSweep } from '../../lib/bpModelV3'
+import { trainV3, trainV3Async, predictV3, framesToV3Features, saveV3Model, loadV3Model, promoteV3Model, sweepTrees, trainV3VariantSweep } from '../../lib/bpModelV3'
 import { fitSpO2Calibration } from '../../lib/spo2'
 import VideoUploadModal from '../../components/vitals-validate/VideoUploadModal'
 const TEAL = '#0B6E76'
@@ -427,7 +427,11 @@ function BPAnalysisPanel({ readings, subjects }) {
     await new Promise(res => setTimeout(res, 0))
     let model
     try {
-      model = trainV3(features, labels, { nTrees: v3Trees, depth: v3Depth, lr: v3Lr, valFrac: 0.2, tailBoost: v3TailBoost })
+      model = await trainV3Async(
+        features, labels,
+        { nTrees: v3Trees, depth: v3Depth, lr: v3Lr, valFrac: 0.2, tailBoost: v3TailBoost },
+        (msg) => setV3Progress(`Training ${msg} · n=${features.length}`)
+      )
     } catch (e) {
       setV3Error(`Train failed: ${e.message || e}`)
       setV3Running(false); setV3Progress('')
@@ -532,7 +536,11 @@ function BPAnalysisPanel({ readings, subjects }) {
       }
       setV3Progress(`Retrain v3: training 20 trees tailBoost=2 on ${features.length}…`)
       await new Promise(res => setTimeout(res, 0))
-      const model = trainV3(features, labels, { nTrees: 20, depth: 3, lr: 0.1, valFrac: 0.2, tailBoost: 2 })
+      const model = await trainV3Async(
+        features, labels,
+        { nTrees: 20, depth: 3, lr: 0.1, valFrac: 0.2, tailBoost: 2 },
+        (msg) => setV3Progress(`Retrain v3: ${msg} · n=${features.length}`)
+      )
       saveV3Model(model)
       setV3Model(model)
       // Populate the preds table so the scatter + readings column reflect
