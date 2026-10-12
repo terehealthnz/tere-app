@@ -73,8 +73,15 @@ export default function TrainingBanner({ providerId }) {
           // auto-flipping it here would leak sandbox data into admin surfaces
           // (queue, patient search, etc.) because the header is session-wide,
           // not route-scoped.
+          //
+          // Skip providers whose admin has already set patient_access_from to
+          // the past — admin's call overrides the sandbox-tasks gate (common
+          // path: experienced clinician we trust immediately). Without this
+          // guard the banner force-flipped them back to sandbox every 60s.
           const isAdmin = (() => { try { return sessionStorage.getItem('providerIsAdmin') === 'true' } catch { return false } })()
-          if (!body.training_completed_at && !isAdmin) {
+          const paf = body.patient_access_from ? new Date(body.patient_access_from) : null
+          const adminUnlocked = paf != null && !isNaN(paf.getTime()) && paf.getTime() <= Date.now()
+          if (!body.training_completed_at && !isAdmin && !adminUnlocked) {
             try {
               if (sessionStorage.getItem('practice_mode') !== '1') {
                 sessionStorage.setItem('practice_mode', '1')
@@ -102,6 +109,12 @@ export default function TrainingBanner({ providerId }) {
   // toggling sandbox off leaves the banner visibly contradicting the queue.
   const isAdmin = (() => { try { return sessionStorage.getItem('providerIsAdmin') === 'true' } catch { return false } })()
   if (isAdmin) return null
+  // Hide for providers admin has already unlocked for real patients. The
+  // banner's whole copy — "practice mode is on until ... admin unlocks" — is
+  // false once patient_access_from is in the past, and leaving it visible
+  // just confuses the clinician.
+  const paf = status.patient_access_from ? new Date(status.patient_access_from) : null
+  if (paf && !isNaN(paf.getTime()) && paf.getTime() <= Date.now()) return null
 
   const doneCount = TASKS.filter(t => status.tasks?.[t.key]).length
 

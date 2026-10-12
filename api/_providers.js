@@ -319,7 +319,7 @@ export default async function handler(req, res) {
       }
 
       const [{ data: provider }, tookRes, rxRes, completeRes, referralRes] = await Promise.all([
-        supabase.from('providers').select('id, training_completed_at').eq('id', targetId).maybeSingle(),
+        supabase.from('providers').select('id, training_completed_at, patient_access_from').eq('id', targetId).maybeSingle(),
         supabase.from('consultations').select('id', { count: 'exact', head: true })
           .eq('provider_id', targetId).eq('is_practice', true)
           .in('status', ['in_progress', 'notes_pending', 'completed']),
@@ -369,6 +369,12 @@ export default async function handler(req, res) {
         tasks,
         completed: allDone,
         training_completed_at,
+        // Admin can unlock real-patient access independently of the 4 sandbox
+        // tasks (common path: experienced clinician we trust straight away).
+        // Client uses this to decide whether to keep force-flipping practice
+        // mode in the TrainingBanner; without it, admin-unlocked providers
+        // kept getting dumped back into sandbox every 60s.
+        patient_access_from: provider.patient_access_from || null,
       })
     }
 
