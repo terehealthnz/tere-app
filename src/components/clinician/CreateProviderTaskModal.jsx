@@ -11,7 +11,7 @@
 // consult where the Rx was first written, provider actions it from the inbox.
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { providerTasksApi, getPatientConsultations, getPatientPrescriptions } from '../../lib/supabase'
+import { providerTasksApi, getPatientConsultations, getPatientPrescriptions, getProviders } from '../../lib/supabase'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -35,29 +35,34 @@ function daysSince(ts) {
 }
 
 export default function CreateProviderTaskModal({ patient, onClose, onDone, defaultParentConsultId = null, defaultBody = '' }) {
-  const [taskType,  setTaskType]  = useState('represcribe_request')
-  const [title,     setTitle]     = useState('')
-  const [body,      setBody]      = useState(defaultBody || '')
-  const [priority,  setPriority]  = useState('normal')
-  const [parentId,  setParentId]  = useState(defaultParentConsultId)
+  const [taskType,   setTaskType]   = useState('represcribe_request')
+  const [title,      setTitle]      = useState('')
+  const [body,       setBody]       = useState(defaultBody || '')
+  const [priority,   setPriority]   = useState('normal')
+  const [parentId,   setParentId]   = useState(defaultParentConsultId)
+  const [assignedTo, setAssignedTo] = useState('')  // '' = open pool, else provider id
 
   const [consults,  setConsults]  = useState([])
   const [rxByConsult, setRxByConsult] = useState({})  // { consultation_id: [rx, rx] }
+  const [providers, setProviders] = useState([])
   const [loading,   setLoading]   = useState(true)
   const [loadErr,   setLoadErr]   = useState(null)
 
   const [submitting, setSubmitting] = useState(false)
   const [error,      setError]      = useState(null)
 
-  // Load this patient's prior consults + prescriptions once on open.
-  // Picker only shows consults that have at least one Rx attached.
+  // Load this patient's prior consults + prescriptions + the active provider
+  // list once on open. Picker only shows consults that have ≥1 Rx attached;
+  // provider picker shows active providers so admin can route the task to a
+  // specific clinician (or leave as Open pool for anyone to claim).
   useEffect(() => {
     let cancelled = false
     async function load() {
       try {
-        const [consultsRaw, rxRaw] = await Promise.all([
+        const [consultsRaw, rxRaw, provRaw] = await Promise.all([
           getPatientConsultations(patient.id).catch(() => []),
           getPatientPrescriptions(patient.id).catch(() => []),
+          getProviders().catch(() => []),
         ])
         if (cancelled) return
         const rxMap = {}
@@ -72,10 +77,15 @@ export default function CreateProviderTaskModal({ patient, onClose, onDone, defa
           .filter(c => c.status === 'complete')
           .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
         setConsults(completed)
+        // Active providers only, sorted alphabetically.
+        const active = (provRaw || [])
+          .filter(p => p.is_active)
+          .sort((a, b) => (a.first_name || '').localeCompare(b.first_name || ''))
+        setProviders(active)
         setLoading(false)
       } catch (e) {
         if (cancelled) return
-        setLoadErr(e.message || 'Failed to load consultations')
+        setLoadErr(e.message || 'Failed to load')
         setLoading(false)
       }
     }
@@ -131,6 +141,7 @@ export default function CreateProviderTaskModal({ patient, onClose, onDone, defa
         title: title.trim(),
         body: body.trim() || null,
         priority,
+        assigned_to: assignedTo || null,
       })
       onDone?.(task, { age_warn })
       onClose?.()
@@ -215,6 +226,19 @@ export default function CreateProviderTaskModal({ patient, onClose, onDone, defa
         <textarea value={body} onChange={e => setBody(e.target.value)} rows={3} maxLength={4000}
           placeholder="Any extra context the provider needs"
           style={{ width: '100%', padding: '.5rem .625rem', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: '.875rem', marginBottom: 14, fontFamily: FF, resize: 'vertical' }} />
+
+        {/* Assign to provider — leave as Open pool for any-provider claim,
+            or pick a specific clinician to route the task + SMS to them. */}
+        <label style={{ display: 'block', fontSize: '.75rem', fontWeight: 700, color: NAVY, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Assign to</label>
+        <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)}
+          style={{ width: '100%', padding: '.5rem .625rem', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: '.875rem', marginBottom: 14, fontFamily: FF, background: 'white' }}>
+          <option value="">👥 Open pool — any provider can claim</option>
+          {providers.map(p => (
+            <option key={p.id} value={p.id}>
+              Dr {p.first_name} {p.last_name}{p.provider_type ? ` · ${p.provider_type}` : ''}
+            </option>
+          ))}
+        </select>
 
         {/* Priority */}
         <label style={{ display: 'block', fontSize: '.75rem', fontWeight: 700, color: NAVY, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Priority</label>

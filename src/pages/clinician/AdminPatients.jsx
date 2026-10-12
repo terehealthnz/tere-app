@@ -363,7 +363,8 @@ function PatientProfile({ patientId, onClose, onMerge }) {
           onClose={() => setTaskModalOpen(false)}
           onDone={(task) => {
             setTaskModalOpen(false)
-            setTaskFlash(`Task created — assigned to the provider pool. SMS notification sent.`)
+            const where = task?.assigned_to ? "to the assigned provider's inbox" : 'to the open pool'
+            setTaskFlash(`Task created — sent ${where}. SMS notification fired.`)
             setTimeout(() => setTaskFlash(null), 4000)
           }}
         />
