@@ -73,15 +73,22 @@ export async function inspectDevice(videoElement) {
   return new Promise((resolve) => {
     let frameCount = 0, startTime = null
     const pixelQualities = []
-    // Prefer rVFC so we measure camera fps, not display refresh fps.
-    // When the camera outruns the display (e.g. 60fps camera on 60Hz screen),
-    // rAF would cap at the display rate; rVFC gives the true camera rate.
-    const useVfc = typeof videoElement.requestVideoFrameCallback === 'function'
+    // Prefer rVFC so we measure true camera fps (rAF caps at display refresh).
+    // iOS/iPadOS WebKit (incl. Vivaldi iOS) advertises rVFC on the prototype
+    // but doesn't always fire the callback — a cold scan with MediaPipe
+    // loading in parallel is enough to starve it indefinitely. Watchdog
+    // detects this (no frame in 800ms) and falls back to rAF so the scan
+    // actually starts instead of 8s-timing-out at startScan.
+    let useVfc = typeof videoElement.requestVideoFrameCallback === 'function'
+    let watchdogId = null
+
     const scheduleNext = (cb) => useVfc
       ? videoElement.requestVideoFrameCallback((_, md) => cb(md?.mediaTime != null ? md.mediaTime * 1000 : performance.now()))
       : requestAnimationFrame(cb)
 
     const measureFrame = (timestamp) => {
+      // First real frame — rVFC is working, dismiss the watchdog.
+      if (watchdogId !== null) { clearTimeout(watchdogId); watchdogId = null }
       if (!startTime) startTime = timestamp
       const elapsed = timestamp - startTime
       frameCount++
@@ -118,6 +125,22 @@ export async function inspectDevice(videoElement) {
         resolve(info)
       }
     }
+
+    // Arm the watchdog BEFORE the first scheduleNext so a broken rVFC can't
+    // sneak past. 800ms is enough for a healthy rVFC to deliver 1–2 frames
+    // at 30fps even on slow devices. If zero frames by then, assume rVFC is
+    // dead on this browser and resume via rAF.
+    if (useVfc) {
+      watchdogId = setTimeout(() => {
+        watchdogId = null
+        if (frameCount === 0) {
+          console.warn('[inspectDevice] rVFC never fired, falling back to rAF')
+          useVfc = false
+          scheduleNext(measureFrame)
+        }
+      }, 800)
+    }
+
     scheduleNext(measureFrame)
   })
 }
