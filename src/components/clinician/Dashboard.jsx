@@ -9,6 +9,7 @@ import ProviderInbox from '../../pages/clinician/ProviderInbox.jsx'
 import ProviderEarnings from '../../pages/clinician/ProviderEarnings.jsx'
 import PracticeModeBanner from './PracticeModeBanner.jsx'
 import TrainingBanner from './TrainingBanner.jsx'
+import { providerTasksApi } from '../../lib/supabase'
 
 function useClinicianAuth() {
   const navigate = useNavigate()
@@ -175,13 +176,140 @@ function TypeBadge({ type }) {
 // in localStorage under DASH_PIN_KEY (per-browser, not per-account).
 // v2 bump forces a defaults reset for existing users after we pinned
 // Earnings and dropped the dead Messages tab.
-const DASH_PIN_KEY   = 'dashPinnedTabs.v2'
-const DEFAULT_PINNED = ['queue', 'tere-chat', 'inbox', 'earnings']
+// v3 bump adds the Tasks pin by default (provider_tasks desktop surface, #652).
+const DASH_PIN_KEY   = 'dashPinnedTabs.v3'
+const DEFAULT_PINNED = ['queue', 'tasks', 'tere-chat', 'inbox', 'earnings']
 
-function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }) {
+// ── Provider tasks (desktop) ─────────────────────────────────────────────────
+// Desktop surface for the admin→provider async worklist built in task #652.
+// Mirror of the mobile TasksTab in ProviderApp but denser, with the primary
+// row-click opening the chart in a new tab so provider can keep the dashboard
+// loaded while working the task.
+
+const TASK_TYPE_LABEL = {
+  represcribe_request:   'Represcribe',
+  review_result:         'Review result',
+  countersign_referral:  'Countersign',
+  patient_callback:      'Callback',
+  other:                 'Other',
+}
+
+function fmtTaskAge(ts) {
+  if (!ts) return ''
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000))
+  if (mins < 60) return `${mins}m ago`
+  const hrs  = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(ts).toLocaleDateString('en-NZ', { day:'numeric', month:'short' })
+}
+
+function DashboardTasksPanel({ navigate, onBadgeChange }) {
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const providerId = sessionStorage.getItem('providerId')
+
+  const load = useCallback(async () => {
+    try {
+      const rows = await providerTasksApi.list({ scope: 'mine' })
+      const open = (rows || []).filter(t => t.status === 'pending' || t.status === 'in_progress')
+      setTasks(open)
+      onBadgeChange?.(open.length)
+    } catch {
+      setTasks([])
+      onBadgeChange?.(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [onBadgeChange])
+
+  useEffect(() => {
+    load()
+    const iv = setInterval(load, 30000)
+    return () => clearInterval(iv)
+  }, [load])
+
+  const mine = tasks.filter(t => t.assigned_to === providerId)
+  const open = tasks.filter(t => !t.assigned_to)
+
+  if (loading) return <div style={{ textAlign:'center', padding:'3rem', color:'var(--muted)' }}>Loading…</div>
+
+  if (!tasks.length) return (
+    <div style={{ background:'white', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', padding:'3rem 2rem', textAlign:'center' }}>
+      <div style={{ fontSize:'2.5rem', marginBottom:'.75rem' }}>📋</div>
+      <div style={{ fontWeight:700, color:'var(--navy)', fontSize:'1rem', marginBottom:'.25rem' }}>No open tasks</div>
+      <div style={{ color:'var(--muted)', fontSize:'.875rem' }}>Follow-ups from admin (represcribe, callback, review result) appear here.</div>
+    </div>
+  )
+
+  function openTask(t) {
+    if (!t.parent_consultation_id) return
+    navigate(`/clinician/patient/${t.parent_consultation_id}?task=${t.id}`)
+  }
+
+  const Row = (t) => {
+    const urgent = t.priority === 'urgent'
+    const name = `${t.patient_first_name || ''} ${t.patient_last_name || ''}`.trim() || 'Patient'
+    return (
+      <div key={t.id} onClick={() => openTask(t)}
+        style={{
+          display:'grid', gridTemplateColumns:'110px 1fr 160px 100px 90px 32px',
+          gap:'0.75rem', alignItems:'center',
+          background:'white',
+          border:`1px solid ${urgent ? '#FCA5A5' : 'var(--border)'}`,
+          borderLeft:`4px solid ${urgent ? '#DC2626' : 'var(--teal)'}`,
+          borderRadius:'var(--radius-sm)',
+          padding:'0.75rem 1rem', marginBottom:'0.5rem', cursor:'pointer',
+          fontSize:'.875rem',
+        }}>
+        <span style={{ background: urgent ? '#FEE2E2' : '#E0F2F1', color: urgent ? '#991B1B' : 'var(--teal)', fontSize:'.6875rem', fontWeight:700, padding:'3px 8px', borderRadius:99, textAlign:'center' }}>
+          {TASK_TYPE_LABEL[t.task_type] || t.task_type}
+        </span>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontWeight:700, color:'var(--navy)', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.title}</div>
+          {t.body && (
+            <div style={{ color:'var(--muted)', fontSize:'.8125rem', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.body}</div>
+          )}
+        </div>
+        <div style={{ color:'#374151' }}>
+          {name}
+          {t.patient_nhi && <div style={{ color:'var(--muted)', fontSize:'.75rem' }}>{t.patient_nhi}</div>}
+        </div>
+        <div>
+          {urgent && <span style={{ background:'#DC2626', color:'white', fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>URGENT</span>}
+          {t.status === 'in_progress' && <span style={{ background:'#EDE9FE', color:'#5B21B6', fontSize:'.6875rem', fontWeight:700, padding:'2px 8px', borderRadius:99 }}>IN PROGRESS</span>}
+        </div>
+        <div style={{ color:'var(--muted)', fontSize:'.75rem' }}>{fmtTaskAge(t.created_at)}</div>
+        <div style={{ color:'var(--teal)', fontWeight:700, textAlign:'right' }}>→</div>
+      </div>
+    )
+  }
+
+  const Section = ({ title, rows, emptyNote }) => (
+    <div style={{ marginBottom:'1.5rem' }}>
+      <div style={{ fontSize:'.75rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:'.5rem' }}>
+        {title}{rows.length > 0 && <span style={{ marginLeft:6, color:'#9CA3AF' }}>· {rows.length}</span>}
+      </div>
+      {rows.length === 0
+        ? <div style={{ fontSize:'.8125rem', color:'#9CA3AF', fontStyle:'italic', padding:'.5rem 1rem' }}>{emptyNote}</div>
+        : rows.map(Row)}
+    </div>
+  )
+
+  return (
+    <div>
+      <Section title="Your tasks" rows={mine} emptyNote="Nothing assigned directly to you right now." />
+      <Section title="Open pool" rows={open} emptyNote="No unassigned tasks waiting for a provider to claim." />
+    </div>
+  )
+}
+
+function DashTabSwitcher({ dashTab, setDashTab, teamBadge, tasksBadge, isSupervisor, isRMO }) {
   const allTabs = useMemo(() => {
     const t = [
       ['queue',     'Queue'],
+      ['tasks',     tasksBadge > 0 ? `📋 Tasks (${tasksBadge})` : '📋 Tasks'],
       ['tere-chat', teamBadge > 0 ? `💬 Tere Chat (${teamBadge})` : '💬 Tere Chat'],
       ['inbox',     '📥 Inbox'],
       ['earnings',  '💰 Earnings'],
@@ -191,7 +319,7 @@ function DashTabSwitcher({ dashTab, setDashTab, teamBadge, isSupervisor, isRMO }
     if (isSupervisor) t.push(['supervision',    'Supervision'])
     if (isRMO)        t.push(['my-supervision', 'My supervision'])
     return t
-  }, [teamBadge, isSupervisor, isRMO])
+  }, [teamBadge, tasksBadge, isSupervisor, isRMO])
 
   const [pinned, setPinned] = useState(() => {
     try {
@@ -322,6 +450,7 @@ export default function Dashboard() {
   const [joiningId, setJoiningId]         = useState(null)
   const [todaysConsults, setTodaysConsults] = useState([])
   const [referralBadge, setReferralBadge] = useState(0)
+  const [tasksBadge, setTasksBadge]       = useState(0)
   const teamBadge = useTereChatUnread()
   const [nowTick, setNowTick]             = useState(Date.now())
   const [dismissTarget, setDismissTarget] = useState(null) // { id, patientName } | null
@@ -384,6 +513,23 @@ export default function Dashboard() {
     window.addEventListener('tere:practice-mode-changed', onPracticeChanged)
     return () => { clearInterval(interval); sub?.unsubscribe?.(); window.removeEventListener('tere:practice-mode-changed', onPracticeChanged) }
   }, [load])
+
+  // Poll provider tasks badge off-tab so the Tasks tab shows (N) even when
+  // provider is sitting on Queue. The Tasks panel itself also polls when
+  // open; whichever is more recent wins (both call setTasksBadge).
+  useEffect(() => {
+    let cancelled = false
+    async function refresh() {
+      try {
+        const rows = await providerTasksApi.list({ scope: 'mine' })
+        const open = (rows || []).filter(t => t.status === 'pending' || t.status === 'in_progress').length
+        if (!cancelled) setTasksBadge(open)
+      } catch {}
+    }
+    refresh()
+    const iv = setInterval(refresh, 60000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [])
 
   function requestDismiss(consult) {
     // Two-step gate — opens a modal instead of native window.confirm.
@@ -481,11 +627,13 @@ export default function Dashboard() {
           dashTab={dashTab}
           setDashTab={setDashTab}
           teamBadge={teamBadge}
+          tasksBadge={tasksBadge}
           isSupervisor={isSupervisor}
           isRMO={isRMO}
         />
 
         {dashTab === 'tere-chat' && <TereChatTab />}
+        {dashTab === 'tasks'     && <DashboardTasksPanel navigate={navigate} onBadgeChange={setTasksBadge} />}
 
         {dashTab === 'queue' && (<>
           {/* Queue header */}
