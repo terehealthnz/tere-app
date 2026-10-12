@@ -44,6 +44,9 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'disclosures', 'hl7-audit', 'cultural-safety-training', 'conflict-of-interest',
   'consult-break-glass',
   'investigation-orders', 'prescribing-surveillance', 'prescription-templates', 'cgm-meetings', 'provider-competencies',
+  // Admin-to-provider async work queue (represcribe / follow-up requests).
+  // Clinical safety rule: every task references a prior completed consult.
+  'provider-tasks',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
@@ -286,6 +289,7 @@ const ROUTES = {
   'provider-sessions':         () => import('./_provider-sessions.js'),
   'provider-list':             () => import('./_provider-list.js'),
   'provider-licenses':         () => import('./_provider-licenses.js'),
+  'provider-tasks':            () => import('./_provider-tasks.js'),
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
   'cron-security-anomalies':   () => import('./_cron-security-anomalies.js'),
   'hl7-inbound':               () => import('./_hl7-inbound.js'),

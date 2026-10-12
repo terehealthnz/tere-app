@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
+import CreateProviderTaskModal from './CreateProviderTaskModal'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
@@ -120,6 +121,10 @@ function SupportPanel() {
   const [replyText, setReplyText] = React.useState('')
   const [busy, setBusy] = React.useState(false)
   const [flash, setFlash] = React.useState(null)
+  // Convert-to-task state. Looks up the patient by email → opens
+  // CreateProviderTaskModal pre-filled with the ticket body.
+  const [convertPatient, setConvertPatient] = React.useState(null)
+  const [convertBody,    setConvertBody]    = React.useState('')
 
   async function load() {
     setLoading(true)
@@ -311,11 +316,58 @@ function SupportPanel() {
               {open.status !== 'in_progress' && <button onClick={() => setStatus(open.id, 'in_progress')} disabled={busy} style={{ background:'#FEF3C7', color:'#92400E', border:'none', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700 }}>Mark in progress</button>}
               {open.status !== 'resolved' && <button onClick={() => setStatus(open.id, 'resolved')} disabled={busy} style={{ background:'#DCFCE7', color:'#065F46', border:'none', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:700 }}>Mark resolved</button>}
               {open.status !== 'archived' && <button onClick={() => setStatus(open.id, 'archived')} disabled={busy} style={{ background:'white', border:'1px solid #E2E8F0', color:'#6B7280', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>Archive</button>}
+              {/* Convert the ticket into a provider task. Looks up the patient by
+                  email; if 0 or >1 match the admin is prompted to open the
+                  patient manually from the Patients tab. */}
+              <button
+                onClick={async () => {
+                  setBusy(true); setFlash(null)
+                  try {
+                    const { getPatients } = await import('../../lib/supabase')
+                    const { data } = await getPatients({ search: open.patient_email, limit: 10 })
+                    const match = (data || []).filter(p => (p.email || '').toLowerCase() === (open.patient_email || '').toLowerCase())
+                    if (match.length === 0) {
+                      setFlash('No patient record matches that email. Open the Patients tab and create one first.')
+                      setTimeout(() => setFlash(null), 5000)
+                    } else if (match.length > 1) {
+                      setFlash(`${match.length} patients share that email — open the Patients tab and pick manually.`)
+                      setTimeout(() => setFlash(null), 5000)
+                    } else {
+                      // Close the ticket modal so the task modal (lower z-index)
+                      // isn't visually buried behind it.
+                      setConvertPatient(match[0])
+                      setConvertBody(`From patient support ticket (${new Date(open.created_at).toLocaleDateString('en-NZ')}):\n\n${open.message}`)
+                      setOpen(null)
+                    }
+                  } catch (e) {
+                    setFlash('Lookup failed: ' + (e.message || e))
+                    setTimeout(() => setFlash(null), 5000)
+                  }
+                  setBusy(false)
+                }}
+                disabled={busy}
+                title="Create a provider task from this ticket (represcribe, callback, etc.)"
+                style={{ background:'#D4EEF0', color:'#0B6E76', border:'none', padding:'6px 14px', borderRadius:6, cursor: busy ? 'wait' : 'pointer', fontSize:'.8125rem', fontWeight:700 }}>
+                ➕ Convert to task
+              </button>
               <div style={{ flex:1 }} />
               <button onClick={() => setOpen(null)} style={{ background:'white', border:'1px solid #E2E8F0', color:'#374151', padding:'6px 14px', borderRadius:6, cursor:'pointer', fontSize:'.8125rem', fontWeight:600 }}>Close</button>
             </div>
           </div>
         </div>
+      )}
+
+      {convertPatient && (
+        <CreateProviderTaskModal
+          patient={convertPatient}
+          defaultBody={convertBody}
+          onClose={() => { setConvertPatient(null); setConvertBody('') }}
+          onDone={() => {
+            setConvertPatient(null); setConvertBody('')
+            setFlash('Task created from this ticket — provider notified.')
+            setTimeout(() => setFlash(null), 4000)
+          }}
+        />
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { getPatients, getPatient, getPatientConsultations, updatePatient, mergePatients } from '../../lib/supabase'
+import CreateProviderTaskModal from '../../components/clinician/CreateProviderTaskModal.jsx'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -131,6 +132,9 @@ function PatientProfile({ patientId, onClose, onMerge }) {
   const [mergeMode, setMergeMode]   = useState(false)
   const [mergeTarget, setMergeTarget] = useState('')
   const [merging, setMerging]   = useState(false)
+  const [taskModalOpen, setTaskModalOpen] = useState(false)
+  const [taskParentId, setTaskParentId]   = useState(null)  // null = admin picks; set = pre-filled from a consult row
+  const [taskFlash, setTaskFlash]         = useState(null)
 
   useEffect(() => {
     async function load() {
@@ -181,7 +185,7 @@ function PatientProfile({ patientId, onClose, onMerge }) {
       </button>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: '1.375rem', fontWeight: 700, color: NAVY }}>
             {patient.first_name} {patient.last_name}
@@ -192,7 +196,27 @@ function PatientProfile({ patientId, onClose, onMerge }) {
             {patient.total_consultations ? ` · ${patient.total_consultations} visit${patient.total_consultations === 1 ? '' : 's'}` : ''}
           </div>
         </div>
+        <button
+          onClick={() => { setTaskParentId(null); setTaskModalOpen(true) }}
+          disabled={history.length === 0}
+          title={history.length === 0 ? 'Patient has no prior consults — a task must attach to a completed consult' : 'Create a provider task (represcribe, callback, review result, etc.)'}
+          style={{
+            background: history.length === 0 ? '#E2E8F0' : TEAL,
+            color: history.length === 0 ? '#9CA3AF' : 'white',
+            border: 'none', borderRadius: 8, padding: '.5rem 1rem',
+            fontWeight: 700, fontSize: '.875rem',
+            cursor: history.length === 0 ? 'not-allowed' : 'pointer',
+            fontFamily: FF, whiteSpace: 'nowrap',
+          }}>
+          ➕ Create task
+        </button>
       </div>
+
+      {taskFlash && (
+        <div style={{ background: '#D1FAE5', color: '#065F46', padding: '.5rem .875rem', borderRadius: 8, marginBottom: '1rem', fontSize: '.8125rem', fontWeight: 600 }}>
+          {taskFlash}
+        </div>
+      )}
 
       {/* Badges */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: '1.25rem' }}>
@@ -278,6 +302,19 @@ function PatientProfile({ patientId, onClose, onMerge }) {
                   </div>
                   <JourneyTimeline consult={c} />
                 </button>
+                {/* Per-consult inline task launcher. Pre-fills parent_consult_id
+                    so admin can represcribe against this specific past consult. */}
+                <div style={{ padding: '0 1rem .75rem', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setTaskParentId(c.id); setTaskModalOpen(true) }}
+                    style={{
+                      background: 'none', border: `1px solid ${TEAL}`, color: TEAL,
+                      borderRadius: 6, padding: '4px 10px', fontSize: '.75rem',
+                      fontWeight: 700, cursor: 'pointer', fontFamily: FF,
+                    }}>
+                    ➕ Task from this consult
+                  </button>
+                </div>
                 {expandedId === c.id && c.notes_final && (
                   <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>
                     <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.5rem 0 .25rem' }}>Finalised notes</div>
@@ -318,6 +355,19 @@ function PatientProfile({ patientId, onClose, onMerge }) {
           </div>
         )}
       </div>
+
+      {taskModalOpen && (
+        <CreateProviderTaskModal
+          patient={patient}
+          defaultParentConsultId={taskParentId}
+          onClose={() => setTaskModalOpen(false)}
+          onDone={(task) => {
+            setTaskModalOpen(false)
+            setTaskFlash(`Task created — assigned to the provider pool. SMS notification sent.`)
+            setTimeout(() => setTaskFlash(null), 4000)
+          }}
+        />
+      )}
     </div>
   )
 }

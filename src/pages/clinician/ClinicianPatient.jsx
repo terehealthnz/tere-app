@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
+import CreateProviderTaskModal from '../../components/clinician/CreateProviderTaskModal'
 import AccConsultWidgets from '../../components/clinician/AccConsultWidgets'
 import SupportPersonPrompt from '../../components/clinician/SupportPersonPrompt'
 import IdVerificationPanel from '../../components/clinician/IdVerificationPanel'
@@ -257,6 +258,17 @@ export default function ClinicianPatient() {
   // opens PrescribeModal pre-filled with the past script's values. Provider
   // reviews / edits / sends as a fresh script.
   const [reissuePrefill, setReissuePrefill] = useState(null)
+  // Provider tasks (task #651/#653): admin-only "+ Create task" modal, and the
+  // task-context banner when the chart was opened from an inbox task
+  // (/provider/patient/:consultId?task=xxx).
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [activeTask, setActiveTask] = useState(null)      // the task we're actioning, if any
+  const [activeTaskErr, setActiveTaskErr] = useState(null)
+  const [completingTask, setCompletingTask] = useState(false)
+  const [completionNotes, setCompletionNotes] = useState('')
+  const [showCompletionBox, setShowCompletionBox] = useState(false)
+  const [searchParams] = useSearchParams()
+  const taskIdFromUrl = searchParams.get('task')
   // Break-glass gate (task #414). When getConsultation throws with
   // requires_break_glass=true, we store the enriched context here and mount
   // ConsultBreakGlassPrompt. On grant we re-invoke the loader.
@@ -407,6 +419,46 @@ export default function ClinicianPatient() {
     if (id) { setLoading(true); load() }
   }, [id, loadAttempt])
 
+  // Provider task context: if URL has ?task=xxx, fetch the task + auto-claim if
+  // still pending. Shows the task banner at the top of the chart until the
+  // provider marks it complete.
+  useEffect(() => {
+    if (!taskIdFromUrl) { setActiveTask(null); return }
+    let cancelled = false
+    async function loadTask() {
+      try {
+        let task = await providerTasksApi.get(taskIdFromUrl)
+        if (cancelled) return
+        if (!task) { setActiveTaskErr('Task not found or already closed'); return }
+        if (task.status === 'pending') {
+          try { task = await providerTasksApi.claim(task.id) } catch (e) { /* non-fatal */ }
+        }
+        setActiveTask(task)
+        setActiveTaskErr(null)
+      } catch (e) {
+        if (!cancelled) setActiveTaskErr(e.message || 'Failed to load task')
+      }
+    }
+    loadTask()
+    return () => { cancelled = true }
+  }, [taskIdFromUrl])
+
+  async function markTaskComplete() {
+    if (!activeTask || completingTask) return
+    setCompletingTask(true)
+    try {
+      await providerTasksApi.complete(activeTask.id, completionNotes.trim() || null)
+      // Clear context and navigate back to inbox / provider home
+      setActiveTask(null)
+      setShowCompletionBox(false)
+      setCompletionNotes('')
+      navigate('/provider')
+    } catch (e) {
+      alert(e.message || 'Failed to mark task complete')
+      setCompletingTask(false)
+    }
+  }
+
   async function startCall() {
     if (!consult) return
     setStarting(true)
@@ -540,10 +592,17 @@ export default function ClinicianPatient() {
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: '.75rem' }}>Patient details</div>
         </div>
         {isAdmin && patient?.id && (
-          <button onClick={() => setSendBackOpen(true)}
-            style={{ background: 'rgba(255,255,255,.12)', color: 'white', border: '1px solid rgba(255,255,255,.25)', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: FF, fontWeight: 700, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
-            🔁 Send to queue
-          </button>
+          <>
+            <button onClick={() => setCreateTaskOpen(true)}
+              style={{ background: 'rgba(255,255,255,.12)', color: 'white', border: '1px solid rgba(255,255,255,.25)', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: FF, fontWeight: 700, fontSize: '.75rem', whiteSpace: 'nowrap', marginRight: 6 }}
+              title="Create a task for a provider to action (e.g. represcribe request)">
+              ➕ Task
+            </button>
+            <button onClick={() => setSendBackOpen(true)}
+              style={{ background: 'rgba(255,255,255,.12)', color: 'white', border: '1px solid rgba(255,255,255,.25)', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: FF, fontWeight: 700, fontSize: '.75rem', whiteSpace: 'nowrap' }}>
+              🔁 Send to queue
+            </button>
+          </>
         )}
       </div>
 
@@ -553,6 +612,71 @@ export default function ClinicianPatient() {
           onClose={() => setSendBackOpen(false)}
           onDone={() => { /* toast + refresh could go here later */ }}
         />
+      )}
+
+      {createTaskOpen && patient && (
+        <CreateProviderTaskModal
+          patient={patient}
+          onClose={() => setCreateTaskOpen(false)}
+          onDone={() => { /* toast could go here */ }}
+        />
+      )}
+
+      {/* Task-context banner. Rendered when the chart was opened via a task
+          link (/provider/patient/:id?task=xxx). Shows the admin's note and
+          a Mark Complete action. Represcribing from this chart will stamp
+          represcribe_task_id on the new prescription row (handled server-side
+          via /api/generate-prescription-pdf; client passes the taskId through). */}
+      {activeTask && (
+        <div style={{ background: activeTask.priority === 'urgent' ? '#FEF3C7' : '#E8F3F4',
+                      borderBottom: `3px solid ${activeTask.priority === 'urgent' ? '#D97706' : '#0B6E76'}`,
+                      padding: '12px 16px', fontFamily: FF }}>
+          <div style={{ maxWidth: 640, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: '.6875rem', fontWeight: 700, color: activeTask.priority === 'urgent' ? '#D97706' : '#0B6E76', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                  📋 {activeTask.priority === 'urgent' ? '🚨 Urgent · ' : ''}{(activeTask.task_type || '').replace(/_/g, ' ')} · from admin
+                </div>
+                <div style={{ fontWeight: 700, color: '#0D2B45', fontSize: '.9375rem', marginBottom: 2 }}>
+                  {activeTask.title}
+                </div>
+                {activeTask.body && (
+                  <div style={{ fontSize: '.8125rem', color: '#374151', lineHeight: 1.45 }}>
+                    {activeTask.body}
+                  </div>
+                )}
+              </div>
+              {!showCompletionBox && (
+                <button onClick={() => setShowCompletionBox(true)}
+                  style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: FF, fontWeight: 700, fontSize: '.8125rem', whiteSpace: 'nowrap' }}>
+                  ✓ Mark complete
+                </button>
+              )}
+            </div>
+            {showCompletionBox && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(11,110,118,.25)' }}>
+                <label style={{ display: 'block', fontSize: '.6875rem', fontWeight: 700, color: '#0B6E76', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>Completion notes (optional)</label>
+                <textarea value={completionNotes} onChange={e => setCompletionNotes(e.target.value)} rows={2} placeholder="e.g. Represcribed metformin 500mg, 90-day supply"
+                  style={{ width: '100%', padding: '.5rem .625rem', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: '.8125rem', fontFamily: FF, resize: 'vertical', marginBottom: 8 }} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => { setShowCompletionBox(false); setCompletionNotes('') }} disabled={completingTask}
+                    style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #D1D5DB', background: 'white', fontWeight: 700, color: '#6B7280', cursor: 'pointer', fontFamily: FF, fontSize: '.8125rem' }}>
+                    Cancel
+                  </button>
+                  <button onClick={markTaskComplete} disabled={completingTask}
+                    style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#0B6E76', fontWeight: 700, color: 'white', cursor: completingTask ? 'wait' : 'pointer', fontFamily: FF, fontSize: '.8125rem' }}>
+                    {completingTask ? 'Completing…' : '✓ Confirm complete'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {activeTaskErr && !activeTask && (
+        <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '8px 16px', fontSize: '.8125rem', fontFamily: FF, textAlign: 'center' }}>
+          {activeTaskErr}
+        </div>
       )}
 
       <PatientAccessHistoryModal
@@ -680,6 +804,7 @@ export default function ClinicianPatient() {
         onClose={() => setReissuePrefill(null)}
         consult={consult}
         prefill={reissuePrefill}
+        represcribeTaskId={activeTask?.id || null}
         onDone={async () => {
           setReissuePrefill(null)
           try {

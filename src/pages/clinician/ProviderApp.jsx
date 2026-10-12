@@ -335,6 +335,133 @@ function HandoverBanner() {
   )
 }
 
+// ── Tasks tab ─────────────────────────────────────────────────────────────────
+// Admin-created follow-ups (represcribe_request, review_result, countersign_referral,
+// patient_callback, other). Shows my assigned open tasks + the unassigned pool.
+// Click a row → navigate to the parent consult's chart with ?task=<id>; the chart
+// page handles auto-claim + banner + "Mark complete".
+
+const TASK_TYPE_LABEL = {
+  represcribe_request:   'Represcribe',
+  review_result:         'Review result',
+  countersign_referral:  'Countersign',
+  patient_callback:      'Callback',
+  other:                 'Other',
+}
+
+function fmtTaskAge(ts) {
+  if (!ts) return ''
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(ts).getTime()) / 60000))
+  if (mins < 60)   return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)    return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7)    return `${days}d ago`
+  return new Date(ts).toLocaleDateString('en-NZ', { day:'numeric', month:'short' })
+}
+
+function TasksTab({ setTasksBadge, navigate }) {
+  const [tasks, setTasks] = useState([])
+  const [loading, setLoading] = useState(true)
+  const providerId = sessionStorage.getItem('providerId')
+
+  const load = useCallback(async () => {
+    try {
+      const { providerTasksApi } = await import('../../lib/supabase')
+      const rows = await providerTasksApi.list({ scope: 'mine' })
+      // Keep only actionable rows (not completed/cancelled); server returns
+      // my-assigned + unassigned-pending via scope=mine.
+      const open = (rows || []).filter(t => t.status === 'pending' || t.status === 'in_progress')
+      setTasks(open)
+      setTasksBadge?.(open.length)
+    } catch {
+      setTasks([])
+      setTasksBadge?.(0)
+    } finally {
+      setLoading(false)
+    }
+  }, [setTasksBadge])
+
+  useEffect(() => {
+    load()
+    const iv = setInterval(load, 30000)
+    return () => clearInterval(iv)
+  }, [load])
+
+  const mine = tasks.filter(t => t.assigned_to === providerId)
+  const open = tasks.filter(t => !t.assigned_to)
+
+  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
+
+  if (!tasks.length) return (
+    <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
+      <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>📋</div>
+      <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No tasks</div>
+      <div style={{ color:'#6B7280', fontSize:'.9375rem' }}>Follow-ups from admin appear here</div>
+    </div>
+  )
+
+  function openTask(t) {
+    if (!t.parent_consultation_id) return
+    navigate(`/clinician/patient/${t.parent_consultation_id}?task=${t.id}`)
+  }
+
+  const Section = ({ title, rows, emptyNote }) => (
+    <div style={{ marginBottom:'1.25rem' }}>
+      <div style={{ fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:'.5rem', padding:'0 .25rem' }}>
+        {title} {rows.length > 0 && <span style={{ color:'#9CA3AF' }}>· {rows.length}</span>}
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ fontSize:'.8125rem', color:'#9CA3AF', padding:'.5rem .75rem', fontStyle:'italic' }}>{emptyNote}</div>
+      ) : rows.map(t => {
+        const urgent = t.priority === 'urgent'
+        const name = `${t.patient_first_name || ''} ${t.patient_last_name || ''}`.trim() || 'Patient'
+        return (
+          <div key={t.id}
+            onClick={() => openTask(t)}
+            style={{
+              background:'white', borderRadius:14,
+              border:`1px solid ${urgent ? '#FCA5A5' : '#E2E8F0'}`,
+              borderLeft:`4px solid ${urgent ? '#DC2626' : TEAL}`,
+              padding:'.875rem 1rem', marginBottom:'.625rem',
+              cursor:'pointer', display:'flex', gap:'.75rem', alignItems:'flex-start',
+            }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+                <span style={{ background: urgent ? '#FEE2E2' : '#E0F2F1', color: urgent ? '#991B1B' : TEAL, fontSize:'.625rem', fontWeight:700, padding:'2px 7px', borderRadius:99 }}>
+                  {TASK_TYPE_LABEL[t.task_type] || t.task_type}
+                </span>
+                {urgent && <span style={{ background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'2px 7px', borderRadius:99 }}>URGENT</span>}
+                {t.status === 'in_progress' && <span style={{ background:'#EDE9FE', color:'#5B21B6', fontSize:'.625rem', fontWeight:700, padding:'2px 7px', borderRadius:99 }}>IN PROGRESS</span>}
+                <span style={{ color:'#9CA3AF', fontSize:'.6875rem', marginLeft:'auto' }}>{fmtTaskAge(t.created_at)}</span>
+              </div>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem', marginBottom:2 }}>
+                {t.title}
+              </div>
+              <div style={{ fontSize:'.8125rem', color:'#374151' }}>
+                {name}{t.patient_nhi ? ` · ${t.patient_nhi}` : ''}
+              </div>
+              {t.body && (
+                <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:4, lineHeight:1.5, overflow:'hidden', textOverflow:'ellipsis', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>
+                  {t.body}
+                </div>
+              )}
+            </div>
+            <div style={{ color:TEAL, fontSize:'1.125rem', flexShrink:0, alignSelf:'center' }}>→</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  return (
+    <div style={{ padding:'1rem', fontFamily:FF }}>
+      <Section title="Your tasks" rows={mine} emptyNote="Nothing assigned to you right now." />
+      <Section title="Open pool" rows={open} emptyNote="No unassigned tasks. Open ones you claim move to Your tasks." />
+    </div>
+  )
+}
+
 // ── Queue tab ─────────────────────────────────────────────────────────────────
 
 const TH = { fontSize:'.6875rem', fontWeight:700, color:'#374151', padding:'.625rem .75rem', textAlign:'left', whiteSpace:'nowrap', background:'#F9FAFB', borderBottom:'1px solid #E2E8F0' }
@@ -1228,11 +1355,12 @@ function MenuTab({ navigate, displayName, isAdmin }) {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge }) {
+function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge, tasksBadge }) {
   const items = [
     { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
+    { id:'tasks',    icon:'📋', label:'Tasks',    badge:tasksBadge },
     { id:'messages', icon:'✉️', label:'Messages', badge:msgBadge },
-    { id:'tere-chat',icon:'💬', label:'Tere Chat', badge:teamBadge },
+    { id:'tere-chat',icon:'💬', label:'Chat',     badge:teamBadge },
     { id:'pms',      icon:'📊', label:'PMS',      badge:notesBadge },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
   ]
@@ -1278,6 +1406,7 @@ export default function ProviderApp() {
 
   const [tab, setTab]             = useState('queue')
   const [msgBadge, setMsgBadge]   = useState(0)
+  const [tasksBadge, setTasksBadge] = useState(0)
   const teamBadge = useTereChatUnread()
   const [consultations, setConsultations] = useState([])
   const [loading, setLoading]     = useState(true)
@@ -1384,6 +1513,25 @@ export default function ProviderApp() {
     }
     refresh()
     const iv = setInterval(refresh, 30000)
+    return () => { cancelled = true; clearInterval(iv) }
+  }, [providerId])
+
+  // Poll Tasks badge off-tab so providers see new follow-ups land even while
+  // they're on Queue. TasksTab itself also polls when open; whichever is more
+  // recent wins (both call setTasksBadge).
+  useEffect(() => {
+    if (!providerId) return
+    let cancelled = false
+    async function refresh() {
+      try {
+        const { providerTasksApi } = await import('../../lib/supabase')
+        const rows = await providerTasksApi.list({ scope: 'mine' })
+        const open = (rows || []).filter(t => t.status === 'pending' || t.status === 'in_progress').length
+        if (!cancelled) setTasksBadge(open)
+      } catch {}
+    }
+    refresh()
+    const iv = setInterval(refresh, 60000)
     return () => { cancelled = true; clearInterval(iv) }
   }, [providerId])
 
@@ -1508,6 +1656,7 @@ export default function ProviderApp() {
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
+        {tab === 'tasks'    && <TasksTab setTasksBadge={setTasksBadge} navigate={navigate} />}
         {tab === 'messages' && <MessagesTab msgBadge={msgBadge} setMsgBadge={setMsgBadge} />}
         {tab === 'tere-chat' && <TereChatTab />}
         {tab === 'pms'      && <PMSTab navigate={navigate} />}
@@ -1538,7 +1687,7 @@ export default function ProviderApp() {
           return
         }
         setTab(next)
-      }} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} />
+      }} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} tasksBadge={tasksBadge} />
     </div>
   )
 }

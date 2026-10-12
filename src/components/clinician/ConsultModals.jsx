@@ -184,7 +184,7 @@ function composeRx(rx) {
   return { drug, directions }
 }
 
-export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
+export function PrescribeModal({ open, onClose, consult, onDone, prefill, represcribeTaskId = null }) {
   const [rx, setRx] = useState({
     medication: '', strength: '', form: '',
     dose: '', frequency: '', duration: '',
@@ -577,6 +577,10 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill }) {
         pharmacyAddress: draft.pharmacy.address,
         needsApproval: requiresSupervision,
         draftedByName: sessionStorage.getItem('providerDisplayName'),
+        // Audit back-reference: when the Rx was issued inside a provider_task
+        // (admin-initiated represcribe), stamp the task id on the Rx row so
+        // the full chain task→parent-consult→new-Rx is traceable.
+        represcribeTaskId: represcribeTaskId || null,
       }),
     })
     const data = await res.json().catch(() => ({}))

@@ -987,6 +987,80 @@ export const patientAllergensApi   = makeCrud('patient-allergens',   'allergen',
 export const patientMedicationsApi = makeCrud('patient-medications', 'medication', 'medications')
 export const patientConditionsApi  = makeCrud('patient-conditions',  'condition',  'conditions')
 
+// ── Provider tasks (admin → provider async work queue) ────────────────────
+// Backed by /api/provider-tasks. Doesn't use makeCrud because the API has
+// multi-scope list (mine / all / by patient) + action-dispatched PATCH
+// (claim / complete / cancel / reassign).
+
+export const providerTasksApi = {
+  // scope: 'mine' (default — assigned-to-me or unassigned-pending) | 'all' (admin) | 'patient'
+  async list({ scope = 'mine', status = null, patientId = null } = {}) {
+    const params = new URLSearchParams()
+    if (scope && scope !== 'mine') params.set('scope', scope)
+    if (status)                     params.set('status', status)
+    if (patientId)                  params.set('patient_id', patientId)
+    const qs = params.toString() ? `?${params.toString()}` : ''
+    const res = await apiFetch(`/api/provider-tasks${qs}`)
+    if (!res.ok) return []
+    const body = await res.json()
+    return body.tasks || []
+  },
+  async get(id) {
+    const res = await apiFetch(`/api/provider-tasks?id=${encodeURIComponent(id)}`)
+    if (!res.ok) return null
+    const body = await res.json()
+    return body.task || null
+  },
+  async create(row) {
+    const res = await apiFetch('/api/provider-tasks', { method: 'POST', body: JSON.stringify(row) })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `create provider_task HTTP ${res.status}`)
+    }
+    return await res.json()  // { task, age_warn }
+  },
+  async claim(id) {
+    const res = await apiFetch(`/api/provider-tasks?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ action: 'claim' }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `claim provider_task HTTP ${res.status}`)
+    }
+    return (await res.json()).task
+  },
+  async complete(id, completion_notes = null) {
+    const res = await apiFetch(`/api/provider-tasks?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ action: 'complete', completion_notes }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `complete provider_task HTTP ${res.status}`)
+    }
+    return (await res.json()).task
+  },
+  async cancel(id, completion_notes = null) {
+    const res = await apiFetch(`/api/provider-tasks?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ action: 'cancel', completion_notes }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `cancel provider_task HTTP ${res.status}`)
+    }
+    return (await res.json()).task
+  },
+  async reassign(id, assigned_to) {
+    const res = await apiFetch(`/api/provider-tasks?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH', body: JSON.stringify({ action: 'reassign', assigned_to }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || `reassign provider_task HTTP ${res.status}`)
+    }
+    return (await res.json()).task
+  },
+}
+
 export async function getPatientPrescriptions(patientId) {
   if (!patientId) return []
   const res = await apiFetch(`/api/prescriptions?patientId=${encodeURIComponent(patientId)}`)

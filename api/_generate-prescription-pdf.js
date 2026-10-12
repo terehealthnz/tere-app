@@ -93,6 +93,10 @@ export default async function handler(req, res) {
     // Task #423 — provider override of prescribing-safety block. Requires
     // reason (min 20 chars, audit-logged).
     safetyOverride, safetyOverrideReason,
+    // Task #655 — when Rx was issued as part of an admin-initiated provider
+    // task (represcribe_request), stamp task id on the prescriptions row so
+    // the audit chain task → consult → fresh Rx is traceable.
+    represcribeTaskId,
   } = req.body || {}
 
   if (!patientName || !drug) return res.status(400).json({ error: 'Missing required fields' })
@@ -188,6 +192,7 @@ export default async function handler(req, res) {
         pharmacy_address: pharmacyAddress,
         approval_status: 'pending_approval',
         delivery_status: 'pending',
+        represcribe_task_id: represcribeTaskId || null,
       }).select('id').single()
       prescriptionId = data?.id
     } catch (e) {
@@ -352,6 +357,7 @@ export default async function handler(req, res) {
       approval_status: 'not_required',
       delivery_status: deliveryErrors.length ? 'error' : 'sent',
       delivery_error: deliveryErrors.join('; ') || null,
+      represcribe_task_id: represcribeTaskId || null,
     }).select('id').single()
     prescriptionId = data?.id
   } catch (e) { console.error('[generate-prescription-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
