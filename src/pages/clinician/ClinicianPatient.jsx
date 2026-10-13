@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi } from '../../lib/supabase'
+import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi, resendPrescription } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
@@ -258,6 +258,10 @@ export default function ClinicianPatient() {
   // opens PrescribeModal pre-filled with the past script's values. Provider
   // reviews / edits / sends as a fresh script.
   const [reissuePrefill, setReissuePrefill] = useState(null)
+  // Resend bookkeeping — tracks which Rx is mid-resend so we can disable its
+  // button + flash the result once /api/resend-prescription returns.
+  const [resendingRxId, setResendingRxId] = useState(null)
+  const [resendFlash,   setResendFlash]   = useState(null)
   // Provider tasks (task #651/#653): admin-only "+ Create task" modal, and the
   // task-context banner when the chart was opened from an inbox task
   // (/provider/patient/:consultId?task=xxx).
@@ -1346,6 +1350,11 @@ export default function ClinicianPatient() {
           <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>💊 Past prescriptions{pastRx.length > 0 ? ` (${pastRx.length})` : ''}</span>
           </div>
+          {resendFlash && (
+            <div style={{ background: resendFlash.startsWith('Resend failed') ? '#FEE2E2' : '#D1FAE5', color: resendFlash.startsWith('Resend failed') ? '#991B1B' : '#065F46', padding: '.5rem .75rem', borderRadius: 8, marginBottom: '.75rem', fontSize: '.8125rem', fontWeight: 600 }}>
+              {resendFlash}
+            </div>
+          )}
           {pastRx.length === 0 ? (
             <div style={{ fontSize: '.875rem', color: '#9CA3AF', fontStyle: 'italic' }}>None on record</div>
           ) : (
@@ -1362,10 +1371,36 @@ export default function ClinicianPatient() {
                     {r.repeats != null && <span>Repeats: {r.repeats}</span>}
                     {r.pharmacy_name && <span>→ {r.pharmacy_name}</span>}
                     {r.delivery_status && <span>· {r.delivery_status}</span>}
+                    {/* Resend — rebuilds PDF with current patient/provider
+                        details (e.g. address correction after pharmacy
+                        callback) and re-sends to the SAME pharmacy. Only
+                        enabled when the pharmacy has a reachable channel. */}
+                    <button
+                      onClick={async () => {
+                        if (resendingRxId) return
+                        if (!window.confirm(`Resend this prescription to ${r.pharmacy_name || 'the same pharmacy'}? The PDF will be rebuilt with the current patient address and prescriber details.`)) return
+                        setResendingRxId(r.id); setResendFlash(null)
+                        try {
+                          const out = await resendPrescription(r.id)
+                          setResendFlash(out?.sent === false
+                            ? 'Simulated — this script is in practice mode and was not sent.'
+                            : `Resent to ${out?.pharmacy || 'pharmacy'} via ${out?.channel || 'default channel'}.`)
+                        } catch (e) {
+                          setResendFlash('Resend failed: ' + (e?.message || 'unknown error'))
+                        } finally {
+                          setResendingRxId(null)
+                          setTimeout(() => setResendFlash(null), 5000)
+                        }
+                      }}
+                      disabled={resendingRxId === r.id || (!r.pharmacy_email && !r.pharmacy_fax)}
+                      style={{ marginLeft: 'auto', background: 'white', color: TEAL, border: `1px solid ${TEAL}`, borderRadius: 6, padding: '3px 9px', fontSize: '.75rem', fontWeight: 700, cursor: (resendingRxId === r.id || (!r.pharmacy_email && !r.pharmacy_fax)) ? 'not-allowed' : 'pointer', fontFamily: FF, opacity: (!r.pharmacy_email && !r.pharmacy_fax) ? 0.4 : 1 }}
+                      title={(!r.pharmacy_email && !r.pharmacy_fax) ? 'Original pharmacy has no email or fax on file — use Change pharmacy instead' : 'Rebuild PDF with current patient address + prescriber contact, re-send to same pharmacy'}>
+                      {resendingRxId === r.id ? 'Resending…' : '📧 Resend'}
+                    </button>
                     <button
                       onClick={() => setReissuePrefill(r)}
                       disabled={!!nhiCheck?.deceased}
-                      style={{ marginLeft: 'auto', background: nhiCheck?.deceased ? '#9CA3AF' : TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '.75rem', fontWeight: 700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', fontFamily: FF }}
+                      style={{ background: nhiCheck?.deceased ? '#9CA3AF' : TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: '.75rem', fontWeight: 700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', fontFamily: FF }}
                       title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — prescribing disabled' : 'Open Prescribe with this script pre-filled — review + send as fresh script'}>
                       🔁 Re-issue
                     </button>

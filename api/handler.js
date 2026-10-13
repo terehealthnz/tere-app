@@ -47,6 +47,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Admin-to-provider async work queue (represcribe / follow-up requests).
   // Clinical safety rule: every task references a prior completed consult.
   'provider-tasks',
+  'resend-prescription',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
@@ -258,6 +259,7 @@ const ROUTES = {
   'generate-supervision-plan': () => import('./_generate-supervision-plan.js'),
   'generate-insurance-receipt':() => import('./_generate-insurance-receipt.js'),
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
+  'resend-prescription':       () => import('./_resend-prescription.js'),
   'live-translate':            () => import('./_live-translate.js'),
   'deepgram-token':            () => import('./_deepgram-token.js'),
   'supervision':               () => import('./_supervision.js'),

@@ -1061,6 +1061,21 @@ export const providerTasksApi = {
   },
 }
 
+// Resend a prescription PDF to the SAME pharmacy already on the Rx row.
+// Rebuilds the PDF from current patient + provider data (so an address or
+// phone correction flows through). Server audits as prescription.resent.
+export async function resendPrescription(prescriptionId, { deliveryChannel } = {}) {
+  const res = await apiFetch('/api/resend-prescription', {
+    method: 'POST',
+    body: JSON.stringify({ prescriptionId, deliveryChannel }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `resendPrescription HTTP ${res.status}`)
+  }
+  return await res.json()
+}
+
 export async function getPatientPrescriptions(patientId) {
   if (!patientId) return []
   const res = await apiFetch(`/api/prescriptions?patientId=${encodeURIComponent(patientId)}`)
