@@ -118,18 +118,30 @@ export default async function handler(req, res) {
       ...(action === 'modify' ? { changes: modifications } : {}),
     }
 
-    // Fetch drafter signature + email for the rebuilt PDF. Email goes on the
-    // PDF as the prescriber contact (DG Aug 2024 requirement); signature URL
+    // Fetch drafter signature + email + mobile for the rebuilt PDF. Email +
+    // phone go on the PDF as the prescriber contact (DG Aug 2024 requirement +
+    // Medicines Regulations expectation for pharmacy callbacks); signature URL
     // is only rendered on the wet-ink path for controlled drugs.
     let drafterSignatureUrl = null
     let drafterEmail = null
+    let drafterPhone = null
     const drafterId = data.drafted_by_id || data.provider_id
     if (drafterId) {
       try {
         const { data: drafter } = await supabase.from('providers')
-          .select('signature_url, email').eq('id', drafterId).maybeSingle()
+          .select('signature_url, email, mobile_phone').eq('id', drafterId).maybeSingle()
         if (drafter?.signature_url) drafterSignatureUrl = drafter.signature_url
         if (drafter?.email) drafterEmail = drafter.email
+        if (drafter?.mobile_phone) drafterPhone = drafter.mobile_phone
+      } catch {}
+    }
+    // Patient street address from the linked consult (captured at triage).
+    let patientAddress = null
+    if (data.consultation_id) {
+      try {
+        const { data: consult } = await supabase
+          .from('consultations').select('patient_address').eq('id', data.consultation_id).maybeSingle()
+        if (consult?.patient_address) patientAddress = consult.patient_address
       } catch {}
     }
     const signatureExempt = isSignatureExempt(data.drug)
@@ -139,11 +151,13 @@ export default async function handler(req, res) {
       pdfBuffer = await buildPrescriptionPdf({
         providerName: data.drafted_by_name || data.provider_name,
         providerEmail: drafterEmail,
+        providerPhone: drafterPhone,
         prescriberNumber: data.prescriber_number,
         approvedByName: supervisorName,
         patientName: data.patient_name,
         patientNhi: data.patient_nhi,
         patientDob: data.patient_dob,
+        patientAddress,
         drug: data.drug,
         dose: data.dose,
         directions: data.directions,

@@ -222,18 +222,42 @@ export default async function handler(req, res) {
   }
 
   // ── Direct send path ─────────────────────────────────────────────────
-  // Look up the provider's signature image (if uploaded via Admin) plus their
-  // email — email is required on the PDF by the DG Aug 2024 signature-exempt
-  // authorisation so pharmacies can contact the prescriber to verify identity.
+  // Look up the provider's signature image (if uploaded via Admin), email and
+  // mobile phone — email is required on the PDF by the DG Aug 2024 signature-
+  // exempt authorisation so pharmacies can contact the prescriber to verify
+  // identity. Mobile phone added after Wairau Pharmacy flagged pharmacies
+  // expect a callback number for queries per Medicines Regulations.
   // Signature URL is only needed for the wet-ink path (controlled drugs).
   let signatureUrl = null
   let providerEmail = null
+  let providerPhone = null
   if (providerId) {
     try {
       const { data: prov } = await supabase
-        .from('providers').select('signature_url, email').eq('id', providerId).maybeSingle()
+        .from('providers').select('signature_url, email, mobile_phone').eq('id', providerId).maybeSingle()
       if (prov?.signature_url) signatureUrl = prov.signature_url
       if (prov?.email) providerEmail = prov.email
+      if (prov?.mobile_phone) providerPhone = prov.mobile_phone
+    } catch {}
+  }
+
+  // Pull the patient's street address from the consult (captured at triage).
+  // Rendered in the Patient column so Medicines Regulations content
+  // requirements are met. Falls back to the patients row if the consult row
+  // predates patient_address capture (added 2026-09-03).
+  let patientAddress = null
+  if (consultationId) {
+    try {
+      const { data: consult } = await supabase
+        .from('consultations').select('patient_address').eq('id', consultationId).maybeSingle()
+      if (consult?.patient_address) patientAddress = consult.patient_address
+    } catch {}
+  }
+  if (!patientAddress && patientNhi) {
+    try {
+      const { data: pat } = await supabase
+        .from('patients').select('address').eq('nhi', patientNhi).maybeSingle()
+      if (pat?.address) patientAddress = pat.address
     } catch {}
   }
 
@@ -244,7 +268,7 @@ export default async function handler(req, res) {
   const drugClass = classifyDrug(drug)
   const signatureExempt = isSignatureExempt(drug)
 
-  const pdfData = { providerName, providerEmail, prescriberNumber, patientName, patientNhi, patientDob, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress, signatureUrl, signatureExempt }
+  const pdfData = { providerName, providerEmail, providerPhone, prescriberNumber, patientName, patientNhi, patientDob, patientAddress, drug, dose, directions, quantity, repeats, pharmacyName, pharmacyAddress, signatureUrl, signatureExempt }
   let pdfBuffer
   try {
     pdfBuffer = await buildPrescriptionPdf(pdfData)

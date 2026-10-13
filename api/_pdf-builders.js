@@ -149,7 +149,12 @@ export async function buildPrescriptionPdf(data) {
     leftY = put(data.providerName || 'Tere Clinician',                  LEFT_COL, leftY, { fs: 10, font: 'Helvetica',      color: '#1A2A33' })
     leftY = put(`Prescriber No: ${data.prescriberNumber || '—'}`,       LEFT_COL, leftY)
     leftY = put('Tere Health Limited · terehealth.co.nz',               LEFT_COL, leftY)
-    leftY = put('Contact: terehealthnz@gmail.com',                      LEFT_COL, leftY, { fs: 9, color: '#555' })
+    // Contact line: prescriber email + mobile when set, so community pharmacies
+    // can reach the prescriber for queries. Added after Wairau Pharmacy (Rebecca)
+    // flagged phone was missing per Medicines Regulations expectation.
+    const contactParts = [data.providerEmail || 'terehealthnz@gmail.com']
+    if (data.providerPhone) contactParts.push(data.providerPhone)
+    leftY = put(`Contact: ${contactParts.join(' · ')}`,                 LEFT_COL, leftY, { fs: 9, color: '#555' })
     if (data.approvedByName) {
       leftY = put(`Countersigned by: ${data.approvedByName}`,           LEFT_COL, leftY, { fs: 9, font: 'Helvetica-Bold', color: '#065F46' })
     }
@@ -160,6 +165,12 @@ export async function buildPrescriptionPdf(data) {
     rightY = put(data.patientName || '—',                               RIGHT_COL, rightY, { fs: 10, font: 'Helvetica',      color: '#1A2A33' })
     rightY = put(`NHI: ${data.patientNhi || '—'}`,                      RIGHT_COL, rightY)
     rightY = put(`DOB: ${data.patientDob || '—'}`,                      RIGHT_COL, rightY)
+    // Patient address — required for Medicines Regulations compliance; captured
+    // at triage into consultations.patient_address. Render only when present
+    // (missing on legacy consults predating the address capture).
+    if (data.patientAddress) {
+      rightY = put(`Address: ${data.patientAddress}`,                   RIGHT_COL, rightY, { fs: 9, color: '#555' })
+    }
     rightY = put(`Date: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, RIGHT_COL, rightY)
 
     // Divider below whichever column is longer, then the drug block starts.
