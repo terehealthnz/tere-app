@@ -135,6 +135,15 @@ export default async function handler(req, res) {
         if (drafter?.mobile_phone) drafterPhone = drafter.mobile_phone
       } catch {}
     }
+    // Mandatory prescriber mobile. The drafter is the prescriber of record on
+    // the script, not the countersigning supervisor, so the drafter needs the
+    // number. Block approval if missing so no script ships without a callback.
+    if (!drafterPhone) {
+      return res.status(400).json({
+        error:                 'Drafter has no mobile phone on file. They must set it in My Profile before this script can be approved.',
+        prescriber_phone_missing: true,
+      })
+    }
     // Patient street address from the linked consult (captured at triage).
     let patientAddress = null
     if (data.consultation_id) {

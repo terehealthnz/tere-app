@@ -241,6 +241,16 @@ export default async function handler(req, res) {
     } catch {}
   }
 
+  // Mobile phone is mandatory for prescribers — MCNZ Good Prescribing Practice
+  // + Medicines Regulations expect a direct prescriber callback for pharmacy
+  // queries. Block here rather than silently ship a script without a number.
+  if (!providerPhone) {
+    return res.status(400).json({
+      error:                 'Prescriber mobile phone is required before issuing prescriptions. Set it in My Profile and retry.',
+      prescriber_phone_missing: true,
+    })
+  }
+
   // Pull the patient's street address from the consult (captured at triage).
   // Rendered in the Patient column so Medicines Regulations content
   // requirements are met. Falls back to the patients row if the consult row
