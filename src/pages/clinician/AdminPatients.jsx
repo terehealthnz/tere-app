@@ -244,6 +244,11 @@ function PatientProfile({ patientId, onClose, onMerge }) {
             <EditableField label="Phone"  value={patient.phone}  onSave={v => save('phone', v)} />
             <EditableField label="Email"  value={patient.email}  onSave={v => save('email', v)} />
             <EditableField label="NHI"    value={patient.nhi}    onSave={v => save('nhi', v)} />
+            {/* Street address — rendered on prescription PDFs per Medicines
+                Regulations content requirements. Captured at triage via
+                AITriage but WorkIntake makes it optional, so edit here is
+                the escape hatch when a pharmacy needs it added. */}
+            <EditableField label="Address" value={patient.address} onSave={v => save('address', v)} />
           </div>
 
           <div style={{ background: 'white', borderRadius: 12, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '1rem' }}>
