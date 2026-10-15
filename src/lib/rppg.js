@@ -136,6 +136,12 @@ export async function inspectDevice(videoElement) {
         if (frameCount === 0) {
           console.warn('[inspectDevice] rVFC never fired, falling back to rAF')
           useVfc = false
+          // Poison the video element so the downstream measurement scan skips
+          // rVFC without having to repeat the 800ms detection stall. Same
+          // physical video, same WebKit bug, same hang. Without this the scan
+          // starts, _tick schedules rVFC, callback never fires, progress bar
+          // sits at 0% silently — no error reaches the UI.
+          try { videoElement.__tereRvfcDead = true } catch {}
           scheduleNext(measureFrame)
         }
       }, 800)
@@ -1156,11 +1162,28 @@ export class RppgMeasurement {
     // once per DISPLAY refresh. Lets us sample 60fps video on a 60Hz display
     // AND 120fps video on a 120Hz display. Fallback to rAF where unsupported
     // (older Safari, some embedded WebViews).
-    if (this.videoEl.requestVideoFrameCallback) {
-      this.rafId = this.videoEl.requestVideoFrameCallback(() => this._tick())
-    } else {
-      this.rafId = requestAnimationFrame(() => this._tick())
+    //
+    // rVFC-dead guard: inspectDevice flags __tereRvfcDead when its 800ms
+    // watchdog proved rVFC doesn't actually fire on this browser. Belt-and-
+    // braces: also detect mid-scan starvation — if ≥1500ms since last tick,
+    // call this a miss; after 2 misses flip to rAF permanently. Covers iOS
+    // WebKit cases where rVFC starts healthy and dies partway through.
+    const nextTickVia = (useRvfc) => useRvfc
+      ? this.videoEl.requestVideoFrameCallback(() => this._tick())
+      : requestAnimationFrame(() => this._tick())
+    if (this.lastTickAt != null && (now - this.lastTickAt) > 1500) {
+      this._rvfcMisses = (this._rvfcMisses || 0) + 1
+      if (this._rvfcMisses >= 2) {
+        if (!this.videoEl.__tereRvfcDead) {
+          console.warn('[_tick] rVFC stalled mid-scan, falling back to rAF for remainder')
+          try { this.videoEl.__tereRvfcDead = true } catch {}
+        }
+      }
     }
+    this.lastTickAt = now
+    const canUseRvfc = typeof this.videoEl.requestVideoFrameCallback === 'function'
+                      && !this.videoEl.__tereRvfcDead
+    this.rafId = nextTickVia(canUseRvfc)
   }
 
   _calculate() {
