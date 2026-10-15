@@ -85,7 +85,7 @@ export default async function handler(req, res) {
       name:       providerName,
       credential: provider.credential || null,
       mcnz:       provider.mcnz_registration_number,
-      hpi:        provider.hpi_number,
+      hpi:        provider.cpn || provider.hpi_number,
       email:      provider.email,
       phone:      provider.phone,
       // Signature buffer would come from fetchSignatureBuffer — kept simple for now.

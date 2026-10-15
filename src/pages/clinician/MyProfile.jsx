@@ -85,8 +85,7 @@ const SECTIONS = [
     fields: [
       { key: 'mcnz_registration_number', label: 'MCNZ registration number' },
       { key: 'prescriber_number',        label: 'Prescriber number' },
-      { key: 'cpn',                      label: 'HPI-CPN' },
-      { key: 'hpi_number',               label: 'HPI number (personal HPI)' },
+      { key: 'cpn',                      label: 'HPI-CPN', placeholder: 'e.g. 24NSES' },
       { key: 'acc_provider_number',      label: 'ACC provider number' },
       { key: 'scope_of_practice',        label: 'Scope of practice' },
       { key: 'pgy_level',                label: 'PGY level (if RMO)' },
@@ -127,7 +126,7 @@ export default function MyProfile() {
     if (!providerId) { navigate('/clinician'); return }
     ;(async () => {
       try {
-        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,hpi_number,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type,mobile_phone,sms_on_call'
+        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type,mobile_phone,sms_on_call'
         const r = await apiFetch(`/api/providers?id=${providerId}&columns=${encodeURIComponent(cols)}`)
         if (!r.ok) throw new Error(`Load failed (${r.status})`)
         const j = await r.json()

@@ -1712,15 +1712,11 @@ function AddProviderModal({ onClose, onCreated, prefill = {} }) {
                 </div>
                 <div>
                   <div style={labelStyle}>HPI-CPN</div>
-                  <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} placeholder="Common Person Number" />
+                  <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} placeholder="Common Person Number (e.g. 24NSES)" />
                   <HpiVerifyButton cpn={form.cpn} onFound={p => {
                     if (!form.first_name && p?.given)  set('first_name', p.given)
                     if (!form.last_name  && p?.family) set('last_name',  p.family)
                   }} />
-                </div>
-                <div>
-                  <div style={labelStyle}>HPI number</div>
-                  <input value={form.hpi_number} onChange={e => set('hpi_number', e.target.value)} style={inputStyle} placeholder="Provider HPI" />
                 </div>
                 <div>
                   <div style={labelStyle}>ACC provider number</div>
@@ -2042,7 +2038,6 @@ function EditProviderModal({ provider, onClose, onSaved }) {
                   <input value={form.cpn} onChange={e => set('cpn', e.target.value)} style={inputStyle} />
                   <HpiVerifyButton cpn={form.cpn} />
                 </div>
-                <div><div style={labelStyle}>HPI number</div><input value={form.hpi_number} onChange={e => set('hpi_number', e.target.value)} style={inputStyle} /></div>
                 <div><div style={labelStyle}>ACC provider number</div><input value={form.acc_provider_number} onChange={e => set('acc_provider_number', e.target.value)} style={inputStyle} /></div>
               </div>
             </div>

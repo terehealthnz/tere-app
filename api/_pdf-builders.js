@@ -1369,7 +1369,7 @@ export function buildAccAuditBundlePdf(bundle) {
     const pv = bundle.provider || {}
     y = kvGrid(y, [
       ['Name',       [pv.first_name, pv.last_name].filter(Boolean).join(' ') || claim.provider_name],
-      ['HPI-CPN',    pv.hpi_number || claim.provider_hpi],
+      ['HPI-CPN',    pv.cpn || pv.hpi_number || claim.provider_hpi],
       ['ACC number', pv.acc_provider_number],
       ['Type',       pv.provider_type],
     ])

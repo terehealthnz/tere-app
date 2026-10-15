@@ -160,7 +160,7 @@ export default async function handler(req, res) {
   // ── Fetch provider (as recorded on the claim) ───────────────────────────────
   let providerRec = null
   if (claim.provider_id) {
-    const { data } = await supabase.from('providers').select('id, first_name, last_name, email, hpi_number, acc_provider_number, provider_type').eq('id', claim.provider_id).maybeSingle()
+    const { data } = await supabase.from('providers').select('id, first_name, last_name, email, cpn, hpi_number, acc_provider_number, provider_type').eq('id', claim.provider_id).maybeSingle()
     providerRec = data || null
   }
 
