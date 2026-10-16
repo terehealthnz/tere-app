@@ -4247,8 +4247,8 @@
   },
   {
     "name": "ciprofloxacin + hydrocortisone",
-    "indications": null,
-    "dose": null,
+    "indications": "acute otitis externa (bacterial, with canal inflammation); acute otitis media in patients with tympanostomy tubes",
+    "dose": "Acute otitis externa (adults and children 1 year and over); acute otitis media in patients with\n tympanostomy tubes\n    Otic (ear drop)\n       Adult and child 1 year and over: 3 drops into the affected ear twice daily for 7 days. Shake the bottle well\n       before each dose and warm in the hands for a minute before use (cold drops can cause dizziness). After\n       instilling, lie on the opposite side for 3–5 minutes to allow the drops to reach the ear canal. Keep the ear\n       dry between doses — no swimming or shampoo water in the canal.\n Note\n   Safe to use with an intact or perforated tympanic membrane and with tympanostomy tubes (unlike aminoglycoside\n   ear drops). The hydrocortisone component reduces canal swelling and pain faster than plain ciprofloxacin alone\n   and is preferred when inflammation is visible on otoscopy. Expect symptom improvement within 48–72 hours;\n   if not improving, reconsider the diagnosis (fungal OE, foreign body, malignant OE in\n   diabetic / immunocompromised patients).",
     "preparations": [
       {
         "form": "ear drops",
