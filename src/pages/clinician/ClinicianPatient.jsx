@@ -30,12 +30,18 @@ const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const FF   = 'Plus Jakarta Sans, sans-serif'
 
-function InfoRow({ label, value }) {
-  if (!value) return null
+function InfoRow({ label, value, placeholder }) {
+  // Hide the row entirely when there's no value AND no placeholder — the
+  // original behaviour. Pass a `placeholder` string to render an explicit
+  // "— not provided —" style note instead of silently vanishing. Used for
+  // identity fields (NHI, DOB) where the provider should know the field
+  // was asked but left blank at triage.
+  if (!value && !placeholder) return null
+  const empty = !value
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
-      <div style={{ fontSize: '.9375rem', color: NAVY, lineHeight: 1.5 }}>{value}</div>
+      <div style={{ fontSize: '.9375rem', color: empty ? '#9CA3AF' : NAVY, fontStyle: empty ? 'italic' : 'normal', lineHeight: 1.5 }}>{value || placeholder}</div>
     </div>
   )
 }
@@ -1015,12 +1021,50 @@ export default function ClinicianPatient() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} />
-            <InfoRow label="NHI" value={consult.patient_nhi} />
+            <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} placeholder="— not provided —" />
+            <InfoRow label="NHI" value={consult.patient_nhi} placeholder="— not provided —" />
+            <InfoRow label="Sex" value={consult.patient_sex ? consult.patient_sex.charAt(0).toUpperCase() + consult.patient_sex.slice(1).toLowerCase() : null} />
+            <InfoRow label="Weight" value={consult.patient_weight_kg ? `${consult.patient_weight_kg} kg` : null} />
+            <InfoRow label="Height" value={consult.patient_height_cm ? `${consult.patient_height_cm} cm` : null} />
             <InfoRow label="Phone" value={consult.patient_phone} />
             <InfoRow label="Email" value={consult.patient_email} />
+            <InfoRow label="Address" value={consult.patient_address} />
             <InfoRow label="Location" value={consult.patient_location} />
-            <InfoRow label="GP" value={consult.gp_name ? `${consult.gp_name}${consult.gp_clinic ? ` — ${consult.gp_clinic}` : ''}` : null} />
+            <InfoRow label="GP" value={consult.gp_name ? `${consult.gp_name}${consult.gp_clinic ? ` — ${consult.gp_clinic}` : ''}${consult.gp_email ? ` · ${consult.gp_email}` : ''}` : null} />
+            <InfoRow label="Tobacco use" value={
+              consult.tobacco_use === 'yes'
+                ? `Yes${consult.tobacco_amount ? ` — ${consult.tobacco_amount}` : ''}`
+                : consult.tobacco_use === 'no' ? 'No' : null
+            } />
+            {(consult.employer_paid || consult.employer_name) && (
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: '.5rem .75rem' }}>
+                <span style={{ fontSize: '.625rem', fontWeight: 700, color: '#075985', textTransform: 'uppercase', letterSpacing: '.04em' }}>Employer</span>
+                <span style={{ fontSize: '.875rem', color: '#0C4A6E', fontWeight: 600 }}>{consult.employer_name || consult.acc_employer || '—'}</span>
+                {consult.employer_paid && (
+                  <span style={{ fontSize: '.6875rem', fontWeight: 700, background: '#0369A1', color: 'white', padding: '2px 8px', borderRadius: 999 }}>EMPLOYER PAID</span>
+                )}
+              </div>
+            )}
+            {(consult.recording_consent != null || consult.research_consent != null || consult.acc_consent != null) && (
+              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: '.6875rem' }}>
+                <span style={{ fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em', marginRight: 4 }}>Consents</span>
+                {consult.recording_consent != null && (
+                  <span style={{ padding: '2px 8px', borderRadius: 999, fontWeight: 700, background: consult.recording_consent ? '#D1FAE5' : '#F3F4F6', color: consult.recording_consent ? '#065F46' : '#6B7280' }}>
+                    Recording: {consult.recording_consent ? 'Yes' : 'No'}
+                  </span>
+                )}
+                {consult.research_consent != null && (
+                  <span style={{ padding: '2px 8px', borderRadius: 999, fontWeight: 700, background: consult.research_consent ? '#D1FAE5' : '#F3F4F6', color: consult.research_consent ? '#065F46' : '#6B7280' }}>
+                    Research: {consult.research_consent ? 'Yes' : 'No'}
+                  </span>
+                )}
+                {consult.acc_consent != null && (
+                  <span style={{ padding: '2px 8px', borderRadius: 999, fontWeight: 700, background: consult.acc_consent ? '#D1FAE5' : '#F3F4F6', color: consult.acc_consent ? '#065F46' : '#6B7280' }}>
+                    ACC: {consult.acc_consent ? 'Yes' : 'No'}
+                  </span>
+                )}
+              </div>
+            )}
             {consult.patient_allergies && consult.patient_allergies !== 'None' && (
               <div style={{ gridColumn: '1 / -1', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '.75rem 1rem' }}>
                 <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem' }}>⚠ Allergies</div>
