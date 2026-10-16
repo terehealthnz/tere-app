@@ -2235,14 +2235,17 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   Patient fee tier
                 </div>
                 <div style={{ fontSize:'.9375rem', fontWeight:700, color:'#0D2B45' }}>
-                  {actualMethod === 'employee'      ? '🧑‍💼 Employee — covered by employer'
+                  {isAcc                              ? '⚡ ACC — $25 patient co-pay'
+                   : actualMethod === 'employee'      ? '🧑‍💼 Employee — covered by employer'
                    : actualMethod === 'international' ? '🌍 International — $100'
                    : '🇳🇿 NZ resident — $65'}
                 </div>
                 <div style={{ fontSize:'.6875rem', color:'#065F46', marginTop:2, fontWeight:600 }}>
-                  {billingCountry
-                    ? `✓ auto-detected from card billing country (${billingCountry})`
-                    : 'default (no overseas card on file)'}
+                  {isAcc
+                    ? 'ACC pays the $40 balance to vendor on invoice lodgement'
+                    : billingCountry
+                      ? `✓ auto-detected from card billing country (${billingCountry})`
+                      : 'default (no overseas card on file)'}
                 </div>
               </div>
               <button type="button" onClick={() => setShowFeeTierOverride(s => !s)}
