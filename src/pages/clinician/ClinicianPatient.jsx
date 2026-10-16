@@ -1112,8 +1112,22 @@ export default function ClinicianPatient() {
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.875rem' }}>Estimated Vitals</div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {v.hr  && <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>}
-              {v.rr  && <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>}
+              {v.hr ? (
+                <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>
+              ) : (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>HR N/A</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>check pulse manually</div>
+                </div>
+              )}
+              {v.rr ? (
+                <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>
+              ) : (
+                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>RR N/A</div>
+                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>count breaths if needed</div>
+                </div>
+              )}
               {v.spo2 ? (
                 <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
                   <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%</div>
@@ -1138,6 +1152,9 @@ export default function ClinicianPatient() {
                   <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use cuff if needed</div>
                 </div>
               )}
+            </div>
+            <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 10, fontStyle: 'italic' }}>
+              N/A = scan completed but result was below our confidence threshold — showing an unreliable number could mislead. Verify manually if clinically relevant.
             </div>
           </div>
         )}
