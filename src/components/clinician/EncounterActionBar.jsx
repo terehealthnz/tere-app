@@ -18,10 +18,30 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { encounterAction } from '../../lib/supabase'
+import AccConfirmModal from './AccConfirmModal'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const RED  = '#DC2626'
+
+// Decide whether the Complete Encounter click needs to be gated on the
+// provider-ACC-confirmation popup. Fires only when the consult was flagged
+// ACC in triage AND the provider hasn't already answered on this consult.
+// Backfilled rows (both acc_provider_confirmed_at and _declined_at null)
+// get the prompt the first time a provider closes them, which is the right
+// behaviour — forces the first provider interaction with the ACC flag to
+// be an explicit decision.
+function needsAccConfirmation(consult) {
+  if (!consult) return false
+  const flaggedAcc = consult.is_acc === true || consult.acc_eligible === 'yes'
+  if (!flaggedAcc) return false
+  if (consult.acc_provider_confirmed_at) return false
+  if (consult.acc_provider_declined_at)  return false
+  // Provider converted this consult to ACC themselves — they've already
+  // affirmed it, no need to re-prompt.
+  if (consult.acc_converted_by_provider) return false
+  return true
+}
 
 export default function EncounterActionBar({
   consultationId,
@@ -38,6 +58,7 @@ export default function EncounterActionBar({
 }) {
   const navigate = useNavigate()
   const [busy, setBusy] = useState(null)  // 'call_video' | 'call_phone' | 'no_answer' | 'complete' | null
+  const [accGateOpen, setAccGateOpen] = useState(false)
   const isPractice = !!consult?.is_practice
 
   async function fire(action, cb, channelOverride) {
@@ -145,10 +166,19 @@ export default function EncounterActionBar({
 
       <button
         type="button"
-        onClick={() => fire('complete_encounter', () => {
-          if (typeof onComplete === 'function') onComplete()
-          else navigate(`/provider/notes/${consultationId}`)
-        })}
+        onClick={() => {
+          // ACC confirmation gate: if this consult is still flagged ACC from
+          // patient triage and the provider hasn't answered, open the popup
+          // first. The actual complete_encounter fires in onDecided below.
+          if (needsAccConfirmation(consult) && !isPractice) {
+            setAccGateOpen(true)
+            return
+          }
+          fire('complete_encounter', () => {
+            if (typeof onComplete === 'function') onComplete()
+            else navigate(`/provider/notes/${consultationId}`)
+          })
+        }}
         disabled={busy !== null || disabled}
         style={{
           flex: 1, background: NAVY, color: 'white', border: 'none',
@@ -159,6 +189,23 @@ export default function EncounterActionBar({
         }}>
         {busy === 'complete_encounter' ? '…' : '✓ Complete Encounter'}
       </button>
+
+      {accGateOpen && (
+        <AccConfirmModal
+          consultationId={consultationId}
+          onDecided={() => {
+            setAccGateOpen(false)
+            // Fire the real completion handler now that the provider has
+            // answered. The consult row is already patched server-side with
+            // their decision, so needsAccConfirmation() will return false
+            // on any subsequent close.
+            fire('complete_encounter', () => {
+              if (typeof onComplete === 'function') onComplete()
+              else navigate(`/provider/notes/${consultationId}`)
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
