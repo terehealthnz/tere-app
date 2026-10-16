@@ -715,15 +715,20 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
     const norm = JSON.parse(localStorage.getItem(NORM_KEY) || 'null')
     if (!norm) return null
 
-    // Variance guard: if the model's training labels had almost no
+    // Variance context: if the model's training labels had almost no
     // variance (systolic std < 5 mmHg), the network mathematically
-    // predicts the mean regardless of input — you get a constant BP
-    // (typically ~120/80 since that's the population mean). Refuse to
-    // publish BP in that case rather than serving a placebo reading.
-    // Task fix from Patrick 2026-09-15 (Justin always reading 120/80).
-    if (!norm.std || norm.std[0] < 5 || norm.std[1] < 3) {
-      console.warn('[vitalsModel] variance too low — refusing to publish (sysStd=' + norm.std?.[0] + ' diaStd=' + norm.std?.[1] + '). Need more diverse manual BP entries to train.')
-      return null
+    // predicts the mean regardless of input — you get a near-constant
+    // BP (typically ~120/80 since that's the population mean).
+    //
+    // Previously (2026-09-15): refused to publish in that case.
+    // Now (2026-10-16, Patrick): publish anyway, flag confidence='low'.
+    // Rationale: MCNZ-registered clinicians can weigh a flagged number
+    // better than a hiding heuristic can. Hiding leaves providers with
+    // nothing to check against; a flagged placebo-ish reading still
+    // confirms the sensor ran and is at least in a plausible range.
+    const lowVariance = !norm.std || norm.std[0] < 5 || norm.std[1] < 3
+    if (lowVariance) {
+      console.warn('[vitalsModel] variance too low — publishing with confidence=low (sysStd=' + norm.std?.[0] + ' diaStd=' + norm.std?.[1] + '). Need more diverse manual BP entries to train.')
     }
 
     const fv    = extractFeatures(rppgSignal, subject, devInfo)
@@ -768,7 +773,9 @@ export async function predictBP(rppgSignal, subject = {}, devInfo = null) {
       diastolic: calDia,
       hr,
       spo2,
-      confidence: 'medium',
+      // Downgrade to 'low' when training variance was insufficient — the
+      // chart UI appends * to the number so the provider knows to weigh it.
+      confidence: lowVariance ? 'low' : 'medium',
       calibrated: !!calib,
     }
   } catch (e) {

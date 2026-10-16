@@ -1130,7 +1130,7 @@ export default function ClinicianPatient() {
               )}
               {v.spo2 ? (
                 <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%{v.spo2_confidence === 'low' ? '*' : ''}</div>
                   <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div>
                   <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est.</div>
                 </div>
@@ -1142,7 +1142,7 @@ export default function ClinicianPatient() {
               )}
               {v.bp ? (
                 <div style={{ background: '#FEF3F2', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#B91C1C' }}>{v.bp}</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#B91C1C' }}>{v.bp}{v.bp_confidence === 'low' ? '*' : ''}</div>
                   <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>BP</div>
                   <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est. · confirm w/ cuff</div>
                 </div>
@@ -1154,7 +1154,7 @@ export default function ClinicianPatient() {
               )}
             </div>
             <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 10, fontStyle: 'italic' }}>
-              N/A = scan completed but result was below our confidence threshold — showing an unreliable number could mislead. Verify manually if clinically relevant.
+              * = low confidence (model variance limited or signal noisy). N/A = scan ran but no result produced. All camera-derived vitals are estimates — verify manually if clinically relevant.
             </div>
           </div>
         )}

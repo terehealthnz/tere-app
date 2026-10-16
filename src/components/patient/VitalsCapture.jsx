@@ -494,7 +494,7 @@ export default function VitalsCapture() {
                 }
               }
 
-              const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString }
+              const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString, bp_confidence: bpEstimate?.confidence || null, spo2_confidence: spo2Result?.confidence || null }
               if (id && !id.startsWith('demo')) {
                 import('../../lib/supabase').then(({ updateVitals }) =>
                   updateVitals(id, payload)
@@ -882,6 +882,7 @@ export default function VitalsCapture() {
         tereHr:          vitals?.hr || null,
         tereRr:          vitals?.rr || null,
         tereSpo2:        spo2Estimate?.estimate || null,
+        hrCandidates:    vitals?.hr_candidates || null,
         rawRppgSignal:   framesForSave ? { frames: framesForSave, fps: fpsForSave } : null,
         deviceInfo:      deviceInfo || null,
         notes:           `patient_contributed · scan_bp=${bpEstimate ? `${bpEstimate.systolic}/${bpEstimate.diastolic}` : 'none'} · source=${bpEstimate?.source || 'none'}`,
