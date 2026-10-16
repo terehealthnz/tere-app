@@ -15,6 +15,7 @@ import InterpreterSourcePanel from '../../components/clinician/InterpreterSource
 import ConsultBreakGlassPrompt from '../../components/clinician/ConsultBreakGlassPrompt'
 import { PrescribeModal } from '../../components/clinician/ConsultModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
+import AccConfirmModal from '../../components/clinician/AccConfirmModal'
 import { isNZ } from '../../lib/region'
 import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
 import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
@@ -260,6 +261,7 @@ export default function ClinicianPatient() {
   // on the current chart surface can flag an injury as ACC at the
   // moment they identify it — before the 24hr claim window drifts.
   const [showAccConvert, setShowAccConvert] = useState(false)
+  const [showAccDecline, setShowAccDecline] = useState(false)
   // Re-issue flow: provider clicks "Re-issue" on a past prescription row →
   // opens PrescribeModal pre-filled with the past script's values. Provider
   // reviews / edits / sends as a fresh script.
@@ -865,6 +867,27 @@ export default function ClinicianPatient() {
               ✓ Converted to ACC — pending admin lodgement
             </div>
           )}
+
+          {/* Inline ACC toggle — undo path for the Complete Encounter popup.
+              If provider mis-answered (or wants to flip pre-close), these
+              buttons expose the two existing modals directly from the chart.
+              Patrick 2026-10-16: no-undo-after-popup was a UX trap. */}
+          {isNZ() && (consult.is_acc === true || consult.acc_eligible === 'yes') && !consult.acc_provider_declined_at && (
+            <button
+              onClick={() => setShowAccDecline(true)}
+              style={{ width:'100%', marginTop:'.5rem', padding:'8px 12px', border:'1.5px solid #CBD5E1', borderRadius:8, background:'white', color:'#475569', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:600, fontSize:'.8125rem' }}
+            >
+              ↩ Not ACC — reclassify (with top-up option)
+            </button>
+          )}
+          {isNZ() && consult.acc_provider_declined_at && consult.is_acc !== true && (
+            <button
+              onClick={() => setShowAccConvert(true)}
+              style={{ width:'100%', marginTop:'.5rem', padding:'8px 12px', border:'1.5px solid #D97706', borderRadius:8, background:'#FFFBEB', color:'#92400E', cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', fontWeight:700, fontSize:'.8125rem' }}
+            >
+              ⚡ Actually this IS ACC — convert back
+            </button>
+          )}
         </div>
 
         {showAccConvert && (
@@ -873,6 +896,17 @@ export default function ClinicianPatient() {
             onClose={() => setShowAccConvert(false)}
             onSuccess={async () => {
               setShowAccConvert(false)
+              try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
+            }}
+          />
+        )}
+
+        {showAccDecline && (
+          <AccConfirmModal
+            consultationId={id}
+            consult={consult}
+            onDecided={async () => {
+              setShowAccDecline(false)
               try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
             }}
           />

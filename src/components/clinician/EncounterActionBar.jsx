@@ -24,21 +24,21 @@ const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const RED  = '#DC2626'
 
-// Decide whether the Complete Encounter click needs to be gated on the
-// provider-ACC-confirmation popup. Fires only when the consult was flagged
-// ACC in triage AND the provider hasn't already answered on this consult.
-// Backfilled rows (both acc_provider_confirmed_at and _declined_at null)
-// get the prompt the first time a provider closes them, which is the right
-// behaviour — forces the first provider interaction with the ACC flag to
-// be an explicit decision.
+// Decide whether the Complete Encounter click needs to gate on the ACC
+// confirmation popup. Fires every time the consult is still flagged ACC
+// AND provider hasn't explicitly converted it themselves — including after
+// a prior answer. Patrick 2026-10-16: previously we skipped if
+// acc_provider_confirmed_at / _declined_at was already stamped (one-shot
+// gate), but that left providers with no way to change their mind at close
+// if they'd mis-answered the earlier popup. Chart-level toggle buttons
+// handle the explicit undo path; this re-fire catches the "I want to
+// reconsider at close" case. Provider-converted (acc_converted_by_provider)
+// consults still skip the popup because the convert flow is an explicit
+// affirmation of ACC — no need to re-ask.
 function needsAccConfirmation(consult) {
   if (!consult) return false
   const flaggedAcc = consult.is_acc === true || consult.acc_eligible === 'yes'
   if (!flaggedAcc) return false
-  if (consult.acc_provider_confirmed_at) return false
-  if (consult.acc_provider_declined_at)  return false
-  // Provider converted this consult to ACC themselves — they've already
-  // affirmed it, no need to re-prompt.
   if (consult.acc_converted_by_provider) return false
   return true
 }
