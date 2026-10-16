@@ -193,6 +193,7 @@ export default function EncounterActionBar({
       {accGateOpen && (
         <AccConfirmModal
           consultationId={consultationId}
+          consult={consult}
           onDecided={() => {
             setAccGateOpen(false)
             // Fire the real completion handler now that the provider has

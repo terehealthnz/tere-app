@@ -8,6 +8,7 @@ import AdminPatients  from '../../pages/clinician/AdminPatients'
 import CreateProviderTaskModal from './CreateProviderTaskModal'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
+import ReclassificationsPanel from './ReclassificationsPanel'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
 import { HpiQueryAudit, Hl7ReceiveAudit, Section22fReport } from './NzHealthAuditPanels'
 import ComplaintThemesPanel from './ComplaintThemesPanel'
@@ -7175,7 +7176,7 @@ function AdminBody() {
               return <><ProviderSessionsPanel /><ResultsFollowupPanel /><EmergencyEscalationsPanel /><PrescribingSurveillancePanel /><PrescriptionTemplatesPanel /><CgmMeetingsPanel /><AuditLogPanel /><ComplaintThemesPanel /><ConflictOfInterestPanel /><HpiQueryAudit /><Hl7ReceiveAudit /><Section22fReport /><ControlledDrugsRegister /><ComplaintsPanel /><IncidentsPanel /><BreachPanel /></>
             case 'hpi':        return <AdminHpiLookupPanel />
             case 'nhi':        return <AdminNhiLookupPanel />
-            case 'acc':        return <AccClaimsSection />
+            case 'acc':        return <><ReclassificationsPanel /><AccClaimsSection /></>
             case 'employers':  return <EmployersPanel />
             case 'support':    return <SupportPanel />
             case 'gp_letters': return <><GpLettersPanel /><RecordForwardPanel /></>
