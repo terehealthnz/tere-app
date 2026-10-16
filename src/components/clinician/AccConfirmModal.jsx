@@ -91,6 +91,13 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
   const diagnosis = consult?.diagnosis || consult?.diagnosis_description || ''
   const nonInjuryHit = diagnosisLooksNonInjury(diagnosis)
 
+  // Employer-paid consults: no differential to collect from the patient
+  // because the employer paid the flat employer rate upfront (WorkIntake
+  // flow). Still need the popup to fire so the ACC flag gets corrected,
+  // but hide the top-up charge/waive/defer radio — it's not applicable.
+  const isEmployerPaid = consult?.consultation_type === 'employee'
+                      || consult?.employer_paid === true
+
   async function submit(decision) {
     if (busy) return
     setBusy(true); setError('')
@@ -102,15 +109,21 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
       }
       if (decision === 'declined') {
         body.declineReason = reason.trim()
-        body.topUpAction = topUpAction
-        if (topUpAction === 'charge') {
-          const cents = Math.round(parseFloat(topUpAmount || '0') * 100)
-          if (!cents || cents < 100) {
-            setError('Top-up amount must be at least $1.00')
-            setBusy(false)
-            return
+        // Employer-paid: no top-up action — server will record status=waived
+        // regardless (nothing to charge the employee for).
+        if (isEmployerPaid) {
+          body.topUpAction = 'waive'
+        } else {
+          body.topUpAction = topUpAction
+          if (topUpAction === 'charge') {
+            const cents = Math.round(parseFloat(topUpAmount || '0') * 100)
+            if (!cents || cents < 100) {
+              setError('Top-up amount must be at least $1.00')
+              setBusy(false)
+              return
+            }
+            body.topUpAmountCents = cents
           }
-          body.topUpAmountCents = cents
         }
       }
       const res = await apiFetch('/api/acc-confirm', {
@@ -182,8 +195,11 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
       <div style={card}>
         <div style={h}>Reclassify as non-ACC</div>
         <p style={sub}>
-          This flips the consult off ACC. Patient paid <strong>{fmtMoney(ACC_COPAY_CENTS)}</strong> (ACC co-pay);
-          standard private rate is <strong>{fmtMoney(PRIVATE_CONSULT_CENTS)}</strong>. Pick what to do with the differential.
+          {isEmployerPaid ? (
+            <>This flips the consult off ACC. <strong>No billing adjustment needed</strong> — the employer paid the flat employer rate upfront, so there's no differential to collect from the patient.</>
+          ) : (
+            <>This flips the consult off ACC. Patient paid <strong>{fmtMoney(ACC_COPAY_CENTS)}</strong> (ACC co-pay); standard private rate is <strong>{fmtMoney(PRIVATE_CONSULT_CENTS)}</strong>. Pick what to do with the differential.</>
+          )}
         </p>
 
         <label style={{ display: 'block', fontSize: '.75rem', fontWeight: 600, color: '#475569', marginBottom: 6 }}>
@@ -198,10 +214,13 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
           autoFocus
         />
 
+        {!isEmployerPaid && (
         <div style={{ fontSize: '.75rem', fontWeight: 600, color: '#475569', margin: '16px 0 6px' }}>
           Differential ({fmtMoney(PRIVATE_CONSULT_CENTS - ACC_COPAY_CENTS)})
         </div>
+        )}
 
+        {!isEmployerPaid && (<>
         <label style={{ ...radioRow, borderColor: topUpAction === 'charge' ? TEAL : BORDER }}>
           <input
             type="radio"
@@ -266,6 +285,7 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
             </div>
           </div>
         </label>
+        </>)}
 
         {error && (
           <div style={{ background: '#FEF2F2', color: RED, padding: '8px 12px', borderRadius: 8, fontSize: '.8125rem', marginTop: 12 }}>

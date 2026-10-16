@@ -27,6 +27,7 @@ export default async function handler(req, res) {
     'id', 'created_at', 'completed_at',
     'patient_first_name', 'patient_name', 'patient_nhi', 'patient_email',
     'provider_id', 'provider_display_name',
+    'consultation_type', 'employer_paid', 'employer_name',
     'acc_provider_declined_at', 'acc_provider_declined_by', 'acc_provider_decline_reason',
     'acc_decline_top_up_status', 'acc_decline_top_up_amount_cents',
     'acc_decline_top_up_session_id', 'acc_decline_top_up_sent_at',

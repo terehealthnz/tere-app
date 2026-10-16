@@ -117,11 +117,19 @@ export default async function handler(req, res) {
 
   // Fetch the current consultation to get patient email + current pricing context.
   const consultRes = await fetch(
-    `${supaUrl}/rest/v1/consultations?id=eq.${consultationId}&select=id,patient_email,patient_first_name,patient_name,payment_amount`,
+    `${supaUrl}/rest/v1/consultations?id=eq.${consultationId}&select=id,patient_email,patient_first_name,patient_name,payment_amount,consultation_type,employer_paid`,
     { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }
   )
   const [consult] = await consultRes.json()
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // Employer-paid guard: employer paid the flat employer rate upfront, so
+  // there's no differential to collect from the patient. Coerce any client
+  // "charge" action to "waive" defensively — even if the modal UI was
+  // bypassed, we must not create a Windcave session or email the employee
+  // asking for money that isn't owed.
+  const isEmployerPaid = consult.consultation_type === 'employee'
+                      || consult.employer_paid === true
 
   const patch = decision === 'confirmed'
     ? {
@@ -144,14 +152,17 @@ export default async function handler(req, res) {
   // Top-up handling (decline path only). Status column lets the admin
   // Reclassifications tab show pending/paid/waived/deferred at a glance.
   let topUpResult = null
-  if (decision === 'declined' && topUpAction) {
-    if (topUpAction === 'waive') {
+  // Defensive coercion for employer-paid: never attempt a Windcave charge
+  // against an employee whose employer has already paid the consult rate.
+  const effectiveTopUpAction = isEmployerPaid && decision === 'declined' ? 'waive' : topUpAction
+  if (decision === 'declined' && effectiveTopUpAction) {
+    if (effectiveTopUpAction === 'waive') {
       patch.acc_decline_top_up_status = 'waived'
       patch.acc_decline_top_up_amount_cents = 0
-    } else if (topUpAction === 'defer') {
+    } else if (effectiveTopUpAction === 'defer') {
       patch.acc_decline_top_up_status = 'deferred'
       patch.acc_decline_top_up_amount_cents = PRIVATE_CONSULT_CENTS - (consult.payment_amount || 2500)
-    } else if (topUpAction === 'charge') {
+    } else if (effectiveTopUpAction === 'charge') {
       try {
         const session = await createTopUpSession({
           consultationId,

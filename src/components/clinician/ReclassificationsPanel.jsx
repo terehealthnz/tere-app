@@ -120,7 +120,11 @@ export default function ReclassificationsPanel() {
                   <td style={{ padding: '8px 12px', color: NAVY, fontWeight: 600 }}>{mask(r.patient_name || r.patient_first_name)}</td>
                   <td style={{ padding: '8px 12px', color: '#475569' }}>{r.declined_by_name || r.provider_display_name || '—'}</td>
                   <td style={{ padding: '8px 12px', color: '#475569', maxWidth: 320 }}>{r.acc_provider_decline_reason || '—'}</td>
-                  <td style={{ padding: '8px 12px', color: '#475569', whiteSpace: 'nowrap' }}>{fmtMoney(r.acc_decline_top_up_amount_cents)}</td>
+                  <td style={{ padding: '8px 12px', color: '#475569', whiteSpace: 'nowrap' }}>
+                    {(r.consultation_type === 'employee' || r.employer_paid)
+                      ? <span style={pill('#E0F2FE', '#075985')}>employer-paid</span>
+                      : fmtMoney(r.acc_decline_top_up_amount_cents)}
+                  </td>
                   <td style={{ padding: '8px 12px' }}>
                     <span style={STATUS_STYLES[r.acc_decline_top_up_status || 'null']}>{r.acc_decline_top_up_status || 'none'}</span>
                   </td>
