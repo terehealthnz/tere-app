@@ -78,13 +78,22 @@ async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents,
   const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
   const pdfBuffer = await buildAccInvoicePdf({
     patientName,
-    patientNhi:      consult.patient_nhi,
+    patientNhi:          consult.patient_nhi,
+    patientDob:          consult.patient_dob,
     claimNumber,
     serviceCode,
     amountCents,
     providerName,
     providerHpi,
-    dateOfService:   consult.completed_at || consult.created_at,
+    dateOfService:       consult.completed_at || consult.created_at,
+    // Diagnosis + injury context — required by ACC's billing engine to match
+    // the invoice line against the claim's registered injury. Pulled from
+    // ConvertToAccModal's capture (acc_icd10_code / description / body_part /
+    // injury_date on the consultation row).
+    accIcd10Code:        consult.acc_icd10_code,
+    accIcd10Description: consult.acc_icd10_description,
+    accBodyPart:         consult.acc_body_part,
+    accInjuryDate:       consult.acc_injury_date,
   })
   const pdfBase64 = pdfBuffer.toString('base64')
   const invoiceRef = `Invoice ${claimNumber} — ${patientName}`

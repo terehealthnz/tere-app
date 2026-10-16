@@ -627,28 +627,69 @@ export function buildAccInvoicePdf(data) {
       .text('AMOUNT NZD',           RIGHT - 90, y + 6, { width: 82, align: 'right' })
     y += 26
 
-    // Client line 1: name + claim number
+    // Client identity block — name, claim #, NHI, DOB. ACC uses NHI + DOB
+    // as the identity fallback if the claim number lookup fails (common with
+    // typo'd claim #s). Both fields are needed for a clean match.
     doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
       .text(data.patientName || '(client name)', LEFT + 8, y)
     doc.font('Helvetica').fontSize(9).fillColor('#374151')
       .text(`Claim #: ${data.claimNumber || '(pending — patient-supplied)'}`, LEFT + 8, y + 14)
-    if (data.patientNhi) doc.text(`NHI: ${data.patientNhi}`, LEFT + 8, y + 27)
+    let identityY = y + 27
+    if (data.patientNhi) {
+      doc.text(`NHI: ${data.patientNhi}`, LEFT + 8, identityY)
+      identityY += 13
+    }
+    if (data.patientDob) {
+      doc.text(`DOB: ${nzDate(data.patientDob)}`, LEFT + 8, identityY)
+      identityY += 13
+    }
 
     doc.fillColor('#1A2A33').font('Helvetica').fontSize(9)
       .text(nzDate(data.dateOfService), 280, y + 4)
       .text(data.serviceCode || '—',    400, y + 4)
       .text(`$${amountDollars}`,        RIGHT - 90, y + 4, { width: 82, align: 'right' })
-    y += 48
+    y = Math.max(y + 48, identityY + 8)
 
-    // Service description
+    // Service description + clinician identity (HPI-CPN required so ACC can
+    // validate scope-of-practice against the treating clinician, not just
+    // the vendor).
     doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#E5E7EB').lineWidth(0.5).stroke()
     y += 8
     const svcLabel = data.serviceCode === 'MST3' ? 'Follow-up specialist telehealth consultation'
                     : data.serviceCode === 'MST1' ? 'Initial specialist telehealth consultation'
                     : 'Specialist telehealth consultation'
     doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Service: ${svcLabel}`, LEFT + 8, y)
-    doc.text(`Clinician: ${data.providerName || 'Tere Health provider'}${data.providerHpi ? ` · HPI ${data.providerHpi}` : ''}`, LEFT + 8, y + 14)
-    y += 40
+    doc.text(`Clinician: ${data.providerName || 'Tere Health provider'}${data.providerHpi ? ` · HPI-CPN ${data.providerHpi}` : ''}`, LEFT + 8, y + 14)
+    y += 32
+
+    // Injury / diagnosis block — ACC's billing engine matches the invoice
+    // line against the claim's registered diagnosis + body part. Without the
+    // ICD-10 code + body part the invoice goes to manual review (14-28 day
+    // delay) or silent decline. ACC45 lodgement would carry the full
+    // mechanism + history; this invoice carries the coded version only.
+    if (data.accIcd10Code || data.accBodyPart || data.accInjuryDate) {
+      doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#E5E7EB').lineWidth(0.5).stroke()
+      y += 8
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0D2B45').text('Injury & diagnosis', LEFT + 8, y)
+      y += 14
+      doc.font('Helvetica').fontSize(9).fillColor('#374151')
+      if (data.accIcd10Code) {
+        const codeLine = `ICD-10: ${data.accIcd10Code}${data.accIcd10Description ? ` — ${data.accIcd10Description}` : ''}`
+        doc.text(codeLine, LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+        y += 14
+      }
+      if (data.accBodyPart) {
+        doc.text(`Body part: ${data.accBodyPart}`, LEFT + 8, y)
+        y += 14
+      }
+      if (data.accInjuryDate) {
+        doc.text(`Date of injury: ${nzDate(data.accInjuryDate)}`, LEFT + 8, y)
+        y += 14
+      }
+      y += 6
+    } else {
+      y += 8
+    }
 
     // Total
     doc.rect(LEFT, y, RIGHT - LEFT, 30).fill('#F0F9FA')

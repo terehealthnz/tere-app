@@ -100,6 +100,14 @@ export default function AccConfirmModal({ consultationId, consult, onDecided }) 
 
   async function submit(decision) {
     if (busy) return
+    // ACC diagnosis gate: confirming an ACC consult requires an ICD-10 code
+    // on the row — ACC's billing engine matches invoice lines against the
+    // claim's registered diagnosis. Closing without it means silent decline
+    // or 14-28 day manual review. Patrick 2026-10-16.
+    if (decision === 'confirmed' && !consult?.acc_icd10_code) {
+      setError('ACC consult needs an ICD-10 diagnosis code before closing. Open the ACC details panel on this consult\'s chart (Convert to ACC → ACC ICD-10 picker) and add it, then return here.')
+      return
+    }
     setBusy(true); setError('')
     try {
       const body = {
