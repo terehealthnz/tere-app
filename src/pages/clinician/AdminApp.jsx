@@ -257,6 +257,127 @@ function DashboardTab() {
 
 // ── Analytics tab ─────────────────────────────────────────────────────────────
 
+// Operations funnel panel (task #582). Pulls /api/consult-funnel and renders
+// a horizontal step-reach bar + a severity-flagged drop-off table so an admin
+// can see at a glance where patients bail and rescue the acute ones. Separate
+// from AnalyticsTab's revenue stats which only count completed consults.
+function FunnelPanel({ days }) {
+  const navigate = useNavigate()
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const r = await apiFetch(`/api/consult-funnel?days=${days}`)
+        const j = await r.json()
+        if (!cancelled) setData(j)
+      } catch { if (!cancelled) setData(null) }
+      finally { if (!cancelled) setLoading(false) }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [days])
+
+  if (loading) return (
+    <div style={{ background:'white', borderRadius:12, border:'1px solid #E2E8F0', padding:'1.5rem', marginBottom:'1rem', textAlign:'center' }}>
+      <div className="spinner" style={{ borderColor:'rgba(11,110,118,.15)', borderTopColor:TEAL }} />
+    </div>
+  )
+  if (!data || !data.funnel) return null
+
+  const funnel = data.funnel
+  const total = data.total || 0
+  const dropOffs = data.drop_offs || []
+  const severityCount = dropOffs.filter(d => d.severity_flag).length
+
+  return (
+    <div style={{ marginBottom:'1rem' }}>
+      {/* Funnel bars */}
+      <div style={{ background:'white', borderRadius:12, border:'1px solid #E2E8F0', overflow:'hidden', marginBottom:'1rem' }}>
+        <div style={{ padding:'.875rem 1rem', borderBottom:'1px solid #F3F4F6', fontWeight:700, color:NAVY, fontSize:'.9375rem', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span>Consultation funnel</span>
+          <span style={{ fontSize:'.75rem', fontWeight:500, color:'#6B7280' }}>{total} started · last {days}d</span>
+        </div>
+        <div style={{ padding:'1rem' }}>
+          {funnel.map((f, i) => {
+            const barWidth = total > 0 ? Math.round((f.reached / total) * 100) : 0
+            const dropBad = f.drop_pct_vs_previous >= 20
+            return (
+              <div key={f.step} style={{ marginBottom: i < funnel.length - 1 ? '.75rem' : 0 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.75rem', marginBottom:3, color:'#374151' }}>
+                  <span style={{ fontWeight:600 }}>{f.label}</span>
+                  <span>
+                    <strong style={{ color:NAVY }}>{f.reached}</strong>
+                    <span style={{ color:'#9CA3AF' }}> ({f.completed_pct}%)</span>
+                    {i > 0 && f.drop_pct_vs_previous > 0 && (
+                      <span style={{ color:dropBad?'#DC2626':'#9CA3AF', marginLeft:8, fontSize:'.6875rem' }}>
+                        −{f.drop_pct_vs_previous}%
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div style={{ height:10, background:'#F3F4F6', borderRadius:5, overflow:'hidden' }}>
+                  <div style={{ width:`${barWidth}%`, height:'100%', background:TEAL, transition:'width .3s' }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Drop-off list */}
+      <div style={{ background:'white', borderRadius:12, border:'1px solid #E2E8F0', overflow:'hidden' }}>
+        <div style={{ padding:'.875rem 1rem', borderBottom:'1px solid #F3F4F6', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+          <span style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>Abandoned consults</span>
+          <span style={{ fontSize:'.75rem', color:'#6B7280' }}>
+            {dropOffs.length} total
+            {severityCount > 0 && (
+              <span style={{ color:'#DC2626', fontWeight:700, marginLeft:8 }}>⚠ {severityCount} severity-flagged</span>
+            )}
+          </span>
+        </div>
+        {dropOffs.length === 0 ? (
+          <div style={{ padding:'2rem', textAlign:'center', color:'#9CA3AF', fontSize:'.875rem' }}>
+            No abandoned consults in this window.
+          </div>
+        ) : dropOffs.map((d, i) => (
+          <div key={d.consultation_id} style={{ padding:'.875rem 1rem', borderBottom:i<dropOffs.length-1?'1px solid #F9FAFB':'none', background:d.severity_flag?'#FEF2F2':'white' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.75rem' }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:2 }}>
+                  {d.severity_flag && <span style={{ background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:3 }}>⚠ SEVERITY</span>}
+                  <span style={{ fontWeight:700, color:NAVY, fontSize:'.875rem' }}>{d.patient_name || '— no patient linked —'}</span>
+                  <span style={{ fontSize:'.6875rem', color:'#6B7280' }}>stopped at <strong style={{ color:'#991B1B' }}>{d.last_step_label || d.last_step}</strong></span>
+                </div>
+                {d.chief_complaint && (
+                  <div style={{ fontSize:'.75rem', color:'#374151', marginBottom:3, lineHeight:1.4 }}>
+                    "{d.chief_complaint.length > 160 ? d.chief_complaint.slice(0,160)+'…' : d.chief_complaint}"
+                  </div>
+                )}
+                <div style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>
+                  {d.hours_since < 24 ? `${d.hours_since}h ago` : `${Math.round(d.hours_since/24)}d ago`}
+                  {d.patient_phone && <> · <a href={`tel:${d.patient_phone}`} style={{ color:TEAL, textDecoration:'none' }}>{d.patient_phone}</a></>}
+                  {d.patient_email && <> · {d.patient_email}</>}
+                </div>
+              </div>
+              {d.patient_id && (
+                <button
+                  onClick={() => navigate(`/clinician/patient/${d.patient_id}`)}
+                  style={{ background:'white', border:`1.5px solid ${TEAL}`, color:TEAL, borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:700, cursor:'pointer', fontFamily:FF, flexShrink:0 }}>
+                  Open chart
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AnalyticsTab() {
   const [range, setRange] = useState(7)
   const [data, setData] = useState([])
@@ -321,6 +442,11 @@ function AnalyticsTab() {
           </button>
         ))}
       </div>
+
+      {/* Operations funnel — all consults in range, not just completed. Shows
+          every patient's journey + abandonment, independent of the revenue
+          stats below (which are completed-only). */}
+      <FunnelPanel days={range} />
 
       {loading ? (
         <div style={{ textAlign:'center', padding:'3rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.15)', borderTopColor:TEAL }} /></div>

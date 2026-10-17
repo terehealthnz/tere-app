@@ -73,6 +73,9 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // WRITE side (patient-event) stays anon so the patient's browser can
   // fire beacons without a session; the READ side is admin-only.
   'patient-funnel',
+  // Operations consultation funnel — per-consult drop-off classification +
+  // severity-flagged abandoned list for admin rescue (task #582).
+  'consult-funnel',
   // Provider inbox: GET returns caller's own broadcasts + targeted notifications,
   // POST broadcasts (admin only), PATCH marks read. Server infers provider from
   // auth — client-supplied providerId is ignored (task #563).
@@ -413,6 +416,7 @@ const ROUTES = {
   'patient-support':           () => import('./_patient-support.js'),
   'patient-event':             () => import('./_patient-event.js'),
   'patient-funnel':            () => import('./_patient-funnel.js'),
+  'consult-funnel':            () => import('./_consult-funnel.js'),
   'patient-stuck-alert':       () => import('./_patient-stuck-alert.js'),
   'check-payment-status':      () => import('./_check-payment-status.js'),
   'cron-promote-stuck-drafts': () => import('./_cron-promote-stuck-drafts.js'),
