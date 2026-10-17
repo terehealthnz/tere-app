@@ -320,12 +320,49 @@ function PatientProfile({ patientId, onClose, onMerge }) {
                     ➕ Task from this consult
                   </button>
                 </div>
-                {expandedId === c.id && c.notes_final && (
-                  <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>
-                    <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.5rem 0 .25rem' }}>Finalised notes</div>
-                    <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{c.notes_final}</div>
-                  </div>
-                )}
+                {expandedId === c.id && c.notes_final && (() => {
+                  // notes_final is a JSON string carrying { noteText, actions,
+                  // safetyNet, workCapacity, ... }. Dumping it raw leaked
+                  // the whole blob (JSON braces, escaped \n, trailing
+                  // workCapacity fields) into the chart. Parse → render
+                  // noteText + a short structured summary; fall back to raw
+                  // only if parse fails (legacy plain-text notes).
+                  let parsed = null
+                  try { parsed = JSON.parse(c.notes_final) } catch {}
+                  const noteText = parsed?.noteText || (typeof c.notes_final === 'string' && !c.notes_final.startsWith('{') ? c.notes_final : null)
+                  const actions = Array.isArray(parsed?.actions) ? parsed.actions : []
+                  const safety = parsed?.safetyNet?.text || null
+                  return (
+                    <div style={{ padding: '0 1rem 1rem', borderTop: '1px solid #E2E8F0' }}>
+                      <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', margin: '.5rem 0 .25rem' }}>Finalised notes</div>
+                      {noteText ? (
+                        <div style={{ fontSize: '.875rem', color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{noteText}</div>
+                      ) : (
+                        <div style={{ fontSize: '.8125rem', color: '#9CA3AF', fontStyle: 'italic' }}>No narrative — see actions below.</div>
+                      )}
+                      {actions.length > 0 && (
+                        <div style={{ marginTop: '.75rem' }}>
+                          <div style={{ fontSize: '.6875rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem' }}>Actions</div>
+                          {actions.map((a, i) => (
+                            <div key={i} style={{ fontSize: '.8125rem', color: '#374151', marginBottom: 2 }}>
+                              {a.type === 'prescription'
+                                ? `💊 ${a.drug || 'Rx'}${a.directions ? ' — ' + a.directions : ''}${a.pharmacy ? ' → ' + a.pharmacy : ''}`
+                                : a.type === 'referral'
+                                  ? `🩻 ${a.scan_type || a.body_part || 'Referral'}${a.clinic ? ' → ' + a.clinic : ''}`
+                                  : `• ${a.type || 'action'}${a.drug ? ': ' + a.drug : ''}`}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {safety && (
+                        <div style={{ marginTop: '.75rem', padding: '.5rem .75rem', background: '#FFFBEB', borderRadius: 6, borderLeft: '3px solid #F59E0B' }}>
+                          <div style={{ fontSize: '.6875rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: '.25rem' }}>Safety-netting</div>
+                          <div style={{ fontSize: '.8125rem', color: '#78350F', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{safety}</div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
