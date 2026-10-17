@@ -145,6 +145,29 @@ function ymdAdd(ymd, days) {
 }
 
 export default async function handler(req, res) {
+  // POST — dismiss (or re-flag) a severity-flagged abandoned consult after
+  // an admin has acted on it (called the patient, confirmed outcome, etc.).
+  // Body: { action: 'dismiss' | 'undismiss', consultation_id }
+  if (req.method === 'POST') {
+    const body = typeof req.body === 'object' && req.body !== null ? req.body : {}
+    const action = String(body.action || '').toLowerCase()
+    const consultationId = String(body.consultation_id || '').trim()
+    if (!['dismiss','undismiss'].includes(action)) {
+      return res.status(400).json({ error: 'action must be dismiss or undismiss' })
+    }
+    if (!/^[0-9a-f-]{36}$/i.test(consultationId)) {
+      return res.status(400).json({ error: 'valid consultation_id required' })
+    }
+    const providerId = req.auth?.provider?.id || null
+    const patch = action === 'dismiss'
+      ? { funnel_dismissed_at: new Date().toISOString(), funnel_dismissed_by: providerId }
+      : { funnel_dismissed_at: null, funnel_dismissed_by: null }
+    const { error: upErr } = await admin().from('consultations')
+      .update(patch).eq('id', consultationId)
+    if (upErr) return res.status(500).json({ error: upErr.message })
+    return res.status(200).json({ ok: true, action, consultation_id: consultationId })
+  }
+
   if (req.method !== 'GET') return res.status(405).end()
 
   // Resolve window — explicit from/to takes precedence, otherwise rolling days.
@@ -176,7 +199,7 @@ export default async function handler(req, res) {
   // classification and drop-off rescue contact. Exclude practice-mode rows —
   // they're training sandbox and would skew the numbers.
   const { data: rows, error } = await supabase.from('consultations')
-    .select('id, patient_id, status, created_at, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, chief_complaint, is_practice')
+    .select('id, patient_id, status, created_at, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, chief_complaint, is_practice, funnel_dismissed_at')
     .gte('created_at', windowStartIso)
     .lt('created_at', windowEndIso)
     .order('created_at', { ascending: false })
@@ -214,7 +237,12 @@ export default async function handler(req, res) {
   // Drop-off list — abandoned consults, severity-flagged first, then most-
   // recent. Only pull patient contact fields for abandoned rows (keeps the
   // query cheap for the happy path).
-  const abandonedRows = real.filter(c => classify(c).isAbandoned)
+  // Dismissed consults don't appear in the abandoned list unless the client
+  // asks for them explicitly (toggle in the UI). They still count in the
+  // funnel bars — the dismissal is only about the rescue action, not the
+  // conversion metric.
+  const showDismissed = req.query.show_dismissed === 'true'
+  const abandonedRows = real.filter(c => classify(c).isAbandoned && (showDismissed || !c.funnel_dismissed_at))
   const patientIds = [...new Set(abandonedRows.map(c => c.patient_id).filter(Boolean))]
   let patientById = new Map()
   if (patientIds.length > 0) {
@@ -232,6 +260,7 @@ export default async function handler(req, res) {
     return {
       consultation_id: c.id,
       patient_id: c.patient_id || null,
+      dismissed: !!c.funnel_dismissed_at,
       patient_name: p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : null,
       patient_phone: p?.phone_mobile || null,
       patient_email: p?.email || null,

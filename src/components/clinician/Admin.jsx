@@ -6506,23 +6506,42 @@ function FunnelPanel() {
 
   const [from, setFrom] = React.useState(nzToday)
   const [to,   setTo]   = React.useState(nzToday)
+  const [showDismissed, setShowDismissed] = React.useState(false)
   const [data, setData] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
+  // Local set of consult_ids optimistically dismissed/undismissed since last
+  // fetch, so the row vanishes/returns instantly without waiting on reload.
+  const [pendingDismiss, setPendingDismiss] = React.useState(new Set())
 
-  React.useEffect(() => {
-    let cancelled = false
-    async function load() {
-      setLoading(true)
-      try {
-        const r = await apiFetch(`/api/consult-funnel?from=${from}&to=${to}`)
-        const j = await r.json()
-        if (!cancelled) setData(j)
-      } catch { if (!cancelled) setData(null) }
-      finally { if (!cancelled) setLoading(false) }
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const q = `from=${from}&to=${to}${showDismissed ? '&show_dismissed=true' : ''}`
+      const r = await apiFetch(`/api/consult-funnel?${q}`)
+      const j = await r.json()
+      setData(j)
+      setPendingDismiss(new Set())
+    } catch { setData(null) }
+    finally { setLoading(false) }
+  }, [from, to, showDismissed])
+
+  React.useEffect(() => { reload() }, [reload])
+
+  async function dismiss(consultationId, action = 'dismiss') {
+    // Optimistic: drop the row immediately
+    setPendingDismiss(prev => new Set(prev).add(consultationId))
+    try {
+      await apiFetch('/api/consult-funnel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, consultation_id: consultationId }),
+      })
+    } catch {
+      // On failure, undo the optimistic hide
+      setPendingDismiss(prev => { const s = new Set(prev); s.delete(consultationId); return s })
+      alert('Failed to update — please retry.')
     }
-    load()
-    return () => { cancelled = true }
-  }, [from, to])
+  }
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
   const NAVY = '#0D2B45'
@@ -6530,8 +6549,11 @@ function FunnelPanel() {
 
   const funnel = data?.funnel || []
   const total = data?.total || 0
-  const dropOffs = data?.drop_offs || []
-  const severityCount = dropOffs.filter(d => d.severity_flag).length
+  // Hide optimistically-dismissed rows (and show optimistically-undismissed
+  // when user toggled "show dismissed"). The next reload reconciles.
+  const rawDropOffs = data?.drop_offs || []
+  const dropOffs = rawDropOffs.filter(d => !pendingDismiss.has(d.consultation_id))
+  const severityCount = dropOffs.filter(d => d.severity_flag && !d.dismissed).length
 
   // Which preset (if any) does the current from/to match?
   const activePreset = (from === nzToday && to === nzToday)
@@ -6598,25 +6620,35 @@ function FunnelPanel() {
 
           {/* Drop-off list */}
           <div style={{ borderTop:'1px solid #F3F4F6', paddingTop:'1rem' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.75rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.75rem', flexWrap:'wrap', gap:'.5rem' }}>
               <span style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>Abandoned consults</span>
-              <span style={{ fontSize:'.75rem', color:'#6B7280' }}>
-                {dropOffs.length} total
-                {severityCount > 0 && (
-                  <span style={{ color:'#DC2626', fontWeight:700, marginLeft:8 }}>⚠ {severityCount} severity-flagged</span>
-                )}
+              <span style={{ fontSize:'.75rem', color:'#6B7280', display:'flex', alignItems:'center', gap:12 }}>
+                <span>
+                  {dropOffs.length} shown
+                  {severityCount > 0 && (
+                    <span style={{ color:'#DC2626', fontWeight:700, marginLeft:8 }}>⚠ {severityCount} severity-flagged</span>
+                  )}
+                </span>
+                <label style={{ display:'flex', alignItems:'center', gap:4, cursor:'pointer', userSelect:'none' }}>
+                  <input type="checkbox" checked={showDismissed} onChange={e => setShowDismissed(e.target.checked)} style={{ cursor:'pointer' }} />
+                  Show dismissed
+                </label>
               </span>
             </div>
             {dropOffs.length === 0 ? (
               <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'.875rem' }}>No abandoned consults.</div>
             ) : (
               <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
-                {dropOffs.map(d => (
-                  <div key={d.consultation_id} style={{ padding:'.75rem 1rem', background:d.severity_flag?'#FEF2F2':'#F8FAFC', borderRadius:8, border:`1px solid ${d.severity_flag?'#FECACA':'#E2E8F0'}` }}>
+                {dropOffs.map(d => {
+                  const bg = d.dismissed ? '#F9FAFB' : (d.severity_flag ? '#FEF2F2' : '#F8FAFC')
+                  const border = d.dismissed ? '#E5E7EB' : (d.severity_flag ? '#FECACA' : '#E2E8F0')
+                  return (
+                  <div key={d.consultation_id} style={{ padding:'.75rem 1rem', background:bg, borderRadius:8, border:`1px solid ${border}`, opacity:d.dismissed?0.6:1 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.75rem', flexWrap:'wrap' }}>
                       <div style={{ flex:1, minWidth:200 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3, flexWrap:'wrap' }}>
-                          {d.severity_flag && <span style={{ background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:3 }}>⚠ SEVERITY</span>}
+                          {d.dismissed && <span style={{ background:'#6B7280', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:3 }}>DISMISSED</span>}
+                          {d.severity_flag && !d.dismissed && <span style={{ background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:3 }}>⚠ SEVERITY</span>}
                           <span style={{ fontWeight:700, color:NAVY, fontSize:'.9rem' }}>{d.patient_name || '— no patient linked —'}</span>
                           <span style={{ fontSize:'.75rem', color:'#6B7280' }}>stopped at <strong style={{ color:'#991B1B' }}>{d.last_step_label || d.last_step}</strong></span>
                         </div>
@@ -6631,16 +6663,34 @@ function FunnelPanel() {
                           {d.patient_email && <> · {d.patient_email}</>}
                         </div>
                       </div>
-                      {d.patient_id && (
-                        <button
-                          onClick={() => navigate(`/clinician/patient/${d.patient_id}`)}
-                          style={{ background:'white', border:`1.5px solid ${TEAL}`, color:TEAL, borderRadius:8, padding:'5px 10px', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', flexShrink:0 }}>
-                          Open chart
-                        </button>
-                      )}
+                      <div style={{ display:'flex', flexDirection:'column', gap:4, flexShrink:0 }}>
+                        {d.patient_id && (
+                          <button
+                            onClick={() => navigate(`/clinician/patient/${d.patient_id}`)}
+                            style={{ background:'white', border:`1.5px solid ${TEAL}`, color:TEAL, borderRadius:8, padding:'5px 10px', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                            Open chart
+                          </button>
+                        )}
+                        {d.dismissed ? (
+                          <button
+                            onClick={() => dismiss(d.consultation_id, 'undismiss')}
+                            title="Restore to active list"
+                            style={{ background:'white', border:'1.5px solid #9CA3AF', color:'#6B7280', borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:600, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                            ↩ Restore
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => dismiss(d.consultation_id, 'dismiss')}
+                            title="Mark as handled — removes from active list"
+                            style={{ background:'white', border:'1.5px solid #E2E8F0', color:'#6B7280', borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:600, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                            ✓ Dismiss
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
