@@ -130,8 +130,7 @@ const DIVERT_KEYWORDS = [
 // Deliberately NOT applied to mental-health, addiction or controlled-med
 // checks — false-negative on those is a much worse outcome than a false
 // positive, and negated phrasings like "I don't want to die" are edge
-// cases best handled by the AI triage classifier + the always-visible
-// "I'm worried" catch-all (task #431).
+// cases handled by the explicit keyword lists above.
 function stripNegatedSpans(text) {
   return String(text || '').replace(
     /\b(?:no|not|without|denies?|absent|isn'?t|doesn'?t\s+have)\s+[a-z][^.,;!?\n]*/gi,
@@ -2169,23 +2168,6 @@ export default function AITriage() {
           <button onClick={handleSend} disabled={!input.trim()} style={{background:'var(--teal)',border:'none',borderRadius:12,padding:'10px 16px',cursor:'pointer',flexShrink:0,color:'white',fontWeight:700,fontSize:'1rem',opacity:!input.trim()?0.5:1}}>↑</button>
         </div>
         )}
-        {/* Task #431 — catch-all "I'm worried" divert trigger. Kept as a
-            subtle text link (not a loud amber banner) so the chat UX
-            doesn't feel emergency-flavored on every question. Still
-            one-click reachable — closes the gap where atypical
-            phrasing ("something feels wrong", "I feel like something's
-            wrong") would miss keyword detection. */}
-        <div style={{marginTop:6,textAlign:'center'}}>
-          <button
-            onClick={() => {
-              logEscalation({ escalation_type: 'divert_ed', matched_flags: ['patient_worried'], consultationId: data.consultation_id })
-                .then(r => setEscalationInfo(r))
-              setEmergency('divert')
-            }}
-            style={{background:'transparent',border:'none',color:'#78350F',padding:'.25rem .5rem',cursor:'pointer',fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.75rem',fontWeight:500,textDecoration:'underline',textDecorationStyle:'dotted',textUnderlineOffset:3}}>
-            Something feels wrong? Get help now
-          </button>
-        </div>
       </div>
 </div>
   )
