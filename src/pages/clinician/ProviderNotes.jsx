@@ -9,6 +9,7 @@ import ConfirmAccModal from '../../components/clinician/ConfirmAccModal'
 import AccIcd10Picker from '../../components/clinician/AccIcd10Picker'
 import { isNZ } from '../../lib/region'
 import { SAFETY_NET_TEMPLATES, SAFETY_NET_MIN_CHARS } from '../../lib/safetyNettingTemplates'
+import { abnormalVitals, INTERPRETATION_STATUSES, interpretationSentence } from '../../lib/vitalsAbnormal'
 import { getRrDisplay } from '../../lib/rrDisplay'
 
 // Continuity-of-care GP autocomplete — hits /api/gp-directory as provider
@@ -449,6 +450,13 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // to the patient. HDC Right 6 evidence.
   const [safetyNetTemplateId, setSafetyNetTemplateId] = useState('')
   const [safetyNetText,       setSafetyNetText]       = useState('')
+
+  // Vital interpretations — one per abnormal vital. Keyed by vital key
+  // (hr/rr/spo2/bp). Shape: { [key]: { status, reason } }. Hydrated from
+  // consult.vital_interpretations on load, persisted on finalise + inlined
+  // into the SOAP noteText assessment so the clinical reasoning sits in the
+  // narrative that goes to GP, patient, ACC.
+  const [vitalInterps, setVitalInterps] = useState({})
   // AI-recommended safety-netting (diagnosis-specific). Populated by
   // /api/generate-notes when it extracts a clinical impression. Provider
   // sees this as an amber chip above the templates picker; one-click
@@ -606,6 +614,11 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         const data = await loadWithRetry()
         setConsult(data)
         setActualMethod(data.consultation_type || sessionStorage.getItem('consultationType') || 'video')
+        // Hydrate any prior vital interpretations (returning to a draft or
+        // re-opening a finalised note). Shape: { [key]: { status, reason, ... } }
+        if (data.vital_interpretations && typeof data.vital_interpretations === 'object') {
+          setVitalInterps(data.vital_interpretations)
+        }
 
         // Refresh HNZ NHI snapshot for deceased/mismatch gates on Rx + XR.
         if (data?.patient_nhi) {
@@ -1004,6 +1017,24 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
 
   async function finalise() {
     if (!canFinalise) return
+
+    // Soft warn (Patrick 2026-10-17): if any abnormal vital is uninterpreted,
+    // confirm before proceeding. Provider can click through — we don't want
+    // to be ACC-ICD-10-hard-gate for this because the provider may already
+    // know the answer and not want to retype it. The audit trail of the
+    // interpretations (persisted on consult + injected into noteText) is the
+    // material thing; the warn is just a nudge.
+    const abn = abnormalVitals(consult?.vitals)
+    const uninterpreted = abn.filter(a => !vitalInterps[a.key]?.status)
+    if (uninterpreted.length > 0) {
+      const list = uninterpreted.map(a => `  • ${a.label} ${a.value} (${a.reason})`).join('\n')
+      const ok = window.confirm(
+        `You haven't interpreted ${uninterpreted.length} abnormal vital${uninterpreted.length === 1 ? '' : 's'}:\n\n${list}\n\n` +
+        `Close the encounter without interpretation?\n\n(Click Cancel to go back and tag each one as Confirmed / Likely artefact / Noted.)`
+      )
+      if (!ok) return
+    }
+
     setFinalising(true)
 
     // Flat pricing — 'consult' unified type is $65; legacy video/phone rows
@@ -1042,7 +1073,28 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
       const durationSec  = consult.consultation_duration_seconds ||
         (consult.started_at ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null)
 
-      const finalNote = { noteText, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current, safetyNet: { templateId: safetyNetTemplateId || 'custom', text: (safetyNetText || '').trim() } }
+      // Build the vital-interpretation persistence record + the sentences
+      // to inject into noteText. One line per interpreted abnormal vital,
+      // appended under a "Vitals interpretation" subheading so GP + patient
+      // + ACC reviewers see the clinical reasoning in the narrative.
+      const interpSentences = []
+      const persistedInterps = {}
+      for (const a of abn) {
+        const interp = vitalInterps[a.key]
+        if (!interp?.status) continue
+        persistedInterps[a.key] = {
+          ...interp,
+          abnormal: `${a.label} ${a.value}`,
+          interpreted_at: now,
+          interpreted_by: providerName || null,
+        }
+        interpSentences.push(interpretationSentence(a, interp))
+      }
+      const noteTextWithInterps = interpSentences.length
+        ? `${noteText}\n\nVitals interpretation:\n${interpSentences.map(s => '• ' + s).join('\n')}`
+        : noteText
+
+      const finalNote = { noteText: noteTextWithInterps, workCapacity, dutyLevel, workLimitation, returnDate, accReadCode, accSection:{ mechanism:accMechanism, bodyPart:accBodyPart }, outcome, providerName, attestedAt:now, actions:actionsRef.current, safetyNet: { templateId: safetyNetTemplateId || 'custom', text: (safetyNetText || '').trim() }, vitalInterpretations: persistedInterps }
 
       try {
         await updateConsultation(id, {
@@ -1068,6 +1120,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           continuity_notes:           contNotes.trim() || null,
           continuity_patient_told:    !!contPatientTold,
           continuity_captured_at:     now,
+          vital_interpretations:      Object.keys(persistedInterps).length ? persistedInterps : null,
         })
       } catch (updateErr) { throw updateErr }
       setStep(0, { status: 'done' })
@@ -1949,6 +2002,56 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
             />
           )
         )}
+
+        {/* Abnormal-vitals interpretation (Patrick 2026-10-17). Appears
+            only when at least one camera-estimated vital is outside adult
+            reference range. Soft-warn at finalise if uninterpreted; the
+            provider's chosen status + reason auto-inject into noteText as
+            a "Vitals interpretation" block so the clinical reasoning sits
+            in the narrative visible to GP + patient + ACC. */}
+        {(() => {
+          const abn = abnormalVitals(consult?.vitals)
+          if (abn.length === 0) return null
+          const allInterpreted = abn.every(a => vitalInterps[a.key]?.status)
+          return (
+            <div style={{ background:'white', borderRadius:14, padding:'1.25rem', marginBottom:12, border:`1.5px solid ${allInterpreted ? '#BBF7D0' : '#FECACA'}` }}>
+              <label style={{ fontSize:'.6875rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.05em', color:'#9CA3AF', display:'block', marginBottom:10 }}>
+                Abnormal vitals interpretation {!isFinalised && <span style={{ color:'#DC2626' }}>*</span>}
+                <span style={{ color:'#9CA3AF', fontWeight:400, textTransform:'none', letterSpacing:0, marginLeft:8 }}>
+                  — camera estimates outside reference range; tag each and add a short reason
+                </span>
+              </label>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {abn.map(a => {
+                  const current = vitalInterps[a.key] || {}
+                  return (
+                    <div key={a.key} style={{ padding:'.75rem .875rem', background:'#FFFBEB', borderRadius:10, border:'1px solid #FDE68A' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8, flexWrap:'wrap' }}>
+                        <span style={{ fontWeight:700, color:'#991B1B', fontSize:'.9375rem' }}>{a.label} {a.value}</span>
+                        <span style={{ fontSize:'.75rem', color:'#92400E' }}>({a.reason})</span>
+                      </div>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:current.status ? 8 : 0 }}>
+                        {INTERPRETATION_STATUSES.map(s => (
+                          <button key={s.key} type="button" disabled={isFinalised}
+                            onClick={() => setVitalInterps(prev => ({ ...prev, [a.key]: { ...prev[a.key], status: s.key } }))}
+                            style={{ padding:'5px 11px', borderRadius:8, border:`1.5px solid ${current.status === s.key ? s.colour : '#E2E8F0'}`, background:current.status === s.key ? s.colour : 'white', color:current.status === s.key ? 'white' : '#6B7280', fontSize:'.8125rem', fontWeight:700, cursor:isFinalised ? 'default' : 'pointer', fontFamily:'inherit' }}>
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                      {current.status && (
+                        <input type="text" placeholder="One-line reason (e.g. patient asymptomatic, speaking in full sentences)"
+                          value={current.reason || ''} disabled={isFinalised}
+                          onChange={e => setVitalInterps(prev => ({ ...prev, [a.key]: { ...prev[a.key], reason: e.target.value } }))}
+                          style={{ width:'100%', padding:'7px 10px', border:'1px solid #FDE68A', borderRadius:8, fontSize:'.8125rem', fontFamily:'inherit', background:'white' }} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Safety-netting (task #417) — HDC Right 6 evidence. Required for
             finalise on video/phone consults. Provider picks a template then
