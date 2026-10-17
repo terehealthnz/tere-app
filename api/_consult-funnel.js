@@ -6,8 +6,11 @@
 // each real patient visit. We use status + the five timestamp milestones to
 // classify where each visit stopped.
 //
-// Query params:
-//   ?days=<n>   Window in days (default 7, max 90)
+// Query params (two modes — pick one):
+//   ?days=<n>              Rolling window in NZT calendar days (default 7, max 90).
+//                          Includes today-N+1 through today, each day 00:00-23:59 NZT.
+//   ?from=YYYY-MM-DD       Explicit NZT calendar date range (inclusive both ends).
+//   &to=YYYY-MM-DD         Max 90 days span. Both must be present if used.
 //
 // Returns:
 //   {
@@ -105,11 +108,68 @@ function classify(c) {
   return { lastReachedIdx, isAbandoned, reached, status }
 }
 
+// Return "YYYY-MM-DDTHH:mm:ss+NN:00" where offset is Pacific/Auckland's
+// current offset at the given UTC moment. Uses Intl API — DST-aware without
+// hand-maintaining NZ's transition dates.
+function nzIsoAt(ymd, hhmmss) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const probe = new Date(Date.UTC(y, m - 1, d, 12))
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Pacific/Auckland', timeZoneName: 'shortOffset',
+  }).formatToParts(probe)
+  const nameToken = parts.find(p => p.type === 'timeZoneName')?.value || 'GMT+12'
+  const m2 = nameToken.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/)
+  const sign = m2 ? m2[1] : '+'
+  const h = String(parseInt(m2?.[2] || '12', 10)).padStart(2, '0')
+  const mn = String(parseInt(m2?.[3] || '0', 10)).padStart(2, '0')
+  return `${ymd}T${hhmmss}${sign}${h}:${mn}`
+}
+
+// Today in NZT as YYYY-MM-DD. Uses Intl so DST transitions handled by Node.
+function nzTodayYmd() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date())
+  const y = parts.find(p => p.type === 'year').value
+  const m = parts.find(p => p.type === 'month').value
+  const d = parts.find(p => p.type === 'day').value
+  return `${y}-${m}-${d}`
+}
+
+// Add N days to a YYYY-MM-DD string (N can be negative). Returns YYYY-MM-DD.
+function ymdAdd(ymd, days) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const t = Date.UTC(y, m - 1, d) + days * 86400 * 1000
+  const nd = new Date(t)
+  return `${nd.getUTCFullYear()}-${String(nd.getUTCMonth()+1).padStart(2,'0')}-${String(nd.getUTCDate()).padStart(2,'0')}`
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end()
 
-  const days = Math.min(90, Math.max(1, Number(req.query.days) || 7))
-  const windowStart = new Date(Date.now() - days * 86400 * 1000).toISOString()
+  // Resolve window — explicit from/to takes precedence, otherwise rolling days.
+  let fromYmd, toYmd
+  if (req.query.from && req.query.to) {
+    fromYmd = String(req.query.from)
+    toYmd   = String(req.query.to)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fromYmd) || !/^\d{4}-\d{2}-\d{2}$/.test(toYmd)) {
+      return res.status(400).json({ error: 'from/to must be YYYY-MM-DD' })
+    }
+    // Clamp span to 90 days to protect the query
+    const spanDays = (new Date(toYmd) - new Date(fromYmd)) / 86400000
+    if (spanDays < 0 || spanDays > 90) {
+      return res.status(400).json({ error: 'from/to span must be 0-90 days with from<=to' })
+    }
+  } else {
+    const days = Math.min(90, Math.max(1, Number(req.query.days) || 7))
+    toYmd   = nzTodayYmd()
+    fromYmd = ymdAdd(toYmd, -(days - 1))
+  }
+
+  // Window: from 00:00 NZT on fromYmd through 24:00 NZT on toYmd (exclusive).
+  const windowStartIso = nzIsoAt(fromYmd, '00:00:00')
+  const windowEndIso   = nzIsoAt(ymdAdd(toYmd, 1), '00:00:00')
+
   const supabase = admin()
 
   // Pull all consultations in the window with the fields we need for both
@@ -117,7 +177,8 @@ export default async function handler(req, res) {
   // they're training sandbox and would skew the numbers.
   const { data: rows, error } = await supabase.from('consultations')
     .select('id, patient_id, status, created_at, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, chief_complaint, is_practice')
-    .gte('created_at', windowStart)
+    .gte('created_at', windowStartIso)
+    .lt('created_at', windowEndIso)
     .order('created_at', { ascending: false })
     .limit(5000)
   if (error) return res.status(500).json({ error: error.message })
@@ -188,7 +249,8 @@ export default async function handler(req, res) {
   }).slice(0, 100)
 
   return res.status(200).json({
-    window_days: days,
+    from: fromYmd,
+    to: toYmd,
     total,
     funnel,
     drop_offs,

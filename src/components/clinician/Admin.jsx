@@ -6488,7 +6488,24 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
 // AnalyticsPanel's revenue stats which only count completed consults.
 function FunnelPanel() {
   const navigate = useNavigate()
-  const [days, setDays] = React.useState(7)
+  // NZT calendar date helpers — ensures "Today" = midnight-to-midnight NZT
+  // regardless of the viewer's browser timezone, matching what the server
+  // uses (/api/consult-funnel converts from/to via Pacific/Auckland).
+  const nzToday = React.useMemo(() => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date())
+    return `${parts.find(p=>p.type==='year').value}-${parts.find(p=>p.type==='month').value}-${parts.find(p=>p.type==='day').value}`
+  }, [])
+  const ymdAdd = React.useCallback((ymd, d) => {
+    const [y, m, dd] = ymd.split('-').map(Number)
+    const t = Date.UTC(y, m - 1, dd) + d * 86400 * 1000
+    const nd = new Date(t)
+    return `${nd.getUTCFullYear()}-${String(nd.getUTCMonth()+1).padStart(2,'0')}-${String(nd.getUTCDate()).padStart(2,'0')}`
+  }, [])
+
+  const [from, setFrom] = React.useState(nzToday)
+  const [to,   setTo]   = React.useState(nzToday)
   const [data, setData] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -6497,7 +6514,7 @@ function FunnelPanel() {
     async function load() {
       setLoading(true)
       try {
-        const r = await apiFetch(`/api/consult-funnel?days=${days}`)
+        const r = await apiFetch(`/api/consult-funnel?from=${from}&to=${to}`)
         const j = await r.json()
         if (!cancelled) setData(j)
       } catch { if (!cancelled) setData(null) }
@@ -6505,7 +6522,7 @@ function FunnelPanel() {
     }
     load()
     return () => { cancelled = true }
-  }, [days])
+  }, [from, to])
 
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
   const NAVY = '#0D2B45'
@@ -6516,6 +6533,18 @@ function FunnelPanel() {
   const dropOffs = data?.drop_offs || []
   const severityCount = dropOffs.filter(d => d.severity_flag).length
 
+  // Which preset (if any) does the current from/to match?
+  const activePreset = (from === nzToday && to === nzToday)
+    ? 'today'
+    : (from === ymdAdd(nzToday, -6) && to === nzToday)
+      ? '7d'
+      : (from === ymdAdd(nzToday, -29) && to === nzToday)
+        ? '30d'
+        : null
+
+  const inputStyle = { padding:'5px 8px', borderRadius:8, border:'1.5px solid #E2E8F0', fontSize:'.8125rem', fontFamily:'Plus Jakarta Sans, sans-serif', color:'#374151' }
+  const pillStyle = active => ({ padding:'5px 11px', borderRadius:8, border:`1.5px solid ${active?TEAL:'#E2E8F0'}`, background:active?TEAL:'white', color:active?'white':'#6B7280', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' })
+
   return (
     <div style={card}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'.5rem' }}>
@@ -6523,12 +6552,14 @@ function FunnelPanel() {
           <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY, marginBottom:'.25rem' }}>Consultation funnel</div>
           <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Where patients drop off before finishing a visit</div>
         </div>
-        <div style={{ display:'flex', gap:6 }}>
-          {[1,7,30].map(d => (
-            <button key={d} onClick={() => setDays(d)} style={{ padding:'5px 11px', borderRadius:8, border:`1.5px solid ${days===d?TEAL:'#E2E8F0'}`, background:days===d?TEAL:'white', color:days===d?'white':'#6B7280', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-              {d===1 ? 'Today' : d===7 ? '7d' : '30d'}
-            </button>
-          ))}
+        <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+          <button onClick={() => { setFrom(nzToday); setTo(nzToday) }} style={pillStyle(activePreset==='today')}>Today</button>
+          <button onClick={() => { setFrom(ymdAdd(nzToday, -6)); setTo(nzToday) }} style={pillStyle(activePreset==='7d')}>7d</button>
+          <button onClick={() => { setFrom(ymdAdd(nzToday, -29)); setTo(nzToday) }} style={pillStyle(activePreset==='30d')}>30d</button>
+          <span style={{ color:'#D1D5DB', fontSize:'.75rem' }}>|</span>
+          <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} style={inputStyle} aria-label="From date" />
+          <span style={{ color:'#9CA3AF', fontSize:'.75rem' }}>→</span>
+          <input type="date" value={to} min={from} max={nzToday} onChange={e => setTo(e.target.value)} style={inputStyle} aria-label="To date" />
         </div>
       </div>
 
