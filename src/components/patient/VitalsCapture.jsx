@@ -494,7 +494,27 @@ export default function VitalsCapture() {
                 }
               }
 
-              const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString, bp_confidence: bpEstimate?.confidence || null, spo2_confidence: spo2Result?.confidence || null }
+              // Diag object — captures which stages produced output + why
+              // others were null, so the provider chart can self-explain
+              // partial scans (and we can grep for "always-null" patterns on
+              // specific devices/browsers later). Lives on the vitals jsonb.
+              const diag = {
+                path: 'bg-frames',
+                frames_count: frames?.length || 0,
+                scan_duration_sec: result?.backgroundDurationSec || null,
+                numericConfidence: result?.numericConfidence ?? null,
+                hr_published: !!result?.hr,
+                rr_published: !!result?.rr,
+                rr_source: result?.rr_source || null,
+                spo2_published: !!spo2Result?.estimate,
+                spo2_confidence: spo2Result?.confidence || null,
+                bp_published: !!bpString,
+                bp_confidence: bpEstimate?.confidence || null,
+                device_pixel_ratio: typeof window !== 'undefined' ? (window.devicePixelRatio || null) : null,
+                ua: typeof navigator !== 'undefined' ? (navigator.userAgent || '').slice(0, 200) : null,
+                captured_at: new Date().toISOString(),
+              }
+              const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString, bp_confidence: bpEstimate?.confidence || null, spo2_confidence: spo2Result?.confidence || null, diag }
               if (id && !id.startsWith('demo')) {
                 import('../../lib/supabase').then(({ updateVitals }) =>
                   updateVitals(id, payload)
@@ -617,7 +637,20 @@ export default function VitalsCapture() {
         }
 
         const id = (sessionStorage.getItem('consultationId') || sessionStorage.getItem('consultation_id'))
-        const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString }
+        const diag = {
+          path: 'live-camera',
+          numericConfidence: result?.numericConfidence ?? null,
+          hr_published: !!result?.hr,
+          rr_published: !!result?.rr,
+          rr_source: result?.rr_source || null,
+          spo2_published: !!spo2Result?.estimate,
+          spo2_confidence: spo2Result?.confidence || null,
+          bp_published: !!bpString,
+          device_pixel_ratio: typeof window !== 'undefined' ? (window.devicePixelRatio || null) : null,
+          ua: typeof navigator !== 'undefined' ? (navigator.userAgent || '').slice(0, 200) : null,
+          captured_at: new Date().toISOString(),
+        }
+        const payload = { ...result, spo2: spo2Result?.estimate || null, bp: bpString, spo2_confidence: spo2Result?.confidence || null, diag }
         if (id && !id.startsWith('demo')) {
           try {
             await updateVitals(id, payload)

@@ -1146,49 +1146,70 @@ export default function ClinicianPatient() {
           <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '.875rem' }}>Estimated Vitals</div>
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-              {v.hr ? (
-                <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#059669' }}>{v.hr}{(typeof v.numericConfidence === 'number' && v.numericConfidence < 60) ? '*' : ''}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div></div>
-              ) : (
-                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>HR N/A</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>check pulse manually</div>
-                </div>
-              )}
-              {v.rr ? (
-                <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}><div style={{ fontSize: '1.5rem', fontWeight: 700, color: TEAL }}>{v.rr}{(v.rr_source === 'am-only' || v.rr_source === 'fm-only' || v.rr_source === 'bw-only') ? '*' : ''}</div><div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div></div>
-              ) : (
-                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>RR N/A</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>count breaths if needed</div>
-                </div>
-              )}
-              {v.spo2 ? (
-                <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%{v.spo2_confidence === 'low' ? '*' : ''}</div>
-                  <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est.</div>
-                </div>
-              ) : (
-                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>SpO₂ N/A</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use oximeter if needed</div>
-                </div>
-              )}
-              {v.bp ? (
-                <div style={{ background: '#FEF3F2', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#B91C1C' }}>{v.bp}{v.bp_confidence === 'low' ? '*' : ''}</div>
-                  <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>BP</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est. · confirm w/ cuff</div>
-                </div>
-              ) : (
-                <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>BP N/A</div>
-                  <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use cuff if needed</div>
-                </div>
-              )}
+              {(() => {
+                // Louder low-confidence marker: inline red "*" + title tooltip
+                // on each vital whose confidence bucket is 'low' (or HR's
+                // numericConfidence < 60). The tiny grey asterisk + footer
+                // explanation we had before was easy to miss on the chart.
+                const star = (tip) => (
+                  <span title={tip} style={{ color:'#DC2626', fontWeight:800, marginLeft:2, cursor:'help' }}>*</span>
+                )
+                const hrLow = (typeof v.numericConfidence === 'number' && v.numericConfidence < 60)
+                const rrLow = (v.rr_source === 'am-only' || v.rr_source === 'fm-only' || v.rr_source === 'bw-only')
+                const spo2Low = v.spo2_confidence === 'low'
+                const bpLow = v.bp_confidence === 'low'
+                return (<>
+                  {v.hr ? (
+                    <div style={{ background: '#F0FDF4', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={hrLow ? 'Low confidence — rPPG signal was noisy. Check pulse manually.' : undefined}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: hrLow ? '#DC2626' : '#059669' }}>{v.hr}{hrLow && star('Low confidence — rPPG signal noisy; check pulse manually.')}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>bpm</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>HR N/A</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>check pulse manually</div>
+                    </div>
+                  )}
+                  {v.rr ? (
+                    <div style={{ background: '#EFF9F9', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={rrLow ? `Low confidence — only one source (${v.rr_source}) agreed; count breaths manually.` : undefined}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: rrLow ? '#DC2626' : TEAL }}>{v.rr}{rrLow && star(`Low confidence — only one source (${v.rr_source}) agreed; count breaths manually.`)}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>resp/min</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>RR N/A</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>count breaths if needed</div>
+                    </div>
+                  )}
+                  {v.spo2 ? (
+                    <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={spo2Low ? 'Low confidence — colour-ratio was weak; confirm with pulse oximeter.' : undefined}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: spo2Low ? '#DC2626' : '#7C3AED' }}>~{v.spo2}%{spo2Low && star('Low confidence — confirm with pulse oximeter.')}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est.</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>SpO₂ N/A</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use oximeter if needed</div>
+                    </div>
+                  )}
+                  {v.bp ? (
+                    <div style={{ background: '#FEF3F2', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={bpLow ? 'Low confidence — training window variance was small; confirm with cuff.' : undefined}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: bpLow ? '#DC2626' : '#B91C1C' }}>{v.bp}{bpLow && star('Low confidence — confirm with cuff.')}</div>
+                      <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>BP</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est. · confirm w/ cuff</div>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>BP N/A</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use cuff if needed</div>
+                    </div>
+                  )}
+                </>)
+              })()}
             </div>
             <div style={{ fontSize: '.6875rem', color: '#9CA3AF', marginTop: 10, fontStyle: 'italic' }}>
-              * = low confidence (model variance limited or signal noisy). N/A = scan ran but no result produced. All camera-derived vitals are estimates — verify manually if clinically relevant.
+              <span style={{ color:'#DC2626', fontWeight:800 }}>*</span> = low confidence (hover for detail). N/A = scan ran but no result produced. All camera-derived vitals are estimates — verify manually if clinically relevant.
             </div>
           </div>
         )}
