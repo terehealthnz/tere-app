@@ -6481,6 +6481,144 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
   )
 }
 
+// Operations funnel (task #582) — all consults in last N days classified by
+// where they stopped, plus a severity-flagged list of abandoned ones so an
+// admin can rescue acute presentations before they churn (Jeanne Palm's
+// severe-allergic-reaction case was the motivating incident). Separate from
+// AnalyticsPanel's revenue stats which only count completed consults.
+function FunnelPanel() {
+  const navigate = useNavigate()
+  const [days, setDays] = React.useState(7)
+  const [data, setData] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const r = await apiFetch(`/api/consult-funnel?days=${days}`)
+        const j = await r.json()
+        if (!cancelled) setData(j)
+      } catch { if (!cancelled) setData(null) }
+      finally { if (!cancelled) setLoading(false) }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [days])
+
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+  const NAVY = '#0D2B45'
+  const TEAL = '#0B6E76'
+
+  const funnel = data?.funnel || []
+  const total = data?.total || 0
+  const dropOffs = data?.drop_offs || []
+  const severityCount = dropOffs.filter(d => d.severity_flag).length
+
+  return (
+    <div style={card}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'.5rem' }}>
+        <div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY, marginBottom:'.25rem' }}>Consultation funnel</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Where patients drop off before finishing a visit</div>
+        </div>
+        <div style={{ display:'flex', gap:6 }}>
+          {[1,7,30].map(d => (
+            <button key={d} onClick={() => setDays(d)} style={{ padding:'5px 11px', borderRadius:8, border:`1.5px solid ${days===d?TEAL:'#E2E8F0'}`, background:days===d?TEAL:'white', color:days===d?'white':'#6B7280', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+              {d===1 ? 'Today' : d===7 ? '7d' : '30d'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
+      ) : total === 0 ? (
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No consults in this window.</div>
+      ) : (
+        <>
+          {/* Funnel bars */}
+          <div style={{ marginBottom:'1.25rem' }}>
+            {funnel.map((f, i) => {
+              const barWidth = total > 0 ? Math.round((f.reached / total) * 100) : 0
+              const dropBad = f.drop_pct_vs_previous >= 20
+              return (
+                <div key={f.step} style={{ marginBottom:'.625rem' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.8125rem', marginBottom:3, color:'#374151' }}>
+                    <span style={{ fontWeight:600 }}>{f.label}</span>
+                    <span>
+                      <strong style={{ color:NAVY }}>{f.reached}</strong>
+                      <span style={{ color:'#9CA3AF' }}> ({f.completed_pct}%)</span>
+                      {i > 0 && f.drop_pct_vs_previous > 0 && (
+                        <span style={{ color:dropBad?'#DC2626':'#9CA3AF', marginLeft:8, fontSize:'.75rem' }}>
+                          −{f.drop_pct_vs_previous}%
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ height:10, background:'#F3F4F6', borderRadius:5, overflow:'hidden' }}>
+                    <div style={{ width:`${barWidth}%`, height:'100%', background:TEAL, transition:'width .3s' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Drop-off list */}
+          <div style={{ borderTop:'1px solid #F3F4F6', paddingTop:'1rem' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'.75rem' }}>
+              <span style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>Abandoned consults</span>
+              <span style={{ fontSize:'.75rem', color:'#6B7280' }}>
+                {dropOffs.length} total
+                {severityCount > 0 && (
+                  <span style={{ color:'#DC2626', fontWeight:700, marginLeft:8 }}>⚠ {severityCount} severity-flagged</span>
+                )}
+              </span>
+            </div>
+            {dropOffs.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'1rem', color:'#9CA3AF', fontSize:'.875rem' }}>No abandoned consults.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:'.5rem' }}>
+                {dropOffs.map(d => (
+                  <div key={d.consultation_id} style={{ padding:'.75rem 1rem', background:d.severity_flag?'#FEF2F2':'#F8FAFC', borderRadius:8, border:`1px solid ${d.severity_flag?'#FECACA':'#E2E8F0'}` }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'.75rem', flexWrap:'wrap' }}>
+                      <div style={{ flex:1, minWidth:200 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:3, flexWrap:'wrap' }}>
+                          {d.severity_flag && <span style={{ background:'#DC2626', color:'white', fontSize:'.625rem', fontWeight:700, padding:'1px 5px', borderRadius:3 }}>⚠ SEVERITY</span>}
+                          <span style={{ fontWeight:700, color:NAVY, fontSize:'.9rem' }}>{d.patient_name || '— no patient linked —'}</span>
+                          <span style={{ fontSize:'.75rem', color:'#6B7280' }}>stopped at <strong style={{ color:'#991B1B' }}>{d.last_step_label || d.last_step}</strong></span>
+                        </div>
+                        {d.chief_complaint && (
+                          <div style={{ fontSize:'.8125rem', color:'#374151', marginBottom:3, lineHeight:1.4 }}>
+                            "{d.chief_complaint.length > 180 ? d.chief_complaint.slice(0,180)+'…' : d.chief_complaint}"
+                          </div>
+                        )}
+                        <div style={{ fontSize:'.75rem', color:'#9CA3AF' }}>
+                          {d.hours_since < 24 ? `${d.hours_since}h ago` : `${Math.round(d.hours_since/24)}d ago`}
+                          {d.patient_phone && <> · <a href={`tel:${d.patient_phone}`} style={{ color:TEAL, textDecoration:'none' }}>{d.patient_phone}</a></>}
+                          {d.patient_email && <> · {d.patient_email}</>}
+                        </div>
+                      </div>
+                      {d.patient_id && (
+                        <button
+                          onClick={() => navigate(`/clinician/patient/${d.patient_id}`)}
+                          style={{ background:'white', border:`1.5px solid ${TEAL}`, color:TEAL, borderRadius:8, padding:'5px 10px', fontSize:'.8125rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif', flexShrink:0 }}>
+                          Open chart
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function RecallsPanel() {
   const [rows, setRows] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -7163,7 +7301,7 @@ function AdminBody() {
             case 'overview':
               return <><OverviewDashboard setAdminTab={setAdminTab} /></>
             case 'operations':
-              return <><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<OutstandingPrescriptions /><OutstandingReferrals /></>
+              return <><FunnelPanel /><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<OutstandingPrescriptions /><OutstandingReferrals /></>
             case 'finance':
               return <><AnalyticsPanel /><FailedPayments /><AdminPayroll embedded /></>
             case 'team':
