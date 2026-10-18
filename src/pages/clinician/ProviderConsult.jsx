@@ -805,6 +805,16 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
       : (providerInitiated ? 'provider_ended' : 'provider_left')
     broadcastConsultationEnded(id, broadcastReason).catch(() => {})
 
+    // Kick the SIP participant (patient phone leg) + delete the room on
+    // LiveKit's side. room.disconnect() below only drops THIS browser —
+    // without this server call the sip-patient-* participant lingers and
+    // the patient's phone keeps ringing / stays connected.
+    apiFetch('/api/end-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consultationId: id }),
+    }).catch(() => {})
+
     // Explicitly stop every local track (mic + camera) BEFORE calling
     // room.disconnect(). LiveKit's disconnect closes the WebSocket + server
     // participant but DOES NOT reliably stop the underlying MediaStreamTrack

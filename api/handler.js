@@ -52,7 +52,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
   'create-room',
-  'initiate-call', 'make-call', 'ring-timeout', 'mark-no-show',
+  'initiate-call', 'make-call', 'end-call', 'ring-timeout', 'mark-no-show',
   'consult-heartbeat',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'radiology-reports', 'clinic-schedule',
@@ -352,6 +352,7 @@ const ROUTES = {
   'admin-patch':               () => import('./_admin-patch.js'),
   'admin-test-sms':            () => import('./_admin-test-sms.js'),
   'initiate-call':             () => import('./_initiate-call.js'),
+  'end-call':                  () => import('./_end-call.js'),
   'ring-timeout':              () => import('./_ring-timeout.js'),
   'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),

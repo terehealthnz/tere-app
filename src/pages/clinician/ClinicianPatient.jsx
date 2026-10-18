@@ -2088,7 +2088,20 @@ export default function ClinicianPatient() {
               // still with srcObject, "End call" still visible). The in-call
               // widget path already handles this via onEnd, but the static bar
               // bypasses that and can leave the room hot.
-              if (activeCall) setActiveCall(null)
+              //
+              // Also fire /api/end-call to kick the SIP leg — a Phone call
+              // leaves the patient's phone ringing on LiveKit's SIP trunk
+              // until something explicitly removes the sip-patient-*
+              // participant from the room. Fire-and-forget; the widget
+              // unmount handles the provider side.
+              if (activeCall) {
+                apiFetch('/api/end-call', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ consultationId: id }),
+                }).catch(() => {})
+                setActiveCall(null)
+              }
               setActiveNotes({ actions: [], transcript: '', callNotes: '' })
             }}
             onNoAnswer={async (res) => {
