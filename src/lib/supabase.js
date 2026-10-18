@@ -1255,6 +1255,30 @@ export async function downloadAccAuditBundlePdf(claimId, { reason, reasonNotes }
   return res.blob()
 }
 
+// Admin-only ACC invoice download + mark-lodged. Replaces the autosend
+// path that was ripped 2026-10-18. Patrick downloads the PDF, reviews
+// the claim number, lodges via ProviderHub (or emails ACC himself from
+// his own address), then marks it lodged in-app to stamp the audit trail.
+export async function downloadAccInvoicePdf(claimId) {
+  const res = await apiFetch(`/api/acc-claim-invoice?action=download&claim_id=${encodeURIComponent(claimId)}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
+  return res.blob()
+}
+
+export async function markAccClaimLodged(claimId, { claimNumber, channel = 'providerhub', notes = '', lodgedAt } = {}) {
+  const res = await apiFetch('/api/acc-claim-invoice', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ action: 'mark_lodged', claimId, claimNumber, channel, notes, lodgedAt }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+  return body
+}
+
 // ── Bookings ─────────────────────────────────────────────────────────────────
 
 export async function getTodaysBookings(providerId = null) {

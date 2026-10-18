@@ -9,6 +9,8 @@ import {
   listAccClaimsAdmin,
   getAccAuditBundle,
   downloadAccAuditBundlePdf,
+  downloadAccInvoicePdf,
+  markAccClaimLodged,
   addAccCommunication,
 } from '../../lib/supabase'
 import { ReasonPicker } from './PhiRevealGate'
@@ -72,6 +74,42 @@ export default function AccClaimsSection() {
 
   // Identity masking — masked-by-default for admin/billing/supervisor.
   const [unmasked, setUnmasked] = useState(!shouldMaskByDefault())
+
+  // Lodge modal — opened when admin clicks "Mark as lodged" on a claim.
+  const [lodgeFor, setLodgeFor] = useState(null)        // claim row
+  const [lodgeBusy, setLodgeBusy] = useState(false)
+  const [invBusy, setInvBusy] = useState(null)          // claim id currently being downloaded
+
+  async function handleDownloadInvoice(c) {
+    setInvBusy(c.id)
+    try {
+      const blob = await downloadAccInvoicePdf(c.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ACC-${c.claim_number || 'DRAFT'}-${(c.patient_name || 'patient').replace(/[^A-Za-z0-9]+/g, '-')}.pdf`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch (e) {
+      alert('Could not download invoice: ' + e.message)
+    } finally {
+      setInvBusy(null)
+    }
+  }
+
+  async function handleConfirmLodge({ claimNumber, channel, notes, lodgedAt }) {
+    if (!lodgeFor) return
+    setLodgeBusy(true)
+    try {
+      await markAccClaimLodged(lodgeFor.id, { claimNumber, channel, notes, lodgedAt })
+      setLodgeFor(null)
+      await refresh()
+    } catch (e) {
+      alert('Could not mark as lodged: ' + e.message)
+    } finally {
+      setLodgeBusy(false)
+    }
+  }
 
   async function refresh() {
     setLoading(true); setError(null)
@@ -273,8 +311,19 @@ export default function AccClaimsSection() {
                   <td style={{ padding: '.625rem .75rem', textAlign: 'right', color: NAVY, fontWeight: 700 }}>{dollars(c.amount_claimed)}</td>
                   <td style={{ padding: '.625rem .75rem', color: '#374151' }}>{nzDate(c.created_at)}</td>
                   <td style={{ padding: '.625rem .75rem', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                    <button onClick={() => handleViewBundle(c)} style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', marginRight: 6 }}>View bundle</button>
-                    <button onClick={() => handleDownloadPdf(c)} style={{ background: TEAL, border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }}>PDF</button>
+                    <button onClick={() => handleViewBundle(c)} style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', marginRight: 6 }}>Bundle</button>
+                    <button onClick={() => handleDownloadInvoice(c)} disabled={invBusy === c.id} style={{ background: 'white', border: '1px solid #0B6E76', color: TEAL, padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: invBusy === c.id ? 'default' : 'pointer', marginRight: 6, opacity: invBusy === c.id ? 0.6 : 1 }} title="Download the IRD-compliant invoice PDF for review or ProviderHub upload">
+                      {invBusy === c.id ? '…' : 'Invoice PDF'}
+                    </button>
+                    {c.invoice_submitted_at ? (
+                      <span style={{ background: '#D1FAE5', color: '#065F46', padding: '.375rem .625rem', borderRadius: 6, fontSize: '.75rem', fontWeight: 700 }} title={`Lodged ${nzDateTime(c.invoice_submitted_at)}`}>
+                        ✓ Lodged
+                      </span>
+                    ) : (
+                      <button onClick={() => setLodgeFor(c)} style={{ background: TEAL, border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }} title="Stamp this claim as lodged with ACC (updates the audit trail)">
+                        Mark lodged
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -325,6 +374,15 @@ export default function AccClaimsSection() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(255,255,255,.75)', zIndex: 210, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ fontFamily: FF, color: NAVY, fontWeight: 700 }}>Assembling bundle…</div>
         </div>
+      )}
+
+      {lodgeFor && (
+        <LodgeModal
+          claim={lodgeFor}
+          busy={lodgeBusy}
+          onCancel={() => setLodgeFor(null)}
+          onConfirm={handleConfirmLodge}
+        />
       )}
     </div>
   )
@@ -588,6 +646,69 @@ function AccCommsAdder({ claim }) {
           Cancel
         </button>
         {msg && <span style={{ fontSize: '.75rem', color: msg.startsWith('Error') ? '#DC2626' : '#059669' }}>{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
+// LodgeModal — admin stamps a claim as lodged with ACC. Captures the real
+// claim number (overrides any patient-supplied value if different), the
+// channel used (ProviderHub / email / other), optional notes, and when
+// lodgement happened. Autosend was ripped 2026-10-18 so this is the
+// only path that records invoice_submitted_at + the disclosure audit.
+function LodgeModal({ claim, busy, onCancel, onConfirm }) {
+  const [claimNumber, setClaimNumber] = useState(claim.claim_number || '')
+  const [channel, setChannel]         = useState('providerhub')
+  const [notes, setNotes]             = useState('')
+  const [lodgedAt, setLodgedAt]       = useState(new Date().toISOString().slice(0, 16))
+
+  const normalised = claimNumber.trim().toUpperCase().replace(/\s+/g, '')
+  const looksTest = /^TEST/i.test(normalised)
+  const valid = normalised.length >= 7 && !looksTest
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.65)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 480, padding: '1.25rem 1.5rem', fontFamily: FF }}>
+        <h3 style={{ margin: 0, color: NAVY, fontSize: '1rem', fontWeight: 800 }}>Mark ACC claim as lodged</h3>
+        <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 4, marginBottom: '1rem', lineHeight: 1.5 }}>
+          Stamp this claim as submitted to ACC. Use after you've lodged via ProviderHub (or emailed the invoice PDF to providerinvoices@acc.co.nz yourself). This writes the audit trail; it does NOT send anything to ACC.
+        </div>
+
+        <label style={lbl}>ACC claim number *</label>
+        <input value={claimNumber} onChange={e => setClaimNumber(e.target.value)} placeholder="e.g. EP123456" autoComplete="off"
+          style={{ ...inp, width: '100%', boxSizing: 'border-box', textTransform: 'uppercase', marginBottom: 4 }} />
+        <div style={{ fontSize: '.6875rem', color: claimNumber && !valid ? '#DC2626' : '#6B7280', marginBottom: '.75rem' }}>
+          {looksTest
+            ? 'This looks like a placeholder. Replace with the real ACC claim number before lodging.'
+            : 'Required. ACC rejects invoices without a registered claim number.'}
+        </div>
+
+        <label style={lbl}>Lodged via *</label>
+        <select value={channel} onChange={e => setChannel(e.target.value)} style={{ ...inp, width: '100%', boxSizing: 'border-box', marginBottom: '.75rem' }}>
+          <option value="providerhub">ProviderHub (web portal upload)</option>
+          <option value="email">Email to providerinvoices@acc.co.nz</option>
+          <option value="other">Other</option>
+        </select>
+
+        <label style={lbl}>Lodged at</label>
+        <input type="datetime-local" value={lodgedAt} onChange={e => setLodgedAt(e.target.value)}
+          style={{ ...inp, width: '100%', boxSizing: 'border-box', marginBottom: '.75rem' }} />
+
+        <label style={lbl}>Notes (optional)</label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
+          placeholder="ProviderHub confirmation #, decline reason to follow up, anything odd…"
+          style={{ ...inp, width: '100%', boxSizing: 'border-box', resize: 'vertical', marginBottom: '1rem' }} />
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} disabled={busy}
+            style={{ background: 'white', border: '1px solid #E2E8F0', color: '#6B7280', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={() => onConfirm({ claimNumber: normalised, channel, notes: notes.trim(), lodgedAt: new Date(lodgedAt).toISOString() })} disabled={busy || !valid}
+            style={{ background: !valid ? '#E2E8F0' : TEAL, color: !valid ? '#9CA3AF' : 'white', border: 'none', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: (busy || !valid) ? 'default' : 'pointer' }}>
+            {busy ? 'Saving…' : '✓ Confirm lodged'}
+          </button>
+        </div>
       </div>
     </div>
   )

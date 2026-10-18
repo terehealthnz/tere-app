@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import { sendEmail , hasEmailProvider} from './_email-client.js'
-import { buildAccInvoicePdf } from './_pdf-builders.js'
-import { recordDisclosure } from './_disclosure.js'
+// buildAccInvoicePdf and recordDisclosure moved to /api/_acc-claim-invoice.js
+// (admin-only on-demand invoice download + mark-lodged). Autosend removed
+// 2026-10-18 — see note on handler.
 
 const ACC_BASE_URL = process.env.ACC_SANDBOX === 'false'
   ? 'https://apiservices.acc.co.nz'
@@ -70,77 +70,14 @@ function generateSandboxClaimNumber() {
   return `TEST${Date.now().toString().slice(-8)}`
 }
 
-// Email an IRD-compliant invoice PDF to providerinvoices@acc.co.nz. Gated
-// by ACC_AUTOSEND_INVOICES=true so the first deploy doesn't accidentally
-// spam ACC — flip the env var when the provider registration is approved
-// and rates have been sanity-checked. terehealthnz@gmail.com is always
-// cc'd so we keep a copy of every invoice we submit.
-async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi, providerMcnz }) {
-  if (process.env.ACC_AUTOSEND_INVOICES !== 'true') return { skipped: 'ACC_AUTOSEND_INVOICES not enabled' }
-  if (!hasEmailProvider()) return { skipped: 'no email provider configured' }
-  // Defence-in-depth (2026-10-18): never fire a TEST* claim number to
-  // providerinvoices@acc.co.nz. The upstream path already blocks this at
-  // Convert-to-ACC, but any dirty row that slipped through must not escape.
-  if (!claimNumber || /^TEST/i.test(String(claimNumber))) {
-    return { skipped: 'placeholder_claim_number', claimNumber }
-  }
-  const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
-  const pdfBuffer = await buildAccInvoicePdf({
-    patientName,
-    patientNhi:          consult.patient_nhi,
-    patientDob:          consult.patient_dob,
-    claimNumber,
-    serviceCode,
-    amountCents,
-    providerName,
-    providerHpi,
-    providerMcnz,
-    dateOfService:       consult.completed_at || consult.created_at,
-    // Diagnosis + injury context — required by ACC's billing engine to match
-    // the invoice line against the claim's registered injury. Pulled from
-    // ConvertToAccModal's capture (acc_icd10_code / description / body_part /
-    // injury_date on the consultation row).
-    accIcd10Code:        consult.acc_icd10_code,
-    accIcd10Description: consult.acc_icd10_description,
-    accBodyPart:         consult.acc_body_part,
-    accInjuryDate:       consult.acc_injury_date,
-  })
-  const pdfBase64 = pdfBuffer.toString('base64')
-  const invoiceRef = `Invoice ${claimNumber} — ${patientName}`
-  await sendEmail({
-    from:    'Tere Health <hello@terehealth.co.nz>',
-    replyTo: 'terehealthnz@gmail.com',
-    to:      'providerinvoices@acc.co.nz',
-    cc:      'terehealthnz@gmail.com',
-    subject: `${invoiceRef} (Vendor G11238)`,
-    html:    `<p>Kia ora ACC Provider Invoices team,</p>
-              <p>Please find attached an invoice for services rendered under ACC vendor <strong>G11238</strong> (Tere Health Limited).</p>
-              <p><strong>Client:</strong> ${patientName}${consult.patient_nhi ? ` · NHI ${consult.patient_nhi}` : ''}<br>
-                 <strong>Claim #:</strong> ${claimNumber}<br>
-                 <strong>Service code:</strong> ${serviceCode}<br>
-                 <strong>Amount:</strong> $${(amountCents / 100).toFixed(2)} NZD (GST exempt — s21 GSTA 1985)</p>
-              <p style="color:#6B7280;font-size:12px">Tere Health Limited · terehealth.co.nz · HPI-O G11238-E</p>`,
-    attachments: [{ filename: `${claimNumber}.pdf`, content: pdfBase64 }],
-  })
-  return { sent: true }
-}
-
-// Bridge from the emailAccInvoice helper (which doesn't have `req` in scope)
-// to the disclosure recorder — invoked from the POST handler once we know the
-// email actually went. Kept separate so the pure-email helper stays testable.
-async function recordAccInvoiceDisclosure(req, consult, claimNumber) {
-  return recordDisclosure(req, {
-    patientNhi:        consult.patient_nhi,
-    consultationId:    consult.id,
-    channel:           'acc_invoice',
-    destination:       'providerinvoices@acc.co.nz',
-    destinationLabel:  'ACC (Provider Invoices)',
-    consentSource:     'triage_tick',
-    consentSourceRef:  consult.id,
-    disclosurePurpose: 'billing',
-    payloadSummary:    `ACC invoice PDF — claim ${claimNumber}`,
-  }).catch(() => {})
-}
+// NOTE (2026-10-18): emailAccInvoice() has been removed. Prior behaviour
+// was to attach the ACC invoice PDF and email it to providerinvoices@acc.co.nz
+// behind ACC_AUTOSEND_INVOICES=true. The 2026-10-18 incident (TEST13697845
+// bounced by ACC Provider Invoices because the claim number was auto-generated
+// placeholder) established that we never want automatic ACC sends from the
+// lodgement path. Admin reviews each ACC conversion in Admin > ACC, downloads
+// the invoice PDF on demand, lodges manually via ProviderHub, then stamps
+// invoice_submitted_at via /api/acc-claim-invoice action=mark_lodged.
 
 export default async function handler(req, res) {
   const supabase = supabaseAdmin()
@@ -313,33 +250,17 @@ export default async function handler(req, res) {
       acc_submitted_at:  new Date().toISOString(),
     }).eq('id', consultationId)
 
-    // Email the IRD-compliant invoice PDF to providerinvoices@acc.co.nz.
-    // Gated by ACC_AUTOSEND_INVOICES=true so the first deploy stays silent
-    // — you flip that env when Patrick's ACC provider approval lands and
-    // rates have been verified. Failures don't block the claim row.
-    let invoiceOutcome = null
-    try {
-      invoiceOutcome = await emailAccInvoice({
-        claimNumber, consult, serviceCode, amountCents,
-        providerName: pName, providerHpi: hpiNumber, providerMcnz: mcnzNumber,
-      })
-      if (invoiceOutcome?.sent) {
-        recordAccInvoiceDisclosure(req, consult, claimNumber)
-      }
-    } catch (e) {
-      invoiceOutcome = { error: 'invoice send failed' }
-      console.error('acc-claims: emailAccInvoice failed:', e.message)
-    }
-
+    // Autosend REMOVED 2026-10-18. ACC invoice emailing is admin-only now:
+    // Admin > ACC tab > Invoice PDF (download) + Mark as lodged (stamp
+    // invoice_submitted_at with the real ACC claim number returned by
+    // ProviderHub). See /api/acc-claim-invoice.
     res.json({
       ok: true,
       claimNumber,
       simulated: !hasCredentials,
       amountCents,
-      invoice:   invoiceOutcome,
-      note: !hasCredentials
-        ? 'ACC does not expose a public REST API. Claim recorded internally; invoice PDF emailed to providerinvoices@acc.co.nz when ACC_AUTOSEND_INVOICES=true.'
-        : undefined,
+      invoice:   { skipped: 'admin_review_required' },
+      note: 'Claim recorded. Review in Admin > ACC and lodge manually via ProviderHub; download the invoice PDF when ready to submit to providerinvoices@acc.co.nz.',
     })
   } catch (e) {
     console.error('acc-claims error:', e)

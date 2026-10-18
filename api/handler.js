@@ -38,7 +38,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'flags',
   // Provider clinical work
   'billing-country',
-  'convert-to-acc', 'acc-confirm', 'reclassifications', 'acc-claims', 'acc-audit-bundle', 'acc-outcome-measures',
+  'convert-to-acc', 'acc-confirm', 'reclassifications', 'acc-claims', 'acc-claim-invoice', 'acc-audit-bundle', 'acc-outcome-measures',
   'acc-communications', 'consultation-peer-reviews', 'generate-acc-cert',
   'patient-record-export', 'elevation', 'break-glass', 'phi-training',
   'disclosures', 'hl7-audit', 'cultural-safety-training', 'conflict-of-interest',
@@ -357,6 +357,7 @@ const ROUTES = {
   'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),
   'acc-claims':                () => import('./_acc-claims.js'),
+  'acc-claim-invoice':         () => import('./_acc-claim-invoice.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
   'acc-audit-bundle':          () => import('./_acc-audit-bundle.js'),
   'acc-outcome-measures':      () => import('./_acc-outcome-measures.js'),
