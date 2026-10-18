@@ -1283,6 +1283,26 @@ export async function setAccClaimNumber(claimId, { claimNumber } = {}) {
   return body
 }
 
+// Admin-triggered email of invoice PDF to providerinvoices@acc.co.nz. Server
+// validates claim #, blocks sandbox/test-mode rows, prevents double-sends
+// unless allowResend=true, stamps invoice_submitted_at on success. Different
+// from the old autosend — this only fires on explicit admin click per row.
+export async function emailAccClaimToAcc(claimId, { allowResend = false } = {}) {
+  const res = await apiFetch('/api/acc-claim-invoice', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ action: 'email_to_acc', claimId, allowResend }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(body.error || `HTTP ${res.status}`)
+    err.code = body.error === 'already_lodged' ? 'already_lodged' : null
+    err.status = res.status
+    throw err
+  }
+  return body
+}
+
 export async function markAccClaimLodged(claimId, { claimNumber, channel = 'providerhub', notes = '', lodgedAt } = {}) {
   const res = await apiFetch('/api/acc-claim-invoice', {
     method:  'POST',

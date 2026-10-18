@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js'
 import { buildAccInvoicePdf } from './_pdf-builders.js'
 import { recordDisclosure } from './_disclosure.js'
 import { writeAuditEvent } from './_audit-write.js'
+import { sendEmail, hasEmailProvider } from './_email-client.js'
 
 function supabaseAdmin() {
   return createClient(process.env.VITE_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
@@ -122,6 +123,135 @@ export default async function handler(req, res) {
     })
 
     return res.status(200).json({ ok: true, claimNumber: normalised })
+  }
+
+  // ── action: email_to_acc — admin-triggered send of the invoice PDF to ──
+  // providerinvoices@acc.co.nz. Different from the old autosend because it
+  // only fires when an admin explicitly clicks "Email to ACC" on a row
+  // after reviewing the claim number. Also stamps invoice_submitted_at so
+  // the row becomes ✓ Lodged in one action.
+  if (action === 'email_to_acc') {
+    if (req.method !== 'POST') return res.status(405).end()
+    if (!hasEmailProvider()) return res.status(500).json({ error: 'Email provider not configured' })
+
+    const { claimId, allowResend = false } = req.body || {}
+    if (!claimId) return res.status(400).json({ error: 'claimId required' })
+
+    const { claim, consult, error } = await loadClaimWithConsult(supabase, claimId)
+    if (error) return res.status(404).json({ error })
+
+    // Hard safety gates — never send to ACC on sandbox or test-mode consults.
+    if (consult?.is_practice) return res.status(400).json({ error: 'This is a sandbox consultation. Cannot email ACC.' })
+    if (consult?.payment_test_mode) return res.status(400).json({ error: 'This is a $0.10 test-mode consultation. Cannot email ACC.' })
+
+    // Real claim number required.
+    const claimNumber = (claim.claim_number || '').toString().trim()
+    if (!claimNumber || /^TEST/i.test(claimNumber) || claimNumber.length < 7) {
+      return res.status(400).json({ error: 'Claim number is missing or placeholder. Add the real ACC claim number first.' })
+    }
+
+    // Don't double-send unless admin explicitly confirmed re-send.
+    if (claim.invoice_submitted_at && !allowResend) {
+      return res.status(409).json({ error: 'already_lodged', message: 'This claim was already lodged. Pass allowResend=true to send again.' })
+    }
+
+    const patientName = claim.patient_name
+      || [consult?.patient_first_name, consult?.patient_last_name].filter(Boolean).join(' ').trim()
+      || 'ACC client'
+
+    const pdfBuffer = await buildAccInvoicePdf({
+      patientName,
+      patientNhi:          claim.patient_nhi || consult?.patient_nhi,
+      patientDob:          consult?.patient_dob,
+      claimNumber,
+      serviceCode:         claim.service_code,
+      amountCents:         claim.amount_claimed || 0,
+      providerName:        claim.provider_name,
+      providerHpi:         claim.provider_hpi,
+      dateOfService:       consult?.completed_at || consult?.created_at || claim.created_at,
+      accIcd10Code:        consult?.acc_icd10_code,
+      accIcd10Description: consult?.acc_icd10_description,
+      accBodyPart:         consult?.acc_body_part,
+      accInjuryDate:       consult?.acc_injury_date,
+    })
+
+    const amountDollars = ((claim.amount_claimed || 0) / 100).toFixed(2)
+    const safeName = String(patientName).replace(/[^A-Za-z0-9]+/g, '-')
+    const filename = `ACC-${claimNumber}-${safeName}.pdf`
+    const invoiceRef = `Invoice ${claimNumber} — ${patientName}`
+
+    const emailRes = await sendEmail({
+      from:    'Tere Health <hello@terehealth.co.nz>',
+      replyTo: 'terehealthnz@gmail.com',
+      to:      'providerinvoices@acc.co.nz',
+      cc:      'terehealthnz@gmail.com',
+      subject: `${invoiceRef} (Vendor G11238)`,
+      html:    `<p>Kia ora ACC Provider Invoices team,</p>
+                <p>Please find attached a tax invoice for services rendered under ACC vendor <strong>G11238</strong> (Tere Health Limited).</p>
+                <p><strong>Client:</strong> ${patientName}${claim.patient_nhi ? ` · NHI ${claim.patient_nhi}` : ''}<br>
+                   <strong>Claim #:</strong> ${claimNumber}<br>
+                   <strong>Service code:</strong> ${claim.service_code || '—'}<br>
+                   <strong>Amount:</strong> $${amountDollars} NZD (GST exempt — s21 GSTA 1985)</p>
+                <p style="color:#6B7280;font-size:12px">Tere Health Limited · terehealth.co.nz · HPI-O G11238-E</p>`,
+      attachments: [{ filename, content: pdfBuffer.toString('base64'), contentType: 'application/pdf' }],
+    })
+
+    if (!emailRes.ok) {
+      console.error('[acc-claim-invoice] email_to_acc send failed:', emailRes.error)
+      return res.status(502).json({ error: 'Email send to ACC failed. Try downloading the PDF and sending manually.' })
+    }
+
+    const stampedAt = new Date().toISOString()
+    const lodgementMeta = {
+      ...(claim.raw_response || {}),
+      lodged_via:  'email_from_admin',
+      lodged_by:   req.auth?.provider?.id || null,
+      lodged_name: req.auth?.provider?.first_name
+        ? `${req.auth.provider.first_name} ${req.auth.provider.last_name || ''}`.trim()
+        : null,
+      email_message_id: emailRes.id || null,
+    }
+
+    await supabase.from('acc_claims').update({
+      status:               'submitted',
+      invoice_submitted_at: stampedAt,
+      raw_response:         lodgementMeta,
+    }).eq('id', claimId)
+
+    if (claim.consultation_id) {
+      await supabase.from('consultations').update({
+        acc_claim_status: 'submitted',
+      }).eq('id', claim.consultation_id).then(() => {}).catch(() => {})
+    }
+
+    try {
+      await recordDisclosure(req, {
+        patientNhi:        claim.patient_nhi,
+        consultationId:    claim.consultation_id,
+        channel:           'acc_invoice',
+        destination:       'providerinvoices@acc.co.nz',
+        destinationLabel:  'ACC (Provider Invoices)',
+        consentSource:     'triage_tick',
+        consentSourceRef:  claim.consultation_id,
+        disclosurePurpose: 'billing',
+        payloadSummary:    `ACC invoice emailed from admin — claim ${claimNumber}`,
+      })
+    } catch (e) { console.warn('[acc-claim-invoice] disclosure record failed:', e.message) }
+
+    writeAuditEvent(req, req.auth, {
+      event_type:      'acc_invoice.emailed_to_acc',
+      resource_type:   'acc_claims',
+      resource_id:     claim.id,
+      consultation_id: claim.consultation_id,
+      metadata: {
+        claim_number: claimNumber,
+        destination:  'providerinvoices@acc.co.nz',
+        resend:       !!claim.invoice_submitted_at,
+        message_id:   emailRes.id || null,
+      },
+    })
+
+    return res.status(200).json({ ok: true, sent: true, lodgedAt: stampedAt, messageId: emailRes.id || null })
   }
 
   // ── action: mark_lodged — stamp invoice_submitted_at + metadata ────────────

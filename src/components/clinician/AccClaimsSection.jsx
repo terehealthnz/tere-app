@@ -12,6 +12,7 @@ import {
   downloadAccInvoicePdf,
   setAccClaimNumber,
   markAccClaimLodged,
+  emailAccClaimToAcc,
   addAccCommunication,
 } from '../../lib/supabase'
 import { ReasonPicker } from './PhiRevealGate'
@@ -85,6 +86,11 @@ export default function AccClaimsSection() {
   // the heavier lodgement stamping.
   const [claimNumFor, setClaimNumFor] = useState(null)
   const [claimNumBusy, setClaimNumBusy] = useState(false)
+  // "Email to ACC" modal — admin-triggered send of invoice PDF to
+  // providerinvoices@acc.co.nz. Confirm step with full preview before
+  // the actual send fires.
+  const [emailFor, setEmailFor] = useState(null)
+  const [emailBusy, setEmailBusy] = useState(false)
 
   async function handleDownloadInvoice(c) {
     setInvBusy(c.id)
@@ -128,6 +134,33 @@ export default function AccClaimsSection() {
       alert('Could not save claim number: ' + e.message)
     } finally {
       setClaimNumBusy(false)
+    }
+  }
+
+  async function handleConfirmEmail(allowResend = false) {
+    if (!emailFor) return
+    setEmailBusy(true)
+    try {
+      await emailAccClaimToAcc(emailFor.id, { allowResend })
+      setEmailFor(null)
+      await refresh()
+    } catch (e) {
+      if (e.code === 'already_lodged') {
+        const ok = window.confirm('This claim was already lodged. Send to ACC again anyway?')
+        if (ok) {
+          try {
+            await emailAccClaimToAcc(emailFor.id, { allowResend: true })
+            setEmailFor(null)
+            await refresh()
+          } catch (e2) {
+            alert('Resend failed: ' + e2.message)
+          }
+        }
+      } else {
+        alert('Could not email ACC: ' + e.message)
+      }
+    } finally {
+      setEmailBusy(false)
     }
   }
 
@@ -354,9 +387,14 @@ export default function AccClaimsSection() {
                         Add claim #
                       </button>
                     ) : (
-                      <button onClick={() => setLodgeFor(c)} style={{ background: TEAL, border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }} title="Stamp this claim as lodged with ACC (updates the audit trail)">
-                        Mark lodged
-                      </button>
+                      <>
+                        <button onClick={() => setEmailFor(c)} style={{ background: '#D97706', border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer', marginRight: 6 }} title="Email the invoice PDF to providerinvoices@acc.co.nz now (stamps lodged automatically)">
+                          ✉ Email to ACC
+                        </button>
+                        <button onClick={() => setLodgeFor(c)} style={{ background: 'white', border: `1px solid ${TEAL}`, color: TEAL, padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }} title="I already lodged manually (ProviderHub or email from my own account) — just record it">
+                          Mark lodged
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>
@@ -425,6 +463,15 @@ export default function AccClaimsSection() {
           busy={claimNumBusy}
           onCancel={() => setClaimNumFor(null)}
           onConfirm={handleSaveClaimNumber}
+        />
+      )}
+
+      {emailFor && (
+        <EmailToAccModal
+          claim={emailFor}
+          busy={emailBusy}
+          onCancel={() => setEmailFor(null)}
+          onConfirm={() => handleConfirmEmail(false)}
         />
       )}
     </div>
@@ -803,6 +850,58 @@ function ClaimNumberModal({ claim, busy, onCancel, onConfirm }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// EmailToAccModal — final confirm step before firing the invoice PDF to
+// providerinvoices@acc.co.nz. Shows a preview summary of exactly what
+// will go to ACC so admin can sanity-check once more. Server double-
+// checks (sandbox/test-mode/claim#) before actually sending.
+function EmailToAccModal({ claim, busy, onCancel, onConfirm }) {
+  const amount = Number.isFinite(claim.amount_claimed) ? `$${(claim.amount_claimed / 100).toFixed(2)}` : '—'
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.7)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 500, padding: '1.25rem 1.5rem', fontFamily: FF }}>
+        <h3 style={{ margin: 0, color: NAVY, fontSize: '1rem', fontWeight: 800 }}>Email invoice to ACC</h3>
+        <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 4, marginBottom: '1rem', lineHeight: 1.5 }}>
+          Sends the invoice PDF to <strong>providerinvoices@acc.co.nz</strong> (cc'd to <strong>terehealthnz@gmail.com</strong>) and stamps this claim as lodged. Make sure the claim number is correct before confirming.
+        </div>
+
+        <div style={{ background: '#F7F5F0', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '1rem', fontSize: '.8125rem' }}>
+          <Row k="Patient" v={claim.patient_name || '—'} />
+          <Row k="NHI" v={claim.patient_nhi || '—'} />
+          <Row k="ACC claim #" v={<strong style={{ color: NAVY }}>{claim.claim_number || '—'}</strong>} />
+          <Row k="Service code" v={claim.service_code || '—'} />
+          <Row k="Amount" v={<strong style={{ color: NAVY }}>{amount} NZD</strong>} />
+          <Row k="Vendor" v="G11238 (Tere Health Ltd)" />
+          <Row k="Provider" v={claim.provider_name || '—'} />
+        </div>
+
+        <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 8, padding: '.625rem .875rem', fontSize: '.75rem', color: '#92400E', marginBottom: '1rem', lineHeight: 1.4 }}>
+          This is an irreversible external send. ACC will receive the invoice and attempt to match against claim <strong>{claim.claim_number || '(missing)'}</strong>. If the claim number is wrong, ACC will reject it and we'll have to re-send a corrected invoice.
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} disabled={busy}
+            style={{ background: 'white', border: '1px solid #E2E8F0', color: '#6B7280', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={onConfirm} disabled={busy}
+            style={{ background: '#D97706', color: 'white', border: 'none', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+            {busy ? 'Sending to ACC…' : '✉ Send to ACC Provider Invoices'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Row({ k, v }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, padding: '2px 0' }}>
+      <div style={{ color: '#6B7280', width: 110, fontSize: '.75rem' }}>{k}</div>
+      <div style={{ color: '#1A2A33', flex: 1 }}>{v}</div>
     </div>
   )
 }
