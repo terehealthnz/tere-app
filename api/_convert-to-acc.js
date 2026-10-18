@@ -22,17 +22,19 @@ export default async function handler(req, res) {
 
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
-  // ACC claim number is now mandatory at the point of conversion. Without
-  // a real claim number the downstream invoice gets rejected by ACC
-  // Provider Invoices (2026-10-18 bounce). Reject obvious placeholders
-  // (TEST*, blank, too short) up-front; the invoice PDF path has a
-  // defence-in-depth check for the same patterns.
-  const normalisedClaim = typeof accClaimNumberIn === 'string'
-    ? accClaimNumberIn.trim().toUpperCase().replace(/\s+/g, '')
-    : ''
-  if (!normalisedClaim || normalisedClaim.length < 7 || /^TEST/i.test(normalisedClaim)) {
+  // ACC claim number is OPTIONAL at conversion. Two real workflows:
+  //   (a) patient brings the claim number from an earlier ACC45 — provider
+  //       enters it now, admin just marks lodged later;
+  //   (b) patient has no claim yet — provider converts blank, admin lodges
+  //       ACC45 via ProviderHub, pastes the returned number back via the
+  //       Admin > ACC > "Add claim #" action.
+  // We only reject obvious placeholders (TEST*) — a blank claim number is
+  // allowed and the row sits as "pending claim #" in Admin until updated.
+  const rawClaim = typeof accClaimNumberIn === 'string' ? accClaimNumberIn.trim() : ''
+  const normalisedClaim = rawClaim ? rawClaim.toUpperCase().replace(/\s+/g, '') : ''
+  if (normalisedClaim && (/^TEST/i.test(normalisedClaim) || normalisedClaim.length < 7)) {
     return res.status(400).json({
-      error: 'A real ACC claim number is required before converting. If the patient has not lodged ACC45 yet, do that first and enter the number returned by ACC.',
+      error: 'ACC claim number looks like a placeholder. Either leave it blank (admin will add it after lodging ACC45) or enter the real claim number from ACC.',
     })
   }
 
@@ -78,7 +80,7 @@ export default async function handler(req, res) {
     acc_employer: workRelated === 'yes' ? (employer || consult.acc_employer || null) : null,
     acc_icd10_code: normalisedCode,
     acc_icd10_description: canonicalDescription,
-    acc_claim_number: normalisedClaim,
+    acc_claim_number: normalisedClaim || null,
     notes_flagged: true,
     payment_amount: 2500,
     // Discrete consent capture — auditable independent of note prose.

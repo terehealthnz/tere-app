@@ -82,6 +82,48 @@ export default async function handler(req, res) {
     return res.status(200).send(pdfBuffer)
   }
 
+  // ── action: set_claim_number — admin pastes the real ACC claim number ──
+  // after lodging ACC45 via ProviderHub (or receiving it from the patient).
+  // Separate from mark_lodged so admin can update the number without
+  // committing to a lodgement stamp. Used for rows that converted blank.
+  if (action === 'set_claim_number') {
+    if (req.method !== 'POST') return res.status(405).end()
+    const { claimId, claimNumber: claimNumberIn } = req.body || {}
+    if (!claimId) return res.status(400).json({ error: 'claimId required' })
+
+    const normalised = (claimNumberIn || '').toString().trim().toUpperCase().replace(/\s+/g, '')
+    if (!normalised || normalised.length < 7 || /^TEST/i.test(normalised)) {
+      return res.status(400).json({ error: 'Enter a real ACC claim number (min 7 chars, no TEST prefix).' })
+    }
+
+    const { claim, error } = await loadClaimWithConsult(supabase, claimId)
+    if (error) return res.status(404).json({ error })
+
+    const { error: upErr } = await supabase.from('acc_claims').update({
+      claim_number: normalised,
+    }).eq('id', claimId)
+    if (upErr) {
+      console.error('[acc-claim-invoice] set_claim_number update failed:', upErr.message)
+      return res.status(500).json({ error: 'Could not save claim number' })
+    }
+
+    if (claim.consultation_id) {
+      await supabase.from('consultations').update({
+        acc_claim_number: normalised,
+      }).eq('id', claim.consultation_id).then(() => {}).catch(() => {})
+    }
+
+    writeAuditEvent(req, req.auth, {
+      event_type:      'acc_claim.number_set',
+      resource_type:   'acc_claims',
+      resource_id:     claim.id,
+      consultation_id: claim.consultation_id,
+      metadata: { was: claim.claim_number || null, now: normalised },
+    })
+
+    return res.status(200).json({ ok: true, claimNumber: normalised })
+  }
+
   // ── action: mark_lodged — stamp invoice_submitted_at + metadata ────────────
   if (action === 'mark_lodged') {
     if (req.method !== 'POST') return res.status(405).end()

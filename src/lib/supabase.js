@@ -1268,6 +1268,21 @@ export async function downloadAccInvoicePdf(claimId) {
   return res.blob()
 }
 
+// Admin pastes in the ACC claim number returned by ProviderHub after
+// lodging ACC45. Updates both acc_claims.claim_number and consultations.
+// acc_claim_number so the invoice PDF and reporting both reflect reality.
+// Does NOT stamp invoice_submitted_at — use markAccClaimLodged for that.
+export async function setAccClaimNumber(claimId, { claimNumber } = {}) {
+  const res = await apiFetch('/api/acc-claim-invoice', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ action: 'set_claim_number', claimId, claimNumber }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+  return body
+}
+
 export async function markAccClaimLodged(claimId, { claimNumber, channel = 'providerhub', notes = '', lodgedAt } = {}) {
   const res = await apiFetch('/api/acc-claim-invoice', {
     method:  'POST',

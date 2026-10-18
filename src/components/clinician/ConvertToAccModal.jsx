@@ -39,13 +39,16 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
   const [done, setDone]               = useState(false)
   const [paymentNote, setPaymentNote] = useState('')
 
-  // ACC claim numbers are 7–10 chars, letters + digits (e.g. 'EP123456' or
-  // '0123456789'). Loose match — ACC accepts a few shapes depending on
-  // product; we just reject obvious placeholders and nothing-entered.
+  // ACC claim number is OPTIONAL at this stage. If the patient already
+  // has one (prior ACC45 for same injury), the provider enters it now.
+  // If not, provider leaves it blank — admin lodges ACC45 via ProviderHub
+  // and pastes the returned number back from Admin > ACC > Add claim #.
+  // Only reject obvious placeholders (TEST*) or garbage short values.
   const trimmedClaim = accClaimNumber.trim().toUpperCase()
   const looksLikeTestClaim = /^TEST/i.test(trimmedClaim)
-  const claimNumberOk = trimmedClaim.length >= 7 && !looksLikeTestClaim
-  const canSubmit = mechanism.trim() && bodyPart && accIcd10Code && claimNumberOk && consentObtained
+  const claimEnteredAndValid = trimmedClaim.length >= 7 && !looksLikeTestClaim
+  const claimEnteredAndInvalid = trimmedClaim.length > 0 && !claimEnteredAndValid
+  const canSubmit = mechanism.trim() && bodyPart && accIcd10Code && !claimEnteredAndInvalid && consentObtained
 
   async function handleConvert() {
     if (!canSubmit) return
@@ -153,18 +156,18 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                 </div>
 
                 <div>
-                  <label style={lbl}>ACC claim number <span style={{ color: '#DC2626' }}>*</span></label>
+                  <label style={lbl}>ACC claim number <span style={{ fontWeight: 500, color: '#9CA3AF' }}>(optional at this step)</span></label>
                   <input
                     value={accClaimNumber}
                     onChange={e => setAccClaimNumber(e.target.value)}
-                    placeholder="e.g. EP123456 or 0123456789"
+                    placeholder="e.g. EP123456 — leave blank if patient doesn't have one yet"
                     style={{ ...inp, textTransform: 'uppercase' }}
                     autoComplete="off"
                   />
-                  <div style={{ fontSize: '.6875rem', color: accClaimNumber && !claimNumberOk ? '#DC2626' : '#6B7280', marginTop: 4, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: '.6875rem', color: claimEnteredAndInvalid ? '#DC2626' : '#6B7280', marginTop: 4, lineHeight: 1.4 }}>
                     {looksLikeTestClaim
-                      ? 'This looks like a placeholder — ACC will reject it. Ask the patient for their real claim number or lodge an ACC45 first.'
-                      : 'The claim number the patient was issued by ACC (or from the ACC45 you just lodged). ACC rejects invoices without it.'}
+                      ? 'This looks like a placeholder — leave blank instead. Admin will add the real number after lodging ACC45.'
+                      : "If the patient already has a claim number (prior ACC45 for the same injury), enter it. Otherwise leave blank — admin will lodge ACC45 via ProviderHub and add the number afterwards."}
                   </div>
                 </div>
 

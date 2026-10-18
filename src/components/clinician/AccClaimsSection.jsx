@@ -10,6 +10,7 @@ import {
   getAccAuditBundle,
   downloadAccAuditBundlePdf,
   downloadAccInvoicePdf,
+  setAccClaimNumber,
   markAccClaimLodged,
   addAccCommunication,
 } from '../../lib/supabase'
@@ -79,6 +80,11 @@ export default function AccClaimsSection() {
   const [lodgeFor, setLodgeFor] = useState(null)        // claim row
   const [lodgeBusy, setLodgeBusy] = useState(false)
   const [invBusy, setInvBusy] = useState(null)          // claim id currently being downloaded
+  // Separate "Add claim #" modal for pending rows (provider converted
+  // without a claim number). Keeps the simple paste-in UX distinct from
+  // the heavier lodgement stamping.
+  const [claimNumFor, setClaimNumFor] = useState(null)
+  const [claimNumBusy, setClaimNumBusy] = useState(false)
 
   async function handleDownloadInvoice(c) {
     setInvBusy(c.id)
@@ -110,6 +116,24 @@ export default function AccClaimsSection() {
       setLodgeBusy(false)
     }
   }
+
+  async function handleSaveClaimNumber(claimNumber) {
+    if (!claimNumFor) return
+    setClaimNumBusy(true)
+    try {
+      await setAccClaimNumber(claimNumFor.id, { claimNumber })
+      setClaimNumFor(null)
+      await refresh()
+    } catch (e) {
+      alert('Could not save claim number: ' + e.message)
+    } finally {
+      setClaimNumBusy(false)
+    }
+  }
+
+  // "Real" claim number = non-empty AND not TEST*. Anything else is a
+  // placeholder waiting for admin to add the real number from ProviderHub.
+  const hasRealClaimNumber = (c) => !!c?.claim_number && !/^TEST/i.test(c.claim_number)
 
   async function refresh() {
     setLoading(true); setError(null)
@@ -297,7 +321,13 @@ export default function AccClaimsSection() {
               )}
               {claims.map(c => (
                 <tr key={c.id} style={{ borderTop: '1px solid #F1F5F9' }}>
-                  <td style={{ padding: '.625rem .75rem', color: NAVY, fontWeight: 700 }}>{c.claim_number || '—'}</td>
+                  <td style={{ padding: '.625rem .75rem', color: NAVY, fontWeight: 700 }}>
+                    {hasRealClaimNumber(c) ? c.claim_number : (
+                      <span style={{ background: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: 6, fontSize: '.6875rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.02em' }}>
+                        Pending claim #
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: '.625rem .75rem' }}><span style={statusPill(c.status)}>{c.status || '—'}</span></td>
                   <td style={{ padding: '.625rem .75rem' }}>
                     <div style={{ color: NAVY }}>{unmasked ? (c.patient_name || '—') : maskFullName(c.patient_name)}</div>
@@ -319,6 +349,10 @@ export default function AccClaimsSection() {
                       <span style={{ background: '#D1FAE5', color: '#065F46', padding: '.375rem .625rem', borderRadius: 6, fontSize: '.75rem', fontWeight: 700 }} title={`Lodged ${nzDateTime(c.invoice_submitted_at)}`}>
                         ✓ Lodged
                       </span>
+                    ) : !hasRealClaimNumber(c) ? (
+                      <button onClick={() => setClaimNumFor(c)} style={{ background: '#D97706', border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }} title="Paste in the ACC claim number from ProviderHub">
+                        Add claim #
+                      </button>
                     ) : (
                       <button onClick={() => setLodgeFor(c)} style={{ background: TEAL, border: 'none', color: 'white', padding: '.375rem .625rem', borderRadius: 6, fontFamily: FF, fontSize: '.75rem', fontWeight: 700, cursor: 'pointer' }} title="Stamp this claim as lodged with ACC (updates the audit trail)">
                         Mark lodged
@@ -382,6 +416,15 @@ export default function AccClaimsSection() {
           busy={lodgeBusy}
           onCancel={() => setLodgeFor(null)}
           onConfirm={handleConfirmLodge}
+        />
+      )}
+
+      {claimNumFor && (
+        <ClaimNumberModal
+          claim={claimNumFor}
+          busy={claimNumBusy}
+          onCancel={() => setClaimNumFor(null)}
+          onConfirm={handleSaveClaimNumber}
         />
       )}
     </div>
@@ -707,6 +750,56 @@ function LodgeModal({ claim, busy, onCancel, onConfirm }) {
           <button onClick={() => onConfirm({ claimNumber: normalised, channel, notes: notes.trim(), lodgedAt: new Date(lodgedAt).toISOString() })} disabled={busy || !valid}
             style={{ background: !valid ? '#E2E8F0' : TEAL, color: !valid ? '#9CA3AF' : 'white', border: 'none', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: (busy || !valid) ? 'default' : 'pointer' }}>
             {busy ? 'Saving…' : '✓ Confirm lodged'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ClaimNumberModal — admin pastes in the ACC claim number returned by
+// ProviderHub (or supplied by patient after the fact). Doesn't stamp
+// lodgement — just updates the number so the invoice PDF carries the
+// right ID. Admin stamps lodged separately via the Lodge modal.
+function ClaimNumberModal({ claim, busy, onCancel, onConfirm }) {
+  const [claimNumber, setClaimNumber] = useState(
+    claim.claim_number && !/^TEST/i.test(claim.claim_number) ? claim.claim_number : ''
+  )
+  const normalised = claimNumber.trim().toUpperCase().replace(/\s+/g, '')
+  const looksTest = /^TEST/i.test(normalised)
+  const valid = normalised.length >= 7 && !looksTest
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.65)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 440, padding: '1.25rem 1.5rem', fontFamily: FF }}>
+        <h3 style={{ margin: 0, color: NAVY, fontSize: '1rem', fontWeight: 800 }}>Add ACC claim number</h3>
+        <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 4, marginBottom: '1rem', lineHeight: 1.5 }}>
+          Paste in the claim number from ProviderHub (or whatever ACC gave you). This updates the consultation record and the invoice PDF so you can lodge from here.
+        </div>
+
+        <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '.5rem .75rem', fontSize: '.75rem', color: '#374151', marginBottom: '1rem' }}>
+          <div><strong>Patient:</strong> {claim.patient_name || '—'}</div>
+          {claim.patient_nhi && <div><strong>NHI:</strong> {claim.patient_nhi}</div>}
+          {claim.service_code && <div><strong>Service:</strong> {claim.service_code}</div>}
+        </div>
+
+        <label style={lbl}>ACC claim number *</label>
+        <input value={claimNumber} onChange={e => setClaimNumber(e.target.value)} placeholder="e.g. EP123456" autoComplete="off" autoFocus
+          style={{ ...inp, width: '100%', boxSizing: 'border-box', textTransform: 'uppercase', marginBottom: 4 }} />
+        <div style={{ fontSize: '.6875rem', color: claimNumber && !valid ? '#DC2626' : '#6B7280', marginBottom: '1rem' }}>
+          {looksTest
+            ? 'TEST prefix is not accepted — paste the real ACC claim number.'
+            : 'Minimum 7 characters. ACC rejects invoices without a registered claim number.'}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} disabled={busy}
+            style={{ background: 'white', border: '1px solid #E2E8F0', color: '#6B7280', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer' }}>
+            Cancel
+          </button>
+          <button onClick={() => onConfirm(normalised)} disabled={busy || !valid}
+            style={{ background: !valid ? '#E2E8F0' : TEAL, color: !valid ? '#9CA3AF' : 'white', border: 'none', padding: '.5rem 1rem', borderRadius: 8, fontFamily: FF, fontSize: '.8125rem', fontWeight: 700, cursor: (busy || !valid) ? 'default' : 'pointer' }}>
+            {busy ? 'Saving…' : 'Save claim number'}
           </button>
         </div>
       </div>
