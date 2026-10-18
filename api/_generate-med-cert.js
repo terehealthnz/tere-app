@@ -41,6 +41,22 @@ export default async function handler(req, res) {
   if (!consultationId || !patientEmail) return res.status(400).json({ error: 'consultationId and patientEmail required' })
   if (!hasEmailProvider()) return res.status(500).json({ error: 'Email not configured' })
 
+  // Sandbox-safety: never fire a real med cert to a seeded practice patient.
+  try {
+    const { createClient } = await import('@supabase/supabase-js')
+    const sb = createClient(
+      process.env.VITE_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+    )
+    const { isPracticeConsult } = await import('./_practice-guard.js')
+    if (await isPracticeConsult(sb, consultationId)) {
+      console.log('[generate-med-cert] practice consult — suppressing send')
+      return res.status(200).json({ ok: true, simulated: true, skipped: 'practice_mode' })
+    }
+  } catch (e) {
+    console.warn('[generate-med-cert] practice-guard check failed:', e.message)
+  }
+
   const dateStr = consultationDate
     ? new Date(consultationDate).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
     : new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })

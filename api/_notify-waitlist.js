@@ -12,11 +12,15 @@ export default async function handler(req, res) {
       process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY
     )
 
-    // Get all waitlisted consultations
+    // Get all waitlisted consultations. Sandbox-safety: never notify
+    // is_practice=true rows — a seeded practice patient may hold a real NZ
+    // email/phone that collides with a real contact. Same reasoning as
+    // _practice-guard.js single-consult check.
     const { data: waitlisted } = await supabase
       .from('consultations')
-      .select('id, patient_first_name, patient_last_name, patient_email, patient_phone')
+      .select('id, patient_first_name, patient_last_name, patient_email, patient_phone, is_practice')
       .eq('status', 'waitlisted')
+      .or('is_practice.is.null,is_practice.eq.false')
       .order('created_at', { ascending: true })
 
     if (!waitlisted?.length) return res.status(200).json({ sent: 0 })

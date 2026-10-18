@@ -14,6 +14,25 @@ export default async function handler(req, res) {
     return res.status(200).json({ sent: false, reason: 'no_email' })
   }
 
+  // Sandbox-safety: suppress outbound email on practice consults. A seeded
+  // row may carry a real NZ email/phone that collides with a real contact.
+  if (consultationId) {
+    try {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(
+        process.env.VITE_SUPABASE_URL,
+        process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+      )
+      const { isPracticeConsult } = await import('./_practice-guard.js')
+      if (await isPracticeConsult(supabase, consultationId)) {
+        console.log('[send-waitlist-email] practice consult — suppressing send')
+        return res.status(200).json({ sent: false, reason: 'practice' })
+      }
+    } catch (e) {
+      console.warn('[send-waitlist-email] practice-guard check failed:', e.message)
+    }
+  }
+
   console.log('[send-waitlist-email] Sending waitlist email to:', patientEmail)
 
   const firstName = (patientName || 'there').split(' ')[0]

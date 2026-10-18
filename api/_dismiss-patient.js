@@ -37,9 +37,19 @@ export default async function handler(req, res) {
     } catch {}
   }
 
+  // Sandbox-safety: suppress outbound email on practice consults. A seeded
+  // row can carry a real NZ email/phone that collides with a real contact.
+  let isPractice = false
+  try {
+    const { isPracticeConsult } = await import('./_practice-guard.js')
+    isPractice = await isPracticeConsult(supabase, consultationId)
+  } catch (e) {
+    console.warn('[dismiss-patient] practice-guard check failed:', e.message)
+  }
+
   // Email patient (fire-and-forget)
   const canEmail = hasEmailProvider()
-  if (canEmail && patientEmail) {
+  if (!isPractice && canEmail && patientEmail) {
     const firstName = (patientName || '').split(' ')[0] || 'there'
     const appUrl = process.env.VITE_APP_URL || 'https://tere.co.nz'
     sendEmail({

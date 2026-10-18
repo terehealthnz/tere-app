@@ -117,11 +117,26 @@ export default async function handler(req, res) {
 
   // Fetch the current consultation to get patient email + current pricing context.
   const consultRes = await fetch(
-    `${supaUrl}/rest/v1/consultations?id=eq.${consultationId}&select=id,patient_email,patient_first_name,patient_name,payment_amount,consultation_type,employer_paid`,
+    `${supaUrl}/rest/v1/consultations?id=eq.${consultationId}&select=id,patient_email,patient_first_name,patient_name,payment_amount,consultation_type,employer_paid,is_practice`,
     { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }
   )
   const [consult] = await consultRes.json()
   if (!consult) return res.status(404).json({ error: 'Consultation not found' })
+
+  // Sandbox-safety: on practice consults, record the ACC decision but
+  // simulate everything downstream (no Windcave top-up session, no patient
+  // email). The row stays flagged so prod reporting ignores it.
+  if (consult.is_practice) {
+    const patchDry = decision === 'confirmed'
+      ? { acc_provider_confirmed_at: now, acc_provider_confirmed_by: providerId || null }
+      : { acc_provider_declined_at: now, acc_provider_declined_by: providerId || null, acc_provider_decline_reason: String(declineReason || '').trim() || null }
+    await fetch(`${supaUrl}/rest/v1/consultations?id=eq.${consultationId}`, {
+      method: 'PATCH',
+      headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(patchDry),
+    }).catch(() => {})
+    return res.status(200).json({ ok: true, simulated: true, skipped: 'practice_mode' })
+  }
 
   // Employer-paid guard: employer paid the flat employer rate upfront, so
   // there's no differential to collect from the patient. Coerce any client
