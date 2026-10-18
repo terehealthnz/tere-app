@@ -31,6 +31,39 @@ const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
 const FF   = 'Plus Jakarta Sans, sans-serif'
 
+// Floating "practice call in progress" widget — stand-in for the real
+// LiveKit FloatingCallWidget when the consult is is_practice=true. Lets
+// the trainee see a visible call state and progress to the notes popup
+// via End Call, matching the real-call UX without needing a LiveKit room.
+function PracticeCallWidget({ patientName, startedAt, onEnd }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => clearInterval(t)
+  }, [startedAt])
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const ss = String(elapsed % 60).padStart(2, '0')
+  return (
+    <div style={{ position: 'fixed', bottom: 100, right: 20, zIndex: 60, background: '#0D2B45', color: 'white', borderRadius: 14, padding: '0.875rem 1rem', boxShadow: '0 10px 30px rgba(0,0,0,.3)', fontFamily: 'Plus Jakarta Sans, sans-serif', minWidth: 240, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#F59E0B', boxShadow: '0 0 0 4px rgba(245,158,11,.25)' }} />
+        <div style={{ fontSize: '.6875rem', fontWeight: 700, color: '#F59E0B', textTransform: 'uppercase', letterSpacing: '.04em' }}>Practice call</div>
+      </div>
+      <div style={{ fontSize: '.9375rem', fontWeight: 700 }}>{patientName}</div>
+      <div style={{ fontSize: '1.5rem', fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: '#D4EEF0' }}>{mm}:{ss}</div>
+      <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.6)', lineHeight: 1.4 }}>
+        No real patient on the line — simulated for training. Try notes, prescribing, and referrals while the "call" is active.
+      </div>
+      <button onClick={onEnd}
+        style={{ marginTop: 4, background: '#DC2626', color: 'white', border: 'none', borderRadius: 10, padding: '0.5rem 0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.8125rem', cursor: 'pointer' }}>
+        End call → go to notes
+      </button>
+    </div>
+  )
+}
+
 function InfoRow({ label, value, placeholder }) {
   // Hide the row entirely when there's no value AND no placeholder — the
   // original behaviour. Pass a `placeholder` string to render an explicit
@@ -541,7 +574,24 @@ export default function ClinicianPatient() {
           remaining fully interactive. onEnd fires on hangup, disconnect,
           Return to queue, or Complete Encounter — always unmounts the
           popup and keeps the provider on this patient page. */}
-      {activeCall && (
+      {/* Practice mode uses a lightweight simulated call widget instead of
+          ProviderConsult — ProviderConsult tries to join a LiveKit room that
+          doesn't exist for sandbox consults and hangs invisibly. The
+          simulator gives the trainee the same visible "call in progress"
+          state + End Call → notes flow, without touching LiveKit. */}
+      {activeCall?.channel === 'practice' && (
+        <PracticeCallWidget
+          patientName={`${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim() || 'Practice patient'}
+          startedAt={activeCall.startedAt}
+          onEnd={() => {
+            setActiveCall(null)
+            // Mirror real-call Complete flow: open notes modal with empty
+            // transcript so trainee can practise note-taking.
+            setActiveNotes({ actions: [], transcript: '', callNotes: '' })
+          }}
+        />
+      )}
+      {activeCall && activeCall.channel !== 'practice' && (
         <Suspense fallback={null}>
           <ProviderConsult
             popupMode
