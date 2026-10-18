@@ -61,10 +61,13 @@ async function submitToACC(claimPayload) {
   return data
 }
 
-// Simulate a claim number for sandbox/dev when ACC credentials aren't configured.
-function generateSimulatedClaimNumber() {
-  const prefix = process.env.ACC_SANDBOX === 'false' ? 'ACC' : 'TEST'
-  return `${prefix}${Date.now().toString().slice(-8)}`
+// Sandbox-only placeholder claim number. ONLY used when the consult is
+// is_practice=true (demo seats, training). For prod rows the invoice MUST
+// carry the real ACC claim number the patient was issued — otherwise
+// Provider Invoices bounces it with "not a registered ACC claim number"
+// (2026-10-18 incident).
+function generateSandboxClaimNumber() {
+  return `TEST${Date.now().toString().slice(-8)}`
 }
 
 // Email an IRD-compliant invoice PDF to providerinvoices@acc.co.nz. Gated
@@ -72,9 +75,15 @@ function generateSimulatedClaimNumber() {
 // spam ACC — flip the env var when the provider registration is approved
 // and rates have been sanity-checked. terehealthnz@gmail.com is always
 // cc'd so we keep a copy of every invoice we submit.
-async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi }) {
+async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents, providerName, providerHpi, providerMcnz }) {
   if (process.env.ACC_AUTOSEND_INVOICES !== 'true') return { skipped: 'ACC_AUTOSEND_INVOICES not enabled' }
   if (!hasEmailProvider()) return { skipped: 'no email provider configured' }
+  // Defence-in-depth (2026-10-18): never fire a TEST* claim number to
+  // providerinvoices@acc.co.nz. The upstream path already blocks this at
+  // Convert-to-ACC, but any dirty row that slipped through must not escape.
+  if (!claimNumber || /^TEST/i.test(String(claimNumber))) {
+    return { skipped: 'placeholder_claim_number', claimNumber }
+  }
   const patientName = [consult.patient_first_name, consult.patient_last_name].filter(Boolean).join(' ').trim() || 'ACC client'
   const pdfBuffer = await buildAccInvoicePdf({
     patientName,
@@ -85,6 +94,7 @@ async function emailAccInvoice({ claimNumber, consult, serviceCode, amountCents,
     amountCents,
     providerName,
     providerHpi,
+    providerMcnz,
     dateOfService:       consult.completed_at || consult.created_at,
     // Diagnosis + injury context — required by ACC's billing engine to match
     // the invoice line against the claim's registered injury. Pulled from
@@ -151,7 +161,7 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { consultationId, providerId, providerHpi, providerName, providerType } = req.body
+  const { consultationId, providerId, providerHpi, providerMcnz: providerMcnzIn, providerName, providerType } = req.body
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   try {
@@ -206,6 +216,9 @@ export default async function handler(req, res) {
     const serviceCode  = getServiceCode(consult.consultation_type, isFollowup)
     const amountCents  = getACCRateCents(consult.consultation_type, isFollowup)
     const hpiNumber    = providerHpi || process.env.PATRICK_HPI_NUMBER || ''
+    // MCNZ registration — ACC uses this to validate scope-of-practice.
+    // Falls back to the admin's own reg if the caller didn't supply one.
+    const mcnzNumber   = providerMcnzIn || process.env.PATRICK_MCNZ_NUMBER || ''
     const pName        = providerName || 'Tere Health Provider'
     const isSandbox    = process.env.ACC_SANDBOX !== 'false'
     const hasCredentials = !!(process.env.ACC_API_KEY && process.env.ACC_VENDOR_ID && hpiNumber)
@@ -254,9 +267,22 @@ export default async function handler(req, res) {
       rawResponse   = await submitToACC(claimPayload)
       claimNumber   = rawResponse.claimNumber
     } else {
-      // No credentials — simulate for dev/sandbox
-      claimNumber   = generateSimulatedClaimNumber()
-      rawResponse   = { simulated: true, claimNumber, note: isSandbox ? 'ACC credentials not configured — simulated claim' : 'Missing ACC credentials' }
+      // No ACC REST creds — real NZ workflow is ProviderHub (manual) or
+      // emailed invoice (providerinvoices@acc.co.nz). Both need the real
+      // claim number the patient was issued. Pull from consult (set by
+      // the Convert-to-ACC modal) and refuse to proceed if missing/placeholder.
+      const prov = typeof consult.acc_claim_number === 'string'
+        ? consult.acc_claim_number.trim().toUpperCase()
+        : ''
+      const isPlaceholder = !prov || prov.length < 7 || /^TEST/i.test(prov)
+      if (isPlaceholder) {
+        return res.status(400).json({
+          error: 'ACC claim number missing or placeholder on this consultation. Open the chart, re-run Convert-to-ACC with the real claim number from ACC, then retry.',
+          needsClaimNumber: true,
+        })
+      }
+      claimNumber   = prov
+      rawResponse   = { simulated: false, claimNumber, note: 'Provider-entered ACC claim number — manual lodgement via ProviderHub' }
     }
 
     // Save claim record
@@ -295,7 +321,7 @@ export default async function handler(req, res) {
     try {
       invoiceOutcome = await emailAccInvoice({
         claimNumber, consult, serviceCode, amountCents,
-        providerName: pName, providerHpi: hpiNumber,
+        providerName: pName, providerHpi: hpiNumber, providerMcnz: mcnzNumber,
       })
       if (invoiceOutcome?.sent) {
         recordAccInvoiceDisclosure(req, consult, claimNumber)

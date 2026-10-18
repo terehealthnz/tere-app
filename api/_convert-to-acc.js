@@ -14,12 +14,27 @@ export default async function handler(req, res) {
     employer,
     accIcd10Code:   accIcd10CodeIn,
     accIcd10Description: accIcd10DescriptionIn,
+    accClaimNumber: accClaimNumberIn,
     consentObtained,
     providerId,
     providerName,
   } = req.body || {}
 
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+
+  // ACC claim number is now mandatory at the point of conversion. Without
+  // a real claim number the downstream invoice gets rejected by ACC
+  // Provider Invoices (2026-10-18 bounce). Reject obvious placeholders
+  // (TEST*, blank, too short) up-front; the invoice PDF path has a
+  // defence-in-depth check for the same patterns.
+  const normalisedClaim = typeof accClaimNumberIn === 'string'
+    ? accClaimNumberIn.trim().toUpperCase().replace(/\s+/g, '')
+    : ''
+  if (!normalisedClaim || normalisedClaim.length < 7 || /^TEST/i.test(normalisedClaim)) {
+    return res.status(400).json({
+      error: 'A real ACC claim number is required before converting. If the patient has not lodged ACC45 yet, do that first and enter the number returned by ACC.',
+    })
+  }
 
   // ACC ICD-10 is mandatory on ACC45 lodgement. Validate the code against
   // the HL7 NZ acc-icd10 CodeSystem whitelist (12,494 codes, no-dot format).
@@ -63,6 +78,7 @@ export default async function handler(req, res) {
     acc_employer: workRelated === 'yes' ? (employer || consult.acc_employer || null) : null,
     acc_icd10_code: normalisedCode,
     acc_icd10_description: canonicalDescription,
+    acc_claim_number: normalisedClaim,
     notes_flagged: true,
     payment_amount: 2500,
     // Discrete consent capture — auditable independent of note prose.

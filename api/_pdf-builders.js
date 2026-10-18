@@ -589,6 +589,10 @@ export function buildAccInvoicePdf(data) {
     }
     const invoiceRef = data.invoiceRef || nzInvoiceRef()
     const amountDollars = (data.amountCents / 100).toFixed(2)
+    // Draft gate — any missing/placeholder claim number stamps the whole
+    // page as DRAFT so Patrick can see at a glance it's not submittable.
+    const claimNumberStr = (data.claimNumber || '').toString().trim()
+    const isDraft = !claimNumberStr || /^TEST/i.test(claimNumberStr)
 
     // Header — Tere brand strip + logo
     doc.rect(0, 0, W, 80).fill('#0B6E76')
@@ -600,9 +604,21 @@ export function buildAccInvoicePdf(data) {
       if (logo) doc.image(logo, RIGHT - 60, 15, { fit: [50, 50], align: 'right' })
     } catch {}
 
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(20).text('Invoice', LEFT, 100)
+    // "Tax Invoice" per ACC's required-fields letter. GST exemption statement
+    // further down explains that no GST is charged (s21 GSTA 1985).
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(20).text('Tax Invoice', LEFT, 100)
     doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Reference: ${invoiceRef}`, LEFT, 128)
     doc.text(`Issued: ${nzDate()}`, LEFT, 141)
+
+    // Prominent claim-number + date-of-service callout — ACC's rejection
+    // email names these two fields explicitly as the top-level fields they
+    // check for before processing. Keep them visible above the fold.
+    doc.rect(300, 100, RIGHT - 300, 55).fill('#F0F9FA').stroke('#0B6E76')
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(9).text('ACC CLAIM #', 310, 108)
+    doc.font('Helvetica-Bold').fontSize(15).fillColor(isDraft ? '#DC2626' : '#0B6E76')
+      .text(claimNumberStr || '— MISSING —', 310, 120)
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(9).text('DATE OF SERVICE', 310, 142)
+    doc.font('Helvetica').fontSize(9).fillColor('#1A2A33').text(nzDate(data.dateOfService), 400, 142)
 
     // Bill-to (ACC)
     doc.font('Helvetica-Bold').fontSize(10).fillColor('#0D2B45').text('Bill to', LEFT, 170)
@@ -633,7 +649,7 @@ export function buildAccInvoicePdf(data) {
     doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
       .text(data.patientName || '(client name)', LEFT + 8, y)
     doc.font('Helvetica').fontSize(9).fillColor('#374151')
-      .text(`Claim #: ${data.claimNumber || '(pending — patient-supplied)'}`, LEFT + 8, y + 14)
+      .text(`Claim #: ${claimNumberStr || '(pending — patient-supplied)'}`, LEFT + 8, y + 14)
     let identityY = y + 27
     if (data.patientNhi) {
       doc.text(`NHI: ${data.patientNhi}`, LEFT + 8, identityY)
@@ -659,7 +675,10 @@ export function buildAccInvoicePdf(data) {
                     : data.serviceCode === 'MST1' ? 'Initial specialist telehealth consultation'
                     : 'Specialist telehealth consultation'
     doc.font('Helvetica').fontSize(9).fillColor('#6B7280').text(`Service: ${svcLabel}`, LEFT + 8, y)
-    doc.text(`Clinician: ${data.providerName || 'Tere Health provider'}${data.providerHpi ? ` · HPI-CPN ${data.providerHpi}` : ''}`, LEFT + 8, y + 14)
+    const clinicianLine = `Clinician: ${data.providerName || 'Tere Health provider'}`
+      + (data.providerHpi ? ` · HPI-CPN ${data.providerHpi}` : '')
+      + (data.providerMcnz ? ` · MCNZ ${data.providerMcnz}` : '')
+    doc.text(clinicianLine, LEFT + 8, y + 14)
     y += 32
 
     // Injury / diagnosis block — ACC's billing engine matches the invoice
@@ -715,6 +734,21 @@ export function buildAccInvoicePdf(data) {
     // Bottom disclaimer
     doc.fillColor('#AAA').fontSize(7.5)
       .text('Tere Health Limited · terehealth.co.nz · Electronically issued', LEFT, doc.page.height - 40, { align: 'center', width: RIGHT - LEFT })
+
+    // DRAFT watermark — fires on any placeholder claim number (TEST*, blank).
+    // Diagonal, semi-transparent red across the middle of the page so the
+    // reader can't miss it. Prevents accidental forward-to-ACC of stub PDFs.
+    if (isDraft) {
+      doc.save()
+      doc.fillColor('#DC2626').fillOpacity(0.14)
+      doc.font('Helvetica-Bold').fontSize(90)
+      // PDFKit rotation: translate to centre, rotate, draw text centred.
+      const cx = W / 2, cy = doc.page.height / 2
+      doc.translate(cx, cy).rotate(-30)
+      doc.text('DRAFT — NOT FOR SUBMISSION', -270, -30, { width: 540, align: 'center' })
+      doc.restore()
+      doc.fillOpacity(1)
+    }
 
     doc.end()
   })

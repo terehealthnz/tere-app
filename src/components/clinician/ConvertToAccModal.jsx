@@ -30,12 +30,22 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
   // lodgement. Pre-fill from consult row if AI already suggested one.
   const [accIcd10Code, setAccIcd10Code] = useState(consult?.acc_icd10_code || '')
   const [accIcd10Description, setAccIcd10Description] = useState(consult?.acc_icd10_description || '')
+  // Patient-supplied ACC claim number — required for the invoice. Without
+  // it ACC Provider Invoices bounces the invoice ("not a registered ACC
+  // claim number"). Pre-fill if the patient already stated it at triage.
+  const [accClaimNumber, setAccClaimNumber] = useState(consult?.acc_claim_number || '')
   const [consentObtained, setConsentObtained] = useState(false)
   const [converting, setConverting]   = useState(false)
   const [done, setDone]               = useState(false)
   const [paymentNote, setPaymentNote] = useState('')
 
-  const canSubmit = mechanism.trim() && bodyPart && accIcd10Code && consentObtained
+  // ACC claim numbers are 7–10 chars, letters + digits (e.g. 'EP123456' or
+  // '0123456789'). Loose match — ACC accepts a few shapes depending on
+  // product; we just reject obvious placeholders and nothing-entered.
+  const trimmedClaim = accClaimNumber.trim().toUpperCase()
+  const looksLikeTestClaim = /^TEST/i.test(trimmedClaim)
+  const claimNumberOk = trimmedClaim.length >= 7 && !looksLikeTestClaim
+  const canSubmit = mechanism.trim() && bodyPart && accIcd10Code && claimNumberOk && consentObtained
 
   async function handleConvert() {
     if (!canSubmit) return
@@ -53,6 +63,7 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
           employer: workRelated === 'yes' ? employer.trim() : '',
           accIcd10Code,
           accIcd10Description,
+          accClaimNumber: trimmedClaim,
           consentObtained,
           providerId: sessionStorage.getItem('providerId') || '',
           providerName: sessionStorage.getItem('providerDisplayName') || '',
@@ -138,6 +149,22 @@ export default function ConvertToAccModal({ consult, onClose, onSuccess }) {
                   />
                   <div style={{ fontSize: '.6875rem', color: '#6B7280', marginTop: 4 }}>
                     HL7 NZ ACC ICD-10 subset (12,494 codes). Required for ACC45 lodgement.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={lbl}>ACC claim number <span style={{ color: '#DC2626' }}>*</span></label>
+                  <input
+                    value={accClaimNumber}
+                    onChange={e => setAccClaimNumber(e.target.value)}
+                    placeholder="e.g. EP123456 or 0123456789"
+                    style={{ ...inp, textTransform: 'uppercase' }}
+                    autoComplete="off"
+                  />
+                  <div style={{ fontSize: '.6875rem', color: accClaimNumber && !claimNumberOk ? '#DC2626' : '#6B7280', marginTop: 4, lineHeight: 1.4 }}>
+                    {looksLikeTestClaim
+                      ? 'This looks like a placeholder — ACC will reject it. Ask the patient for their real claim number or lodge an ACC45 first.'
+                      : 'The claim number the patient was issued by ACC (or from the ACC45 you just lodged). ACC rejects invoices without it.'}
                   </div>
                 </div>
 
