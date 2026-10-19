@@ -21,7 +21,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { endSession, revokeSessionByCookie } from './_provider-session.js'
 import { writeAuditEvent } from './_audit-write.js'
-import { SESSION_COOKIE_NAME, readCookie, clearSessionCookie, hashSessionToken } from './_cookie.js'
+import { SESSION_COOKIE_NAME, TRUST_COOKIE_NAME, readCookie, clearSessionCookie, clearTrustCookie, hashSessionToken } from './_cookie.js'
+import { revokeTrustedDeviceByCookie, revokeAllTrustedDevices } from './_trusted-device.js'
 
 function admin() {
   return createClient(
@@ -34,8 +35,9 @@ function admin() {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { sessionId, providerId } = req.body || {}
+  const { sessionId, providerId, revokeTrust = false } = req.body || {}
   const cookieToken = readCookie(req, SESSION_COOKIE_NAME)
+  const trustToken  = readCookie(req, TRUST_COOKIE_NAME)
 
   // Look up the provider for audit-event provenance. Prefer looking up
   // by cookie token (current path). Fall back to sessionId (legacy body
@@ -79,11 +81,24 @@ export default async function handler(req, res) {
   // Sign Out.
   clearSessionCookie(res)
 
+  // Device trust: default is to KEEP it (so the next login on this
+  // browser can skip MFA — which is the whole point of trusting the
+  // device). If the client passed revokeTrust=true (e.g. "sign out of
+  // all my devices" button in Settings), nuke every trust row for this
+  // provider, clear the local trust cookie, and audit it.
+  let trustRevoked = false
+  if (revokeTrust) {
+    if (trustToken) await revokeTrustedDeviceByCookie(trustToken, 'user_signout_all')
+    if (auditProvider?.id) await revokeAllTrustedDevices(auditProvider.id, 'user_signout_all')
+    clearTrustCookie(res)
+    trustRevoked = true
+  }
+
   writeAuditEvent(req, auditProvider ? { provider: auditProvider } : null, {
     event_type:    'provider.logout',
     resource_type: 'provider_session',
     resource_id:   resolvedSessionId,
-    metadata:      { source: 'client_signout' },
+    metadata:      { source: 'client_signout', trust_revoked: trustRevoked },
   }).catch(() => {})
 
   return res.status(200).json({ ok: true })

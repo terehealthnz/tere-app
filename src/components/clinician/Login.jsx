@@ -55,6 +55,10 @@ export default function ClinicianLogin() {
   // provider has TOTP enabled. Keep PIN in state and prompt for the code.
   const [needsMfa, setNeedsMfa] = useState(false)
   const [mfaCode, setMfaCode] = useState('')
+  // "Trust this device for 30 days" — on successful MFA the server mints
+  // a tere_trust cookie so the next 30 days of logins from this browser
+  // skip the TOTP prompt. Default on because the typical user wants it.
+  const [trustDevice, setTrustDevice] = useState(true)
 
   // If the provider is already signed in and lands back on /clinician — via
   // browser-back from /clinician/profile, a bookmark, direct URL typing —
@@ -103,7 +107,10 @@ export default function ClinicianLogin() {
     setLoading(true); setError('')
     try {
       const body = { email: selected?.email, pin: password }
-      if (needsMfa) body.mfaCode = mfaCode
+      if (needsMfa) {
+        body.mfaCode = mfaCode
+        body.trustDevice = !!trustDevice
+      }
       const res = await apiFetch('/api/provider-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -342,6 +349,18 @@ export default function ClinicianLogin() {
                   <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'.5rem',textAlign:'center'}}>
                     Open your authenticator app (Google Authenticator, 1Password, etc.)
                   </div>
+                  <label style={{ display:'flex', alignItems:'flex-start', gap:8, marginTop:'1rem', padding:'.625rem .75rem', border:'1px solid #E2E8F0', borderRadius:8, cursor:'pointer', background: trustDevice ? '#F0FDFA' : 'white' }}>
+                    <input type="checkbox" checked={trustDevice} onChange={e => setTrustDevice(e.target.checked)}
+                      style={{ marginTop:2 }} />
+                    <div>
+                      <div style={{ fontSize:'.8125rem', fontWeight:700, color:'#0D2B45' }}>
+                        Trust this device for 30 days
+                      </div>
+                      <div style={{ fontSize:'.6875rem', color:'var(--muted)', lineHeight:1.4, marginTop:2 }}>
+                        Skip the 6-digit code on this browser until the trust expires or you sign out of all devices. Sensitive actions (ACC bundles, break-glass, after-hours admin) still require fresh verification.
+                      </div>
+                    </div>
+                  </label>
                 </div>
               )}
               {error && <div className="alert alert-danger">{error}</div>}

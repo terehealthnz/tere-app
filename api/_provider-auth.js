@@ -5,7 +5,8 @@ import { raiseSecurityAlert } from './_security-alert.js'
 import { getClientIp } from './_client-ip.js'
 import { startSession } from './_provider-session.js'
 import { writeAuditEvent } from './_audit-write.js'
-import { writeSessionCookie } from './_cookie.js'
+import { writeSessionCookie, writeTrustCookie, readCookie, TRUST_COOKIE_NAME } from './_cookie.js'
+import { resolveTrustedDevice, issueTrustedDevice } from './_trusted-device.js'
 
 // Lockout policy: after MAX_FAILS consecutive failures, lock the
 // account for LOCKOUT_MS. State is persisted in the
@@ -76,7 +77,7 @@ async function clearAttempts(supabase, providerId) {
 }
 
 export default async function handler(req, res) {
-  const { providerId: bodyProviderId, email, pin, mfaCode } = req.body || {}
+  const { providerId: bodyProviderId, email, pin, mfaCode, trustDevice } = req.body || {}
   if (!pin) return res.status(400).json({ error: 'Missing fields' })
   if (!bodyProviderId && !email) return res.status(400).json({ error: 'Email required' })
   // Shadow-declare so we can reassign to the DB-resolved id after lookup.
@@ -150,19 +151,32 @@ export default async function handler(req, res) {
 
   // ── MFA check (if enabled on the provider) ─────────────────────
   //
-  // Client posts { providerId, pin, mfaCode } in a single request —
-  // if mfaCode is missing we return 401 with needsMfa:true so the
-  // client knows to prompt.
+  // Client posts { providerId, pin, mfaCode, trustDevice } in a single
+  // request. If a valid tere_trust cookie is present for this provider
+  // (set previously when they ticked "Trust this device for 30 days"),
+  // the TOTP step is skipped — PIN + device trust is MFA-equivalent for
+  // the login gate. JIT elevation on sensitive surfaces (ACC bundle,
+  // break-glass, after-hours admin) has its own fresh-MFA gate and is
+  // NOT bypassed by device trust.
+  let trustedDeviceSkip = false
+  let bypassTrustedDeviceId = null
   if (provider.mfa_enabled && provider.mfa_secret_encoded) {
-    if (!mfaCode) {
-      // PIN was correct — don't count the missing MFA code as a failure.
-      // Signal to the client that a TOTP is required next.
-      return res.status(401).json({ error: 'MFA code required', needsMfa: true })
+    const trustToken = readCookie(req, TRUST_COOKIE_NAME)
+    if (trustToken) {
+      bypassTrustedDeviceId = await resolveTrustedDevice(providerId, trustToken)
+      trustedDeviceSkip = !!bypassTrustedDeviceId
     }
-    if (!verifyTotp(provider.mfa_secret_encoded, mfaCode)) {
-      // Wrong MFA code counts as a full failure — same rate limit path.
-      await recordFailure(supabase, providerId)
-      return res.status(401).json({ error: 'Invalid MFA code', needsMfa: true })
+    if (!trustedDeviceSkip) {
+      if (!mfaCode) {
+        // PIN was correct — don't count the missing MFA code as a failure.
+        // Signal to the client that a TOTP is required next.
+        return res.status(401).json({ error: 'MFA code required', needsMfa: true })
+      }
+      if (!verifyTotp(provider.mfa_secret_encoded, mfaCode)) {
+        // Wrong MFA code counts as a full failure — same rate limit path.
+        await recordFailure(supabase, providerId)
+        return res.status(401).json({ error: 'Invalid MFA code', needsMfa: true })
+      }
     }
   }
 
@@ -238,13 +252,33 @@ export default async function handler(req, res) {
   const mfaUsed = !!(provider.mfa_enabled && provider.mfa_secret_encoded)
   const { sessionId, token } = await startSession(req, providerId, { mfaUsed })
   if (token) writeSessionCookie(res, token)
+
+  // Issue a trusted-device cookie ONLY when the user explicitly ticked
+  // "Trust this device" AND they just completed a fresh TOTP (not a
+  // trust-cookie bypass). Trust-cookie bypasses never extend the trust
+  // window — the only way to get or renew trust is by passing a real TOTP.
+  let trustDeviceIssued = false
+  if (provider.mfa_enabled && provider.mfa_secret_encoded && trustDevice === true && !trustedDeviceSkip) {
+    const trustToken = await issueTrustedDevice(req, providerId)
+    if (trustToken) {
+      writeTrustCookie(res, trustToken)
+      trustDeviceIssued = true
+    }
+  }
+
   writeAuditEvent(req, { provider }, {
     event_type:  'provider.login.success',
     resource_type: 'provider_session',
     resource_id:   sessionId,
-    metadata:      { mfa_used: mfaUsed, new_ip_alerted: false },
+    metadata: {
+      mfa_used:               mfaUsed,
+      mfa_bypassed_by_trust:  trustedDeviceSkip,
+      trusted_device_id:      bypassTrustedDeviceId,
+      trust_device_issued:    trustDeviceIssued,
+      new_ip_alerted:         false,
+    },
   }).catch(() => {})
 
   const { pin: _pin, pin_hash: _hash, mfa_secret_encoded: _sec, ...safe } = provider
-  res.json({ provider: safe, sessionId })
+  res.json({ provider: safe, sessionId, mfaBypassedByTrust: trustedDeviceSkip, trustDeviceIssued })
 }
