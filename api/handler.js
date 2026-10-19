@@ -39,6 +39,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Provider clinical work
   'billing-country',
   'convert-to-acc', 'acc-confirm', 'reclassifications', 'acc-claims', 'acc-claim-invoice', 'acc-audit-bundle', 'acc-outcome-measures',
+  'consult-timings',
   'acc-communications', 'consultation-peer-reviews', 'generate-acc-cert',
   'patient-record-export', 'elevation', 'break-glass', 'phi-training',
   'disclosures', 'hl7-audit', 'cultural-safety-training', 'conflict-of-interest',
@@ -419,6 +420,7 @@ const ROUTES = {
   'patient-event':             () => import('./_patient-event.js'),
   'patient-funnel':            () => import('./_patient-funnel.js'),
   'consult-funnel':            () => import('./_consult-funnel.js'),
+  'consult-timings':           () => import('./_consult-timings.js'),
   'patient-stuck-alert':       () => import('./_patient-stuck-alert.js'),
   'check-payment-status':      () => import('./_check-payment-status.js'),
   'cron-promote-stuck-drafts': () => import('./_cron-promote-stuck-drafts.js'),

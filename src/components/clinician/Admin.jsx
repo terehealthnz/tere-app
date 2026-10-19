@@ -6700,6 +6700,180 @@ function FunnelPanel() {
   )
 }
 
+// Operations timing panel — "where does the hour go?" view. Pulls
+// averages for queue time, consult duration, notes wrap-up, and total
+// flow for completed (notes-finalised) consults in a date range.
+// Backed by /api/consult-timings. Default: Today. Shortcuts: 7D / 30D.
+function TimingPanel() {
+  const nzToday = React.useMemo(() => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date())
+    return `${parts.find(p=>p.type==='year').value}-${parts.find(p=>p.type==='month').value}-${parts.find(p=>p.type==='day').value}`
+  }, [])
+  const ymdAdd = React.useCallback((ymd, d) => {
+    const [y, m, dd] = ymd.split('-').map(Number)
+    const t = Date.UTC(y, m - 1, dd) + d * 86400 * 1000
+    const nd = new Date(t)
+    return `${nd.getUTCFullYear()}-${String(nd.getUTCMonth()+1).padStart(2,'0')}-${String(nd.getUTCDate()).padStart(2,'0')}`
+  }, [])
+
+  const [from, setFrom] = React.useState(nzToday)
+  const [to,   setTo]   = React.useState(nzToday)
+  const [data, setData] = React.useState(null)
+  const [loading, setLoading] = React.useState(true)
+
+  const reload = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await apiFetch(`/api/consult-timings?from=${from}&to=${to}`)
+      const j = await r.json()
+      setData(j)
+    } catch { setData(null) }
+    finally { setLoading(false) }
+  }, [from, to])
+
+  React.useEffect(() => { reload() }, [reload])
+
+  const NAVY = '#0D2B45', TEAL = '#0B6E76'
+  const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
+
+  // Format seconds → "1h 23m" / "4m 12s" / "48s" / "—"
+  const fmt = (sec) => {
+    if (sec == null || !Number.isFinite(sec)) return '—'
+    if (sec < 60) return `${sec}s`
+    if (sec < 3600) {
+      const m = Math.floor(sec / 60), s = sec % 60
+      return s ? `${m}m ${s}s` : `${m}m`
+    }
+    const h = Math.floor(sec / 3600)
+    const m = Math.floor((sec % 3600) / 60)
+    return m ? `${h}h ${m}m` : `${h}h`
+  }
+
+  const stages = [
+    { key: 'avg_queue_sec',   label: 'Queue',     sub: 'triage → provider dials', colour: '#F59E0B' },
+    { key: 'avg_consult_sec', label: 'Consult',   sub: 'dial → encounter closed', colour: '#0B6E76' },
+    { key: 'avg_notes_sec',   label: 'Notes',     sub: 'close → notes finalised', colour: '#6366F1' },
+  ]
+  const overall = data?.overall || {}
+  const daily   = data?.daily || []
+
+  const presetBtn = (label, days) => (
+    <button key={label}
+      onClick={() => { const end = nzToday; const start = days === 1 ? end : ymdAdd(end, -(days - 1)); setFrom(start); setTo(end) }}
+      style={{ background: 'white', border: '1px solid #E2E8F0', color: NAVY, padding: '.375rem .75rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.8125rem', fontWeight: 700, cursor: 'pointer' }}>
+      {label}
+    </button>
+  )
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h3 style={{ margin: 0, color: NAVY, fontSize: '1.125rem', fontWeight: 800 }}>⏱ Flow timings</h3>
+          <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 2 }}>
+            Average time per stage for completed consults (notes finalised). Excludes sandbox + test-mode rows.
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {presetBtn('Today', 1)}
+          {presetBtn('7D', 7)}
+          {presetBtn('30D', 30)}
+          <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
+            style={{ padding: '.375rem .5rem', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: '.8125rem', fontFamily: 'inherit' }} />
+          <span style={{ color: '#9CA3AF' }}>→</span>
+          <input type="date" value={to} min={from} max={nzToday} onChange={e => setTo(e.target.value)}
+            style={{ padding: '.375rem .5rem', border: '1px solid #E2E8F0', borderRadius: 6, fontSize: '.8125rem', fontFamily: 'inherit' }} />
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '1rem', color: '#6B7280' }}>Loading…</div>
+      ) : overall.count === 0 ? (
+        <div style={{ padding: '1rem', color: '#9CA3AF', fontSize: '.8125rem' }}>
+          No completed consults in this range (0 rows with a notes_finalised_at timestamp).
+        </div>
+      ) : (
+        <>
+          {/* Summary strip */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: '1rem' }}>
+            <div style={{ background:'#F7F5F0', borderRadius:10, padding:'.75rem .875rem' }}>
+              <div style={{ fontSize:'.6875rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase' }}>Consults</div>
+              <div style={{ fontSize:'1.5rem', color:NAVY, fontWeight:800 }}>{overall.count}</div>
+            </div>
+            {stages.map(s => (
+              <div key={s.key} style={{ background:'#F7F5F0', borderRadius:10, padding:'.75rem .875rem' }}>
+                <div style={{ fontSize:'.6875rem', color:'#6B7280', fontWeight:700, textTransform:'uppercase' }}>Avg {s.label}</div>
+                <div style={{ fontSize:'1.5rem', color:s.colour, fontWeight:800 }}>{fmt(overall[s.key])}</div>
+                <div style={{ fontSize:'.6875rem', color:'#9CA3AF', marginTop:2 }}>{s.sub}</div>
+              </div>
+            ))}
+            <div style={{ background:'#F0F9FA', borderRadius:10, padding:'.75rem .875rem', border:`1px solid ${TEAL}22` }}>
+              <div style={{ fontSize:'.6875rem', color:TEAL, fontWeight:700, textTransform:'uppercase' }}>Total flow</div>
+              <div style={{ fontSize:'1.5rem', color:TEAL, fontWeight:800 }}>{fmt(overall.avg_total_sec)}</div>
+              <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:2 }}>triage → notes final</div>
+            </div>
+          </div>
+
+          {/* Flow strip — proportional bar of the three stages */}
+          {(() => {
+            const q = overall.avg_queue_sec || 0
+            const c = overall.avg_consult_sec || 0
+            const n = overall.avg_notes_sec || 0
+            const sum = q + c + n
+            if (!sum) return null
+            return (
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ display:'flex', height: 22, borderRadius: 8, overflow:'hidden', border:'1px solid #E2E8F0' }}>
+                  <div title={`Queue: ${fmt(q)}`}   style={{ width:`${(q/sum)*100}%`, background:'#F59E0B' }} />
+                  <div title={`Consult: ${fmt(c)}`} style={{ width:`${(c/sum)*100}%`, background:'#0B6E76' }} />
+                  <div title={`Notes: ${fmt(n)}`}   style={{ width:`${(n/sum)*100}%`, background:'#6366F1' }} />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.6875rem', color:'#6B7280', marginTop:4 }}>
+                  <span>🟠 Queue {fmt(q)}</span>
+                  <span style={{ color:TEAL }}>🟢 Consult {fmt(c)}</span>
+                  <span style={{ color:'#6366F1' }}>🟣 Notes {fmt(n)}</span>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Per-day table */}
+          {daily.length > 1 && (
+            <div style={{ overflowX:'auto', border:'1px solid #E2E8F0', borderRadius:10 }}>
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.8125rem' }}>
+                <thead>
+                  <tr style={{ background:'#F8FAFC', textAlign:'left' }}>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase' }}>Date</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>#</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Queue</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Consult</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Notes</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {daily.map(d => (
+                    <tr key={d.date} style={{ borderTop:'1px solid #F1F5F9' }}>
+                      <td style={{ padding:'.5rem .75rem', color:NAVY, fontWeight:600 }}>{d.date}</td>
+                      <td style={{ padding:'.5rem .75rem', textAlign:'right', color:NAVY }}>{d.count}</td>
+                      <td style={{ padding:'.5rem .75rem', textAlign:'right', color:'#374151' }}>{fmt(d.avg_queue_sec)}</td>
+                      <td style={{ padding:'.5rem .75rem', textAlign:'right', color:'#374151' }}>{fmt(d.avg_consult_sec)}</td>
+                      <td style={{ padding:'.5rem .75rem', textAlign:'right', color:'#374151' }}>{fmt(d.avg_notes_sec)}</td>
+                      <td style={{ padding:'.5rem .75rem', textAlign:'right', color:TEAL, fontWeight:700 }}>{fmt(d.avg_total_sec)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function RecallsPanel() {
   const [rows, setRows] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -7382,7 +7556,7 @@ function AdminBody() {
             case 'overview':
               return <><OverviewDashboard setAdminTab={setAdminTab} /></>
             case 'operations':
-              return <><FunnelPanel /><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<OutstandingPrescriptions /><OutstandingReferrals /></>
+              return <><FunnelPanel /><TimingPanel /><RecallsPanel /><PendingApprovalsPanel />{WaitlistPanel}<OutstandingPrescriptions /><OutstandingReferrals /></>
             case 'finance':
               return <><AnalyticsPanel /><FailedPayments /><AdminPayroll embedded /></>
             case 'team':
