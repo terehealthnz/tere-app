@@ -51,26 +51,38 @@ export default async function handler(req, res) {
     if (filter === 'trainable') {
       // Callers use this for BP model training — rows that have a raw rPPG signal
       // plus a BP-cuff ground truth. Enriched with subject demographics.
+      // Public-input quarantine (2026-10-19): also pulls source + review_decision
+      // so pending-review anon rows are dropped before training.
       const { data, error } = await supabase
         .from('validation_readings')
-        .select('*, validation_subjects(age, sex, height_cm, weight_kg, fitzpatrick_scale)')
+        .select('*, validation_subjects(age, sex, height_cm, weight_kg, fitzpatrick_scale, source, review_decision)')
         .not('raw_rppg_signal', 'is', null)
         .not('manual_systolic', 'is', null)
         .not('manual_diastolic', 'is', null)
       if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
-      return res.status(200).json({ readings: data || [] })
+      const filtered = (data || []).filter(r => {
+        const s = r.validation_subjects
+        return s && (s.source === 'authenticated' || s.review_decision === 'promoted')
+      })
+      return res.status(200).json({ readings: filtered })
     }
 
     if (filter === 'paired-spo2') {
       // Small projection used by spo2.js when no shared calibration row exists yet.
-      // Only two columns cross the wire.
+      // SpO2 calibration is also "trainable data" so the same quarantine applies.
       const { data, error } = await supabase
         .from('validation_readings')
-        .select('tere_spo2, manual_spo2')
+        .select('tere_spo2, manual_spo2, validation_subjects(source, review_decision)')
         .not('tere_spo2', 'is', null)
         .not('manual_spo2', 'is', null)
       if (error) { console.error('[validation-readings] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
-      return res.status(200).json({ pairs: data || [] })
+      const pairs = (data || [])
+        .filter(r => {
+          const s = r.validation_subjects
+          return s && (s.source === 'authenticated' || s.review_decision === 'promoted')
+        })
+        .map(r => ({ tere_spo2: r.tere_spo2, manual_spo2: r.manual_spo2 }))
+      return res.status(200).json({ pairs })
     }
 
     // Default: full list ordered recorded_at desc, optionally filtered by subject_id.

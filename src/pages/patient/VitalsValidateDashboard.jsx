@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, updateValidationMeRppg, deleteValidationReading, supabase } from '../../lib/supabase'
+import { getValidationReadings, getValidationSubjects, getModelVersions, getTrainableReadings, updateValidationSpo2, updateValidationHrRr, updateValidationMeRppg, deleteValidationReading, getPublicInputReview, promotePublicInput, rejectPublicInput, supabase } from '../../lib/supabase'
 import { processStoredFrames, processStoredFramesMultiPass } from '../../lib/rppg'
 import { trainModel, getLocalMeta, BP_SHOW_THRESHOLD, predictBP, isBPReliable, resetLocalModel } from '../../lib/bpModel'
 import { trainRidgeBp, predictRidgeBp, framesToV2Features, saveV2Model, loadV2Model, sweepLambda, promoteV2Model } from '../../lib/bpModelV2'
@@ -1893,6 +1893,51 @@ export default function VitalsValidateDashboard() {
   // ME-rPPG DL replay — per-row running state + bulk-replay progress label.
   const [meRunning, setMeRunning] = useState({})
   const [meBatchStatus, setMeBatchStatus] = useState('')
+  // Public-input quarantine inbox (migration 2026-10-19). Pending-review
+  // anon /vitals-validate submissions. Loaded once on mount; refreshed
+  // after each Promote/Reject so the badge count stays live.
+  const [inboxSubjects, setInboxSubjects] = useState([])
+  const [inboxLoading, setInboxLoading]   = useState(false)
+  const [inboxError, setInboxError]       = useState(null)
+  const [inboxActingId, setInboxActingId] = useState(null)
+  const loadInbox = useCallback(async () => {
+    setInboxLoading(true); setInboxError(null)
+    try {
+      setInboxSubjects(await getPublicInputReview())
+    } catch (e) {
+      // 403 = non-admin provider viewing the dashboard. Not a real error,
+      // just means the tab shouldn't render — the badge stays 0.
+      if (!/403|Admin only/i.test(e.message)) setInboxError(e.message)
+      setInboxSubjects([])
+    } finally {
+      setInboxLoading(false)
+    }
+  }, [])
+  useEffect(() => { loadInbox() }, [loadInbox])
+  const handlePromoteInbox = async (subjectId) => {
+    setInboxActingId(subjectId)
+    try {
+      await promotePublicInput(subjectId)
+      setInboxSubjects(prev => prev.filter(s => s.id !== subjectId))
+    } catch (e) {
+      alert('Promote failed: ' + e.message)
+    } finally {
+      setInboxActingId(null)
+    }
+  }
+  const handleRejectInbox = async (subjectId) => {
+    const reason = window.prompt('Reason for rejection (visible in audit log):')
+    if (!reason || reason.trim().length < 3) return
+    setInboxActingId(subjectId)
+    try {
+      await rejectPublicInput(subjectId, reason.trim())
+      setInboxSubjects(prev => prev.filter(s => s.id !== subjectId))
+    } catch (e) {
+      alert('Reject failed: ' + e.message)
+    } finally {
+      setInboxActingId(null)
+    }
+  }
   useEffect(() => {
     if (!readings.length) return
     let cancelled = false
@@ -2281,13 +2326,30 @@ export default function VitalsValidateDashboard() {
       {/* Tabs */}
       <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 1px 6px rgba(0,0,0,.05)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', borderBottom: '1.5px solid #F3F4F6', alignItems: 'center', overflowX: 'auto' }}>
-          {[['readings', 'Readings'], ['bp', 'BP Analysis'], ['accuracy', 'Accuracy'], ['clinical', 'Clinical grade'], ['subjects', 'Subjects'], ['chart', 'HR Chart'], ['model', 'Model history']].map(([id, lbl]) => (
+          {[
+            ['readings', 'Readings'], ['bp', 'BP Analysis'], ['accuracy', 'Accuracy'],
+            ['clinical', 'Clinical grade'], ['subjects', 'Subjects'],
+            // Public Inbox only renders if there's something to review OR
+            // the tab is already active. Keeps the bar tidy for providers
+            // who aren't admins (loader returns [] on 403).
+            ...((inboxSubjects.length > 0 || tab === 'public_inbox')
+              ? [['public_inbox', 'Public inbox']] : []),
+            ['chart', 'HR Chart'], ['model', 'Model history'],
+          ].map(([id, lbl]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               padding: '.85rem 1.1rem', fontWeight: 700, fontSize: '.85rem', color: tab === id ? TEAL : '#6B7280',
               background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap',
               borderBottom: tab === id ? `2px solid ${TEAL}` : '2px solid transparent',
               marginBottom: -1.5, fontFamily: 'Plus Jakarta Sans, sans-serif',
-            }}>{lbl}</button>
+            }}>
+              {lbl}
+              {id === 'public_inbox' && inboxSubjects.length > 0 && (
+                <span style={{
+                  marginLeft: 6, padding: '1px 7px', borderRadius: 10,
+                  background: '#DC2626', color: 'white', fontSize: '.72rem', fontWeight: 800,
+                }}>{inboxSubjects.length}</span>
+              )}
+            </button>
           ))}
           <button onClick={() => exportCSV(readings, subjects)} style={{ marginLeft: 'auto', padding: '.85rem 1.1rem', background: 'none', border: 'none', color: TEAL, fontWeight: 700, fontSize: '.85rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
             Export CSV
@@ -2643,6 +2705,75 @@ export default function VitalsValidateDashboard() {
 
           {!loading && tab === 'clinical' && (
             <ClinicalGradePanel readings={readings} bpPreds={[]} />
+          )}
+
+          {!loading && tab === 'public_inbox' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ background: '#FEF3C7', border: '1px solid #FBBF24', borderRadius: 10, padding: '.9rem 1.1rem', color: '#78350F', fontSize: '.82rem', lineHeight: 1.5 }}>
+                <strong>Public inbox.</strong> These rows came from unauthenticated submissions on <code style={{ background: '#FDE68A', padding: '1px 5px', borderRadius: 3 }}>/vitals-validate</code>. Nothing in this list is feeding the BP model yet. Promote the ones that look legitimate — cuff BP plausible, Fitzpatrick/age set, face scan produced a result. Reject the rest with a reason.
+              </div>
+
+              {inboxLoading && <div style={{ textAlign: 'center', color: '#6B7280', padding: '2rem' }}>Loading inbox…</div>}
+              {inboxError   && <div style={{ color: '#B91C1C', fontSize: '.85rem' }}>Error: {inboxError}</div>}
+
+              {!inboxLoading && !inboxError && inboxSubjects.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#6B7280', padding: '2rem' }}>
+                  Nothing pending. New public submissions will show up here.
+                </div>
+              )}
+
+              {!inboxLoading && inboxSubjects.length > 0 && (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.82rem' }}>
+                  <thead>
+                    <tr>
+                      {['Submitted','Code','Age','Sex','Skin','Cuff SBP/DBP','rPPG HR','IP (last 2 oct)','Actions'].map(h => (
+                        <th key={h} style={{ padding: '.5rem .7rem', textAlign: 'left', borderBottom: '1px solid #F3F4F6', color: '#6B7280', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inboxSubjects.map(s => {
+                      const r = (s.readings || [])[0] || {}
+                      const ipTail = s.submitted_ip ? s.submitted_ip.split('.').slice(-2).join('.') : '—'
+                      const submittedAt = s.created_at ? new Date(s.created_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }) : '—'
+                      const isActing = inboxActingId === s.id
+                      return (
+                        <tr key={s.id} style={{ borderBottom: '1px solid #F9FAFB' }}>
+                          <td style={{ padding: '.5rem .7rem', color: '#374151', whiteSpace: 'nowrap' }}>{submittedAt}</td>
+                          <td style={{ padding: '.5rem .7rem', fontWeight: 700, color: TEAL }}>{s.subject_code}</td>
+                          <td style={{ padding: '.5rem .7rem', color: '#6B7280' }}>{s.age ?? '—'}</td>
+                          <td style={{ padding: '.5rem .7rem', color: '#6B7280' }}>{s.sex || '—'}</td>
+                          <td style={{ padding: '.5rem .7rem' }}>
+                            {s.fitzpatrick_scale
+                              ? <div style={{ width: 18, height: 18, borderRadius: '50%', background: FITZ_COLORS[s.fitzpatrick_scale - 1] }} />
+                              : <span style={{ color: '#9CA3AF' }}>—</span>}
+                          </td>
+                          <td style={{ padding: '.5rem .7rem', color: NAVY, fontWeight: 600 }}>
+                            {r.manual_systolic && r.manual_diastolic
+                              ? `${r.manual_systolic}/${r.manual_diastolic}`
+                              : <span style={{ color: '#9CA3AF' }}>no cuff</span>}
+                          </td>
+                          <td style={{ padding: '.5rem .7rem', color: '#374151' }}>
+                            {r.tere_hr ? `${r.tere_hr} bpm` : <span style={{ color: '#9CA3AF' }}>no scan</span>}
+                          </td>
+                          <td style={{ padding: '.5rem .7rem', color: '#6B7280', fontFamily: 'monospace', fontSize: '.78rem' }}>…{ipTail}</td>
+                          <td style={{ padding: '.5rem .7rem', whiteSpace: 'nowrap' }}>
+                            <button disabled={isActing} onClick={() => handlePromoteInbox(s.id)} style={{
+                              padding: '.35rem .7rem', background: isActing ? '#9CA3AF' : TEAL, color: 'white',
+                              border: 'none', borderRadius: 6, fontWeight: 700, fontSize: '.78rem', cursor: isActing ? 'default' : 'pointer', marginRight: 6,
+                            }}>{isActing ? '…' : 'Promote'}</button>
+                            <button disabled={isActing} onClick={() => handleRejectInbox(s.id)} style={{
+                              padding: '.35rem .7rem', background: 'white', color: '#B91C1C',
+                              border: '1px solid #B91C1C', borderRadius: 6, fontWeight: 700, fontSize: '.78rem', cursor: isActing ? 'default' : 'pointer',
+                            }}>Reject</button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
 
           {!loading && tab === 'subjects' && (

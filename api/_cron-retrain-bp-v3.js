@@ -80,9 +80,13 @@ export default async function handler(req, res) {
   const audit = { attempted_at: new Date().toISOString(), reasons: [] }
 
   // 1. Pull trainable rows (cuff BP + raw rPPG + demographics).
+  //    Public-input quarantine (2026-10-19): we also pull source +
+  //    review_decision from the subject so we can drop anon submissions
+  //    that haven't been admin-reviewed. Filter is in JS not PostgREST
+  //    because cross-table .or() is awkward and this runs rarely.
   const { data: readings, error: rErr } = await supabase
     .from('validation_readings')
-    .select('*, validation_subjects(age, sex, height_cm, weight_kg)')
+    .select('*, validation_subjects(age, sex, height_cm, weight_kg, source, review_decision)')
     .not('raw_rppg_signal', 'is', null)
     .not('manual_systolic', 'is', null)
     .not('manual_diastolic', 'is', null)
@@ -91,7 +95,20 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server error', detail: rErr.message })
   }
 
-  audit.n_total = readings?.length || 0
+  // Drop anon submissions that haven't been promoted. Rejected rows are
+  // also excluded; they stay in the table for audit log but never feed
+  // training. Authenticated rows pass through.
+  const trainable = (readings || []).filter(r => {
+    const sub = r.validation_subjects
+    if (!sub) return false
+    if (sub.source === 'authenticated')      return true
+    if (sub.review_decision === 'promoted')  return true
+    return false
+  })
+  const nQuarantined = (readings?.length || 0) - trainable.length
+  if (nQuarantined > 0) audit.quarantined_pending_review = nQuarantined
+
+  audit.n_total = trainable.length
   if (audit.n_total < 20) {
     audit.reasons.push(`not enough labelled samples (${audit.n_total} < 20)`)
     return res.status(200).json({ ok: true, promoted: false, audit })
@@ -120,7 +137,7 @@ export default async function handler(req, res) {
   const labels = []
   let nSkippedExtraction = 0
   let nFilteredOutlier = 0
-  for (const r of readings) {
+  for (const r of trainable) {
     // Outlier filter FIRST (cheap). If the cuff is implausible, don't even
     // bother extracting features.
     if (!withinAnchor(r.manual_systolic, r.manual_diastolic)) {

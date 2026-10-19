@@ -1966,6 +1966,46 @@ export async function getTrainableReadings() {
   return readings || []
 }
 
+// Public-input quarantine (migration 2026-10-19). Admin-only — the server
+// checks is_admin inside the endpoint. getPublicInputReview returns the
+// pending-review public_anonymous subjects with their readings; promote/
+// reject stamp review_decision and the UI drops the row from the inbox.
+export async function getPublicInputReview() {
+  const res = await apiFetch('/api/public-input-review')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPublicInputReview HTTP ${res.status}`)
+  }
+  const { subjects } = await res.json()
+  return subjects || []
+}
+
+export async function promotePublicInput(subjectId) {
+  const res = await apiFetch('/api/public-input-review', {
+    method: 'POST',
+    body: JSON.stringify({ subjectId, action: 'promote' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `promotePublicInput HTTP ${res.status}`)
+  }
+  const { subject } = await res.json()
+  return subject
+}
+
+export async function rejectPublicInput(subjectId, rejectionReason) {
+  const res = await apiFetch('/api/public-input-review', {
+    method: 'POST',
+    body: JSON.stringify({ subjectId, action: 'reject', rejectionReason }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `rejectPublicInput HTTP ${res.status}`)
+  }
+  const { subject } = await res.json()
+  return subject
+}
+
 export async function updateValidationSpo2(id, tereSpo2) {
   const res = await apiFetch(`/api/validation-readings?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
