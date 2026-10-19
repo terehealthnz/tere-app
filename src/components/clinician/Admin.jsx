@@ -6752,9 +6752,9 @@ function TimingPanel() {
   }
 
   const stages = [
-    { key: 'avg_queue_sec',   label: 'Queue',     sub: 'triage → provider dials', colour: '#F59E0B' },
-    { key: 'avg_consult_sec', label: 'Consult',   sub: 'dial → encounter closed', colour: '#0B6E76' },
-    { key: 'avg_notes_sec',   label: 'Notes',     sub: 'close → notes finalised', colour: '#6366F1' },
+    { key: 'avg_queue_sec',   label: 'Queue',       sub: 'triage → provider dials',            colour: '#F59E0B' },
+    { key: 'avg_consult_sec', label: 'Call',        sub: 'dial → "Complete Encounter" clicked', colour: '#0B6E76' },
+    { key: 'avg_notes_sec',   label: 'Notes write', sub: 'end-of-call → notes finalised',       colour: '#6366F1' },
   ]
   const overall = data?.overall || {}
   const daily   = data?.daily || []
@@ -6772,8 +6772,8 @@ function TimingPanel() {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, color: NAVY, fontSize: '1.125rem', fontWeight: 800 }}>⏱ Flow timings</h3>
-          <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 2 }}>
-            Average time per stage for completed consults (notes finalised). Excludes sandbox + test-mode rows.
+          <div style={{ fontSize: '.8125rem', color: '#6B7280', marginTop: 2, lineHeight: 1.5 }}>
+            Average time per stage for completed consults. <strong>Call</strong> is dial → "Complete Encounter" button only. <strong>Notes write</strong> is the writeup after the call ends. Excludes sandbox + test-mode rows.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -6826,14 +6826,14 @@ function TimingPanel() {
             return (
               <div style={{ marginBottom: '1rem' }}>
                 <div style={{ display:'flex', height: 22, borderRadius: 8, overflow:'hidden', border:'1px solid #E2E8F0' }}>
-                  <div title={`Queue: ${fmt(q)}`}   style={{ width:`${(q/sum)*100}%`, background:'#F59E0B' }} />
-                  <div title={`Consult: ${fmt(c)}`} style={{ width:`${(c/sum)*100}%`, background:'#0B6E76' }} />
-                  <div title={`Notes: ${fmt(n)}`}   style={{ width:`${(n/sum)*100}%`, background:'#6366F1' }} />
+                  <div title={`Queue: ${fmt(q)}`}       style={{ width:`${(q/sum)*100}%`, background:'#F59E0B' }} />
+                  <div title={`Call: ${fmt(c)}`}        style={{ width:`${(c/sum)*100}%`, background:'#0B6E76' }} />
+                  <div title={`Notes write: ${fmt(n)}`} style={{ width:`${(n/sum)*100}%`, background:'#6366F1' }} />
                 </div>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'.6875rem', color:'#6B7280', marginTop:4 }}>
                   <span>🟠 Queue {fmt(q)}</span>
-                  <span style={{ color:TEAL }}>🟢 Consult {fmt(c)}</span>
-                  <span style={{ color:'#6366F1' }}>🟣 Notes {fmt(n)}</span>
+                  <span style={{ color:TEAL }}>🟢 Call {fmt(c)}</span>
+                  <span style={{ color:'#6366F1' }}>🟣 Notes write {fmt(n)}</span>
                 </div>
               </div>
             )
@@ -6848,8 +6848,8 @@ function TimingPanel() {
                     <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase' }}>Date</th>
                     <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>#</th>
                     <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Queue</th>
-                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Consult</th>
-                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Notes</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Call</th>
+                    <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Notes write</th>
                     <th style={{ padding:'.5rem .75rem', color:'#6B7280', fontWeight:700, fontSize:'.6875rem', textTransform:'uppercase', textAlign:'right' }}>Total</th>
                   </tr>
                 </thead>

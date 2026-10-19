@@ -5,16 +5,23 @@
 //
 // Shape:
 //   {
-//     range: { from, to, days: 7 },
+//     range: { from, to },
 //     overall: {
 //       count,
-//       avg_queue_sec,     // created_at → ring_started_at
-//       avg_consult_sec,   // ring_started_at → completed_at
-//       avg_notes_sec,     // completed_at → notes_finalised_at
-//       avg_total_sec,     // created_at → notes_finalised_at
+//       avg_queue_sec,     // created_at             → ring_started_at
+//       avg_consult_sec,   // ring_started_at        → encounter_completed_at   (call only)
+//       avg_notes_sec,     // encounter_completed_at → notes_finalised_at       (notes only)
+//       avg_total_sec,     // created_at             → notes_finalised_at
 //     },
 //     daily: [ { date, count, avg_queue_sec, avg_consult_sec, avg_notes_sec, avg_total_sec }, ... ]
 //   }
+//
+// IMPORTANT (2026-10-18): uses encounter_completed_at, NOT completed_at.
+// The two columns differ:
+//   - encounter_completed_at: set when provider clicks "Complete Encounter"
+//     on the call surface (end of call). From _encounter-action.js.
+//   - completed_at:           set simultaneously with notes_finalised_at.
+//     Confusingly named — not the end of the call. Historical quirk.
 //
 // Admin-only via handler.js AUTH_REQUIRED_ROUTES. Sandbox + test-mode
 // rows excluded so training data doesn't skew the clinical dashboard.
@@ -76,7 +83,7 @@ export default async function handler(req, res) {
   const supabase = supabaseAdmin()
   const { data, error } = await supabase
     .from('consultations')
-    .select('id, created_at, ring_started_at, completed_at, notes_finalised_at, is_practice, payment_test_mode')
+    .select('id, created_at, ring_started_at, encounter_completed_at, notes_finalised_at, is_practice, payment_test_mode')
     .not('notes_finalised_at', 'is', null)
     .gte('notes_finalised_at', fromIso)
     .lt('notes_finalised_at', toIso)
@@ -98,10 +105,10 @@ export default async function handler(req, res) {
   }
   const enriched = rows.map(r => ({
     date:          ymdInNz(new Date(r.notes_finalised_at)),
-    queue_sec:     stage(r.created_at,       r.ring_started_at),
-    consult_sec:   stage(r.ring_started_at,  r.completed_at),
-    notes_sec:     stage(r.completed_at,     r.notes_finalised_at),
-    total_sec:     stage(r.created_at,       r.notes_finalised_at),
+    queue_sec:     stage(r.created_at,              r.ring_started_at),
+    consult_sec:   stage(r.ring_started_at,         r.encounter_completed_at),
+    notes_sec:     stage(r.encounter_completed_at,  r.notes_finalised_at),
+    total_sec:     stage(r.created_at,              r.notes_finalised_at),
   }))
 
   const overall = {
