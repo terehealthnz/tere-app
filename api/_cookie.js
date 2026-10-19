@@ -1,11 +1,16 @@
-// Cookie helpers for the provider session cookie.
+// Cookie helpers for the provider auth cookies.
 //
-// Cookie name is `tere_session`. Attributes:
-//   - HttpOnly: JavaScript can't read it (blocks XSS-based session theft)
-//   - Secure: only sent on HTTPS (prod is always HTTPS behind Cloudflare)
-//   - SameSite=Strict: not sent on cross-site requests (blocks CSRF)
-//   - Path=/: valid across the whole /api surface
-//   - Max-Age: 7 days rolling
+// Two cookies:
+//   tere_session — the active login session. HttpOnly, Secure, SameSite=Strict,
+//                  14-day Max-Age (bumped from 7d 2026-10-18).
+//   tere_trust   — per-device MFA bypass. Set when the provider ticks
+//                  "Trust this device for 30 days" on the MFA screen.
+//                  Same attributes, 30-day Max-Age. Server validates the
+//                  token hash against trusted_devices.
+//
+// Both are HttpOnly so JavaScript can't read them (XSS session theft block),
+// Secure so they only ride HTTPS (prod is always HTTPS behind Cloudflare),
+// SameSite=Strict so they're never sent on cross-site requests (CSRF block).
 //
 // The Vercel serverless runtime doesn't offer a cookie library out of the
 // box for the native Node handler shape we use, so this file has a very
@@ -15,10 +20,18 @@ import { createHash, randomBytes } from 'node:crypto'
 
 export const SESSION_COOKIE_NAME = 'tere_session'
 
-// 7 days matches the "check back weekly" cadence for provider tools without
-// forcing daily re-auth for people who close and reopen tabs. Adjust if
-// clinical governance wants tighter idle timeout.
-export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60
+// 14 days — long enough that most providers only re-login every other
+// week on a given device, short enough that a stolen laptop closes out
+// within the fortnight if the user doesn't notice. Device-trust cookie
+// (TRUST_TTL_SECONDS below) is the longer MFA-skip window; this one is
+// just "stay logged in" convenience.
+export const SESSION_TTL_SECONDS = 14 * 24 * 60 * 60
+
+// Trusted-device cookie — presented on login, lets the provider skip the
+// TOTP step on this browser for 30 days. Server validates against
+// trusted_devices table (see supabase/2026-10-18_trusted_devices.sql).
+export const TRUST_COOKIE_NAME = 'tere_trust'
+export const TRUST_TTL_SECONDS = 30 * 24 * 60 * 60
 
 /** Generate a 32-byte URL-safe random token (43 chars base64url). */
 export function generateSessionToken() {
@@ -64,6 +77,34 @@ export function writeSessionCookie(res, token, { maxAgeSeconds = SESSION_TTL_SEC
 export function clearSessionCookie(res) {
   const parts = [
     `${SESSION_COOKIE_NAME}=`,
+    'Path=/',
+    'HttpOnly',
+    'Secure',
+    'SameSite=Strict',
+    'Max-Age=0',
+  ]
+  appendSetCookie(res, parts.join('; '))
+}
+
+/** Write the trusted-device cookie — set on successful MFA when the
+ *  provider ticks "Trust this device". Token hash is stored server-side
+ *  in trusted_devices; this cookie just carries the raw token. */
+export function writeTrustCookie(res, token, { maxAgeSeconds = TRUST_TTL_SECONDS } = {}) {
+  const parts = [
+    `${TRUST_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'Path=/',
+    'HttpOnly',
+    'Secure',
+    'SameSite=Strict',
+    `Max-Age=${Math.floor(maxAgeSeconds)}`,
+  ]
+  appendSetCookie(res, parts.join('; '))
+}
+
+/** Clear the trust cookie (admin revoke, "sign out of all devices", etc.). */
+export function clearTrustCookie(res) {
+  const parts = [
+    `${TRUST_COOKIE_NAME}=`,
     'Path=/',
     'HttpOnly',
     'Secure',
