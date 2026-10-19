@@ -75,23 +75,51 @@ export async function inspectDevice(videoElement) {
     const pixelQualities = []
     // Prefer rVFC so we measure true camera fps (rAF caps at display refresh).
     // iOS/iPadOS WebKit (incl. Vivaldi iOS) advertises rVFC on the prototype
-    // but doesn't always fire the callback — a cold scan with MediaPipe
-    // loading in parallel is enough to starve it indefinitely. Watchdog
-    // detects this (no frame in 800ms) and falls back to rAF so the scan
-    // actually starts instead of 8s-timing-out at startScan.
+    // but doesn't always fire the callback. Two failure modes:
+    //   1. rVFC never fires at all → coldStartWatchdog (800ms) catches it.
+    //   2. rVFC fires 1–2 frames then stalls → stallWatchdog (1200ms since
+    //      last frame) catches it. Observed on iOS WebKit when MediaPipe +
+    //      DL rPPG load in parallel; the circle draws over the face (so the
+    //      user thinks it's working) but no more frames deliver.
     let useVfc = typeof videoElement.requestVideoFrameCallback === 'function'
-    let watchdogId = null
+    let coldStartWatchdog = null
+    let stallWatchdog = null
+    let lastFrameAt = null
 
     const scheduleNext = (cb) => useVfc
       ? videoElement.requestVideoFrameCallback((_, md) => cb(md?.mediaTime != null ? md.mediaTime * 1000 : performance.now()))
       : requestAnimationFrame(cb)
 
+    const flipToRaf = (reason) => {
+      if (!useVfc) return
+      console.warn(`[inspectDevice] ${reason}, falling back to rAF`)
+      useVfc = false
+      try { videoElement.__tereRvfcDead = true } catch {}
+      scheduleNext(measureFrame)
+    }
+
+    const armStallWatchdog = () => {
+      if (!useVfc) return
+      if (stallWatchdog !== null) clearTimeout(stallWatchdog)
+      stallWatchdog = setTimeout(() => {
+        stallWatchdog = null
+        // Only trip if we haven't seen a frame since this timer was armed.
+        // 1200ms is enough that a healthy rVFC at 15fps (worst case) would
+        // have fired ~18 frames by now.
+        if (lastFrameAt != null && (performance.now() - lastFrameAt) >= 1200) {
+          flipToRaf('rVFC stalled mid-inspection')
+        }
+      }, 1200)
+    }
+
     const measureFrame = (timestamp) => {
-      // First real frame — rVFC is working, dismiss the watchdog.
-      if (watchdogId !== null) { clearTimeout(watchdogId); watchdogId = null }
+      // First real frame — rVFC is working, dismiss the cold-start watchdog.
+      if (coldStartWatchdog !== null) { clearTimeout(coldStartWatchdog); coldStartWatchdog = null }
+      lastFrameAt = performance.now()
       if (!startTime) startTime = timestamp
       const elapsed = timestamp - startTime
       frameCount++
+      armStallWatchdog()
 
       if (frameCount % 10 === 0) {
         try {
@@ -115,6 +143,7 @@ export async function inspectDevice(videoElement) {
       if (elapsed < 2000) {
         scheduleNext(measureFrame)
       } else {
+        if (stallWatchdog !== null) { clearTimeout(stallWatchdog); stallWatchdog = null }
         const fps = (frameCount / elapsed) * 1000
         const avgBrightness = pixelQualities.length ? pixelQualities.reduce((s, q) => s + q.avg, 0) / pixelQualities.length : 128
         const avgContrast   = pixelQualities.length ? pixelQualities.reduce((s, q) => s + q.contrast, 0) / pixelQualities.length : 50
@@ -126,24 +155,15 @@ export async function inspectDevice(videoElement) {
       }
     }
 
-    // Arm the watchdog BEFORE the first scheduleNext so a broken rVFC can't
-    // sneak past. 800ms is enough for a healthy rVFC to deliver 1–2 frames
-    // at 30fps even on slow devices. If zero frames by then, assume rVFC is
-    // dead on this browser and resume via rAF.
+    // Arm the cold-start watchdog BEFORE the first scheduleNext so a broken
+    // rVFC can't sneak past. 800ms is enough for a healthy rVFC to deliver
+    // 1–2 frames at 30fps even on slow devices. If zero frames by then,
+    // flip to rAF. Poisoning __tereRvfcDead skips the same stall in _tick
+    // downstream, so the scan doesn't sit silently at 0%.
     if (useVfc) {
-      watchdogId = setTimeout(() => {
-        watchdogId = null
-        if (frameCount === 0) {
-          console.warn('[inspectDevice] rVFC never fired, falling back to rAF')
-          useVfc = false
-          // Poison the video element so the downstream measurement scan skips
-          // rVFC without having to repeat the 800ms detection stall. Same
-          // physical video, same WebKit bug, same hang. Without this the scan
-          // starts, _tick schedules rVFC, callback never fires, progress bar
-          // sits at 0% silently — no error reaches the UI.
-          try { videoElement.__tereRvfcDead = true } catch {}
-          scheduleNext(measureFrame)
-        }
+      coldStartWatchdog = setTimeout(() => {
+        coldStartWatchdog = null
+        if (frameCount === 0) flipToRaf('rVFC never fired')
       }, 800)
     }
 
