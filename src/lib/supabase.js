@@ -1993,6 +1993,18 @@ export async function promotePublicInput(subjectId) {
   return subject
 }
 
+// Admin-only diagnostic for a single consultation — surfaces sandbox +
+// payment_test_mode + employer link + first client IP + audit event span.
+// Powers the "Investigate" button on FunnelPanel abandoned-consult cards.
+export async function getConsultDiagnostic(consultationId) {
+  const res = await apiFetch(`/api/consult-diagnostic?id=${encodeURIComponent(consultationId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getConsultDiagnostic HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function rejectPublicInput(subjectId, rejectionReason) {
   const res = await apiFetch('/api/public-input-review', {
     method: 'POST',

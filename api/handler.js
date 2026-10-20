@@ -51,6 +51,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // Admin review surface for public_anonymous validation subjects
   // (migration 2026-10-19). Non-admin providers get 403 inside the endpoint.
   'public-input-review',
+  // Admin-only drilldown behind FunnelPanel abandoned-consult cards —
+  // surfaces sandbox + payment_test_mode + employer + first_ip + session
+  // span so an admin can triage test/bot/real-person in one click.
+  'consult-diagnostic',
   'resend-prescription',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
@@ -394,6 +398,7 @@ const ROUTES = {
   'validation-subjects':       () => import('./_validation-subjects.js'),
   'validation-readings':       () => import('./_validation-readings.js'),
   'public-input-review':       () => import('./_public-input-review.js'),
+  'consult-diagnostic':        () => import('./_consult-diagnostic.js'),
   'model-version':             () => import('./_model-version.js'),
   'bp-v2-model':               () => import('./_bp-v2-model.js'),
   'bp-v3-model':               () => import('./_bp-v3-model.js'),

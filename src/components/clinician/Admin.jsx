@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
@@ -6486,6 +6486,83 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
 // admin can rescue acute presentations before they churn (Jeanne Palm's
 // severe-allergic-reaction case was the motivating incident). Separate from
 // AnalyticsPanel's revenue stats which only count completed consults.
+// Inline diagnostic panel for abandoned-consult cards. Surfaces the signals
+// Patrick was previously SQL-querying by hand to triage test/bot/real-person:
+// sandbox + payment-test flags, employer linkage, first client IP, session
+// span. Admin-only — /api/consult-diagnostic enforces is_admin server-side.
+function InvestigatePanel({ consultationId, diag, loading }) {
+  const borderColor = '#CBD5E1'
+  const label = { fontSize:'.7rem', fontWeight:700, color:'#64748B', textTransform:'uppercase', letterSpacing:'.03em' }
+  const value = { fontSize:'.82rem', color:'#0F172A', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }
+  const row = { display:'flex', flexDirection:'column', gap:2 }
+
+  if (loading && !diag) {
+    return (
+      <div style={{ marginTop:10, padding:'.6rem .75rem', background:'white', border:`1px dashed ${borderColor}`, borderRadius:6, fontSize:'.78rem', color:'#64748B' }}>
+        Loading diagnostic…
+      </div>
+    )
+  }
+  if (!diag) return null
+  if (diag.error) {
+    return (
+      <div style={{ marginTop:10, padding:'.6rem .75rem', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:6, fontSize:'.78rem', color:'#991B1B' }}>
+        Diagnostic failed: {diag.error}
+      </div>
+    )
+  }
+
+  const c = diag.consult || {}
+  const a = diag.audit || {}
+  // Signal flags up top — the "answer" to the question
+  const flags = []
+  if (c.is_practice)       flags.push({ bg:'#EDE9FE', fg:'#5B21B6', text:'SANDBOX (is_practice=true)' })
+  if (c.payment_test_mode) flags.push({ bg:'#FEF3C7', fg:'#78350F', text:'PAYMENT TEST MODE ($0.10 override)' })
+  if (c.employer_id)       flags.push({ bg:'#DBEAFE', fg:'#1E40AF', text:`EMPLOYER: ${c.employer_name || c.employer_id}` })
+  if (c.employer_paid)     flags.push({ bg:'#D1FAE5', fg:'#065F46', text:'EMPLOYER-PAID (no card)' })
+  if (a.session_seconds !== null && a.session_seconds < 10) flags.push({ bg:'#FEE2E2', fg:'#991B1B', text:`AUTOMATION LIKELY (${a.session_seconds}s session)` })
+  if (a.ip_count > 1)      flags.push({ bg:'#FEE2E2', fg:'#991B1B', text:`MULTIPLE IPs (${a.ip_count})` })
+
+  return (
+    <div style={{ marginTop:10, padding:'.75rem .9rem', background:'white', border:`1px solid ${borderColor}`, borderRadius:6 }}>
+      {flags.length > 0 && (
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:10 }}>
+          {flags.map((f, i) => (
+            <span key={i} style={{ background:f.bg, color:f.fg, padding:'2px 7px', borderRadius:4, fontSize:'.7rem', fontWeight:700 }}>
+              {f.text}
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(170px, 1fr))', gap:'.7rem .9rem' }}>
+        <div style={row}><div style={label}>Status</div>                 <div style={value}>{c.status || '—'}</div></div>
+        <div style={row}><div style={label}>Consult type</div>           <div style={value}>{c.consultation_type || '—'}</div></div>
+        <div style={row}><div style={label}>Payment amount</div>         <div style={value}>{c.payment_amount != null ? `$${c.payment_amount}` : '—'}</div></div>
+        <div style={row}><div style={label}>Patient linked</div>         <div style={value}>{c.patient_id ? 'yes' : 'no'}</div></div>
+        <div style={row}><div style={label}>First IP</div>               <div style={value}>{a.first_ip || '—'}</div></div>
+        <div style={row}><div style={label}>Audit events</div>           <div style={value}>{a.event_count ?? 0}</div></div>
+        <div style={row}><div style={label}>Session span</div>           <div style={value}>{a.session_seconds != null ? `${a.session_seconds}s` : '—'}</div></div>
+        <div style={row}><div style={label}>Created</div>                <div style={value}>{c.created_at ? new Date(c.created_at).toLocaleString('en-NZ', { timeZone:'Pacific/Auckland' }) : '—'}</div></div>
+      </div>
+      {a.event_types && Object.keys(a.event_types).length > 0 && (
+        <div style={{ marginTop:10, paddingTop:8, borderTop:'1px dashed #E2E8F0' }}>
+          <div style={{ ...label, marginBottom:4 }}>Audit event histogram</div>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {Object.entries(a.event_types).sort((x,y)=>y[1]-x[1]).map(([k, v]) => (
+              <span key={k} style={{ background:'#F1F5F9', color:'#334155', padding:'2px 6px', borderRadius:4, fontSize:'.7rem', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+                {k} ×{v}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      <div style={{ marginTop:8, fontSize:'.68rem', color:'#94A3B8', fontFamily:'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+        consultation_id: {consultationId}
+      </div>
+    </div>
+  )
+}
+
 function FunnelPanel() {
   const navigate = useNavigate()
   // NZT calendar date helpers — ensures "Today" = midnight-to-midnight NZT
@@ -6512,6 +6589,31 @@ function FunnelPanel() {
   // Local set of consult_ids optimistically dismissed/undismissed since last
   // fetch, so the row vanishes/returns instantly without waiting on reload.
   const [pendingDismiss, setPendingDismiss] = React.useState(new Set())
+  // Per-row Investigate panel state. diagById caches the diagnostic payload
+  // so re-expanding the same card doesn't re-hit the endpoint; expandedIds
+  // tracks which cards are currently open; diagLoading tracks the in-flight
+  // request so the button can disable itself and show a tiny spinner.
+  const [diagById, setDiagById]       = React.useState({})
+  const [expandedIds, setExpandedIds] = React.useState(new Set())
+  const [diagLoading, setDiagLoading] = React.useState(new Set())
+  const toggleInvestigate = React.useCallback(async (consultationId) => {
+    const isOpen = expandedIds.has(consultationId)
+    if (isOpen) {
+      setExpandedIds(prev => { const s = new Set(prev); s.delete(consultationId); return s })
+      return
+    }
+    setExpandedIds(prev => new Set(prev).add(consultationId))
+    if (diagById[consultationId]) return  // cached
+    setDiagLoading(prev => new Set(prev).add(consultationId))
+    try {
+      const payload = await getConsultDiagnostic(consultationId)
+      setDiagById(prev => ({ ...prev, [consultationId]: payload }))
+    } catch (e) {
+      setDiagById(prev => ({ ...prev, [consultationId]: { error: e.message } }))
+    } finally {
+      setDiagLoading(prev => { const s = new Set(prev); s.delete(consultationId); return s })
+    }
+  }, [expandedIds, diagById])
 
   const reload = React.useCallback(async () => {
     setLoading(true)
@@ -6671,6 +6773,13 @@ function FunnelPanel() {
                             Open chart
                           </button>
                         )}
+                        <button
+                          onClick={() => toggleInvestigate(d.consultation_id)}
+                          disabled={diagLoading.has(d.consultation_id)}
+                          title="Show sandbox / payment-test / employer / IP + session span"
+                          style={{ background:'white', border:'1.5px solid #CBD5E1', color:'#334155', borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                          {diagLoading.has(d.consultation_id) ? '…' : (expandedIds.has(d.consultation_id) ? '▲ Hide' : '🔍 Investigate')}
+                        </button>
                         {d.dismissed ? (
                           <button
                             onClick={() => dismiss(d.consultation_id, 'undismiss')}
@@ -6688,6 +6797,12 @@ function FunnelPanel() {
                         )}
                       </div>
                     </div>
+                    {expandedIds.has(d.consultation_id) && (
+                      <InvestigatePanel
+                        consultationId={d.consultation_id}
+                        diag={diagById[d.consultation_id]}
+                        loading={diagLoading.has(d.consultation_id)} />
+                    )}
                   </div>
                   )
                 })}
