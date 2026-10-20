@@ -30,21 +30,14 @@ function admin() {
   )
 }
 
-function buildEmail({ firstName, chiefComplaintPreview, appUrl }) {
+function buildEmail({ firstName, appUrl }) {
   const name = firstName || 'there'
-  // Clip the chief complaint tightly — this is going into a transactional
-  // email, don't want to re-expose a long free-text clinical history.
-  const preview = chiefComplaintPreview
-    ? `about: "${chiefComplaintPreview}"`
-    : 'with Tere Health'
   const subject = 'Checking in on your Tere Health visit'
   const text = `Kia ora ${name},
 
-We noticed you started a consult ${preview} earlier today but didn't finish. Just wanted to check in and see how you're doing.
+We noticed you started a consult earlier today but didn't finish. Just wanted to check in and see how you're doing.
 
 If you'd still like to speak to a doctor, you can start again at ${appUrl}. Takes a minute, no need to re-type everything.
-
-If things have become urgent in the meantime — chest pain, severe shortness of breath, heavy bleeding, or thoughts of harming yourself — please call 111 or go to your nearest emergency department right away.
 
 If you've already seen someone or you're feeling better, no action needed. Hope you're on the mend.
 
@@ -56,10 +49,9 @@ terehealth.co.nz
 <div style="background:#0D2B45;padding:20px 28px"><div style="font-family:Georgia,serif;font-style:italic;color:#D4EEF0;font-size:20px">Tere Health</div></div>
 <div style="padding:24px 28px">
 <p style="font-size:15px;margin:0 0 16px">Kia ora ${name},</p>
-<p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">We noticed you started a consult ${preview} earlier today but didn't finish. Just wanted to check in and see how you're doing.</p>
+<p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 16px">We noticed you started a consult earlier today but didn't finish. Just wanted to check in and see how you're doing.</p>
 <p style="font-size:15px;line-height:1.7;color:#374151;margin:0 0 24px">If you'd still like to speak to a doctor, you can start again below. Takes a minute, no need to re-type everything.</p>
 <div style="text-align:center;margin:28px 0"><a href="${appUrl}" style="display:inline-block;background:#0B6E76;color:white;text-decoration:none;padding:14px 32px;border-radius:99px;font-size:16px;font-weight:700">Pick up where you left off →</a></div>
-<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;font-size:13px;color:#991B1B;margin-top:24px">⚠️ <strong>If this has become urgent</strong> (chest pain, severe shortness of breath, heavy bleeding, thoughts of harming yourself), please call <strong>111</strong> or go to your nearest emergency department now.</div>
 <p style="font-size:14px;line-height:1.6;color:#6B7280;margin:24px 0 0">If you've already seen someone or you're feeling better, no action needed from your end. Hope you're on the mend.</p>
 </div>
 <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">Tere Health · terehealth.co.nz</div>
@@ -107,10 +99,8 @@ export default async function handler(req, res) {
   }
 
   const appUrl = process.env.VITE_APP_URL || 'https://terehealth.co.nz'
-  const chiefPreview = (consult.chief_complaint || '').slice(0, 100).trim()
   const { subject, html, text } = buildEmail({
     firstName: consult.patient_first_name,
-    chiefComplaintPreview: chiefPreview,
     appUrl,
   })
 
@@ -151,7 +141,6 @@ export default async function handler(req, res) {
       recipient_email: consult.patient_email,
       email_provider:  emailRes.provider,
       email_message_id: emailRes.id || null,
-      cc_preview_len:  chiefPreview.length,
     },
   }).catch(() => {})
 
