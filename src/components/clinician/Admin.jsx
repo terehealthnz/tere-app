@@ -6537,7 +6537,7 @@ function InvestigatePanel({ consultationId, diag, loading }) {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(170px, 1fr))', gap:'.7rem .9rem' }}>
         <div style={row}><div style={label}>Status</div>                 <div style={value}>{c.status || '—'}</div></div>
         <div style={row}><div style={label}>Consult type</div>           <div style={value}>{c.consultation_type || '—'}</div></div>
-        <div style={row}><div style={label}>Payment amount</div>         <div style={value}>{c.payment_amount != null ? `$${c.payment_amount}` : '—'}</div></div>
+        <div style={row}><div style={label}>Payment amount</div>         <div style={value}>{c.payment_amount != null ? `$${(c.payment_amount / 100).toFixed(2)}` : '—'}</div></div>
         <div style={row}><div style={label}>Patient linked</div>         <div style={value}>{c.patient_id ? 'yes' : 'no'}</div></div>
         <div style={row}><div style={label}>First IP</div>               <div style={value}>{a.first_ip || '—'}</div></div>
         <div style={row}><div style={label}>Audit events</div>           <div style={value}>{a.event_count ?? 0}</div></div>
