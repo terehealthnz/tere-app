@@ -1084,6 +1084,10 @@ export default function VitalsValidate() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
                 <div style={{ color: '#EF4444', fontSize: '.9rem' }}>{scanError}</div>
                 <Btn onClick={() => { stopCamera(); setScanPhase('idle'); setScanError(null); startCamera() }}>Retry scan</Btn>
+                {/* Build marker so support can tell at a glance which bundle a
+                    patient is running when they screenshot an error. Bump on
+                    any VitalsValidate scan-path change. */}
+                <div style={{ color: '#9CA3AF', fontSize: '.65rem', fontFamily: 'monospace', textAlign: 'center' }}>build vv.e0b6e65</div>
               </div>
             )}
           </div>
