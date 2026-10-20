@@ -55,6 +55,9 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // surfaces sandbox + payment_test_mode + employer + first_ip + session
   // span so an admin can triage test/bot/real-person in one click.
   'consult-diagnostic',
+  // Admin-triggered "are you still OK?" follow-up email to abandoned
+  // consults. Idempotent (check_in_sent_at), refuses sandbox + test-mode.
+  'consult-checkin',
   'resend-prescription',
   'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
   'generate-supervision-plan',
@@ -399,6 +402,7 @@ const ROUTES = {
   'validation-readings':       () => import('./_validation-readings.js'),
   'public-input-review':       () => import('./_public-input-review.js'),
   'consult-diagnostic':        () => import('./_consult-diagnostic.js'),
+  'consult-checkin':           () => import('./_consult-checkin.js'),
   'model-version':             () => import('./_model-version.js'),
   'bp-v2-model':               () => import('./_bp-v2-model.js'),
   'bp-v3-model':               () => import('./_bp-v3-model.js'),

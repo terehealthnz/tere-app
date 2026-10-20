@@ -199,7 +199,7 @@ export default async function handler(req, res) {
   // classification and drop-off rescue contact. Exclude practice-mode rows —
   // they're training sandbox and would skew the numbers.
   const { data: rows, error } = await supabase.from('consultations')
-    .select('id, patient_id, status, created_at, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, chief_complaint, is_practice, funnel_dismissed_at')
+    .select('id, patient_id, status, created_at, patient_joined_at, started_at, notes_finalised_at, completed_at, payment_amount, chief_complaint, is_practice, funnel_dismissed_at, check_in_sent_at, patient_email')
     .gte('created_at', windowStartIso)
     .lt('created_at', windowEndIso)
     .order('created_at', { ascending: false })
@@ -263,13 +263,17 @@ export default async function handler(req, res) {
       dismissed: !!c.funnel_dismissed_at,
       patient_name: p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : null,
       patient_phone: p?.phone_mobile || null,
-      patient_email: p?.email || null,
+      // Prefer the patient's canonical email (if a patients row exists)
+      // but fall back to the email the patient typed into intake — that's
+      // the one we need to check-in to for payment-stage abandons.
+      patient_email: p?.email || c.patient_email || null,
       chief_complaint: c.chief_complaint || null,
       created_at: c.created_at,
       last_step: STEPS[lastReachedIdx],
       last_step_label: STEP_LABELS[STEPS[lastReachedIdx]],
       hours_since,
       severity_flag: hasSeverityKeyword(c.chief_complaint),
+      check_in_sent_at: c.check_in_sent_at || null,
     }
   }).sort((a, b) => {
     // Severity-flagged first, then most-recent

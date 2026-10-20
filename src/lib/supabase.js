@@ -1993,6 +1993,21 @@ export async function promotePublicInput(subjectId) {
   return subject
 }
 
+// Admin-only check-in sender for abandoned consults. Sends the templated
+// "are you still OK?" email (SES-backed), stamps check_in_sent_at, writes
+// an audit event. Idempotent on the server side (409 if already sent).
+export async function sendConsultCheckin(consultationId) {
+  const res = await apiFetch('/api/consult-checkin', {
+    method: 'POST',
+    body: JSON.stringify({ consultation_id: consultationId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `sendConsultCheckin HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
 // Admin-only diagnostic for a single consultation — surfaces sandbox +
 // payment_test_mode + employer link + first client IP + audit event span.
 // Powers the "Investigate" button on FunnelPanel abandoned-consult cards.

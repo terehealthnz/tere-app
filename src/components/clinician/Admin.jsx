@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
@@ -6596,6 +6596,26 @@ function FunnelPanel() {
   const [diagById, setDiagById]       = React.useState({})
   const [expandedIds, setExpandedIds] = React.useState(new Set())
   const [diagLoading, setDiagLoading] = React.useState(new Set())
+  // Per-row check-in send state. checkInSending tracks the in-flight send;
+  // checkInSentNow records optimistically-sent IDs so the row's button
+  // flips to "✓ Sent" the instant the API returns 200, without waiting
+  // on the next reload cycle.
+  const [checkInSending, setCheckInSending]   = React.useState(new Set())
+  const [checkInSentNow, setCheckInSentNow]   = React.useState(new Set())
+  const handleSendCheckin = React.useCallback(async (consultationId, patientFirstName) => {
+    const confirmMsg = `Send a check-in email to ${patientFirstName || 'this patient'}?\n\nThe email asks if they still need help and includes a 111 safety note. Only one check-in per consult.`
+    if (!window.confirm(confirmMsg)) return
+    setCheckInSending(prev => new Set(prev).add(consultationId))
+    try {
+      await sendConsultCheckin(consultationId)
+      setCheckInSentNow(prev => new Set(prev).add(consultationId))
+    } catch (e) {
+      alert('Check-in failed: ' + e.message)
+    } finally {
+      setCheckInSending(prev => { const s = new Set(prev); s.delete(consultationId); return s })
+    }
+  }, [])
+
   const toggleInvestigate = React.useCallback(async (consultationId) => {
     const isOpen = expandedIds.has(consultationId)
     if (isOpen) {
@@ -6780,6 +6800,28 @@ function FunnelPanel() {
                           style={{ background:'white', border:'1.5px solid #CBD5E1', color:'#334155', borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:700, cursor:'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
                           {diagLoading.has(d.consultation_id) ? '…' : (expandedIds.has(d.consultation_id) ? '▲ Hide' : '🔍 Investigate')}
                         </button>
+                        {(() => {
+                          const alreadySent = d.check_in_sent_at || checkInSentNow.has(d.consultation_id)
+                          const sending = checkInSending.has(d.consultation_id)
+                          const noEmail = !d.patient_email
+                          if (alreadySent) {
+                            return (
+                              <span title="Check-in email already sent for this consult"
+                                style={{ background:'#D1FAE5', color:'#065F46', border:'1.5px solid #A7F3D0', borderRadius:8, padding:'5px 10px', fontSize:'.72rem', fontWeight:700, textAlign:'center', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                                ✓ Check-in sent
+                              </span>
+                            )
+                          }
+                          return (
+                            <button
+                              onClick={() => handleSendCheckin(d.consultation_id, d.patient_name?.split(' ')[0])}
+                              disabled={sending || noEmail}
+                              title={noEmail ? 'No patient email on this consult — cannot send' : 'Send "are you still OK?" email with 111 safety note'}
+                              style={{ background:'white', border:`1.5px solid ${noEmail ? '#E2E8F0' : '#0B6E76'}`, color:noEmail ? '#9CA3AF' : '#0B6E76', borderRadius:8, padding:'5px 10px', fontSize:'.75rem', fontWeight:700, cursor:(sending || noEmail) ? 'default' : 'pointer', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
+                              {sending ? '…' : (noEmail ? '✉ No email' : '✉ Check in')}
+                            </button>
+                          )
+                        })()}
                         {d.dismissed ? (
                           <button
                             onClick={() => dismiss(d.consultation_id, 'undismiss')}
