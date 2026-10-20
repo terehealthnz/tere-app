@@ -86,9 +86,26 @@ export async function inspectDevice(videoElement) {
     let stallWatchdog = null
     let lastFrameAt = null
 
-    const scheduleNext = (cb) => useVfc
-      ? videoElement.requestVideoFrameCallback((_, md) => cb(md?.mediaTime != null ? md.mediaTime * 1000 : performance.now()))
-      : requestAnimationFrame(cb)
+    // Wrap in try/catch — iOS WebKit has shipped builds where rVFC exists
+    // on the prototype but throws TypeError when invoked against a video
+    // whose MediaStream came from getUserMedia under certain states (e.g.
+    // paused readyState < HAVE_CURRENT_DATA). Without this guard, the
+    // throw propagates out of the initial scheduleNext and the Promise
+    // is never resolved — we only find out at the 8s outer timeout.
+    const scheduleNext = (cb) => {
+      if (useVfc) {
+        try {
+          return videoElement.requestVideoFrameCallback(
+            (_, md) => cb(md?.mediaTime != null ? md.mediaTime * 1000 : performance.now())
+          )
+        } catch (e) {
+          console.warn('[inspectDevice] rVFC threw, flipping to rAF:', e?.message || e)
+          useVfc = false
+          try { videoElement.__tereRvfcDead = true } catch {}
+        }
+      }
+      return requestAnimationFrame(cb)
+    }
 
     const flipToRaf = (reason) => {
       if (!useVfc) return
@@ -156,15 +173,19 @@ export async function inspectDevice(videoElement) {
     }
 
     // Arm the cold-start watchdog BEFORE the first scheduleNext so a broken
-    // rVFC can't sneak past. 800ms is enough for a healthy rVFC to deliver
+    // rVFC can't sneak past. 400ms is enough for a healthy rVFC to deliver
     // 1–2 frames at 30fps even on slow devices. If zero frames by then,
     // flip to rAF. Poisoning __tereRvfcDead skips the same stall in _tick
     // downstream, so the scan doesn't sit silently at 0%.
+    //
+    // Tightened from 800ms → 400ms 2026-10-20 after a patient repeatedly
+    // hit the 8s outer timeout despite the fallback — faster recovery
+    // leaves more headroom for the measurement window.
     if (useVfc) {
       coldStartWatchdog = setTimeout(() => {
         coldStartWatchdog = null
         if (frameCount === 0) flipToRaf('rVFC never fired')
-      }, 800)
+      }, 400)
     }
 
     scheduleNext(measureFrame)

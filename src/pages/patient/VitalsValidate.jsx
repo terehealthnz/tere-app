@@ -385,9 +385,23 @@ export default function VitalsValidate() {
       // are instant), so the timeout has to be generous. loadFaceMesh is also
       // kicked off in the step2 useEffect so it's usually well warmed up by
       // the time the user clicks Start scan.
+      //
+      // Camera inspection is non-fatal (2026-10-20) — on some iOS WebKit
+      // builds under heavy load the rVFC/rAF timing probe stalls even when
+      // the video is clearly rendering frames to the screen. Blocking the
+      // whole scan on an optional calibration pre-flight was costing us
+      // real patients. If inspection fails, fall back to sensible defaults
+      // (30fps, quality 70) and let the main scan proceed — the scan loop
+      // has its own frame-delivery handling and will surface a clearer
+      // error if frames genuinely aren't flowing.
+      const DEFAULT_INFO = { fps: 30, width: 640, height: 480, brightness: 128, contrast: 50, quality: 70, _fallback: true }
       const [, info] = await Promise.all([
         withTimeout(loadFaceMesh(),                 45000, 'Face detector load'),
-        withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection'),
+        withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection')
+          .catch(e => {
+            console.warn('[startScan] inspection failed, using defaults:', e?.message || e)
+            return DEFAULT_INFO
+          }),
       ])
       setDeviceInfo(info)
       // meRppg: true runs the DL rPPG track (arxiv 2504.01774) in parallel to
