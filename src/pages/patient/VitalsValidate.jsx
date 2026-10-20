@@ -379,30 +379,29 @@ export default function VitalsValidate() {
       )),
     ])
     try {
-      // Parallelise face detector init with camera inspection — on mobile the
-      // FaceLandmarker model + WASM download can genuinely take 20–30s on 4G
-      // for the first scan of the session (subsequent scans hit the cache and
-      // are instant), so the timeout has to be generous. loadFaceMesh is also
-      // kicked off in the step2 useEffect so it's usually well warmed up by
-      // the time the user clicks Start scan.
+      // Serialize mesh load → inspection (2026-10-20). The previous
+      // Promise.all parallelised them, but on a cold first scan the
+      // FaceLandmarker WASM/ONNX init blocks the main thread for 2–5s
+      // while compiling, and during that block the event loop can't
+      // service rVFC / rAF / setTimeout callbacks. inspectDevice's frame
+      // sampler sits in the queue, our 400ms rAF-fallback watchdog never
+      // fires, and the outer 8s timeout wins. That's exactly what one
+      // patient hit repeatedly ("Camera inspection timed out after 8000ms"
+      // despite the circle showing her face from the earlier preview
+      // loop). Fix: await the mesh first so the main thread is free
+      // when we start sampling frames. Preview-time preload in step2's
+      // useEffect means this await usually resolves instantly.
       //
-      // Camera inspection is non-fatal (2026-10-20) — on some iOS WebKit
-      // builds under heavy load the rVFC/rAF timing probe stalls even when
-      // the video is clearly rendering frames to the screen. Blocking the
-      // whole scan on an optional calibration pre-flight was costing us
-      // real patients. If inspection fails, fall back to sensible defaults
-      // (30fps, quality 70) and let the main scan proceed — the scan loop
-      // has its own frame-delivery handling and will surface a clearer
-      // error if frames genuinely aren't flowing.
+      // Inspection stays non-fatal: if it still times out (e.g. a genuine
+      // frame-delivery problem rather than main-thread contention), we
+      // use defaults and let the main scan surface a clearer error.
+      await withTimeout(loadFaceMesh(), 45000, 'Face detector load')
       const DEFAULT_INFO = { fps: 30, width: 640, height: 480, brightness: 128, contrast: 50, quality: 70, _fallback: true }
-      const [, info] = await Promise.all([
-        withTimeout(loadFaceMesh(),                 45000, 'Face detector load'),
-        withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection')
-          .catch(e => {
-            console.warn('[startScan] inspection failed, using defaults:', e?.message || e)
-            return DEFAULT_INFO
-          }),
-      ])
+      const info = await withTimeout(inspectDevice(videoRef.current), 8000, 'Camera inspection')
+        .catch(e => {
+          console.warn('[startScan] inspection failed, using defaults:', e?.message || e)
+          return DEFAULT_INFO
+        })
       setDeviceInfo(info)
       // meRppg: true runs the DL rPPG track (arxiv 2504.01774) in parallel to
       // the classical pipeline so we can score DL vs baseline on paired manual
