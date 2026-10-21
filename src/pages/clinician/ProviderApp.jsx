@@ -10,7 +10,6 @@ import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPend
 import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
 import PracticeModeBanner from '../../components/clinician/PracticeModeBanner.jsx'
-import TrainingBanner from '../../components/clinician/TrainingBanner.jsx'
 import { providerLogout } from '../../lib/providerLogout'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1617,9 +1616,6 @@ export default function ProviderApp() {
     <div style={{ height:'100dvh', background:'#F7F5F0', display:'flex', flexDirection:'column', fontFamily:FF, userSelect:'none', WebkitUserSelect:'none', position:'relative', overflow:'hidden' }}>
       {/* Practice/onboarding mode banner (hidden in live mode) */}
       <PracticeModeBanner />
-
-      {/* Sandbox training progress — self-dismisses once training_completed_at is set. */}
-      <TrainingBanner providerId={providerId} />
 
       {/* Offline banner */}
       {!isOnline && (

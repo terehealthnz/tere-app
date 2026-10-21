@@ -105,13 +105,36 @@ export default async function handler(req, res) {
 
   // Sandbox suppression — never generate/deliver a prescription against a
   // practice-mode consult. Pharmacies would otherwise receive test scripts.
+  // Still write a minimal is_practice=true Rx row so the provider's chart
+  // view shows the simulated script. No PDF, no email, no fax.
   if (consultationId && await isPracticeConsult(supabase, consultationId)) {
+    let prescriptionId = null
+    try {
+      const { data } = await supabase.from('prescriptions').insert({
+        consultation_id:  consultationId,
+        provider_id:      providerId || null,
+        provider_name:    providerName,
+        prescriber_number: prescriberNumber,
+        patient_name:     patientName,
+        patient_nhi:      patientNhi,
+        patient_dob:      patientDob,
+        patient_email:    patientEmail,
+        drug, dose, directions, quantity,
+        repeats:          repeats || 0,
+        pharmacy_name:    pharmacyName,
+        delivery_channel: 'none',
+        delivery_status:  'simulated',
+        approval_status:  'not_required',
+        is_practice:      true,
+      }).select('id').single()
+      prescriptionId = data?.id || null
+    } catch (e) { console.error('[generate-prescription-pdf] sandbox Rx insert failed:', e?.message) }
     return res.status(200).json({
       sent: false,
       simulated: true,
       reason: 'practice_mode',
       pdf_url: null,
-      prescription_id: null,
+      prescription_id: prescriptionId,
     })
   }
 

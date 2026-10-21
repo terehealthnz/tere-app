@@ -8,7 +8,6 @@ import TereChatTab, { useTereChatUnread } from './TereChatTab.jsx'
 import ProviderInbox from '../../pages/clinician/ProviderInbox.jsx'
 import ProviderEarnings from '../../pages/clinician/ProviderEarnings.jsx'
 import PracticeModeBanner from './PracticeModeBanner.jsx'
-import TrainingBanner from './TrainingBanner.jsx'
 import { providerTasksApi } from '../../lib/supabase'
 
 function useClinicianAuth() {
@@ -585,7 +584,6 @@ export default function Dashboard() {
   return (
     <div className="page">
       <PracticeModeBanner />
-      <TrainingBanner providerId={sessionStorage.getItem('providerId')} />
       <nav className="navbar">
         <span className="navbar-brand">Tere</span>
         <div className="navbar-right">
