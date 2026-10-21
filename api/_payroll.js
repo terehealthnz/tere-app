@@ -53,6 +53,7 @@ async function buildSummaries(supabase, period_start, period_end) {
     supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number').eq('is_active', true).order('first_name'),
     supabase.from('consultations').select('provider_id').eq('status', 'complete').not('provider_id', 'is', null)
       .eq('payment_test_mode', false)
+      .eq('is_practice', false)
       .gte('created_at', period_start + 'T00:00:00.000Z')
       .lte('created_at', period_end + 'T23:59:59.999Z'),
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
@@ -236,7 +237,7 @@ export default async function handler(req, res) {
       if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const { data } = await supabase.from('consultations')
         .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
-        .eq('status', 'complete').eq('provider_id', provider_id).eq('payment_test_mode', false)
+        .eq('status', 'complete').eq('provider_id', provider_id).eq('payment_test_mode', false).eq('is_practice', false)
         .gte('created_at', period_start + 'T00:00:00.000Z').lte('created_at', period_end + 'T23:59:59.999Z')
         .order('created_at')
       return res.status(200).json({ consultations: data || [] })
@@ -326,7 +327,7 @@ export default async function handler(req, res) {
         supabase.from('providers').select('first_name,last_name,credential,email,base_rate,gst_registered,gst_number').eq('id', pid).single(),
         supabase.from('consultations')
           .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
-          .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false)
+          .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false).eq('is_practice', false)
           .gte('created_at', ps + 'T00:00:00.000Z').lte('created_at', pe + 'T23:59:59.999Z')
           .order('created_at'),
         supabase.from('payroll_periods').select('gst_amount').eq('provider_id', pid).eq('period_start', ps).eq('period_end', pe).maybeSingle(),

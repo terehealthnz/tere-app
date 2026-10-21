@@ -530,15 +530,21 @@ export default async function handler(req, res) {
     }
 
     // Notes work: consults that are fully closed out (for the dashboard history).
+    // Scope to the signed-in provider's OWN completed notes — admins see org-wide
+    // for billing/supervision/audit purposes, non-admin providers see only their
+    // own. Without this scope every non-admin provider sees every other
+    // provider's finalised notes, which breaks HDC Right 6 need-to-know.
     if (filter === 'completed_notes') {
       const cols = projection || 'id, created_at, patient_first_name, patient_last_name, chief_complaint, notes_finalised_at, outcome, note_finalised_by, prescription_issued, referral_issued'
       const limit = Math.max(1, Math.min(200, parseInt(req.query?.limit) || 50))
-      const { data, error } = await supabase
+      let q = supabase
         .from('consultations')
         .select(cols)
         .eq('status', 'complete')
         .eq('notes_finalised', true)
         .eq('is_practice', practice)
+      if (!auth.provider.is_admin) q = q.eq('provider_id', auth.provider.id)
+      const { data, error } = await q
         .order('notes_finalised_at', { ascending: false })
         .limit(limit)
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
