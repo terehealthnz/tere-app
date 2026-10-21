@@ -271,12 +271,16 @@ export default async function handler(req, res) {
     const gate = await authorised()
     if (gate.err) return
     const { row } = gate
-    // Flip research_consent = false on every consult tied to this patient NHI.
+    // Flip research_consent = false on every LIVE consult tied to this
+    // patient NHI. Scoping to is_practice=false means a trainee's sandbox
+    // consult carrying a coincident NHI can never be touched by a real
+    // patient's self-service action (and the audit count stays honest).
     const patientRefs = { nhi: row.patient_nhi, email: row.patient_email }
     if (!patientRefs.nhi) return res.status(400).json({ error: 'Cannot identify your record without an NHI on file.' })
     const { error, count } = await supabase.from('consultations')
       .update({ research_consent: false }, { count: 'exact' })
       .eq('patient_nhi', patientRefs.nhi)
+      .eq('is_practice', false)
     if (error) { console.error('[patient-portal] revoke_research failed:', error); return res.status(500).json({ error: 'Could not revoke — try again or email support@terehealth.co.nz' }) }
     // Record disclosure event for the audit trail.
     try {
