@@ -202,12 +202,17 @@ export default async function handler(req, res) {
   if (pErr) { console.error('[patient-record-export]', pErr); return res.status(500).json({ error: 'Server error' }) }
   if (!patient) return res.status(404).json({ error: 'Patient not found' })
 
+  // Defence-in-depth: scope each query to the live/sandbox mode of the patient
+  // row itself. In practice collision risk is near-zero (sandbox + live use
+  // disjoint deterministic UUIDs), but the filter means a future bug that
+  // reuses an ID across modes can never leak clinical content into a 22F export.
+  const patientIsPractice = !!patient.is_practice
   const [consultsRes, rxRes, alRes, condRes, radRes] = await Promise.all([
-    supabase.from('consultations').select('*').eq('patient_id', patient_id).order('created_at'),
-    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('prescriptions').select('*').eq('patient_id', patient_id).order('created_at'),
-    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('patient_allergens').select('*').eq('patient_id', patient_id).order('created_at').then(r => r, () => ({ data: [] })),
-    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('patient_conditions').select('*').eq('patient_id', patient_id).order('created_at').then(r => r, () => ({ data: [] })),
-    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('radiology_reports').select('*').eq('patient_id', patient_id).order('created_at').then(r => r, () => ({ data: [] })),
+    supabase.from('consultations').select('*').eq('patient_id', patient_id).eq('is_practice', patientIsPractice).order('created_at'),
+    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('prescriptions').select('*').eq('patient_id', patient_id).eq('is_practice', patientIsPractice).order('created_at'),
+    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('patient_allergens').select('*').eq('patient_id', patient_id).eq('is_practice', patientIsPractice).order('created_at').then(r => r, () => ({ data: [] })),
+    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('patient_conditions').select('*').eq('patient_id', patient_id).eq('is_practice', patientIsPractice).order('created_at').then(r => r, () => ({ data: [] })),
+    metadataOnly ? Promise.resolve({ data: [] }) : supabase.from('radiology_reports').select('*').eq('patient_id', patient_id).eq('is_practice', patientIsPractice).order('created_at').then(r => r, () => ({ data: [] })),
   ])
 
   const consults = consultsRes.data || []

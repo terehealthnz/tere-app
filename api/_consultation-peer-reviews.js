@@ -40,9 +40,12 @@ export default async function handler(req, res) {
     if (filter === 'sample') {
       const limit = Math.max(1, Math.min(100, parseInt(n) || 10))
       // Get consults with an acc_claim_number that don't have any peer_review yet.
+      // Exclude sandbox — trainees practising ACC conversion can seed fake
+      // claim numbers; those must not land in the governance peer-review pool.
       const { data: candidates } = await supabase.from('consultations')
         .select('id, created_at, patient_first_name, patient_last_name, patient_nhi, chief_complaint, acc_read_code, acc_body_part, acc_claim_number, provider_display_name, doctor_notes')
         .not('acc_claim_number', 'is', null)
+        .eq('is_practice', false)
         .order('created_at', { ascending: false })
         .limit(200)
       const consultIds = (candidates || []).map(c => c.id)
