@@ -8,6 +8,7 @@ import AdminPatients  from '../../pages/clinician/AdminPatients'
 import CreateProviderTaskModal from './CreateProviderTaskModal'
 import PhiRevealGate, { ReasonPicker } from './PhiRevealGate'
 import AccClaimsSection from './AccClaimsSection'
+import MeetingsPanel from './MeetingsPanel'
 import ReclassificationsPanel from './ReclassificationsPanel'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
 import { HpiQueryAudit, Hl7ReceiveAudit, Section22fReport } from './NzHealthAuditPanels'
@@ -7650,6 +7651,7 @@ function AdminBody() {
             { id:'finance',      label:'💰 Finance & Payroll' },
             { id:'team',         label:'👥 Team' },
             { id:'careers',      label:'💼 Careers' },
+            { id:'meetings',     label:'📅 Meetings' },
             { id:'quality',      label:'📈 Quality' },
             { id:'compliance',   label:'🔒 Compliance' },
             { id:'hpi',          label:'🩺 HPI Lookup' },
@@ -7720,6 +7722,8 @@ function AdminBody() {
               return <ProvidersPanel />
             case 'careers':
               return <CareersPanel />
+            case 'meetings':
+              return <MeetingsPanel />
             case 'quality':
               return <><VendorSlaMetrics /><PeerReviewPanel /><ProviderMetricsPanel /><FlaggedNotes /><ConsultationLog /></>
             case 'compliance':

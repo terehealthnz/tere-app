@@ -151,6 +151,8 @@ const ProvideReferees      = lazy(() => import('./pages/ProvideReferees'))
 const OnboardingSetup      = lazy(() => import('./pages/OnboardingSetup'))
 const InterviewEnded       = lazy(() => import('./pages/InterviewEnded'))
 const InterviewerRoom      = lazy(() => import('./pages/InterviewerRoom'))
+const MeetingJoin          = lazy(() => import('./pages/MeetingJoin'))
+const MeetingHostRoom      = lazy(() => import('./pages/MeetingHostRoom'))
 const Rate                = lazy(() => import('./pages/Rate'))
 const Complaints          = lazy(() => import('./pages/Complaints'))
 const Watch               = lazy(() => import('./pages/Watch'))
@@ -361,6 +363,8 @@ export default function App() {
         <Route path="/onboarding/setup/:token" element={<OnboardingSetup />} />
         <Route path="/interview-ended"        element={<InterviewEnded />} />
         <Route path="/interview-room"         element={<InterviewerRoom />} />
+        <Route path="/meet/:token"            element={<MeetingJoin />} />
+        <Route path="/meeting-host"           element={<MeetingHostRoom />} />
         <Route path="/employers"              element={<Employers />} />
         <Route path="/rate"                   element={<Rate />} />
         <Route path="/rate/:id"               element={<Rate />} />
