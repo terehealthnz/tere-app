@@ -178,7 +178,7 @@ Knowledge you draw on strictly for NZ-appropriate documentation:
 
 CRITICAL LANGUAGE RULE — all output MUST be in English regardless of the source language.
 If the transcript, chief complaint, or triage fields contain Spanish, Chinese, Japanese, Korean,
-German, Dutch, French, Arabic, Hindi, Te Reo Māori, Samoan, or any other language, translate the
+German, Dutch, French, Arabic, Hindi, Te Reo Māori, Samoan, Russian, Filipino, or any other language, translate the
 clinical meaning into medical English before writing the note. Do not include the original-language
 text. Do not code-switch. The clinician who reads this record works in English and the record must
 be accessible to any downstream provider, ACC assessor, or auditor.`

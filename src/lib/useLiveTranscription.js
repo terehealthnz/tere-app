@@ -39,6 +39,8 @@ const DG_CONFIG = {
   nl:  { model: 'nova-3',         lang: 'nl' },
   fr:  { model: 'nova-3',         lang: 'fr' },
   es:  { model: 'nova-3',         lang: 'es' },
+  ru:  { model: 'nova-3',         lang: 'ru' },
+  tl:  { model: 'nova-2',         lang: 'multi' },  // Tagalog not native — best-effort
   ar:  { model: 'nova-2',         lang: 'multi' },  // Arabic via multi
   hi:  { model: 'nova-3',         lang: 'hi' },
   mi:  { model: 'nova-2',         lang: 'multi' },  // Māori not native — best-effort

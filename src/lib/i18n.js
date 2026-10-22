@@ -22,6 +22,7 @@ export const LANGUAGES = [
   { code: 'ko', name: 'Korean',   nativeName: '한국어',     flag: '🇰🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'de', name: 'German',   nativeName: 'Deutsch',    flag: '🇩🇪', rtl: false, subtitleSupport: 'excellent' },
   { code: 'nl', name: 'Dutch',    nativeName: 'Nederlands', flag: '🇳🇱', rtl: false, subtitleSupport: 'excellent' },
+  { code: 'ru', name: 'Russian',  nativeName: 'Русский',    flag: '🇷🇺', rtl: false, subtitleSupport: 'excellent' },
   { code: 'fr', name: 'French',   nativeName: 'Français',   flag: '🇫🇷', rtl: false, subtitleSupport: 'excellent' },
   { code: 'es', name: 'Spanish',  nativeName: 'Español',    flag: '🇪🇸', rtl: false, subtitleSupport: 'excellent' },
   // Arabic and Hindi: AWS Transcribe streaming coverage is limited (batch-
@@ -34,6 +35,10 @@ export const LANGUAGES = [
   // works via Bedrock, but AWS Transcribe streaming has no Samoan model.
   { code: 'sm',  name: 'Samoan',      nativeName: 'Gagana Sāmoa',   flag: '🇼🇸', rtl: false, subtitleSupport: 'unsupported',
     note: 'O nisi upu fa\'afoma\'i o le a tumau i le Igilisi — Some medical terms remain in English' },
+  // Filipino / Tagalog: written UI translation + fil-PH live subtitles via
+  // AWS Transcribe. Common NZ healthcare register is Taglish (Tagalog with
+  // English medical terms kept untranslated).
+  { code: 'tl',  name: 'Filipino',    nativeName: 'Tagalog',        flag: '🇵🇭', rtl: false, subtitleSupport: 'excellent' },
   // Marshallese and Rohingya are intentionally not offered here. Translation
   // quality is unreliable for legal/clinical text and the confidence signal
   // is uncalibrated for low-resource languages. Patients from these
@@ -68,6 +73,8 @@ const T = {
     es: "¡Hola! Soy Tere, tu asistente de salud. ¿Cuál es tu nombre completo?",
     ar: "مرحباً! أنا Tere، مساعدك الصحي. ما اسمك الكامل؟",
     hi: "नमस्ते! मैं Tere हूँ, आपका स्वास्थ्य सहायक। आपका पूरा नाम क्या है?",
+    ru: "Здравствуйте! Я Tere, ваш медицинский помощник. Как ваше полное имя?", // TODO cert
+    tl: "Kumusta! Ako si Tere, ang inyong health assistant. Ano po ang buong pangalan ninyo?", // TODO cert
   },
   greeting_error: {
     en: "Can you type your full name?",
@@ -83,6 +90,8 @@ const T = {
     es: "¿Puede escribir su nombre completo?",
     ar: "هل يمكنك كتابة اسمك الكامل؟",
     hi: "कृपया अपना पूरा नाम लिखें।",
+    ru: "Пожалуйста, введите ваше полное имя.", // TODO cert
+    tl: "Pakitype po ang inyong buong pangalan.", // TODO cert
   },
 
   dob_question: {
@@ -99,6 +108,8 @@ const T = {
     es: "¿Y su fecha de nacimiento, ${firstName}? (ej. 14 de marzo de 1986)",
     ar: "وتاريخ ميلادك يا ${firstName}؟ (مثلاً: 14 مارس 1986)",
     hi: "और आपकी जन्म तिथि, ${firstName}? (जैसे: 14 मार्च 1986)",
+    ru: "А дата вашего рождения, ${firstName}? (например, 14 марта 1986)", // TODO cert
+    tl: "At ang petsa po ng kapanganakan ninyo, ${firstName}? (hal. 14 Marso 1986)", // TODO cert
   },
   dob_error: {
     en: "Can you give me your date of birth? (e.g. 14 March 1986)",
@@ -114,6 +125,8 @@ const T = {
     es: "¿Puede darme su fecha de nacimiento? (ej. 14 de marzo de 1986)",
     ar: "هل يمكنك إعطائي تاريخ ميلادك؟ (مثلاً: 14 مارس 1986)",
     hi: "क्या आप अपनी जन्म तिथि बता सकते हैं? (जैसे: 14 मार्च 1986)",
+    ru: "Пожалуйста, укажите вашу дату рождения. (например, 14 марта 1986)", // TODO cert
+    tl: "Puwede po bang ibigay ang inyong petsa ng kapanganakan? (hal. 14 Marso 1986)", // TODO cert
   },
 
   phone: {
@@ -130,6 +143,8 @@ const T = {
     es: "¿Cuál es su número de móvil?",
     ar: "ما هو رقم هاتفك المحمول؟",
     hi: "आपका मोबाइल नंबर क्या है?",
+    ru: "Какой у вас номер мобильного телефона?", // TODO cert
+    tl: "Ano po ang mobile number ninyo?", // TODO cert
   },
   phone_error: {
     en: "Can you pop in your mobile number?",
@@ -145,6 +160,8 @@ const T = {
     es: "¿Puede ingresar su número de móvil?",
     ar: "هل يمكنك إدخال رقم هاتفك المحمول؟",
     hi: "कृपया अपना मोबाइल नंबर दर्ज करें।",
+    ru: "Пожалуйста, введите ваш номер мобильного телефона.", // TODO cert
+    tl: "Pakilagay po ang inyong mobile number.", // TODO cert
   },
 
   email: {
@@ -161,6 +178,8 @@ const T = {
     es: "¿Cuál es su correo electrónico? Le enviaremos el resumen de la consulta allí.",
     ar: "ما هو بريدك الإلكتروني؟ سنرسل ملخص استشارتك إليه.",
     hi: "आपका ईमेल क्या है? हम आपका परामर्श सारांश वहाँ भेजेंगे।",
+    ru: "Какой у вас адрес электронной почты? Мы отправим туда краткое заключение по консультации.", // TODO cert
+    tl: "Ano po ang email address ninyo? Doon po namin ipapadala ang summary ng inyong consultation.", // TODO cert
   },
   email_error: {
     en: "Can you double-check that email address?",
@@ -176,6 +195,8 @@ const T = {
     es: "¿Puede verificar esa dirección de correo electrónico?",
     ar: "هل يمكنك التحقق من عنوان البريد الإلكتروني مرة أخرى؟",
     hi: "कृपया उस ईमेल पते को दोबारा जांचें।",
+    ru: "Пожалуйста, проверьте адрес электронной почты ещё раз.", // TODO cert
+    tl: "Pakicheck po ulit ang email address.", // TODO cert
   },
 
   address: {
@@ -192,6 +213,8 @@ const T = {
     es: "¿Cuál es su dirección de casa? Incluya calle, ciudad y código postal.",
     ar: "ما هو عنوان منزلك؟ يشمل الشارع والمدينة والرمز البريدي.",
     hi: "आपका घर का पता क्या है? कृपया सड़क, शहर और पिनकोड शामिल करें।",
+    ru: "Какой у вас домашний адрес? Укажите улицу, город и почтовый индекс.", // TODO cert
+    tl: "Ano po ang tirahan ninyo? Isama po ang kalye, bayan, at postcode.", // TODO cert
   },
   address_error: {
     en: "Can you type your home address?",
@@ -207,6 +230,8 @@ const T = {
     es: "¿Puede escribir su dirección de casa?",
     ar: "هل يمكنك كتابة عنوان منزلك؟",
     hi: "कृपया अपना घर का पता लिखें।",
+    ru: "Пожалуйста, введите ваш домашний адрес.", // TODO cert
+    tl: "Pakitype po ang inyong tirahan.", // TODO cert
   },
 
   nhi: {
@@ -223,6 +248,8 @@ const T = {
     es: "No pudimos vincularlo automáticamente al NHI con su nombre y fecha de nacimiento. Si conoce su número NHI, introdúzcalo (ej. ABC1234 o ZXE24NV) — de lo contrario escriba 'skip' y la consulta continuará.",
     ar: "لم نتمكن من مطابقتك تلقائياً في NHI بالاسم وتاريخ الميلاد. إذا كنت تعرف رقم NHI الخاص بك، فيرجى إدخاله (مثال ABC1234 أو ZXE24NV) — وإلا اكتب 'skip' وستستمر الاستشارة.",
     hi: "हम आपके नाम और जन्मतिथि से NHI में आपका ऑटो-मिलान नहीं कर सके। यदि आप अपना NHI नंबर जानते हैं तो कृपया दर्ज करें (जैसे ABC1234 या ZXE24NV) — नहीं तो 'skip' लिखें, परामर्श जारी रहेगा।",
+    ru: "Мы не смогли автоматически найти вас в NHI по имени и дате рождения. Если вы знаете свой номер NHI, введите его (например, ABC1234 или ZXE24NV) - или напишите 'skip', и консультация продолжится.", // TODO cert
+    tl: "Hindi po namin kayo na-match sa NHI gamit ang pangalan at petsa ng kapanganakan. Kung alam po ninyo ang inyong NHI number, pakilagay (hal. ABC1234 o ZXE24NV) - kung hindi, i-type po ang 'skip' at magpapatuloy pa rin ang consultation.", // TODO cert
   },
 
   pharmacy: {
@@ -239,6 +266,8 @@ const T = {
     es: "¿Cuál es su farmacia preferida? (ej. Havelock Pharmacy)",
     ar: "ما هي صيدليتك المفضلة؟ (مثلاً: Havelock Pharmacy)",
     hi: "आपकी पसंदीदा फार्मेसी कौन सी है? (जैसे: Havelock Pharmacy)",
+    ru: "Какая аптека для вас предпочтительна? (например, Havelock Pharmacy)", // TODO cert
+    tl: "Anong pharmacy po ang nais ninyong gamitin? (hal. Havelock Pharmacy)", // TODO cert
   },
 
   complaint: {
@@ -255,6 +284,8 @@ const T = {
     es: "¿Qué le trae hoy? Cuénteme qué está pasando, incluido cuánto tiempo lleva así.",
     ar: "ما الذي جاء بك اليوم؟ أخبرني بما يحدث — بما في ذلك المدة التي مضت على ذلك.",
     hi: "आज आप किस कारण से आए हैं? मुझे बताएं क्या हो रहा है — यह कितने समय से हो रहा है इसमें शामिल करें।",
+    ru: "Что привело вас сегодня? Расскажите, что происходит - и как долго это длится.", // TODO cert
+    tl: "Ano po ang nangyari ngayon? Pakikuwento po kung ano ang nararamdaman ninyo - kasama po kung gaano na katagal.", // TODO cert
   },
   complaint_error: {
     en: "Can you tell me a bit more?",
@@ -270,6 +301,8 @@ const T = {
     es: "¿Puede contarme un poco más?",
     ar: "هل يمكنك إخباري بمزيد من التفاصيل؟",
     hi: "क्या आप मुझे थोड़ा और बता सकते हैं?",
+    ru: "Можете рассказать немного подробнее?", // TODO cert
+    tl: "Puwede po bang magkuwento pa ng kaunti?", // TODO cert
   },
 
   history: {
@@ -286,6 +319,8 @@ const T = {
     es: "¿Tiene algún historial médico relevante? Condiciones pasadas, cirugías — diga 'ninguno' si no.",
     ar: "هل لديك تاريخ طبي ذو صلة؟ حالات سابقة، عمليات — قل 'لا شيء' إذا لم يكن.",
     hi: "कोई प्रासंगिक चिकित्सा इतिहास? पिछली बीमारियाँ, सर्जरी — अगर नहीं है तो 'कोई नहीं' कहें।",
+    ru: "Есть ли у вас какие-либо хронические заболевания? Нажмите, чтобы добавить, или воспользуйтесь поиском ниже.", // TODO cert
+    tl: "May mga medical conditions po ba kayo? I-tap po para idagdag, o maghanap sa ibaba.", // TODO cert
   },
 
   medications: {
@@ -302,6 +337,8 @@ const T = {
     es: "¿Toma algún medicamento regularmente?",
     ar: "هل تتناول أدوية منتظمة؟",
     hi: "क्या आप कोई नियमित दवाएं ले रहे हैं?",
+    ru: "Принимаете ли вы какие-либо лекарства регулярно? Начните вводить для поиска.", // TODO cert
+    tl: "May regular medications po ba kayong iniinom? I-type po para maghanap.", // TODO cert
   },
 
   allergies: {
@@ -318,6 +355,8 @@ const T = {
     es: "¿Tiene alguna alergia — medicamentos, alimentos, lo que sea?",
     ar: "هل لديك حساسية — أدوية، أطعمة، أي شيء؟",
     hi: "कोई एलर्जी है — दवाएं, खाना, कुछ भी?",
+    ru: "Есть ли у вас аллергия? Отметьте лекарства, продукты или всё, на что бывает реакция.", // TODO cert
+    tl: "May mga allergies po ba kayo? I-tap po ang gamot, pagkain, o anumang bagay na pinagre-reactionan ninyo.", // TODO cert
   },
 
   acc_check: {
@@ -334,6 +373,8 @@ const T = {
     es: "¿Su visita está relacionada con un accidente o lesión? ACC podría cubrir sus costos de tratamiento.",
     ar: "هل تتعلق زيارتك بحادث أو إصابة؟ قد تغطي ACC تكاليف علاجك.",
     hi: "क्या आपकी यह मुलाकात किसी दुर्घटना या चोट से संबंधित है? ACC आपके इलाज का खर्च कवर कर सकता है।",
+    ru: "Связан ли ваш визит с несчастным случаем или травмой? ACC может покрыть расходы на лечение.", // TODO cert
+    tl: "May kinalaman po ba ang pagpapatingin ninyo sa isang aksidente o pinsala? Puwede pong sagutin ng ACC ang gastos sa paggamot.", // TODO cert
   },
 
   gp_name: {
@@ -350,6 +391,8 @@ const T = {
     es: "¿Tiene un médico de cabecera (GP) habitual? Si es así, ¿cuál es su nombre?",
     ar: "هل لديك طبيب عام (GP) أو طبيب عائلة تراجعه بانتظام؟ إذا كان الأمر كذلك، ما اسمه؟",
     hi: "क्या आपके पास कोई नियमित जीपी या फैमिली डॉक्टर है? यदि हाँ, तो उनका नाम क्या है?",
+    ru: "У вас есть постоянный семейный врач (GP)? Если да, укажите, пожалуйста, его имя.", // TODO cert
+    tl: "May regular GP o family doctor po ba kayo? Kung mayroon, ano po ang pangalan niya?", // TODO cert
   },
 
   gp_clinic: {
@@ -366,6 +409,8 @@ const T = {
     es: "¿Cómo se llama su clínica o consultorio?",
     ar: "ما اسم عيادتهم أو مركزهم الطبي؟",
     hi: "उनके क्लिनिक या अभ्यास का नाम क्या है?",
+    ru: "Как называется их клиника или практика?", // TODO cert
+    tl: "Ano po ang pangalan ng kanilang clinic o practice?", // TODO cert
   },
 
   nhi_confirm: {
@@ -389,6 +434,8 @@ const T = {
     es: "Encontrado {gpName} en {gpClinic} — ¿es correcto? Les enviaremos una copia de sus notas automáticamente.",
     ar: "تم العثور على {gpName} في {gpClinic} — هل هذا صحيح؟ سنرسل لهم نسخة من ملاحظاتك تلقائيًا.",
     hi: "{gpClinic} में {gpName} मिला — क्या यह सही है? हम स्वचालित रूप से आपकी नोट्स की एक प्रति उन्हें भेज देंगे।",
+    ru: "Найден {gpName} в {gpClinic} - верно? Мы автоматически отправим им копию ваших записей.", // TODO cert
+    tl: "Nahanap po namin si {gpName} sa {gpClinic} - tama po ba? Awtomatiko po naming ipapadala sa kanila ang kopya ng inyong consultation notes.", // TODO cert
   },
 
   tobacco: {
@@ -405,6 +452,8 @@ const T = {
     es: "¿Actualmente fuma o usa tabaco?",
     ar: "هل تدخن أو تستخدم التبغ حاليًا؟",
     hi: "क्या आप वर्तमान में धूम्रपान करते हैं या तंबाकू का उपयोग करते हैं?",
+    ru: "Курите ли вы в настоящее время или употребляете табак?", // TODO cert
+    tl: "Naninigarilyo po ba kayo o gumagamit ng tabako sa kasalukuyan?", // TODO cert
   },
 
   tobacco_amount: {
@@ -421,6 +470,8 @@ const T = {
     es: "¿Cuánto diría?",
     ar: "كم تقريبًا؟",
     hi: "आप कितना कहेंगे?",
+    ru: "Как бы вы оценили количество?", // TODO cert
+    tl: "Gaano po karami sa tingin ninyo?", // TODO cert
   },
 
   alcohol: {
@@ -437,6 +488,8 @@ const T = {
     es: "¿Bebe alcohol?",
     ar: "هل تشرب الكحول؟",
     hi: "क्या आप शराब पीते हैं?",
+    ru: "Употребляете ли вы алкоголь?", // TODO cert
+    tl: "Umiinom po ba kayo ng alak?", // TODO cert
   },
 
   alcohol_amount: {
@@ -453,6 +506,8 @@ const T = {
     es: "¿Aproximadamente cuánto por semana?",
     ar: "كم تقريبًا في الأسبوع؟",
     hi: "प्रति सप्ताह लगभग कितना?",
+    ru: "Примерно сколько в неделю?", // TODO cert
+    tl: "Humigit-kumulang gaano karami kada linggo?", // TODO cert
   },
 
   btn_skip_arrow: {
@@ -462,6 +517,8 @@ const T = {
     yue: "跳過 →", ja: "スキップ →", ko: "건너뛰기 →",
     de: "Überspringen →", nl: "Overslaan →", fr: "Passer →", es: "Omitir →",
     ar: "تخطي ←", hi: "छोड़ें →",
+    ru: "Пропустить →", // TODO cert
+    tl: "Laktawan →", // TODO cert
   },
 
   btn_undo_last: {
@@ -473,6 +530,8 @@ const T = {
     de: "← Letzte Antwort rückgängig machen", nl: "← Laatste antwoord ongedaan maken", fr: "← Annuler la dernière réponse",
     es: "← Deshacer última respuesta",
     ar: "→ التراجع عن الإجابة الأخيرة", hi: "← अंतिम उत्तर पूर्ववत करें",
+    ru: "← Отменить последний ответ", // TODO cert
+    tl: "← I-undo ang huling sagot", // TODO cert
   },
 
   // Chip picker UI copy — used in AITriage for meds / allergies / conditions
@@ -484,6 +543,8 @@ const T = {
     zh: "继续 →", yue: "繼續 →", ja: "続ける →", ko: "계속 →",
     de: "Weiter →", nl: "Doorgaan →", fr: "Continuer →", es: "Continuar →",
     ar: "متابعة ←", hi: "जारी रखें →",
+    ru: "Продолжить →", // TODO cert
+    tl: "Magpatuloy →", // TODO cert
   },
   chip_change: {
     en: "Change",
@@ -491,6 +552,8 @@ const T = {
     zh: "更改", yue: "更改", ja: "変更", ko: "변경",
     de: "Ändern", nl: "Wijzigen", fr: "Modifier", es: "Cambiar",
     ar: "تغيير", hi: "बदलें",
+    ru: "Изменить", // TODO cert
+    tl: "Baguhin", // TODO cert
   },
   chip_no_match: {
     en: "Nothing matched. Add it below as free-text.",
@@ -506,6 +569,8 @@ const T = {
     es: "Sin coincidencias. Agréguelo abajo como texto libre.",
     ar: "لا يوجد تطابق. أضفه أدناه كنص حر.",
     hi: "कोई मिलान नहीं। नीचे मुक्त-पाठ के रूप में जोड़ें।",
+    ru: "Совпадений не найдено. Добавьте вручную ниже.", // TODO cert
+    tl: "Walang katugma. Idagdag po sa ibaba bilang free-text.", // TODO cert
   },
   chip_freetext_label: {
     en: "Anything not in the list:",
@@ -521,6 +586,8 @@ const T = {
     es: "Cualquier cosa que no esté en la lista:",
     ar: "أي شيء غير موجود في القائمة:",
     hi: "सूची में नहीं है ऐसा कुछ:",
+    ru: "Чего нет в списке:", // TODO cert
+    tl: "Anumang wala sa listahan:", // TODO cert
   },
   chip_freetext_placeholder: {
     en: "Type here, separate with commas",
@@ -536,6 +603,8 @@ const T = {
     es: "Escriba aquí, separado por comas",
     ar: "اكتب هنا، افصل بفواصل",
     hi: "यहाँ लिखें, अल्पविराम से अलग करें",
+    ru: "Введите здесь, через запятую", // TODO cert
+    tl: "Mag-type po dito, paghiwalayin ng kuwit", // TODO cert
   },
   chip_none_conditions: {
     en: "No medical conditions",
@@ -544,6 +613,8 @@ const T = {
     de: "Keine Erkrankungen", nl: "Geen aandoeningen", fr: "Aucune condition médicale",
     es: "Sin condiciones médicas",
     ar: "لا توجد حالات طبية", hi: "कोई चिकित्सा स्थिति नहीं",
+    ru: "Хронических заболеваний нет", // TODO cert
+    tl: "Walang medical conditions", // TODO cert
   },
   chip_none_meds: {
     en: "No regular medications",
@@ -552,6 +623,8 @@ const T = {
     de: "Keine regelmäßigen Medikamente", nl: "Geen regelmatige medicijnen", fr: "Aucun médicament régulier",
     es: "Sin medicamentos regulares",
     ar: "لا توجد أدوية منتظمة", hi: "कोई नियमित दवा नहीं",
+    ru: "Регулярно лекарств не принимаю", // TODO cert
+    tl: "Walang regular medications", // TODO cert
   },
   chip_none_allergies: {
     en: "No known allergies",
@@ -560,6 +633,8 @@ const T = {
     de: "Keine bekannten Allergien", nl: "Geen bekende allergieën", fr: "Aucune allergie connue",
     es: "Sin alergias conocidas",
     ar: "لا توجد حساسية معروفة", hi: "कोई ज्ञात एलर्जी नहीं",
+    ru: "Известной аллергии нет", // TODO cert
+    tl: "Walang alam na allergies", // TODO cert
   },
   chip_search_conditions: {
     en: "Search conditions (e.g. diabetes, asthma)",
@@ -575,6 +650,8 @@ const T = {
     es: "Buscar condiciones (p. ej. diabetes, asma)",
     ar: "ابحث عن الحالات (مثل السكري، الربو)",
     hi: "स्थितियाँ खोजें (जैसे मधुमेह, दमा)",
+    ru: "Поиск заболеваний (например: диабет, астма)", // TODO cert
+    tl: "Maghanap ng conditions (hal. diabetes, asthma)", // TODO cert
   },
   chip_search_meds: {
     en: "Search medication name (e.g. paracetamol, metformin)",
@@ -590,6 +667,8 @@ const T = {
     es: "Buscar medicamento (p. ej. paracetamol, metformina)",
     ar: "ابحث عن اسم الدواء (مثل باراسيتامول، ميتفورمين)",
     hi: "दवा का नाम खोजें (जैसे पेरासिटामोल, मेटफ़ॉर्मिन)",
+    ru: "Поиск названия лекарства (например: paracetamol, metformin)", // TODO cert
+    tl: "Maghanap ng pangalan ng gamot (hal. paracetamol, metformin)", // TODO cert
   },
   chip_search_allergies: {
     en: "Search (e.g. penicillin, peanuts)",
@@ -605,6 +684,8 @@ const T = {
     es: "Buscar (p. ej. penicilina, cacahuetes)",
     ar: "ابحث (مثل البنسلين، الفول السوداني)",
     hi: "खोजें (जैसे पेनिसिलिन, मूँगफली)",
+    ru: "Поиск (например: пенициллин, арахис)", // TODO cert
+    tl: "Maghanap (hal. penicillin, mani)", // TODO cert
   },
 
   acc_description: {
@@ -621,6 +702,8 @@ const T = {
     es: "Eso podría ser una reclamación de ACC — ¿puede describir exactamente cómo ocurrió? ¿Qué estaba haciendo y dónde?",
     ar: "يبدو أن هذا يمكن أن يكون مطالبة ACC — هل يمكنك وصف كيف حدث بالضبط؟ ماذا كنت تفعل وأين؟",
     hi: "यह एक ACC दावा हो सकता है — क्या आप बिल्कुल बता सकते हैं कि यह कैसे हुआ? आप क्या कर रहे थे और कहाँ थे?",
+    ru: "Похоже, это может быть обращение в ACC - опишите, пожалуйста, как именно это произошло? Что вы делали и где находились?", // TODO cert
+    tl: "Mukha pong puwedeng maging ACC claim ito - puwede po bang ilarawan kung paano ito nangyari? Ano po ang ginagawa ninyo at saan po?", // TODO cert
   },
   acc_description_error: {
     en: "Can you describe how it happened?",
@@ -636,6 +719,8 @@ const T = {
     es: "¿Puede describir cómo ocurrió?",
     ar: "هل يمكنك وصف كيف حدث ذلك؟",
     hi: "क्या आप बता सकते हैं कि यह कैसे हुआ?",
+    ru: "Опишите, пожалуйста, как это произошло.", // TODO cert
+    tl: "Puwede po bang ilarawan kung paano ito nangyari?", // TODO cert
   },
 
   acc_date: {
@@ -652,6 +737,8 @@ const T = {
     es: "¿Cuándo ocurrió? (ej. hoy, ayer, hace 3 días)",
     ar: "متى حدث ذلك؟ (مثلاً: اليوم، أمس، منذ 3 أيام)",
     hi: "यह कब हुआ? (जैसे: आज, कल, 3 दिन पहले)",
+    ru: "Когда это произошло? (например: сегодня, вчера, 3 дня назад)", // TODO cert
+    tl: "Kailan po ito nangyari? (hal. ngayon, kahapon, 3 araw na ang nakalipas)", // TODO cert
   },
 
   acc_employer: {
@@ -668,6 +755,8 @@ const T = {
     es: "¿Quién es su empleador?",
     ar: "من هو صاحب العمل الخاص بك؟",
     hi: "आपके नियोक्ता कौन हैं?",
+    ru: "Кто ваш работодатель?", // TODO cert
+    tl: "Sino po ang inyong employer?", // TODO cert
   },
 
   photo: {
@@ -684,6 +773,8 @@ const T = {
     es: "¿Puede tomar una foto del área afectada? Toque el ícono de la cámara — realmente ayuda al médico. O escriba 'omitir'.",
     ar: "هل يمكنك التقاط صورة للمنطقة المصابة؟ اضغط على أيقونة الكاميرا — إنها تساعد الطبيب كثيراً. أو اكتب 'تخطي'.",
     hi: "क्या आप प्रभावित क्षेत्र की फोटो ले सकते हैं? कैमरा आइकन दबाएं — यह डॉक्टर को वास्तव में मदद करता है। या 'छोड़ें' टाइप करें।",
+    ru: "Не могли бы вы сделать фото поражённого участка? Нажмите на значок камеры - это очень поможет врачу. Или введите 'skip'.", // TODO cert
+    tl: "Puwede po bang kumuha ng litrato ng apektadong bahagi? I-tap po ang camera icon - malaki pong tulong ito sa doktor. O i-type po ang 'skip'.", // TODO cert
   },
 
   recording: {
@@ -700,6 +791,8 @@ const T = {
     es: "Última pregunta — ¿consiente que su consulta sea transcrita por IA? La grabación se elimina inmediatamente después.",
     ar: "السؤال الأخير — هل توافق على نسخ استشارتك بالذكاء الاصطناعي؟ يُحذف التسجيل مباشرة بعد ذلك.",
     hi: "अंतिम प्रश्न — क्या आप अपनी परामर्श को AI द्वारा ट्रांसक्राइब करने की सहमति देते हैं? रिकॉर्डिंग तुरंत बाद हटा दी जाती है।",
+    ru: "И последнее - вы согласны на транскрипцию вашей консультации с помощью ИИ? Запись удаляется сразу после.", // TODO cert
+    tl: "Isa pa pong tanong - pumapayag po ba kayo na i-transcribe ng AI ang inyong consultation? Agad pong binubura ang recording pagkatapos.", // TODO cert
   },
 
   // ── Triage flow messages ──────────────────────────────────────────────────
@@ -717,6 +810,8 @@ const T = {
     es: "¡Perfecto! Tengo todo lo que necesito — configurándolo ahora...",
     ar: "ممتاز! لدي كل ما أحتاجه — إعداد حسابك الآن...",
     hi: "बहुत अच्छा! मुझे सब कुछ मिल गया — अभी आपको सेट अप कर रहा हूँ...",
+    ru: "Отлично! У меня есть всё необходимое - готовлю всё для вас...", // TODO cert
+    tl: "Ayos po! Nakuha ko na po ang lahat ng kailangan - iniha-handa na po kayo ngayon...", // TODO cert
   },
   welcome_back: {
     en: "Welcome back, ${firstName}! I've got your details — let's get you sorted.",
@@ -732,6 +827,8 @@ const T = {
     es: "¡Bienvenido de nuevo, ${firstName}! Tengo sus datos — vamos a solucionarlo.",
     ar: "مرحباً بعودتك، ${firstName}! لدي تفاصيلك — لنحل هذا.",
     hi: "वापस स्वागत है, ${firstName}! मुझे आपकी जानकारी मिल गई — चलिए इसे ठीक करते हैं।",
+    ru: "С возвращением, ${firstName}! Ваши данные у меня - давайте всё решим.", // TODO cert
+    tl: "Welcome back po, ${firstName}! Nakuha ko na po ang inyong details - ayusin na natin ito.", // TODO cert
   },
   cheers_photo: {
     en: "Cheers! The doctor will be able to see those.",
@@ -747,6 +844,8 @@ const T = {
     es: "¡Gracias! El médico podrá verlas.",
     ar: "شكراً! سيتمكن الطبيب من رؤيتها.",
     hi: "धन्यवाद! डॉक्टर उन्हें देख पाएंगे।",
+    ru: "Спасибо! Врач сможет их просмотреть.", // TODO cert
+    tl: "Salamat po! Makikita po iyan ng doktor.", // TODO cert
   },
   clinic_closed_suffix: {
     en: " Just so you know, our doctor isn't available right now — but go ahead and fill in your details and we'll hold your spot at the front of the queue. You'll get an email as soon as they're available.",
@@ -762,6 +861,8 @@ const T = {
     es: " Para su información, nuestro médico no está disponible ahora mismo — continúe con sus datos y le guardaremos el lugar al frente de la cola. Recibirá un correo electrónico en cuanto esté disponible.",
     ar: " فقط لمعلوماتك، طبيبنا غير متاح الآن — لكن استمر في إدخال تفاصيلك وسنحتفظ بمكانك في مقدمة الطابور. ستتلقى بريداً إلكترونياً بمجرد توفره.",
     hi: " बस आपको बता दें, हमारे डॉक्टर अभी उपलब्ध नहीं हैं — लेकिन आगे बढ़ें और अपनी जानकारी भरें, हम कतार में आपकी जगह आरक्षित करेंगे। जैसे ही वे उपलब्ध होंगे, आपको ईमेल मिलेगा।",
+    ru: " Хотим сообщить, что сейчас наш врач недоступен - но заполните, пожалуйста, свои данные, и мы оставим за вами место в начале очереди. Как только врач освободится, вы получите письмо на почту.", // TODO cert
+    tl: " Para po sa inyong kaalaman, hindi po available ang doktor sa ngayon - pero puwede po kayong magpatuloy at magsulat ng inyong details, at itatabi namin ang inyong lugar sa unahan ng pila. Makakatanggap po kayo ng email agad pagka-available ng doktor.", // TODO cert
   },
   generic_error: {
     en: "Can you try that again?",
@@ -777,16 +878,22 @@ const T = {
     es: "¿Puede intentarlo de nuevo?",
     ar: "هل يمكنك المحاولة مرة أخرى؟",
     hi: "क्या आप फिर से कोशिश कर सकते हैं?",
+    ru: "Можете попробовать ещё раз?", // TODO cert
+    tl: "Puwede po bang subukan ulit?", // TODO cert
   },
 
   // ── Yes/No buttons ────────────────────────────────────────────────────────
   yes_label: {
     en: 'Yes', mi: 'Āe', sm: 'Ioe', zh: '是', ja: 'はい', ko: '예',
     de: 'Ja', nl: 'Ja', fr: 'Oui', es: 'Sí', ar: 'نعم', hi: 'हाँ',
+    ru: "Да", // TODO cert
+    tl: "Oo", // TODO cert
   },
   no_label: {
     en: 'No', mi: 'Kāo', sm: 'Leai', zh: '否', ja: 'いいえ', ko: '아니요',
     de: 'Nein', nl: 'Nee', fr: 'Non', es: 'No', ar: 'لا', hi: 'नहीं',
+    ru: "Нет", // TODO cert
+    tl: "Hindi", // TODO cert
   },
 
   // ── Emergency screens ─────────────────────────────────────────────────────
@@ -804,6 +911,8 @@ const T = {
     es: 'Llame al 111 ahora',
     ar: 'اتصل بـ 111 الآن',
     hi: 'अभी 111 पर कॉल करें',
+    ru: "Срочно позвоните 111", // TODO cert
+    tl: "Tumawag po agad sa 111", // TODO cert
   },
   physical_body: {
     en: 'Your symptoms need immediate emergency care. Please call 111 right now.',
@@ -819,6 +928,8 @@ const T = {
     es: 'Sus síntomas requieren atención de emergencia inmediata. Por favor llame al 111 ahora.',
     ar: 'أعراضك تحتاج إلى رعاية طارئة فورية. يرجى الاتصال بـ 111 الآن.',
     hi: 'आपके लक्षणों को तत्काल आपातकालीन देखभाल की आवश्यकता है। कृपया अभी 111 पर कॉल करें।',
+    ru: "Ваши симптомы требуют немедленной неотложной помощи. Пожалуйста, позвоните 111 прямо сейчас.", // TODO cert
+    tl: "Ang mga sintomas po ninyo ay nangangailangan ng agarang emergency care. Pakitawagan po ang 111 ngayon mismo.", // TODO cert
   },
   physical_back: {
     en: 'This was a mistake — go back',
@@ -834,6 +945,8 @@ const T = {
     es: 'Fue un error — volver',
     ar: 'كان هذا خطأ — رجوع',
     hi: 'यह गलती थी — वापस जाएं',
+    ru: "Это была ошибка - вернуться назад", // TODO cert
+    tl: "Nagkamali po - bumalik", // TODO cert
   },
   mental_heading: {
     en: "You don't have to face this alone",
@@ -849,6 +962,8 @@ const T = {
     es: 'No tiene que enfrentar esto solo',
     ar: 'لست وحدك في مواجهة هذا',
     hi: 'आपको यह अकेले सहन नहीं करना है',
+    ru: "Вы не обязаны справляться с этим в одиночку", // TODO cert
+    tl: "Hindi po ninyo kailangang harapin ito nang mag-isa", // TODO cert
   },
   mental_body: {
     en: "What you're feeling matters. Please reach out to someone who can really help right now.",
@@ -864,6 +979,8 @@ const T = {
     es: 'Lo que sientes importa. Por favor comunícate con alguien que pueda ayudarte de verdad ahora.',
     ar: 'ما تشعر به مهم. يرجى التواصل مع شخص يمكنه مساعدتك حقاً الآن.',
     hi: 'आप जो महसूस कर रहे हैं वह महत्वपूर्ण है। कृपया अभी किसी से संपर्क करें जो वास्तव में मदद कर सके।',
+    ru: "То, что вы чувствуете, важно. Пожалуйста, обратитесь к тому, кто сможет помочь прямо сейчас.", // TODO cert
+    tl: "Mahalaga po ang nararamdaman ninyo. Pakitawagan po ang isang taong talagang makakatulong ngayon.", // TODO cert
   },
   emergency_danger: {
     en: 'If you are in immediate danger, call 111',
@@ -879,6 +996,8 @@ const T = {
     es: 'Si está en peligro inmediato, llame al 111',
     ar: 'إذا كنت في خطر فوري، اتصل بـ 111',
     hi: 'अगर आप तत्काल खतरे में हैं, तो 111 पर कॉल करें',
+    ru: "Если вам угрожает непосредственная опасность, звоните 111", // TODO cert
+    tl: "Kung nasa agarang panganib po kayo, tumawag po sa 111", // TODO cert
   },
   addiction_heading: {
     en: 'Help is available',
@@ -894,6 +1013,8 @@ const T = {
     es: 'Hay ayuda disponible',
     ar: 'المساعدة متاحة',
     hi: 'मदद उपलब्ध है',
+    ru: "Помощь доступна", // TODO cert
+    tl: "May tulong na available", // TODO cert
   },
   addiction_body: {
     en: 'Reaching out takes courage. These services are free, confidential, and ready to help.',
@@ -909,6 +1030,8 @@ const T = {
     es: 'Pedir ayuda requiere valentía. Estos servicios son gratuitos, confidenciales y listos para ayudar.',
     ar: 'يتطلب طلب المساعدة شجاعة. هذه الخدمات مجانية وسرية وجاهزة للمساعدة.',
     hi: 'मदद माँगने के लिए साहस चाहिए। ये सेवाएं मुफ्त, गोपनीय और मदद के लिए तैयार हैं।',
+    ru: "Обращаться за помощью - это смелый шаг. Эти службы бесплатные, конфиденциальные и готовы помочь.", // TODO cert
+    tl: "Kailangan po ng tapang para humingi ng tulong. Ang mga serbisyong ito ay libre, confidential, at handa pong tumulong.", // TODO cert
   },
 
   // ── Chat / translation ────────────────────────────────────────────────────
@@ -926,48 +1049,70 @@ const T = {
     es: 'Las traducciones se proporcionan solo como asistencia. Para discusiones médicas complejas, se recomienda un intérprete profesional.',
     ar: 'تُقدَّم الترجمات كمساعدة فقط. للمناقشات الطبية المعقدة، يُوصى بمترجم متخصص.',
     hi: 'अनुवाद केवल सहायता के रूप में प्रदान किए जाते हैं। जटिल चिकित्सा चर्चाओं के लिए एक पेशेवर दुभाषिया अनुशंसित है।',
+    ru: "Переводы предоставляются только в качестве вспомогательного средства. Для сложных медицинских обсуждений рекомендуется профессиональный переводчик.", // TODO cert
+    tl: "Ang mga pagsasalin po ay ibinibigay bilang karagdagang tulong lamang. Para sa mga komplikadong medical discussion, inirerekomenda po ang isang professional interpreter.", // TODO cert
   },
   show_original: {
     en: 'Show original', mi: 'Whakaatu i te taketake', sm: 'Fa\'aali le mea muamua', zh: '显示原文', ja: '原文を表示', ko: '원문 보기',
     de: 'Original anzeigen', nl: 'Origineel tonen', fr: 'Voir l\'original', es: 'Ver original', ar: 'عرض الأصل', hi: 'मूल दिखाएं',
+    ru: "Показать оригинал", // TODO cert
+    tl: "Ipakita ang original", // TODO cert
   },
   hide_original: {
     en: 'Hide', mi: 'Huna', sm: 'Natia', zh: '隐藏', ja: '非表示', ko: '숨기기',
     de: 'Ausblenden', nl: 'Verbergen', fr: 'Masquer', es: 'Ocultar', ar: 'إخفاء', hi: 'छुपाएं',
+    ru: "Скрыть", // TODO cert
+    tl: "Itago", // TODO cert
   },
   translating: {
     en: 'Translating…', mi: 'Kei te whakamāori…', sm: 'Fa\'aliliuina…', zh: '翻译中…', ja: '翻訳中…', ko: '번역 중…',
     de: 'Übersetzen…', nl: 'Vertalen…', fr: 'Traduction…', es: 'Traduciendo…', ar: 'جارٍ الترجمة…', hi: 'अनुवाद हो रहा है…',
+    ru: "Перевод…", // TODO cert
+    tl: "Isinasalin…", // TODO cert
   },
   chat_label: {
     en: 'Chat', mi: 'Kōrero', sm: 'Talanoa', zh: '聊天', ja: 'チャット', ko: '채팅',
     de: 'Chat', nl: 'Chat', fr: 'Chat', es: 'Chat', ar: 'دردشة', hi: 'चैट',
+    ru: "Чат", // TODO cert
+    tl: "Chat", // TODO cert
   },
 
   // ── TereIntro ─────────────────────────────────────────────────────────────
   choose_language: {
     en: 'Choose your language', mi: 'Kōwhiria tō reo', sm: 'Filifili lau gagana', zh: '选择语言', ja: '言語を選択', ko: '언어 선택',
     de: 'Sprache wählen', nl: 'Kies uw taal', fr: 'Choisir la langue', es: 'Elige tu idioma', ar: 'اختر لغتك', hi: 'अपनी भाषा चुनें',
+    ru: "Выберите язык", // TODO cert
+    tl: "Pumili po ng inyong wika", // TODO cert
   },
   get_started: {
     en: 'Get started →', mi: 'Tīmata →', sm: 'Amata →', zh: '开始 →', ja: '始める →', ko: '시작하기 →',
     de: 'Loslegen →', nl: 'Beginnen →', fr: 'Commencer →', es: 'Comenzar →', ar: 'ابدأ ←', hi: 'शुरू करें →',
+    ru: "Начать →", // TODO cert
+    tl: "Simulan →", // TODO cert
   },
   step_1: {
     en: 'Quick chat', mi: 'Kōrero poto', sm: 'Talanoaga puupuu', zh: '快速问诊', ja: 'クイック問診', ko: '빠른 상담',
     de: 'Kurzes Gespräch', nl: 'Kort gesprek', fr: 'Chat rapide', es: 'Chat rápido', ar: 'دردشة سريعة', hi: 'त्वरित चैट',
+    ru: "Короткий чат", // TODO cert
+    tl: "Mabilis na chat", // TODO cert
   },
   step_2: {
     en: 'Vitals scan', mi: 'Matawai ora', sm: 'Su\'ega o le tino', zh: '体征扫描', ja: 'バイタル測定', ko: '활력징후 측정',
     de: 'Vitalwerte', nl: 'Vitale functies', fr: 'Bilan santé', es: 'Signos vitales', ar: 'قياس الحيوية', hi: 'वाइटल स्कैन',
+    ru: "Проверка показателей", // TODO cert
+    tl: "Vitals scan", // TODO cert
   },
   step_3: {
     en: 'See doctor', mi: 'Kite rata', sm: 'Va\'ai i le foma\'i', zh: '看医生', ja: '医師に診てもらう', ko: '의사 진찰',
     de: 'Arzt sehen', nl: 'Arts spreken', fr: 'Voir le médecin', es: 'Ver al médico', ar: 'رؤية الطبيب', hi: 'डॉक्टर से मिलें',
+    ru: "Приём у врача", // TODO cert
+    tl: "Makipag-usap sa doktor", // TODO cert
   },
   step_4: {
     en: 'Get sorted', mi: 'Whakatikahia', sm: 'Fa\'atulaga', zh: '获得诊治', ja: '治療を受ける', ko: '해결하기',
     de: 'Behandlung', nl: 'Geholpen worden', fr: 'Être soigné', es: 'Resolver', ar: 'الحصول على الحل', hi: 'समाधान पाएं',
+    ru: "Решение проблемы", // TODO cert
+    tl: "Maayos na po", // TODO cert
   },
 
   // ── Prescribing limitations gate ─────────────────────────────────────────
@@ -985,6 +1130,8 @@ const T = {
     es: 'Antes de comenzar',
     ar: 'قبل أن نبدأ',
     hi: 'शुरू करने से पहले',
+    ru: "Прежде чем мы начнём", // TODO cert
+    tl: "Bago po tayo magsimula", // TODO cert
   },
   prescribing_gate_title: {
     en: 'What Tere Health can and cannot prescribe',
@@ -1000,6 +1147,8 @@ const T = {
     es: 'Lo que Tere Health puede y no puede recetar',
     ar: 'ما يمكن وما لا يمكن لـ Tere Health وصفه',
     hi: 'Tere Health क्या लिख सकता है और क्या नहीं',
+    ru: "Что Tere Health может и не может выписывать", // TODO cert
+    tl: "Ano ang maaari at hindi maaaring i-prescribe ng Tere Health", // TODO cert
   },
   prescribing_gate_body: {
     en: 'Tere Health doctors can prescribe many common medications via telehealth. However, New Zealand law places restrictions on certain controlled drugs and medications requiring specialist oversight. Please read and acknowledge the following before continuing.',
@@ -1015,6 +1164,8 @@ const T = {
     es: 'Los médicos de Tere Health pueden recetar muchos medicamentos comunes mediante telemedicina. Sin embargo, la ley de Nueva Zelanda impone restricciones sobre ciertos medicamentos controlados y los que requieren supervisión especializada. Por favor lea y confirme lo siguiente antes de continuar.',
     ar: 'يمكن لأطباء Tere Health وصف كثير من الأدوية الشائعة عبر الرعاية الصحية عن بُعد. غير أن القانون النيوزيلندي يفرض قيوداً على بعض الأدوية الخاضعة للرقابة والأدوية التي تستلزم إشراف أخصائي. يرجى قراءة ما يلي والإقرار به قبل المتابعة.',
     hi: 'Tere Health के डॉक्टर टेलीहेल्थ के माध्यम से कई सामान्य दवाएं लिख सकते हैं। हालांकि, न्यूज़ीलैंड कानून कुछ नियंत्रित दवाओं और विशेषज्ञ निगरानी की आवश्यकता वाली दवाओं पर प्रतिबंध लगाता है। कृपया जारी रखने से पहले निम्नलिखित पढ़ें और स्वीकार करें।',
+    ru: "Врачи Tere Health могут выписывать многие распространённые лекарства по телемедицине. Однако закон Новой Зеландии ограничивает выписку некоторых контролируемых препаратов и лекарств, требующих наблюдения специалиста. Пожалуйста, прочитайте и подтвердите нижеследующее, прежде чем продолжить.", // TODO cert
+    tl: "Puwede pong mag-prescribe ang mga doktor ng Tere Health ng maraming karaniwang gamot sa pamamagitan ng telehealth. Gayunpaman, may mga paghihigpit po ang batas ng New Zealand sa ilang controlled drugs at mga gamot na nangangailangan ng specialist oversight. Pakibasa po at kilalanin ang mga sumusunod bago magpatuloy.", // TODO cert
   },
   prescribing_gate_checkbox: {
     en: 'I understand that Tere Health cannot prescribe controlled drugs (opioids, benzodiazepines, stimulants) or GLP-1 weight loss injections (Ozempic/Wegovy) via telehealth, and I will see my GP or a specialist for these.',
@@ -1030,6 +1181,8 @@ const T = {
     es: 'Entiendo que Tere Health no puede recetar medicamentos controlados (opioides, benzodiacepinas, estimulantes) ni inyecciones para pérdida de peso GLP-1 (Ozempic/Wegovy) mediante telemedicina, y que visitaré a mi médico de cabecera o especialista para estos.',
     ar: 'أفهم أن Tere Health لا يمكنه وصف الأدوية الخاضعة للرقابة (المواد الأفيونية، البنزوديازيبينات، المنشطات) أو حقن إنقاص الوزن GLP-1 (أوزيمبيك/ويغوفي) عبر الرعاية عن بُعد، وسأتوجه إلى طبيبي العام أو أخصائي للحصول عليها.',
     hi: 'मैं समझता/समझती हूं कि Tere Health टेलीहेल्थ के माध्यम से नियंत्रित दवाएं (ओपिओइड, बेंजोडायजेपाइन, उत्तेजक) या GLP-1 वजन घटाने के इंजेक्शन (Ozempic/Wegovy) नहीं लिख सकता, और इनके लिए मैं अपने GP या विशेषज्ञ से मिलूंगा/मिलूंगी।',
+    ru: "Я понимаю, что Tere Health не может по телемедицине выписывать контролируемые препараты (опиоиды, бензодиазепины, стимуляторы) или инъекции GLP-1 для снижения веса (Ozempic/Wegovy), и за ними я обращусь к своему семейному врачу (GP) или специалисту.", // TODO cert
+    tl: "Nauunawaan ko po na hindi puwedeng mag-prescribe ang Tere Health ng controlled drugs (opioids, benzodiazepines, stimulants) o GLP-1 weight loss injections (Ozempic/Wegovy) sa pamamagitan ng telehealth, at magpapatingin po ako sa aking GP o specialist para dito.", // TODO cert
   },
   prescribing_gate_button: {
     en: 'I understand — continue',
@@ -1045,6 +1198,8 @@ const T = {
     es: 'Entiendo — continuar',
     ar: 'أفهم — متابعة',
     hi: 'मैं समझता/समझती हूं — जारी रखें',
+    ru: "Я понимаю - продолжить", // TODO cert
+    tl: "Nauunawaan ko - magpatuloy", // TODO cert
   },
   controlled_med_notice: {
     en: "I've noted that. Just so you know — controlled medications (such as opioids, benzodiazepines, or GLP-1 injections like Ozempic) cannot be prescribed via telehealth. Your doctor will discuss what options are available for you today.",
@@ -1060,24 +1215,26 @@ const T = {
     es: 'Lo he anotado. Para que lo sepa — los medicamentos controlados (como opioides, benzodiacepinas o inyecciones GLP-1 como Ozempic) no pueden recetarse mediante telemedicina. Su médico discutirá qué opciones están disponibles para usted hoy.',
     ar: 'لقد لاحظت ذلك. فقط لمعلوماتك — لا يمكن وصف الأدوية الخاضعة للرقابة (مثل المواد الأفيونية، البنزوديازيبينات، أو حقن GLP-1 مثل أوزيمبيك) عبر الرعاية عن بُعد. سيناقش طبيبك الخيارات المتاحة لك اليوم.',
     hi: 'मैंने यह नोट कर लिया है। बस जानकारी के लिए — नियंत्रित दवाएं (जैसे ओपिओइड, बेंजोडायजेपाइन, या Ozempic जैसे GLP-1 इंजेक्शन) टेलीहेल्थ के माध्यम से नहीं लिखी जा सकतीं। आपके डॉक्टर आज आपके लिए उपलब्ध विकल्पों पर चर्चा करेंगे।',
+    ru: "Я записал это. К вашему сведению - контролируемые препараты (например, опиоиды, бензодиазепины или инъекции GLP-1, такие как Ozempic) не могут быть выписаны по телемедицине. Врач обсудит с вами, какие варианты доступны сегодня.", // TODO cert
+    tl: "Natala ko po iyan. Para po sa inyong kaalaman - ang controlled medications (tulad ng opioids, benzodiazepines, o GLP-1 injections gaya ng Ozempic) ay hindi puwedeng i-prescribe sa pamamagitan ng telehealth. Pag-uusapan po ng doktor kung anong mga opsyon ang available para sa inyo ngayon.", // TODO cert
   },
 
   // ── Symptom follow-ups (added for Te Reo bring-up 2026-07-04) ─────────────
-  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?', sm: 'O le a le umi ua e maua ai lenei fa\'afitauli?', nl: 'Hoe lang heeft u dit probleem al?' },
-  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?', sm: 'O anafea na amata ai lenei mea?', nl: 'Wanneer is dit begonnen?' },
-  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)', sm: 'O le a le tuga o lou tiga? (1-10)', nl: 'Hoe erg is uw pijn? (1-10)' },
-  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?', sm: 'E te tiga i le fatafata?', nl: 'Heeft u pijn op de borst?' },
-  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?', sm: 'E te faigata ona manava?', nl: 'Heeft u moeite met ademhalen?' },
-  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?', sm: 'E te lagona le niniva?', nl: 'Voelt u zich duizelig?' },
-  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?', sm: 'Ua e pua\'i?', nl: 'Heeft u overgegeven?' },
-  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?', sm: 'E te fiva?', nl: 'Heeft u koorts?' },
+  symptom_duration:  { en: 'How long have you had this problem?', mi: 'Nō nāhea tēnei raruraru?', sm: 'O le a le umi ua e maua ai lenei fa\'afitauli?', nl: 'Hoe lang heeft u dit probleem al?', ru: "Как долго у вас эта проблема?" /* TODO cert */, tl: "Gaano na po katagal ang problemang ito?" /* TODO cert */ },
+  symptom_onset:     { en: 'When did this start?',                 mi: 'Nō nāhea tēnei i tīmata ai?', sm: 'O anafea na amata ai lenei mea?', nl: 'Wanneer is dit begonnen?', ru: "Когда это началось?" /* TODO cert */, tl: "Kailan po ito nagsimula?" /* TODO cert */ },
+  symptom_pain:      { en: 'How severe is your pain? (1-10)',       mi: 'E hia te kaha o tō mamae? (1-10)', sm: 'O le a le tuga o lou tiga? (1-10)', nl: 'Hoe erg is uw pijn? (1-10)', ru: "Насколько сильна боль? (1–10)" /* TODO cert */, tl: "Gaano katindi ang sakit? (1-10)" /* TODO cert */ },
+  symptom_chest:     { en: 'Do you have chest pain?',               mi: 'He mamae ō uma?', sm: 'E te tiga i le fatafata?', nl: 'Heeft u pijn op de borst?', ru: "Есть ли у вас боль в груди?" /* TODO cert */, tl: "May sakit po ba sa dibdib?" /* TODO cert */ },
+  symptom_breathing: { en: 'Are you having trouble breathing?',     mi: 'He uaua tō manawa?', sm: 'E te faigata ona manava?', nl: 'Heeft u moeite met ademhalen?', ru: "У вас есть затруднение дыхания?" /* TODO cert */, tl: "Nahihirapan po ba kayong huminga?" /* TODO cert */ },
+  symptom_dizzy:     { en: 'Do you feel dizzy?',                    mi: 'He amuamu tō mātenga?', sm: 'E te lagona le niniva?', nl: 'Voelt u zich duizelig?', ru: "Чувствуете ли вы головокружение?" /* TODO cert */, tl: "Nahihilo po ba kayo?" /* TODO cert */ },
+  symptom_vomit:     { en: 'Have you vomited?',                     mi: 'Kua ruaki koe?', sm: 'Ua e pua\'i?', nl: 'Heeft u overgegeven?', ru: "Рвало ли вас?" /* TODO cert */, tl: "Nagsuka po ba kayo?" /* TODO cert */ },
+  symptom_fever:     { en: 'Do you have a fever?',                  mi: 'He kōhukihuki ōu?', sm: 'E te fiva?', nl: 'Heeft u koorts?', ru: "Есть ли у вас температура?" /* TODO cert */, tl: "May lagnat po ba kayo?" /* TODO cert */ },
 
   // ── Provider status ──────────────────────────────────────────────────────
-  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata', sm: 'O le a o\'o atu lou foma\'i i se taimi puupuu', nl: 'Uw zorgverlener is zo bij u' },
+  provider_shortly:  { en: 'Your provider will be with you shortly', mi: 'Ka tae atu tō rata āpōpō tata', sm: 'O le a o\'o atu lou foma\'i i se taimi puupuu', nl: 'Uw zorgverlener is zo bij u', ru: "Врач скоро свяжется с вами" /* TODO cert */, tl: "Makakausap na po ninyo ang doktor sa saglit" /* TODO cert */ },
 
   // ── Buttons ──────────────────────────────────────────────────────────────
-  btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau', nl: 'Doorgaan' },
-  btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i', nl: 'Terug' },
+  btn_continue: { en: 'Continue', mi: 'Haere tonu', sm: 'Fa\'aauau', nl: 'Doorgaan', ru: "Продолжить" /* TODO cert */, tl: "Magpatuloy" /* TODO cert */ },
+  btn_back:     { en: 'Back',     mi: 'Hoki',       sm: 'Toe fo\'i', nl: 'Terug', ru: "Назад" /* TODO cert */, tl: "Bumalik" /* TODO cert */ },
   // Opt-in subtitle button on the video call. Kept short so it fits as a
   // pill overlay without wrapping. Patient-facing wording — describes the
   // action from the patient's perspective ("show subtitles for me").
@@ -1090,6 +1247,8 @@ const T = {
     de: 'Untertitel anzeigen', nl: 'Ondertitels tonen',
     fr: 'Afficher les sous-titres', es: 'Mostrar subtítulos',
     ar: 'إظهار الترجمة', hi: 'सबटाइटल दिखाएँ',
+    ru: "Показать субтитры", // TODO cert
+    tl: "Ipakita ang subtitles", // TODO cert
   },
   subtitle_offer_hint: {
     en: "Can't understand?",
@@ -1100,6 +1259,8 @@ const T = {
     de: 'Nicht verstehen?', nl: 'Niet verstaan?',
     fr: 'Vous ne comprenez pas ?', es: '¿No entiende?',
     ar: 'لا تفهم؟', hi: 'समझ नहीं आ रहा?',
+    ru: "Не понимаете?", // TODO cert
+    tl: "Hindi po maintindihan?", // TODO cert
   },
   subtitle_hide_btn: {
     en: 'Hide',
@@ -1109,6 +1270,8 @@ const T = {
     de: 'Ausblenden', nl: 'Verbergen',
     fr: 'Masquer', es: 'Ocultar',
     ar: 'إخفاء', hi: 'छिपाएँ',
+    ru: "Скрыть", // TODO cert
+    tl: "Itago", // TODO cert
   },
 
   btn_skip:     {
@@ -1117,6 +1280,8 @@ const T = {
     yue: '跳過', ja: 'スキップ', ko: '건너뛰기',
     de: 'Überspringen', nl: 'Overslaan', fr: 'Passer', es: 'Omitir',
     ar: 'تخطي', hi: 'छोड़ें',
+    ru: "Пропустить", // TODO cert
+    tl: "Laktawan", // TODO cert
   },
   btn_send:     {
     en: 'Send', mi: 'Tuku', sm: 'Auina atu', // TODO cert (mi/sm)
@@ -1124,19 +1289,21 @@ const T = {
     yue: '發送', ja: '送信', ko: '보내기',
     de: 'Senden', nl: 'Versturen', fr: 'Envoyer', es: 'Enviar',
     ar: 'إرسال', hi: 'भेजें',
+    ru: "Отправить", // TODO cert
+    tl: "Ipadala", // TODO cert
   },
-  btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu', nl: 'Indienen' },
+  btn_submit:   { en: 'Submit',   mi: 'Tukua atu',  sm: 'Tu\'u atu', nl: 'Indienen', ru: "Отправить" /* TODO cert */, tl: "I-submit" /* TODO cert */ },
 
   // ── Bilingual red flag: shows Te Reo + English regardless of chosen language ─
   // Rendered by t_bilingual() helper so critical warnings never appear in Te Reo only.
-  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei', nl: 'Bel onmiddellijk 111' },
+  red_flag_call_111: { en: 'Call 111 immediately', mi: 'Waea atu ki te 111 ināianei', sm: 'Vala\'au le 111 i le taimi lava lenei', nl: 'Bel onmiddellijk 111', ru: "Срочно позвоните 111" /* TODO cert */, tl: "Tumawag po agad sa 111" /* TODO cert */ },
 
   // ── /consent page (ConsentPage.jsx) ──────────────────────────────────────
   // Every string on the /consent screen. mi + sm marked TODO cert.
-  consent_header:      { en: 'Before we begin', mi: 'I mua i tā tāua tīmatanga', sm: 'A\'o le\'i amata', zh: '开始之前', ja: '始める前に', ko: '시작하기 전에', de: 'Bevor wir beginnen', nl: 'Voordat we beginnen', fr: 'Avant de commencer', es: 'Antes de comenzar', ar: 'قبل أن نبدأ', hi: 'शुरू करने से पहले' }, // TODO cert (mi/sm)
-  consent_subheader:   { en: 'Please read and agree to the following', mi: 'Tēnā, pānuihia me whakaae ki ēnei', sm: 'Fa\'amolemole faitau ma malie i mea nei', zh: '请阅读并同意以下内容', ja: '以下をお読みになり、同意してください', ko: '아래를 읽고 동의해 주세요', de: 'Bitte lesen und stimmen Sie Folgendem zu', nl: 'Lees en ga akkoord met het volgende', fr: 'Veuillez lire et accepter ce qui suit', es: 'Por favor lea y acepte lo siguiente', ar: 'يرجى قراءة ما يلي والموافقة عليه', hi: 'कृपया निम्नलिखित पढ़ें और सहमत हों' }, // TODO cert (mi/sm)
+  consent_header:      { en: 'Before we begin', mi: 'I mua i tā tāua tīmatanga', sm: 'A\'o le\'i amata', zh: '开始之前', ja: '始める前に', ko: '시작하기 전에', de: 'Bevor wir beginnen', nl: 'Voordat we beginnen', fr: 'Avant de commencer', es: 'Antes de comenzar', ar: 'قبل أن نبدأ', hi: 'शुरू करने से पहले', ru: "Прежде чем мы начнём" /* TODO cert */, tl: "Bago po tayo magsimula" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_subheader:   { en: 'Please read and agree to the following', mi: 'Tēnā, pānuihia me whakaae ki ēnei', sm: 'Fa\'amolemole faitau ma malie i mea nei', zh: '请阅读并同意以下内容', ja: '以下をお読みになり、同意してください', ko: '아래를 읽고 동의해 주세요', de: 'Bitte lesen und stimmen Sie Folgendem zu', nl: 'Lees en ga akkoord met het volgende', fr: 'Veuillez lire et accepter ce qui suit', es: 'Por favor lea y acepte lo siguiente', ar: 'يرجى قراءة ما يلي والموافقة عليه', hi: 'कृपया निम्नलिखित पढ़ें और सहमत हों', ru: "Пожалуйста, прочитайте и подтвердите своё согласие с нижеследующим" /* TODO cert */, tl: "Pakibasa po at pumayag sa mga sumusunod" /* TODO cert */ }, // TODO cert (mi/sm)
 
-  consent_rights_title: { en: 'Your rights as a patient', mi: 'Ōu mōtika hei tūroro', sm: 'O ou aia tatau o se ma\'i', zh: '您作为患者的权利', ja: '患者としてのあなたの権利', ko: '환자로서 당신의 권리', de: 'Ihre Rechte als Patient', nl: 'Uw rechten als patiënt', fr: 'Vos droits en tant que patient', es: 'Sus derechos como paciente', ar: 'حقوقك كمريض', hi: 'रोगी के रूप में आपके अधिकार' }, // TODO cert (mi/sm)
+  consent_rights_title: { en: 'Your rights as a patient', mi: 'Ōu mōtika hei tūroro', sm: 'O ou aia tatau o se ma\'i', zh: '您作为患者的权利', ja: '患者としてのあなたの権利', ko: '환자로서 당신의 권리', de: 'Ihre Rechte als Patient', nl: 'Uw rechten als patiënt', fr: 'Vos droits en tant que patient', es: 'Sus derechos como paciente', ar: 'حقوقك كمريض', hi: 'रोगी के रूप में आपके अधिकार', ru: "Ваши права как пациента" /* TODO cert */, tl: "Ang inyong karapatan bilang pasyente" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_rights_intro: {
     en: 'As a patient using Tere Health you have the following rights under the NZ Health and Disability Commissioner Code of Rights:',
     mi: 'Hei tūroro e whakamahi ana i a Tere Health, ka whai koe i ēnei mōtika i raro i te Waehere Mōtika a te Kaikōmihana Hauora, Hauātanga o Aotearoa:', // TODO cert
@@ -1151,13 +1318,15 @@ const T = {
     es: 'Como paciente que usa Tere Health, tiene los siguientes derechos bajo el Código de Derechos del Comisionado de Salud y Discapacidad de NZ:',
     ar: 'بصفتك مريضاً يستخدم Tere Health، لديك الحقوق التالية بموجب مدونة حقوق مفوض الصحة والإعاقة النيوزيلندية:',
     hi: 'Tere Health का उपयोग करने वाले रोगी के रूप में, आपके पास NZ स्वास्थ्य और विकलांगता आयुक्त अधिकार संहिता के तहत निम्नलिखित अधिकार हैं:',
+    ru: "Как пациент, использующий Tere Health, вы обладаете следующими правами в соответствии с Кодексом прав Комиссара по вопросам здоровья и инвалидности Новой Зеландии (HDC):", // TODO cert
+    tl: "Bilang pasyente ng Tere Health, mayroon po kayong mga sumusunod na karapatan sa ilalim ng NZ Health and Disability Commissioner Code of Rights:", // TODO cert
   },
-  consent_right_respect:     { en: 'Right to be treated with respect', mi: 'Te mōtika kia manaakitia', sm: 'Aia tatau ia faia ma le fa\'aaloalo', zh: '受尊重的权利', ja: '敬意をもって扱われる権利', ko: '존중받을 권리', de: 'Recht auf respektvolle Behandlung', nl: 'Recht op respectvolle behandeling', fr: 'Droit d\'être traité avec respect', es: 'Derecho a ser tratado con respeto', ar: 'الحق في المعاملة باحترام', hi: 'सम्मान के साथ व्यवहार पाने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_info:        { en: 'Right to receive information', mi: 'Te mōtika kia whakamōhio', sm: 'Aia tatau ia maua fa\'amatalaga', zh: '获得信息的权利', ja: '情報を受け取る権利', ko: '정보를 받을 권리', de: 'Recht auf Information', nl: 'Recht op informatie', fr: 'Droit à l\'information', es: 'Derecho a recibir información', ar: 'الحق في الحصول على المعلومات', hi: 'जानकारी प्राप्त करने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_informed:    { en: 'Right to make an informed choice', mi: 'Te mōtika ki te whiriwhiri whai mōhiotanga', sm: 'Aia tatau ia faia se filifiliga malamalama', zh: '做出知情选择的权利', ja: 'インフォームド・チョイスの権利', ko: '충분한 정보에 근거한 선택의 권리', de: 'Recht auf informierte Entscheidung', nl: 'Recht op een geïnformeerde keuze', fr: 'Droit à un choix éclairé', es: 'Derecho a tomar una decisión informada', ar: 'الحق في اتخاذ خيار مستنير', hi: 'सूचित विकल्प चुनने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_consent:     { en: 'Right to give informed consent', mi: 'Te mōtika ki te whakaae whai mōhiotanga', sm: 'Aia tatau ia tuu le malie malamalama', zh: '给予知情同意的权利', ja: 'インフォームド・コンセントの権利', ko: '충분한 정보에 근거한 동의의 권리', de: 'Recht auf informierte Einwilligung', nl: 'Recht om geïnformeerde toestemming te geven', fr: 'Droit de donner un consentement éclairé', es: 'Derecho a dar consentimiento informado', ar: 'الحق في تقديم موافقة مستنيرة', hi: 'सूचित सहमति देने का अधिकार' }, // TODO cert (mi/sm)
-  consent_right_complain:    { en: 'Right to complain', mi: 'Te mōtika ki te amuamu', sm: 'Aia tatau ia fai se faitioga', zh: '投诉的权利', ja: '苦情を申し立てる権利', ko: '불만을 제기할 권리', de: 'Recht auf Beschwerde', nl: 'Recht om een klacht in te dienen', fr: 'Droit de porter plainte', es: 'Derecho a quejarse', ar: 'الحق في الشكوى', hi: 'शिकायत करने का अधिकार' }, // TODO cert (mi/sm)
-  consent_rights_link:       { en: 'Read the full HDC Code of Rights →', mi: 'Pānuihia te Waehere Mōtika HDC katoa →', sm: 'Faitau le Tulafono atoa a le HDC →', zh: '阅读完整的 HDC 权利守则 →', ja: 'HDC権利規範の全文を読む →', ko: '전체 HDC 권리 강령 읽기 →', de: 'Vollständigen HDC-Rechtekodex lesen →', nl: 'Lees de volledige HDC Code of Rights →', fr: 'Lire le Code des droits HDC complet →', es: 'Leer el Código de Derechos completo del HDC →', ar: 'اقرأ مدونة حقوق HDC كاملة →', hi: 'पूरा HDC अधिकार संहिता पढ़ें →' }, // TODO cert (mi/sm)
+  consent_right_respect:     { en: 'Right to be treated with respect', mi: 'Te mōtika kia manaakitia', sm: 'Aia tatau ia faia ma le fa\'aaloalo', zh: '受尊重的权利', ja: '敬意をもって扱われる権利', ko: '존중받을 권리', de: 'Recht auf respektvolle Behandlung', nl: 'Recht op respectvolle behandeling', fr: 'Droit d\'être traité avec respect', es: 'Derecho a ser tratado con respeto', ar: 'الحق في المعاملة باحترام', hi: 'सम्मान के साथ व्यवहार पाने का अधिकार', ru: "Право на уважительное отношение" /* TODO cert */, tl: "Karapatang pakitunguhan nang may paggalang" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_right_info:        { en: 'Right to receive information', mi: 'Te mōtika kia whakamōhio', sm: 'Aia tatau ia maua fa\'amatalaga', zh: '获得信息的权利', ja: '情報を受け取る権利', ko: '정보를 받을 권리', de: 'Recht auf Information', nl: 'Recht op informatie', fr: 'Droit à l\'information', es: 'Derecho a recibir información', ar: 'الحق في الحصول على المعلومات', hi: 'जानकारी प्राप्त करने का अधिकार', ru: "Право получать информацию" /* TODO cert */, tl: "Karapatang tumanggap ng impormasyon" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_right_informed:    { en: 'Right to make an informed choice', mi: 'Te mōtika ki te whiriwhiri whai mōhiotanga', sm: 'Aia tatau ia faia se filifiliga malamalama', zh: '做出知情选择的权利', ja: 'インフォームド・チョイスの権利', ko: '충분한 정보에 근거한 선택의 권리', de: 'Recht auf informierte Entscheidung', nl: 'Recht op een geïnformeerde keuze', fr: 'Droit à un choix éclairé', es: 'Derecho a tomar una decisión informada', ar: 'الحق في اتخاذ خيار مستنير', hi: 'सूचित विकल्प चुनने का अधिकार', ru: "Право на информированный выбор" /* TODO cert */, tl: "Karapatang gumawa ng informed choice" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_right_consent:     { en: 'Right to give informed consent', mi: 'Te mōtika ki te whakaae whai mōhiotanga', sm: 'Aia tatau ia tuu le malie malamalama', zh: '给予知情同意的权利', ja: 'インフォームド・コンセントの権利', ko: '충분한 정보에 근거한 동의의 권리', de: 'Recht auf informierte Einwilligung', nl: 'Recht om geïnformeerde toestemming te geven', fr: 'Droit de donner un consentement éclairé', es: 'Derecho a dar consentimiento informado', ar: 'الحق في تقديم موافقة مستنيرة', hi: 'सूचित सहमति देने का अधिकार', ru: "Право давать информированное согласие" /* TODO cert */, tl: "Karapatang magbigay ng informed consent" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_right_complain:    { en: 'Right to complain', mi: 'Te mōtika ki te amuamu', sm: 'Aia tatau ia fai se faitioga', zh: '投诉的权利', ja: '苦情を申し立てる権利', ko: '불만을 제기할 권리', de: 'Recht auf Beschwerde', nl: 'Recht om een klacht in te dienen', fr: 'Droit de porter plainte', es: 'Derecho a quejarse', ar: 'الحق في الشكوى', hi: 'शिकायत करने का अधिकार', ru: "Право подавать жалобу" /* TODO cert */, tl: "Karapatang magreklamo" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_rights_link:       { en: 'Read the full HDC Code of Rights →', mi: 'Pānuihia te Waehere Mōtika HDC katoa →', sm: 'Faitau le Tulafono atoa a le HDC →', zh: '阅读完整的 HDC 权利守则 →', ja: 'HDC権利規範の全文を読む →', ko: '전체 HDC 권리 강령 읽기 →', de: 'Vollständigen HDC-Rechtekodex lesen →', nl: 'Lees de volledige HDC Code of Rights →', fr: 'Lire le Code des droits HDC complet →', es: 'Leer el Código de Derechos completo del HDC →', ar: 'اقرأ مدونة حقوق HDC كاملة →', hi: 'पूरा HDC अधिकार संहिता पढ़ें →', ru: "Прочитать полный Кодекс прав HDC →" /* TODO cert */, tl: "Basahin ang buong HDC Code of Rights →" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_ai_note: {
     en: 'Your clinical information (including consultation transcript, chief complaint and notes) is processed by Anthropic Claude, delivered via AWS Bedrock under an executed Business Associate Agreement (BAA) with AWS that provides HIPAA-level safeguards. AI-generated notes are reviewed and finalised by a New Zealand-registered clinician. Your information is never used to train AI models.',
     mi: 'Ka tukatukahia ō kōrero hauora (tae atu ki te tuhinga tirohanga, te take matua me ngā tuhinga) e Anthropic Claude, ka tukua mā AWS Bedrock i raro i tētahi Kirimana Whakahoahoa Pakihi (BAA) me AWS e whakarato ana i ngā ārai HIPAA. Ka arotakengia, ka whakaotia ngā tuhinga i hangaia e te AI e tētahi mātanga hauora kua rēhita ki Aotearoa. E kore ō kōrero e whakamahia ki te whakangungu tauira AI.', // TODO cert
@@ -1172,10 +1341,12 @@ const T = {
     es: 'Su información clínica (incluida la transcripción de la consulta, la queja principal y las notas) es procesada por Anthropic Claude, entregada a través de AWS Bedrock bajo un Acuerdo de Asociado Comercial (BAA) ejecutado con AWS que proporciona protecciones a nivel HIPAA. Las notas generadas por IA son revisadas y finalizadas por un clínico registrado en Nueva Zelanda. Su información nunca se utiliza para entrenar modelos de IA.',
     ar: 'تتم معالجة معلوماتك السريرية (بما في ذلك نص الاستشارة والشكوى الرئيسية والملاحظات) بواسطة Anthropic Claude، ويتم تسليمها عبر AWS Bedrock بموجب اتفاقية شريك أعمال (BAA) مبرمة مع AWS توفر ضمانات على مستوى HIPAA. تتم مراجعة الملاحظات التي أنشأها الذكاء الاصطناعي وإكمالها من قبل طبيب مسجل في نيوزيلندا. لا يتم استخدام معلوماتك أبداً لتدريب نماذج الذكاء الاصطناعي.',
     hi: 'आपकी नैदानिक जानकारी (परामर्श प्रतिलेख, मुख्य शिकायत और नोट्स सहित) Anthropic Claude द्वारा संसाधित की जाती है, जो AWS के साथ निष्पादित बिजनेस एसोसिएट एग्रीमेंट (BAA) के तहत AWS Bedrock के माध्यम से वितरित की जाती है जो HIPAA-स्तर की सुरक्षा प्रदान करता है। AI द्वारा उत्पन्न नोट्स की समीक्षा और अंतिम रूप न्यूजीलैंड-पंजीकृत चिकित्सक द्वारा किया जाता है। आपकी जानकारी का उपयोग AI मॉडल को प्रशिक्षित करने के लिए कभी नहीं किया जाता है।',
+    ru: "Ваши клинические данные (включая запись консультации, основную жалобу и заметки) обрабатываются Anthropic Claude через AWS Bedrock в рамках заключённого Соглашения с бизнес-партнёром (BAA) с AWS, обеспечивающего защиту уровня HIPAA. Заметки, сгенерированные ИИ, проверяются и утверждаются зарегистрированным в Новой Зеландии клиницистом. Ваши данные никогда не используются для обучения моделей ИИ.", // TODO cert
+    tl: "Ang inyong clinical information (kabilang ang consultation transcript, chief complaint at notes) ay pinoproseso ng Anthropic Claude, inihahatid sa pamamagitan ng AWS Bedrock sa ilalim ng executed Business Associate Agreement (BAA) sa AWS na nagbibigay ng HIPAA-level safeguards. Ang mga AI-generated notes ay sinusuri at pinal-finalize ng isang New Zealand-registered clinician. Hindi po kailanman ginagamit ang inyong impormasyon para mag-train ng AI models.", // TODO cert
   },
-  consent_rights_check: { en: 'I understand my rights as a patient and consent to AI-assisted processing', mi: 'Kei te mārama ahau ki ōku mōtika hei tūroro, ā, kei te whakaae ki te tukatuka āwhinatia e te AI', sm: 'Ou te malamalama i o\'u aia tatau o se ma\'i ma malie i le fa\'agasologa fesoasoani a le AI', zh: '我了解我作为患者的权利，并同意 AI 辅助处理', ja: '患者としての権利を理解し、AI支援処理に同意します', ko: '환자로서의 권리를 이해하며 AI 지원 처리에 동의합니다', de: 'Ich verstehe meine Rechte als Patient und stimme der KI-gestützten Verarbeitung zu', nl: 'Ik begrijp mijn rechten als patiënt en geef toestemming voor door AI ondersteunde verwerking', fr: 'Je comprends mes droits en tant que patient et consens au traitement assisté par IA', es: 'Entiendo mis derechos como paciente y consiento el procesamiento asistido por IA', ar: 'أفهم حقوقي كمريض وأوافق على المعالجة بمساعدة الذكاء الاصطناعي', hi: 'मैं रोगी के रूप में अपने अधिकारों को समझता/समझती हूं और AI-सहायता प्राप्त प्रसंस्करण के लिए सहमति देता/देती हूं' }, // TODO cert (mi/sm)
+  consent_rights_check: { en: 'I understand my rights as a patient and consent to AI-assisted processing', mi: 'Kei te mārama ahau ki ōku mōtika hei tūroro, ā, kei te whakaae ki te tukatuka āwhinatia e te AI', sm: 'Ou te malamalama i o\'u aia tatau o se ma\'i ma malie i le fa\'agasologa fesoasoani a le AI', zh: '我了解我作为患者的权利，并同意 AI 辅助处理', ja: '患者としての権利を理解し、AI支援処理に同意します', ko: '환자로서의 권리를 이해하며 AI 지원 처리에 동의합니다', de: 'Ich verstehe meine Rechte als Patient und stimme der KI-gestützten Verarbeitung zu', nl: 'Ik begrijp mijn rechten als patiënt en geef toestemming voor door AI ondersteunde verwerking', fr: 'Je comprends mes droits en tant que patient et consens au traitement assisté par IA', es: 'Entiendo mis derechos como paciente y consiento el procesamiento asistido por IA', ar: 'أفهم حقوقي كمريض وأوافق على المعالجة بمساعدة الذكاء الاصطناعي', hi: 'मैं रोगी के रूप में अपने अधिकारों को समझता/समझती हूं और AI-सहायता प्राप्त प्रसंस्करण के लिए सहमति देता/देती हूं', ru: "Я понимаю свои права как пациента и даю согласие на обработку с помощью ИИ" /* TODO cert */, tl: "Nauunawaan ko ang aking mga karapatan bilang pasyente at pumapayag ako sa AI-assisted processing" /* TODO cert */ }, // TODO cert (mi/sm)
 
-  consent_rx_title: { en: 'Prescribing limitations', mi: 'Ngā herenga tuku rongoā', sm: 'Fa\'atapula\'aga o le tuu atu o fualaau', zh: '处方限制', ja: '処方の制限', ko: '처방 제한 사항', de: 'Verschreibungsbeschränkungen', nl: 'Beperkingen bij het voorschrijven', fr: 'Limitations de prescription', es: 'Limitaciones de prescripción', ar: 'قيود الوصفات الطبية', hi: 'दवा लिखने की सीमाएं' }, // TODO cert (mi/sm)
+  consent_rx_title: { en: 'Prescribing limitations', mi: 'Ngā herenga tuku rongoā', sm: 'Fa\'atapula\'aga o le tuu atu o fualaau', zh: '处方限制', ja: '処方の制限', ko: '처방 제한 사항', de: 'Verschreibungsbeschränkungen', nl: 'Beperkingen bij het voorschrijven', fr: 'Limitations de prescription', es: 'Limitaciones de prescripción', ar: 'قيود الوصفات الطبية', hi: 'दवा लिखने की सीमाएं', ru: "Ограничения на выписку рецептов" /* TODO cert */, tl: "Mga limitasyon sa prescribing" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_rx_intro: {
     en: 'Tere Health providers can prescribe many medications for acute conditions. However we are unable to prescribe via telehealth:',
     mi: 'Ka taea e ngā kaiwhakarato o Tere Health te tuku i te maha o ngā rongoā mō ngā mate ohorere. Heoi anō, kāore mātou e taea te tuku i ngā rongoā e whai ake nei mā te telehealth:', // TODO cert
@@ -1190,6 +1361,8 @@ const T = {
     es: 'Los médicos de Tere Health pueden recetar muchos medicamentos para condiciones agudas. Sin embargo, no podemos recetar mediante telemedicina:',
     ar: 'يمكن لأطباء Tere Health وصف كثير من الأدوية للحالات الحادة. ومع ذلك، لا يمكننا الوصف عبر الرعاية الصحية عن بُعد:',
     hi: 'Tere Health के डॉक्टर तीव्र स्थितियों के लिए कई दवाएं लिख सकते हैं। हालांकि, हम टेलीहेल्थ के माध्यम से निम्नलिखित नहीं लिख सकते:',
+    ru: "Врачи Tere Health могут выписывать многие лекарства для острых состояний. Однако мы не можем выписывать по телемедицине:", // TODO cert
+    tl: "Puwede pong mag-prescribe ang mga provider ng Tere Health ng maraming gamot para sa acute conditions. Ngunit hindi po namin kayang mag-prescribe sa pamamagitan ng telehealth ng:", // TODO cert
   },
   consent_rx_footer: {
     en: 'For these medications please contact your regular GP or visit an in-person clinic.',
@@ -1205,11 +1378,13 @@ const T = {
     es: 'Para estos medicamentos, por favor contacte a su médico de cabecera habitual o visite una clínica en persona.',
     ar: 'لهذه الأدوية يرجى الاتصال بطبيبك العام العادي أو زيارة عيادة شخصياً.',
     hi: 'इन दवाओं के लिए कृपया अपने नियमित GP से संपर्क करें या व्यक्तिगत रूप से क्लिनिक जाएं।',
+    ru: "За этими лекарствами, пожалуйста, обратитесь к своему постоянному семейному врачу (GP) или посетите клинику лично.", // TODO cert
+    tl: "Para po sa mga gamot na ito, pakipag-contact ang inyong regular GP o magpunta po sa isang in-person clinic.", // TODO cert
   },
-  consent_rx_check: { en: 'I understand these prescribing limitations', mi: 'Kei te mārama ahau ki ēnei herenga tuku rongoā', sm: 'Ou te malamalama i nei fa\'atapula\'aga', zh: '我理解这些处方限制', ja: 'これらの処方制限を理解しました', ko: '이 처방 제한 사항을 이해합니다', de: 'Ich verstehe diese Verschreibungsbeschränkungen', nl: 'Ik begrijp deze beperkingen bij het voorschrijven', fr: 'Je comprends ces limitations de prescription', es: 'Entiendo estas limitaciones de prescripción', ar: 'أفهم هذه القيود على الوصفات الطبية', hi: 'मैं इन दवा लिखने की सीमाओं को समझता/समझती हूं' }, // TODO cert (mi/sm)
+  consent_rx_check: { en: 'I understand these prescribing limitations', mi: 'Kei te mārama ahau ki ēnei herenga tuku rongoā', sm: 'Ou te malamalama i nei fa\'atapula\'aga', zh: '我理解这些处方限制', ja: 'これらの処方制限を理解しました', ko: '이 처방 제한 사항을 이해합니다', de: 'Ich verstehe diese Verschreibungsbeschränkungen', nl: 'Ik begrijp deze beperkingen bij het voorschrijven', fr: 'Je comprends ces limitations de prescription', es: 'Entiendo estas limitaciones de prescripción', ar: 'أفهم هذه القيود على الوصفات الطبية', hi: 'मैं इन दवा लिखने की सीमाओं को समझता/समझती हूं', ru: "Я понимаю эти ограничения на выписку рецептов" /* TODO cert */, tl: "Nauunawaan ko ang mga prescribing limitation na ito" /* TODO cert */ }, // TODO cert (mi/sm)
 
-  consent_research_title:    { en: 'Help improve rural healthcare', mi: 'Āwhinaia te whakapai ake i te hauora tuawhenua', sm: 'Fesoasoani e fa\'aleleia le tausiga o le soifua maloloina i nu\'u maotua', zh: '帮助改善农村医疗保健', ja: '地方医療の改善に貢献', ko: '농촌 의료 개선을 돕기', de: 'Ländliche Gesundheitsversorgung verbessern helfen', nl: 'Help de zorg op het platteland te verbeteren', fr: 'Aider à améliorer les soins de santé ruraux', es: 'Ayudar a mejorar la atención sanitaria rural', ar: 'ساعد في تحسين الرعاية الصحية الريفية', hi: 'ग्रामीण स्वास्थ्य देखभाल में सुधार करने में मदद करें' }, // TODO cert (mi/sm)
-  consent_research_optional: { en: '(optional)', mi: '(kōwhiringa)', sm: '(filifili)', zh: '（可选）', ja: '（任意）', ko: '(선택 사항)', de: '(optional)', nl: '(optioneel)', fr: '(facultatif)', es: '(opcional)', ar: '(اختياري)', hi: '(वैकल्पिक)' }, // TODO cert (mi/sm)
+  consent_research_title:    { en: 'Help improve rural healthcare', mi: 'Āwhinaia te whakapai ake i te hauora tuawhenua', sm: 'Fesoasoani e fa\'aleleia le tausiga o le soifua maloloina i nu\'u maotua', zh: '帮助改善农村医疗保健', ja: '地方医療の改善に貢献', ko: '농촌 의료 개선을 돕기', de: 'Ländliche Gesundheitsversorgung verbessern helfen', nl: 'Help de zorg op het platteland te verbeteren', fr: 'Aider à améliorer les soins de santé ruraux', es: 'Ayudar a mejorar la atención sanitaria rural', ar: 'ساعد في تحسين الرعاية الصحية الريفية', hi: 'ग्रामीण स्वास्थ्य देखभाल में सुधार करने में मदद करें', ru: "Помогите улучшить сельскую медицину" /* TODO cert */, tl: "Tumulong na pagandahin ang rural healthcare" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_research_optional: { en: '(optional)', mi: '(kōwhiringa)', sm: '(filifili)', zh: '（可选）', ja: '（任意）', ko: '(선택 사항)', de: '(optional)', nl: '(optioneel)', fr: '(facultatif)', es: '(opcional)', ar: '(اختياري)', hi: '(वैकल्पिक)', ru: "(по желанию)" /* TODO cert */, tl: "(opsyonal)" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_research_intro: {
     en: 'Would you be willing for your de-identified data (no name, no contact details, no NHI) to contribute to NZ rural health research? This helps improve healthcare for rural communities across Aotearoa.',
     mi: 'E hiahia ana koe ki te whakaae kia whakauruhia ō raraunga kāore i te whakatinana (kāore he ingoa, kāore he whakapā, kāore he NHI) hei tautoko i te rangahau hauora tuawhenua o Aotearoa? Ka āwhina tēnei ki te whakapai ake i te hauora mō ngā hapori tuawhenua puta noa i Aotearoa.', // TODO cert
@@ -1224,9 +1399,11 @@ const T = {
     es: '¿Estaría dispuesto a que sus datos desidentificados (sin nombre, sin datos de contacto, sin NHI) contribuyan a la investigación de salud rural de NZ? Esto ayuda a mejorar la atención sanitaria para las comunidades rurales en todo Aotearoa.',
     ar: 'هل ستكون على استعداد لأن تساهم بياناتك مجهولة الهوية (بدون اسم أو بيانات اتصال أو NHI) في أبحاث الصحة الريفية النيوزيلندية؟ يساعد ذلك في تحسين الرعاية الصحية لمجتمعات المناطق الريفية في جميع أنحاء أوتياروا.',
     hi: 'क्या आप अपने डी-आइडेंटिफाइड डेटा (कोई नाम नहीं, कोई संपर्क विवरण नहीं, कोई NHI नहीं) को NZ ग्रामीण स्वास्थ्य अनुसंधान में योगदान करने के लिए तैयार होंगे? यह पूरे Aotearoa में ग्रामीण समुदायों के लिए स्वास्थ्य देखभाल में सुधार करने में मदद करता है।',
+    ru: "Готовы ли вы предоставить ваши обезличенные данные (без имени, контактов и NHI) для исследований в области сельского здравоохранения Новой Зеландии? Это помогает улучшить медицинскую помощь для сельских общин по всей Аотеароа.", // TODO cert
+    tl: "Pumapayag po ba kayo na ang inyong de-identified data (walang pangalan, walang contact details, walang NHI) ay magamit sa NZ rural health research? Nakakatulong po ito na mapaganda ang healthcare para sa rural communities sa buong Aotearoa.", // TODO cert
   },
-  consent_research_yes:  { en: '✓ Yes, I\'m happy to contribute', mi: '✓ Āe, kei te pai ki ahau ki te tautoko', sm: '✓ Ioe, ou te fiafia e sao mai', zh: '✓ 是的，我愿意贡献', ja: '✓ はい、貢献します', ko: '✓ 네, 기여하겠습니다', de: '✓ Ja, ich möchte beitragen', nl: '✓ Ja, ik draag graag bij', fr: '✓ Oui, je souhaite contribuer', es: '✓ Sí, me gustaría contribuir', ar: '✓ نعم، أنا سعيد بالمساهمة', hi: '✓ हाँ, मैं योगदान करने के लिए तैयार हूं' }, // TODO cert (mi/sm)
-  consent_research_skip: { en: 'Skip →', mi: 'Tukua →', sm: 'Preterisi →', zh: '跳过 →', ja: 'スキップ →', ko: '건너뛰기 →', de: 'Überspringen →', nl: 'Overslaan →', fr: 'Passer →', es: 'Omitir →', ar: 'تخطي ←', hi: 'छोड़ें →' }, // TODO cert (mi/sm)
+  consent_research_yes:  { en: '✓ Yes, I\'m happy to contribute', mi: '✓ Āe, kei te pai ki ahau ki te tautoko', sm: '✓ Ioe, ou te fiafia e sao mai', zh: '✓ 是的，我愿意贡献', ja: '✓ はい、貢献します', ko: '✓ 네, 기여하겠습니다', de: '✓ Ja, ich möchte beitragen', nl: '✓ Ja, ik draag graag bij', fr: '✓ Oui, je souhaite contribuer', es: '✓ Sí, me gustaría contribuir', ar: '✓ نعم، أنا سعيد بالمساهمة', hi: '✓ हाँ, मैं योगदान करने के लिए तैयार हूं', ru: "✓ Да, я согласен принять участие" /* TODO cert */, tl: "✓ Oo, pumapayag po akong makibahagi" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_research_skip: { en: 'Skip →', mi: 'Tukua →', sm: 'Preterisi →', zh: '跳过 →', ja: 'スキップ →', ko: '건너뛰기 →', de: 'Überspringen →', nl: 'Overslaan →', fr: 'Passer →', es: 'Omitir →', ar: 'تخطي ←', hi: 'छोड़ें →', ru: "Пропустить →" /* TODO cert */, tl: "Laktawan →" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_research_footnote: {
     en: 'Your decision won\'t affect your care. You can withdraw consent at any time by contacting',
     mi: 'Kāore tō whiringa e pā ki tō tiaki hauora. Ka taea e koe te unu i tō whakaae i te wā e hiahia ana koe mā te whakapā atu ki', // TODO cert
@@ -1241,9 +1418,11 @@ const T = {
     es: 'Su decisión no afectará su atención. Puede retirar el consentimiento en cualquier momento contactando a',
     ar: 'قرارك لن يؤثر على رعايتك. يمكنك سحب الموافقة في أي وقت بالتواصل مع',
     hi: 'आपका निर्णय आपकी देखभाल को प्रभावित नहीं करेगा। आप किसी भी समय संपर्क करके सहमति वापस ले सकते हैं',
+    ru: "Ваше решение не повлияет на оказание медицинской помощи. Вы можете отозвать согласие в любой момент, связавшись с", // TODO cert
+    tl: "Hindi po maaapektuhan ng inyong desisyon ang pangangalaga sa inyo. Puwede po ninyong bawiin ang pahintulot kahit kailan sa pamamagitan ng pakikipag-ugnayan sa", // TODO cert
   },
 
-  consent_camera_title: { en: 'Camera used for vitals', mi: 'Ka whakamahia te kāmera mō ngā tohu ora', sm: 'E fa\'aogaina le meapu\'e ata mo tulaga o le tino', zh: '使用相机进行生命体征测量', ja: 'バイタル測定のためにカメラを使用します', ko: '활력징후 측정에 카메라 사용', de: 'Kamera für Vitalzeichen verwendet', nl: 'Camera gebruikt voor vitale functies', fr: 'Caméra utilisée pour les signes vitaux', es: 'Cámara utilizada para signos vitales', ar: 'الكاميرا مستخدمة للعلامات الحيوية', hi: 'वाइटल्स के लिए कैमरे का उपयोग' }, // TODO cert (mi/sm)
+  consent_camera_title: { en: 'Camera used for vitals', mi: 'Ka whakamahia te kāmera mō ngā tohu ora', sm: 'E fa\'aogaina le meapu\'e ata mo tulaga o le tino', zh: '使用相机进行生命体征测量', ja: 'バイタル測定のためにカメラを使用します', ko: '활력징후 측정에 카메라 사용', de: 'Kamera für Vitalzeichen verwendet', nl: 'Camera gebruikt voor vitale functies', fr: 'Caméra utilisée pour les signes vitaux', es: 'Cámara utilizada para signos vitales', ar: 'الكاميرا مستخدمة للعلامات الحيوية', hi: 'वाइटल्स के लिए कैमरे का उपयोग', ru: "Камера используется для измерения показателей" /* TODO cert */, tl: "Ginagamit ang camera para sa vitals" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_camera_desc: {
     en: 'For accurate vitals, Tere may use your camera during the consultation. No video is recorded — only anonymised colour measurements are used to estimate heart rate and blood oxygen.',
     mi: 'Mō ngā tohu ora tika, ka whakamahia pea e Tere tō kāmera i te wā o te tirohanga. Kāore he ataata e hopukina ana — ka whakamahia noa ngā ine tae kua whakaingoakorehia hei whakatau i te tere manawa me te hāora toto.', // TODO cert
@@ -1258,13 +1437,15 @@ const T = {
     es: 'Para obtener signos vitales precisos, Tere puede usar su cámara durante la consulta. No se graba ningún video — solo se utilizan mediciones de color anonimizadas para estimar la frecuencia cardíaca y el oxígeno en la sangre.',
     ar: 'للحصول على علامات حيوية دقيقة، قد يستخدم Tere الكاميرا الخاصة بك أثناء الاستشارة. لا يتم تسجيل أي فيديو — يتم استخدام قياسات الألوان مجهولة الهوية فقط لتقدير معدل ضربات القلب والأكسجين في الدم.',
     hi: 'सटीक वाइटल्स के लिए, Tere परामर्श के दौरान आपके कैमरे का उपयोग कर सकता है। कोई वीडियो रिकॉर्ड नहीं किया जाता — केवल गुमनाम रंग मापों का उपयोग हृदय गति और रक्त ऑक्सीजन का अनुमान लगाने के लिए किया जाता है।',
+    ru: "Для точного измерения показателей Tere может использовать вашу камеру во время консультации. Видео не записывается - используются только анонимные измерения цвета для оценки частоты сердечных сокращений и уровня кислорода в крови.", // TODO cert
+    tl: "Para sa tumpak na vitals, maaari pong gamitin ng Tere ang inyong camera sa consultation. Walang video na nire-record - anonymised color measurements lamang po ang ginagamit para matantiya ang heart rate at blood oxygen.", // TODO cert
   },
 
-  consent_emergency_111:  { en: 'Emergency? Call 111',                    mi: 'He whawhati tata? Waea atu ki te 111',                  sm: 'Fa\'afuase\'i? Vala\'au le 111',                     zh: '紧急情况？请拨打 111',              ja: '緊急ですか？111に電話してください',       ko: '응급 상황? 111에 전화하세요',            de: 'Notfall? 111 anrufen',                       nl: 'Noodgeval? Bel 111',                          fr: 'Urgence ? Appelez le 111',                    es: '¿Emergencia? Llame al 111',                        ar: 'حالة طارئة؟ اتصل بـ 111',                    hi: 'आपातकाल? 111 पर कॉल करें' }, // TODO cert (mi/sm)
-  consent_emergency_1737: { en: 'Mental health crisis? Call or text 1737', mi: 'He raru hinengaro? Waea, tuku pānui rānei ki te 1737', sm: 'Fa\'afitauli o le mafaufau? Vala\'au po\'o tusi 1737', zh: '心理健康危机？请拨打或发短信 1737', ja: 'メンタルヘルス危機？1737に電話またはテキストしてください', ko: '정신 건강 위기? 1737에 전화 또는 문자하세요', de: 'Mental-Health-Krise? Rufen Sie 1737 an oder senden Sie eine SMS', nl: 'Psychische crisis? Bel of sms 1737', fr: 'Crise de santé mentale ? Appelez ou envoyez un SMS au 1737', es: '¿Crisis de salud mental? Llame o envíe un mensaje al 1737', ar: 'أزمة صحية نفسية؟ اتصل أو راسل نصياً 1737', hi: 'मानसिक स्वास्थ्य संकट? 1737 पर कॉल करें या टेक्स्ट करें' }, // TODO cert (mi/sm)
+  consent_emergency_111:  { en: 'Emergency? Call 111',                    mi: 'He whawhati tata? Waea atu ki te 111',                  sm: 'Fa\'afuase\'i? Vala\'au le 111',                     zh: '紧急情况？请拨打 111',              ja: '緊急ですか？111に電話してください',       ko: '응급 상황? 111에 전화하세요',            de: 'Notfall? 111 anrufen',                       nl: 'Noodgeval? Bel 111',                          fr: 'Urgence ? Appelez le 111',                    es: '¿Emergencia? Llame al 111',                        ar: 'حالة طارئة؟ اتصل بـ 111',                    hi: 'आपातकाल? 111 पर कॉल करें', ru: "Чрезвычайная ситуация? Звоните 111" /* TODO cert */, tl: "Emergency po? Tumawag sa 111" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_emergency_1737: { en: 'Mental health crisis? Call or text 1737', mi: 'He raru hinengaro? Waea, tuku pānui rānei ki te 1737', sm: 'Fa\'afitauli o le mafaufau? Vala\'au po\'o tusi 1737', zh: '心理健康危机？请拨打或发短信 1737', ja: 'メンタルヘルス危機？1737に電話またはテキストしてください', ko: '정신 건강 위기? 1737에 전화 또는 문자하세요', de: 'Mental-Health-Krise? Rufen Sie 1737 an oder senden Sie eine SMS', nl: 'Psychische crisis? Bel of sms 1737', fr: 'Crise de santé mentale ? Appelez ou envoyez un SMS au 1737', es: '¿Crisis de salud mental? Llame o envíe un mensaje al 1737', ar: 'أزمة صحية نفسية؟ اتصل أو راسل نصياً 1737', hi: 'मानसिक स्वास्थ्य संकट? 1737 पर कॉल करें या टेक्स्ट करें', ru: "Кризис психического здоровья? Позвоните или напишите на 1737" /* TODO cert */, tl: "Mental health crisis po? Tumawag o mag-text sa 1737" /* TODO cert */ }, // TODO cert (mi/sm)
 
-  consent_continue:     { en: 'Continue →', mi: 'Haere tonu →', sm: 'Fa\'aauau →', zh: '继续 →', ja: '続ける →', ko: '계속 →', de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →', ar: 'متابعة ←', hi: 'जारी रखें →' }, // TODO cert (mi/sm)
-  consent_subtitle_title: { en: 'Live subtitles (optional)', mi: 'Ngā hauraro ora (kōwhiringa)', sm: 'Fa\'aliliuga ola (filifili)', zh: '实时字幕（可选）', ja: 'ライブ字幕（任意）', ko: '실시간 자막 (선택 사항)', de: 'Live-Untertitel (optional)', nl: 'Live-ondertiteling (optioneel)', fr: 'Sous-titres en direct (optionnel)', es: 'Subtítulos en vivo (opcional)', ar: 'الترجمة الحية (اختياري)', hi: 'लाइव सबटाइटल (वैकल्पिक)' }, // TODO cert (mi/sm)
+  consent_continue:     { en: 'Continue →', mi: 'Haere tonu →', sm: 'Fa\'aauau →', zh: '继续 →', ja: '続ける →', ko: '계속 →', de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →', ar: 'متابعة ←', hi: 'जारी रखें →', ru: "Продолжить →" /* TODO cert */, tl: "Magpatuloy →" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_subtitle_title: { en: 'Live subtitles (optional)', mi: 'Ngā hauraro ora (kōwhiringa)', sm: 'Fa\'aliliuga ola (filifili)', zh: '实时字幕（可选）', ja: 'ライブ字幕（任意）', ko: '실시간 자막 (선택 사항)', de: 'Live-Untertitel (optional)', nl: 'Live-ondertiteling (optioneel)', fr: 'Sous-titres en direct (optionnel)', es: 'Subtítulos en vivo (opcional)', ar: 'الترجمة الحية (اختياري)', hi: 'लाइव सबटाइटल (वैकल्पिक)', ru: "Субтитры в реальном времени (по желанию)" /* TODO cert */, tl: "Live subtitles (opsyonal)" /* TODO cert */ }, // TODO cert (mi/sm)
   consent_subtitle_desc: {
     en: 'If you selected a language other than English, we can show AI-translated subtitles during your video consultation. Please understand:',
     mi: 'Ki te kōwhiria e koe he reo tērā atu i te reo Ingarihi, ka taea e mātou te whakaatu i ngā hauraro whakamāoritia e te AI i tō tirohanga ataata. Kia mōhio mai koe:', // TODO cert
@@ -1279,9 +1460,11 @@ const T = {
     es: 'Si seleccionó un idioma que no sea inglés, podemos mostrar subtítulos traducidos por IA durante su consulta por video. Por favor comprenda:',
     ar: 'إذا اخترت لغة غير الإنجليزية، يمكننا عرض ترجمة بالذكاء الاصطناعي أثناء استشارتك عبر الفيديو. يرجى فهم:',
     hi: 'यदि आपने अंग्रेजी के अलावा कोई भाषा चुनी है, तो हम आपके वीडियो परामर्श के दौरान AI-अनुवादित उपशीर्षक दिखा सकते हैं। कृपया समझें:',
+    ru: "Если вы выбрали язык, отличный от английского, мы можем показывать переведённые ИИ субтитры во время видеоконсультации. Пожалуйста, обратите внимание:", // TODO cert
+    tl: "Kung pumili po kayo ng ibang wika maliban sa Ingles, puwede po kaming magpakita ng AI-translated subtitles habang nasa video consultation. Pakiunawa po ang mga sumusunod:", // TODO cert
   }, // TODO cert (mi/sm)
-  consent_subtitle_bullets: { en: '• Automated translation may occasionally be imperfect\n• Your provider will read important instructions in English to confirm\n• If you need a human interpreter, please request one during intake — we can\'t arrange one mid-consultation', mi: '• Ka hē pea te whakamāoritanga aunoa\n• Ka pānui tō rata i ngā tohutohu nunui i te reo Ingarihi hei whakaū\n• Mēnā e hiahia ana koe ki tētahi kaiwhakamāori tangata, tonoa i te wā uruhanga — kāore e taea e mātou te whakarite i waenganui i te tirohanga', sm: '• Atonu e le sa\'o i taimi ni fa\'aliliuga fa\'alelemafaufau\n• O le a faitau e lau foma\'i fa\'atonuga taua i le Igilisi e fa\'amaonia ai\n• Afai e te mana\'omia se fa\'aliliu upu tagata, talosaga i le taimi o le fa\'atatauina — e le mafai ona matou fa\'atulaga i le ogatotonu o le asiasiga', zh: '• 自动翻译偶尔可能不完美\n• 您的医生会用英语重复重要指示以进行确认\n• 如需人工翻译，请在预约登记时提出——我们无法在会诊中途安排', ja: '• 自動翻訳が時々不完全な場合があります\n• 医師は重要な指示を英語でも読み上げて確認します\n• 人間の通訳が必要な場合は、受付時にご依頼ください。診察中には手配できません', ko: '• 자동 번역이 때때로 완벽하지 않을 수 있습니다\n• 의사는 중요한 지침을 영어로 확인합니다\n• 사람 통역사가 필요하신 경우 접수 시 요청해 주세요. 상담 중에는 준비할 수 없습니다', de: '• Automatische Übersetzung kann gelegentlich unvollkommen sein\n• Ihr Arzt liest wichtige Anweisungen auf Englisch zur Bestätigung vor\n• Wenn Sie einen menschlichen Dolmetscher benötigen, bitte bereits bei der Anmeldung anfordern — während der Konsultation können wir keinen mehr organisieren', nl: '• Automatische vertaling kan soms onvolmaakt zijn\n• Uw zorgverlener leest belangrijke instructies in het Engels voor ter bevestiging\n• Als u een menselijke tolk nodig heeft, vraag deze aan bij de intake — tijdens het consult kunnen wij er geen regelen', fr: '• La traduction automatique peut parfois être imparfaite\n• Votre médecin lira les instructions importantes en anglais pour confirmer\n• Si vous avez besoin d\'un interprète humain, demandez-le lors de l\'inscription — nous ne pouvons pas en organiser en cours de consultation', es: '• La traducción automática puede ser ocasionalmente imperfecta\n• Su médico leerá las instrucciones importantes en inglés para confirmar\n• Si necesita un intérprete humano, solicítelo durante el registro — no podemos organizar uno durante la consulta', ar: '• قد تكون الترجمة الآلية غير مثالية أحياناً\n• سيقرأ طبيبك التعليمات المهمة بالإنجليزية للتأكيد\n• إذا كنت بحاجة إلى مترجم بشري، يُرجى طلب ذلك أثناء التسجيل — لا يمكننا ترتيب ذلك أثناء الاستشارة', hi: '• स्वचालित अनुवाद कभी-कभी अपूर्ण हो सकता है\n• आपका डॉक्टर पुष्टि के लिए महत्वपूर्ण निर्देश अंग्रेजी में पढ़ेगा\n• यदि आपको मानव दुभाषिया चाहिए, तो कृपया इनटेक के दौरान अनुरोध करें — परामर्श के दौरान हम व्यवस्था नहीं कर सकते' }, // TODO cert (mi/sm)
-  consent_subtitle_check: { en: 'I understand AI subtitles may be imperfect, and that a human interpreter must be requested during intake — not during the consultation.', mi: 'Kei te mārama ahau ki te kore e tino tika ngā hauraro AI, ā, me tono tētahi kaiwhakamāori tangata i te wā uruhanga — kaua i te wā o te tirohanga.', sm: 'Ou te malamalama e atonu e le sa\'o le fa\'aliliuga AI, ma e tatau ona talosagaina se fa\'aliliu upu tagata i le taimi o le fa\'atatauina — ae le o le taimi o le asiasiga.', zh: '我了解 AI 字幕可能不完美，人工翻译必须在预约登记时申请——不能在会诊期间提出。', ja: 'AI字幕が不完全である可能性があること、および人間の通訳は診察中ではなく受付時に依頼する必要があることを理解しています。', ko: 'AI 자막이 완벽하지 않을 수 있으며, 사람 통역사는 상담 중이 아닌 접수 시 요청해야 함을 이해합니다.', de: 'Ich verstehe, dass KI-Untertitel unvollkommen sein können und dass ein menschlicher Dolmetscher bei der Anmeldung angefordert werden muss — nicht während der Konsultation.', nl: 'Ik begrijp dat AI-ondertitels onvolmaakt kunnen zijn en dat een menselijke tolk bij de intake moet worden aangevraagd — niet tijdens het consult.', fr: 'Je comprends que les sous-titres IA peuvent être imparfaits et qu\'un interprète humain doit être demandé lors de l\'inscription — pas pendant la consultation.', es: 'Entiendo que los subtítulos de IA pueden ser imperfectos y que un intérprete humano debe solicitarse durante el registro — no durante la consulta.', ar: 'أفهم أن ترجمة الذكاء الاصطناعي قد تكون غير كاملة، وأن المترجم البشري يجب طلبه أثناء التسجيل — وليس أثناء الاستشارة.', hi: 'मैं समझता/समझती हूं कि AI उपशीर्षक अपूर्ण हो सकते हैं, और मानव दुभाषिया का अनुरोध इनटेक के दौरान करना होगा — परामर्श के दौरान नहीं।' }, // TODO cert (mi/sm)
+  consent_subtitle_bullets: { en: '• Automated translation may occasionally be imperfect\n• Your provider will read important instructions in English to confirm\n• If you need a human interpreter, please request one during intake — we can\'t arrange one mid-consultation', mi: '• Ka hē pea te whakamāoritanga aunoa\n• Ka pānui tō rata i ngā tohutohu nunui i te reo Ingarihi hei whakaū\n• Mēnā e hiahia ana koe ki tētahi kaiwhakamāori tangata, tonoa i te wā uruhanga — kāore e taea e mātou te whakarite i waenganui i te tirohanga', sm: '• Atonu e le sa\'o i taimi ni fa\'aliliuga fa\'alelemafaufau\n• O le a faitau e lau foma\'i fa\'atonuga taua i le Igilisi e fa\'amaonia ai\n• Afai e te mana\'omia se fa\'aliliu upu tagata, talosaga i le taimi o le fa\'atatauina — e le mafai ona matou fa\'atulaga i le ogatotonu o le asiasiga', zh: '• 自动翻译偶尔可能不完美\n• 您的医生会用英语重复重要指示以进行确认\n• 如需人工翻译，请在预约登记时提出——我们无法在会诊中途安排', ja: '• 自動翻訳が時々不完全な場合があります\n• 医師は重要な指示を英語でも読み上げて確認します\n• 人間の通訳が必要な場合は、受付時にご依頼ください。診察中には手配できません', ko: '• 자동 번역이 때때로 완벽하지 않을 수 있습니다\n• 의사는 중요한 지침을 영어로 확인합니다\n• 사람 통역사가 필요하신 경우 접수 시 요청해 주세요. 상담 중에는 준비할 수 없습니다', de: '• Automatische Übersetzung kann gelegentlich unvollkommen sein\n• Ihr Arzt liest wichtige Anweisungen auf Englisch zur Bestätigung vor\n• Wenn Sie einen menschlichen Dolmetscher benötigen, bitte bereits bei der Anmeldung anfordern — während der Konsultation können wir keinen mehr organisieren', nl: '• Automatische vertaling kan soms onvolmaakt zijn\n• Uw zorgverlener leest belangrijke instructies in het Engels voor ter bevestiging\n• Als u een menselijke tolk nodig heeft, vraag deze aan bij de intake — tijdens het consult kunnen wij er geen regelen', fr: '• La traduction automatique peut parfois être imparfaite\n• Votre médecin lira les instructions importantes en anglais pour confirmer\n• Si vous avez besoin d\'un interprète humain, demandez-le lors de l\'inscription — nous ne pouvons pas en organiser en cours de consultation', es: '• La traducción automática puede ser ocasionalmente imperfecta\n• Su médico leerá las instrucciones importantes en inglés para confirmar\n• Si necesita un intérprete humano, solicítelo durante el registro — no podemos organizar uno durante la consulta', ar: '• قد تكون الترجمة الآلية غير مثالية أحياناً\n• سيقرأ طبيبك التعليمات المهمة بالإنجليزية للتأكيد\n• إذا كنت بحاجة إلى مترجم بشري، يُرجى طلب ذلك أثناء التسجيل — لا يمكننا ترتيب ذلك أثناء الاستشارة', hi: '• स्वचालित अनुवाद कभी-कभी अपूर्ण हो सकता है\n• आपका डॉक्टर पुष्टि के लिए महत्वपूर्ण निर्देश अंग्रेजी में पढ़ेगा\n• यदि आपको मानव दुभाषिया चाहिए, तो कृपया इनटेक के दौरान अनुरोध करें — परामर्श के दौरान हम व्यवस्था नहीं कर सकते', ru: "• Автоматический перевод иногда может быть несовершенным\n• Врач повторит важные указания на английском языке для подтверждения\n• Если вам нужен переводчик-человек, пожалуйста, запросите его при оформлении - мы не сможем организовать его в середине консультации" /* TODO cert */, tl: "• Minsan po ay maaaring hindi perpekto ang automated translation\n• Babasahin po ng doktor ang mahahalagang instruction sa Ingles para kumpirmahin\n• Kung kailangan po ninyo ng human interpreter, pakipag-request habang nagi-intake - hindi po namin maiaayos ito sa gitna ng consultation" /* TODO cert */ }, // TODO cert (mi/sm)
+  consent_subtitle_check: { en: 'I understand AI subtitles may be imperfect, and that a human interpreter must be requested during intake — not during the consultation.', mi: 'Kei te mārama ahau ki te kore e tino tika ngā hauraro AI, ā, me tono tētahi kaiwhakamāori tangata i te wā uruhanga — kaua i te wā o te tirohanga.', sm: 'Ou te malamalama e atonu e le sa\'o le fa\'aliliuga AI, ma e tatau ona talosagaina se fa\'aliliu upu tagata i le taimi o le fa\'atatauina — ae le o le taimi o le asiasiga.', zh: '我了解 AI 字幕可能不完美，人工翻译必须在预约登记时申请——不能在会诊期间提出。', ja: 'AI字幕が不完全である可能性があること、および人間の通訳は診察中ではなく受付時に依頼する必要があることを理解しています。', ko: 'AI 자막이 완벽하지 않을 수 있으며, 사람 통역사는 상담 중이 아닌 접수 시 요청해야 함을 이해합니다.', de: 'Ich verstehe, dass KI-Untertitel unvollkommen sein können und dass ein menschlicher Dolmetscher bei der Anmeldung angefordert werden muss — nicht während der Konsultation.', nl: 'Ik begrijp dat AI-ondertitels onvolmaakt kunnen zijn en dat een menselijke tolk bij de intake moet worden aangevraagd — niet tijdens het consult.', fr: 'Je comprends que les sous-titres IA peuvent être imparfaits et qu\'un interprète humain doit être demandé lors de l\'inscription — pas pendant la consultation.', es: 'Entiendo que los subtítulos de IA pueden ser imperfectos y que un intérprete humano debe solicitarse durante el registro — no durante la consulta.', ar: 'أفهم أن ترجمة الذكاء الاصطناعي قد تكون غير كاملة، وأن المترجم البشري يجب طلبه أثناء التسجيل — وليس أثناء الاستشارة.', hi: 'मैं समझता/समझती हूं कि AI उपशीर्षक अपूर्ण हो सकते हैं, और मानव दुभाषिया का अनुरोध इनटेक के दौरान करना होगा — परामर्श के दौरान नहीं।', ru: "Я понимаю, что субтитры, созданные ИИ, могут быть несовершенными, и что переводчика-человека нужно запрашивать на этапе оформления, а не во время консультации." /* TODO cert */, tl: "Nauunawaan ko po na maaaring hindi perpekto ang AI subtitles, at ang human interpreter ay dapat i-request habang nagi-intake - hindi sa gitna ng consultation." /* TODO cert */ }, // TODO cert (mi/sm)
 
   consent_continue_hint:{ en: 'Tick both required boxes above to continue',
     mi: 'Tirohia ngā pouaka rua e hiahiatia ana ki runga hei haere tonu', // TODO cert
@@ -1296,6 +1479,8 @@ const T = {
     es: 'Marque las dos casillas requeridas arriba para continuar',
     ar: 'ضع علامة على المربعين المطلوبين أعلاه للمتابعة',
     hi: 'जारी रखने के लिए ऊपर दिए गए दोनों आवश्यक बॉक्स पर टिक करें',
+    ru: "Отметьте оба обязательных поля выше, чтобы продолжить", // TODO cert
+    tl: "Tsekan po ang parehong required na kahon sa itaas upang magpatuloy", // TODO cert
   },
 
   // ── US patient intake (terecare.com) ─────────────────────────────────────
@@ -1315,6 +1500,8 @@ const T = {
     fr: 'Où êtes-vous en ce moment ?',
     ar: 'أين تتواجد الآن؟',
     hi: 'आप अभी कहाँ हैं?',
+    ru: "Где вы сейчас находитесь?", // TODO cert
+    tl: "Nasaan po kayo ngayon?", // TODO cert
   },
   us_location_subtitle: {
     en: 'Our physicians can only see patients in states where they are licensed. We need to know your physical location at the time of your visit — not where you live.',
@@ -1328,6 +1515,8 @@ const T = {
     fr: 'Nos médecins ne peuvent recevoir des patients que dans les États où ils sont agréés. Nous avons besoin de votre localisation physique au moment de la consultation — et non de votre lieu de résidence.',
     ar: 'يمكن لأطبائنا استقبال المرضى فقط في الولايات التي يحملون فيها تراخيص. نحتاج إلى معرفة موقعك الفعلي وقت الاستشارة — وليس مكان إقامتك.',
     hi: 'हमारे चिकित्सक केवल उन्हीं राज्यों में मरीज़ों को देख सकते हैं जहाँ वे लाइसेंस-प्राप्त हैं। हमें आपके निवास स्थान की नहीं, बल्कि परामर्श के समय आपकी वास्तविक भौगोलिक स्थिति की जानकारी चाहिए।',
+    ru: "Наши врачи могут принимать пациентов только в штатах, где у них есть лицензия. Нам нужно знать ваше физическое местонахождение на момент приёма - не адрес проживания.", // TODO cert
+    tl: "Puwede lamang pong magpatingin ang aming mga physician sa mga state kung saan sila licensed. Kailangan po naming malaman ang inyong physical location sa oras ng visit - hindi po kung saan kayo nakatira.", // TODO cert
   },
   us_location_state_label: {
     en: 'Your state',
@@ -1341,6 +1530,8 @@ const T = {
     fr: 'Votre État',
     ar: 'ولايتك',
     hi: 'आपका राज्य',
+    ru: "Ваш штат", // TODO cert
+    tl: "Inyong state", // TODO cert
   },
   us_location_detecting: {
     en: '· detecting…',
@@ -1354,6 +1545,8 @@ const T = {
     fr: '· détection…',
     ar: '· يتم الكشف…',
     hi: '· पहचान हो रही है…',
+    ru: "· определяем…", // TODO cert
+    tl: "· tinutukoy po…", // TODO cert
   },
   us_location_state_placeholder: {
     en: '— Select your state —',
@@ -1367,6 +1560,8 @@ const T = {
     fr: '— Sélectionnez votre État —',
     ar: '— اختر ولايتك —',
     hi: '— अपना राज्य चुनें —',
+    ru: "- Выберите штат -", // TODO cert
+    tl: "- Pumili po ng inyong state -", // TODO cert
   },
   us_location_detected_confirm: {
     en: '✓ We detected ${stateName} from your connection. Please confirm this is where you actually are.',
@@ -1380,6 +1575,8 @@ const T = {
     fr: '✓ Nous avons détecté ${stateName} à partir de votre connexion. Veuillez confirmer que vous vous y trouvez bien.',
     ar: '✓ رصدنا ${stateName} من خلال اتصالك. يُرجى تأكيد أنك موجود بالفعل هناك.',
     hi: '✓ आपके कनेक्शन से हमने ${stateName} का पता लगाया है। कृपया पुष्टि करें कि आप वास्तव में वहीं हैं।',
+    ru: "✓ По вашему подключению мы определили ${stateName}. Подтвердите, пожалуйста, что вы действительно там находитесь.", // TODO cert
+    tl: "✓ Natukoy po namin ang ${stateName} mula sa inyong connection. Pakikumpirma po kung talagang nandiyan kayo.", // TODO cert
   },
   us_attest_prefix: {
     en: "I'm physically in ",
@@ -1393,6 +1590,8 @@ const T = {
     fr: 'Je me trouve physiquement en ',
     ar: 'أنا موجود فعلياً في ',
     hi: 'मैं वास्तव में ',
+    ru: "Я физически нахожусь в ", // TODO cert
+    tl: "Nasa ", // TODO cert
   },
   us_attest_suffix: {
     en: ' right now.',
@@ -1406,6 +1605,8 @@ const T = {
     fr: ' en ce moment.',
     ar: ' في هذه اللحظة.',
     hi: ' में उपस्थित हूँ।',
+    ru: " прямо сейчас.", // TODO cert
+    tl: " po ako ngayon.", // TODO cert
   },
   us_attest_fallback_location: {
     en: 'the state selected above',
@@ -1419,6 +1620,8 @@ const T = {
     fr: "l'État sélectionné ci-dessus",
     ar: 'الولاية المختارة أعلاه',
     hi: 'ऊपर चुने गए राज्य',
+    ru: "выбранном выше штате", // TODO cert
+    tl: "state na napili sa itaas", // TODO cert
   },
   us_continue: {
     en: 'Continue  →',
@@ -1432,6 +1635,8 @@ const T = {
     fr: 'Continuer  →',
     ar: 'متابعة  ←',
     hi: 'जारी रखें  →',
+    ru: "Продолжить  →", // TODO cert
+    tl: "Magpatuloy  →", // TODO cert
   },
 
   // Screen 2 — HipaaGate
@@ -1447,6 +1652,8 @@ const T = {
     fr: 'Soins disponibles en ',
     ar: 'الرعاية متاحة في ',
     hi: 'देखभाल उपलब्ध है — ',
+    ru: "Медицинская помощь доступна в ", // TODO cert
+    tl: "May care na available sa ", // TODO cert
   },
   us_hipaa_banner_suffix: {
     en: '. One quick step before we ask about your visit.',
@@ -1460,6 +1667,8 @@ const T = {
     fr: '. Une étape rapide avant que nous vous interrogions sur votre visite.',
     ar: '. خطوة سريعة قبل أن نسألك عن سبب زيارتك.',
     hi: 'में परामर्श दे सकते हैं। आपकी परेशानी पूछने से पहले एक छोटा-सा कदम बाकी है।',
+    ru: ". Один короткий шаг, прежде чем мы спросим о вашем визите.", // TODO cert
+    tl: ". Isang mabilisang hakbang po bago kami magtanong tungkol sa inyong visit.", // TODO cert
   },
   us_hipaa_title: {
     en: 'Your privacy under HIPAA.',
@@ -1473,6 +1682,8 @@ const T = {
     fr: 'Votre vie privée en vertu de la HIPAA.',
     ar: 'خصوصيتك بموجب قانون HIPAA.',
     hi: 'HIPAA के अंतर्गत आपकी गोपनीयता।',
+    ru: "Ваша конфиденциальность в рамках HIPAA.", // TODO cert
+    tl: "Ang inyong privacy sa ilalim ng HIPAA.", // TODO cert
   },
   us_hipaa_subtitle: {
     en: 'Before we collect any health information, please review how we use and protect it.',
@@ -1486,6 +1697,8 @@ const T = {
     fr: 'Avant de recueillir toute information de santé, veuillez consulter la façon dont nous l’utilisons et la protégeons.',
     ar: 'قبل جمع أي معلومات صحية، يُرجى مراجعة كيفية استخدامنا لها وحمايتها.',
     hi: 'कोई भी स्वास्थ्य जानकारी एकत्र करने से पहले, कृपया पढ़ें कि हम इसका उपयोग और संरक्षण कैसे करते हैं।',
+    ru: "Прежде чем мы соберём какую-либо медицинскую информацию, ознакомьтесь, пожалуйста, с тем, как мы её используем и защищаем.", // TODO cert
+    tl: "Bago po kami mangolekta ng health information, pakibasa po kung paano namin ito ginagamit at pinoprotektahan.", // TODO cert
   },
   us_hipaa_bullet_1: {
     en: 'Your health info is used only for your care, payment, and our internal quality processes.',
@@ -1499,6 +1712,8 @@ const T = {
     fr: 'Vos informations de santé ne sont utilisées que pour vos soins, le paiement et nos processus internes de qualité.',
     ar: 'تُستخدم معلوماتك الصحية فقط لأغراض الرعاية والدفع وعمليات ضمان الجودة الداخلية لدينا.',
     hi: 'आपकी स्वास्थ्य जानकारी केवल आपकी देखभाल, भुगतान और हमारी आंतरिक गुणवत्ता प्रक्रियाओं के लिए उपयोग की जाती है।',
+    ru: "Ваша медицинская информация используется только для вашего лечения, оплаты и наших внутренних процессов контроля качества.", // TODO cert
+    tl: "Ang inyong health info ay ginagamit lamang po para sa inyong care, payment, at sa internal quality processes namin.", // TODO cert
   },
   us_hipaa_bullet_2: {
     en: 'Stored encrypted on AWS under a Business Associate Agreement — not shared with employers, insurers, or advertisers.',
@@ -1512,6 +1727,8 @@ const T = {
     fr: 'Stockées chiffrées sur AWS dans le cadre d’un Business Associate Agreement — jamais partagées avec des employeurs, assureurs ou annonceurs.',
     ar: 'يتم تخزينها مشفَّرة على AWS بموجب اتفاقية الشريك التجاري (BAA)، ولا تتم مشاركتها مع أصحاب العمل أو شركات التأمين أو المُعلنين.',
     hi: 'AWS पर व्यावसायिक सहयोगी अनुबंध (BAA) के अंतर्गत एन्क्रिप्टेड रूप में संग्रहीत — नियोक्ताओं, बीमाकर्ताओं या विज्ञापनदाताओं के साथ साझा नहीं की जाती।',
+    ru: "Хранится в зашифрованном виде в AWS в рамках Соглашения с бизнес-партнёром (BAA) - не передаётся работодателям, страховщикам или рекламодателям.", // TODO cert
+    tl: "Naka-encrypt pong imbak sa AWS sa ilalim ng Business Associate Agreement - hindi po ibinabahagi sa mga employer, insurer, o advertiser.", // TODO cert
   },
   us_hipaa_bullet_3: {
     en: 'Never sold. Never used for marketing without your permission.',
@@ -1525,6 +1742,8 @@ const T = {
     fr: 'Jamais vendues. Jamais utilisées à des fins marketing sans votre autorisation.',
     ar: 'لا تُباع أبداً. ولا تُستخدم لأغراض تسويقية دون إذنك.',
     hi: 'कभी बेची नहीं जाती। आपकी अनुमति के बिना कभी विपणन के लिए उपयोग नहीं की जाती।',
+    ru: "Никогда не продаётся. Никогда не используется для маркетинга без вашего согласия.", // TODO cert
+    tl: "Hindi po kailanman ipinagbibili. Hindi po ginagamit para sa marketing nang walang pahintulot ninyo.", // TODO cert
   },
   us_hipaa_bullet_4: {
     en: 'You have the right to access your records, request amendments, and file complaints (with us or with HHS Office for Civil Rights).',
@@ -1538,6 +1757,8 @@ const T = {
     fr: 'Vous avez le droit d’accéder à votre dossier, de demander des modifications et de déposer une plainte (auprès de nous ou de l’Office for Civil Rights du HHS).',
     ar: 'يحق لك الاطلاع على سجلاتك وطلب تعديلها وتقديم الشكاوى (لدينا أو لدى مكتب الحقوق المدنية التابع لوزارة HHS الأمريكية).',
     hi: 'आपको अपने रिकॉर्ड देखने, संशोधन का अनुरोध करने और शिकायत दर्ज करने का अधिकार है (हमारे साथ या HHS के Office for Civil Rights के साथ)।',
+    ru: "Вы имеете право на доступ к своим записям, запрос их изменения и подачу жалобы (нам или в Управление по гражданским правам HHS).", // TODO cert
+    tl: "May karapatan po kayong tingnan ang inyong records, humiling ng amendment, at magsampa ng reklamo (sa amin o sa HHS Office for Civil Rights).", // TODO cert
   },
   us_hipaa_bullet_5: {
     en: "We'll notify you within 60 days if a breach of your data ever occurred.",
@@ -1551,6 +1772,8 @@ const T = {
     fr: 'Nous vous informerons dans les 60 jours en cas de violation de vos données.',
     ar: 'سنُبلغك خلال 60 يوماً في حال حدوث أي انتهاك لبياناتك.',
     hi: 'यदि आपके डेटा में कभी कोई उल्लंघन होता है, तो हम 60 दिनों के भीतर आपको सूचित करेंगे।',
+    ru: "Мы уведомим вас в течение 60 дней в случае утечки ваших данных.", // TODO cert
+    tl: "Aabisuhan po namin kayo sa loob ng 60 araw kung may breach na mangyari sa inyong data.", // TODO cert
   },
   us_hipaa_full_details_prefix: {
     en: 'For the full details: ',
@@ -1564,6 +1787,8 @@ const T = {
     fr: 'Pour tous les détails : ',
     ar: 'للاطلاع على التفاصيل الكاملة: ',
     hi: 'पूरी जानकारी के लिए: ',
+    ru: "Для получения полной информации: ", // TODO cert
+    tl: "Para sa buong detalye: ", // TODO cert
   },
   us_hipaa_full_details_link: {
     en: 'Read our full Notice of Privacy Practices →',
@@ -1577,6 +1802,8 @@ const T = {
     fr: 'Lire notre Avis complet sur les pratiques de confidentialité →',
     ar: 'اقرأ إشعار ممارسات الخصوصية الكامل ←',
     hi: 'हमारा पूरा Notice of Privacy Practices पढ़ें →',
+    ru: "Прочитать полный Notice of Privacy Practices →", // TODO cert
+    tl: "Basahin ang buong Notice of Privacy Practices →", // TODO cert
   },
   us_hipaa_ack_label: {
     en: "I acknowledge I've received and reviewed Tere Care's Notice of Privacy Practices.",
@@ -1590,6 +1817,8 @@ const T = {
     fr: 'Je reconnais avoir reçu et lu l’Avis sur les pratiques de confidentialité de Tere Care.',
     ar: 'أُقرّ بأنني تسلّمت واطّلعت على إشعار ممارسات الخصوصية الخاص بـ Tere Care.',
     hi: 'मैं पुष्टि करता/करती हूँ कि मुझे Tere Care का Notice of Privacy Practices प्राप्त हुआ है और मैंने उसे पढ़ लिया है।',
+    ru: "Я подтверждаю, что получил и ознакомился с Notice of Privacy Practices компании Tere Care.", // TODO cert
+    tl: "Kinikilala ko po na natanggap at nabasa ko ang Notice of Privacy Practices ng Tere Care.", // TODO cert
   },
   us_wrong_state_prefix: {
     en: 'Wrong state? ',
@@ -1603,6 +1832,8 @@ const T = {
     fr: 'Mauvais État ? ',
     ar: 'الولاية غير صحيحة؟ ',
     hi: 'गलत राज्य? ',
+    ru: "Не тот штат? ", // TODO cert
+    tl: "Mali po ang state? ", // TODO cert
   },
   us_wrong_state_link: {
     en: 'Change your state',
@@ -1616,6 +1847,8 @@ const T = {
     fr: 'Changer d’État',
     ar: 'تغيير الولاية',
     hi: 'अपना राज्य बदलें',
+    ru: "Изменить штат", // TODO cert
+    tl: "Baguhin ang inyong state", // TODO cert
   },
 
   // Screen 3a — IntakeForm
@@ -1631,6 +1864,8 @@ const T = {
     fr: 'Soins disponibles en ',
     ar: 'الرعاية متاحة في ',
     hi: 'देखभाल उपलब्ध है — ',
+    ru: "Медицинская помощь доступна в ", // TODO cert
+    tl: "May care na available sa ", // TODO cert
   },
   us_intake_banner_suffix: {
     en: '.',
@@ -1644,6 +1879,8 @@ const T = {
     fr: '.',
     ar: '.',
     hi: 'में परामर्श दे सकते हैं।',
+    ru: ".", // TODO cert
+    tl: ".", // TODO cert
   },
   us_intake_beta: {
     en: 'Beta',
@@ -1657,6 +1894,8 @@ const T = {
     fr: 'Bêta',
     ar: 'إصدار تجريبي',
     hi: 'बीटा',
+    ru: "Бета", // TODO cert
+    tl: "Beta", // TODO cert
   },
   us_intake_title: {
     en: 'Tell us a bit about you.',
@@ -1670,6 +1909,8 @@ const T = {
     fr: 'Parlez-nous un peu de vous.',
     ar: 'أخبرنا قليلاً عنك.',
     hi: 'हमें अपने बारे में थोड़ा बताएं।',
+    ru: "Расскажите немного о себе.", // TODO cert
+    tl: "Magkuwento po ng kaunti tungkol sa inyong sarili.", // TODO cert
   },
   us_intake_subtitle: {
     en: "We're in early launch — a licensed physician will reach out personally to book your visit within one business day. No payment required to submit this form.",
@@ -1683,6 +1924,8 @@ const T = {
     fr: 'Nous sommes en phase de lancement — un médecin agréé vous contactera personnellement dans un délai d’un jour ouvré pour fixer votre rendez-vous. Aucun paiement n’est requis pour soumettre ce formulaire.',
     ar: 'نحن في مرحلة الإطلاق المبكر — سيتواصل معك طبيب مرخّص شخصياً خلال يوم عمل واحد لتحديد موعد استشارتك. لا يلزم أي دفع لإرسال هذا النموذج.',
     hi: 'हम शुरुआती चरण में हैं — एक लाइसेंस-प्राप्त चिकित्सक एक कार्यदिवस के भीतर व्यक्तिगत रूप से संपर्क करके आपकी विज़िट तय करेंगे। यह फ़ॉर्म भेजने के लिए किसी भुगतान की आवश्यकता नहीं है।',
+    ru: "Мы на раннем этапе запуска - лицензированный врач свяжется с вами лично в течение одного рабочего дня, чтобы записать на приём. Для отправки этой формы оплата не требуется.", // TODO cert
+    tl: "Nasa early launch po kami - isang licensed physician po ang personal na makikipag-ugnayan upang mag-book ng visit sa loob ng isang business day. Walang bayad po para isumite ang form na ito.", // TODO cert
   },
   us_intake_name_label: {
     en: 'Full name',
@@ -1696,6 +1939,8 @@ const T = {
     fr: 'Nom complet',
     ar: 'الاسم الكامل',
     hi: 'पूरा नाम',
+    ru: "Полное имя", // TODO cert
+    tl: "Buong pangalan", // TODO cert
   },
   us_intake_email_label: {
     en: 'Email',
@@ -1709,6 +1954,8 @@ const T = {
     fr: 'E-mail',
     ar: 'البريد الإلكتروني',
     hi: 'ईमेल',
+    ru: "Эл. почта", // TODO cert
+    tl: "Email", // TODO cert
   },
   us_intake_mobile_label: {
     en: 'Mobile',
@@ -1722,6 +1969,8 @@ const T = {
     fr: 'Mobile',
     ar: 'الهاتف المحمول',
     hi: 'मोबाइल',
+    ru: "Мобильный", // TODO cert
+    tl: "Mobile", // TODO cert
   },
   us_intake_mobile_optional: {
     en: '(optional but faster)',
@@ -1735,6 +1984,8 @@ const T = {
     fr: '(facultatif, mais plus rapide)',
     ar: '(اختياري ولكنه أسرع)',
     hi: '(वैकल्पिक, परंतु तेज़)',
+    ru: "(необязательно, но быстрее)", // TODO cert
+    tl: "(opsyonal pero mas mabilis)", // TODO cert
   },
   us_intake_complaint_label: {
     en: "What's going on?",
@@ -1748,6 +1999,8 @@ const T = {
     fr: 'Que se passe-t-il ?',
     ar: 'ما الذي تعانيه؟',
     hi: 'क्या हो रहा है?',
+    ru: "Что происходит?", // TODO cert
+    tl: "Ano po ang nangyari?", // TODO cert
   },
   us_intake_complaint_placeholder: {
     en: "Brief description of what you're experiencing (UTI symptoms, cold, minor injury, prescription refill, etc.)",
@@ -1761,6 +2014,8 @@ const T = {
     fr: 'Brève description de ce que vous ressentez (symptômes d’infection urinaire, rhume, blessure légère, renouvellement d’ordonnance, etc.)',
     ar: 'وصف موجز لما تعاني منه (أعراض التهاب المسالك البولية، نزلة برد، إصابة طفيفة، تجديد وصفة طبية، إلخ)',
     hi: 'आप जो अनुभव कर रहे हैं उसका संक्षिप्त विवरण (जैसे UTI लक्षण, सर्दी-ज़ुकाम, मामूली चोट, दवा फिर से लिखवाना आदि)',
+    ru: "Краткое описание того, что вы испытываете (симптомы инфекции мочевыводящих путей, простуда, незначительная травма, повторная выписка рецепта и т. д.)", // TODO cert
+    tl: "Maiikling paglalarawan ng inyong nararanasan (UTI symptoms, sipon, maliit na pinsala, prescription refill, atbp.)", // TODO cert
   },
   us_intake_submit_error: {
     en: 'Sorry — something went wrong submitting your details. Please try again or email hello@terecare.com directly.',
@@ -1774,6 +2029,8 @@ const T = {
     fr: 'Désolé — un problème est survenu lors de l’envoi de vos informations. Veuillez réessayer ou écrire directement à hello@terecare.com.',
     ar: 'نأسف — حدثت مشكلة أثناء إرسال بياناتك. يُرجى المحاولة مرة أخرى أو مراسلتنا مباشرة على hello@terecare.com.',
     hi: 'क्षमा करें — आपकी जानकारी भेजते समय कुछ गड़बड़ हुई। कृपया पुनः प्रयास करें या सीधे hello@terecare.com पर ईमेल करें।',
+    ru: "Извините - при отправке ваших данных произошла ошибка. Пожалуйста, попробуйте ещё раз или напишите напрямую на hello@terecare.com.", // TODO cert
+    tl: "Pasensya na po - may nangyaring problema sa pag-submit ng inyong details. Pakisubukan ulit o mag-email po direkta sa hello@terecare.com.", // TODO cert
   },
   us_sending: {
     en: 'Sending…',
@@ -1787,6 +2044,8 @@ const T = {
     fr: 'Envoi en cours…',
     ar: 'جارٍ الإرسال…',
     hi: 'भेजा जा रहा है…',
+    ru: "Отправка…", // TODO cert
+    tl: "Ipinapadala…", // TODO cert
   },
   us_intake_send: {
     en: 'Send my details →',
@@ -1800,6 +2059,8 @@ const T = {
     fr: 'Envoyer mes informations →',
     ar: 'إرسال بياناتي ←',
     hi: 'मेरी जानकारी भेजें →',
+    ru: "Отправить мои данные →", // TODO cert
+    tl: "Ipadala ang aking details →", // TODO cert
   },
   us_intake_emergency_prefix: {
     en: 'Not for emergencies.',
@@ -1813,6 +2074,8 @@ const T = {
     fr: 'Ce service n’est pas destiné aux urgences.',
     ar: 'هذه الخدمة ليست مخصصة لحالات الطوارئ.',
     hi: 'यह आपातकालीन उपयोग के लिए नहीं है।',
+    ru: "Не для экстренных случаев.", // TODO cert
+    tl: "Hindi po para sa emergency.", // TODO cert
   },
   us_intake_emergency_body_prefix: {
     en: ' If you have chest pain, breathing difficulty, severe bleeding, or any life-threatening symptom, call ',
@@ -1826,6 +2089,8 @@ const T = {
     fr: ' En cas de douleur thoracique, de difficulté respiratoire, de saignement grave ou de tout symptôme mettant la vie en danger, composez le ',
     ar: ' في حال معاناتك من ألم في الصدر أو صعوبة في التنفس أو نزيف شديد أو أي عرض يُهدّد الحياة، فاتصل بالرقم ',
     hi: ' यदि आपको सीने में दर्द, सांस लेने में कठिनाई, तेज़ रक्तस्राव या कोई जानलेवा लक्षण है, तो ',
+    ru: " Если у вас боль в груди, затруднённое дыхание, сильное кровотечение или любой угрожающий жизни симптом, звоните по номеру ", // TODO cert
+    tl: " Kung mayroon po kayong pananakit ng dibdib, kahirapan sa paghinga, matinding pagdurugo, o kahit anong life-threatening symptom, tumawag po sa ", // TODO cert
   },
   us_intake_emergency_body_suffix: {
     en: ' or go to your nearest ER.',
@@ -1839,6 +2104,8 @@ const T = {
     fr: ' ou rendez-vous aux urgences les plus proches.',
     ar: ' أو توجّه إلى أقرب قسم للطوارئ.',
     hi: ' पर कॉल करें या निकटतम आपातकालीन कक्ष (ER) जाएँ।',
+    ru: " или обратитесь в ближайшее отделение неотложной помощи (ER).", // TODO cert
+    tl: " o pumunta po sa pinakamalapit na ER.", // TODO cert
   },
 
   // Screen 3b — WaitlistForm
@@ -1854,6 +2121,8 @@ const T = {
     fr: 'Non encore agréés en ${stateName}.',
     ar: 'لم نحصل بعد على ترخيص في ${stateName}.',
     hi: '${stateName} में अभी तक लाइसेंस नहीं है।',
+    ru: "Пока не лицензированы в ${stateName}.", // TODO cert
+    tl: "Wala pa pong lisensya sa ${stateName}.", // TODO cert
   },
   us_waitlist_banner_rest: {
     en: " We can only see patients in states where our physicians are actively licensed. We're expanding — leave your details and we'll email you the moment we're live in your state.",
@@ -1867,6 +2136,8 @@ const T = {
     fr: ' Nous ne pouvons recevoir des patients que dans les États où nos médecins sont activement agréés. Nous nous développons — laissez-nous vos coordonnées et nous vous enverrons un e-mail dès que nous serons disponibles dans votre État.',
     ar: ' يمكننا استقبال المرضى فقط في الولايات التي يحمل فيها أطباؤنا تراخيص سارية. نحن في مرحلة توسّع — اترك بياناتك وسنراسلك عبر البريد الإلكتروني فور بدء عملنا في ولايتك.',
     hi: ' हम केवल उन्हीं राज्यों में मरीज़ों को देख सकते हैं जहाँ हमारे चिकित्सक सक्रिय रूप से लाइसेंस-प्राप्त हैं। हम विस्तार कर रहे हैं — अपनी जानकारी छोड़ दें और जैसे ही हम आपके राज्य में उपलब्ध होंगे, हम आपको ईमेल कर देंगे।',
+    ru: " Мы можем принимать пациентов только в штатах, где наши врачи имеют действующую лицензию. Мы расширяем географию - оставьте свои данные, и мы отправим вам письмо, как только появимся в вашем штате.", // TODO cert
+    tl: " Puwede lamang po kaming magpatingin sa mga state kung saan aktibong licensed ang aming mga physician. Nag-eexpand po kami - iwan ang inyong details at mag-eemail po kami agad pag live na kami sa inyong state.", // TODO cert
   },
   us_waitlist_title: {
     en: 'Join the waitlist.',
@@ -1880,6 +2151,8 @@ const T = {
     fr: 'Rejoignez la liste d’attente.',
     ar: 'انضم إلى قائمة الانتظار.',
     hi: 'प्रतीक्षा सूची में शामिल हों।',
+    ru: "Записаться в лист ожидания.", // TODO cert
+    tl: "Sumali sa waitlist.", // TODO cert
   },
   us_waitlist_subtitle: {
     en: "Two fields — no obligation. We'll only email you when Tere Care launches in ${stateName}.",
@@ -1893,6 +2166,8 @@ const T = {
     fr: 'Deux champs — sans engagement. Nous vous écrirons uniquement lorsque Tere Care sera disponible en ${stateName}.',
     ar: 'حقلان فقط — دون أي التزام. سنراسلك عبر البريد الإلكتروني فقط عند إطلاق Tere Care في ${stateName}.',
     hi: 'सिर्फ़ दो फ़ील्ड — कोई बाध्यता नहीं। हम आपको केवल तभी ईमेल करेंगे जब Tere Care ${stateName} में शुरू होगा।',
+    ru: "Два поля - без обязательств. Мы напишем вам, только когда Tere Care запустится в ${stateName}.", // TODO cert
+    tl: "Dalawang field lang po - walang obligasyon. Mag-eemail po kami lamang pag live na ang Tere Care sa ${stateName}.", // TODO cert
   },
   us_waitlist_name_label: {
     en: 'Name',
@@ -1906,6 +2181,8 @@ const T = {
     fr: 'Nom',
     ar: 'الاسم',
     hi: 'नाम',
+    ru: "Имя", // TODO cert
+    tl: "Pangalan", // TODO cert
   },
   us_waitlist_submit_error: {
     en: 'Sorry — something went wrong. Please try again or email hello@terecare.com directly.',
@@ -1919,6 +2196,8 @@ const T = {
     fr: 'Désolé — un problème est survenu. Veuillez réessayer ou écrire directement à hello@terecare.com.',
     ar: 'نأسف — حدثت مشكلة ما. يُرجى المحاولة مرة أخرى أو مراسلتنا مباشرة على hello@terecare.com.',
     hi: 'क्षमा करें — कुछ गड़बड़ हो गई। कृपया पुनः प्रयास करें या सीधे hello@terecare.com पर ईमेल करें।',
+    ru: "Извините - что-то пошло не так. Пожалуйста, попробуйте ещё раз или напишите напрямую на hello@terecare.com.", // TODO cert
+    tl: "Pasensya na po - may problema. Pakisubukan ulit o mag-email po direkta sa hello@terecare.com.", // TODO cert
   },
   us_waitlist_send: {
     en: 'Add me to the waitlist →',
@@ -1932,6 +2211,8 @@ const T = {
     fr: 'M’ajouter à la liste d’attente →',
     ar: 'أضِفني إلى قائمة الانتظار ←',
     hi: 'मुझे प्रतीक्षा सूची में जोड़ें →',
+    ru: "Добавить меня в лист ожидания →", // TODO cert
+    tl: "Idagdag po ako sa waitlist →", // TODO cert
   },
 
   // Screen 4 — Confirmation
@@ -1947,6 +2228,8 @@ const T = {
     fr: 'Merci — nous avons bien reçu vos informations.',
     ar: 'شكراً لك — تم استلام بياناتك.',
     hi: 'धन्यवाद — हमें आपकी जानकारी मिल गई है।',
+    ru: "Спасибо - всё получено.", // TODO cert
+    tl: "Salamat po - natanggap na namin.", // TODO cert
   },
   us_done_title_waitlist: {
     en: "You're on the list.",
@@ -1960,6 +2243,8 @@ const T = {
     fr: 'Vous êtes sur la liste.',
     ar: 'تمّت إضافتك إلى القائمة.',
     hi: 'आप सूची में शामिल हैं।',
+    ru: "Вы в списке.", // TODO cert
+    tl: "Nasa list na po kayo.", // TODO cert
   },
   us_done_body_intake: {
     en: 'A licensed physician will reach out within one business day to schedule your visit. Check your email — you may get a confirmation from hello@terecare.com.',
@@ -1973,6 +2258,8 @@ const T = {
     fr: 'Un médecin agréé vous contactera dans un délai d’un jour ouvré pour fixer votre rendez-vous. Consultez votre boîte e-mail — vous recevrez peut-être une confirmation de hello@terecare.com.',
     ar: 'سيتواصل معك طبيب مرخّص خلال يوم عمل واحد لتحديد موعد استشارتك. تحقّق من بريدك الإلكتروني — قد يصلك تأكيد من hello@terecare.com.',
     hi: 'एक कार्यदिवस के भीतर एक लाइसेंस-प्राप्त चिकित्सक आपसे विज़िट तय करने के लिए संपर्क करेंगे। अपना ईमेल देखें — आपको hello@terecare.com से एक पुष्टिकरण मिल सकता है।',
+    ru: "Лицензированный врач свяжется с вами в течение одного рабочего дня, чтобы согласовать время приёма. Проверьте почту - вам может прийти подтверждение с адреса hello@terecare.com.", // TODO cert
+    tl: "Isang licensed physician po ang makikipag-ugnayan sa loob ng isang business day para i-schedule ang inyong visit. Pakicheck po ang email - maaaring makatanggap po kayo ng confirmation mula sa hello@terecare.com.", // TODO cert
   },
   us_done_body_waitlist: {
     en: "We'll email you the moment Tere Care goes live in your state. No spam, no follow-up unless you want it.",
@@ -1986,6 +2273,8 @@ const T = {
     fr: 'Nous vous enverrons un e-mail dès que Tere Care sera disponible dans votre État. Pas de spam, pas de relance, sauf si vous le souhaitez.',
     ar: 'سنراسلك عبر البريد الإلكتروني فور إطلاق Tere Care في ولايتك. لا رسائل مزعجة، ولا متابعات إلا إذا رغبت في ذلك.',
     hi: 'जैसे ही Tere Care आपके राज्य में उपलब्ध होगा, हम आपको ईमेल कर देंगे। कोई स्पैम नहीं, और जब तक आप न चाहें, कोई फ़ॉलो-अप नहीं।',
+    ru: "Мы напишем вам, как только Tere Care запустится в вашем штате. Никакого спама и дальнейшей переписки - только если вы сами захотите.", // TODO cert
+    tl: "Mag-eemail po kami sa inyo agad kapag live na ang Tere Care sa inyong state. Walang spam, walang follow-up maliban kung gusto ninyo.", // TODO cert
   },
   us_done_back_home: {
     en: 'Back to home',
@@ -1999,6 +2288,8 @@ const T = {
     fr: 'Retour à l’accueil',
     ar: 'العودة إلى الصفحة الرئيسية',
     hi: 'मुख्य पृष्ठ पर वापस जाएँ',
+    ru: "Назад на главную", // TODO cert
+    tl: "Bumalik sa home", // TODO cert
   },
 
   // ─── GeoGateModal — shown to patients before any consult; must be translated
@@ -2015,6 +2306,8 @@ const T = {
     de: 'Standort wird überprüft…', nl: 'Locatie wordt gecontroleerd…',
     fr: 'Vérification de votre emplacement…', es: 'Comprobando su ubicación…',
     ar: 'جارٍ التحقق من موقعك…', hi: 'आपका स्थान जांचा जा रहा है…',
+    ru: "Проверяем ваше местоположение…", // TODO cert
+    tl: "Chineck po ang inyong location…", // TODO cert
   },
   geo_checking_wait: {
     en: 'One moment.',
@@ -2024,6 +2317,8 @@ const T = {
     de: 'Einen Moment bitte.', nl: 'Een moment.',
     fr: 'Un instant.', es: 'Un momento.',
     ar: 'لحظة من فضلك.', hi: 'एक क्षण।',
+    ru: "Один момент.", // TODO cert
+    tl: "Sandali lang po.", // TODO cert
   },
   geo_blocked_title: {
     en: 'Available in New Zealand only',
@@ -2035,6 +2330,8 @@ const T = {
     fr: 'Disponible uniquement en Nouvelle-Zélande',
     es: 'Disponible únicamente en Nueva Zelanda',
     ar: 'متاح في نيوزيلندا فقط', hi: 'केवल न्यूज़ीलैंड में उपलब्ध',
+    ru: "Доступно только в Новой Зеландии", // TODO cert
+    tl: "Available po lamang sa New Zealand", // TODO cert
   },
   geo_blocked_body: {
     en: 'Tere Health can only see patients who are physically in Aotearoa New Zealand at the time of the consultation. Our physicians are registered under NZ law (MCNZ) and our indemnity cover is scoped to NZ care.',
@@ -2050,6 +2347,8 @@ const T = {
     es: 'Tere Health solo puede atender a pacientes que se encuentren físicamente en Aotearoa Nueva Zelanda en el momento de la consulta. Nuestros médicos están registrados conforme a la ley neozelandesa (MCNZ) y nuestra cobertura de responsabilidad se limita a la atención en Nueva Zelanda.',
     ar: 'لا يمكن لـ Tere Health رؤية سوى المرضى الموجودين فعلياً في أوتياروا نيوزيلندا وقت الاستشارة. أطباؤنا مسجلون وفقاً للقانون النيوزيلندي (MCNZ) وتغطية التأمين لدينا محصورة بالرعاية داخل نيوزيلندا.',
     hi: 'Tere Health केवल उन रोगियों को देख सकता है जो परामर्श के समय शारीरिक रूप से आओटियारोआ न्यूज़ीलैंड में हैं। हमारे डॉक्टर न्यूज़ीलैंड कानून (MCNZ) के तहत पंजीकृत हैं और हमारी क्षतिपूर्ति कवर न्यूज़ीलैंड में देखभाल तक सीमित है।',
+    ru: "Tere Health может принимать только тех пациентов, которые физически находятся в Аотеароа Новой Зеландии на момент консультации. Наши врачи зарегистрированы в соответствии с законодательством Новой Зеландии (MCNZ), и наша страховка ответственности распространяется только на медицинскую помощь в Новой Зеландии.", // TODO cert
+    tl: "Puwede lamang pong magpatingin ang Tere Health sa mga pasyenteng pisikal na nasa Aotearoa New Zealand sa oras ng consultation. Ang aming mga doktor ay rehistrado sa ilalim ng batas ng NZ (MCNZ) at ang aming indemnity cover ay para lamang sa NZ care.", // TODO cert
   },
   geo_blocked_ip: {
     en: "We're seeing your connection as ${country}. If you're using a VPN or corporate network that routes traffic overseas, please disable it and try again.",
@@ -2065,6 +2364,8 @@ const T = {
     es: 'Detectamos que su conexión proviene de ${country}. Si está usando una VPN o una red corporativa que enruta el tráfico al extranjero, desactívela e inténtelo de nuevo.',
     ar: 'نرى أن اتصالك يبدو من ${country}. إذا كنت تستخدم شبكة VPN أو شبكة عمل توجّه حركة الإنترنت إلى الخارج، يرجى تعطيلها والمحاولة مرة أخرى.',
     hi: 'हम आपका कनेक्शन ${country} में देख रहे हैं। यदि आप कोई VPN या ऐसा कॉर्पोरेट नेटवर्क उपयोग कर रहे हैं जो ट्रैफ़िक विदेश भेजता है, तो कृपया उसे बंद करके फिर से प्रयास करें।',
+    ru: "Мы видим ваше подключение как ${country}. Если вы используете VPN или корпоративную сеть, направляющую трафик за рубеж, отключите её и попробуйте ещё раз.", // TODO cert
+    tl: "Lumalabas po na nasa ${country} ang inyong connection. Kung gumagamit po kayo ng VPN o corporate network na nagda-direct ng traffic sa ibang bansa, pakipatay po at subukan ulit.", // TODO cert
   },
   geo_retry: {
     en: "I'm in NZ — retry",
@@ -2075,6 +2376,8 @@ const T = {
     de: 'Ich bin in NZ — erneut versuchen', nl: 'Ik ben in NZ — opnieuw proberen',
     fr: 'Je suis en NZ — réessayer', es: 'Estoy en NZ — reintentar',
     ar: 'أنا في نيوزيلندا — إعادة المحاولة', hi: 'मैं न्यूज़ीलैंड में हूँ — पुनः प्रयास करें',
+    ru: "Я в Новой Зеландии - повторить", // TODO cert
+    tl: "Nasa NZ po ako - subukan ulit", // TODO cert
   },
   geo_close: {
     en: 'Close',
@@ -2083,6 +2386,8 @@ const T = {
     yue: '關閉', ja: '閉じる', ko: '닫기',
     de: 'Schließen', nl: 'Sluiten', fr: 'Fermer', es: 'Cerrar',
     ar: 'إغلاق', hi: 'बंद करें',
+    ru: "Закрыть", // TODO cert
+    tl: "Isara", // TODO cert
   },
   geo_attest_title: {
     en: "Confirm you're in New Zealand",
@@ -2095,6 +2400,8 @@ const T = {
     fr: 'Confirmez que vous êtes en Nouvelle-Zélande',
     es: 'Confirme que se encuentra en Nueva Zelanda',
     ar: 'أكد أنك في نيوزيلندا', hi: 'पुष्टि करें कि आप न्यूज़ीलैंड में हैं',
+    ru: "Подтвердите, что вы в Новой Зеландии", // TODO cert
+    tl: "Kumpirmahin po na nasa New Zealand kayo", // TODO cert
   },
   geo_attest_body: {
     en: 'Our physicians can only see patients who are physically in New Zealand at the time of the consultation. Please confirm below before we begin.',
@@ -2110,6 +2417,8 @@ const T = {
     es: 'Nuestros médicos solo pueden atender a pacientes que se encuentren físicamente en Nueva Zelanda en el momento de la consulta. Por favor confirme a continuación antes de comenzar.',
     ar: 'لا يمكن لأطبائنا رؤية سوى المرضى الموجودين فعلياً في نيوزيلندا وقت الاستشارة. يرجى التأكيد أدناه قبل أن نبدأ.',
     hi: 'हमारे डॉक्टर केवल उन रोगियों को देख सकते हैं जो परामर्श के समय शारीरिक रूप से न्यूज़ीलैंड में हैं। शुरू करने से पहले कृपया नीचे पुष्टि करें।',
+    ru: "Наши врачи могут принимать только тех пациентов, которые физически находятся в Новой Зеландии на момент консультации. Пожалуйста, подтвердите это ниже, прежде чем мы начнём.", // TODO cert
+    tl: "Puwede lamang pong magpatingin ang aming mga doktor sa mga pasyenteng pisikal na nasa New Zealand sa oras ng consultation. Pakikumpirma po sa ibaba bago tayo magsimula.", // TODO cert
   },
   geo_attest_checkbox_bold: {
     en: 'I am physically located in New Zealand right now.',
@@ -2122,6 +2431,8 @@ const T = {
     fr: 'Je me trouve actuellement physiquement en Nouvelle-Zélande.',
     es: 'Actualmente me encuentro físicamente en Nueva Zelanda.',
     ar: 'أنا حالياً موجود فعلياً في نيوزيلندا.', hi: 'मैं इस समय शारीरिक रूप से न्यूज़ीलैंड में हूँ।',
+    ru: "Я физически нахожусь в Новой Зеландии прямо сейчас.", // TODO cert
+    tl: "Pisikal po akong nasa New Zealand ngayon mismo.", // TODO cert
   },
   geo_attest_checkbox_rest: {
     en: 'I understand that I cannot be seen by a Tere Health clinician if I am overseas, and that providing false information here is a serious matter.',
@@ -2137,6 +2448,8 @@ const T = {
     es: 'Entiendo que no puedo ser atendido por un médico de Tere Health si me encuentro en el extranjero, y que proporcionar información falsa aquí es un asunto grave.',
     ar: 'أدرك أنه لا يمكن أن يراني طبيب من Tere Health إذا كنت خارج نيوزيلندا، وأن تقديم معلومات كاذبة هنا أمر خطير.',
     hi: 'मैं समझता/समझती हूँ कि यदि मैं विदेश में हूँ तो Tere Health का चिकित्सक मुझे नहीं देख सकता, और यहाँ गलत जानकारी देना एक गंभीर विषय है।',
+    ru: "Я понимаю, что не смогу получить консультацию у клинициста Tere Health, если нахожусь за рубежом, и что предоставление ложной информации здесь - серьёзный проступок.", // TODO cert
+    tl: "Nauunawaan ko po na hindi ako puwedeng magpatingin sa clinician ng Tere Health kung nasa ibang bansa ako, at ang pagbibigay ng maling impormasyon dito ay isang seryosong bagay.", // TODO cert
   },
   geo_continue: {
     en: 'Continue →',
@@ -2145,6 +2458,8 @@ const T = {
     yue: '繼續 →', ja: '続ける →', ko: '계속 →',
     de: 'Weiter →', nl: 'Doorgaan →', fr: 'Continuer →', es: 'Continuar →',
     ar: 'متابعة →', hi: 'जारी रखें →',
+    ru: "Продолжить →", // TODO cert
+    tl: "Magpatuloy →", // TODO cert
   },
   geo_attest_ip_warning: {
     en: "(Your connection appears to be in ${country}. We've flagged this for the clinician.)",
@@ -2160,6 +2475,8 @@ const T = {
     es: '(Su conexión parece encontrarse en ${country}. Lo hemos marcado para el médico.)',
     ar: '(يبدو أن اتصالك في ${country}. لقد أبلغنا الطبيب بذلك.)',
     hi: '(आपका कनेक्शन ${country} में दिखाई दे रहा है। हमने चिकित्सक के लिए इसे चिह्नित कर दिया है।)',
+    ru: "(Ваше подключение, по-видимому, в ${country}. Мы отметили это для клинициста.)", // TODO cert
+    tl: "(Lumalabas po na nasa ${country} ang inyong connection. Na-flag po namin ito para sa clinician.)", // TODO cert
   },
 }
 

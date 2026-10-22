@@ -10,7 +10,7 @@
 //
 // Body: {
 //   text:            string,          // source utterance
-//   source_lang:     'en'|'sm'|'mi'|'zh'|'ja'|'ko'|'de'|'fr'|'es'|'ar'|'hi',
+//   source_lang:     'en'|'sm'|'mi'|'zh'|'ja'|'ko'|'de'|'fr'|'es'|'ar'|'hi'|'ru'|'tl',
 //   target_lang:     same set,
 //   consultation_id: uuid (optional — for transcript persistence),
 //   speaker:         'patient'|'provider',
@@ -43,7 +43,7 @@ import { PROMPT_SAFETY_PREAMBLE, wrapUserInput } from './_prompt-safety.js'
 // versa) means the /call page opens the mic to AWS Transcribe and then
 // bounces every translate request with a 400 — which is exactly the Dutch
 // bug we hit in prod on 2026-07-09.
-const SUBTITLE_WHITELIST = new Set(['en','zh','yue','ja','ko','de','nl','fr','es','pt','it','ar','hi','mi','sm'])
+const SUBTITLE_WHITELIST = new Set(['en','zh','yue','ja','ko','de','nl','fr','es','pt','it','ar','hi','mi','sm','ru','tl'])
 
 const LANG_NAMES = {
   en: 'English', zh: 'Chinese (Simplified)', yue: 'Cantonese (Traditional, 粵語)',
@@ -52,6 +52,7 @@ const LANG_NAMES = {
   pt: 'Portuguese (Brazilian)', it: 'Italian',
   ar: 'Arabic', hi: 'Hindi',
   mi: 'Te Reo Māori', sm: 'Samoan (Gagana Sāmoa)',
+  ru: 'Russian', tl: 'Filipino',
 }
 
 function admin() {
