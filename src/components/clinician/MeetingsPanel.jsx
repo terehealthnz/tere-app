@@ -73,6 +73,22 @@ export default function MeetingsPanel() {
 
   async function joinAsHost(m) {
     if (busy[m.id]) return
+    // IMPORTANT: open the tab synchronously inside the click handler.
+    // Safari (and Chrome, increasingly) blocks window.open() after an
+    // intervening `await` because the call is no longer attributable to
+    // a direct user gesture. We open about:blank now, flip its location
+    // once the token comes back. `noopener` is omitted on purpose so we
+    // keep a handle on the window; the host-room page doesn't talk back.
+    const tab = window.open('about:blank', '_blank')
+    if (!tab) {
+      window.alert('Pop-ups are blocked. Allow pop-ups for this site and click Join as host again.')
+      return
+    }
+    // Render a placeholder immediately so the user doesn't stare at a
+    // blank tab while the token mints.
+    try {
+      tab.document.write('<title>Loading meeting…</title><div style="font-family:system-ui;padding:40px;color:#374151">Preparing your video room…</div>')
+    } catch {}
     setBusy(b => ({ ...b, [m.id]: true }))
     try {
       const res = await apiFetch('/api/business-meetings?action=host_token', {
@@ -80,18 +96,29 @@ export default function MeetingsPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: m.id }),
       })
-      const body = await res.json()
-      if (!res.ok) { window.alert(body.error || 'Could not open the room.'); return }
-      if (body.mock) { window.alert('LiveKit not configured — demo mode only.'); return }
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        try { tab.close() } catch {}
+        window.alert(body.error || 'Could not open the room.')
+        return
+      }
+      if (body.mock) {
+        try { tab.close() } catch {}
+        window.alert('LiveKit not configured — demo mode only.')
+        return
+      }
       const params = new URLSearchParams({
         token:     body.token,
         serverUrl: body.serverUrl,
         title:     m.title || 'Meeting',
         guest:     m.guest_name || '',
       })
-      window.open(`/meeting-host?${params.toString()}`, '_blank', 'noopener')
+      tab.location.href = `/meeting-host?${params.toString()}`
       // Refresh to show "in_progress"
       setTimeout(refresh, 500)
+    } catch (e) {
+      try { tab.close() } catch {}
+      window.alert('Could not open the room: ' + (e?.message || 'unknown error'))
     } finally {
       setBusy(b => { const n = { ...b }; delete n[m.id]; return n })
     }
