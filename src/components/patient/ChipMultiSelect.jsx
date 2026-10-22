@@ -106,6 +106,14 @@ export default function ChipMultiSelect({ options, value, onChange, onSubmit, pl
 
       {!isNone && (
         <>
+          {/* Guidance hint — users on the 2026-10-22 mobile walk didn't
+              realise the picker allows free-text entry below the search
+              list. Shown while empty so first-time users see both paths. */}
+          {empty && (
+            <div style={{ fontSize: '.75rem', color: 'var(--muted)', marginBottom: 6 }}>
+              {labels.hint || 'Search the list, or type your own below.'}
+            </div>
+          )}
           {/* Search input */}
           <input
             type="text"

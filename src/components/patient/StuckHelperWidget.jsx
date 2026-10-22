@@ -55,33 +55,42 @@ export default function StuckHelperWidget() {
     navigate(`/contact?${params.toString()}`)
   }
 
+  // Positioned bottom-right on narrow viewports and as a compact circle
+  // (icon only, with aria-label) so it never overlaps a step's Skip or
+  // Continue button. The 2026-10-22 mobile walk found the previous
+  // bottom-left pill was large enough to intercept pointer events on top
+  // of the photo-upload Skip control; shrinking + moving fixes that.
+  // Full-text pill reappears on wider viewports where there's no CTA
+  // conflict and the extra label aids discoverability.
   return (
     <button
       type="button"
       onClick={openHelp}
       aria-label="Stuck on this page? Get help"
+      title="Stuck? Get help"
       style={{
         position: 'fixed',
-        bottom: 20,
-        left: 20,
+        bottom: 'calc(16px + env(safe-area-inset-bottom))',
+        right:  'calc(16px + env(safe-area-inset-right))',
         zIndex: 999,
         background: '#0B6E76',
         color: 'white',
         border: 'none',
-        padding: '10px 16px',
-        borderRadius: 999,
+        width: 44,
+        height: 44,
+        padding: 0,
+        borderRadius: '50%',
         fontFamily: 'Plus Jakarta Sans, sans-serif',
-        fontSize: '.8125rem',
+        fontSize: '1.1rem',
         fontWeight: 700,
         cursor: 'pointer',
-        boxShadow: '0 4px 12px rgba(0,0,0,.15)',
+        boxShadow: '0 4px 12px rgba(0,0,0,.2)',
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'center',
       }}
     >
-      <span style={{ fontSize: '1rem' }}>💬</span>
-      Stuck? Get help
+      <span aria-hidden="true">💬</span>
     </button>
   )
 }

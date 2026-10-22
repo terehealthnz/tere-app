@@ -1661,7 +1661,7 @@ export default function AITriage() {
           <p style={{marginBottom:'2rem',lineHeight:1.7,color:'#374151'}}>{t_bilingual('physical_body', lang)}</p>
           <a href="tel:111" style={{display:'block',background:'#DC2626',color:'white',textDecoration:'none',borderRadius:14,padding:'1.25rem',fontSize:'1.25rem',fontWeight:700,marginBottom:'1rem',boxShadow:'0 4px 12px rgba(220,38,38,0.4)'}}>📞 Call 111</a>
           <LocationPromptRow />
-          <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline'}}>{t('physical_back', lang)}</button>
+          <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#9CA3AF',fontSize:'.8125rem',cursor:'pointer',textDecoration:'underline',minHeight:44,padding:'10px 16px',marginTop:'.5rem'}}>{t('physical_back', lang)}</button>
         </div>
       </div>
     </div>
@@ -1754,7 +1754,7 @@ export default function AITriage() {
           </div>
           <div style={{marginTop:16,textAlign:'left'}}><LocationPromptRow /></div>
           <p style={{fontSize:'.75rem',color:'#78350F',marginTop:'1.25rem'}}>
-            Answered wrong? <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#78350F',fontSize:'.75rem',cursor:'pointer',textDecoration:'underline'}}>go back</button>
+            Answered wrong? <button onClick={()=>setEmergency(null)} style={{background:'none',border:'none',color:'#78350F',fontSize:'.9rem',fontWeight:600,cursor:'pointer',textDecoration:'underline',minHeight:44,padding:'10px 12px',display:'inline-flex',alignItems:'center'}}>go back</button>
           </p>
         </div>
       </div>

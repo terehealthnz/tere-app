@@ -97,6 +97,13 @@ export default function PhonePicker({ value, onChange }) {
   // splitE164 result — if the incoming value's dial code isn't in
   // COUNTRIES, we hydrate into Other mode automatically.
   const [otherMode, setOtherMode] = React.useState(!!initial.other)
+  // Fires once the user has focused + left the local field without
+  // entering anything, or interacted with the dial picker. Mirrors the
+  // DobPicker amber-hint pattern — the Continue button goes grey with
+  // no indication which field is missing on iOS, so we highlight the
+  // empty required field in amber and show an inline hint below.
+  const [touched, setTouched] = React.useState(false)
+  const localMissing = touched && !normaliseLocal(local)
 
   // Emit E.164 upstream whenever either half changes. Empty local
   // emits '' so the step's own validate() gate keeps working.
@@ -107,9 +114,10 @@ export default function PhonePicker({ value, onChange }) {
 
   const selectStyle = { width: 110, flexShrink: 0, padding: '.6rem .5rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white' }
   const otherDialStyle = { width: 84, flexShrink: 0, padding: '.6rem .5rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white', textAlign: 'center' }
-  const inputStyle  = { flex: 1, width: '100%', padding: '.6rem .75rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem', minWidth: 0, letterSpacing: '.02em' }
+  const inputStyle  = { flex: 1, width: '100%', padding: '.6rem .75rem', border: `1.5px solid ${localMissing ? '#F59E0B' : 'var(--border)'}`, borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem', minWidth: 0, letterSpacing: '.02em' }
 
   return (
+    <div>
     <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
       {otherMode ? (
         // "Other" mode — small +NNN text field plus a link to switch
@@ -131,6 +139,7 @@ export default function PhonePicker({ value, onChange }) {
             autoComplete="tel-national"
             value={local}
             onChange={e => { const l = e.target.value; setLocal(l); emit(dial, l) }}
+            onBlur={() => setTouched(true)}
             placeholder="Phone number"
             style={inputStyle}
             aria-label="Phone number"
@@ -175,12 +184,19 @@ export default function PhonePicker({ value, onChange }) {
             autoComplete="tel-national"
             value={local}
             onChange={e => { const l = e.target.value; setLocal(l); emit(dial, l) }}
+            onBlur={() => setTouched(true)}
             placeholder={dial === '+64' ? '21 234 5678' : 'Phone number'}
             style={inputStyle}
             aria-label="Phone number"
           />
         </>
       )}
+    </div>
+    {localMissing && (
+      <div style={{ marginTop: 6, fontSize: '.8rem', color: '#92400E', fontWeight: 600 }}>
+        Please enter a phone number to continue.
+      </div>
+    )}
     </div>
   )
 }
