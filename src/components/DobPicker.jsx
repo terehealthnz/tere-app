@@ -93,9 +93,20 @@ export default function DobPicker({
   }
 
   const maxY = maxYear || new Date().getFullYear()
+  // Per-field "needs attention" flag. Fires once the user has entered ANY
+  // other field but left this one empty — the common iOS Safari trap where
+  // the Month placeholder ("Month…") reads as a filled value and the user
+  // taps Continue to a silently-greyed button with no indication which
+  // field is missing. We highlight the empty required field in amber and
+  // show an inline hint below.
+  const anyTouched = !!(d || m || y)
+  const dayMissing   = anyTouched && !d
+  const monthMissing = anyTouched && !m
+  const yearMissing  = anyTouched && !y
+
   const dayBase = {
     padding: '6px 8px',
-    border: '1.5px solid #E2E8F0',
+    border: `1.5px solid ${dayMissing ? '#F59E0B' : '#E2E8F0'}`,
     borderRadius: 6,
     fontSize: '.9rem',
     fontFamily: 'inherit',
@@ -104,7 +115,7 @@ export default function DobPicker({
   }
   const monthBase = {
     padding: '6px 8px',
-    border: '1.5px solid #E2E8F0',
+    border: `1.5px solid ${monthMissing ? '#F59E0B' : '#E2E8F0'}`,
     borderRadius: 6,
     fontSize: '.9rem',
     fontFamily: 'inherit',
@@ -112,62 +123,86 @@ export default function DobPicker({
     flex: 1,
     minWidth: '9em',
     background: 'white',
+    // Mute the placeholder text so "Month…" is visually distinct from a
+    // real selected month — stops users thinking the field is already set.
+    color: m ? 'inherit' : '#9CA3AF',
   }
-  const yearBase = { ...dayBase, width: '5.5em' }
+  const yearBase = {
+    ...dayBase,
+    border: `1.5px solid ${yearMissing ? '#F59E0B' : '#E2E8F0'}`,
+    width: '5.5em',
+  }
+
+  // Humanised hint when fields are missing. Only renders once the user
+  // has started filling the picker, so an untouched form stays quiet.
+  const missing = []
+  if (dayMissing)   missing.push('day')
+  if (monthMissing) missing.push('month')
+  if (yearMissing)  missing.push('year')
+  const hint = missing.length
+    ? `Please pick a ${missing.join(' and ')} to continue.`
+    : null
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', ...(style || {}) }}>
-      <input
-        id={id ? `${id}-day` : undefined}
-        type="number"
-        inputMode="numeric"
-        min={1}
-        max={daysInMonth(Number(m), Number(y))}
-        placeholder="DD"
-        value={d}
-        onChange={e => {
-          const v = e.target.value.replace(/\D/g, '').slice(0, 2)
-          emit(v, m, y)
-        }}
-        disabled={disabled}
-        required={required}
-        aria-label="Day of birth"
-        autoComplete={autoComplete === 'bday' ? 'bday-day' : undefined}
-        style={{ ...dayBase, ...(inputStyle || {}) }}
-      />
-      <select
-        id={id ? `${id}-month` : undefined}
-        value={m}
-        onChange={e => emit(d, e.target.value, y)}
-        disabled={disabled}
-        required={required}
-        aria-label="Month of birth"
-        autoComplete={autoComplete === 'bday' ? 'bday-month' : undefined}
-        style={{ ...monthBase, ...(selectStyle || {}) }}
-      >
-        <option value="">Month…</option>
-        {MONTHS.map(mo => (
-          <option key={mo.v} value={mo.v}>{mo.name}</option>
-        ))}
-      </select>
-      <input
-        id={id ? `${id}-year` : undefined}
-        type="number"
-        inputMode="numeric"
-        min={minYear}
-        max={maxY}
-        placeholder="YYYY"
-        value={y}
-        onChange={e => {
-          const v = e.target.value.replace(/\D/g, '').slice(0, 4)
-          emit(d, m, v)
-        }}
-        disabled={disabled}
-        required={required}
-        aria-label="Year of birth"
-        autoComplete={autoComplete === 'bday' ? 'bday-year' : undefined}
-        style={{ ...yearBase, ...(inputStyle || {}) }}
-      />
+    <div style={{ ...(style || {}) }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input
+          id={id ? `${id}-day` : undefined}
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={daysInMonth(Number(m), Number(y))}
+          placeholder="DD"
+          value={d}
+          onChange={e => {
+            const v = e.target.value.replace(/\D/g, '').slice(0, 2)
+            emit(v, m, y)
+          }}
+          disabled={disabled}
+          required={required}
+          aria-label="Day of birth"
+          autoComplete={autoComplete === 'bday' ? 'bday-day' : undefined}
+          style={{ ...dayBase, ...(inputStyle || {}) }}
+        />
+        <select
+          id={id ? `${id}-month` : undefined}
+          value={m}
+          onChange={e => emit(d, e.target.value, y)}
+          disabled={disabled}
+          required={required}
+          aria-label="Month of birth"
+          autoComplete={autoComplete === 'bday' ? 'bday-month' : undefined}
+          style={{ ...monthBase, ...(selectStyle || {}) }}
+        >
+          <option value="">Month…</option>
+          {MONTHS.map(mo => (
+            <option key={mo.v} value={mo.v} style={{ color: 'inherit' }}>{mo.name}</option>
+          ))}
+        </select>
+        <input
+          id={id ? `${id}-year` : undefined}
+          type="number"
+          inputMode="numeric"
+          min={minYear}
+          max={maxY}
+          placeholder="YYYY"
+          value={y}
+          onChange={e => {
+            const v = e.target.value.replace(/\D/g, '').slice(0, 4)
+            emit(d, m, v)
+          }}
+          disabled={disabled}
+          required={required}
+          aria-label="Year of birth"
+          autoComplete={autoComplete === 'bday' ? 'bday-year' : undefined}
+          style={{ ...yearBase, ...(inputStyle || {}) }}
+        />
+      </div>
+      {hint && (
+        <div style={{ marginTop: 6, fontSize: '.8rem', color: '#92400E', fontWeight: 600 }}>
+          {hint}
+        </div>
+      )}
     </div>
   )
 }
