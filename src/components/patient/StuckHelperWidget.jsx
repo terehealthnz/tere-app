@@ -19,8 +19,12 @@ import { useNavigate, useLocation } from 'react-router-dom'
 // by default — we want an allow-list, not a deny-list, so new patient
 // routes we add later have to explicitly opt in and we don't accidentally
 // leak the pill onto marketing/corporate/clinician surfaces.
+//
+// NOTE: /triage is intentionally excluded. The AI chat IS the help
+// channel there — the composer send button lives bottom-right and the
+// widget would both duplicate the intent and physically overlap the
+// submit control on iOS (confirmed via Patrick's 2026-10-21 screenshot).
 const SHOW_ON_PREFIXES = [
-  '/triage',
   '/vitals',
   '/consultation-type',
   '/payment',
