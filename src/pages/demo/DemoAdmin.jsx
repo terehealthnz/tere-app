@@ -192,7 +192,7 @@ const STEPS = [
   },
   {
     title: 'Revenue and analytics',
-    narration: "$1,235 in employer-covered consultations this month from 4 accounts. The employer model provides predictable revenue and removes payment friction for distributed workforces.",
+    narration: "$1,235 in employer-covered consultations this month from 4 accounts. The employer model provides predictable revenue and removes payment friction for rural workers.",
     screen: <EmployersScreen />,
   },
 ]

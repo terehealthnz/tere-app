@@ -145,7 +145,7 @@ export function detectRegion() {
 const CONFIG = {
   [REGIONS.NZ]: {
     brand:            'Tere Health',
-    tagline:          'Telemedicine, on your phone.',
+    tagline:          'Rural telemedicine, on your phone.',
     currency:         'NZD',
     currencySymbol:   '$',
     emergency:        '111',
@@ -163,7 +163,7 @@ const CONFIG = {
   },
   [REGIONS.AU]: {
     brand:            'Tere Health Australia',
-    tagline:          'Telemedicine, on your phone.',
+    tagline:          'Rural telemedicine, on your phone.',
     currency:         'AUD',
     currencySymbol:   '$',
     emergency:        '000',
@@ -199,7 +199,7 @@ const CONFIG = {
   },
   [REGIONS.CORP]: {
     brand:            'Tere Health Ltd',
-    tagline:          'Telemedicine platform across New Zealand, United States, and Australia.',
+    tagline:          'Rural telemedicine platform — New Zealand, United States, and Australia.',
     // No currency / emergency / poison / e-prescribing — corporate page
     // never serves patient intake so these fields are left null.
     currency:         null,

@@ -154,7 +154,7 @@ function WhyTere() {
   const points = [
     ['🏠', 'Work from anywhere in NZ', 'All consultations are remote. No commute, no fixed clinic hours.'],
     ['🕐', 'Set your own hours', 'Toggle your availability on or off any time. Work when it suits you.'],
-    ['🌿', 'Make a real difference', 'Our patients are across Aotearoa, often with limited access to care. Your work matters.'],
+    ['🌿', 'Make a real difference', 'Our patients are rural communities with limited access to care. Your work matters.'],
     ['🤖', 'Modern platform', 'No paperwork. Clinical notes are auto-generated from your consultation.'],
     ['✅', 'ACC handled automatically', 'We register and file ACC claims on your behalf.'],
     ['💊', 'Prescriptions sent electronically', 'Write and send prescriptions digitally — straight to the patient\'s pharmacy.'],

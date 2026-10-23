@@ -249,7 +249,7 @@ export default function TereCorporate() {
       {/* BENTO — what we've built. Variable-size tiles, one large with the inbox screenshot. */}
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '5rem 1.5rem 3rem' }}>
         <SectionEyebrow>What we've built</SectionEyebrow>
-        <SectionHeading>Everything a telemedicine service needs, component by component.</SectionHeading>
+        <SectionHeading>Everything a rural telemedicine service needs, component by component.</SectionHeading>
         <p style={{ color: '#4B5563', fontSize: '1rem', margin: '0 0 2.5rem', maxWidth: 620, lineHeight: 1.6 }}>
           Each of these runs in production today, serving NZ patients. License the pieces that fit your workflow, or run the full platform under your brand.
         </p>
@@ -260,7 +260,7 @@ export default function TereCorporate() {
           <Bento span={4} image="/corporate/vitals-capture.png" imageAlt="Patient using their phone to capture vitals — heart rate, oxygen saturation, and respiratory rate in real time">
             <BentoTitle icon="scan">Vitals from a phone camera</BentoTitle>
             <BentoBody>
-              Patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in about thirty seconds. No wearable, no peripheral. Nothing for patients to buy or set up.
+              Patients hold up their phone. Heart rate, oxygen saturation, and respiratory rate stream in about thirty seconds. No wearable, no peripheral. Nothing for rural patients to buy or set up.
             </BentoBody>
           </Bento>
 
@@ -306,7 +306,7 @@ export default function TereCorporate() {
           {/* Row 2 — 3 standard tiles */}
           <Bento span={2}>
             <BentoTitle icon="video">Video consult</BentoTitle>
-            <BentoBody>End-to-end video visits built for patients on patchy connections and older devices. Waiting room, transcript, in-call notes.</BentoBody>
+            <BentoBody>End-to-end video visits built for patients on rural connections and older devices. Waiting room, transcript, in-call notes.</BentoBody>
           </Bento>
 
           <Bento span={2}>
@@ -351,7 +351,7 @@ export default function TereCorporate() {
                 <span style={{ color: TEAL_L, fontStyle: 'italic' }}>~30 seconds. No wearable.</span>
               </h2>
               <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,.78)', lineHeight: 1.6, margin: '0 0 1.75rem', maxWidth: 480 }}>
-                The patient's own phone becomes the sensor. Meaningful readings without a wearable, without asking patients to buy hardware they don't have.
+                The patient's own phone becomes the sensor. Meaningful readings without a wearable, without asking rural patients to buy hardware they don't have.
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.75rem', marginBottom: '1.5rem' }}>
                 {[
@@ -399,8 +399,8 @@ export default function TereCorporate() {
         </p>
 
         {[
-          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service across Aotearoa. The live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
-          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and provider networks across Aotearoa. Your patient data stays with you.', status: 'available', link: 'mailto:terehealthnz@gmail.com?subject=Book%20a%20demo%20Integration' },
+          { icon: 'heart',   title: 'NZ direct telehealth',            desc: 'Our own consumer telemedicine service for rural NZ patients. The live proof point for everything above.', status: 'live', link: 'https://terehealth.co.nz' },
+          { icon: 'network', title: 'Practice or organisation integration', desc: 'Run the full platform under your brand, or integrate the parts that fill gaps in what you already use. Fits GPs, PHOs, allied health, aged care, and rural provider networks. Your patient data stays with you.', status: 'available', link: 'mailto:terehealthnz@gmail.com?subject=Book%20a%20demo%20Integration' },
         ].map((row, i) => (
           <div key={row.title} className="corp-deploy-row" style={{
             display: 'flex', alignItems: 'center', gap: '1.25rem',
@@ -563,7 +563,7 @@ export default function TereCorporate() {
               Let's talk
             </div>
             <h2 style={{ fontFamily: SERIF, fontSize: 'clamp(2rem, 3.6vw, 2.9rem)', fontWeight: 600, lineHeight: 1.05, margin: '0 0 1.25rem', letterSpacing: '-.01em' }}>
-              Bring Tere grade telehealth into&nbsp;your practice.
+              Bring rural grade telehealth into&nbsp;your practice.
             </h2>
             <p style={{ color: 'rgba(255,255,255,.75)', fontSize: '1rem', margin: '0 0 1.75rem', maxWidth: 520, lineHeight: 1.55 }}>
               Whether you're evaluating a full white label deployment or want to plug a single component (vitals, lab receive, prescribing) into what you already run, we'd like to hear how it might fit.

@@ -44,7 +44,7 @@ function Hero() {
           Healthcare for your workforce, wherever they work
         </h1>
         <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 2.25rem', fontFamily: FF }}>
-          Keep your team healthy and on the job with on-demand tele-emergency care. FACEM-led emergency medicine for workplaces across Aotearoa.
+          Keep your team healthy and on the job with on-demand tele-emergency care. FACEM-led emergency medicine for rural and maritime New Zealand.
         </p>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={`mailto:${CONTACT}?subject=Employer enquiry, get a quote`} style={{
@@ -243,7 +243,7 @@ function WhoItsFor() {
     { icon: '🌾', label: 'Agriculture & horticulture' },
     { icon: '🌲', label: 'Forestry' },
     { icon: '🏕️', label: 'Tourism & hospitality' },
-    { icon: '📍', label: 'Any employer with distributed or remote workers' },
+    { icon: '📍', label: 'Any employer with rural or remote workers' },
   ]
   return (
     <section style={{ background: 'white', padding: '5rem 1.5rem' }}>
