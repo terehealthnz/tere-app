@@ -257,13 +257,14 @@ function DashboardTab() {
 
 // ── Analytics tab ─────────────────────────────────────────────────────────────
 
-// Operations funnel panel (task #582). Pulls /api/consult-funnel and renders
-// a horizontal step-reach bar + a severity-flagged drop-off table so an admin
-// can see at a glance where patients bail and rescue the acute ones. Separate
-// from AnalyticsTab's revenue stats which only count completed consults.
+// Operations funnel panel (task #582). Pulls /api/consult-funnel for the
+// severity-flagged rescue list AND /api/patient-funnel for the full
+// landing-to-done pageview funnel. Separate from AnalyticsTab's revenue
+// stats which only count completed consults.
 function FunnelPanel({ days }) {
   const navigate = useNavigate()
-  const [data, setData] = useState(null)
+  const [data, setData] = useState(null)      // consult-funnel (rescue list)
+  const [pvData, setPvData] = useState(null)  // patient-funnel (pageview bars)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -271,10 +272,14 @@ function FunnelPanel({ days }) {
     async function load() {
       setLoading(true)
       try {
-        const r = await apiFetch(`/api/consult-funnel?days=${days}`)
-        const j = await r.json()
-        if (!cancelled) setData(j)
-      } catch { if (!cancelled) setData(null) }
+        const [cf, pv] = await Promise.all([
+          apiFetch(`/api/consult-funnel?days=${days}`),
+          apiFetch(`/api/patient-funnel?hours=${days * 24}`).catch(() => null),
+        ])
+        const cfJson = await cf.json().catch(() => null)
+        const pvJson = pv ? await pv.json().catch(() => null) : null
+        if (!cancelled) { setData(cfJson); setPvData(pvJson) }
+      } catch { if (!cancelled) { setData(null); setPvData(null) } }
       finally { if (!cancelled) setLoading(false) }
     }
     load()
@@ -286,10 +291,13 @@ function FunnelPanel({ days }) {
       <div className="spinner" style={{ borderColor:'rgba(11,110,118,.15)', borderTopColor:TEAL }} />
     </div>
   )
-  if (!data || !data.funnel) return null
+  if (!data || (!data.funnel && !pvData?.funnel)) return null
 
-  const funnel = data.funnel
-  const total = data.total || 0
+  // Prefer the pageview funnel so admin sees the full landing-to-done flow,
+  // including / and /start pre-triage. Falls back to the consult-funnel when
+  // the pageview endpoint is empty or errored.
+  const funnel = (pvData?.funnel?.length ? pvData.funnel : null) || data.funnel || []
+  const total = (pvData?.total ?? data.total) || 0
   const dropOffs = data.drop_offs || []
   const severityCount = dropOffs.filter(d => d.severity_flag).length
 

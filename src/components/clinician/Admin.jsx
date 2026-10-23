@@ -6585,7 +6585,8 @@ function FunnelPanel() {
   const [from, setFrom] = React.useState(nzToday)
   const [to,   setTo]   = React.useState(nzToday)
   const [showDismissed, setShowDismissed] = React.useState(false)
-  const [data, setData] = React.useState(null)
+  const [data, setData] = React.useState(null)       // /api/consult-funnel — rescue list
+  const [pvData, setPvData] = React.useState(null)   // /api/patient-funnel — pageview funnel
   const [loading, setLoading] = React.useState(true)
   // Local set of consult_ids optimistically dismissed/undismissed since last
   // fetch, so the row vanishes/returns instantly without waiting on reload.
@@ -6639,12 +6640,20 @@ function FunnelPanel() {
   const reload = React.useCallback(async () => {
     setLoading(true)
     try {
+      // Fetch both in parallel. Consult-funnel drives the rescue list +
+      // post-triage detail; patient-funnel (pageviews) drives the top-of-
+      // funnel bars so admin sees landing → language → consent as well.
       const q = `from=${from}&to=${to}${showDismissed ? '&show_dismissed=true' : ''}`
-      const r = await apiFetch(`/api/consult-funnel?${q}`)
-      const j = await r.json()
-      setData(j)
+      const [cfRes, pvRes] = await Promise.all([
+        apiFetch(`/api/consult-funnel?${q}`),
+        apiFetch(`/api/patient-funnel?from=${from}&to=${to}`).catch(() => null),
+      ])
+      const cfJson = await cfRes.json().catch(() => null)
+      const pvJson = pvRes ? await pvRes.json().catch(() => null) : null
+      setData(cfJson)
+      setPvData(pvJson)
       setPendingDismiss(new Set())
-    } catch { setData(null) }
+    } catch { setData(null); setPvData(null) }
     finally { setLoading(false) }
   }, [from, to, showDismissed])
 
@@ -6670,8 +6679,13 @@ function FunnelPanel() {
   const NAVY = '#0D2B45'
   const TEAL = '#0B6E76'
 
-  const funnel = data?.funnel || []
-  const total = data?.total || 0
+  // Prefer the pageview funnel for the bars rendering so admin sees the
+  // full landing → done flow. Falls back to the consult-funnel if the
+  // pageview endpoint is empty or errored. The abandoned-consult rescue
+  // list below still uses consult-funnel data (it needs patient contact
+  // details which pageviews don't have).
+  const funnel = (pvData?.funnel?.length ? pvData.funnel : null) || data?.funnel || []
+  const total = (pvData?.total ?? data?.total) || 0
   // Hide optimistically-dismissed rows (and show optimistically-undismissed
   // when user toggled "show dismissed"). The next reload reconciles.
   const rawDropOffs = data?.drop_offs || []
@@ -6694,8 +6708,8 @@ function FunnelPanel() {
     <div style={card}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'.5rem' }}>
         <div>
-          <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY, marginBottom:'.25rem' }}>Consultation funnel</div>
-          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Where patients drop off before finishing a visit</div>
+          <div style={{ fontSize:'1rem', fontWeight:700, color:NAVY, marginBottom:'.25rem' }}>Patient funnel</div>
+          <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Landing to done, with drop-off at each step</div>
         </div>
         <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
           <button onClick={() => { setFrom(nzToday); setTo(nzToday) }} style={pillStyle(activePreset==='today')}>Today</button>
@@ -6711,7 +6725,7 @@ function FunnelPanel() {
       {loading ? (
         <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>Loading…</div>
       ) : total === 0 ? (
-        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No consults in this window.</div>
+        <div style={{ textAlign:'center', padding:'1.5rem', color:'#9CA3AF' }}>No patient sessions in this window.</div>
       ) : (
         <>
           {/* Funnel bars */}
