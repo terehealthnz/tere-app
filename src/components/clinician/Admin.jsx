@@ -7645,7 +7645,11 @@ function AdminBody() {
 
   return (
     <div style={{ minHeight:'100dvh', background:'#F0F2F5', fontFamily:'Plus Jakarta Sans, sans-serif' }}>
-      <nav style={{ background:'#0D2B45', padding:'.875rem 1.5rem', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+      {/* Sticky nav — stays pinned so admin can always navigate without
+          scrolling to the top. Safe-area-inset-top padding handles iPhone
+          notch / Dynamic Island when running as a PWA (added to home
+          screen), where the status bar area would otherwise mask the nav. */}
+      <nav style={{ background:'#0D2B45', padding:'.875rem 1.5rem', paddingTop:'calc(.875rem + env(safe-area-inset-top, 0px))', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:10 }}>
         <div style={{ display:'flex', alignItems:'center', gap:'1.5rem' }}>
           <span onClick={() => navigate('/admin')} style={{ fontFamily:'Cormorant Garamond, serif', fontStyle:'italic', color:'#D4EEF0', fontSize:'1.3rem', cursor:'pointer', userSelect:'none', transition:'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'} role="link" aria-label="Tere Health — go to admin">Tere</span>
           <span style={{ color:'rgba(255,255,255,.4)', fontSize:'.8125rem' }}>Admin</span>
@@ -7678,7 +7682,7 @@ function AdminBody() {
             { id:'patients',     label:'👥 Patients' },
           ]
           return (
-            <div style={{ width:'100%', maxWidth:360, display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'relative', marginBottom:'1.5rem' }}>
+            <div style={{ width:'100%', maxWidth:360, display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'sticky', top:'calc(3.5rem + env(safe-area-inset-top, 0px))', zIndex:9, marginBottom:'1.5rem', boxShadow:'0 2px 8px rgba(13,43,69,.08)' }}>
               <select
                 value={adminTab}
                 onChange={e => setAdminTab(e.target.value)}
