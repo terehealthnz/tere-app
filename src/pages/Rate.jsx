@@ -81,7 +81,7 @@ export default function Rate() {
               <p style={{ color: '#6B7280', fontSize: '.9375rem', lineHeight: 1.6 }}>
                 {alreadyRated && !submitted
                   ? `You've already rated this consultation.`
-                  : `Your feedback helps us improve care for rural communities.`}
+                  : `Your feedback helps us improve care across Aotearoa.`}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: '1rem' }}>
                 {[1,2,3,4,5].map(s => (

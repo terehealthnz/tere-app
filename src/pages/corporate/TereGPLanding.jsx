@@ -90,7 +90,7 @@ export default function TereGPLanding() {
             lineHeight: 1.15,
             margin: '0 0 20px',
           }}>
-            A virtual general practice,<br />built for rural Aotearoa.
+            A virtual general practice,<br />built for Aotearoa.
           </h1>
 
           <p style={{
