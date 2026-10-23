@@ -67,10 +67,10 @@ function Hero() {
         </p>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Open 8am – 8pm, 7 days a week</span>
+          <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Queue open 24/7</span>
         </div>
         <div style={{ fontSize: '.8125rem', color: 'rgba(212,238,240,.7)', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontStyle: 'italic' }}>
-          Submit any time. After-hours goes to the top of the morning queue.
+          A doctor sees you within 2 hours between 8am and 8pm NZT. Submit outside those hours and you'll be at the top of the morning queue.
         </div>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <a href={CONSULT_URL} style={{
@@ -86,7 +86,7 @@ function Hero() {
           }}>How it works</a>
         </div>
         <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-          {[['✓', 'FACEM medical director'], ['✓', 'ACC registered'], ['✓', 'Open 8am – 8pm, 7 days']].map(([tick, text]) => (
+          {[['✓', 'FACEM medical director'], ['✓', 'ACC registered'], ['✓', 'Within 2 hours, 8am to 8pm']].map(([tick, text]) => (
             <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '.375rem', color: 'rgba(255,255,255,.65)', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <span style={{ color: BRAND.tealLight, fontWeight: 700 }}>{tick}</span> {text}
             </div>
