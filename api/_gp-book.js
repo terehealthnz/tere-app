@@ -64,6 +64,10 @@ export default async function handler(req, res) {
   // admin passed a specific funder_id (future: NHI enrolment lookup).
   const fundingSource = body.funding_source === 'pho_capitated' ? 'pho_capitated' : 'patient_paid'
   const paymentBypassed = fundingSource === 'pho_capitated'
+  // Scheduled GP visit is NZ$80. Charged via the usual Windcave flow for
+  // patient_paid; zero for capitated (funder covers it, employer_paid=true
+  // reuses the pentested bypass primitive from task #595).
+  const SCHEDULED_GP_PRICE_CENTS = 8000
 
   const { data: consult, error: consultErr } = await supabase
     .from('consultations')
@@ -74,7 +78,7 @@ export default async function handler(req, res) {
       appointment_id: claimed.id,
       provider_id: claimed.provider_id,
       employer_paid: paymentBypassed ? true : false,
-      payment_amount: paymentBypassed ? 0 : null,
+      payment_amount: paymentBypassed ? 0 : SCHEDULED_GP_PRICE_CENTS,
       patient_first_name: String(patient_first).trim(),
       patient_last_name: String(patient_last).trim(),
       patient_dob: patient_dob,

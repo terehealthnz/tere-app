@@ -149,7 +149,8 @@ export default function BookGP() {
       <div style={{ background: 'white', borderRadius: 12, padding: '2rem', boxShadow: '0 2px 10px rgba(13,43,69,.06)' }}>
         <div style={{ fontSize: '1.25rem', fontWeight: 700, color: NAVY, textAlign: 'center', marginBottom: '.5rem' }}>Welcome to Tere</div>
         <div style={{ color: '#6B7280', textAlign: 'center', marginBottom: '2rem', fontSize: '.9375rem' }}>Do you need to make a booking, or do you already have one?</div>
-        <button onClick={pickNextAvailable} disabled={busy} style={{ display: 'block', width: '100%', background: TEAL, color: 'white', border: 'none', padding: '1rem', borderRadius: 10, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', marginBottom: '.75rem', fontFamily: FF }}>Make a booking</button>
+        <button onClick={pickNextAvailable} disabled={busy} style={{ display: 'block', width: '100%', background: TEAL, color: 'white', border: 'none', padding: '1rem', borderRadius: 10, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', marginBottom: '.375rem', fontFamily: FF }}>Make a booking</button>
+        <div style={{ textAlign: 'center', color: '#6B7280', fontSize: '.75rem', marginBottom: '.875rem' }}>$80 per appointment. A GP from anywhere in NZ, by video.</div>
         <button onClick={() => setStage('lookup')} disabled={busy} style={{ display: 'block', width: '100%', background: 'white', color: NAVY, border: `2px solid ${NAVY}`, padding: '1rem', borderRadius: 10, fontSize: '1rem', fontWeight: 700, cursor: 'pointer', fontFamily: FF }}>I already have a booking</button>
         {err && <div style={{ marginTop: '1rem', padding: '.75rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#991B1B', fontSize: '.875rem' }}>{err}</div>}
       </div>
@@ -203,7 +204,11 @@ export default function BookGP() {
         <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" style={{ width: '100%', padding: '.6rem .75rem', border: '1.5px solid #E2E8F0', borderRadius: 8, marginBottom: '.75rem', fontFamily: FF, fontSize: '.95rem', boxSizing: 'border-box' }} />
         <div style={{ marginBottom: '1rem' }}><PhonePicker value={phone} onChange={setPhone} /></div>
         {err && <div style={{ marginBottom: '.75rem', padding: '.625rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, color: '#991B1B', fontSize: '.8125rem' }}>{err}</div>}
-        <button onClick={submitBooking} disabled={busy} style={{ display: 'block', width: '100%', background: TEAL, color: 'white', border: 'none', padding: '1rem', borderRadius: 10, fontSize: '1rem', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: FF }}>{busy ? 'Booking...' : 'Confirm booking'}</button>
+        <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '.625rem .875rem', marginBottom: '.75rem', fontSize: '.8125rem', color: '#374151', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span>GP video appointment</span>
+          <strong style={{ color: NAVY, fontSize: '1rem' }}>$80.00</strong>
+        </div>
+        <button onClick={submitBooking} disabled={busy} style={{ display: 'block', width: '100%', background: TEAL, color: 'white', border: 'none', padding: '1rem', borderRadius: 10, fontSize: '1rem', fontWeight: 700, cursor: busy ? 'wait' : 'pointer', fontFamily: FF }}>{busy ? 'Booking...' : 'Confirm booking · $80'}</button>
       </div>
     </Shell>
   )

@@ -13,7 +13,7 @@ export default function AdminGpConfig() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
-  const [slotForm, setSlotForm] = useState({ provider_id: '', from_date: '', to_date: '', start_time: '09:00', end_time: '17:00', duration_minutes: 15, days_of_week: '1,2,3,4,5' })
+  const [slotForm, setSlotForm] = useState({ provider_id: '', from_date: '', to_date: '', start_time: '09:00', end_time: '17:00', duration_minutes: 20, days_of_week: '1,2,3,4,5' })
   const [funderForm, setFunderForm] = useState({ name: '', funding_source: 'pho_capitated' })
 
   async function load() {
