@@ -9,6 +9,7 @@ import { isNZ } from '../../lib/region'
 import { makeConsultUrl } from '../../lib/consultUrl'
 import AddressAutocomplete from '../AddressAutocomplete'
 import DobPicker from '../DobPicker'
+import NamePicker from '../NamePicker'
 import BiometricsForm from './BiometricsForm'
 import PhonePicker from '../PhonePicker'
 import ChipMultiSelect from './ChipMultiSelect'
@@ -250,7 +251,7 @@ function summarizeOnFile(d) {
 }
 
 const STEPS = [
-  { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>{ const parts = v.trim().split(/\s+/).filter(Boolean); return parts.length >= 2 && parts.every(p => p.length >= 1) }, error:"Please enter your first and last name so your prescription and records are complete.", next:'dob_lookup' },
+  { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', type:'name_picker', validate:v=>{ const parts = String(v||'').trim().split(/\s+/).filter(Boolean); return parts.length >= 2 && parts.every(p => p.length >= 1) }, error:"Please enter your first and last name so your prescription and records are complete.", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}?`, field:'patient_dob_raw', type:'dob_picker', validate:v=>/^\d{4}-\d{2}-\d{2}$/.test(v||''), error:"Please pick your date of birth from the fields.", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', type:'phone_picker', validate:v=>/^\+\d{6,15}$/.test(String(v||'').trim()), error:"Please enter a valid mobile number.", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
@@ -2042,6 +2043,32 @@ export default function AITriage() {
         </div>
       )}
 
+      {step?.type==='name_picker' && !tereTyping && (() => {
+        // Two-field first + last picker, replaces the single free-text name
+        // input. Prevents patients from proceeding with only a first name
+        // (which cascades into empty patient_last_name → createPatient 400
+        // → patient_id NULL → Rx renders only first name). The step-level
+        // validator still runs as belt-and-braces.
+        const ok = (() => {
+          const parts = String(input||'').trim().split(/\s+/).filter(Boolean)
+          return parts.length >= 2
+        })()
+        return (
+          <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
+            <NamePicker
+              value={input || ''}
+              onChange={v => setInput(v)}
+              autoFocus
+            />
+            <button type="button" onClick={() => { if (ok) { const v = input; setInput(''); handleSendValue(v) } }}
+              disabled={!ok}
+              style={{width:'100%',marginTop:10,background:'var(--teal)',color:'white',border:'none',borderRadius:10,padding:'10px',fontWeight:700,fontSize:'.9rem',cursor:ok?'pointer':'not-allowed',opacity:ok?1:.5,fontFamily:'Plus Jakarta Sans, sans-serif'}}>
+              Continue
+            </button>
+          </div>
+        )
+      })()}
+
       {step?.type==='dob_picker' && !tereTyping && (
         <div style={{padding:'0 1rem .5rem',maxWidth:600,margin:'0 auto',width:'100%',boxSizing:'border-box'}}>
           <DobPicker
@@ -2148,7 +2175,7 @@ export default function AITriage() {
         {/* Chat-style free-text bar. Hidden on picker steps so patients
             can't sidestep the dropdown by typing here — the picker's
             own Continue/Send button is the only path forward. */}
-        {!(step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker' || step?.type === 'chip_multi' || step?.type === 'biometrics') && (
+        {!(step?.type === 'name_picker' || step?.type === 'dob_picker' || step?.type === 'phone_picker' || step?.type === 'address_picker' || step?.type === 'pharmacy' || step?.type === 'gp_picker' || step?.type === 'gp_clinic_picker' || step?.type === 'chip_multi' || step?.type === 'biometrics') && (
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',gap:8,alignItems:'flex-end'}}>
           {waitingForPhoto&&(
             <>
