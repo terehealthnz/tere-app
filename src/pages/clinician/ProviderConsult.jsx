@@ -714,6 +714,32 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inCall, endingCall, scribeRoomReady, chimeMode, scribeState])
 
+  // Hold a Screen Wake Lock while in-call. Anchor: 2026-10-24 Callie Moyo
+  // consult produced a NULL transcript on iPhone because the provider's
+  // screen locked mid-call; iOS Safari suspends MediaRecorder when the
+  // tab loses foreground, so the audio stream silently stops producing
+  // chunks and stopScribe() gets an empty blob. Wake Lock keeps the
+  // display on so this failure mode cannot recur. Mirror of the pattern
+  // already used on PatientCall.jsx. visibilitychange re-acquires if the
+  // lock is released when the tab is backgrounded then returned to.
+  // Wake Lock API has been in iOS Safari since 16.4 (Mar 2023); older
+  // Safari falls through silently and the provider loses the guarantee
+  // but nothing crashes.
+  useEffect(() => {
+    if (!inCall) return
+    let wakeLock = null
+    async function acquire() {
+      try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen') } catch {}
+    }
+    acquire()
+    const reacquire = () => { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('visibilitychange', reacquire)
+    return () => {
+      document.removeEventListener('visibilitychange', reacquire)
+      wakeLock?.release().catch(() => {})
+    }
+  }, [inCall])
+
   async function initiateCall() {
     setCalling(true)
     try {

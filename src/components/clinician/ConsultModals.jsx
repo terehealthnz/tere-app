@@ -184,6 +184,53 @@ function composeRx(rx) {
   return { drug, directions }
 }
 
+// Doses-per-day map for the structured frequencies. PRN/STAT/weekly return
+// null because they don't produce a daily cadence we can multiply out for
+// a quantity estimate — provider has to type qty by hand on those.
+const DOSES_PER_DAY = {
+  OD: 1, mane: 1, nocte: 1,
+  BD: 2, TDS: 3, QID: 4,
+  Q4H: 6, Q6H: 4, Q8H: 3,
+}
+
+// Compute implied quantity from dose × frequency × duration.
+// Anchor: 2026-10-24 Callie Moyo consult — provider entered 16 ondansetron
+// tablets for Q8H × max 3 days (implied 9). Soft warn at >=1.3× catches
+// "inconsistent", hard confirm at >=2× catches "typo" (e.g. 10 → 100).
+// Returns null when any component can't be numerically resolved — in which
+// case the UI leaves qty untouched (no auto-fill, no warning).
+function impliedQuantity(rx) {
+  // Only solid oral forms have a straightforward "dose × days = tablets"
+  // relationship. Liquids/drops/creams/inhalers are measured by volume or
+  // puffs — qty semantics differ, skip them.
+  const form = String(rx.form || '').toLowerCase()
+  const okForm = form === 'tablets' || form === 'capsules'
+  if (!okForm) return null
+  const dpd = DOSES_PER_DAY[rx.frequency]
+  if (!dpd) return null
+  // Dose per administration: pull first integer from strings like "1 tablet",
+  // "2 tablets (1g)", "2 capsules". A dose of "0.5 tablet" is rare in NZ
+  // outpatient and would produce 0 here — we return null so we don't
+  // under-fill.
+  const doseMatch = String(rx.dose || '').match(/\d+/)
+  const doseQty = doseMatch ? parseInt(doseMatch[0], 10) : 0
+  if (!doseQty) return null
+  // Duration: accept "5 days", "7 day", "5-7 days" (take upper bound to err
+  // toward enough), "max 3 days", "as needed for nausea, max 3 days". If
+  // the string has no number at all (ongoing / until finished / as needed)
+  // we can't compute.
+  const durStr = String(rx.duration || '').toLowerCase()
+  const nums = Array.from(durStr.matchAll(/\d+/g)).map(m => parseInt(m[0], 10))
+  if (!nums.length) return null
+  // Range like "5-7 days" → take the upper end. "max 3 days" has one number
+  // → take it. "7 days, review at 4 weeks" → the "4" is weeks, not days —
+  // but we don't try to disambiguate, we just take the first number as the
+  // primary duration. The 1.3×/2× guard is loose enough to tolerate this.
+  const durDays = /-|–/.test(durStr) && nums.length >= 2 ? Math.max(...nums) : nums[0]
+  if (!durDays) return null
+  return dpd * durDays * doseQty
+}
+
 export function PrescribeModal({ open, onClose, consult, onDone, prefill, represcribeTaskId = null }) {
   const [rx, setRx] = useState({
     medication: '', strength: '', form: '',
@@ -207,6 +254,18 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
     try { sessionStorage.setItem(draftsKey, JSON.stringify(drafts)) } catch {}
   }, [drafts, draftsKey])
   const [sendProgress, setSendProgress] = useState(null) // { current, total, errors }
+
+  // Auto-fill quantity from dose × frequency × duration when the provider
+  // picks the three components but hasn't typed a quantity yet. Removes the
+  // manual-arithmetic failure mode. Provider can still override — the warn
+  // banner catches overrides that drift >=1.3× / >=2× from implied.
+  const implied = impliedQuantity(rx)
+  useEffect(() => {
+    if (implied == null) return
+    if (rx.qty && String(rx.qty).trim() !== '') return
+    setRx(r => ({ ...r, qty: String(implied) }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [implied])
 
   // Re-issue prefill: when the modal is opened with a prefill payload
   // (from clicking "Re-issue" on a past prescription), populate the form
@@ -612,6 +671,19 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
     if (interactions?.maxSeverity === 'major' && !interactionOverride) {
       setResult({ ok: false, error: 'Major interaction not overridden — provide a reason before adding to the list.' })
       return
+    }
+    // Quantity-vs-implied hard confirm at >=2×. Soft warn (>=1.3×) is handled
+    // inline in the render path; this is the "likely typo" gate (e.g.
+    // ondansetron Q8H × 3 days with 16 entered vs 9 implied → 1.78× is soft
+    // warn only; 10 → 100 → 10× fires this confirm).
+    const impliedForSubmit = impliedQuantity(rx)
+    const enteredNum = parseInt(String(rx.qty).match(/\d+/)?.[0] || '', 10)
+    if (impliedForSubmit != null && enteredNum && enteredNum / impliedForSubmit >= 2) {
+      const ratio = (enteredNum / impliedForSubmit).toFixed(1)
+      const ok = typeof window !== 'undefined' && window.confirm(
+        `Quantity sanity check\n\nYou entered ${enteredNum} but dose × frequency × duration implies ${impliedForSubmit} (${ratio}× more).\n\nCommon typo zone — confirm this is the quantity you intend to prescribe.`
+      )
+      if (!ok) return
     }
     setDrafts(d => [...d, buildDraft()])
     // Clear form so the next drug can be entered. Pharmacy stays — providers
@@ -1036,6 +1108,36 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
           <div className="form-group"><label>Quantity <span style={{color:'#DC2626'}}>*</span></label><input value={rx.qty} onChange={e=>setRx(r=>({...r,qty:e.target.value}))} required placeholder="e.g. 30 tablets   or   100mL" /></div>
           <div className="form-group"><label>Repeats</label><input type="number" min={0} max={12} value={rx.repeats} onChange={e=>setRx(r=>({...r,repeats:parseInt(e.target.value)||0}))} /></div>
         </div>
+        {(() => {
+          // Quantity sanity check against implied dose × frequency × duration.
+          // Amber at >=1.3× (inconsistent), red at >=2× (likely typo, caught
+          // at submit by requireConfirm below). Only renders when both the
+          // entered qty and the implied value are numerically resolvable.
+          if (implied == null) return null
+          const enteredNum = parseInt(String(rx.qty).match(/\d+/)?.[0] || '', 10)
+          if (!enteredNum) return null
+          const ratio = enteredNum / implied
+          if (ratio < 1.3) return null
+          const red = ratio >= 2
+          return (
+            <div style={{
+              background: red ? '#FEF2F2' : '#FEF9EC',
+              border: `1px solid ${red ? '#FCA5A5' : '#FDE68A'}`,
+              borderRadius: 8,
+              padding: '.625rem .875rem',
+              marginBottom: '.875rem',
+              fontSize: '.8125rem',
+              color: red ? '#991B1B' : '#92400E',
+              lineHeight: 1.5,
+            }}>
+              ⚠️ <strong>Quantity {red ? 'well above' : 'above'} implied amount.</strong>{' '}
+              You entered <strong>{enteredNum}</strong>; dose × frequency × duration implies <strong>{implied}</strong> ({ratio.toFixed(1)}× more).{' '}
+              {red
+                ? 'Double-check before sending — this is a common typo zone (e.g. 10 vs 100).'
+                : 'Confirm this is intentional, or adjust the duration / quantity to match.'}
+            </div>
+          )
+        })()}
         {!consult?.pharmacy ? (
           <div style={{background:'#FEF9EC',border:'1px solid #FDE68A',borderRadius:8,padding:'.625rem .875rem',marginBottom:'.875rem',fontSize:'.8125rem',color:'#92400E',lineHeight:1.5}}>
             ⚠️ <strong>No pharmacy on file.</strong> Patient didn't specify a preferred pharmacy during triage. Consider messaging them to ask before sending.
