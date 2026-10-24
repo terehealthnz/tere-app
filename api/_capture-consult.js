@@ -118,6 +118,12 @@ export default async function handler(req, res) {
         payment_captured_at: new Date().toISOString(),
         payment_captured_amount_cents: consult.payment_amount,
         payment_captured_txn_id: transactionId,
+        // Flip the enum too — downstream reporting (payroll, dashboards,
+        // safety-net cron) reads payment_status, not just the timestamp.
+        // Prior to this fix the enum stayed 'authorised' forever after
+        // capture, which hid captured consults from "ready to pay out"
+        // queries and made the Windcave reconciliation confusing.
+        payment_status: 'captured',
       }).eq('id', consultationId)
     } catch (e) {
       console.warn('[capture-consult] db stamp failed (columns may not exist yet):', e?.message)

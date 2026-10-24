@@ -310,6 +310,7 @@ const ROUTES = {
   'provider-tasks':            () => import('./_provider-tasks.js'),
   'cron-expire-licenses':      () => import('./_cron-expire-licenses.js'),
   'cron-security-anomalies':   () => import('./_cron-security-anomalies.js'),
+  'cron-capture-safety':       () => import('./_cron-capture-safety.js'),
   'hl7-inbound':               () => import('./_hl7-inbound.js'),
   'hl7-file':                  () => import('./_hl7-file.js'),
   'provider-inbox':            () => import('./_provider-inbox.js'),

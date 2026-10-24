@@ -303,6 +303,76 @@ export default async function handler(req, res) {
   // nested on the consultation object for caller convenience.
   const patientToken = await mintAndAttachToken(supabase, data.id)
 
+  // Defensive patient-record backfill. The client-side AITriage handleConfirm
+  // path calls createPatient AFTER createConsultation, wrapped in a try/catch
+  // that silently swallows errors. If createPatient fails for ANY reason
+  // (empty last_name, duplicate NHI, network glitch, race), the consultation
+  // is left with patient_id = NULL and no row in the patients table — which
+  // breaks returning-patient lookups, admin patient views, and anything that
+  // keys off the patients table (Callie Moyo 2026-10-24 incident).
+  //
+  // Belt-and-braces: if we end up with a consultation that has first_name +
+  // last_name + dob but no patient_id, create the patients row here and link
+  // it. Dedup by email/phone first so we don't orphan a prior patient row.
+  if (!data.patient_id && data.patient_first_name && data.patient_last_name && data.patient_dob) {
+    try {
+      // Dedup lookup — email (strongest signal) then phone.
+      let existingId = null
+      if (data.patient_email) {
+        const { data: byEmail } = await supabase
+          .from('patients').select('id')
+          .ilike('email', String(data.patient_email).trim())
+          .eq('is_practice', data.is_practice || false)
+          .maybeSingle()
+        if (byEmail?.id) existingId = byEmail.id
+      }
+      if (!existingId && data.patient_phone) {
+        const { data: byPhone } = await supabase
+          .from('patients').select('id')
+          .eq('phone', data.patient_phone)
+          .eq('is_practice', data.is_practice || false)
+          .maybeSingle()
+        if (byPhone?.id) existingId = byPhone.id
+      }
+      let patientId = existingId
+      if (!patientId) {
+        const { data: inserted, error: insErr } = await supabase
+          .from('patients')
+          .insert({
+            first_name:          data.patient_first_name,
+            last_name:           data.patient_last_name,
+            date_of_birth:       data.patient_dob,
+            phone:               data.patient_phone || null,
+            email:               data.patient_email || null,
+            address:             data.patient_address || null,
+            nhi:                 data.patient_nhi || null,
+            pharmacy_name:       data.pharmacy || null,
+            pharmacy_id:         data.pharmacy_id || null,
+            preferred_language:  data.patient_language || null,
+            is_practice:         data.is_practice || false,
+            first_consultation_at: new Date().toISOString(),
+            last_consultation_at:  new Date().toISOString(),
+            total_consultations:   1,
+          })
+          .select('id').single()
+        if (insErr) {
+          console.error('[create-consultation] defensive patient insert failed:', insErr.message)
+        } else {
+          patientId = inserted?.id
+        }
+      }
+      if (patientId) {
+        await supabase.from('consultations')
+          .update({ patient_id: patientId })
+          .eq('id', data.id)
+        data.patient_id = patientId
+      }
+    } catch (e) {
+      console.error('[create-consultation] defensive patient link failed:', e?.message)
+      // Don't block the response — consult is still usable, just unlinked.
+    }
+  }
+
   // Mirror the pharmacy pick onto the patient profile so future consults
   // default to it (Patrick 2026-10-03: "preferred pharmacy isn't being saved
   // on employee to the profile"). _patient-consult.js:335 already does this
