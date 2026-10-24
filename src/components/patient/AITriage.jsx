@@ -250,7 +250,7 @@ function summarizeOnFile(d) {
 }
 
 const STEPS = [
-  { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>v.trim().length>1, error:"Can you type your full name?", next:'dob_lookup' },
+  { id:'greeting', message:"Kia ora! I'm Tere, your health assistant. What's your full name?", field:'patient_name', validate:v=>{ const parts = v.trim().split(/\s+/).filter(Boolean); return parts.length >= 2 && parts.every(p => p.length >= 1) }, error:"Please enter your first and last name so your prescription and records are complete.", next:'dob_lookup' },
   { id:'dob_lookup', message:(d)=>`And your date of birth, ${d.patient_name.split(' ')[0]}?`, field:'patient_dob_raw', type:'dob_picker', validate:v=>/^\d{4}-\d{2}-\d{2}$/.test(v||''), error:"Please pick your date of birth from the fields.", next:'phone' },
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', type:'phone_picker', validate:v=>/^\+\d{6,15}$/.test(String(v||'').trim()), error:"Please enter a valid mobile number.", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
