@@ -97,6 +97,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // side (/api/public-testimonials) stays anon. /api/feedback (patient
   // submit from the thank-you email) is also anon, token-gated inline.
   'admin-testimonials',
+  // Admin surface for GP scheduled booking: per-provider queue toggles,
+  // slot generation, funder config. /api/gp-slots, /api/gp-book, and
+  // /api/gp-booking-lookup are anon, flag-gated inline.
+  'admin-gp-config',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -449,6 +453,10 @@ const ROUTES = {
   'feedback':                  () => import('./_feedback.js'),
   'admin-testimonials':        () => import('./_admin-testimonials.js'),
   'public-testimonials':       () => import('./_public-testimonials.js'),
+  'gp-slots':                  () => import('./_gp-slots.js'),
+  'gp-book':                   () => import('./_gp-book.js'),
+  'gp-booking-lookup':         () => import('./_gp-booking-lookup.js'),
+  'admin-gp-config':           () => import('./_admin-gp-config.js'),
 }
 
 export default async function handler(req, res) {

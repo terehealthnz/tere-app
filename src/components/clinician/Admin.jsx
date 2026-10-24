@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
 import AdminResearch  from '../../pages/clinician/AdminResearch'
 import AdminPatients  from '../../pages/clinician/AdminPatients'
@@ -7684,6 +7685,7 @@ function AdminBody() {
             { id:'gp_letters',   label:`✉️ GP letters${pendingCounts.gp_letters ? ` (${pendingCounts.gp_letters})` : ''}` },
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
+            { id:'gp_config',    label:'🗓 GP Config' },
           ]
           return (
             <div style={{ width:'100%', maxWidth:360, display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'sticky', top:'calc(3.5rem + env(safe-area-inset-top, 0px))', zIndex:9, marginBottom:'1.5rem', boxShadow:'0 2px 8px rgba(13,43,69,.08)' }}>
@@ -7759,6 +7761,7 @@ function AdminBody() {
             case 'gp_letters': return <><GpLettersPanel /><RecordForwardPanel /></>
             case 'research':   return <AdminResearch embedded />
             case 'patients':   return <AdminPatients embedded />
+            case 'gp_config':  return <Suspense fallback={<div style={{ padding:'2rem', color:'#6B7280' }}>Loading GP config...</div>}><AdminGpConfig /></Suspense>
             default:           return <OverviewDashboard setAdminTab={setAdminTab} />
           }
         })()}

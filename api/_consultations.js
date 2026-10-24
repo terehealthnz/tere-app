@@ -253,10 +253,33 @@ export default async function handler(req, res) {
         // is looking at the waiting room. WaitingRoom.jsx PATCHes true on
         // mount via /api/patient-consult (in_waiting_room in PATIENT_ALLOWLIST).
         .eq('in_waiting_room', true)
+        // Scheduled GP consults live in the Appointments tab (filter=appointments);
+        // keep them out of the walk-in acute queue. .neq is a no-op for rows
+        // where consult_type is NULL (pre-migration) so this is safe.
+        .neq('consult_type', 'scheduled_gp')
         .order('employer_paid', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: true })
       if (error) { console.error('[consultations] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ consultations: redactList(data || []) })
+    }
+
+    if (filter === 'appointments') {
+      // Scheduled GP appointments tab. Returns upcoming + in-progress only;
+      // completed consults go to the normal chart view, not here.
+      const { data, error } = await supabase
+        .from('consultations')
+        .select('*, appointments_gp:appointment_id(slot_start, slot_end, booking_status)')
+        .eq('consult_type', 'scheduled_gp')
+        .in('status', ['waiting', 'vitals_requested', 'vitals_complete', 'ready', 'in_progress'])
+        .eq('is_practice', practice)
+        .order('created_at', { ascending: true })
+      if (error) { console.error('[consultations] appointments failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      const hoisted = (data || []).map(r => ({
+        ...r,
+        slot_start: r.appointments_gp?.slot_start || null,
+        slot_end: r.appointments_gp?.slot_end || null,
+      }))
+      return res.status(200).json({ consultations: redactList(hoisted) })
     }
 
     // Admin queue: consultations where the provider flagged a GP letter

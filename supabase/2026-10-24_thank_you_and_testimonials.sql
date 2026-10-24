@@ -46,8 +46,7 @@ CREATE INDEX IF NOT EXISTS patient_feedback_status
   ON patient_feedback (status, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS patient_feedback_public
-  ON patient_feedback (created_at DESC)
-  WHERE status = 'approved' AND allow_publish = true;
+  ON patient_feedback (status, allow_publish, created_at DESC);
 
 ALTER TABLE patient_feedback ENABLE ROW LEVEL SECURITY;
 

@@ -165,6 +165,8 @@ import NativeShell from './lib/NativeShell'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
 const Feedback            = lazy(() => import('./pages/patient/Feedback'))
 const Testimonials        = lazy(() => import('./pages/public/Testimonials'))
+const BookGP              = lazy(() => import('./pages/patient/BookGP'))
+const AdminGpConfig       = lazy(() => import('./pages/clinician/AdminGpConfig'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
 const DemoPatient         = lazy(() => import('./pages/demo/DemoPatient'))
@@ -330,6 +332,7 @@ export default function App() {
         <Route path="/contact"                element={<Contact />} />
         <Route path="/feedback"               element={<Feedback />} />
         <Route path="/testimonials"           element={<Testimonials />} />
+        <Route path="/book"                   element={<BookGP />} />
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/patient/portal"         element={<PatientPortal />} />
         <Route path="/provider"               element={<ProviderApp />} />
@@ -353,6 +356,7 @@ export default function App() {
         <Route path="/clinician/admin/flags"  element={<AdminFlags />} />
         <Route path="/clinician/state-licenses"       element={<ProviderStateLicenses />} />
         <Route path="/clinician/admin/state-licenses" element={<AdminStateLicenses />} />
+        <Route path="/clinician/admin/gp-config"      element={<AdminGpConfig />} />
         <Route path="/clinician/inbox"                element={<ProviderInbox />} />
         <Route path="/clinician/consult/:id"  element={<ConsultView />} />
         <Route path="/clinician/notes/:id"    element={<NotesCompletion />} />

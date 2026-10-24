@@ -832,6 +832,54 @@ function fmtDeadline(iso) {
   return `by ${t} ${dl.toLocaleDateString('en-NZ', { timeZone: TZ, weekday: 'short' })}`
 }
 
+function AppointmentsTab({ appointments, loading, navigate }) {
+  const fmtSlot = (iso) => {
+    if (!iso) return ''
+    try {
+      return new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+    } catch { return iso }
+  }
+  // Appointments tab shows upcoming + in-progress scheduled GP consults
+  // only. Completed ones go to the normal chart view. The 10-min admit
+  // lead is enforced on the server where it matters; here we show the
+  // slot time plainly so the provider knows when to call.
+  const now = Date.now()
+  const sorted = [...(appointments || [])].sort((a, b) => {
+    const ta = a.slot_start ? new Date(a.slot_start).getTime() : Infinity
+    const tb = b.slot_start ? new Date(b.slot_start).getTime() : Infinity
+    return ta - tb
+  })
+  if (loading) return <div style={{ textAlign:'center', padding:'4rem' }}><div className="spinner" style={{ borderColor:'rgba(11,110,118,.2)', borderTopColor:TEAL }} /></div>
+  if (!sorted.length) return (
+    <div style={{ textAlign:'center', padding:'4rem 2rem', fontFamily:FF }}>
+      <div style={{ fontSize:'3rem', marginBottom:'1rem' }}>🗓</div>
+      <div style={{ fontWeight:700, color:NAVY, fontSize:'1.125rem', marginBottom:'.5rem' }}>No appointments</div>
+      <div style={{ color:'#6B7280', fontSize:'.875rem' }}>Scheduled GP appointments will appear here as patients book.</div>
+    </div>
+  )
+  return (
+    <div style={{ padding:'.75rem', fontFamily:FF, display:'flex', flexDirection:'column', gap:'.625rem' }}>
+      {sorted.map(c => {
+        const slotMs = c.slot_start ? new Date(c.slot_start).getTime() : null
+        const isLive = c.status === 'in_progress' || (slotMs && slotMs - now <= 10 * 60 * 1000)
+        return (
+          <div key={c.id} onClick={() => navigate(`/clinician/patient/${c.id}`)}
+            style={{ background:'white', border:'1px solid #E2E8F0', borderLeft:`4px solid ${TEAL}`, borderRadius:12, padding:'.75rem .9rem', cursor:'pointer', display:'flex', alignItems:'center', gap:'.75rem' }}>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:700, color:NAVY, fontSize:'.9375rem' }}>{c.patient_first_name} {c.patient_last_name}</div>
+              <div style={{ color:'#6B7280', fontSize:'.75rem', marginTop:2 }}>{c.chief_complaint ? (c.chief_complaint.length > 60 ? c.chief_complaint.slice(0, 60) + '...' : c.chief_complaint) : 'Scheduled GP consult'}</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ color:TEAL, fontWeight:700, fontSize:'.8125rem' }}>{fmtSlot(c.slot_start)}</div>
+              <div style={{ fontSize:'.6875rem', color:isLive ? '#DC2626' : '#9CA3AF', fontWeight:600, marginTop:2 }}>{isLive ? 'Ready to call' : c.status}</div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function MessagesTab({ msgBadge, setMsgBadge }) {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading]             = useState(true)
@@ -1354,15 +1402,16 @@ function MenuTab({ navigate, displayName, isAdmin }) {
 
 // ── Bottom nav ────────────────────────────────────────────────────────────────
 
-function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge, tasksBadge }) {
+function BottomNav({ tab, setTab, queueBadge, notesBadge, msgBadge, teamBadge, tasksBadge, canWorkAcute = true, canWorkGp = false, apptBadge = 0 }) {
   const items = [
-    { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
+    canWorkAcute && { id:'queue',    icon:'🏥', label:'Queue',    badge:queueBadge },
+    canWorkGp    && { id:'appointments', icon:'🗓', label:'Appts', badge:apptBadge },
     { id:'tasks',    icon:'📋', label:'Tasks',    badge:tasksBadge },
     { id:'messages', icon:'✉️', label:'Messages', badge:msgBadge },
     { id:'tere-chat',icon:'💬', label:'Chat',     badge:teamBadge },
     { id:'pms',      icon:'📊', label:'PMS',      badge:notesBadge },
     { id:'menu',     icon:'☰',  label:'Menu',     badge:0 },
-  ]
+  ].filter(Boolean)
   return (
     <div style={{ background:NAVY, display:'flex', flexShrink:0, minHeight:60, paddingBottom:'env(safe-area-inset-bottom)', borderTop:'1px solid rgba(255,255,255,.08)' }}>
       {items.map(item => (
@@ -1402,12 +1451,19 @@ export default function ProviderApp() {
   const displayName   = sessionStorage.getItem('providerDisplayName') || 'Provider'
   const isAdmin       = sessionStorage.getItem('providerIsAdmin') === 'true'
   const provColor     = sessionStorage.getItem('providerColor') || TEAL
+  // Queue participation flags. Default canWorkAcute=true keeps every
+  // existing provider in the acute queue tab without a login round-trip
+  // (even if the session was created before the migration ran).
+  const canWorkAcute  = sessionStorage.getItem('providerCanWorkAcute') !== 'false'
+  const canWorkGp     = sessionStorage.getItem('providerCanWorkGp') === 'true'
 
-  const [tab, setTab]             = useState('queue')
+  const [tab, setTab]             = useState(canWorkAcute ? 'queue' : (canWorkGp ? 'appointments' : 'queue'))
   const [msgBadge, setMsgBadge]   = useState(0)
   const [tasksBadge, setTasksBadge] = useState(0)
   const teamBadge = useTereChatUnread()
   const [consultations, setConsultations] = useState([])
+  const [appointments, setAppointments] = useState([])
+  const [apptsLoading, setApptsLoading] = useState(false)
   const [loading, setLoading]     = useState(true)
   const [starting, setStarting]   = useState(null)
   const [isOnline, setIsOnline]   = useState(navigator.onLine)
@@ -1435,6 +1491,24 @@ export default function ProviderApp() {
     } catch { setConsultations([]) }
     finally { setLoading(false) }
   }, [])
+
+  const loadAppointments = useCallback(async () => {
+    if (!canWorkGp) return
+    setApptsLoading(true)
+    try {
+      const res = await apiFetch('/api/consultations?filter=appointments')
+      const { consultations: data } = await res.json()
+      setAppointments(data || [])
+    } catch { setAppointments([]) }
+    finally { setApptsLoading(false) }
+  }, [canWorkGp])
+
+  useEffect(() => {
+    if (tab !== 'appointments') return
+    loadAppointments()
+    const t = setInterval(loadAppointments, 10000)
+    return () => clearInterval(t)
+  }, [tab, loadAppointments])
 
   useEffect(() => {
     load()
@@ -1652,6 +1726,7 @@ export default function ProviderApp() {
       {/* Content */}
       <div style={{ flex:1, overflowY:'auto', minHeight:0, WebkitOverflowScrolling:'touch' }}>
         {tab === 'queue'    && <QueueTab consultations={consultations} loading={loading} starting={starting} onStart={startConsult} onDismiss={dismiss} navigate={navigate} />}
+        {tab === 'appointments' && <AppointmentsTab appointments={appointments} loading={apptsLoading} navigate={navigate} />}
         {tab === 'tasks'    && <TasksTab setTasksBadge={setTasksBadge} navigate={navigate} />}
         {tab === 'messages' && <MessagesTab msgBadge={msgBadge} setMsgBadge={setMsgBadge} />}
         {tab === 'tere-chat' && <TereChatTab />}
@@ -1683,7 +1758,7 @@ export default function ProviderApp() {
           return
         }
         setTab(next)
-      }} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} tasksBadge={tasksBadge} />
+      }} queueBadge={queueCount} notesBadge={0} msgBadge={msgBadge} teamBadge={teamBadge} tasksBadge={tasksBadge} canWorkAcute={canWorkAcute} canWorkGp={canWorkGp} apptBadge={appointments.length} />
     </div>
   )
 }

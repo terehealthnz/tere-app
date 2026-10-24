@@ -143,6 +143,8 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerCanPrescribe', String(p.can_prescribe ?? true))
       sessionStorage.setItem('providerCanRefer', String(p.can_refer ?? true))
       sessionStorage.setItem('providerCanAcc', String(p.can_acc ?? true))
+      sessionStorage.setItem('providerCanWorkAcute', String(p.can_work_acute ?? true))
+      sessionStorage.setItem('providerCanWorkGp', String(p.can_work_gp ?? false))
       // Single-toggle supervision gate (2026-09-20). When true, prescriptions
       // and radiology referrals draft for countersign by supervisor_id
       // instead of dispatching directly. See _generate-prescription-pdf.js
