@@ -163,6 +163,8 @@ import StuckHelperWidget from './components/patient/StuckHelperWidget'
 import FunnelTracker from './components/FunnelTracker'
 import NativeShell from './lib/NativeShell'
 const Contact             = lazy(() => import('./pages/patient/Contact'))
+const Feedback            = lazy(() => import('./pages/patient/Feedback'))
+const Testimonials        = lazy(() => import('./pages/public/Testimonials'))
 const Accessibility       = lazy(() => import('./pages/Accessibility'))
 const DemoLanding         = lazy(() => import('./pages/demo/DemoLanding'))
 const DemoPatient         = lazy(() => import('./pages/demo/DemoPatient'))
@@ -326,6 +328,8 @@ export default function App() {
         <Route path="/watch"                  element={<Watch />} />
         <Route path="/waitlist"               element={<WaitlistRouter />} />
         <Route path="/contact"                element={<Contact />} />
+        <Route path="/feedback"               element={<Feedback />} />
+        <Route path="/testimonials"           element={<Testimonials />} />
         <Route path="/accessibility"          element={<Accessibility />} />
         <Route path="/patient/portal"         element={<PatientPortal />} />
         <Route path="/provider"               element={<ProviderApp />} />

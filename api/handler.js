@@ -93,6 +93,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'provider-notifications',
   // Internal Tere Chat (provider/admin team channel, 2026-08-05)
   'team-messages',
+  // Admin moderation of post-consult thumbs-up testimonials. Public read
+  // side (/api/public-testimonials) stays anon. /api/feedback (patient
+  // submit from the thank-you email) is also anon, token-gated inline.
+  'admin-testimonials',
   // NOT here:
   //   patients         — action=create/lookup are anon triage; guarded inside
   //   spo2-calibrations — GET is public, POST guards inside (VitalsValidate)
@@ -441,6 +445,10 @@ const ROUTES = {
   'check-payment-status':      () => import('./_check-payment-status.js'),
   'cron-promote-stuck-drafts': () => import('./_cron-promote-stuck-drafts.js'),
   'provider-notifications':    () => import('./_provider-notifications.js'),
+  'cron-thank-you-emails':     () => import('./_cron-thank-you-emails.js'),
+  'feedback':                  () => import('./_feedback.js'),
+  'admin-testimonials':        () => import('./_admin-testimonials.js'),
+  'public-testimonials':       () => import('./_public-testimonials.js'),
 }
 
 export default async function handler(req, res) {

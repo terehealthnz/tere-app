@@ -13,6 +13,7 @@ import ReclassificationsPanel from './ReclassificationsPanel'
 import ControlledDrugsRegister from './ControlledDrugsRegister'
 import { HpiQueryAudit, Hl7ReceiveAudit, Section22fReport } from './NzHealthAuditPanels'
 import ComplaintThemesPanel from './ComplaintThemesPanel'
+import TestimonialsPanel from './TestimonialsPanel'
 import ConflictOfInterestPanel from './ConflictOfInterestPanel'
 import ResultsFollowupPanel from './ResultsFollowupPanel'
 import EmergencyEscalationsPanel from './EmergencyEscalationsPanel'
@@ -7604,7 +7605,7 @@ function AdminBody() {
   // Pending counts surfaced as tab badges. Kept lightweight (single fetch
   // on mount + refresh every 60s) — heavier live counts live inside the
   // Overview dashboard panel.
-  const [pendingCounts, setPendingCounts] = useState({ support: 0, gp_letters: 0 })
+  const [pendingCounts, setPendingCounts] = useState({ support: 0, gp_letters: 0, testimonials: 0 })
 
   useEffect(() => {
     getWaitlist().then(data => setWaitlist(data || [])).catch(() => {})
@@ -7613,14 +7614,16 @@ function AdminBody() {
   useEffect(() => {
     async function loadCounts() {
       try {
-        const [ticketsR, gpR] = await Promise.allSettled([
+        const [ticketsR, gpR, testiR] = await Promise.allSettled([
           apiFetch('/api/patient-support?status=new').then(r => r.json()),
           apiFetch('/api/consultations?filter=pending_gp_letter').then(r => r.json()),
+          apiFetch('/api/admin-testimonials?action=list&status=pending').then(r => r.json()),
         ])
         const tickets = ticketsR.status === 'fulfilled' ? (ticketsR.value?.tickets || []) : []
         const adminTickets = tickets.filter(t => !t.routing_status || t.routing_status === 'admin_inbox')
         const gp = gpR.status === 'fulfilled' ? (gpR.value?.consultations || gpR.value || []) : []
-        setPendingCounts({ support: adminTickets.length, gp_letters: (Array.isArray(gp) ? gp.length : 0) })
+        const testi = testiR.status === 'fulfilled' ? (testiR.value?.feedback || []) : []
+        setPendingCounts({ support: adminTickets.length, gp_letters: (Array.isArray(gp) ? gp.length : 0), testimonials: testi.length })
       } catch {}
     }
     loadCounts()
@@ -7677,6 +7680,7 @@ function AdminBody() {
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
+            { id:'testimonials', label:`⭐ Testimonials${pendingCounts.testimonials ? ` (${pendingCounts.testimonials})` : ''}` },
             { id:'gp_letters',   label:`✉️ GP letters${pendingCounts.gp_letters ? ` (${pendingCounts.gp_letters})` : ''}` },
             { id:'research',     label:'🔬 Research' },
             { id:'patients',     label:'👥 Patients' },
@@ -7750,7 +7754,8 @@ function AdminBody() {
             case 'nhi':        return <AdminNhiLookupPanel />
             case 'acc':        return <><ReclassificationsPanel /><AccClaimsSection /></>
             case 'employers':  return <EmployersPanel />
-            case 'support':    return <SupportPanel />
+            case 'support':      return <SupportPanel />
+            case 'testimonials': return <TestimonialsPanel />
             case 'gp_letters': return <><GpLettersPanel /><RecordForwardPanel /></>
             case 'research':   return <AdminResearch embedded />
             case 'patients':   return <AdminPatients embedded />
