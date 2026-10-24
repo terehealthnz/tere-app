@@ -1231,16 +1231,20 @@ export default function ClinicianPatient() {
                       <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>count breaths if needed</div>
                     </div>
                   )}
-                  {v.spo2 ? (
-                    <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={spo2Low ? 'Low confidence — colour-ratio was weak; confirm with pulse oximeter.' : undefined}>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: spo2Low ? '#DC2626' : '#7C3AED' }}>~{v.spo2}%{spo2Low && star('Low confidence — confirm with pulse oximeter.')}</div>
+                  {v.spo2 && !spo2Low ? (
+                    <div style={{ background: '#F5F3FF', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#7C3AED' }}>~{v.spo2}%</div>
                       <div style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>SpO₂</div>
                       <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>camera est.</div>
                     </div>
                   ) : (
-                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }}>
+                    // Low-confidence SpO2 is hidden from the provider card
+                    // entirely — showing it in red just trains providers to
+                    // distrust the number. Anchor: 2026-10-24 2× false-positive
+                    // low readings. Pulse-ox prompt replaces the number.
+                    <div style={{ background: '#F9FAFB', borderRadius: 10, padding: '.75rem 1.25rem', textAlign: 'center' }} title={v.spo2 ? `Camera read ~${v.spo2}% but confidence was low — not shown. Confirm with pulse oximeter.` : undefined}>
                       <div style={{ fontSize: '.875rem', color: '#9CA3AF' }}>SpO₂ N/A</div>
-                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>use oximeter if needed</div>
+                      <div style={{ fontSize: '.625rem', color: '#9CA3AF', marginTop: 2 }}>{v.spo2 ? 'low confidence · use oximeter' : 'use oximeter if needed'}</div>
                     </div>
                   )}
                   {v.bp ? (

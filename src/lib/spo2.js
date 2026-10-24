@@ -308,7 +308,13 @@ export function formatSpO2Display(result, hasBreathingConcerns = false) {
     ? 'If you have difficulty breathing call 111 immediately.' : ''
   const calNote = calibrated ? 'Calibrated to your device.' : 'Uncalibrated — add oximeter readings to improve accuracy.'
 
-  if (estimate < 90 || confidence === 'low') {
+  // Hide anything flagged low confidence, OR anything under 92 regardless
+  // of the confidence tag. Anchor: 2026-10-24, 2× false-positive low SpO2 in
+  // prod, both ended up in the 90-94 "below normal" band shown to providers.
+  // Raising the hide floor from 90 → 92 removes the common failure zone
+  // without masking confirmed hypoxia (sub-90 confidence-high readings are
+  // rare for rPPG and still clinically meaningful when they land).
+  if (estimate < 92 || confidence === 'low') {
     return {
       show: false,
       text: 'SpO2: Unable to estimate reliably',
