@@ -130,8 +130,9 @@ export default async function handler(req, res) {
     }
   }
 
-  // Ordered funnel drop-off — count how many sessions hit each step, and
-  // the % that fell off between adjacent steps in FUNNEL_ORDER.
+  // Ordered funnel drop-off. For /call and /done the pageview beacon never
+  // fires (modal / state-change, not a route), so the session-based count
+  // underreports. We'll overlay DB-derived counts for those steps below.
   const dropOff = []
   for (let i = 0; i < FUNNEL_ORDER.length - 1; i++) {
     const from = FUNNEL_ORDER[i]
@@ -144,6 +145,16 @@ export default async function handler(req, res) {
     const dropPct = atFrom > 0 ? Math.round(((atFrom - atTo) / atFrom) * 100) : 0
     dropOff.push({ from_path: from, to_path: to, sessions_at_from: atFrom, sessions_at_to: atTo, drop_pct: dropPct })
   }
+  // Overlay DB-derived counts for the /call and /done steps on the drop-off
+  // view too. Query runs after this block (we patch the overlay post-fetch).
+  function overlayDrop(fromPath, toPath, toCount) {
+    const row = dropOff.find(r => r.from_path === fromPath && r.to_path === toPath)
+    if (!row) return
+    row.sessions_at_to = Math.max(row.sessions_at_to, toCount)
+    row.drop_pct = row.sessions_at_from > 0
+      ? Math.max(0, Math.round(((row.sessions_at_from - row.sessions_at_to) / row.sessions_at_from) * 100))
+      : 0
+  }
 
   const event_counts = [...eventCounts.entries()]
     .map(([event_name, count]) => ({ event_name, count }))
@@ -152,6 +163,36 @@ export default async function handler(req, res) {
   const path_counts = [...pathCounts.entries()]
     .map(([path, rec]) => ({ path, count: rec.count, unique_sessions: rec.sessions.size }))
     .sort((a, b) => b.count - a.count)
+
+  // /call and /done are modals / state changes, not real routes — the patient
+  // never navigates there so no pageview beacon fires. Fall back to the DB
+  // ground truth: consult.status transitions prove they reached those steps.
+  // Query is cheap (indexed on status + created_at) and runs once per request.
+  let inCallCount = 0, doneCount = 0
+  try {
+    let cq = supabase.from('consultations')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['in_progress', 'complete', 'completed'])
+      .eq('is_practice', false)
+      .gte('created_at', windowStart)
+    if (windowEnd) cq = cq.lte('created_at', windowEnd)
+    const inCallRes = await cq
+    inCallCount = inCallRes.count || 0
+
+    let dq = supabase.from('consultations')
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['complete', 'completed'])
+      .eq('is_practice', false)
+      .gte('created_at', windowStart)
+    if (windowEnd) dq = dq.lte('created_at', windowEnd)
+    const doneRes = await dq
+    doneCount = doneRes.count || 0
+  } catch (e) {
+    console.warn('[patient-funnel] consult-status fallback failed:', e?.message)
+  }
+
+  overlayDrop('/waiting', '/call', inCallCount)
+  overlayDrop('/call', '/done', doneCount)
 
   // Shaped like /api/consult-funnel's `funnel` field so the admin FunnelPanel
   // can render both from the same component. `reached` = unique sessions that
@@ -163,6 +204,8 @@ export default async function handler(req, res) {
     for (const paths of sessionPaths.values()) {
       if ([...paths].some(p => p === path || p.startsWith(`${path}/`))) n++
     }
+    if (path === '/call') n = Math.max(n, inCallCount)
+    if (path === '/done') n = Math.max(n, doneCount)
     return { path, reached: n }
   })
   const topTotal = totalByStep[0]?.reached || 0

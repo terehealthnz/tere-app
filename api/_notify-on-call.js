@@ -62,6 +62,24 @@ export async function notifyOnCallProviders({ consultationId }) {
       .maybeSingle()
     if (!consult) return
 
+    // Per-consult dedup. Four code paths call this for a single consult
+    // transitioning to status='waiting' (create, create-retry, patient PATCH,
+    // Windcave FPRN). Pre-fix, concurrent callers all passed the per-provider
+    // 10-min rate check (classic read-then-write race) and fired duplicate
+    // SMS. Atomic claim: only the first caller flips on_call_sms_sent_at
+    // from NULL. The others see 0 rows affected and bail. Per-provider rate
+    // limit below stays as the secondary guard against burst traffic.
+    const { data: claimed } = await supabase.from('consultations')
+      .update({ on_call_sms_sent_at: new Date().toISOString() })
+      .eq('id', consultationId)
+      .is('on_call_sms_sent_at', null)
+      .select('id')
+      .maybeSingle()
+    if (!claimed) {
+      console.warn('[notify-on-call] already claimed, skipping', { consultationId })
+      return
+    }
+
     const cutoffIso = new Date(Date.now() - 10 * 60 * 1000).toISOString()
 
     // Fetch opted-in providers with a phone on file. Rate-limit is checked
