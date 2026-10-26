@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -1049,16 +1049,27 @@ function AdminNhiLookupPanel() {
   const [result, setResult] = React.useState(null)
   const [error, setError] = React.useState('')
   const [showRaw, setShowRaw] = React.useState(false)
+  // Stored-patient lookup after a GET so NhiResultCard can show the
+  // admin-side drift banner (NHI-GET-8) mirroring the clinician-chart
+  // amber banner. Null when no stored patient exists in our DB for the
+  // queried NHI (expected for most HNZ test NHIs).
+  const [storedPatient, setStoredPatient] = React.useState(null)
 
   async function runGet(nhiOverride) {
     const q = String(nhiOverride ?? nhi).trim()
     if (!q) return
-    setBusy(true); setError(''); setResult(null)
+    setBusy(true); setError(''); setResult(null); setStoredPatient(null)
     try {
       const r = await apiFetch(`/api/nhi?action=get_patient&nhi=${encodeURIComponent(q)}`)
       const j = await r.json()
       if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
       setResult({ kind: 'get', requested: q, ...j })
+      // Opportunistic stored-patient fetch for the drift banner. Fire-and-forget;
+      // null result just means no local record (fine, no banner shown).
+      try {
+        const sp = await findPatientByNhi(q)
+        if (sp?.id) setStoredPatient(sp)
+      } catch { /* ignore - drift banner is optional */ }
     } catch (e) { setError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
@@ -1068,7 +1079,7 @@ function AdminNhiLookupPanel() {
     const f = String(overrides?.family ?? family).trim()
     const d = String(overrides?.birthdate ?? dob).trim()
     if (!f && !g && !d) return
-    setBusy(true); setError(''); setResult(null); setGiven(g); setFamily(f); setDob(d)
+    setBusy(true); setError(''); setResult(null); setStoredPatient(null); setGiven(g); setFamily(f); setDob(d)
     try {
       const qs = new URLSearchParams({ action:'match_patient', given:g, family:f, birthdate:d }).toString()
       const r = await apiFetch(`/api/nhi?${qs}`)
@@ -1085,7 +1096,7 @@ function AdminNhiLookupPanel() {
     const f = String(overrides?.family ?? family).trim()
     const d = String(overrides?.birthdate ?? dob).trim()
     if (!n) return
-    setBusy(true); setError(''); setResult(null); setNhi(n); setGiven(g); setFamily(f); setDob(d)
+    setBusy(true); setError(''); setResult(null); setStoredPatient(null); setNhi(n); setGiven(g); setFamily(f); setDob(d)
     try {
       const qs = new URLSearchParams({ action:'validate_patient', nhi:n, given:g, family:f, birthdate:d }).toString()
       const r = await apiFetch(`/api/nhi?${qs}`)
@@ -1172,12 +1183,39 @@ function AdminNhiLookupPanel() {
         )}
       </div>
 
-      {result && <NhiResultCard result={result} showRaw={showRaw} setShowRaw={setShowRaw} />}
+      {result && <NhiResultCard result={result} showRaw={showRaw} setShowRaw={setShowRaw} storedPatient={storedPatient} />}
     </div>
   )
 }
 
-function NhiResultCard({ result, showRaw, setShowRaw }) {
+// Drift computation for the admin-side NHI-GET-8 banner: compares our stored
+// patient demographics to the HNZ NHI Patient resource field-by-field. Mirrors
+// the server-computed `nhiCheck.mismatch` on ClinicianPatient. Returns an
+// array of human-readable field names that disagree, or null when everything
+// matches (or when no stored patient exists for the queried NHI).
+function computeAdminDrift(stored, shaped) {
+  if (!stored || !shaped) return null
+  const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const diffs = []
+  if (stored.first_name && norm(stored.first_name) !== norm(shaped.given)) diffs.push('first name')
+  if (stored.last_name && norm(stored.last_name) !== norm(shaped.family)) diffs.push('last name')
+  if (stored.dob && shaped.birthDate && norm(stored.dob) !== norm(shaped.birthDate)) diffs.push('date of birth')
+  // Address compare: patient.address is a free-text single column in our DB,
+  // whereas NHI exposes up to several structured Address resources. We count
+  // "matches" if the stored string appears equal to any one of the NHI
+  // addresses (joined and normalised). Only flag when a stored address is
+  // present (new patients created without an address shouldn't trigger).
+  if (stored.address) {
+    const storedAddr = norm(stored.address)
+    const nhiAddrs = (shaped.addresses || [])
+      .map(a => norm([a.line, a.city, a.postalCode].filter(Boolean).join(', ')))
+      .filter(Boolean)
+    if (nhiAddrs.length && !nhiAddrs.includes(storedAddr)) diffs.push('address')
+  }
+  return diffs.length ? diffs : null
+}
+
+function NhiResultCard({ result, showRaw, setShowRaw, storedPatient }) {
   const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
   const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
   const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
@@ -1268,6 +1306,30 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
           <div style={{ fontSize:'.75rem', marginTop:6, color:'#991B1B' }}>Handled gracefully — no server crash. (NHI-GET-Negative / NHI-GET-Malformed)</div>
         </div>
       )}
+
+      {/* Drift banner (NHI-GET-8) - admin mirror of the clinician amber banner
+          on ClinicianPatient. Shows when there's a stored patient in our DB
+          for this NHI AND one or more fields differ from the HNZ record. For
+          most HNZ test NHIs there's no stored patient, so this stays hidden
+          unless an admin has intentionally seeded a mismatching record. */}
+      {(() => {
+        const drift = result.kind === 'get' && shaped ? computeAdminDrift(storedPatient, shaped) : null
+        if (!drift) return null
+        return (
+          <div style={{ background:'#FEF3C7', color:'#78350F', border:'1px solid #FBBF24', borderRadius:12, padding:'.9rem 1rem', marginBottom:'1rem', display:'flex', alignItems:'flex-start', gap:'.75rem' }}>
+            <div style={{ fontSize:'1.5rem' }}>⚠</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Stored patient demographics differ from HNZ NHI record</div>
+              <div style={{ fontSize:'.8125rem', marginTop:4 }}>
+                Fields that disagree: <strong>{drift.join(', ')}</strong>.
+                Tere holds <strong>{[storedPatient.first_name, storedPatient.last_name].filter(Boolean).join(' ') || '-'}</strong>, DOB {storedPatient.dob || '-'}.
+                HNZ holds <strong>{[shaped.given, shaped.family].filter(Boolean).join(' ') || '-'}</strong>, DOB {shaped.birthDate || '-'}.
+                Clinician sees the same amber banner on the chart; prescribing and referrals require ID reconfirm before proceeding. (NHI-GET-8)
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Patient card (NHI-GET-1/-2/-4/-5) */}
       {shaped && (
