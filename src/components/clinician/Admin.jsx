@@ -1188,13 +1188,31 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
   const isPatient = body?.resourceType === 'Patient'
   const isBundle = body?.resourceType === 'Bundle'
 
-  // GET Patient — extract the fields HNZ requires the product surface
+  // GET Patient - extract the fields HNZ requires the product surface
+  //
+  // Address handling: HNZ NHI returns multiple Address resources distinguished
+  // by `use` (home | postal | temp | work | old). Pre-2026-10-26 we only
+  // rendered address[0] which hid the postal line entirely when a patient had
+  // both home and postal addresses (Noel flagged this on NHI-GET-9 ZJM9567:
+  // "Only the physical address is shown. Please include the postal address
+  // as well."). Now shape every non-'old' address with its `use` label and
+  // render each separately in the card.
   const shapePatient = (p) => {
     if (!p || p.resourceType !== 'Patient') return null
     const off = (p.name || []).find(n => (n.extension || []).some(x => x.url?.includes('iso21090-preferred') && x.valueBoolean === true)) || (p.name || [])[0] || {}
     const given = (off.given || []).join(' ')
     const family = off.family || ''
-    const address = (p.address || [])[0] || {}
+    const addresses = (p.address || [])
+      .filter(a => a?.use !== 'old')
+      .map(a => ({
+        use: a.use || 'home',
+        line: (a.line || []).join(', '),
+        city: a.city || '',
+        postalCode: a.postalCode || '',
+      }))
+    // Keep legacy fields populated from the first address so any existing
+    // caller that reads addressLine/addressCity/addressPostal still works.
+    const primary = addresses[0] || {}
     const ethnicities = (p.extension || [])
       .filter(x => x.url?.includes('nz-ethnicity'))
       .map(x => x.valueCodeableConcept?.text || x.valueCodeableConcept?.coding?.[0]?.display).filter(Boolean)
@@ -1203,9 +1221,10 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
       gender: p.gender || '',
       birthDate: p.birthDate || '',
       deceasedDateTime: p.deceasedDateTime || (p.deceasedBoolean ? 'yes (boolean)' : ''),
-      addressLine: (address.line || []).join(', '),
-      addressCity: address.city || '',
-      addressPostal: address.postalCode || '',
+      addresses,
+      addressLine: primary.line || '',
+      addressCity: primary.city || '',
+      addressPostal: primary.postalCode || '',
       ethnicity: ethnicities.join(' · '),
       identifiers: (p.identifier || []).map(id => ({ system: id.system?.split('/').pop() || 'identifier', value: id.value, use: id.use })),
     }
@@ -1254,9 +1273,19 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
       {shaped && (
         <div style={panel}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', gap:12 }}>
-            <div>
-              <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{shaped.given || shaped.family ? `${shaped.given} ${shaped.family}` : shaped.id}</div>
-              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>NHI Patient resource · resource id <code>{shaped.id}</code></div>
+            <div style={{ minWidth:0, flex:1 }}>
+              {/* Stack given above family so both are fully readable even at
+                  maximum-length NHI values. Pre-fix (2026-10-26) they were
+                  concatenated inline, so NHI-GET-6 ZBE4905 (max-length name
+                  parts) rendered with the given name overlapping the family
+                  name. Noel flagged this; now each part is on its own line
+                  with break-word so neither can clip the other. */}
+              <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45', lineHeight:1.2, wordBreak:'break-word' }}>
+                {shaped.given && <div>{shaped.given}</div>}
+                {shaped.family && <div>{shaped.family}</div>}
+                {!shaped.given && !shaped.family && shaped.id}
+              </div>
+              <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:4 }}>NHI Patient resource · resource id <code>{shaped.id}</code></div>
             </div>
             <div style={{ padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap', background: shaped.deceasedDateTime ? '#374151' : '#DCFCE7', color: shaped.deceasedDateTime ? 'white' : '#166534' }}>
               {shaped.deceasedDateTime ? '✗ DECEASED' : '✓ LIVE'}
@@ -1272,8 +1301,19 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
             {kv('Date of death', shaped.deceasedDateTime || 'not recorded')}
           </div>
 
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:'1rem', marginBottom:'1rem' }}>
-            {kv('Address', [shaped.addressLine, shaped.addressCity, shaped.addressPostal].filter(Boolean).join(', '))}
+          {/* Addresses - one row per `use` so physical/home and postal are both
+              visible (NHI-GET-9 ZJM9567: previously only address[0] was shown). */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(240px, 1fr))', gap:'1rem', marginBottom:'1rem' }}>
+            {(shaped.addresses || []).length > 0
+              ? shaped.addresses.map((a, i) => (
+                  <div key={i}>
+                    <div style={label}>{a.use === 'postal' ? 'Postal address' : a.use === 'temp' ? 'Temporary address' : a.use === 'work' ? 'Work address' : 'Physical address'}</div>
+                    <div style={{ ...value, wordBreak:'break-word' }}>
+                      {[a.line, a.city, a.postalCode].filter(Boolean).join(', ') || <span style={{ color:'#9CA3AF', fontWeight:400 }}>-</span>}
+                    </div>
+                  </div>
+                ))
+              : kv('Address', '')}
             {kv('Ethnicity', shaped.ethnicity)}
           </div>
 
@@ -1309,20 +1349,35 @@ function NhiResultCard({ result, showRaw, setShowRaw }) {
             <div style={{ fontSize:'.8125rem', color:'#6B7280' }}>Empty Bundle returned — no {result.kind === 'match' ? 'candidate matches' : 'certain match'} for the supplied demographics. HNZ documents this as a legitimate outcome (not an error).</div>
           ) : (
             <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
-              {(body.entry || []).map((e, i) => {
+              {/* Explicit client-side sort descending by match score. HNZ FHIR
+                  returns entries already sorted, but Noel asked for a visible
+                  guarantee in our UI (NHI-Match-3). Entries without a score
+                  land at the bottom. */}
+              {[...(body.entry || [])]
+                .sort((a, b) => (Number(b.search?.score ?? 0)) - (Number(a.search?.score ?? 0)))
+                .map((e, i, arr) => {
                 const sp = shapePatient(e.resource)
                 const score = e.search?.score
+                // Primary address line - IG requires address as a minimum
+                // attribute on each match result (Noel flagged on NHI-Match).
+                const addr = (sp?.addresses || [])[0]
+                const addrText = addr ? [addr.line, addr.city, addr.postalCode].filter(Boolean).join(', ') : ''
                 return (
-                  <div key={i} style={{ padding:'.75rem 1rem', borderBottom: i < body.entry.length - 1 ? '1px solid #F3F4F6' : 'none', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-                    <div>
-                      <div style={{ fontWeight:700, color:'#0D2B45' }}>{sp?.given} {sp?.family} <code style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:500, marginLeft:6 }}>{sp?.id}</code></div>
+                  <div key={i} style={{ padding:'.75rem 1rem', borderBottom: i < arr.length - 1 ? '1px solid #F3F4F6' : 'none', display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+                    <div style={{ minWidth:0, flex:1 }}>
+                      <div style={{ fontWeight:700, color:'#0D2B45', wordBreak:'break-word' }}>{sp?.given} {sp?.family} <code style={{ fontSize:'.75rem', color:'#6B7280', fontWeight:500, marginLeft:6 }}>{sp?.id}</code></div>
                       <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
-                        DOB {sp?.birthDate || '—'} · {sp?.gender || '—'}
+                        DOB {sp?.birthDate || '-'} · {sp?.gender || '-'}
                         {sp?.deceasedDateTime && <> · <span style={{ color:'#B91C1C' }}>deceased {sp.deceasedDateTime}</span></>}
                       </div>
+                      {addrText && (
+                        <div style={{ fontSize:'.75rem', color:'#374151', marginTop:4, wordBreak:'break-word' }}>
+                          <span style={{ color:'#6B7280' }}>Address:</span> {addrText}
+                        </div>
+                      )}
                     </div>
                     {score != null && (
-                      <div style={{ padding:'4px 10px', borderRadius:99, background:'#F0F9FA', color:'#0B6E76', fontSize:'.6875rem', fontWeight:800 }}>
+                      <div style={{ padding:'4px 10px', borderRadius:99, background:'#F0F9FA', color:'#0B6E76', fontSize:'.6875rem', fontWeight:800, whiteSpace:'nowrap' }}>
                         match score {score > 1 ? Number(score).toFixed(0) : `${(Number(score) * 100).toFixed(0)}%`}
                       </div>
                     )}
