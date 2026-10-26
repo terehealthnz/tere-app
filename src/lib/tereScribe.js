@@ -6,9 +6,9 @@
 import { apiFetch } from './api'
 
 // Synchronous transcription via Deepgram. Reverted from AWS Transcribe on
-// 2026-09-28 — Transcribe rejected en-NZ and the empty-blob race + missing
+// 2026-09-28 - Transcribe rejected en-NZ and the empty-blob race + missing
 // UI on Chime broke the whole path before launch. Deepgram returns text
-// inline in <0.5s for a 10-min call — no polling, no job IDs.
+// inline in <0.5s for a 10-min call - no polling, no job IDs.
 export async function transcribeAudio(audioBlob) {
   const res = await apiFetch('/api/transcribe', {
     method: 'POST',
@@ -44,10 +44,10 @@ export async function generateNotes(transcript, body = {}) {
 // device to LiveKit), and MediaRecorder emits ondataavailable with size 0
 // forever. /api/transcribe then rejected the empty blob with a 400 and the
 // transcript stayed null. Verified in prod via Vercel logs on 2026-08-19
-// after a live test with Justin — scribe uploaded 0 bytes.
+// after a live test with Justin - scribe uploaded 0 bytes.
 //
 // This version instead attaches to a live LiveKit Room, pulls both the
-// local audio track (provider mic — guaranteed live because the remote
+// local audio track (provider mic - guaranteed live because the remote
 // party can hear us) and any remote audio tracks (patient side), mixes
 // them via WebAudio so a single stereo/mixed stream reaches MediaRecorder.
 // If a LiveKit room isn't available (e.g. old ProviderConsult still in use
@@ -61,28 +61,41 @@ export class ConsultationRecorder {
     this.fallbackStream = null        // mic stream if we had to getUserMedia
     this.audioContext  = null
     this.destinationNode = null
-    this.sourceNodes   = []
+    // AudioNode per live track, keyed on the underlying MediaStreamTrack id
+    // so we can swap individual sources in and out as LiveKit republishes.
+    // Pre-fix (2026-10-25) the collection was a plain array snapshotted at
+    // start(); when a track republished mid-call the old (dead) node stayed
+    // connected and silently recorded nothing while the new track went
+    // unmixed. Ian reported this as "mic cutting out" on 2026-10-25.
+    this.sourceByTrackId = new Map()
     this.room          = opts.room || null
     // Chime path: HTMLAudioElement whose captureStream() emits the mixed
     // remote audio Chime binds via bindAudioElement. Local mic is captured
     // via a fresh getUserMedia handle (see #collectChimeAudioStreams).
     this.chimeAudioEl  = opts.chimeAudioEl || null
-    // Late-joiner subscription (post-task #480 fix): with the patient-must-
-    // click-Start-Call gate, scribe begins when the provider's LiveKit room
-    // connects, which is BEFORE the patient has joined. The initial track
-    // snapshot captures only the provider's mic. We now subscribe to
-    // TrackSubscribed and splice any audio track that arrives afterwards
-    // into the WebAudio graph so the patient's half of the call lands in
-    // the transcript. _onTrackSubscribed holds the handler so stop() can
-    // detach it cleanly.
+    // LiveKit event handlers. Held on the instance so stop() can detach.
+    //   trackSubscribed      - remote patient publishes audio post-start
+    //   trackUnsubscribed    - remote track dies (hang-up, network drop)
+    //   localTrackPublished  - provider mic republishes (device swap /
+    //                          Bluetooth switch / iOS audio-session reset)
+    //   localTrackUnpublished - provider mic unpublished mid-call
     this._onTrackSubscribed = null
+    this._onTrackUnsubscribed = null
+    this._onLocalTrackPublished = null
+    this._onLocalTrackUnpublished = null
+    // iOS Safari suspends AudioContext when the tab backgrounds or the
+    // audio session is interrupted (incoming phone call, Siri, screen off
+    // without Wake Lock). Visibility handler resumes on return; watchdog
+    // interval catches the other suspension causes.
+    this._visibilityHandler = null
+    this._resumeWatchdog = null
   }
 
   async start() {
     // Preferred path: mix LiveKit tracks via WebAudio. Only works if we've
     // been handed a LiveKit Room reference with at least one active audio
     // track. Both the provider's local audio and any remote audio tracks
-    // (there'll be one per remote participant — patient) get wired into
+    // (there'll be one per remote participant - patient) get wired into
     // a single MediaStreamDestination that MediaRecorder can record.
     let mixedStreams = this.#collectLiveKitAudioTracks()
 
@@ -100,41 +113,67 @@ export class ConsultationRecorder {
       // on room-connect which is already async, so resume() unblocks it.
       try { if (this.audioContext.state === 'suspended') await this.audioContext.resume() } catch {}
       this.destinationNode = this.audioContext.createMediaStreamDestination()
-      for (const mediaStream of mixedStreams) {
-        const src = this.audioContext.createMediaStreamSource(mediaStream)
-        src.connect(this.destinationNode)
-        this.sourceNodes.push(src)
-      }
+      for (const mediaStream of mixedStreams) this.#addSource(mediaStream)
       this.stream = this.destinationNode.stream
 
-      // Late-joiner wiring (LiveKit path only). The initial snapshot above
-      // captured whatever tracks were published when start() ran. With the
-      // patient Start-Call gate (task #480), scribe starts the moment the
-      // provider's LiveKitRoom connects — well before the patient has
-      // clicked their Start Call button and published their mic. We now
-      // listen for TrackSubscribed and splice any audio track that arrives
-      // afterwards into the running WebAudio graph. Without this, the
-      // transcript contained only the provider's half of the call. The
-      // string literal 'trackSubscribed' avoids pulling in a livekit-client
-      // import for a single event name.
+      // Live wiring: splice tracks in/out as LiveKit publishes and unpublishes
+      // them. Initial start() snapshot only sees what's live at that instant.
+      // Four events to cover:
+      //   trackSubscribed      - patient publishes audio AFTER scribe starts
+      //                          (common: patient Start-Call gate, task #480)
+      //   trackUnsubscribed    - remote track dies without being replaced
+      //   localTrackPublished  - provider mic republishes (device switch,
+      //                          Bluetooth, iOS audio-session reset)
+      //   localTrackUnpublished - provider mic unpublished mid-call
+      // Without the un-/re-publish listeners the mix freezes to whatever was
+      // live at start(); when a device republishes the old source stays
+      // connected to a dead MediaStreamTrack and the recorder silently
+      // captures nothing. Event names are string literals to avoid pulling
+      // in a livekit-client enum import.
       if (this.room) {
         this._onTrackSubscribed = (track) => {
-          try {
-            if (track?.kind !== 'audio') return
-            const ms = track.mediaStream || (track.mediaStreamTrack && new MediaStream([track.mediaStreamTrack]))
-            if (!ms) return
-            const src = this.audioContext.createMediaStreamSource(ms)
-            src.connect(this.destinationNode)
-            this.sourceNodes.push(src)
-            console.log('[tereScribe] late audio track wired in — likely the patient joining mid-recording')
-          } catch (e) {
-            console.warn('[tereScribe] TrackSubscribed splice failed:', e?.message)
-          }
+          if (track?.kind !== 'audio') return
+          this.#addSource(this.#mediaStreamFromLivekitTrack(track))
+        }
+        this._onTrackUnsubscribed = (track) => {
+          if (track?.kind !== 'audio') return
+          const key = track.mediaStreamTrack?.id
+          if (key) this.#removeSource(key)
+        }
+        this._onLocalTrackPublished = (pub) => {
+          const t = pub?.track
+          if (!t || (t.kind && t.kind !== 'audio')) return
+          this.#addSource(this.#mediaStreamFromLivekitTrack(t))
+        }
+        this._onLocalTrackUnpublished = (pub) => {
+          const key = pub?.track?.mediaStreamTrack?.id
+          if (key) this.#removeSource(key)
         }
         try { this.room.on('trackSubscribed', this._onTrackSubscribed) } catch {}
+        try { this.room.on('trackUnsubscribed', this._onTrackUnsubscribed) } catch {}
+        try { this.room.on('localTrackPublished', this._onLocalTrackPublished) } catch {}
+        try { this.room.on('localTrackUnpublished', this._onLocalTrackUnpublished) } catch {}
       }
+
+      // AudioContext suspension recovery. iOS Safari suspends on tab
+      // background / audio-session interruption and MediaRecorder goes
+      // silent until it resumes. visibilitychange catches foreground
+      // return; the watchdog catches session interruptions where the tab
+      // never fully backgrounded (incoming call, Siri). Both resume calls
+      // are no-ops when already running.
+      this._visibilityHandler = () => {
+        if (!document.hidden && this.audioContext?.state === 'suspended') {
+          this.audioContext.resume().catch(() => {})
+        }
+      }
+      try { document.addEventListener('visibilitychange', this._visibilityHandler) } catch {}
+      this._resumeWatchdog = setInterval(() => {
+        if (this.audioContext?.state === 'suspended') {
+          this.audioContext.resume().catch(() => {})
+        }
+      }, 5000)
     } else {
-      // Fallback path — no LiveKit tracks, so grab the mic directly.
+      // Fallback path - no LiveKit tracks, so grab the mic directly.
       // Only reached from callers that don't own a Room (rare).
       try {
         this.fallbackStream = await navigator.mediaDevices.getUserMedia({
@@ -150,7 +189,7 @@ export class ConsultationRecorder {
     // iOS Safari (and Chrome-on-iOS, which is Safari underneath) do NOT
     // support audio/webm. Trying to construct MediaRecorder with
     // mimeType:'audio/webm' throws NotSupportedError, start() rejects, and
-    // scribe silently never records anything — which is exactly what Patrick
+    // scribe silently never records anything - which is exactly what Patrick
     // saw on his phone 2026-10-03. Pick the first supported type from a
     // priority-ordered list; if none, construct without options so the
     // browser picks its own default. Deepgram transcribes mp4/aac/webm all
@@ -177,6 +216,12 @@ export class ConsultationRecorder {
       this.mediaRecorder = new MediaRecorder(this.stream)
     }
     this.mediaRecorder.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data) }
+    // Surface recorder-level failures (previously silent). If the browser
+    // kills the recorder mid-call we at least get a console breadcrumb for
+    // post-mortem; without this we only noticed via 0-byte final blobs.
+    this.mediaRecorder.onerror = e => {
+      console.error('[tereScribe] MediaRecorder error:', e?.error?.name || e?.error?.message || e?.error || e)
+    }
     this.mediaRecorder.start(1000)
   }
 
@@ -192,13 +237,28 @@ export class ConsultationRecorder {
         const blobType = this.mediaRecorder.mimeType || this.recorderMime || 'audio/webm'
         const blob = new Blob(this.chunks, { type: blobType })
         // Clean up any resources we own. LiveKit tracks (roomTracks path) are
-        // owned by the Room, so we DO NOT stop them — only the mic stream we
+        // owned by the Room, so we DO NOT stop them - only the mic stream we
         // opened ourselves (fallbackStream) + any WebAudio nodes.
-        if (this.room && this._onTrackSubscribed) {
-          try { this.room.off('trackSubscribed', this._onTrackSubscribed) } catch {}
-          this._onTrackSubscribed = null
+        if (this.room) {
+          try { if (this._onTrackSubscribed)       this.room.off('trackSubscribed',       this._onTrackSubscribed) } catch {}
+          try { if (this._onTrackUnsubscribed)     this.room.off('trackUnsubscribed',     this._onTrackUnsubscribed) } catch {}
+          try { if (this._onLocalTrackPublished)   this.room.off('localTrackPublished',   this._onLocalTrackPublished) } catch {}
+          try { if (this._onLocalTrackUnpublished) this.room.off('localTrackUnpublished', this._onLocalTrackUnpublished) } catch {}
         }
-        try { this.sourceNodes.forEach(n => n.disconnect()) } catch {}
+        this._onTrackSubscribed = null
+        this._onTrackUnsubscribed = null
+        this._onLocalTrackPublished = null
+        this._onLocalTrackUnpublished = null
+        if (this._visibilityHandler) {
+          try { document.removeEventListener('visibilitychange', this._visibilityHandler) } catch {}
+          this._visibilityHandler = null
+        }
+        if (this._resumeWatchdog) {
+          try { clearInterval(this._resumeWatchdog) } catch {}
+          this._resumeWatchdog = null
+        }
+        try { for (const src of this.sourceByTrackId.values()) src.disconnect() } catch {}
+        this.sourceByTrackId.clear()
         try { this.destinationNode?.disconnect?.() } catch {}
         try { this.audioContext?.close?.() } catch {}
         if (this.fallbackStream) this.fallbackStream.getTracks().forEach(t => t.stop())
@@ -208,9 +268,44 @@ export class ConsultationRecorder {
     })
   }
 
+  // Add a MediaStream to the live mix, keyed on its first audio track id so
+  // we never double-add the same track. Called from both the initial start()
+  // snapshot and all four LiveKit publish/subscribe handlers.
+  #addSource(mediaStream) {
+    if (!mediaStream || !this.audioContext || !this.destinationNode) return
+    const t = mediaStream.getAudioTracks?.()[0]
+    const key = t?.id
+    if (!key || this.sourceByTrackId.has(key)) return
+    try {
+      const src = this.audioContext.createMediaStreamSource(mediaStream)
+      src.connect(this.destinationNode)
+      this.sourceByTrackId.set(key, src)
+      // Belt-and-braces: if the underlying MediaStreamTrack ends without
+      // LiveKit raising a Track(Un)subscribed event (seen on some mobile
+      // network blips), drop the dead source so the mix doesn't stall.
+      try { t.addEventListener('ended', () => this.#removeSource(key), { once: true }) } catch {}
+    } catch (e) {
+      console.warn('[tereScribe] addSource failed:', e?.message)
+    }
+  }
+
+  #removeSource(trackId) {
+    const src = this.sourceByTrackId.get(trackId)
+    if (!src) return
+    try { src.disconnect() } catch {}
+    this.sourceByTrackId.delete(trackId)
+  }
+
+  #mediaStreamFromLivekitTrack(track) {
+    if (!track) return null
+    return track.mediaStream
+      || (track.mediaStreamTrack && new MediaStream([track.mediaStreamTrack]))
+      || null
+  }
+
   // Chime path: remote audio is mixed by Chime into the bound audio element,
   // so HTMLAudioElement.captureStream() gives us the patient's voice. Local
-  // mic is captured via a fresh getUserMedia — the browser tolerates a
+  // mic is captured via a fresh getUserMedia - the browser tolerates a
   // parallel handle to the same device Chime is already using. If mic
   // capture fails we still return the remote-only stream (better than
   // nothing for post-call transcript).
@@ -240,7 +335,7 @@ export class ConsultationRecorder {
   // Collect all currently-published audio tracks from the LiveKit Room:
   // - local participant's mic (guaranteed live if they're on the call)
   // - each remote participant's audio (patient's mic if they're connected)
-  // Returns an array of MediaStream objects — one per track — so the caller
+  // Returns an array of MediaStream objects - one per track - so the caller
   // can pipe each into a WebAudio source node.
   #collectLiveKitAudioTracks() {
     if (!this.room) return []

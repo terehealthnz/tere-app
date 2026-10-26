@@ -24,18 +24,28 @@ export default async function handler(req, res) {
       keyterm: 'ACC,NHI,ibuprofen,paracetamol,amoxicillin,fracture,laceration,sprain,contusion,hypertension,diabetes,asthma,ankle,knee,wrist,shoulder,Tere',
     })
 
-    const r = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiKey}`,
-        'Content-Type': contentType,
-      },
-      body: audio,
-    })
+    // One retry on 5xx. Deepgram occasionally 502s under upstream load;
+    // without the retry a transient blip loses the whole consult transcript
+    // and the provider has to re-type notes. Non-5xx (400 bad audio, 401
+    // auth) fail fast - retrying wouldn't help.
+    let r, errText
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      r = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': contentType,
+        },
+        body: audio,
+      })
+      if (r.ok) break
+      errText = await r.text()
+      if (r.status < 500 || attempt === 2) break
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
 
     if (!r.ok) {
-      const err = await r.text()
-      console.error('[transcribe] Deepgram error:', err)
+      console.error('[transcribe] Deepgram error after retry:', r.status, errText)
       return res.status(502).json({ error: 'Transcription unavailable' })
     }
 
