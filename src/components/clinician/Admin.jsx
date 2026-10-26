@@ -1209,7 +1209,8 @@ function computeAdminDrift(stored, shaped) {
   const diffs = []
   if (stored.first_name && norm(stored.first_name) !== norm(shaped.given)) diffs.push('first name')
   if (stored.last_name && norm(stored.last_name) !== norm(shaped.family)) diffs.push('last name')
-  if (stored.dob && shaped.birthDate && norm(stored.dob) !== norm(shaped.birthDate)) diffs.push('date of birth')
+  const storedDob = stored.date_of_birth || stored.dob
+  if (storedDob && shaped.birthDate && norm(storedDob) !== norm(shaped.birthDate)) diffs.push('date of birth')
   // Address compare: patient.address is a free-text single column in our DB,
   // whereas NHI exposes up to several structured Address resources. We count
   // "matches" if the stored string appears equal to any one of the NHI
@@ -1332,7 +1333,7 @@ function NhiResultCard({ result, showRaw, setShowRaw, storedPatient }) {
               <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Stored patient demographics differ from HNZ NHI record</div>
               <div style={{ fontSize:'.8125rem', marginTop:4 }}>
                 Fields that disagree: <strong>{drift.join(', ')}</strong>.
-                Tere holds <strong>{[storedPatient.first_name, storedPatient.last_name].filter(Boolean).join(' ') || '-'}</strong>, DOB {storedPatient.dob || '-'}.
+                Tere holds <strong>{[storedPatient.first_name, storedPatient.last_name].filter(Boolean).join(' ') || '-'}</strong>, DOB {storedPatient.date_of_birth || storedPatient.dob || '-'}.
                 HNZ holds <strong>{[shaped.given, shaped.family].filter(Boolean).join(' ') || '-'}</strong>, DOB {shaped.birthDate || '-'}.
                 Clinician sees the same amber banner on the chart; prescribing and referrals require ID reconfirm before proceeding. (NHI-GET-8)
               </div>
