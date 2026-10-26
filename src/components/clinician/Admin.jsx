@@ -1255,6 +1255,13 @@ function NhiResultCard({ result, showRaw, setShowRaw, storedPatient }) {
       .filter(a => a?.use !== 'old')
       .map(a => ({
         use: a.use || 'home',
+        // FHIR R4 Address.type (physical | postal | both) is how HNZ actually
+        // distinguishes between a patient's home address and their postal
+        // delivery address when both have use='home'. Older code only read
+        // .use which meant ZJM9567's postal line rendered as "Physical" too.
+        // Noel flagged this on NHI-GET-9 2026-10-26; now the label picker
+        // checks type first, falls back to use.
+        type: a.type || '',
         line: (a.line || []).join(', '),
         city: a.city || '',
         postalCode: a.postalCode || '',
@@ -1380,7 +1387,7 @@ function NhiResultCard({ result, showRaw, setShowRaw, storedPatient }) {
             {(shaped.addresses || []).length > 0
               ? shaped.addresses.map((a, i) => (
                   <div key={i}>
-                    <div style={label}>{a.use === 'postal' ? 'Postal address' : a.use === 'temp' ? 'Temporary address' : a.use === 'work' ? 'Work address' : 'Physical address'}</div>
+                    <div style={label}>{a.type === 'postal' || a.use === 'postal' ? 'Postal address' : a.type === 'physical' ? 'Physical address' : a.use === 'temp' ? 'Temporary address' : a.use === 'work' ? 'Work address' : 'Physical address'}</div>
                     <div style={{ ...value, wordBreak:'break-word' }}>
                       {[a.line, a.city, a.postalCode].filter(Boolean).join(', ') || <span style={{ color:'#9CA3AF', fontWeight:400 }}>-</span>}
                     </div>
