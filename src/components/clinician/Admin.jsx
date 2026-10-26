@@ -1162,11 +1162,21 @@ function AdminNhiLookupPanel() {
           <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZJS7596'); runGet('ZJS7596') }}>NHI-GET-1 · ZJS7596 (positive)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2348'); runGet('ZAT2348') }}>NHI-GET-2 · ZAT2348 (deceased)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2364'); runGet('ZAT2364') }}>NHI-GET-3 · ZAT2364 (full positive)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2496'); runGet('ZAT2496') }}>NHI-GET-4 · ZAT2496 (partial DOB)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAT2518'); runGet('ZAT2518') }}>NHI-GET-5 · ZAT2518 (dormant)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZBE4905'); runGet('ZBE4905') }}>NHI-GET-6 · ZBE4905 (max-length names)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZUA48EH'); runGet('ZUA48EH') }}>NHI-GET-7 · ZUA48EH (new 7-char format)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZCX7065'); runGet('ZCX7065') }}>NHI-GET-8 · ZCX7065 (drift demo)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZJM9567'); runGet('ZJM9567') }}>NHI-GET-9 · ZJM9567 (postal address)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAU8023'); runGet('ZAU8023') }}>NHI-GET-10a · ZAU8023 (surname only)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAV8657'); runGet('ZAV8657') }}>NHI-GET-10b · ZAV8657 (surname only)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZHS7524'); runGet('ZHS7524') }}>NHI-GET-10c · ZHS7524 (multi given names)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('ZAA0044'); runGet('ZAA0044') }}>NHI-GET-Neg · ZAA0044 (404)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('get'); setNhi('!!invalid!!'); runGet('!!invalid!!') }}>NHI-GET-Mal · malformed</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Noah', family:'Owen', birthdate:'1949-10-30' }) }}>NHI-Match-1 · Noah Owen</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Summer Barbara', family:'MacKenzie', birthdate:'' }) }}>NHI-Match-2 · Summer MacKenzie (422)</button>
+            <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Compliance', family:'Thebook', birthdate:'2003-07-03' }) }}>NHI-Match-3 · Compliance Thebook (9 results)</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'Rhetoric', family:'', birthdate:'' }) }}>NHI-Match-Err-1 · missing DOB</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('match'); runMatch({ given:'', family:'', birthdate:'1954-09-28' }) }}>NHI-Match-Err-2 · missing name</button>
             <button type="button" style={scenarioBtn} disabled={busy} onClick={() => { setMode('validate'); runValidate({ nhi:'ZJS7596', given:'Jamie', family:'Maraka', birthdate:'1977-08-25' }) }}>NHI-Validate-1 · Jamie Maraka</button>
