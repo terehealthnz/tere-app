@@ -100,46 +100,36 @@ SCREENSHOT_PATHS = {
 }
 
 # Which scenario id gets which screenshot key + caption. All 22 mandatory
-# scenarios in the evidence JSON are covered — no scenario falls back to the
-# JSON-excerpt-only rendering.
+# scenarios in the evidence JSON are covered. Captions reflect the admin NHI
+# Lookup clinician-view post-fix (IN-3589 Noel Babu 2026-10-26 rework):
+#   NHI-GET-6: given + family stacked separately so max-length names don't overlap
+#   NHI-GET-9: physical + postal addresses rendered on separate labelled rows
+#   NHI-GET-8: admin-side drift banner mirrors the clinician amber banner
+#   NHI-Match: primary address shown on each row (IG-required minimum attribute)
+#   NHI-Match-3: results explicitly sorted descending by score before render
 SCENARIO_SCREENSHOTS = {
-    # Original 11 (Admin panel captures)
-    'NHI-GET-1':          [('admin-nhi-ZJS7596',  'Admin NHI Lookup — GET Patient/ZJS7596 (Jamie Susan Maraka, DOB 1977-08-25) — minimum identity fields rendered.')],
-    'NHI-GET-2':          [('admin-nhi-ZAT2348',  'Admin NHI Lookup — GET Patient/ZAT2348 (deceased persona) — deceased banner surfaced, onboarding blocked.')],
-    'NHI-GET-4':          [('admin-nhi-ZAT2496',  'Admin NHI Lookup — GET Patient/ZAT2496 (partial birthDate "1914") — application handles partial dates without crashing.')],
-    'NHI-GET-5':          [('admin-nhi-ZAT2518',  'Admin NHI Lookup — GET Patient/ZAT2518 → live NHI ZAT2496 returned; dormant-redirect notice shown to admin.')],
-    'NHI-GET-Negative':   [('admin-nhi-notfound', 'Admin NHI Lookup — GET Patient/ZAA0044 → 404 OperationOutcome (EM02002) surfaced as "NHI not found" without stack trace.')],
-    'NHI-GET-Malformed':  [('admin-nhi-malformed','Admin NHI Lookup — GET Patient/!!invalid!! → graceful 4xx surfaced to user, no server crash.')],
-    'NHI-Match-1':        [('admin-nhi-search',   'Admin NHI Lookup — POST /Patient/$match with given=Noah, family=Owen, birthdate=1949-10-30 → Bundle with 1 candidate match (ZAT4626), match score visible.')],
-    'NHI-Match-Error-1':  [('admin-nhi-match-err-1', 'Admin NHI Lookup — POST /Patient/$match with given only, no birthdate → 4xx OperationOutcome; input + error surfaced.')],
-    'NHI-Match-Error-2':  [('admin-nhi-match-err-2', 'Admin NHI Lookup — POST /Patient/$match with birthdate only, no name → 4xx OperationOutcome; input + error surfaced.')],
-    'NHI-Validate-1':     [('admin-nhi-validate', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jamie Maraka / ZJS7596 → ✓ VALIDATED, 1 certain match.')],
-    'NHI-Validate-3':     [('admin-nhi-validate-3', 'Admin NHI Lookup — POST /Patient/$match with onlyCertainMatches=true and Jaime Jones / ZJK9604 → empty Bundle (no certain match). Legitimate negative result surfaced cleanly.')],
-    # Extended 11 (live production evidence renders — full FHIR body + correlation id + userid + x-api-key visible)
-    'NHI-GET-3':          [('live-nhi-get-3',      'Live production evidence — GET Patient/ZAT2364 → full HNZ FHIR Patient rendered with correlation id, userid, and x-api-key headers visible.')],
-    'NHI-GET-6':          [('live-nhi-get-6',      'Live production evidence — GET Patient/ZBE4905 → full HNZ FHIR Patient response with headers, timestamp, and HTTP status.')],
-    'NHI-GET-7':          [('live-nhi-get-7',      'Live production evidence — GET Patient/ZUA48EH (new 7-char NHI format) → full HNZ FHIR Patient response, same code path as legacy format.')],
-    'NHI-GET-8':          [('live-nhi-get-8',      'Live production evidence — GET Patient/ZCX7065 → full HNZ FHIR Patient response with correlation id and audit headers.')],
-    'NHI-GET-9':          [('live-nhi-get-9',      'Live production evidence — GET Patient/ZJM9567 → full HNZ FHIR Patient response with correlation id and audit headers.')],
-    'NHI-GET-10a':        [('live-nhi-get-10a',    'Live production evidence — GET Patient/ZAU8023 (surname only) → full HNZ FHIR Patient response.')],
-    'NHI-GET-10b':        [('live-nhi-get-10b',    'Live production evidence — GET Patient/ZAV8657 (surname only) → full HNZ FHIR Patient response.')],
-    'NHI-GET-10c':        [('live-nhi-get-10c',    'Live production evidence — GET Patient/ZHS7524 (multiple given names) → full HNZ FHIR Patient response.')],
-    'NHI-Match-2':        [('live-nhi-match-2',    'Live production evidence — POST /Patient/$match for Summer Barbara MacKenzie → HNZ 422 OperationOutcome ("Date of Birth is required") surfaced verbatim. Marked REVIEW pending scope confirmation.')],
-    # NHI-Match-3: mobile-scroll capture is 11:1 aspect. Rendered as 9 stacked
-    # slices so the full 9-entry Bundle (top result ZMP4241 — Compliance By
-    # Thebook — sorted by descending match score) stays readable in Word.
-    'NHI-Match-3':        [
-        ('live-nhi-match-3-slice-01', 'Live production evidence — POST /Patient/$match for Compliance By Thebook F 2003-07-03 → full HNZ Bundle response (part 1 of 9). Header block: request URL, method, x-api-key, X-Correlation-Id 3603ec84-4ed1-4a2a-bcd9-360b96b8f0e7, and top of entry[0] (top result, highest match score, ZMP4241).'),
-        ('live-nhi-match-3-slice-02', 'Live production evidence — Bundle response (part 2 of 9). Continuation of entry[0]/entry[1] Patient resources with ethnicity, birth-place, citizenship, DHB extensions.'),
-        ('live-nhi-match-3-slice-03', 'Live production evidence — Bundle response (part 3 of 9). Continuation of Patient resources (identifiers, name, address, phone).'),
-        ('live-nhi-match-3-slice-04', 'Live production evidence — Bundle response (part 4 of 9). Further Patient resources with descending match scores.'),
-        ('live-nhi-match-3-slice-05', 'Live production evidence — Bundle response (part 5 of 9). Mid-Bundle Patient resources.'),
-        ('live-nhi-match-3-slice-06', 'Live production evidence — Bundle response (part 6 of 9). Continuing Patient resources.'),
-        ('live-nhi-match-3-slice-07', 'Live production evidence — Bundle response (part 7 of 9). Continuing Patient resources.'),
-        ('live-nhi-match-3-slice-08', 'Live production evidence — Bundle response (part 8 of 9). Continuing Patient resources, approaching lowest match scores.'),
-        ('live-nhi-match-3-slice-09', 'Live production evidence — Bundle response (part 9 of 9). Final Patient resources plus searchset footer with total=9 and Tere-side timing telemetry (total_ns_ms, total_hnz_ms, total_backoff_ms).'),
-    ],
-    'NHI-Validate-2':     [('live-nhi-validate-2', 'Live production evidence — POST /Patient/$match onlyCertainMatches=true for ZJS7596 Jamie Susan Maraka F 1977-08-25 → HNZ Bundle score 999, NhiPatient profile confirmed.')],
+    'NHI-GET-1':          [('admin-nhi-ZJS7596',  'Admin NHI Lookup clinician view - GET Patient/ZJS7596 (Jamie Susan Maraka, DOB 1977-08-25). Minimum identity fields rendered on the clinician-facing surface where our providers perform NHI confirmation.')],
+    'NHI-GET-2':          [('admin-nhi-ZAT2348',  'Admin NHI Lookup clinician view - GET Patient/ZAT2348 (deceased persona). Deceased banner surfaced above the Patient card; onboarding and prescribing are blocked downstream (nhiCheck.deceased gate).')],
+    'NHI-GET-3':          [('live-nhi-get-3',     'Admin NHI Lookup clinician view - GET Patient/ZAT2364. Full positive Patient resource with minimum identity rendered.')],
+    'NHI-GET-4':          [('admin-nhi-ZAT2496', 'Admin NHI Lookup clinician view - GET Patient/ZAT2496 (partial birthDate "1914"). Application handles the partial date without crashing; year-only DOB rendered as-is.')],
+    'NHI-GET-5':          [('admin-nhi-ZAT2518', 'Admin NHI Lookup clinician view - GET Patient/ZAT2518 (dormant NHI). Dormant-redirect banner shown; downstream code uses the live NHI returned in Patient.id.')],
+    'NHI-GET-6':          [('live-nhi-get-6',    'Admin NHI Lookup clinician view - GET Patient/ZBE4905 (maximum-length name values). Given name and family name are rendered on separate lines with word-break so each is fully readable regardless of length (fix 2026-10-26 per IN-3589).')],
+    'NHI-GET-7':          [('live-nhi-get-7',    'Admin NHI Lookup clinician view - GET Patient/ZUA48EH (new 7-character NHI format). Same code path as legacy 7-char format; renders cleanly in the clinician card.')],
+    'NHI-GET-8':          [('live-nhi-get-8',    'Admin NHI Lookup clinician view - GET Patient/ZCX7065 with a stored patient seeded for drift demonstration. Amber "Stored patient demographics differ from HNZ NHI record" banner surfaces above the Patient card listing drifted fields and both sides values. Mirrors the clinician-chart amber banner on ClinicianPatient (fix 2026-10-26 per IN-3589).')],
+    'NHI-GET-9':          [('live-nhi-get-9',    'Admin NHI Lookup clinician view - GET Patient/ZJM9567. Physical and postal addresses are rendered on separate labelled rows (fix 2026-10-26 per IN-3589). HNZ returns both Address resources distinguished by `use`; the shaper now exposes every non-"old" address rather than only address[0].')],
+    'NHI-GET-10a':        [('live-nhi-get-10a',  'Admin NHI Lookup clinician view - GET Patient/ZAU8023 (surname only). Family name rendered; given name block omitted when empty.')],
+    'NHI-GET-10b':        [('live-nhi-get-10b',  'Admin NHI Lookup clinician view - GET Patient/ZAV8657 (surname only). Second surname-only case; identical handling to GET-10a.')],
+    'NHI-GET-10c':        [('live-nhi-get-10c',  'Admin NHI Lookup clinician view - GET Patient/ZHS7524 (multiple given names). All given tokens joined with spaces and rendered on the given-name row.')],
+    'NHI-GET-Negative':   [('admin-nhi-notfound','Admin NHI Lookup clinician view - GET Patient/ZAA0044. 404 OperationOutcome (EM02002) surfaced as "NHI not found" with no stack trace; HNZ issue details rendered verbatim.')],
+    'NHI-GET-Malformed':  [('admin-nhi-malformed','Admin NHI Lookup clinician view - GET Patient/!!invalid!!. Graceful 4xx surfaced to the user; no server crash, no leaked internals.')],
+    'NHI-Match-1':        [('admin-nhi-search',  'Admin NHI Lookup clinician view - POST /Patient/$match (given=Noah, family=Owen, birthdate=1949-10-30). Bundle with 1 candidate match (ZAT4626); match score visible plus the primary address line now shown on each result row per IG minimum-attribute requirement (fix 2026-10-26 per IN-3589).')],
+    'NHI-Match-2':        [('live-nhi-match-2',  'Admin NHI Lookup clinician view - POST /Patient/$match for Summer Barbara MacKenzie with no birthdate. HNZ returns 422 OperationOutcome ("Date of Birth is required"); the admin panel surfaces the HNZ error verbatim.')],
+    'NHI-Match-3':        [('live-nhi-match-3', 'Admin NHI Lookup clinician view - POST /Patient/$match (given=Compliance, family=Thebook, F, birthdate=2003-07-03). 9-result Bundle rendered in the admin panel with explicit client-side descending-by-match-score sort and primary address on each row (fix 2026-10-26 per IN-3589). Previously submitted as JSON; this is the UI render Noel asked for.')],
+    'NHI-Match-Error-1':  [('admin-nhi-match-err-1','Admin NHI Lookup clinician view - POST /Patient/$match with given only, no birthdate. 4xx OperationOutcome; input and error surfaced in the panel.')],
+    'NHI-Match-Error-2':  [('admin-nhi-match-err-2','Admin NHI Lookup clinician view - POST /Patient/$match with birthdate only, no name. 4xx OperationOutcome; input and error surfaced in the panel.')],
+    'NHI-Validate-1':     [('admin-nhi-validate','Admin NHI Lookup clinician view - POST /Patient/$match with onlyCertainMatches=true for Jamie Maraka / ZJS7596. ✓ VALIDATED badge with 1 certain match.')],
+    'NHI-Validate-2':     [('live-nhi-validate-2','Admin NHI Lookup clinician view - POST /Patient/$match onlyCertainMatches=true for ZJS7596 Jamie Susan Maraka F 1977-08-25. HNZ Bundle score 999, NhiPatient profile confirmed.')],
+    'NHI-Validate-3':     [('admin-nhi-validate-3','Admin NHI Lookup clinician view - POST /Patient/$match with onlyCertainMatches=true for Jaime Jones / ZJK9604. Empty Bundle (no certain match); legitimate negative outcome surfaced cleanly without an error state.')],
 }
 
 
