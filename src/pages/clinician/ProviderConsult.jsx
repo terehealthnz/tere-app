@@ -100,6 +100,84 @@ function RoomCapture({ roomRef, onReady }) {
   return null
 }
 
+// AudioResilience - keeps the provider's published mic alive across network
+// reconnects and device swaps. Lives inside <LiveKitRoom> so it can grab the
+// Room via useRoomContext. Three failure modes it covers:
+//
+//   1. Network blip -> LiveKit reconnects WS, but the local audio track that
+//      died during the drop is NOT auto-republished. Patient hears silence
+//      from the moment of the drop onward. Fix: on 'reconnected', if the
+//      local participant has zero audio publications, re-enable the mic.
+//      Guarded on publication count so we never un-mute a provider who hit
+//      the mute button (mute keeps the publication; drop removes it).
+//
+//   2. Audio-input device swap mid-call (headphones unplug, Bluetooth
+//      disconnect, OS default swap). LiveKit keeps the publication but the
+//      underlying MediaStreamTrack is dead; patient hears silence. Fix: on
+//      navigator.mediaDevices devicechange, if any audio pub's track is
+//      not 'live', cycle setMicrophoneEnabled false->true to re-acquire the
+//      current default input.
+//
+//   3. Full track drop with no explicit LocalTrackUnpublished event (seen
+//      on mobile network blips). Covered by case 2 - a dead-track publication
+//      is caught by the devicechange sweep.
+//
+// Ian 2026-10-25: patient lost his audio mid-call for several minutes. Pre-
+// fix the only handler on <LiveKitRoom> was onDisconnected (final teardown).
+function AudioResilience() {
+  const room = useRoomContext()
+  useEffect(() => {
+    if (!room) return
+
+    const reEnableIfDropped = async () => {
+      const local = room.localParticipant
+      if (!local) return
+      const noPubs = !local.audioTrackPublications || local.audioTrackPublications.size === 0
+      if (noPubs) {
+        try { await local.setMicrophoneEnabled(true) }
+        catch (e) { console.warn('[audio-resilience] mic re-enable failed:', e?.message) }
+      }
+    }
+
+    const onDeviceChange = async () => {
+      const local = room.localParticipant
+      if (!local) return
+      try {
+        const pubs = local.audioTrackPublications
+        let hasDeadTrack = false
+        if (pubs) {
+          for (const [, pub] of pubs) {
+            const t = pub?.track?.mediaStreamTrack
+            if (t && t.readyState !== 'live') { hasDeadTrack = true; break }
+          }
+        }
+        const noPubs = !pubs || pubs.size === 0
+        if (hasDeadTrack || noPubs) {
+          await local.setMicrophoneEnabled(false).catch(() => {})
+          await local.setMicrophoneEnabled(true)
+          console.warn('[audio-resilience] mic cycled after devicechange')
+        }
+      } catch (e) {
+        console.warn('[audio-resilience] devicechange recovery failed:', e?.message)
+      }
+    }
+
+    const onReconnecting = () => console.warn('[audio-resilience] LiveKit reconnecting')
+    const onReconnected = () => { console.warn('[audio-resilience] LiveKit reconnected'); reEnableIfDropped() }
+
+    try { room.on('reconnecting', onReconnecting) } catch {}
+    try { room.on('reconnected', onReconnected) } catch {}
+    try { navigator.mediaDevices?.addEventListener?.('devicechange', onDeviceChange) } catch {}
+
+    return () => {
+      try { room.off('reconnecting', onReconnecting) } catch {}
+      try { room.off('reconnected', onReconnected) } catch {}
+      try { navigator.mediaDevices?.removeEventListener?.('devicechange', onDeviceChange) } catch {}
+    }
+  }, [room])
+  return null
+}
+
 // PatientPresenceStamp — lives inside <LiveKitRoom>. Watches the participants
 // list; the first time a participant whose identity starts with 'patient-'
 // appears, it (a) reports "yes, patient's here" up to the parent and (b)
@@ -1119,6 +1197,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />
+          <AudioResilience />
           {(() => {
             const patientLang = consult?.patient_language || consult?.preferred_language || 'en'
             // Languages we can offer as override sources = all with real
@@ -1292,6 +1371,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
           onDisconnected={() => { if (!endingCall) endCall() }}
         >
           <RoomCapture roomRef={scribeRoomRef} onReady={() => setScribeRoomReady(true)} />
+          <AudioResilience />
           <FloatingCallWidget
             primaryAction={{ label: '✓ Consult Complete', color: '#059669', onClick: () => endCall(true, 'complete'), disabled: endingCall }}
             secondaryAction={{ label: '⚠ Failed Call', color: '#DC2626', onClick: () => endCall(true, 'failed'), disabled: endingCall }}
