@@ -99,18 +99,22 @@ function timeAgo(d) {
   return `${Math.floor(s/3600)}h`
 }
 
-function bufferInfo(createdAt, now) {
-  const deadline = new Date(createdAt).getTime() + 2 * 60 * 60 * 1000
-  const remaining = deadline - now
-  const absMs = Math.abs(remaining)
-  const totalMins = Math.floor(absMs / 60000)
+// Elapsed wait time, anchored to when the patient actually landed in the
+// waiting room (not when the consult row was first inserted during triage).
+// Falls back to created_at for rows written before in_waiting_room_at was
+// added so the display doesn't blank out during the transition. Colour band
+// escalates with wait length: green <30min, amber 30-60min, red >60min.
+// Replaces the previous 2-hour-SLA countdown which was misread as elapsed
+// (Ian 2026-10-25: dashboard said "1h 55m", patient was actually 5min in).
+function bufferInfo(c, now) {
+  const anchor = c.in_waiting_room_at || c.created_at
+  const elapsedMs = Math.max(0, now - new Date(anchor).getTime())
+  const totalMins = Math.floor(elapsedMs / 60000)
   const h = Math.floor(totalMins / 60)
   const m = totalMins % 60
-  const mStr = String(m).padStart(2, '0')
-  if (remaining <= 0) return { label: `+ ${h} hr ${mStr} min`, color: '#DC2626', bg: '#FEE2E2' }
-  const label = `${h} hr ${mStr} min`
-  if (totalMins < 15) return { label, color: '#DC2626', bg: '#FEE2E2' }
-  if (totalMins < 60) return { label, color: '#D97706', bg: '#FEF3C7' }
+  const label = h > 0 ? `${h}h ${m}m waiting` : `${m}m waiting`
+  if (totalMins >= 60) return { label, color: '#DC2626', bg: '#FEE2E2' }
+  if (totalMins >= 30) return { label, color: '#D97706', bg: '#FEF3C7' }
   return { label, color: '#059669', bg: '#D1FAE5' }
 }
 
@@ -521,7 +525,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
           // and the row MUST stay clickable.
           const isScanning = c.status === 'vitals_requested'
           const isBlocked  = isLocked || isScanning
-          const buf = bufferInfo(c.created_at, now)
+          const buf = bufferInfo(c, now)
           const sta = queueStatus(c, now)
           const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
           const isCalling = starting === c.id
@@ -646,7 +650,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
             // 'vitals_requested' means an in-progress scan.
             const isScanning  = c.status === 'vitals_requested'
             const isBlocked   = isLocked || isScanning
-            const buf = bufferInfo(c.created_at, now)
+            const buf = bufferInfo(c, now)
             const sta = queueStatus(c, now)
             const tb  = TYPE_BADGE[c.consultation_type || 'video'] || TYPE_BADGE.video
             const isLast = i === queue.length - 1

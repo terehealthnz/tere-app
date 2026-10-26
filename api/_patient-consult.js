@@ -306,6 +306,17 @@ export default async function handler(req, res) {
   }
 
   patch.updated_at = new Date().toISOString()
+  // Stamp the moment the patient's browser actually lands in the waiting
+  // room. Separate from status='waiting' (which fires at payment auth
+  // while the patient is still on vitals). Used as the "waiting since"
+  // anchor on the provider queue card, so a patient who paid 2 hours
+  // ago but just finished vitals doesn't look like they've been waiting
+  // 2 hours (Ian 2026-10-25 incident). Slides forward on re-mount if
+  // the patient browser-refreshes the waiting room page; that's correct
+  // behaviour (they just got here again).
+  if (patch.in_waiting_room === true) {
+    patch.in_waiting_room_at = new Date().toISOString()
+  }
 
   const { data, error } = await supabase
     .from('consultations')
@@ -316,11 +327,14 @@ export default async function handler(req, res) {
   if (error) { console.error('[patient-consult] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
   if (!data)  return res.status(404).json({ error: 'Consultation not found' })
 
-  // Fire on-call SMS if this PATCH just flipped the consult into the queue.
-  // employer_paid path lands here (create-consultation inserts as
-  // 'vitals_requested', then WaitingRoom PATCHes to 'waiting' post-vitals).
-  // The paying-patient path goes through windcave-fprn instead.
-  if (patch.status === 'waiting') {
+  // On-call SMS fires on in_waiting_room transition, NOT status='waiting'.
+  // status='waiting' happens at payment auth (patient still on vitals);
+  // paging the provider then is premature and leads to the "SMS says new
+  // patient, provider opens dashboard, patient is still filling forms"
+  // bug (Ian 2026-10-25). Per-consult dedup via on_call_sms_sent_at in
+  // _notify-on-call.js still prevents duplicate sends if WaitingRoom
+  // re-mounts.
+  if (patch.in_waiting_room === true) {
     try {
       const { notifyOnCallProviders } = await import('./_notify-on-call.js')
       notifyOnCallProviders({ consultationId: id }).catch(() => {})

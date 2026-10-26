@@ -142,13 +142,11 @@ export default async function handler(req, res) {
       .eq('status', 'draft')
       .select('id')
     if (promoteErr) console.error('[windcave-fprn] draft→waiting promotion error:', promoteErr.message)
-    // Fire on-call SMS only when the promotion actually happened (i.e. this
-    // FPRN was the one that flipped the row). Skips duplicates if Windcave
-    // retries the webhook.
-    if (Array.isArray(promoted) && promoted.length > 0) {
-      const { notifyOnCallProviders } = await import('./_notify-on-call.js')
-      notifyOnCallProviders({ consultationId }).catch(() => {})
-    }
+    // SMS no longer fires here. Flipping status='waiting' happens while the
+    // patient is still on the vitals page (payment just approved); paging
+    // the provider then is premature. SMS now fires in _patient-consult.js
+    // when the patient's browser PATCHes in_waiting_room=true from the
+    // WaitingRoom page.
   }
 
   // Always 200 to Windcave so they don't retry indefinitely.
