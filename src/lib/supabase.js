@@ -427,6 +427,11 @@ export async function getCompleteSince(sinceISO, columns = null) {
   if (columns) params.columns = columns
   return consultsFilter('complete_since', params)
 }
+export async function getCapturedSince(sinceISO, columns = null) {
+  const params = { since: sinceISO }
+  if (columns) params.columns = columns
+  return consultsFilter('captured_since', params)
+}
 export async function getPendingNotes(columns = null, limit = 50) {
   const params = { limit: String(limit) }
   if (columns) params.columns = columns

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -2153,11 +2153,12 @@ function OverviewDashboard({ setAdminTab }) {
       const nzNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Pacific/Auckland' }))
       const startOfDayIso = new Date(nzNow.getFullYear(), nzNow.getMonth(), nzNow.getDate()).toISOString()
 
-      const [queueR, pendingR, ticketsR, todayR, flaggedR, complaintsR, failedR, auditR] = await Promise.allSettled([
+      const [queueR, pendingR, ticketsR, todayR, capturedR, flaggedR, complaintsR, failedR, auditR] = await Promise.allSettled([
         apiFetch('/api/get-queue').then(r => r.json()),
         apiFetch('/api/prescriptions?filter=pending_count').then(r => r.json()),
         apiFetch('/api/patient-support?status=new').then(r => r.json()),
         getCompleteSince(startOfDayIso, 'id, payment_amount, completed_at, patient_first_name, patient_last_name, provider_display_name'),
+        getCapturedSince(startOfDayIso, 'id, payment_amount, payment_captured_at, patient_first_name, patient_last_name').catch(() => []),
         getFlaggedNotes('id, patient_first_name, patient_last_name, created_at').catch(() => []),
         apiFetch('/api/complaints').then(r => r.json()).catch(() => ({ complaints: [] })),
         getPaymentPendingConsultations('id, patient_first_name, patient_last_name, payment_amount, created_at').catch(() => []),
@@ -2168,13 +2169,19 @@ function OverviewDashboard({ setAdminTab }) {
       const pendingCount  = pendingR.status === 'fulfilled' ? (pendingR.value?.count || 0) : 0
       const tickets       = ticketsR.status === 'fulfilled' ? (ticketsR.value?.tickets || []) : []
       const todayConsults = todayR.status === 'fulfilled' ? (todayR.value || []) : []
+      const capturedToday = capturedR.status === 'fulfilled' ? (capturedR.value || []) : []
       const flagged       = flaggedR.status === 'fulfilled' ? (flaggedR.value || []) : []
       const complaints    = complaintsR.status === 'fulfilled' ? (complaintsR.value?.complaints || []) : []
       const failed        = failedR.status === 'fulfilled' ? (failedR.value || []) : []
       const auditLogs     = auditR.status === 'fulfilled' ? (auditR.value?.logs || []) : []
 
       const activeQueue = queue.filter(c => ['waiting','vitals_requested','vitals_complete','ready'].includes(c.status))
-      const revenueTodayCents = todayConsults.reduce((s, c) => s + (c.payment_amount || 0), 0)
+      // Revenue = money captured today, independent of whether notes are
+      // signed off. payment_captured_at is stamped by _capture-consult.js
+      // right after Windcave Comp succeeds. The previous computation only
+      // counted status='complete' consults created today, so a captured
+      // but mid-notes consult showed $0 revenue (Ian 2026-10-25, 4:37 PM).
+      const revenueTodayCents = capturedToday.reduce((s, c) => s + (c.payment_amount || 0), 0)
       const adminTickets = tickets.filter(t => !t.routing_status || t.routing_status === 'admin_inbox')
 
       setKpis({
@@ -2182,16 +2189,21 @@ function OverviewDashboard({ setAdminTab }) {
         queueCount:        activeQueue.length,
         pendingApprovals:  pendingCount,
         unreadTickets:     adminTickets.length,
-        consultsToday:     todayConsults.length,
+        consultsToday:     Math.max(todayConsults.length, capturedToday.length),
       })
 
       const newAlerts = []
+      // "Awaiting capture" (previously "Failed payment"). payment_pending
+      // returns consults with an Auth but no Comp (payment_captured_at IS NULL).
+      // That is the NORMAL mid-consult state, not a failure: capture fires
+      // when the provider signs off notes. Label updated so admin isn't
+      // paged with alarm icons for every in-flight consult.
       failed.slice(0, 5).forEach(f => newAlerts.push({
-        kind: 'payment_failed',
-        color: '#DC2626',
-        icon: '💳',
-        title: `Failed payment — $${((f.payment_amount || 0) / 100).toFixed(0)}`,
-        subtitle: `${f.patient_first_name || 'Patient'} ${f.patient_last_name || ''}`,
+        kind: 'payment_awaiting_capture',
+        color: '#D97706',
+        icon: '⏳',
+        title: `Awaiting capture: $${((f.payment_amount || 0) / 100).toFixed(0)}`,
+        subtitle: `${f.patient_first_name || 'Patient'} ${f.patient_last_name || ''} · hold on card, notes not finalised`,
         goto: 'finance',
       }))
       flagged.slice(0, 5).forEach(f => newAlerts.push({

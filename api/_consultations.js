@@ -536,6 +536,27 @@ export default async function handler(req, res) {
       return res.status(200).json({ consultations: redactList(data || []) })
     }
 
+    // Revenue-today semantic: money captured today, independent of whether
+    // the provider has signed off notes. payment_captured_at is stamped by
+    // _capture-consult.js the moment Windcave Comp returns APPROVED, so this
+    // reflects actual cash collected. Fixes the Overview showing $0 while a
+    // Windcave Auth + Comp both read APPROVED (anchor: Ian 2026-10-25 saw
+    // T Hansen for $65, Windcave showed Comp APPROVED, Overview showed $0
+    // because the consult was still mid-notes, status != 'complete').
+    if (filter === 'captured_since') {
+      const since = req.query?.since || new Date(new Date().setHours(0,0,0,0)).toISOString()
+      const cols = projection || 'id, status, payment_amount, payment_captured_at, patient_first_name, patient_last_name'
+      const { data, error } = await supabase
+        .from('consultations')
+        .select(cols)
+        .not('payment_captured_at', 'is', null)
+        .eq('is_practice', practice)
+        .gte('payment_captured_at', String(since))
+        .order('payment_captured_at', { ascending: false })
+      if (error) { console.error('[consultations] captured_since failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ consultations: redactList(data || []) })
+    }
+
     // Notes work: consults that finished the video but need clinical note completion.
     if (filter === 'pending_notes') {
       const cols = projection || 'id, created_at, patient_first_name, patient_last_name, chief_complaint, acc_eligible'
