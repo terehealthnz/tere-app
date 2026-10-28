@@ -103,6 +103,12 @@ async function sendViaResend({ from, to, replyTo, cc, bcc, subject, html, text, 
     ...(text ? { text } : {}),
     ...(attachments && attachments.length ? { attachments } : {}),
   })
+  // Resend's SDK returns { data, error } — a rejected send still resolves
+  // the promise but with error populated and data null. Surface that so
+  // callers do not silently proceed thinking the mail went out.
+  if (res?.error) {
+    return { ok: false, provider: 'resend', error: res.error.message || res.error.name || 'resend error' }
+  }
   return { ok: true, id: res?.data?.id, provider: 'resend' }
 }
 
@@ -170,13 +176,20 @@ function parseAddress(addr) {
 
 // Minimal RFC 5322 / MIME multipart builder. Handles multipart/mixed
 // outer with multipart/alternative inner (text + html) plus base64
-// attachments. Not a full MIME implementation — good enough for the
-// endpoints we ship today (PDF-attached prescriptions/referrals/
-// insurance receipts). If we ever need inline images (cid:) or S/MIME,
-// swap for nodemailer's message builder.
+// attachments. Supports inline images via Content-ID when an
+// attachment is passed with { inline: true, contentId: 'foo' } — the
+// HTML can then reference it as <img src="cid:foo">. The MIME tree is
+// restructured as multipart/related around the body + inline parts so
+// Gmail / Apple Mail / Outlook render the image inline rather than as
+// an attachment icon.
 function buildRawMime({ from, to, cc, bcc, replyTo, subject, html, text, attachments }) {
-  const boundaryMixed = mimeBoundary('mixed')
-  const boundaryAlt   = mimeBoundary('alt')
+  const atts = attachments || []
+  const inlineAtts  = atts.filter(a => a.inline && a.contentId)
+  const regularAtts = atts.filter(a => !(a.inline && a.contentId))
+
+  const boundaryMixed   = mimeBoundary('mixed')
+  const boundaryRelated = mimeBoundary('rel')
+  const boundaryAlt     = mimeBoundary('alt')
   const CRLF = '\r\n'
 
   const headers = [
@@ -186,12 +199,22 @@ function buildRawMime({ from, to, cc, bcc, replyTo, subject, html, text, attachm
     ...(replyTo    ? [`Reply-To: ${sanitizeAddrHeader(replyTo)}`] : []),
     `Subject: ${encodeMimeHeader(subject)}`,
     `MIME-Version: 1.0`,
+    // Always start with multipart/mixed outer — simple and lets us drop
+    // regular attachments at the top level without special-casing.
     `Content-Type: multipart/mixed; boundary="${boundaryMixed}"`,
   ]
 
   const parts = []
-  // Body — alternative wrapping so text and html both offered.
+
+  // Body section: wrap text/html alternative inside multipart/related
+  // when there are inline attachments, so the related part owns both
+  // the HTML and the images it references.
   parts.push(`--${boundaryMixed}`)
+  if (inlineAtts.length) {
+    parts.push(`Content-Type: multipart/related; boundary="${boundaryRelated}"`)
+    parts.push('')
+    parts.push(`--${boundaryRelated}`)
+  }
   parts.push(`Content-Type: multipart/alternative; boundary="${boundaryAlt}"`)
   parts.push('')
   if (text) {
@@ -210,8 +233,25 @@ function buildRawMime({ from, to, cc, bcc, replyTo, subject, html, text, attachm
   }
   parts.push(`--${boundaryAlt}--`)
 
-  // Attachments
-  for (const att of attachments) {
+  // Inline attachments inside the related part.
+  for (const att of inlineAtts) {
+    const contentType = att.contentType || guessContentType(att.filename)
+    const safeName = sanitizeMimeFilename(att.filename)
+    const b64 = Buffer.isBuffer(att.content)
+      ? att.content.toString('base64')
+      : String(att.content)
+    parts.push(`--${boundaryRelated}`)
+    parts.push(`Content-Type: ${contentType}; name="${safeName}"`)
+    parts.push('Content-Transfer-Encoding: base64')
+    parts.push(`Content-ID: <${att.contentId}>`)
+    parts.push(`Content-Disposition: inline; filename="${safeName}"`)
+    parts.push('')
+    parts.push(chunkBase64(b64))
+  }
+  if (inlineAtts.length) parts.push(`--${boundaryRelated}--`)
+
+  // Regular (download) attachments at the mixed level.
+  for (const att of regularAtts) {
     const contentType = att.contentType || guessContentType(att.filename)
     // Sanitise filename: strip anything that could break the MIME header
     // (CR/LF, quotes, control chars). Attachment filenames are often
