@@ -258,12 +258,52 @@ function shapePractitioner(p) {
 
 function shapeLocation(l) {
   if (!l) return null
+  // Pull every field HNZ expects the product to surface for the Location-GET
+  // compliance scenarios (HPI-L-Get-1..5): status (active/inactive/dormant),
+  // multi-line addresses, telecom[] with per-entry rank, type codings,
+  // confidentiality + dormant flags from meta.security / extensions.
+  const addresses = (l.address || []).map(a => ({
+    use:        a.use || '',
+    type:       a.type || '',
+    text:       a.text || '',
+    lines:      Array.isArray(a.line) ? a.line.filter(Boolean) : [],
+    city:       a.city || '',
+    district:   a.district || '',
+    state:      a.state || '',
+    postalCode: a.postalCode || '',
+    country:    a.country || '',
+  }))
+  const telecom = (l.telecom || []).map(t => ({
+    system: t.system || '',
+    value:  t.value || '',
+    use:    t.use || '',
+    rank:   (typeof t.rank === 'number') ? t.rank : null,
+  }))
+  // Confidentiality extracted from meta.security (same approach as practitioner).
+  const confCode =
+    (l.meta?.security || []).find(s => (s.system || '').includes('Confidentiality'))?.code ||
+    (l.extension || []).find(e => (e.url || '').includes('confidentiality'))?.valueCode ||
+    (l.extension || []).find(e => (e.url || '').includes('confidentiality'))?.valueCoding?.code ||
+    null
+  // HPI uses an inactive status for dormant locations; some records carry an
+  // explicit dormant flag via extension too.
+  const dormantExt = (l.extension || []).find(e => (e.url || '').toLowerCase().includes('dormant'))
   return {
-    id:      l.id,
-    name:    l.name || '',
-    status:  l.status || '',
-    address: (l.address?.line || []).join(', '),
-    hpi:     (l.identifier || [])[0]?.value || l.id || null,
+    id:              l.id,
+    name:            l.name || '',
+    status:          l.status || '',
+    active:          l.status === 'active',
+    type:            ((l.type || []).flatMap(t => (t.coding || []).map(c => c.code || c.display || '')).filter(Boolean))[0] || '',
+    typeDisplay:     ((l.type || []).flatMap(t => (t.coding || []).map(c => c.display || c.code || '')).filter(Boolean))[0] || '',
+    addresses,
+    // Flattened single-line address for backward compatibility with the
+    // existing search_facility caller.
+    address:         addresses.map(a => a.lines.concat([a.city, a.postalCode].filter(Boolean)).join(', ')).join(' | '),
+    telecom,
+    hpi:             (l.identifier || [])[0]?.value || l.id || null,
+    confidentiality: confCode || 'N',
+    isConfidential:  !!confCode && confCode !== 'N',
+    isDormant:       !!dormantExt || l.status === 'inactive',
   }
 }
 

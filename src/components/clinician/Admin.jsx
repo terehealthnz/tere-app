@@ -736,6 +736,15 @@ function AdminHpiLookupPanel() {
   const [rawJson, setRawJson] = React.useState(null)
   const [showRaw, setShowRaw] = React.useState(false)
 
+  // Facility Lookup state (IN-3502 — HPI-L-Get-1..5 compliance evidence).
+  const [facilityId, setFacilityId] = React.useState('')
+  const [facility, setFacility] = React.useState(null)
+  const [facilityRaw, setFacilityRaw] = React.useState(null)
+  const [facilityError, setFacilityError] = React.useState('')
+  const [facilityNotFound, setFacilityNotFound] = React.useState(false)
+  const [facilityStatus, setFacilityStatus] = React.useState(0)
+  const [showFacilityRaw, setShowFacilityRaw] = React.useState(false)
+
   async function lookup() {
     if (!cpn.trim()) return
     setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
@@ -766,6 +775,49 @@ function AdminHpiLookupPanel() {
       setSearchResults(j.results || [])
       setSearchDiag({ tried: j.tried, matched_via: j.matched_via })
     } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  // One-click HPI-P-Get-5 / -6 scenario runners (HNZ-supplied UAT CPNs).
+  // Both route through the existing lookup() code path so the same card
+  // renders, proving the admin UI handles multi-scope and no-registration
+  // practitioners without crashing.
+  async function runPractitionerScenario(scenarioCpn) {
+    setCpn(scenarioCpn)
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null); setSearchDiag(null)
+    try {
+      const r = await apiFetch(`/api/hpi?action=get_practitioner&cpn=${encodeURIComponent(scenarioCpn)}`)
+      if (r.status === 404) { setError(`No practitioner found for CPN ${scenarioCpn}`); return }
+      const j = await r.json()
+      if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
+      setPractitioner(j.practitioner)
+      setRawJson(j.raw || j.practitioner)
+    } catch (e) { setError(e.message || 'Network error') }
+    finally { setBusy(false) }
+  }
+
+  // Facility GET — HPI-L-Get-1..5 compliance scenarios. Routes to
+  // /api/hpi?action=get_facility which proxies GET Location/{id}.
+  // 404 responses (dormant facility) are surfaced as a visible banner
+  // so the screenshot evidence is unambiguous.
+  async function lookupFacility(idOverride) {
+    const q = String(idOverride ?? facilityId).trim()
+    if (!q) return
+    setFacilityId(q)
+    setBusy(true); setFacilityError(''); setFacility(null); setFacilityRaw(null); setFacilityNotFound(false); setFacilityStatus(0)
+    try {
+      const r = await apiFetch(`/api/hpi?action=get_facility&hpi=${encodeURIComponent(q)}`)
+      setFacilityStatus(r.status)
+      const j = await r.json().catch(() => ({}))
+      if (r.status === 404) {
+        setFacilityNotFound(true)
+        setFacilityRaw(j?.body || j || null)
+        return
+      }
+      if (!r.ok) { setFacilityError(j?.error || `HTTP ${r.status}`); return }
+      setFacility(j.facility)
+      setFacilityRaw(j.raw || j.facility)
+    } catch (e) { setFacilityError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
 
@@ -838,6 +890,22 @@ function AdminHpiLookupPanel() {
           </div>
         </div>
 
+        <div style={{ marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #F3F4F6' }}>
+          <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+            HNZ-documented GET scenarios (practitioner edge cases)
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button type="button" onClick={() => runPractitionerScenario('98ZZNY')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-P-Get-5 — Multi-scope (98ZZNY)
+            </button>
+            <button type="button" onClick={() => runPractitionerScenario('90ZZLC')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-P-Get-6 — No registration (90ZZLC)
+            </button>
+          </div>
+        </div>
+
         {busy && <div style={{ marginTop:'.75rem', fontSize:'.875rem', color:'#6B7280' }}>Querying HPI…</div>}
         {error && (
           <div style={{ marginTop:'.75rem', padding:'.75rem 1rem', background:'#FEE2E2', border:'1.5px solid #FCA5A5', borderRadius:8, color:'#7F1D1D', fontSize:'.875rem' }}>
@@ -895,7 +963,205 @@ function AdminHpiLookupPanel() {
           )}
         </div>
       )}
+
+      <div style={panelStyle}>
+        <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>HPI Facility Lookup</div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
+          Live GET Location against Te Whatu Ora HPI FHIR API. Renders every field HNZ requires the product surface for HPI-L-Get-1..5 (dormant facility, inactive location, multi-contact-point, contact rank, multi-line addresses). Every request is audit-logged.
+        </div>
+
+        <div style={{ marginBottom:'.5rem' }}>
+          <div style={label}>By HPI-Facility-ID</div>
+          <div style={{ display:'flex', gap:8 }}>
+            <input value={facilityId} onChange={e => setFacilityId(e.target.value)} placeholder="e.g. FZZ997-J" style={inputStyle} onKeyDown={e => e.key === 'Enter' && lookupFacility()} />
+            <button type="button" onClick={() => lookupFacility()} disabled={busy || !facilityId.trim()} style={{ ...btnStyle, opacity: busy || !facilityId.trim() ? .5 : 1 }}>Get</button>
+          </div>
+        </div>
+
+        <div style={{ marginTop:'1rem', paddingTop:'1rem', borderTop:'1px solid #F3F4F6' }}>
+          <div style={{ fontSize:'.75rem', fontWeight:800, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.5rem' }}>
+            HNZ-documented facility GET scenarios
+          </div>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            <button type="button" onClick={() => lookupFacility('FZZ997-J')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-L-Get-1 — Dormant facility (FZZ997-J)
+            </button>
+            <button type="button" onClick={() => lookupFacility('FZZ754-E')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-L-Get-2 — Inactive location (FZZ754-E)
+            </button>
+            <button type="button" onClick={() => lookupFacility('FZZ968-B')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-L-Get-3 — Multi-contact-point (FZZ968-B)
+            </button>
+            <button type="button" onClick={() => lookupFacility('FZZ065-D')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-L-Get-4 — Contact rank (FZZ065-D)
+            </button>
+            <button type="button" onClick={() => lookupFacility('FZZ961-K')} disabled={busy}
+              style={{ background:'#0D2B45', color:'white', border:'none', padding:'8px 14px', borderRadius:8, fontSize:'.8125rem', fontWeight:700, cursor:'pointer', opacity: busy ? .5 : 1 }}>
+              Run HPI-L-Get-5 — Address formats (FZZ961-K)
+            </button>
+          </div>
+        </div>
+
+        {facilityError && (
+          <div style={{ marginTop:'.75rem', padding:'.75rem 1rem', background:'#FEE2E2', border:'1.5px solid #FCA5A5', borderRadius:8, color:'#7F1D1D', fontSize:'.875rem' }}>
+            ⚠ {facilityError}
+          </div>
+        )}
+
+        {facilityNotFound && (
+          <div style={{ marginTop:'.75rem', padding:'.875rem 1rem', background:'#1F2937', color:'white', borderRadius:12, display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ fontSize:'1.25rem' }}>⚠</div>
+            <div>
+              <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Dormant facility — HPI returned 404 OperationOutcome</div>
+              <div style={{ fontSize:'.8125rem', opacity:.85 }}>No active Location resource exists for <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{facilityId}</code>. Error surfaced to admin without crash. (HPI-L-Get-1)</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {facility && <FacilityCard f={facility} rawJson={facilityRaw} showRaw={showFacilityRaw} setShowRaw={setShowFacilityRaw} queriedId={facilityId} />}
+
+      {facilityNotFound && facilityRaw && (
+        <div style={panelStyle}>
+          <button type="button" onClick={() => setShowFacilityRaw(!showFacilityRaw)} style={{ background:'transparent', color:'#6B7280', border:'1.5px solid #E2E8F0', padding:'6px 12px', borderRadius:6, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>
+            {showFacilityRaw ? 'Hide' : 'Show'} raw HPI OperationOutcome
+          </button>
+          {showFacilityRaw && (
+            <pre style={{ marginTop:'.75rem', padding:'.75rem', background:'#0F172A', color:'#E2E8F0', borderRadius:8, fontSize:'.6875rem', overflow:'auto', maxHeight:300, fontFamily:'ui-monospace, Menlo, monospace' }}>
+{JSON.stringify(facilityRaw, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+
     </div>
+  )
+}
+
+function FacilityCard({ f, rawJson, showRaw, setShowRaw, queriedId }) {
+  const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
+  const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
+  const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
+  const kv = (k, v) => (
+    <div>
+      <div style={label}>{k}</div>
+      <div style={value}>{v || <span style={{ color:'#9CA3AF', fontWeight:400 }}>—</span>}</div>
+    </div>
+  )
+  const telecomSorted = [...(f.telecom || [])].sort((a, b) => {
+    const ra = (a.rank == null) ? 9999 : a.rank
+    const rb = (b.rank == null) ? 9999 : b.rank
+    return ra - rb
+  })
+  const hasRank = (f.telecom || []).some(t => t.rank != null)
+  return (
+    <>
+      {f.isConfidential && (
+        <div style={{ padding:'.875rem 1rem', background:'#B91C1C', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>🔒</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Confidentiality flag set</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>Location confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{f.confidentiality}</code>. Restrict display per HPI policy.</div>
+          </div>
+        </div>
+      )}
+      {!f.active && (
+        <div style={{ padding:'.875rem 1rem', background:'#F59E0B', color:'#1F2937', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Location status: INACTIVE</div>
+          <div style={{ fontSize:'.8125rem' }}>Facility is marked <code>status={f.status || 'inactive'}</code> on HPI — do not route patients, prescriptions, or referrals here. (HPI-L-Get-2)</div>
+        </div>
+      )}
+
+      <div style={panel}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'1rem', gap:12 }}>
+          <div>
+            <div style={{ fontSize:'1.25rem', fontWeight:800, color:'#0D2B45' }}>{f.name || '(unnamed facility)'}</div>
+            <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:2 }}>HPI Location resource · queried as <code>{queriedId || f.hpi || f.id}</code></div>
+          </div>
+          <div style={{
+            padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap',
+            background: f.active ? '#DCFCE7' : '#FEE2E2',
+            color:      f.active ? '#166534' : '#7F1D1D',
+          }}>
+            {f.active ? '✓ ACTIVE' : '✗ INACTIVE'}
+          </div>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(180px, 1fr))', gap:'1rem', marginBottom:'1rem', paddingBottom:'1rem', borderBottom:'1px solid #F3F4F6' }}>
+          {kv('HPI-Facility-ID', f.hpi || f.id)}
+          {kv('Status', f.status || 'unknown')}
+          {kv('Type', f.typeDisplay || f.type || 'not recorded')}
+          {kv('Confidentiality', f.confidentiality || 'N (normal)')}
+        </div>
+
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.8125rem', fontWeight:800, color:'#0D2B45', marginBottom:'.5rem' }}>
+            Addresses ({f.addresses?.length || 0})
+            <span style={{ fontWeight:400, fontSize:'.6875rem', color:'#6B7280', marginLeft:8 }}>HPI-L-Get-5</span>
+          </div>
+          {f.addresses?.length ? (
+            <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
+              {f.addresses.map((a, i) => (
+                <div key={i} style={{ padding:'.625rem .875rem', borderBottom: i < f.addresses.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 ? '#FAFBFC' : 'white' }}>
+                  <div style={{ fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:4 }}>
+                    {[a.use, a.type].filter(Boolean).join(' / ') || 'address'}
+                  </div>
+                  {a.lines.length ? a.lines.map((ln, j) => (
+                    <div key={j} style={{ fontSize:'.875rem', color:'#0D2B45', fontWeight:600 }}>{ln}</div>
+                  )) : null}
+                  {(a.city || a.state || a.postalCode) && (
+                    <div style={{ fontSize:'.875rem', color:'#0D2B45', fontWeight:600 }}>
+                      {[a.city, a.state, a.postalCode].filter(Boolean).join(' ')}
+                    </div>
+                  )}
+                  {a.country && <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>{a.country}</div>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize:'.8125rem', color:'#9CA3AF' }}>No addresses recorded on this Location resource.</div>
+          )}
+        </div>
+
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.8125rem', fontWeight:800, color:'#0D2B45', marginBottom:'.5rem' }}>
+            Contact points ({f.telecom?.length || 0})
+            <span style={{ fontWeight:400, fontSize:'.6875rem', color:'#6B7280', marginLeft:8 }}>HPI-L-Get-3 / -4 {hasRank && '· rank-ordered'}</span>
+          </div>
+          {telecomSorted.length ? (
+            <div style={{ display:'grid', gap:'.375rem' }}>
+              {telecomSorted.map((t, i) => (
+                <div key={i} style={{ padding:'.5rem .75rem', background:'#F9FAFB', borderRadius:6, fontSize:'.8125rem', display:'flex', gap:12, alignItems:'center' }}>
+                  <span style={{ fontWeight:700, color:'#0D2B45', minWidth:80, textTransform:'uppercase', fontSize:'.6875rem', letterSpacing:'.04em' }}>{t.system || 'contact'}</span>
+                  <code style={{ color:'#374151', flex:1 }}>{t.value}</code>
+                  {t.use && <span style={{ color:'#6B7280', fontSize:'.6875rem', textTransform:'uppercase', fontWeight:700 }}>{t.use}</span>}
+                  {t.rank != null && (
+                    <span style={{ background:'#0B6E76', color:'white', padding:'2px 8px', borderRadius:99, fontSize:'.6875rem', fontWeight:800 }}>rank {t.rank}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize:'.8125rem', color:'#9CA3AF' }}>No contact points recorded.</div>
+          )}
+        </div>
+
+        <div>
+          <button type="button" onClick={() => setShowRaw(!showRaw)} style={{ background:'transparent', color:'#6B7280', border:'1.5px solid #E2E8F0', padding:'6px 12px', borderRadius:6, fontSize:'.75rem', fontWeight:700, cursor:'pointer' }}>
+            {showRaw ? 'Hide' : 'Show'} raw FHIR JSON
+          </button>
+          {showRaw && (
+            <pre style={{ marginTop:'.75rem', padding:'.75rem', background:'#0F172A', color:'#E2E8F0', borderRadius:8, fontSize:'.6875rem', overflow:'auto', maxHeight:400, fontFamily:'ui-monospace, Menlo, monospace' }}>
+{JSON.stringify(rawJson, null, 2)}
+            </pre>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 
