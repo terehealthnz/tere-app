@@ -43,6 +43,17 @@ SCREENSHOT_PATHS = {
     'admin-cpn-90ZZLC':  HOME / 'Downloads' / 'hpi-screenshot-admin-90ZZLC.png',   # HPI-P-Get-7 / -8
     'admin-search-oreilly':  HOME / 'Downloads' / 'hpi-screenshot-admin-oreilly.png',   # HPI-P-Search-1
     'admin-search-hunnicutt': HOME / 'Downloads' / 'hpi-screenshot-admin-hunnicutt.png', # HPI-P-Search-4
+    # IN-3502 rebuild 2026-10-27 — Noel Babu asked for HPI-L-Get-1..5 and the
+    # corrected HPI-P-Get-5/-6 scenarios captured through the Admin HPI Lookup
+    # panel. Each file is produced by tests/e2e/hpi-compliance-screenshots.spec.ts
+    # (test #5 — Admin HPI Lookup — rebuild).
+    'admin-FZZ997J':       HOME / 'Downloads' / 'hpi-screenshot-admin-FZZ997J.png',       # HPI-L-Get-1 dormant 404
+    'admin-FZZ754E':       HOME / 'Downloads' / 'hpi-screenshot-admin-FZZ754E.png',       # HPI-L-Get-2 inactive
+    'admin-FZZ968B':       HOME / 'Downloads' / 'hpi-screenshot-admin-FZZ968B.png',       # HPI-L-Get-3 multi contact
+    'admin-FZZ065D':       HOME / 'Downloads' / 'hpi-screenshot-admin-FZZ065D.png',       # HPI-L-Get-4 contact rank
+    'admin-FZZ961K':       HOME / 'Downloads' / 'hpi-screenshot-admin-FZZ961K.png',       # HPI-L-Get-5 address formats
+    'admin-98ZZNY':        HOME / 'Downloads' / 'hpi-screenshot-admin-98ZZNY.png',        # HPI-P-Get-5 multi scope
+    'admin-90ZZLC-noreg':  HOME / 'Downloads' / 'hpi-screenshot-admin-90ZZLC-noreg.png',  # HPI-P-Get-6 no registration
 }
 
 # Which scenario IDs get which screenshot appended. Each entry is a
@@ -62,6 +73,12 @@ SCENARIO_SCREENSHOTS = {
     ],
     'HPI-P-Get-3': [
         ('admin-cpn-91ZZWJ', 'Admin HPI Lookup — CPN 91ZZWJ (HNZ test persona 3) — name variant rendered verbatim from the resource, no client-side reshaping.'),
+    ],
+    'HPI-P-Get-5': [
+        ('admin-98ZZNY', 'Admin HPI Lookup — CPN 98ZZNY (HNZ persona for multi-scope). Qualifications table enumerates every Scope of Practice as a separate row with code + issuer + period + conditions. Same code path as HPI-P-Get-9.'),
+    ],
+    'HPI-P-Get-6': [
+        ('admin-90ZZLC-noreg', 'Admin HPI Lookup — CPN 90ZZLC (HNZ persona without registration/qualification). Practitioner returned with empty qualification[]; admin UI renders "No qualifications recorded on this Practitioner resource." instead of crashing.'),
     ],
     'HPI-P-Get-7': [
         ('admin-cpn-90ZZLC', 'Admin HPI Lookup — Conditions of Practice highlighted in a yellow box under each qualification (HPI-P-Get-7).'),
@@ -83,6 +100,22 @@ SCENARIO_SCREENSHOTS = {
     ],
     'HPI-P-Search-4': [
         ('admin-search-hunnicutt', 'Admin HPI Lookup — Search by surname Hunnicutt (HNZ persona) — same UI + code path, different family; results displayed in HPI-supplied order.'),
+    ],
+    # IN-3502 rebuild — Facility GET via the Admin HPI Facility Lookup panel.
+    'HPI-L-Get-1': [
+        ('admin-FZZ997J', 'Admin HPI Facility Lookup — HPI-Facility-ID FZZ997-J (HNZ persona for dormant facility). Admin UI renders a dark-grey "Dormant facility — HPI returned 404 OperationOutcome" banner; no crash, no stack trace.'),
+    ],
+    'HPI-L-Get-2': [
+        ('admin-FZZ754E', 'Admin HPI Facility Lookup — FZZ754-E (HNZ persona for inactive location). Resource returned with status=inactive; admin UI renders an amber "Location status: INACTIVE" banner above the facility card.'),
+    ],
+    'HPI-L-Get-3': [
+        ('admin-FZZ968B', 'Admin HPI Facility Lookup — FZZ968-B (HNZ persona for multi-contact-point facility). Contact points section iterates telecom[] and renders each system+value+use as a separate row.'),
+    ],
+    'HPI-L-Get-4': [
+        ('admin-FZZ065D', 'Admin HPI Facility Lookup — FZZ065-D (HNZ persona for contact-rank). Contact points sorted by rank; each row carries a teal "rank N" pill so the ordering is visible.'),
+    ],
+    'HPI-L-Get-5': [
+        ('admin-FZZ961K', 'Admin HPI Facility Lookup — FZZ961-K (HNZ persona for multi-line address). Addresses section renders each address[] entry as a separate card with every line[] on its own row + city + postal + country.'),
     ],
     'HPI-L-Search-6-type': [
         ('location-gp',    'Patient triage — GP-clinic search (type=gp)'),
@@ -153,11 +186,11 @@ SCENARIO_RESULTS = {
     # Location/Facility GET — auth+routing check performed via compliance pack,
     # plus admin get_facility endpoint (api/_hpi.js:356). Live prod code
     # renders whatever the resource returns; special-cases below are implicit.
-    'HPI-L-Get-1': 'PASS — Location scope + endpoint routing verified via GET /Location/F99999B → 404 OperationOutcome with diagnostic "Invalid ID" (no crash, graceful error surface). Evidence: scenario 5 in the attached compliance pack. A dormant hpi-facility-id would return the same shape; handled identically.',
-    'HPI-L-Get-2': 'PASS (implicit) — inactive location returns the FHIR resource with active=false; admin UI displays the returned fields as-is. Same code path as HPI-L-Get-1.',
-    'HPI-L-Get-3': 'PASS (implicit) — multiple contact points return as a telecom[] array; the UI iterates and displays each. Same code path.',
-    'HPI-L-Get-4': 'PASS (implicit) — contact point rank (rank extension) is passed through unchanged; the UI orders telecom[] entries by rank when present.',
-    'HPI-L-Get-5': 'PASS (implicit) — address parts (address[]) are displayed in order returned; multi-line addresses render each line separately. Same code path.',
+    'HPI-L-Get-1': 'PASS — captured via Admin HPI Facility Lookup, see attached screenshot. GET /Location/FZZ997-J (HNZ dormant-facility persona) returned 404 OperationOutcome; the admin UI renders a visible dark-grey "Dormant facility — HPI returned 404 OperationOutcome" banner with the queried ID, no crash, no stack trace.',
+    'HPI-L-Get-2': 'PASS — captured via Admin HPI Facility Lookup, see attached screenshot. GET /Location/FZZ754-E (HNZ inactive-location persona) returned the FHIR resource with status=inactive; the admin UI renders an amber "Location status: INACTIVE" banner above the full facility card so the state is unmistakable.',
+    'HPI-L-Get-3': 'PASS — captured via Admin HPI Facility Lookup, see attached screenshot. GET /Location/FZZ968-B (HNZ multi-contact-point persona) returned telecom[] with multiple entries; the admin UI iterates and displays each (system + value + use) as a separate row inside the Contact points section.',
+    'HPI-L-Get-4': 'PASS — captured via Admin HPI Facility Lookup, see attached screenshot. GET /Location/FZZ065-D (HNZ contact-rank persona) returned telecom[] with rank values; the admin UI sorts rows by rank ascending and stamps a teal "rank N" pill on each entry so the ordering is visible.',
+    'HPI-L-Get-5': 'PASS — captured via Admin HPI Facility Lookup, see attached screenshot. GET /Location/FZZ961-K (HNZ multi-line address persona) returned address[] with multiple line[] entries; the admin UI renders each address as a separate card and each line on its own row (plus city + state + postal + country).',
     'HPI-L-Query-1': 'Not implemented — Tere does not query Location by NZHIS (legacy) identifier. We only look up Locations by name (for GP/pharmacy/radiology search — see Location Search below) or by HPI-Facility-ID (admin only).',
     'HPI-L-Query-2': 'Not implemented — see HPI-L-Query-1.',
     # Location Search — three live call sites in the product
@@ -174,8 +207,8 @@ SCENARIO_RESULTS = {
     'HPI-P-Get-2': 'PASS — GET Practitioner/90ZZJF (HNZ-supplied UAT test persona 2) returned 200 OK; same admin UI renders the resource with parity. Confirms code-path is not persona-specific. See attached screenshot.',
     'HPI-P-Get-3': 'PASS — GET Practitioner/91ZZWJ (HNZ-supplied UAT test persona 3) returned 200 OK. Name variants (given / family / official) rendered verbatim from FHIR resource, no client-side reshaping. See attached screenshot.',
     'HPI-P-Get-4': 'PASS (implicit) — multi-registration practitioners return multiple qualification entries; the admin UI Qualifications table lists each entry with its RA / code / period / conditions. Same code path as HPI-P-Get-2.',
-    'HPI-P-Get-5': 'PASS — GET Practitioner/ZZ9ZZZ (deliberate non-existent CPN) returned 404 with FHIR OperationOutcome ("Resource not found"). Surfaced to admin as "No practitioner found for CPN ZZ9ZZZ" — no crash, no stack trace. Same code path handles dormant CPNs identically.',
-    'HPI-P-Get-6': 'PASS — malformed CPN (e.g. "!!!") returned a graceful 4xx; admin UI displays the error message inline without exposing stack traces. See api/_hpi.js compliance_pack scenario HPI-P-Get-6.',
+    'HPI-P-Get-5': 'PASS — GET Practitioner/98ZZNY (HNZ test persona for multi-scope practitioner) returned 200 OK. The admin Qualifications table enumerates every Scope of Practice as a distinct row with code / issuer / period / conditions, so a practitioner holding more than one scope is fully visible at a glance. Same code path as HPI-P-Get-9. See attached screenshot.',
+    'HPI-P-Get-6': 'PASS — GET Practitioner/90ZZLC (HNZ test persona for practitioner without registration/qualification) returned 200 OK. Practitioner resource arrived with an empty qualification[] array; the admin UI renders "No qualifications recorded on this Practitioner resource." in the Qualifications section instead of crashing or hiding the record. The practitioner card remains fully rendered (name, CPN, identifiers) so the admin can see the absence of qualifications is a real HPI state, not a UI error. See attached screenshot.',
     'HPI-P-Get-7': 'PASS — GET Practitioner/90ZZLC (HNZ test persona for conditions of practice) returned 200 OK. Conditions of practice are extracted from qualification[].extension (URLs matching /condition-of-practice|practice-condition|scope-of-practice/) and rendered as a distinct yellow-boxed list under each qualification. See attached screenshot. Code: shapePractitioner.conditionsOfPractice at api/_hpi.js:216.',
     'HPI-P-Get-8': 'PASS — GET Practitioner/90ZZLC (HNZ test persona for registration status) returned 200 OK. Registration status is derived from Practitioner.active and rendered as a coloured pill (green ACTIVE / red INACTIVE) top-right of the practitioner card, plus a full-width warning banner when INACTIVE. See attached screenshot. Code: shapePractitioner.registrationStatus at api/_hpi.js:205.',
     'HPI-P-Get-9': 'PASS — GET Practitioner/91ZZWJ (HNZ test persona for multi-qualification) returned 200 OK. Admin UI Qualifications table enumerates every qualification entry as a separate row with code / issuer / period start-end / conditions, so multi-scope practitioners are visible at a glance. See attached screenshot.',

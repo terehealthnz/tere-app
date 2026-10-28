@@ -165,4 +165,76 @@ test.describe('HPI compliance screenshots', () => {
     console.log(`  ✓ wrote ${out}`)
     expect(true).toBe(true)
   })
+
+  // ── IN-3502 rebuild (Noel Babu 2026-10-27) ─────────────────────────────
+  // Admin HPI Lookup panel now exposes HPI-L-Get-1..5 (facility GET edge
+  // cases) and HPI-P-Get-5 / -6 (multi-scope + no-registration practitioner).
+  // This test walks each scenario button, waits for the result card, and
+  // captures the full page to ~/Downloads/ where
+  // scripts/fill_hpi_compliance_docx.py embeds each image in the docx.
+  interface AdminScenario {
+    buttonText: string
+    file: string
+    waitFor: string
+    note: string
+  }
+
+  const ADMIN_SCENARIOS: AdminScenario[] = [
+    { buttonText: 'Run HPI-L-Get-1',  file: 'hpi-screenshot-admin-FZZ997J.png',       waitFor: 'Dormant facility',       note: 'HPI-L-Get-1 FZZ997-J dormant 404' },
+    { buttonText: 'Run HPI-L-Get-2',  file: 'hpi-screenshot-admin-FZZ754E.png',       waitFor: 'HPI Location resource',  note: 'HPI-L-Get-2 FZZ754-E inactive location' },
+    { buttonText: 'Run HPI-L-Get-3',  file: 'hpi-screenshot-admin-FZZ968B.png',       waitFor: 'HPI Location resource',  note: 'HPI-L-Get-3 FZZ968-B multi-contact-point' },
+    { buttonText: 'Run HPI-L-Get-4',  file: 'hpi-screenshot-admin-FZZ065D.png',       waitFor: 'HPI Location resource',  note: 'HPI-L-Get-4 FZZ065-D contact rank' },
+    { buttonText: 'Run HPI-L-Get-5',  file: 'hpi-screenshot-admin-FZZ961K.png',       waitFor: 'HPI Location resource',  note: 'HPI-L-Get-5 FZZ961-K address formats' },
+    { buttonText: 'Run HPI-P-Get-5',  file: 'hpi-screenshot-admin-98ZZNY.png',        waitFor: 'HPI Practitioner resource', note: 'HPI-P-Get-5 98ZZNY multi-scope' },
+    { buttonText: 'Run HPI-P-Get-6',  file: 'hpi-screenshot-admin-90ZZLC-noreg.png',  waitFor: 'HPI Practitioner resource', note: 'HPI-P-Get-6 90ZZLC no registration' },
+  ]
+
+  function anchorRegex(prefix: string): RegExp {
+    const esc = prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    return new RegExp('^\\s*' + esc)
+  }
+
+  test('5. Admin HPI Lookup — rebuild (IN-3502)', async ({ page }) => {
+    console.log('\n[Screenshot 5/5] Admin HPI Lookup rebuild — facility GET + practitioner edge cases')
+
+    await page.goto(`${PROD}/clinician/login`)
+    console.log('  ⏸  PAUSED — log in as an admin (email + PIN + MFA), then')
+    console.log('       navigate to the Admin area and click the "🩺 HPI Lookup" tab.')
+    console.log('       You should see the HPI Practitioner Lookup panel at the top')
+    console.log('       followed by the new HPI Facility Lookup panel with scenario')
+    console.log('       buttons. Then click ▶ Resume in the Playwright Inspector.')
+    await page.pause()
+
+    // Verify we actually landed on the panel before iterating.
+    await page.locator('text=HPI Practitioner Lookup').first().waitFor({ state: 'visible', timeout: 20000 })
+    await page.locator('text=HPI Facility Lookup').first().waitFor({ state: 'visible', timeout: 20000 })
+
+    for (const sc of ADMIN_SCENARIOS) {
+      console.log(`\n  → ${sc.note}`)
+      const btn = page.locator('button', { hasText: anchorRegex(sc.buttonText) }).first()
+      await btn.scrollIntoViewIfNeeded()
+      await btn.click()
+
+      // Wait for the result card (or dormant banner) to render.
+      try {
+        await page.locator(`text=${sc.waitFor}`).first().waitFor({ state: 'visible', timeout: 25000 })
+      } catch {
+        console.warn(`    ! waitFor "${sc.waitFor}" did not appear — capturing current state anyway`)
+      }
+      // Let any secondary async renders settle.
+      await page.waitForTimeout(1500)
+
+      const out = path.join(OUT, sc.file)
+      await page.screenshot({ path: out, fullPage: true })
+      console.log(`    ✓ ${out}`)
+
+      // Scroll back to the top so the next scenario button is visible.
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await page.waitForTimeout(300)
+    }
+
+    console.log('\n[IN-3502 rebuild] All 7 scenarios captured.')
+    console.log('    Next: run python3 scripts/fill_hpi_compliance_docx.py to regenerate the docx.')
+    expect(true).toBe(true)
+  })
 })
