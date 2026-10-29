@@ -767,6 +767,67 @@ export async function getEmployerEmployees(employerId) {
   return employees || []
 }
 
+// ── Promo codes ──────────────────────────────────────────────────────────────
+
+export async function listPromoCodes() {
+  const res = await apiFetch('/api/promo-codes?action=list')
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `listPromoCodes HTTP ${res.status}`)
+  }
+  const { promo_codes } = await res.json()
+  return promo_codes || []
+}
+
+export async function createPromoCode(data) {
+  const res = await apiFetch('/api/promo-codes', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'create', ...data }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `createPromoCode HTTP ${res.status}`)
+  }
+  const { promo_code } = await res.json()
+  return promo_code
+}
+
+export async function updatePromoCode(id, patch) {
+  const res = await apiFetch('/api/promo-codes', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'update', id, ...patch }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `updatePromoCode HTTP ${res.status}`)
+  }
+  const { promo_code } = await res.json()
+  return promo_code
+}
+
+export async function revokePromoCode(id) {
+  const res = await apiFetch('/api/promo-codes', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'revoke', id }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `revokePromoCode HTTP ${res.status}`)
+  }
+  const { promo_code } = await res.json()
+  return promo_code
+}
+
+export async function getPromoCodeRedemptions(promoCodeId) {
+  const res = await apiFetch(`/api/promo-codes?action=redemptions&promo_code_id=${encodeURIComponent(promoCodeId)}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `getPromoCodeRedemptions HTTP ${res.status}`)
+  }
+  const { redemptions } = await res.json()
+  return redemptions || []
+}
+
 export async function deleteEmployerEmployee(id) {
   const res = await apiFetch(`/api/employer-employees?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
   if (!res.ok) {

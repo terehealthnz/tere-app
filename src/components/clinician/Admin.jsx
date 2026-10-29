@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi, listPromoCodes, createPromoCode, updatePromoCode, revokePromoCode, getPromoCodeRedemptions } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -6897,6 +6897,411 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
   )
 }
 
+// Admin-managed promo codes. Follows the EmployersPanel pattern: top-of-page
+// "Create" button, table of codes, inline revoke + edit + view-redemptions
+// modals. All I/O goes through /api/promo-codes under the service-role key;
+// the public /payment page uses the same endpoint with action=check for the
+// pre-login preview. See supabase/2026-10-29_promo_codes.sql for the schema.
+function PromoCodesPanel() {
+  const [codes, setCodes] = React.useState([])
+  const [loading, setLoading] = React.useState(true)
+  const [showAdd, setShowAdd] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [addError, setAddError] = React.useState('')
+  const [editing, setEditing] = React.useState(null)
+  const [editSaving, setEditSaving] = React.useState(false)
+  const [editError, setEditError] = React.useState('')
+  const [redemptionsFor, setRedemptionsFor] = React.useState(null)  // promo row
+  const [redemptionRows, setRedemptionRows] = React.useState(null)
+  const [redemptionsLoading, setRedemptionsLoading] = React.useState(false)
+
+  // Default new-code form. valid_from = today, valid_to = +90 days.
+  function emptyDraft() {
+    const today = new Date()
+    const future = new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
+    const iso = (d) => d.toISOString().slice(0, 10)
+    return {
+      code: '',
+      description: '',
+      discount_type: 'percent',
+      discount_value: '10',
+      valid_from: iso(today),
+      valid_to: iso(future),
+      max_uses: '',
+      applies_to_country: 'both',
+    }
+  }
+  const [draft, setDraft] = React.useState(emptyDraft())
+
+  async function load() {
+    setLoading(true)
+    try {
+      const rows = await listPromoCodes()
+      setCodes(rows || [])
+    } catch (e) {
+      console.error(e)
+    }
+    setLoading(false)
+  }
+  React.useEffect(() => { load() }, [])
+
+  async function addCode() {
+    setAddError('')
+    if (!draft.code.trim()) { setAddError('Code is required'); return }
+    setSaving(true)
+    try {
+      await createPromoCode({
+        code: draft.code.trim().toUpperCase(),
+        description: draft.description.trim() || null,
+        discount_type: draft.discount_type,
+        discount_value: parseFloat(draft.discount_value || '0'),
+        valid_from: new Date(draft.valid_from).toISOString(),
+        valid_to: new Date(draft.valid_to + 'T23:59:59').toISOString(),
+        max_uses: draft.max_uses === '' ? null : parseInt(draft.max_uses, 10),
+        applies_to_country: draft.applies_to_country,
+        active: true,
+      })
+      setDraft(emptyDraft())
+      setShowAdd(false)
+      await load()
+    } catch (e) {
+      setAddError(e.message || 'Failed to create code')
+    }
+    setSaving(false)
+  }
+
+  async function revoke(id) {
+    if (!window.confirm('Revoke this code? Existing redemptions remain but no new ones can be applied.')) return
+    try {
+      await revokePromoCode(id)
+      setCodes(cs => cs.map(c => c.id === id ? { ...c, active: false } : c))
+    } catch (e) { alert(e.message || 'Failed to revoke') }
+  }
+
+  async function toggleActive(row) {
+    try {
+      await updatePromoCode(row.id, { active: !row.active })
+      setCodes(cs => cs.map(c => c.id === row.id ? { ...c, active: !row.active } : c))
+    } catch (e) { alert(e.message || 'Failed to toggle') }
+  }
+
+  function openEdit(row) {
+    setEditError('')
+    setEditing({
+      id: row.id,
+      code: row.code,
+      description: row.description || '',
+      discount_type: row.discount_type,
+      discount_value: String(row.discount_value),
+      valid_from: new Date(row.valid_from).toISOString().slice(0, 10),
+      valid_to: new Date(row.valid_to).toISOString().slice(0, 10),
+      max_uses: row.max_uses == null ? '' : String(row.max_uses),
+      applies_to_country: row.applies_to_country,
+      active: row.active,
+    })
+  }
+
+  async function saveEdit() {
+    if (!editing) return
+    if (!editing.code.trim()) { setEditError('Code is required'); return }
+    setEditSaving(true); setEditError('')
+    try {
+      const updated = await updatePromoCode(editing.id, {
+        code: editing.code.trim().toUpperCase(),
+        description: editing.description.trim() || null,
+        discount_type: editing.discount_type,
+        discount_value: parseFloat(editing.discount_value || '0'),
+        valid_from: new Date(editing.valid_from).toISOString(),
+        valid_to: new Date(editing.valid_to + 'T23:59:59').toISOString(),
+        max_uses: editing.max_uses === '' ? null : parseInt(editing.max_uses, 10),
+        applies_to_country: editing.applies_to_country,
+        active: editing.active,
+      })
+      setCodes(cs => cs.map(c => c.id === editing.id ? (updated || c) : c))
+      setEditing(null)
+    } catch (e) {
+      setEditError(e.message || 'Failed to save')
+    }
+    setEditSaving(false)
+  }
+
+  async function openRedemptions(row) {
+    setRedemptionsFor(row)
+    setRedemptionRows(null)
+    setRedemptionsLoading(true)
+    try {
+      const rows = await getPromoCodeRedemptions(row.id)
+      setRedemptionRows(rows || [])
+    } catch (e) {
+      setRedemptionRows([])
+      console.error(e)
+    }
+    setRedemptionsLoading(false)
+  }
+
+  function formatDiscount(row) {
+    if (row.discount_type === 'percent') return `${Number(row.discount_value)}% off`
+    if (row.discount_type === 'fixed') return `$${Number(row.discount_value).toFixed(2)} off`
+    if (row.discount_type === 'zero') return 'Free (100% off)'
+    return row.discount_type
+  }
+
+  const card = { background: 'white', borderRadius: 12, padding: '1.5rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }
+  const inp = { border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none' }
+  const btnStyle = { background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }
+
+  return (
+    <div style={card}>
+      {editing && (
+        <div onClick={() => !editSaving && setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '2rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: 'min(560px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
+              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>Edit promo code</div>
+              <button onClick={() => !editSaving && setEditing(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9CA3AF' }}>×</button>
+            </div>
+            <div style={{ display: 'grid', gap: '.625rem' }}>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Code</label>
+                <input style={{ ...inp, textTransform: 'uppercase' }} value={editing.code} onChange={e => setEditing(x => ({ ...x, code: e.target.value.toUpperCase() }))} />
+              </div>
+              <div>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Description (admin only)</label>
+                <textarea style={{ ...inp, minHeight: 50, fontFamily: 'inherit' }} value={editing.description} onChange={e => setEditing(x => ({ ...x, description: e.target.value }))} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Discount type</label>
+                  <select style={inp} value={editing.discount_type} onChange={e => setEditing(x => ({ ...x, discount_type: e.target.value }))}>
+                    <option value="percent">Percent off</option>
+                    <option value="fixed">Fixed NZD off</option>
+                    <option value="zero">Free consult</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>
+                    {editing.discount_type === 'percent' ? 'Percent (0-100)' : editing.discount_type === 'fixed' ? 'NZD amount' : 'Value (ignored)'}
+                  </label>
+                  <input style={inp} type="number" min="0" step="0.01" disabled={editing.discount_type === 'zero'} value={editing.discount_value} onChange={e => setEditing(x => ({ ...x, discount_value: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Valid from</label>
+                  <input style={inp} type="date" value={editing.valid_from} onChange={e => setEditing(x => ({ ...x, valid_from: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Valid to</label>
+                  <input style={inp} type="date" value={editing.valid_to} onChange={e => setEditing(x => ({ ...x, valid_to: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Max uses (blank = unlimited)</label>
+                  <input style={inp} type="number" min="1" value={editing.max_uses} onChange={e => setEditing(x => ({ ...x, max_uses: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Applies to</label>
+                  <select style={inp} value={editing.applies_to_country} onChange={e => setEditing(x => ({ ...x, applies_to_country: e.target.value }))}>
+                    <option value="both">Both NZ and international</option>
+                    <option value="nz">NZ only</option>
+                    <option value="international">International only</option>
+                  </select>
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.875rem', color: '#374151' }}>
+                <input type="checkbox" checked={editing.active} onChange={e => setEditing(x => ({ ...x, active: e.target.checked }))} />
+                Active
+              </label>
+              {editError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6 }}>{editError}</div>}
+              <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
+                <button onClick={() => setEditing(null)} disabled={editSaving} style={{ background: 'white', color: '#374151', border: '1px solid #D1D5DB', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600 }}>Cancel</button>
+                <button onClick={saveEdit} disabled={editSaving || !editing.code.trim()} style={{ ...btnStyle, opacity: editSaving ? 0.6 : 1 }}>{editSaving ? 'Saving…' : 'Save'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {redemptionsFor && (
+        <div onClick={() => setRedemptionsFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '2rem' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: 'min(720px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>Redemptions for {redemptionsFor.code}</div>
+                <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>{redemptionsFor.current_uses} total {redemptionsFor.max_uses ? `of ${redemptionsFor.max_uses} cap` : ''}</div>
+              </div>
+              <button onClick={() => setRedemptionsFor(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9CA3AF' }}>×</button>
+            </div>
+            {redemptionsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+            ) : (redemptionRows || []).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>No redemptions yet.</div>
+            ) : (
+              <div style={{ borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8125rem' }}>
+                  <thead>
+                    <tr style={{ background: '#F8FAFC', color: '#64748B' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 700 }}>Redeemed</th>
+                      <th style={{ textAlign: 'left', padding: '8px 10px', fontWeight: 700 }}>Consult</th>
+                      <th style={{ textAlign: 'right', padding: '8px 10px', fontWeight: 700 }}>Original</th>
+                      <th style={{ textAlign: 'right', padding: '8px 10px', fontWeight: 700 }}>Discount</th>
+                      <th style={{ textAlign: 'right', padding: '8px 10px', fontWeight: 700 }}>Final</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(redemptionRows || []).map(r => (
+                      <tr key={r.id} style={{ borderTop: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '8px 10px', color: '#374151' }}>{new Date(r.redeemed_at).toLocaleString('en-NZ')}</td>
+                        <td style={{ padding: '8px 10px', color: '#6B7280', fontFamily: 'ui-monospace, Menlo, monospace' }}>{r.consultation_id ? r.consultation_id.slice(0, 8) : '-'}</td>
+                        <td style={{ padding: '8px 10px', color: '#374151', textAlign: 'right' }}>${(r.original_amount_cents / 100).toFixed(2)}</td>
+                        <td style={{ padding: '8px 10px', color: '#059669', textAlign: 'right' }}>-${(r.discount_applied_cents / 100).toFixed(2)}</td>
+                        <td style={{ padding: '8px 10px', color: '#0D2B45', textAlign: 'right', fontWeight: 600 }}>${(r.final_amount_cents / 100).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
+        <div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Promo codes</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Discount codes patients enter on /payment. Server re-validates on charge.</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
+          <button onClick={() => { setDraft(emptyDraft()); setAddError(''); setShowAdd(s => !s) }} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+            {showAdd ? 'Cancel' : '+ Create promo code'}
+          </button>
+        </div>
+      </div>
+
+      {showAdd && (
+        <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>New promo code</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem', marginBottom: '.625rem' }}>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Code (uppercased on save)</label>
+              <input style={{ ...inp, textTransform: 'uppercase', width: '100%' }} placeholder="SPRING50" value={draft.code} onChange={e => setDraft(d => ({ ...d, code: e.target.value.toUpperCase() }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Applies to</label>
+              <select style={{ ...inp, width: '100%' }} value={draft.applies_to_country} onChange={e => setDraft(d => ({ ...d, applies_to_country: e.target.value }))}>
+                <option value="both">Both NZ and international</option>
+                <option value="nz">NZ only</option>
+                <option value="international">International only</option>
+              </select>
+            </div>
+            <div style={{ gridColumn: '1 / span 2' }}>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Description (admin only, not shown to patients)</label>
+              <textarea style={{ ...inp, minHeight: 50, fontFamily: 'inherit', width: '100%' }} placeholder="e.g. Spring 2026 marketing campaign" value={draft.description} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Discount type</label>
+              <select style={{ ...inp, width: '100%' }} value={draft.discount_type} onChange={e => setDraft(d => ({ ...d, discount_type: e.target.value }))}>
+                <option value="percent">Percent off</option>
+                <option value="fixed">Fixed NZD off</option>
+                <option value="zero">Free consult</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>
+                {draft.discount_type === 'percent' ? 'Percent (0-100)' : draft.discount_type === 'fixed' ? 'NZD amount off' : 'Value (ignored)'}
+              </label>
+              <input style={{ ...inp, width: '100%' }} type="number" min="0" step="0.01" disabled={draft.discount_type === 'zero'} value={draft.discount_value} onChange={e => setDraft(d => ({ ...d, discount_value: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Valid from</label>
+              <input style={{ ...inp, width: '100%' }} type="date" value={draft.valid_from} onChange={e => setDraft(d => ({ ...d, valid_from: e.target.value }))} />
+            </div>
+            <div>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Valid to</label>
+              <input style={{ ...inp, width: '100%' }} type="date" value={draft.valid_to} onChange={e => setDraft(d => ({ ...d, valid_to: e.target.value }))} />
+            </div>
+            <div style={{ gridColumn: '1 / span 2' }}>
+              <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Max uses (blank = unlimited)</label>
+              <input style={{ ...inp, width: '100%' }} type="number" min="1" placeholder="e.g. 100" value={draft.max_uses} onChange={e => setDraft(d => ({ ...d, max_uses: e.target.value }))} />
+            </div>
+          </div>
+          {addError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6, marginBottom: '.5rem' }}>{addError}</div>}
+          <button onClick={addCode} disabled={saving || !draft.code.trim()} style={{ ...btnStyle, opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Saving…' : 'Create code'}
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>Loading…</div>
+      ) : codes.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
+          No promo codes yet. Run supabase/2026-10-29_promo_codes.sql first, then create one above.
+        </div>
+      ) : (
+        <div style={{ borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
+            <thead>
+              <tr style={{ background: '#F8FAFC', color: '#64748B' }}>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Code</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Discount</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Valid window</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Uses</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Country</th>
+                <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Status</th>
+                <th style={{ textAlign: 'right', padding: '10px 12px', fontWeight: 700 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codes.map(row => (
+                <tr key={row.id} style={{ borderTop: '1px solid #F3F4F6', background: row.active ? 'white' : '#FFF5F5' }}>
+                  <td style={{ padding: '10px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700, color: '#0D2B45' }}>
+                    {row.code}
+                    {row.description && <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', color: '#9CA3AF', fontWeight: 400, marginTop: 2 }}>{row.description}</div>}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>{formatDiscount(row)}</td>
+                  <td style={{ padding: '10px 12px', color: '#6B7280', fontSize: '.8125rem' }}>
+                    {new Date(row.valid_from).toLocaleDateString('en-NZ')} to {new Date(row.valid_to).toLocaleDateString('en-NZ')}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#374151' }}>
+                    {row.current_uses}{row.max_uses ? ` / ${row.max_uses}` : ''}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: '#6B7280', fontSize: '.8125rem' }}>
+                    {row.applies_to_country === 'both' ? 'NZ + Intl' : row.applies_to_country === 'nz' ? 'NZ' : 'Intl'}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ background: row.active ? '#D1FAE5' : '#FEE2E2', color: row.active ? '#065F46' : '#991B1B', fontSize: '.6875rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                      {row.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => openRedemptions(row)} style={{ background: '#F0F9FA', color: '#0B6E76', border: '1px solid #BAE6E9', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', marginRight: 4 }}>
+                      Redemptions
+                    </button>
+                    <button onClick={() => openEdit(row)} style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', marginRight: 4 }}>
+                      Edit
+                    </button>
+                    {row.active ? (
+                      <button onClick={() => revoke(row.id)} style={{ background: 'none', border: '1px solid #FECACA', color: '#DC2626', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                        Revoke
+                      </button>
+                    ) : (
+                      <button onClick={() => toggleActive(row)} style={{ background: 'none', border: '1px solid #BBF7D0', color: '#059669', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                        Reactivate
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Operations funnel (task #582) — all consults in last N days classified by
 // where they stopped, plus a severity-flagged list of abandoned ones so an
 // admin can rescue acute presentations before they churn (Jeanne Palm's
@@ -8093,6 +8498,7 @@ function AdminBody() {
             { id:'nhi',          label:'🩺 NHI Lookup' },
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
+            { id:'promo_codes',  label:'🏷️ Promo codes' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
             { id:'testimonials', label:`⭐ Testimonials${pendingCounts.testimonials ? ` (${pendingCounts.testimonials})` : ''}` },
             { id:'gp_letters',   label:`✉️ GP letters${pendingCounts.gp_letters ? ` (${pendingCounts.gp_letters})` : ''}` },
@@ -8169,6 +8575,7 @@ function AdminBody() {
             case 'nhi':        return <AdminNhiLookupPanel />
             case 'acc':        return <><ReclassificationsPanel /><AccClaimsSection /></>
             case 'employers':  return <EmployersPanel />
+            case 'promo_codes': return <PromoCodesPanel />
             case 'support':      return <SupportPanel />
             case 'testimonials': return <TestimonialsPanel />
             case 'gp_letters': return <><GpLettersPanel /><RecordForwardPanel /></>
