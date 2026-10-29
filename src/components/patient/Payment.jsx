@@ -68,6 +68,14 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const [phase, setPhase] = useState('billing')  // billing | loading | ready | verifying | approved | declined
   const [session, setSession] = useState(null)
   const [error, setError]     = useState(null)
+  // Promo code state. The client preview is informational — the server
+  // re-validates on windcave-create-session so a tampered discountCents
+  // never actually makes it onto the Windcave auth. finalCents here is
+  // only for the on-page breakdown.
+  const [promoInput, setPromoInput] = useState('')
+  const [promoApplying, setPromoApplying] = useState(false)
+  const [promoError, setPromoError] = useState(null)
+  const [promo, setPromo] = useState(null)  // { code, discount_type, discount_value, discount_applied_cents, final_amount_cents } | null
 
   // Billing country — auto-detected from patient's triage address. Persisted
   // to sessionStorage so back/forward keeps the choice. NZ default when
@@ -95,7 +103,48 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const normalAmount = isInternational
     ? priceSet.international
     : (accEligible === 'yes' ? priceSet.acc : priceSet.private)
-  const amount = testUnlocked ? 0.10 : normalAmount
+  const baseAmount = testUnlocked ? 0.10 : normalAmount
+  // Promo preview is applied on top of baseAmount only when test mode is OFF.
+  // Test mode (NZ$0.10) does not stack with promos.
+  const promoDiscount = (!testUnlocked && promo) ? (promo.discount_applied_cents / 100) : 0
+  const amount = Math.max(0, +(baseAmount - promoDiscount).toFixed(2))
+
+  // Promo apply handler. Hits the public check endpoint; result is purely
+  // informational for the on-page breakdown. Server-side windcave-create-session
+  // re-validates (don't trust client).
+  async function tryPromo() {
+    const code = promoInput.trim().toUpperCase()
+    if (!code) return
+    setPromoApplying(true); setPromoError(null)
+    try {
+      const baseCents = Math.round(baseAmount * 100)
+      const qs = `?action=check&code=${encodeURIComponent(code)}&billing_country=${encodeURIComponent(billingCountry)}&base_amount_cents=${baseCents}`
+      const r = await apiFetch('/api/promo-codes' + qs)
+      const d = await r.json()
+      if (!r.ok || !d.valid) {
+        setPromoError(d.reason || 'This code is not valid')
+        setPromo(null)
+      } else {
+        setPromo({
+          code: d.code,
+          discount_type: d.discount_type,
+          discount_value: d.discount_value,
+          discount_applied_cents: d.discount_applied_cents,
+          final_amount_cents: d.final_amount_cents,
+        })
+      }
+    } catch {
+      setPromoError('Could not check code. Try again.')
+      setPromo(null)
+    }
+    setPromoApplying(false)
+  }
+
+  function clearPromo() {
+    setPromo(null)
+    setPromoInput('')
+    setPromoError(null)
+  }
 
   async function startSession(intlOverride) {
     setPhase('loading'); setError(null); setTestError(null)
@@ -107,6 +156,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           consultationId, accEligible, consultationType,
           isInternational: intl,
           ...(testUnlocked && testPassword ? { testPassword } : {}),
+          ...(promo && !testUnlocked ? { promo_code: promo.code } : {}),
         }),
       })
       const data = await r.json()
@@ -214,6 +264,49 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             {accEligible === 'yes' ? ' — ACC covers the consultation itself.' : '.'}
           </div>
         )}
+        {/* Promo code input. Preview only — server re-validates on charge. */}
+        {!testUnlocked && (
+          <div style={{ marginBottom:'.75rem', padding:'.65rem .75rem', background: promo ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${promo ? '#BBF7D0' : '#E2E8F0'}`, borderRadius: 8 }}>
+            {promo ? (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:'.5rem' }}>
+                <div style={{ fontSize:'.8125rem', color:'#065F46' }}>
+                  <strong>✓ Code applied: {promo.code}</strong>
+                  <div style={{ fontSize:'.75rem', color:'#047857', marginTop: 2 }}>
+                    NZ${(promo.discount_applied_cents / 100).toFixed(2)} off, new total NZ${(promo.final_amount_cents / 100).toFixed(2)}
+                  </div>
+                </div>
+                <button type="button" onClick={clearPromo}
+                  style={{ background:'none', border:'none', color:'#065F46', textDecoration:'underline', cursor:'pointer', fontSize:'.75rem' }}>
+                  remove
+                </button>
+              </div>
+            ) : (
+              <>
+                <label style={{ display:'block', fontSize:'.75rem', fontWeight:700, color:'#0D2B45', marginBottom:'.3rem' }}>
+                  Promo code (optional)
+                </label>
+                <div style={{ display:'flex', gap:'.4rem' }}>
+                  <input type="text" value={promoInput}
+                    onChange={e => setPromoInput(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter' && promoInput.trim()) tryPromo() }}
+                    placeholder="e.g. SPRING50"
+                    style={{ flex:1, padding:'.45rem .55rem', fontSize:'.875rem', border:'1.5px solid #E2E8F0', borderRadius:6, fontFamily:'inherit', textTransform:'uppercase' }} />
+                  <button type="button" disabled={!promoInput.trim() || promoApplying}
+                    onClick={tryPromo}
+                    style={{ background:'#0B6E76', color:'white', border:'none', padding:'.45rem .9rem', borderRadius:6, fontSize:'.8125rem', fontWeight:600, cursor: promoInput.trim() ? 'pointer' : 'not-allowed', opacity: (promoInput.trim() && !promoApplying) ? 1 : 0.5 }}>
+                    {promoApplying ? '…' : 'Apply'}
+                  </button>
+                </div>
+                {promoError && (
+                  <div style={{ fontSize:'.75rem', color:'#B91C1C', marginTop:'.35rem' }}>
+                    {promoError}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {testUnlocked ? (
           <div style={{ background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:8, padding:'.6rem .75rem', marginBottom:'.75rem', fontSize:'.8125rem', color:'#92400E' }}>
             <strong>Test mode ON</strong> — this session will charge NZ$0.10 for live payment/refund testing.

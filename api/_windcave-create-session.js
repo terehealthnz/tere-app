@@ -46,7 +46,7 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational, testPassword } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational, testPassword, promo_code } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
 
   // Session type: 'auth' (hold, then explicit complete/capture later — default)
@@ -148,11 +148,42 @@ export default async function handler(req, res) {
   }
   const { data: contactRow } = await supabaseForContact
     .from('consultations')
-    .select('patient_email, patient_phone')
+    .select('patient_email, patient_phone, patient_id')
     .eq('id', consultationId)
     .maybeSingle()
   const patientEmail = contactRow?.patient_email || null
   const patientPhone = contactRow?.patient_phone || null
+  const patientIdForPromo = contactRow?.patient_id || null
+
+  // Promo code redemption. Server re-validates (never trust the client's
+  // discount preview). redeemPromoForConsult is idempotent per consultationId
+  // so a double-submit / FPRN re-fire / Windcave retry cannot inflate
+  // current_uses. Only applies when test mode is OFF — the $0.10 test rate
+  // takes precedence over any promo.
+  let promoAppliedDiscountCents = 0
+  let promoAppliedId = null
+  if (!isTestMode && promo_code) {
+    try {
+      const { redeemPromoForConsult } = await import('./_promo-codes.js')
+      const result = await redeemPromoForConsult({
+        supabase: supabaseForContact,
+        code: promo_code,
+        billingCountry: isIntl ? 'INTL' : 'NZ',
+        baseAmountCents: amountCents,
+        consultationId,
+        patientId: patientIdForPromo,
+      })
+      promoAppliedDiscountCents = result.discountCents || 0
+      promoAppliedId = result.promoId || null
+    } catch (e) {
+      console.error('[windcave] promo redeem failed:', e.message)
+      return res.status(400).json({ error: e.message || 'Promo code could not be applied' })
+    }
+  }
+  // Final amount after promo. Clamp to >= 0 and keep auth ceiling untouched —
+  // auth stays at full rate so provider can flip ACC→private mid-visit and
+  // still capture the full fee if the discount turns out to be ineligible.
+  const amountAfterPromoCents = Math.max(0, amountCents - promoAppliedDiscountCents)
 
   const payload = {
     type: wcType,
@@ -223,17 +254,19 @@ export default async function handler(req, res) {
   const supabase = admin()
   await supabase.from('consultations').update({
     payment_intent_id: sessionData.id,   // reuse existing column; Windcave session id lives here
-    payment_amount: amountCents,
+    payment_amount: amountAfterPromoCents,
     // Windcave auth ceiling — separate from payment_amount so downstream
     // guards can distinguish "how much can we capture" from "how much
     // are we quoted / owed". See db/migrations/2026-09-29_payment_authorised_amount.sql.
     payment_authorised_amount_cents: authCents,
     ...(isTestMode ? { payment_test_mode: true } : {}),
+    ...(promoAppliedId ? { promo_code_id: promoAppliedId, promo_discount_cents: promoAppliedDiscountCents } : {}),
   }).eq('id', consultationId)
 
   return res.status(200).json({
     sessionId: sessionData.id,
     hppUrl: hppLink.href,
-    amount: amountCents,
+    amount: amountAfterPromoCents,
+    ...(promoAppliedId ? { promo_discount_cents: promoAppliedDiscountCents } : {}),
   })
 }
