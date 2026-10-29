@@ -457,6 +457,7 @@ const ROUTES = {
   'gp-book':                   () => import('./_gp-book.js'),
   'gp-booking-lookup':         () => import('./_gp-booking-lookup.js'),
   'admin-gp-config':           () => import('./_admin-gp-config.js'),
+  'promo-codes':               () => import('./_promo-codes.js'),
 }
 
 export default async function handler(req, res) {
