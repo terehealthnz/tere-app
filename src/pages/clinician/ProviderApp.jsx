@@ -11,6 +11,7 @@ import MfaEnrollModal from '../../components/clinician/MfaEnrollModal.jsx'
 import TereChatTab, { useTereChatUnread } from '../../components/clinician/TereChatTab.jsx'
 import PracticeModeBanner from '../../components/clinician/PracticeModeBanner.jsx'
 import { providerLogout } from '../../lib/providerLogout'
+import { getPatientPresence, presencePillStyle, presenceLabel } from '../../lib/patientPresence'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -470,6 +471,35 @@ function TasksTab({ setTasksBadge, navigate }) {
 const TH = { fontSize:'.6875rem', fontWeight:700, color:'#374151', padding:'.625rem .75rem', textAlign:'left', whiteSpace:'nowrap', background:'#F9FAFB', borderBottom:'1px solid #E2E8F0' }
 const TD = { padding:'.75rem .75rem', verticalAlign:'middle' }
 
+// Live-updating presence pill for the queue card. Reads in_waiting_room_at
+// and last_seen_at straight off the consult row and re-renders every 15s so
+// the "last seen Xs ago" number stays accurate without re-fetching the queue.
+// Hidden on in-progress / completed / no-answer rows - presence only makes
+// sense for rows a provider might still click to start a call on.
+function PresencePill({ consult }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 15000)
+    return () => clearInterval(id)
+  }, [])
+  if (!consult) return null
+  const status = String(consult.status || '')
+  // Rows that have moved past the queue pickup phase. in_progress is live, the
+  // others are terminal. Hiding keeps the row tidy and avoids a stale pill
+  // suggesting "not yet joined" on a row that's already finished.
+  if (['in_progress', 'complete', 'completed', 'cancelled', 'dismissed', 'no_answer', 'no_show', 'expired'].includes(status)) {
+    return null
+  }
+  const presence = getPatientPresence(consult)
+  return (
+    <span style={presencePillStyle(presence.status)} title={presenceLabel(presence)}>
+      {presence.status === 'in_waiting_room' ? '🟢' : presence.status === 'joined_but_stale' ? '🟡' : '⚪'}
+      {' '}
+      {presenceLabel(presence)}
+    </span>
+  )
+}
+
 function QueueTab({ consultations, loading, starting, onStart, onDismiss, navigate }) {
   const [now, setNow]             = useState(Date.now())
   const [dismissTarget, setDismissTarget] = useState(null)
@@ -565,6 +595,7 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   <span style={{ background:buf.bg, color:buf.color, fontSize:'.625rem', fontWeight:700, padding:'2px 6px', borderRadius:99, whiteSpace:'nowrap' }}>
                     {buf.label}
                   </span>
+                  <PresencePill consult={c} />
                   {c.acc_eligible === 'yes' && (
                     <span style={{ background:'#D4EEF0', color:TEAL, fontSize:'.5625rem', fontWeight:700, padding:'2px 6px', borderRadius:99 }}>ACC</span>
                   )}
@@ -709,11 +740,14 @@ function QueueTab({ consultations, loading, starting, onStart, onDismiss, naviga
                   <div style={{ fontSize:'.75rem', color:'#374151', lineHeight:1.5, whiteSpace:'nowrap' }}>{fmtEnteredAt(c.created_at)}</div>
                 </div>
 
-                {/* Buffer */}
+                {/* Buffer + presence */}
                 <div style={TD}>
-                  <span style={{ background:buf.bg, color:buf.color, fontSize:'.6875rem', fontWeight:700, padding:'4px 8px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block' }}>
-                    {buf.label}
-                  </span>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4, alignItems:'flex-start' }}>
+                    <span style={{ background:buf.bg, color:buf.color, fontSize:'.6875rem', fontWeight:700, padding:'4px 8px', borderRadius:99, whiteSpace:'nowrap', display:'inline-block' }}>
+                      {buf.label}
+                    </span>
+                    <PresencePill consult={c} />
+                  </div>
                 </div>
 
                 {/* Complaint */}
