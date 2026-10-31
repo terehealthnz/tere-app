@@ -64,6 +64,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'drug-interactions', 'dismiss-patient',
   'create-room',
   'initiate-call', 'make-call', 'end-call', 'ring-timeout', 'mark-no-show',
+  'send-waiting-link',
   'consult-heartbeat',
   // Provider admin surfaces (task C migrations)
   'audit-log', 'radiology-referrals', 'radiology-reports', 'clinic-schedule',
@@ -376,6 +377,7 @@ const ROUTES = {
   'ring-timeout':              () => import('./_ring-timeout.js'),
   'mark-no-show':              () => import('./_mark-no-show.js'),
   'make-call':                 () => import('./_make-call.js'),
+  'send-waiting-link':         () => import('./_send-waiting-link.js'),
   'acc-claims':                () => import('./_acc-claims.js'),
   'acc-claim-invoice':         () => import('./_acc-claim-invoice.js'),
   'acc-webhook':               () => import('./_acc-webhook.js'),
