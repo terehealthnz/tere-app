@@ -2218,17 +2218,51 @@ export default function ClinicianPatient() {
       )}
 
       {/* Patient-presence gate. Opens when the provider clicked Video on a
-          row where the patient isn't actually in the waiting room. Provides
-          SMS-the-link / phone-fallback / cancel. Auto-closes with a success
-          toast the moment the patient's heartbeat starts flowing again. */}
+          row where the patient isn't actually in the waiting room. State-
+          driven: Ready > Text > Wait > Ready. onPatientJoined only flashes a
+          toast now - the modal transitions to State 4 and the provider
+          explicitly clicks Start video, so there's no auto-close race with
+          the LiveKit token round-trip. */}
       {showPresenceGate && (
         <PatientPresenceGateModal
           consult={consult}
           providerId={providerId}
           providerName={displayName}
           onClose={() => setShowPresenceGate(false)}
-          onPatientJoined={() => {
+          onStartVideo={async () => {
             setShowPresenceGate(false)
+            // Same path as the regular Video button: show "Starting call..."
+            // instantly, hit /api/initiate-call, mount the popup widget on
+            // success. The modal only reaches State 1 / State 4 (Start video)
+            // when presence.status === 'in_waiting_room', so the ring-empty-
+            // tab failure mode this gate exists to prevent cannot happen here.
+            lockedRef.current = false
+            setCallError(null)
+            setCallStarting(true)
+            try {
+              const r = await apiFetch('/api/initiate-call', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ consultationId: id, providerId, providerName: displayName, forcePhone: false }),
+              })
+              if (!r.ok) {
+                const err = await r.json().catch(() => ({}))
+                setCallStarting(false)
+                setCallError(`Call could not start: ${err.error || `HTTP ${r.status}`}`)
+                return
+              }
+            } catch (e) {
+              setCallStarting(false)
+              setCallError(`Call could not start: ${e.message}`)
+              return
+            }
+            setCallStarting(false)
+            setActiveCall({ channel: 'video', startedAt: Date.now() })
+          }}
+          onPatientJoined={() => {
+            // Modal stays open; just surface the "they're here" toast so the
+            // provider notices if they're glancing at another tab. The
+            // provider clicks Start video from State 4 themselves.
             setPresenceToast('Patient is now in waiting room, ready for video')
             setTimeout(() => setPresenceToast(null), 3500)
           }}
