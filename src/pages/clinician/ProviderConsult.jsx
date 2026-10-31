@@ -15,6 +15,7 @@ import { useChimeSdk } from '../../lib/chime'
 import ChatPanel from '../../components/ChatPanel'
 import { getRrDisplay } from '../../lib/rrDisplay'
 import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
+import { useFeatureFlag } from '../../lib/featureFlags'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -778,19 +779,25 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // disconnected so tereScribe fell through to its getUserMedia
   // fallback, grabbing a fresh mic that nothing ever released. Gating
   // on endingCall prevents the re-start.
+  const scribeAgentEnabled = useFeatureFlag('scribe_agent_enabled')
+
   useEffect(() => {
     if (!inCall || endingCall || scribeState !== 'idle') return
+    // Server-side scribe (tere-scribe-agent on Fly) handles transcription when
+    // the agent flag is on. Client-side scribe stays dormant to avoid duplicate
+    // transcripts and iOS Safari WebKit bugs. See supabase/2026-10-30_scribe_agent.sql.
+    if (scribeAgentEnabled) return
     if (chimeMode) {
-      // Chime path — chimeAudioElRef is populated via ChimeCall's
+      // Chime path - chimeAudioElRef is populated via ChimeCall's
       // onAudioElReady prop. If it's still null we can't scribe yet.
       if (!chimeAudioElRef.current) return
     } else {
-      // LiveKit path — wait for RoomCapture to signal ready.
+      // LiveKit path - wait for RoomCapture to signal ready.
       if (!scribeRoomReady) return
     }
     startScribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inCall, endingCall, scribeRoomReady, chimeMode, scribeState])
+  }, [inCall, endingCall, scribeRoomReady, chimeMode, scribeState, scribeAgentEnabled])
 
   // Hold a Screen Wake Lock while in-call. Anchor: 2026-10-24 Callie Moyo
   // consult produced a NULL transcript on iPhone because the provider's

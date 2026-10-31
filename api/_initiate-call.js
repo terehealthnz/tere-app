@@ -1,4 +1,4 @@
-import { AccessToken, SipClient, RoomServiceClient } from 'livekit-server-sdk'
+import { AccessToken, SipClient, RoomServiceClient, AgentDispatchClient } from 'livekit-server-sdk'
 import { createClient } from '@supabase/supabase-js'
 import Stripe from 'stripe'
 import { sendEmail , hasEmailProvider} from './_email-client.js'
@@ -312,6 +312,29 @@ export default async function handler(req, res) {
     canPublishData: true,
   })
   const token = await at.toJwt()
+
+  // Server-side scribe: dispatch tere-scribe agent into the room. Idempotent
+  // per room, so the sipOnly auto-fallback branch (which exits earlier) is
+  // already covered by the dispatch that fired on the primary initiate-call.
+  try {
+    const { data: flag } = await supabase
+      .from('feature_flags')
+      .select('*')
+      .eq('key', 'scribe_agent_enabled')
+      .maybeSingle()
+    const allow = flag && (flag.enabled || (Array.isArray(flag.provider_allowlist) && flag.provider_allowlist.includes(providerId)))
+    if (allow) {
+      const httpUrl = lkUrl.replace(/^wss?:\/\//, 'https://')
+      const agentDispatch = new AgentDispatchClient(httpUrl, lkApiKey, lkApiSecret)
+      const roomName = `tere-${consultationId.slice(0, 8)}`
+      const result = await agentDispatch.createDispatch(roomName, 'tere-scribe', {
+        metadata: JSON.stringify({ consultId: consultationId }),
+      })
+      console.log('[initiate-call] scribe agent dispatched', { consultId: consultationId, dispatchId: result?.id })
+    }
+  } catch (e) {
+    console.error('[initiate-call] agent dispatch failed:', e)
+  }
 
   // forcePhone path — patient wasn't online per the heartbeat check, so dial
   // their phone via LiveKit's SIP client (Telnyx trunk) and add them to the

@@ -1,0 +1,20 @@
+{
+  "name": "tere-scribe-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "LiveKit Agent that joins consult rooms, streams audio to Deepgram STT, writes the final transcript to consultations.transcript when the room ends. Replaces the iOS-Safari-broken client-side scribe.",
+  "scripts": {
+    "start": "node agent.js start",
+    "dev": "node agent.js dev"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.9.5",
+    "@livekit/agents-plugin-deepgram": "^1.9.5",
+    "@livekit/rtc-node": "^1.2.1",
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

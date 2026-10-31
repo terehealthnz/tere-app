@@ -16,7 +16,7 @@
 // exits (see TODO below re: real SIP status events).
 
 import { createClient } from '@supabase/supabase-js'
-import { SipClient } from 'livekit-server-sdk'
+import { SipClient, AgentDispatchClient } from 'livekit-server-sdk'
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL,
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
   const { data: consult, error: fetchError } = await supabase
     .from('consultations')
-    .select('id, patient_phone, patient_first_name, call_attempts, is_practice')
+    .select('id, patient_phone, patient_first_name, call_attempts, is_practice, provider_id')
     .eq('id', consultationId)
     .single()
 
@@ -105,6 +105,27 @@ export default async function handler(req, res) {
         waitUntilAnswered: false,
       }
     )
+
+    // Defence-in-depth scribe dispatch. Initiate-call already fired for this
+    // room; LiveKit treats repeated dispatches to the same room as idempotent.
+    try {
+      const { data: flag } = await supabase
+        .from('feature_flags')
+        .select('*')
+        .eq('key', 'scribe_agent_enabled')
+        .maybeSingle()
+      const providerId = consult.provider_id || null
+      const allow = flag && (flag.enabled || (Array.isArray(flag.provider_allowlist) && flag.provider_allowlist.includes(providerId)))
+      if (allow) {
+        const agentDispatch = new AgentDispatchClient(httpUrl, lkApiKey, lkApiSecret)
+        const result = await agentDispatch.createDispatch(roomName, 'tere-scribe', {
+          metadata: JSON.stringify({ consultId: consultationId }),
+        })
+        console.log('[make-call] scribe agent dispatched', { consultId: consultationId, dispatchId: result?.id })
+      }
+    } catch (e) {
+      console.error('[make-call] agent dispatch failed:', e)
+    }
 
     const attempts = (consult.call_attempts || 0) + 1
     await supabase

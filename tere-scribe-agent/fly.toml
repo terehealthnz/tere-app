@@ -1,0 +1,20 @@
+# fly.toml app configuration file generated for tere-scribe-agent on 2026-10-31T00:26:28-07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'tere-scribe-agent'
+primary_region = 'syd'
+
+[build]
+[env]
+  LOG_LEVEL = 'info'
+  TERE_ENV = 'nz-prod'
+
+[processes]
+  app = 'node agent.js start'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
