@@ -3,6 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi, resendPrescription } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
+import PatientPresenceGateModal from '../../components/clinician/PatientPresenceGateModal'
+import { getPatientPresence } from '../../lib/patientPresence'
 import StructuredHistoryCard from '../../components/clinician/StructuredHistoryCard'
 import SendBackToQueueModal from '../../components/clinician/SendBackToQueueModal'
 import PatientAccessHistoryModal from '../../components/clinician/PatientAccessHistoryModal'
@@ -281,6 +283,13 @@ export default function ClinicianPatient() {
   // call widget on top of the chart. Setting to null unmounts it and ends
   // the call session (task #216).
   const [activeCall, setActiveCall] = useState(null)
+  // Presence gate: provider clicked Video but patient isn't in the waiting
+  // room (never joined, or last_seen_at > 60s). Modal offers SMS link / phone
+  // fallback / cancel. See src/lib/patientPresence.js + PatientPresenceGateModal.
+  const [showPresenceGate, setShowPresenceGate] = useState(false)
+  // Toast shown after presence gate auto-closes (patient joined the room while
+  // the modal was open) or an SMS was sent. 3-second auto-dismiss.
+  const [presenceToast, setPresenceToast] = useState(null)
   // When set, opens the ProviderNotes modal on top of the chart. Fired by
   // Complete Encounter (from the static bar OR from the post-call overlay
   // inside the call popup). Setting to null unmounts and returns focus.
@@ -2101,6 +2110,19 @@ export default function ClinicianPatient() {
                 setActiveCall({ channel: 'practice', startedAt: Date.now() })
                 return
               }
+              // Presence gate (patient-presence modal). Only for the Video
+              // path: if the patient isn't actually in the waiting room right
+              // now, don't let a video call ring an empty tab. Modal offers
+              // SMS link / phone fallback / cancel. Phone channel bypasses
+              // the gate because SIP dials the phone directly, no browser
+              // tab required. See src/lib/patientPresence.js for the rules.
+              if (channel !== 'phone') {
+                const presence = getPatientPresence(consult)
+                if (presence.status !== 'in_waiting_room') {
+                  setShowPresenceGate(true)
+                  return
+                }
+              }
               // Channel is now an explicit provider choice (2026-09-28: split
               // one "Call" button into "🎥 Video" + "📞 Phone"). Video →
               // LiveKit only; Phone → forcePhone at click time so SIP dials
@@ -2192,6 +2214,45 @@ export default function ClinicianPatient() {
               💬 Review &amp; respond
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Patient-presence gate. Opens when the provider clicked Video on a
+          row where the patient isn't actually in the waiting room. Provides
+          SMS-the-link / phone-fallback / cancel. Auto-closes with a success
+          toast the moment the patient's heartbeat starts flowing again. */}
+      {showPresenceGate && (
+        <PatientPresenceGateModal
+          consult={consult}
+          providerId={providerId}
+          providerName={displayName}
+          onClose={() => setShowPresenceGate(false)}
+          onPatientJoined={() => {
+            setShowPresenceGate(false)
+            setPresenceToast('Patient is now in waiting room, ready for video')
+            setTimeout(() => setPresenceToast(null), 3500)
+          }}
+          onPhoneFallback={() => {
+            setShowPresenceGate(false)
+            // Server already flipped status=in_progress inside initiate-call
+            // with forcePhone:true and dialled the SIP participant. Mount the
+            // call widget in popupMode so the provider sees the live call
+            // surface, same as the normal Phone button path.
+            setActiveCall({ channel: 'phone', startedAt: Date.now() })
+          }}
+        />
+      )}
+
+      {/* Transient toast - presence modal auto-closed because patient joined,
+          or SMS send completed. 3.5s auto-dismiss handled by setTimeout above. */}
+      {presenceToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#065F46', color: 'white', padding: '.75rem 1.1rem', borderRadius: 99,
+          fontFamily: FF, fontWeight: 700, fontSize: '.875rem', zIndex: 1300,
+          boxShadow: '0 8px 24px rgba(0,0,0,.25)',
+        }}>
+          {presenceToast}
         </div>
       )}
     </div>
