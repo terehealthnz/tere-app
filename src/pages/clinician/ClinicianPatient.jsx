@@ -237,6 +237,35 @@ export default function ClinicianPatient() {
   // Prevent the abandoned-consult cron sweep (30-min threshold) from
   // releasing a consult while the provider has the chart open.
   useConsultHeartbeat(id, true)
+  // Hold a Screen Wake Lock for the entire time the provider is on the
+  // patient page (chart review before, call during, notes after). Previously
+  // this only fired inside ProviderConsult during the call, so providers on
+  // mobile had to scroll to prevent auto-lock while reading or writing notes.
+  // wakeState feeds the small indicator at the bottom of the page so the
+  // provider can see if the API is active. On iOS Safari <16.4 the request
+  // throws; we fall through to 'unsupported' so the hint can suggest adding
+  // the site to the Home Screen (PWA mode has more lenient suspend rules).
+  const [wakeState, setWakeState] = useState('idle')
+  useEffect(() => {
+    let wakeLock = null
+    let cancelled = false
+    async function acquire() {
+      if (!('wakeLock' in navigator)) { if (!cancelled) setWakeState('unsupported'); return }
+      try {
+        wakeLock = await navigator.wakeLock.request('screen')
+        if (!cancelled) setWakeState('active')
+        wakeLock.addEventListener('release', () => { if (!cancelled) setWakeState('released') })
+      } catch { if (!cancelled) setWakeState('failed') }
+    }
+    acquire()
+    const reacquire = () => { if (document.visibilityState === 'visible') acquire() }
+    document.addEventListener('visibilitychange', reacquire)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', reacquire)
+      wakeLock?.release().catch(() => {})
+    }
+  }, [])
   const [consult, setConsult]     = useState(null)
   const [loading, setLoading]     = useState(true)
   const [starting, setStarting]   = useState(false)
@@ -576,6 +605,22 @@ export default function ClinicianPatient() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F7F5F0', fontFamily: FF }}>
+      {/* Screen Wake Lock indicator. 'active' = silent (no chrome, just the
+          dot in the corner). 'unsupported' or 'failed' = amber hint so the
+          provider knows to add the app to Home Screen for persistent wake. */}
+      {wakeState !== 'idle' && (
+        <div style={{
+          position: 'fixed', bottom: 12, right: 12, zIndex: 60,
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 10px', borderRadius: 999,
+          background: wakeState === 'active' ? 'rgba(16,185,129,.1)' : 'rgba(245,158,11,.12)',
+          border: `1px solid ${wakeState === 'active' ? 'rgba(16,185,129,.3)' : 'rgba(245,158,11,.35)'}`,
+          fontSize: '.6875rem', color: wakeState === 'active' ? '#065F46' : '#92400E', fontWeight: 600,
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: wakeState === 'active' ? '#10B981' : '#F59E0B' }} />
+          {wakeState === 'active' ? 'Screen staying on' : wakeState === 'unsupported' ? 'Screen may lock — iOS: add to Home Screen' : 'Screen may lock — tap to retry'}
+        </div>
+      )}
       {/* Active call popup — mounted only when Call has been initiated.
           ProviderConsult(popupMode) renders as an invisible container that
           hosts LiveKit + FloatingCallWidget; the widget itself is
