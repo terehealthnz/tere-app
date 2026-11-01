@@ -48,6 +48,12 @@ export default async function handler(req, res) {
     .not('payment_authorised_at', 'is', null)
     .is('payment_captured_at', null)
     .eq('is_practice', false)
+    // $0.10 test-mode consults never settle (per task #519 live Windcave E2E). Skip
+    // so the daily digest only flags real revenue at risk.
+    .or('payment_test_mode.is.null,payment_test_mode.eq.false')
+    // Dismissed/cancelled/no-show consults are intentionally never captured; the
+    // auth will auto-release on Windcave side. No clinician action needed.
+    .not('status', 'in', '(dismissed,cancelled,no_show)')
     .lt('payment_authorised_at', cutoffIso)
     .order('payment_authorised_at', { ascending: true })
     .limit(100)
