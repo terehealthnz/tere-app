@@ -3409,14 +3409,16 @@ function ConsultationLog() {
 function FailedPayments() {
   const [rows, setRows] = React.useState([])
   const [loading, setLoading] = React.useState(true)
+  const [clearing, setClearing] = React.useState(null)
 
   React.useEffect(() => {
     async function load() {
       try {
         // Server filter returns payment_pending consults (payment_intent_id !== null
-        // AND status != 'complete'). Client trims 'waiting' + first 50 to match
-        // the historic UI slice.
-        const rows = await getPaymentPendingConsultations()
+        // AND status != 'complete'). Fetch payment_test_mode too so test-mode
+        // consults can be flagged visually (they'll never settle, see cron
+        // _cron-capture-safety.js which also excludes them from the digest).
+        const rows = await getPaymentPendingConsultations('id, created_at, patient_first_name, patient_last_name, payment_amount, payment_intent_id, status, payment_test_mode')
         setRows((rows || []).filter(r => r.status !== 'waiting').slice(0, 50))
       } catch(e) { console.error(e) }
       setLoading(false)
@@ -3424,13 +3426,26 @@ function FailedPayments() {
     load()
   }, [])
 
+  async function clearAlert(id, isTest) {
+    const label = isTest ? 'test-mode consult' : 'consult'
+    if (!window.confirm(`Clear this ${label} from the failed-payments alert?\n\nMarks status='dismissed' so the daily digest won't flag it. Does not void the Windcave auth (that auto-releases).`)) return
+    setClearing(id)
+    try {
+      await updateConsultation(id, { status: 'dismissed' })
+      setRows(rs => rs.filter(r => r.id !== id))
+    } catch (e) {
+      alert('Failed to clear alert: ' + (e.message || e))
+    }
+    setClearing(null)
+  }
+
   const card = { background:'white', borderRadius:12, padding:'1.5rem', marginBottom:'1rem', border:'1px solid #E2E8F0' }
 
   return (
     <div style={card}>
       <div style={{ marginBottom:'1.25rem' }}>
         <div style={{ fontSize:'1rem', fontWeight:700, color:'#0D2B45', marginBottom:'.25rem' }}>Failed / uncaptured payments</div>
-        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Payment holds that were never captured</div>
+        <div style={{ fontSize:'.875rem', color:'#6B7280' }}>Payment holds that were never captured. Clear removes from the daily digest; the Windcave auth auto-releases on their side.</div>
       </div>
       {loading ? (
         <div style={{ textAlign:'center', padding:'2rem', color:'#9CA3AF' }}>Loading…</div>
@@ -3441,7 +3456,7 @@ function FailedPayments() {
         <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.875rem' }}>
           <thead>
             <tr style={{ borderBottom:'2px solid #E2E8F0' }}>
-              {['Date','Patient','Amount','Status','Payment ID'].map(h => (
+              {['Date','Patient','Amount','Status','Payment ID',''].map(h => (
                 <th key={h} style={{ padding:'6px 8px', textAlign:'left', fontSize:'.75rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase' }}>{h}</th>
               ))}
             </tr>
@@ -3450,10 +3465,20 @@ function FailedPayments() {
             {rows.map(r => (
               <tr key={r.id} style={{ borderBottom:'1px solid #F3F4F6' }}>
                 <td style={{ padding:'8px', fontSize:'.8125rem' }}>{new Date(r.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short' })}</td>
-                <td style={{ padding:'8px', fontWeight:600 }}>{r.patient_first_name} {r.patient_last_name}</td>
+                <td style={{ padding:'8px', fontWeight:600 }}>
+                  {r.patient_first_name} {r.patient_last_name}
+                  {r.payment_test_mode && <span style={{ marginLeft:6, fontSize:'.65rem', fontWeight:700, color:'#6D28D9', background:'#EDE9FE', padding:'1px 6px', borderRadius:999 }}>TEST</span>}
+                </td>
                 <td style={{ padding:'8px', color:'#DC2626', fontWeight:600 }}>{r.payment_amount ? `${(r.payment_amount/100).toFixed(0)}` : '—'}</td>
                 <td style={{ padding:'8px', color:'#D97706', fontWeight:600 }}>{r.status}</td>
                 <td style={{ padding:'8px', fontSize:'.75rem', color:'#9CA3AF', fontFamily:'monospace' }}>{r.payment_intent_id?.slice(0,20)}…</td>
+                <td style={{ padding:'8px', textAlign:'right' }}>
+                  <button onClick={() => clearAlert(r.id, r.payment_test_mode)} disabled={clearing === r.id}
+                    style={{ background:'white', border:'1px solid #E2E8F0', color:'#6B7280', padding:'3px 10px', borderRadius:6, fontSize:'.75rem', fontWeight:600, cursor: clearing === r.id ? 'wait' : 'pointer' }}
+                    title="Mark consult dismissed so it drops out of the daily digest. Windcave auto-releases the auth.">
+                    {clearing === r.id ? 'Clearing…' : 'Clear'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
