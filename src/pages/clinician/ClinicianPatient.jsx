@@ -1114,7 +1114,16 @@ export default function ClinicianPatient() {
             </div>
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <InfoRow label="Date of birth" value={consult.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : null} placeholder="— not provided —" />
+            <InfoRow label="Date of birth" value={(() => {
+              if (!consult.patient_dob) return null
+              const d = new Date(consult.patient_dob)
+              const now = new Date()
+              let age = now.getFullYear() - d.getFullYear()
+              const m = now.getMonth() - d.getMonth()
+              if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--
+              const dateStr = d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
+              return `${dateStr} · ${age} yrs`
+            })()} placeholder="— not provided —" />
             <InfoRow label="NHI" value={consult.patient_nhi} placeholder="— not provided —" />
             <InfoRow label="Sex" value={consult.patient_sex ? consult.patient_sex.charAt(0).toUpperCase() + consult.patient_sex.slice(1).toLowerCase() : null} />
             <InfoRow label="Weight" value={consult.patient_weight_kg ? `${consult.patient_weight_kg} kg` : null} />

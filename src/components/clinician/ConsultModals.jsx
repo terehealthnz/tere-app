@@ -2,16 +2,28 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
 import HpiSearch from '../HpiSearch'
-import NZF_FORMULARY from '../../lib/nzf-formulary.json'
 
 // ── NZF lookup ────────────────────────────────────────────────────────────────
-// 450 monographs extracted from NZF release 171 (September 2026). Provider
-// types a drug name; if it matches a monograph, we show the NZF Dose block
-// as an inline reference. Independent of the 23-drug ADULT_DRUG_PRESETS
-// starting-values table — that's for auto-fill, this is for lookup.
-const NZF_INDEX = new Map(NZF_FORMULARY.map(e => [e.name, e]))
+// 450 monographs extracted from NZF release 171 (September 2026). The JSON is
+// 835KB and parsing it on cold modal mount stalled mobile Safari for ~60s on
+// 2026-10-31. Loaded lazily now: static import removed, PrescribeModal fires
+// the import on mount via useEffect, and the Map is memoised at module scope
+// so the first open pays the cost and every open afterwards is instant.
+let NZF_FORMULARY = null
+let NZF_INDEX = null
+let _nzfPromise = null
+function loadNzfOnce() {
+  if (NZF_FORMULARY) return Promise.resolve(NZF_FORMULARY)
+  if (_nzfPromise) return _nzfPromise
+  _nzfPromise = import('../../lib/nzf-formulary.json').then(m => {
+    NZF_FORMULARY = m.default
+    NZF_INDEX = new Map(NZF_FORMULARY.map(e => [e.name, e]))
+    return NZF_FORMULARY
+  })
+  return _nzfPromise
+}
 function findNzfEntry(medicationText) {
-  if (!medicationText) return null
+  if (!medicationText || !NZF_INDEX) return null
   const key = medicationText.toLowerCase().trim().split(/\s+/)[0]  // "Ibuprofen 400mg" → "ibuprofen"
   return NZF_INDEX.get(key) || null
 }
@@ -232,6 +244,17 @@ function impliedQuantity(rx) {
 }
 
 export function PrescribeModal({ open, onClose, consult, onDone, prefill, represcribeTaskId = null }) {
+  // Trigger the lazy NZF import on mount so the datalist + dose block are
+  // populated by the time the provider starts typing. nzfTick forces a
+  // re-render when the import resolves (NZF_INDEX becomes non-null).
+  const [nzfTick, setNzfTick] = useState(0)
+  useEffect(() => {
+    if (NZF_INDEX) return
+    let cancelled = false
+    loadNzfOnce().then(() => { if (!cancelled) setNzfTick(t => t + 1) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
   const [rx, setRx] = useState({
     medication: '', strength: '', form: '',
     dose: '', frequency: '', duration: '',
@@ -937,7 +960,7 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
                 just appear as name suggestions — provider fills the rest,
                 using the NZF reference panel below for dosing guidance. */}
             {Object.keys(ADULT_DRUG_PRESETS).map(name => <option key={`p-${name}`} value={name}>{name} — auto-fills dose</option>)}
-            {NZF_FORMULARY.filter(e => !ADULT_DRUG_PRESETS[e.name]).map(e => (
+            {(NZF_FORMULARY || []).filter(e => !ADULT_DRUG_PRESETS[e.name]).map(e => (
               <option key={`n-${e.name}`} value={e.name} />
             ))}
           </datalist>
