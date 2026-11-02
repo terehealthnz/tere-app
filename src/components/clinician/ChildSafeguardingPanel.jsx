@@ -10,6 +10,7 @@
 import React, { useState } from 'react'
 import { updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { calculateAge } from '../../lib/dob'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -44,13 +45,7 @@ const inp  = { padding: '.5rem .625rem', border: '1px solid #E2E8F0', borderRadi
 const lbl  = { fontSize: '.6875rem', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: 4 }
 
 function ageFromDob(dobIso) {
-  if (!dobIso) return null
-  const d = new Date(dobIso); if (isNaN(d)) return null
-  const now = new Date()
-  let age = now.getFullYear() - d.getFullYear()
-  const m = now.getMonth() - d.getMonth()
-  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--
-  return age
+  return calculateAge(dobIso)
 }
 
 export default function ChildSafeguardingPanel({ consult, onUpdated }) {

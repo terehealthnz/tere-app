@@ -4,6 +4,7 @@ import { MultiPassMeasurement, inspectDevice, calibrateRPPG, processStoredFrames
 import { updateVitals, patientUpdateConsultation, patientGetConsultation, saveValidationSubject, saveValidationReading } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { calculateSpO2, formatSpO2Display } from '../../lib/spo2'
+import { calculateAge } from '../../lib/dob'
 import { makeConsultUrl } from '../../lib/consultUrl'
 import { useAutoT } from '../../lib/i18n'
 
@@ -144,12 +145,8 @@ export default function VitalsCapture() {
         patientUpdateConsultation(cId, { in_waiting_room: false }).catch(() => {})
         const sub = {}
         if (c.patient_dob) {
-          const birth = new Date(c.patient_dob)
-          if (!isNaN(birth)) {
-            const diffMs = Date.now() - birth.getTime()
-            const age = Math.floor(diffMs / (365.25 * 24 * 60 * 60 * 1000))
-            if (age > 0 && age < 120) sub.age = age
-          }
+          const age = calculateAge(c.patient_dob)
+          if (age != null && age > 0 && age < 120) sub.age = age
         }
         if (c.patient_sex) sub.sex = c.patient_sex   // 'male' | 'female' | other
         if (c.patient_weight_kg != null) sub.weight_kg = Number(c.patient_weight_kg)

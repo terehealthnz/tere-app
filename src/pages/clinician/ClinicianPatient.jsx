@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { formatDob, calculateAge } from '../../lib/dob'
 import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi, resendPrescription } from '../../lib/supabase'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import PatientPresenceGateModal from '../../components/clinician/PatientPresenceGateModal'
@@ -1160,14 +1161,10 @@ export default function ClinicianPatient() {
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <InfoRow label="Date of birth" value={(() => {
-              if (!consult.patient_dob) return null
-              const d = new Date(consult.patient_dob)
-              const now = new Date()
-              let age = now.getFullYear() - d.getFullYear()
-              const m = now.getMonth() - d.getMonth()
-              if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--
-              const dateStr = d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
-              return `${dateStr} · ${age} yrs`
+              const dateStr = formatDob(consult.patient_dob)
+              if (!dateStr) return null
+              const age = calculateAge(consult.patient_dob)
+              return age != null ? `${dateStr} · ${age} yrs` : dateStr
             })()} placeholder="— not provided —" />
             <InfoRow label="NHI" value={consult.patient_nhi} placeholder="— not provided —" />
             <InfoRow label="Sex" value={consult.patient_sex ? consult.patient_sex.charAt(0).toUpperCase() + consult.patient_sex.slice(1).toLowerCase() : null} />

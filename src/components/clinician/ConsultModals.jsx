@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
+import { calculateAge } from '../../lib/dob'
 import HpiSearch from '../HpiSearch'
 
 // ── NZF lookup ────────────────────────────────────────────────────────────────
@@ -452,8 +453,8 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
     if (!open || !consult) return
     const dob = consult.patient_dob
     if (!dob) return
-    const ageYears = Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-    if (ageYears >= 2 && ageYears <= 14) {
+    const ageYears = calculateAge(dob)
+    if (ageYears != null && ageYears >= 2 && ageYears <= 14) {
       setIsPaediatric(true)
       const w = consult.patient_weight_kg || consult.patient?.weight_kg
       if (w) setPaedWeight(String(w))

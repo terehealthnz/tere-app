@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../../lib/supabase'
+import { calculateAge } from '../../lib/dob'
 import DobPicker from '../../components/DobPicker'
 
 const LOCATIONS = [
@@ -33,7 +34,7 @@ export default function Intake() {
   // Weight is required for paediatric weight-based dosing calculations
   // (ages 2-14). Under 2 needs specialist input outside telehealth scope;
   // 15+ uses flat adult dosing. Prescribe modal auto-fills from this.
-  const patientAge = form.patient_dob ? Math.floor((Date.now() - new Date(form.patient_dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : null
+  const patientAge = form.patient_dob ? calculateAge(form.patient_dob) : null
   const requiresWeight = patientAge != null && patientAge >= 2 && patientAge <= 14
 
   const validate = () => {

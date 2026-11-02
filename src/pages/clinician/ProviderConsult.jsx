@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getConsultation, updateConsultation, broadcastConsultationEnded } from '../../lib/supabase'
+import { formatDob } from '../../lib/dob'
 import { ConsultationRecorder, transcribeAudio } from '../../lib/tereScribe'
 import { LiveKitRoom, useParticipants, useRoomContext } from '@livekit/components-react'
 import FloatingCallWidget from '../../components/clinician/FloatingCallWidget'
@@ -1422,7 +1423,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                 <h1 style={{ fontSize:'1.375rem', fontWeight:800, color:NAVY, margin:0, lineHeight:1.2 }}>{patientName}</h1>
                 <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:4 }}>
                   NHI: {consult.patient_nhi || '—'}
-                  {consult.patient_dob && ` · ${new Date(consult.patient_dob).toLocaleDateString('en-NZ')}`}
+                  {consult.patient_dob && ` · ${formatDob(consult.patient_dob)}`}
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end' }}>
@@ -1753,7 +1754,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
               <h1 style={{ fontSize:'1.375rem', fontWeight:800, color:NAVY, margin:0, lineHeight:1.2 }}>{patientName}</h1>
               <div style={{ fontSize:'.8125rem', color:'#6B7280', marginTop:4 }}>
                 NHI: {consult.patient_nhi || '—'}
-                {consult.patient_dob && ` · ${new Date(consult.patient_dob).toLocaleDateString('en-NZ')}`}
+                {consult.patient_dob && ` · ${formatDob(consult.patient_dob)}`}
               </div>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end' }}>

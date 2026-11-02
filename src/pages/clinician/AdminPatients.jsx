@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { getPatients, getPatient, getPatientConsultations, updatePatient, mergePatients } from '../../lib/supabase'
+import { formatDob } from '../../lib/dob'
 import CreateProviderTaskModal from '../../components/clinician/CreateProviderTaskModal.jsx'
 
 const NAVY = '#0D2B45'
@@ -173,7 +174,7 @@ function PatientProfile({ patientId, onClose, onMerge }) {
   )
 
   const dob = patient.date_of_birth
-    ? new Date(patient.date_of_birth).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? formatDob(patient.date_of_birth, { day: 'numeric', month: 'long', year: 'numeric' })
     : '—'
 
   return (
@@ -494,7 +495,7 @@ export default function AdminPatients({ embedded }) {
                   <div style={{ fontSize: '.75rem', color: '#9CA3AF', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.email || '—'}</div>
                 </div>
                 <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>
-                  {p.date_of_birth ? new Date(p.date_of_birth).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                  {p.date_of_birth ? formatDob(p.date_of_birth) : '—'}
                 </div>
                 <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap' }}>{p.nhi || '—'}</div>
                 <div style={{ fontSize: '.875rem', color: '#374151', alignSelf: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.phone || '—'}</div>

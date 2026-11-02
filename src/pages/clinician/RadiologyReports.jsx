@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { formatDob } from '../../lib/dob'
 
 const NAVY = '#0D2B45'
 const TEAL = '#0B6E76'
@@ -133,7 +134,7 @@ function Detail({ id, onChanged }) {
             <div style={{ fontWeight: 700, color: r.patient_id ? '#065F46' : '#78350F', marginBottom: 4, fontSize: '.75rem', textTransform: 'uppercase', letterSpacing: '.05em' }}>
               {r.patient_id ? '✓ Auto-matched by NHI' : 'AI-extracted (no NHI match)'}
             </div>
-            {r.patient_name_extracted && <div><strong>Patient:</strong> {r.patient_name_extracted}{r.patient_dob_extracted ? ` · DOB ${new Date(r.patient_dob_extracted).toLocaleDateString('en-NZ')}` : ''}{r.patient_nhi ? ` · NHI ${r.patient_nhi}` : ''}</div>}
+            {r.patient_name_extracted && <div><strong>Patient:</strong> {r.patient_name_extracted}{r.patient_dob_extracted ? ` · DOB ${formatDob(r.patient_dob_extracted)}` : ''}{r.patient_nhi ? ` · NHI ${r.patient_nhi}` : ''}</div>}
             {r.study_date && <div><strong>Study date:</strong> {new Date(r.study_date).toLocaleDateString('en-NZ')}</div>}
             {r.clinical_impression && <div style={{ marginTop: 6 }}><strong>Impression:</strong> {r.clinical_impression}</div>}
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { db, supabase } from '../../lib/supabase'
+import { calculateAge } from '../../lib/dob'
 
 function timeAgo(ts) {
   const mins = Math.floor((Date.now() - new Date(ts)) / 60000)
@@ -143,7 +144,7 @@ export default function Dashboard() {
                   <span style={{ fontWeight:700, fontSize:'0.95rem' }}>{c.patient_name}</span>
                   {c.patient_dob && (
                     <span style={{ fontSize:'0.8rem', color:'var(--muted)' }}>
-                      {new Date().getFullYear() - new Date(c.patient_dob).getFullYear()}y
+                      {calculateAge(c.patient_dob)}y
                     </span>
                   )}
                   {c.is_acc && <span className="badge badge-purple">ACC</span>}

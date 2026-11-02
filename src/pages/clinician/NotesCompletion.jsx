@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { formatDob } from '../../lib/dob'
 import { getRrDisplay } from '../../lib/rrDisplay'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
@@ -497,7 +498,7 @@ export default function NotesCompletion() {
       const providerId   = sessionStorage.getItem('providerId') || null
       const regNum       = sessionStorage.getItem('providerCpn') || sessionStorage.getItem('prescriberNumber') || ''
       const patientName  = consult ? `${consult.patient_first_name} ${consult.patient_last_name}` : ''
-      const dob          = consult?.patient_dob ? new Date(consult.patient_dob).toLocaleDateString('en-NZ') : '—'
+      const dob          = consult?.patient_dob ? formatDob(consult.patient_dob) : '—'
       const nhi          = consult?.patient_nhi || '—'
       const consultDate  = consult ? new Date(consult.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'long', year:'numeric' }) : ''
       const consultTime  = consult ? new Date(consult.created_at).toLocaleTimeString('en-NZ', { hour:'2-digit', minute:'2-digit', timeZoneName:'short' }) : ''

@@ -35,7 +35,10 @@ function gpConsultFlagged() {
 function calcAgeBand(dob) {
   if (!dob) return null
   try {
-    const age = new Date().getFullYear() - new Date(dob).getFullYear()
+    // Parse year from Y-M-D string directly — new Date('1993-01-01') is UTC
+    // midnight which can getFullYear()=1992 in US-west host TZs.
+    const [yStr] = String(dob).slice(0, 10).split('-')
+    const age = new Date().getFullYear() - Number(yStr)
     if (age < 20) return 'Under 20'
     if (age < 30) return '20-29'
     if (age < 40) return '30-39'

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getWaitlist, markWaitlistNotified, updateConsultation, getFlaggedNotesCount, getAccConvertedFlagged, getPendingPrescriptionsCount, getConsultsByEmployer, getCompleteCount, getResearchConsentedConsults, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getCompleteSince, getSchedule, setSchedule } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
+import { calculateAge } from '../../lib/dob'
 import { isUS } from '../../lib/region'
 import AdminPayroll  from './AdminPayroll'
 import ImagingReviewsPending from '../../components/clinician/ImagingReviewsPending.jsx'
@@ -881,8 +882,8 @@ function ResearchTab() {
   }, [])
 
   function ageBucket(dob) {
-    if (!dob) return 'Unknown'
-    const age = Math.floor((Date.now() - new Date(dob)) / (365.25 * 86400000))
+    const age = calculateAge(dob)
+    if (age == null) return 'Unknown'
     if (age < 18) return '<18'
     if (age < 30) return '18–29'
     if (age < 45) return '30–44'

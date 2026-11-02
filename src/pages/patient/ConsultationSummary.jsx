@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
+import { formatDob } from '../../lib/dob'
 import InsuranceReceiptUpsell from '../../components/patient/InsuranceReceiptUpsell'
 
 export default function ConsultationSummary() {
@@ -55,7 +56,7 @@ export default function ConsultationSummary() {
           <div style={{ fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic', color: '#0B6E76', fontSize: '.875rem', marginBottom: '.5rem' }}>Tere Health — Consultation Summary</div>
           <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.375rem' }}>{name}</h1>
           <div style={{ fontSize: '.875rem', color: '#6B7280' }}>
-            {consult.patient_dob && `DOB: ${new Date(consult.patient_dob).toLocaleDateString('en-NZ')} · `}
+            {consult.patient_dob && `DOB: ${formatDob(consult.patient_dob)} · `}
             NHI: {consult.patient_nhi || '—'}
           </div>
           <div style={{ marginTop: '.75rem', fontSize: '.875rem', color: '#374151' }}>
