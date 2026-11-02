@@ -65,19 +65,12 @@ export default function EncounterActionBar({
     if (busy || disabled) return
     setBusy(action)
     try {
-      // Sandbox short-circuit: practice-flagged consults never invoke the
-      // real LiveKit / phone-bridge stack — the "call" is simulated so the
-      // new-hire training exercise can tick without a ghost patient on the
-      // other end. Only intercept call actions; no_answer and complete
-      // still record properly for training-progress tracking.
+      // Practice consults now run the real LiveKit stack so the scribe agent
+      // dispatches + transcribes against the provider's mic — otherwise there
+      // is no way to verify scribe end-to-end without touching real patient
+      // data. The _initiate-call.js practice-video branch tags the room with
+      // metadata.practice=true for the agent.
       const isCall = action === 'call_video' || action === 'call_phone'
-      if (isCall && isPractice) {
-        await encounterAction(consultationId, 'call').catch(() => {})
-        if (typeof cb === 'function') cb({ deliveryChannel: 'practice', reason: 'sandbox' })
-        return
-      }
-      // encounter-action still records 'call' (the workflow event); the
-      // channel choice is a separate concern the parent handles.
       const serverAction = isCall ? 'call' : action
       const res = await encounterAction(consultationId, serverAction)
       if (typeof cb === 'function') cb({ ...res, deliveryChannel: channelOverride || res.deliveryChannel })
@@ -95,7 +88,7 @@ export default function EncounterActionBar({
 
   return (
     <div style={{ display: 'flex', gap, width: '100%' }}>
-      {!hideCall && !isPractice && (
+      {!hideCall && (
         <>
           <button
             type="button"
@@ -111,43 +104,27 @@ export default function EncounterActionBar({
               cursor: (busy || disabled) ? 'not-allowed' : 'pointer',
               opacity: (busy && busy !== 'call_video') ? .5 : 1,
             }}>
-            {busy === 'call_video' ? '…' : '🎥 Video'}
+            {busy === 'call_video' ? '…' : (isPractice ? '🎥 Video (practice)' : '🎥 Video')}
           </button>
-          <button
-            type="button"
-            onClick={() => fire('call_phone', (res) => {
-              if (typeof onCall === 'function') onCall('phone', res.reason)
-              else navigate(`/provider/consult/${consultationId}`)
-            }, 'phone')}
-            disabled={busy !== null || disabled}
-            style={{
-              flex: 1, background: 'white', color: TEAL, border: `1.5px solid ${TEAL}`,
-              borderRadius: 10, padding: pad, fontSize: font, fontWeight: 700,
-              fontFamily: 'Plus Jakarta Sans, sans-serif',
-              cursor: (busy || disabled) ? 'not-allowed' : 'pointer',
-              opacity: (busy && busy !== 'call_phone') ? .5 : 1,
-            }}>
-            {busy === 'call_phone' ? '…' : '📞 Phone'}
-          </button>
+          {!isPractice && (
+            <button
+              type="button"
+              onClick={() => fire('call_phone', (res) => {
+                if (typeof onCall === 'function') onCall('phone', res.reason)
+                else navigate(`/provider/consult/${consultationId}`)
+              }, 'phone')}
+              disabled={busy !== null || disabled}
+              style={{
+                flex: 1, background: 'white', color: TEAL, border: `1.5px solid ${TEAL}`,
+                borderRadius: 10, padding: pad, fontSize: font, fontWeight: 700,
+                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                cursor: (busy || disabled) ? 'not-allowed' : 'pointer',
+                opacity: (busy && busy !== 'call_phone') ? .5 : 1,
+              }}>
+              {busy === 'call_phone' ? '…' : '📞 Phone'}
+            </button>
+          )}
         </>
-      )}
-      {!hideCall && isPractice && (
-        <button
-          type="button"
-          onClick={() => fire('call_video', (res) => {
-            if (typeof onCall === 'function') onCall(res.deliveryChannel || 'livekit', res.reason)
-            else navigate(`/provider/consult/${consultationId}`)
-          }, 'livekit')}
-          disabled={busy !== null || disabled}
-          style={{
-            flex: 1, background: TEAL, color: 'white', border: 'none',
-            borderRadius: 10, padding: pad, fontSize: font, fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans, sans-serif',
-            cursor: (busy || disabled) ? 'not-allowed' : 'pointer',
-            opacity: (busy && busy !== 'call_video') ? .5 : 1,
-          }}>
-          {busy === 'call_video' ? '…' : '📞 Simulate call (practice)'}
-        </button>
       )}
 
       <button

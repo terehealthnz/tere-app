@@ -2153,21 +2153,17 @@ export default function ClinicianPatient() {
               // Also clear the local lock ref so unmount cleanup doesn't
               // fire an unlock after Call succeeds.
               lockedRef.current = false
-              // Sandbox: don't call initiate-call for practice consults.
-              // The bar's Simulate Call button already flipped status via
-              // encounterAction; just flip UI into "in-call" mode so the
-              // provider can practise notes + prescribing + referrals.
-              if (channel === 'practice') {
-                setActiveCall({ channel: 'practice', startedAt: Date.now() })
-                return
-              }
+              // Practice consults now run the real LiveKit pipeline (dropped
+              // the fake overlay path 2026-11-02) so the scribe agent can
+              // transcribe against the provider's mic in sandbox. See
+              // _initiate-call.js practice-video branch.
               // Presence gate (patient-presence modal). Only for the Video
               // path: if the patient isn't actually in the waiting room right
               // now, don't let a video call ring an empty tab. Modal offers
               // SMS link / phone fallback / cancel. Phone channel bypasses
               // the gate because SIP dials the phone directly, no browser
               // tab required. See src/lib/patientPresence.js for the rules.
-              if (channel !== 'phone') {
+              if (channel !== 'phone' && !consult?.is_practice) {
                 const presence = getPatientPresence(consult)
                 if (presence.status !== 'in_waiting_room') {
                   setShowPresenceGate(true)
