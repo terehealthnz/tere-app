@@ -148,6 +148,34 @@ export default async function handler(req, res) {
       at.addGrant({ roomJoin: true, room: `tere-${consultationId.slice(0, 8)}`, canPublish: true, canSubscribe: true })
       token = await at.toJwt()
     }
+    // Dispatch the scribe agent into the practice room too, so providers can
+    // self-test the AI scribe end-to-end without a real patient. Agent will
+    // subscribe to the provider's mic alone (no patient participant exists in
+    // practice mode) and write the transcript to this consult's row at
+    // shutdown. Same dispatch call as the live-call path below; isolated to
+    // the practice branch's return so a mis-config doesn't block the token
+    // return. Idempotent per room.
+    try {
+      if (lkUrl && lkApiKey && lkApiSecret) {
+        const { data: flag } = await supabase
+          .from('feature_flags')
+          .select('*')
+          .eq('key', 'scribe_agent_enabled')
+          .maybeSingle()
+        const allow = flag && (flag.enabled || (Array.isArray(flag.provider_allowlist) && flag.provider_allowlist.includes(providerId)))
+        if (allow) {
+          const httpUrl = lkUrl.replace(/^wss?:\/\//, 'https://')
+          const agentDispatch = new AgentDispatchClient(httpUrl, lkApiKey, lkApiSecret)
+          const roomName = `tere-${consultationId.slice(0, 8)}`
+          const result = await agentDispatch.createDispatch(roomName, 'tere-scribe', {
+            metadata: JSON.stringify({ consultId: consultationId, practice: true }),
+          })
+          console.log('[initiate-call] scribe agent dispatched (practice)', { consultId: consultationId, dispatchId: result?.id })
+        }
+      }
+    } catch (e) {
+      console.error('[initiate-call] practice scribe dispatch failed:', e?.message || e)
+    }
     return res.status(200).json({
       ok: true,
       simulated: true,
