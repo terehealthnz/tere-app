@@ -95,6 +95,58 @@ export default function FloatingCallWidget({
   // PiP so the provider can see themselves during the consult.
   const localCameraTrack = cameraTracks.find(t => t.participant && t.participant.isLocal)
 
+  // iOS CallKit interruption recovery.
+  //
+  // When a native phone call comes in during a Tere consult on iPhone,
+  // iOS CallKit hijacks the audio session for the duration of the call.
+  // When the native call ends, iOS releases the session back to Safari,
+  // BUT Safari's WebRTC does not auto-republish the mic track — LiveKit
+  // still thinks the mic is enabled (isMicrophoneEnabled stays true, the
+  // LocalAudioTrack still exists), yet the OS has silenced it. Net
+  // effect: provider can still hear the patient (remote tracks aren't
+  // affected) but the patient hears nothing. First caught 2026-11-02 on
+  // Patrick's own iPhone during a phone consult.
+  //
+  // Fix: on visibility-return (phone-call-ended → Safari foreground),
+  // cycle setMicrophoneEnabled(false) → setMicrophoneEnabled(true) to
+  // force LiveKit to republish the local audio track. Guarded on iOS +
+  // only cycles when the mic was intentionally on, so an in-call manual
+  // mute isn't accidentally unmuted.
+  useEffect(() => {
+    if (!localParticipant) return
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+    if (!isIos) return
+
+    let hidden = false
+    const onHide = () => { if (document.visibilityState === 'hidden') hidden = true }
+    const onShow = async () => {
+      if (document.visibilityState !== 'visible' || !hidden) return
+      hidden = false
+      // Small delay so the OS audio session fully returns before we cycle.
+      await new Promise(r => setTimeout(r, 300))
+      if (!isMicrophoneEnabled) return  // provider deliberately muted
+      try {
+        await localParticipant.setMicrophoneEnabled(false)
+        await new Promise(r => setTimeout(r, 100))
+        await localParticipant.setMicrophoneEnabled(true)
+        console.log('[call-widget] iOS mic cycled after interruption')
+      } catch (e) {
+        console.error('[call-widget] iOS mic recovery failed:', e?.message || e)
+      }
+    }
+    document.addEventListener('visibilitychange', onHide)
+    document.addEventListener('visibilitychange', onShow)
+    // Safari sometimes fires pageshow but not visibilitychange after a bfcache
+    // or hard interruption restore — belt-and-braces.
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      document.removeEventListener('visibilitychange', onShow)
+      window.removeEventListener('pageshow', onShow)
+    }
+  }, [localParticipant, isMicrophoneEnabled])
+
   // Save position when drag ends
   useEffect(() => {
     if (!dragging) {
