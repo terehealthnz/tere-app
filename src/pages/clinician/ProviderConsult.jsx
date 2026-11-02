@@ -1237,7 +1237,12 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
                   onCapture={typeof onCapture === 'function' ? onCapture : undefined}
                 />
                 <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
-                <PhoneRingback enabled={isPhone} />
+                {/* PhoneRingback removed 2026-11-02: iOS Safari deferred the
+                    AudioContext oscillator start until the next user gesture
+                    (Complete Encounter) because the Phone-button click
+                    gesture didn't carry over — tone would play AFTER the
+                    consult, confusing providers. The call widget shows
+                    visual connection state, which is sufficient. */}
                 {subtitlesAvailable && (
                   <CallSubtitles
                     viewerRole="provider"
@@ -1393,7 +1398,7 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
             onChangeSubtitleLang={(code) => setSubtitleLangOverride(code)}
           />
           <PatientPresenceStamp consultationId={id} onPatientHere={markPatientHere} />
-          <PhoneRingback enabled={isPhone} />
+          {/* PhoneRingback removed — see note on first mount site above. */}
           {subtitlesAvailable && (
             <CallSubtitles
               viewerRole="provider"
