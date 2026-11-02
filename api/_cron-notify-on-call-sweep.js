@@ -36,10 +36,17 @@ export default async function handler(req, res) {
   const supabase = admin()
   const cutoffIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
 
+  // status='waiting' is critical. A consult can have in_waiting_room=true
+  // but have moved past 'waiting' (in_progress / complete / no_show) with
+  // on_call_sms_sent_at still null from a prior missed send. Without this
+  // filter the sweep pages providers for consults that are already done.
+  // (Patrick got exactly that false-positive 2026-11-02 20:43 NZT from
+  // Alexandra Rankin's completed row.)
   const { data: stuck, error } = await supabase
     .from('consultations')
     .select('id, in_waiting_room_at')
     .eq('in_waiting_room', true)
+    .eq('status', 'waiting')
     .is('on_call_sms_sent_at', null)
     .eq('is_practice', false)
     .gt('in_waiting_room_at', cutoffIso)
