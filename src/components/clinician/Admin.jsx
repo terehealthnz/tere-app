@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi, listPromoCodes, createPromoCode, updatePromoCode, revokePromoCode, getPromoCodeRedemptions } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi, listPromoCodes, createPromoCode, updatePromoCode, revokePromoCode, getPromoCodeRedemptions, issuePromoToPatient } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -6940,6 +6940,44 @@ function PromoCodesPanel() {
   const [redemptionRows, setRedemptionRows] = React.useState(null)
   const [redemptionsLoading, setRedemptionsLoading] = React.useState(false)
 
+  // Issue-to-patient inline form (single-use, patient-restricted comp code).
+  const [showIssue, setShowIssue] = React.useState(false)
+  const [issuing, setIssuing] = React.useState(false)
+  const [issueError, setIssueError] = React.useState('')
+  const [issueResult, setIssueResult] = React.useState(null)  // { code, email_sent }
+  const [issueDraft, setIssueDraft] = React.useState({
+    patient_email: '',
+    patient_first_name: '',
+    discount_percent: '50',
+    expiry_days: '90',
+    reason: '',
+    patient_note: '',
+  })
+
+  async function issueToPatient() {
+    setIssueError('')
+    setIssueResult(null)
+    if (!issueDraft.patient_email.trim()) { setIssueError('Patient email is required'); return }
+    if (!issueDraft.patient_first_name.trim()) { setIssueError('First name is required (used in code + email greeting)'); return }
+    setIssuing(true)
+    try {
+      const result = await issuePromoToPatient({
+        patient_email: issueDraft.patient_email.trim(),
+        patient_first_name: issueDraft.patient_first_name.trim(),
+        discount_percent: parseInt(issueDraft.discount_percent, 10),
+        expiry_days: parseInt(issueDraft.expiry_days, 10),
+        reason: issueDraft.reason.trim() || null,
+        patient_note: issueDraft.patient_note.trim() || null,
+      })
+      setIssueResult({ code: result.promo_code?.code, email_sent: result.email_sent, email_error: result.email_error })
+      setIssueDraft({ patient_email: '', patient_first_name: '', discount_percent: '50', expiry_days: '90', reason: '', patient_note: '' })
+      await load()
+    } catch (e) {
+      setIssueError(e.message || 'Failed to issue code')
+    }
+    setIssuing(false)
+  }
+
   // Default new-code form. valid_from = today, valid_to = +90 days.
   function emptyDraft() {
     const today = new Date()
@@ -7198,11 +7236,80 @@ function PromoCodesPanel() {
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
-          <button onClick={() => { setDraft(emptyDraft()); setAddError(''); setShowAdd(s => !s) }} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+          <button
+            onClick={() => { setIssueResult(null); setIssueError(''); setShowIssue(s => !s); if (!showIssue) setShowAdd(false) }}
+            style={{ background: showIssue ? '#F0F9FA' : 'white', border: '1px solid #0B6E76', color: '#0B6E76', padding: '5px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+            {showIssue ? 'Cancel' : '+ Issue to patient'}
+          </button>
+          <button onClick={() => { setDraft(emptyDraft()); setAddError(''); setShowAdd(s => !s); if (!showAdd) setShowIssue(false) }} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
             {showAdd ? 'Cancel' : '+ Create promo code'}
           </button>
         </div>
       </div>
+
+      {showIssue && (
+        <div style={{ background: '#F0F9FA', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #BAE6E9' }}>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.25rem' }}>Issue single-use code to patient</div>
+          <div style={{ fontSize: '.75rem', color: '#64748B', marginBottom: '.75rem' }}>Generates FIRSTNAME+PCT (e.g. ALEX50), locks to this email only, max 1 use. Sends an email with the code.</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
+            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
+              Patient email
+              <input type="email" value={issueDraft.patient_email} onChange={e => setIssueDraft(d => ({ ...d, patient_email: e.target.value }))}
+                placeholder="alex.rankin93@gmail.com"
+                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
+            </label>
+            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
+              First name
+              <input value={issueDraft.patient_first_name} onChange={e => setIssueDraft(d => ({ ...d, patient_first_name: e.target.value }))}
+                placeholder="Alex"
+                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
+            </label>
+            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
+              Discount %
+              <input type="number" min="1" max="100" value={issueDraft.discount_percent} onChange={e => setIssueDraft(d => ({ ...d, discount_percent: e.target.value }))}
+                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
+            </label>
+            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
+              Expires in (days)
+              <input type="number" min="1" max="365" value={issueDraft.expiry_days} onChange={e => setIssueDraft(d => ({ ...d, expiry_days: e.target.value }))}
+                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
+            </label>
+          </div>
+          <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '.75rem' }}>
+            Reason (admin note — patient never sees)
+            <input value={issueDraft.reason} onChange={e => setIssueDraft(d => ({ ...d, reason: e.target.value }))}
+              placeholder="5h wait 2026-11-02"
+              style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
+          </label>
+          <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '.75rem' }}>
+            Message to patient (optional — appears in the email)
+            <textarea rows={3} value={issueDraft.patient_note} onChange={e => setIssueDraft(d => ({ ...d, patient_note: e.target.value }))}
+              placeholder="Sorry about the long wait today. Please use this code on your next visit as a thank you for your patience."
+              style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem', resize: 'vertical', fontFamily: 'inherit' }} />
+          </label>
+          {issueError && <div style={{ color: '#DC2626', fontSize: '.8125rem', marginBottom: '.5rem' }}>{issueError}</div>}
+          {issueResult && (
+            <div style={{ background: 'white', border: '1px solid #BAE6E9', borderRadius: 6, padding: '.75rem', marginBottom: '.5rem' }}>
+              <div style={{ fontSize: '.8125rem', color: '#065F46', fontWeight: 700, marginBottom: 4 }}>
+                ✓ Code <span style={{ fontFamily: 'ui-monospace, Menlo, monospace' }}>{issueResult.code}</span> issued
+              </div>
+              <div style={{ fontSize: '.75rem', color: issueResult.email_sent ? '#64748B' : '#DC2626' }}>
+                {issueResult.email_sent ? 'Email sent to patient.' : `Email send failed — ${issueResult.email_error || 'unknown error'}. Share the code manually.`}
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => { setShowIssue(false); setIssueResult(null); setIssueError('') }}
+              style={{ background: 'white', border: '1px solid #CBD5E1', color: '#475569', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+              Close
+            </button>
+            <button onClick={issueToPatient} disabled={issuing}
+              style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 18px', borderRadius: 6, cursor: issuing ? 'wait' : 'pointer', fontSize: '.8125rem', fontWeight: 600, opacity: issuing ? 0.7 : 1 }}>
+              {issuing ? 'Issuing…' : 'Issue + send email'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAdd && (
         <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>

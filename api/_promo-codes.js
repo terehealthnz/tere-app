@@ -32,10 +32,12 @@ function admin() {
 const CREATE_ALLOWLIST = new Set([
   'code', 'description', 'discount_type', 'discount_value',
   'valid_from', 'valid_to', 'max_uses',
-  'applies_to_country', 'active',
+  'applies_to_country', 'active', 'restricted_to_email',
 ])
 
 // Allowlist on update. current_uses + created_by + created_at never patchable.
+// restricted_to_email intentionally NOT patchable — if admin wants to change
+// who a code belongs to, revoke and reissue.
 const UPDATE_ALLOWLIST = new Set([
   'code', 'description', 'discount_type', 'discount_value',
   'valid_from', 'valid_to', 'max_uses',
@@ -46,6 +48,15 @@ const UPDATE_ALLOWLIST = new Set([
 // this helper so a client that sends 'spring50 ' still matches 'SPRING50'.
 function normaliseCode(raw) {
   return String(raw || '').trim().toUpperCase()
+}
+
+// Minimal HTML escape for user-provided text that lands in an outbound
+// email (patient_note, patient_first_name). Covers the five chars that
+// break HTML. Not a sanitiser — don't use for untrusted markup.
+function escapeHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
 // Country check: 'both' matches anything; otherwise exact match on nz/international.
@@ -60,7 +71,7 @@ function bucketCountry(billingCountry) {
 // Core validation shared by the public check endpoint and the server-side
 // redeem() helper. Returns { ok: true, promo, discountCents, finalCents } on
 // success or { ok: false, reason } on failure.
-async function validateAndCompute(supabase, { code, billingCountry, baseAmountCents }) {
+async function validateAndCompute(supabase, { code, billingCountry, baseAmountCents, patientEmail }) {
   const normCode = normaliseCode(code)
   if (!normCode) return { ok: false, reason: 'Code required' }
 
@@ -92,6 +103,17 @@ async function validateAndCompute(supabase, { code, billingCountry, baseAmountCe
     return { ok: false, reason: 'This code is not valid for your billing country' }
   }
 
+  // Patient-restricted codes (admin-issued compensation). The booking email
+  // on the consult must match the email the code was issued to. Case-insensitive
+  // because patient_email is whatever the patient typed, which can drift.
+  if (promo.restricted_to_email) {
+    const want = String(promo.restricted_to_email).trim().toLowerCase()
+    const got  = String(patientEmail || '').trim().toLowerCase()
+    if (!got || got !== want) {
+      return { ok: false, reason: 'This code is linked to a different account' }
+    }
+  }
+
   // Discount computation. All math in integer cents to avoid float drift.
   let discountCents = 0
   if (promo.discount_type === 'percent') {
@@ -118,7 +140,7 @@ async function validateAndCompute(supabase, { code, billingCountry, baseAmountCe
 // This is the ONLY code path that increments current_uses. The admin UI
 // never writes to current_uses directly; the public check endpoint never
 // writes at all.
-export async function redeemPromoForConsult({ supabase, code, billingCountry, baseAmountCents, consultationId, patientId }) {
+export async function redeemPromoForConsult({ supabase, code, billingCountry, baseAmountCents, consultationId, patientId, patientEmail }) {
   if (!consultationId) throw new Error('consultationId required')
 
   // Idempotency guard: if we already have a redemption row for this consult,
@@ -138,7 +160,7 @@ export async function redeemPromoForConsult({ supabase, code, billingCountry, ba
     }
   }
 
-  const v = await validateAndCompute(supabase, { code, billingCountry, baseAmountCents })
+  const v = await validateAndCompute(supabase, { code, billingCountry, baseAmountCents, patientEmail })
   if (!v.ok) {
     const e = new Error(v.reason || 'Invalid promo code'); e.status = 400; throw e
   }
@@ -204,11 +226,12 @@ export default async function handler(req, res) {
 
     // Public check — no auth required (Payment.jsx is pre-login for patients).
     if (action === 'check') {
-      const { code, billing_country, base_amount_cents } = req.query || {}
+      const { code, billing_country, base_amount_cents, patient_email } = req.query || {}
       const v = await validateAndCompute(supabase, {
         code,
         billingCountry: billing_country,
         baseAmountCents: Number(base_amount_cents),
+        patientEmail: patient_email,
       })
       if (!v.ok) return res.status(200).json({ valid: false, reason: v.reason })
       return res.status(200).json({
@@ -363,6 +386,126 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server error' })
       }
       return res.status(200).json({ promo_code: data })
+    }
+
+    // Admin-issued single-use patient-restricted compensation code.
+    // Generates FIRSTNAME+PCT (e.g. ALEX50), auto-appends -XXX random suffix
+    // on collision, writes the row, emails the patient the code + optional
+    // apology note. max_uses locked to 1. restricted_to_email locks it to
+    // the patient's booking email so a leaked code can't be used by others.
+    if (action === 'issue_to_patient') {
+      const {
+        patient_email, patient_first_name,
+        discount_percent, expiry_days,
+        reason,            // admin note stored in description, patient never sees
+        patient_note,      // optional message that appears in the email body
+      } = body
+
+      if (!patient_email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(patient_email)) {
+        return res.status(400).json({ error: 'Valid patient_email required' })
+      }
+      const pct = parseInt(discount_percent, 10)
+      if (!Number.isFinite(pct) || pct < 1 || pct > 100) {
+        return res.status(400).json({ error: 'discount_percent must be 1-100' })
+      }
+      const days = parseInt(expiry_days, 10)
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        return res.status(400).json({ error: 'expiry_days must be 1-365' })
+      }
+
+      // Generate code. Use first name + percent. On unique-collision retry
+      // with a 3-char random suffix. Cap retries at 5 to avoid infinite loop.
+      const nameSlug = String(patient_first_name || patient_email.split('@')[0])
+        .replace(/[^A-Za-z]/g, '')
+        .toUpperCase()
+        .slice(0, 10) || 'TERE'
+      const baseCode = `${nameSlug}${pct}`
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'  // no 0/1/I/O ambiguity
+      const randSuffix = () => Array.from({ length: 3 }, () =>
+        alphabet[Math.floor(Math.random() * alphabet.length)]).join('')
+
+      const now = new Date()
+      const expiry = new Date(now.getTime() + days * 24 * 3600 * 1000)
+      const payload = {
+        description: `Issued by ${auth.provider.display_name || auth.provider.id} to ${patient_email}${reason ? ` — ${reason}` : ''}`,
+        discount_type: 'percent',
+        discount_value: pct,
+        valid_from: now.toISOString(),
+        valid_to: expiry.toISOString(),
+        max_uses: 1,
+        applies_to_country: 'nz',  // NZ-only; sent via the NZ email flow
+        active: true,
+        restricted_to_email: String(patient_email).trim().toLowerCase(),
+        created_by: auth.provider.id,
+      }
+
+      let created = null
+      let codeAttempt = baseCode
+      for (let i = 0; i < 6; i++) {
+        const { data, error } = await supabase.from('promo_codes')
+          .insert({ ...payload, code: codeAttempt })
+          .select()
+          .single()
+        if (!error) { created = data; break }
+        if (error.code !== '23505') {
+          console.error('[promo-codes] issue_to_patient insert failed:', error)
+          return res.status(500).json({ error: 'Server error' })
+        }
+        codeAttempt = `${baseCode}-${randSuffix()}`
+      }
+      if (!created) return res.status(500).json({ error: 'Could not generate a unique code after retries' })
+
+      // Email the patient. Non-fatal if it fails — admin still has the code
+      // on screen and can send manually.
+      const { sendEmail } = await import('./_email-client.js')
+      const expiryStr = expiry.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Pacific/Auckland' })
+      const firstName = (patient_first_name || '').trim() || 'there'
+      const bookUrl = 'https://terehealth.co.nz/'
+      const html = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0D2B45;">
+          <div style="font-size:14px;color:#64748B;margin-bottom:16px;">Tere Health</div>
+          <h1 style="font-size:22px;margin:0 0 16px;">Hi ${escapeHtml(firstName)}, here's ${pct}% off your next visit</h1>
+          ${patient_note ? `<p style="font-size:15px;line-height:1.5;color:#334155;">${escapeHtml(patient_note)}</p>` : ''}
+          <div style="background:#F0F9FA;border:1px solid #BAE6E9;border-radius:12px;padding:20px;margin:24px 0;text-align:center;">
+            <div style="font-size:12px;color:#64748B;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px;">Your code</div>
+            <div style="font-family:ui-monospace,Menlo,monospace;font-size:28px;font-weight:800;color:#0B6E76;letter-spacing:.08em;">${escapeHtml(created.code)}</div>
+            <div style="font-size:13px;color:#64748B;margin-top:12px;">${pct}% off · expires ${escapeHtml(expiryStr)} · single use</div>
+          </div>
+          <p style="font-size:14px;line-height:1.5;color:#475569;">Enter this code on the payment page next time you book. It only works for this email address.</p>
+          <p style="text-align:center;margin:28px 0;">
+            <a href="${bookUrl}" style="background:#0B6E76;color:white;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px;display:inline-block;">Book a consult</a>
+          </p>
+          <p style="font-size:12px;color:#94A3B8;margin-top:32px;">Tere Health · terehealth.co.nz</p>
+        </div>`
+      const text = [
+        `Hi ${firstName},`,
+        '',
+        patient_note || '',
+        patient_note ? '' : null,
+        `Here's ${pct}% off your next Tere visit.`,
+        '',
+        `Code: ${created.code}`,
+        `Expires: ${expiryStr}`,
+        `Single use · only works for ${patient_email}`,
+        '',
+        `Book: ${bookUrl}`,
+        '',
+        'Tere Health',
+      ].filter(l => l !== null).join('\n')
+
+      const emailResult = await sendEmail({
+        from: 'Tere Health <hello@terehealth.co.nz>',
+        to: [patient_email],
+        subject: `Your ${pct}% off code for your next Tere visit`,
+        html,
+        text,
+      })
+
+      return res.status(200).json({
+        promo_code: created,
+        email_sent: emailResult?.ok || false,
+        email_error: emailResult?.ok ? null : (emailResult?.error || 'send failed'),
+      })
     }
 
     if (action === 'revoke') {

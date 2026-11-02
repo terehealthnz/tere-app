@@ -172,6 +172,7 @@ export default async function handler(req, res) {
         baseAmountCents: amountCents,
         consultationId,
         patientId: patientIdForPromo,
+        patientEmail,
       })
       promoAppliedDiscountCents = result.discountCents || 0
       promoAppliedId = result.promoId || null

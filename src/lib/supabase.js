@@ -808,6 +808,23 @@ export async function updatePromoCode(id, patch) {
   return promo_code
 }
 
+export async function issuePromoToPatient({ patient_email, patient_first_name, discount_percent, expiry_days, reason, patient_note }) {
+  const res = await apiFetch('/api/promo-codes', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'issue_to_patient',
+      patient_email, patient_first_name,
+      discount_percent, expiry_days,
+      reason, patient_note,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || `issuePromoToPatient HTTP ${res.status}`)
+  }
+  return res.json()  // { promo_code, email_sent, email_error }
+}
+
 export async function revokePromoCode(id) {
   const res = await apiFetch('/api/promo-codes', {
     method: 'POST',
