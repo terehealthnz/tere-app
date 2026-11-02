@@ -334,12 +334,18 @@ export default async function handler(req, res) {
   // bug (Ian 2026-10-25). Per-consult dedup via on_call_sms_sent_at in
   // _notify-on-call.js still prevents duplicate sends if WaitingRoom
   // re-mounts.
+  //
+  // Await the call: fire-and-forget was being killed by Vercel's serverless
+  // freeze when the handler returned 200, so Alexandra Rankin's SMS never
+  // fired on 2026-11-02 and she sat 5.5h in the queue. Adds ~200-400ms to
+  // the PATCH response, acceptable; wrapped so a notify error can't fail
+  // the patient update.
   if (patch.in_waiting_room === true) {
     try {
       const { notifyOnCallProviders } = await import('./_notify-on-call.js')
-      notifyOnCallProviders({ consultationId: id }).catch(() => {})
+      await notifyOnCallProviders({ consultationId: id })
     } catch (e) {
-      console.error('[patient-consult] notify-on-call import failed:', e?.message || e)
+      console.error('[patient-consult] notify-on-call failed:', e?.message || e)
     }
   }
 
