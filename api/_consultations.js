@@ -111,6 +111,13 @@ const UPDATE_ALLOWLIST = new Set([
   'guardianship_verified_at', 'guardianship_verified_by',
   'safeguarding_concern_flagged', 'safeguarding_concern_at', 'safeguarding_concern_notes',
   'safeguarding_concern_flagged_by', 'safeguarding_concern_type',
+  // Denormalised patient demographics on the consultation snapshot. The
+  // master truth lives in `patients` and is updated via /api/patients from
+  // the same handler (ClinicianPatient Edit modal); mirroring here keeps
+  // the chart view consistent without a full refetch. Edit modal was
+  // throwing "No allowed columns in patch" without these.
+  'patient_first_name', 'patient_last_name', 'patient_dob', 'patient_nhi',
+  'patient_phone', 'patient_email', 'patient_address',
 ])
 
 // Fields to dual-write encrypted alongside their plaintext columns (task #381).

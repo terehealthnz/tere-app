@@ -343,7 +343,7 @@ export default async function handler(req, res) {
   if (patch.in_waiting_room === true) {
     try {
       const { notifyOnCallProviders } = await import('./_notify-on-call.js')
-      await notifyOnCallProviders({ consultationId: id })
+      await notifyOnCallProviders({ consultationId: id, source: 'handler-patch' })
     } catch (e) {
       console.error('[patient-consult] notify-on-call failed:', e?.message || e)
     }
