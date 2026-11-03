@@ -75,6 +75,18 @@ function buildErmsReferralText({ consult, xr, extra }) {
 export function XrayModal({ open, onClose, consult, onDone }) {
   const [xr, setXr] = useState({ investigation:'X-ray', bodyPart:'', indication:'', urgency:'Urgent (within 24 hours)', history:'' })
   const [ermsCopied, setErmsCopied] = useState(false)
+  // Which referral rail the provider has picked. Three equal options:
+  //   'rhcnz' = private partner (Rural Health Coalition NZ); radiology
+  //             partners we have contracts with, patient-paid or ACC.
+  //   'erms'  = public DHB rail via Pegasus ERMS Online (HNZ-funded
+  //             services in Canterbury / Nelson-Marlborough / Southern /
+  //             West Coast / Whanganui / Wairarapa radiology).
+  //   'other' = HPI-searched facility (free-text / anywhere).
+  // Patrick 2026-11-03: ERMS was previously hidden under RHCNZ as a
+  // dashed "escape hatch" button; moved to equal first-class option so
+  // providers make a conscious private-vs-public call based on the
+  // patient, not nudged one way.
+  const [rail, setRail] = useState('rhcnz')
   const [facility, setFacility] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [rhcnzRegionId, setRhcnzRegionId] = useState('')
   const [rhcnzAutoReason, setRhcnzAutoReason] = useState(null) // "postcode 8011" / "nearest clinic (2.3 km)" / null
@@ -247,24 +259,49 @@ export function XrayModal({ open, onClose, consult, onDone }) {
             <input value={accNum} readOnly style={{background:'var(--bg)',color:'var(--success)'}} />
           </div>}
         </div>
-        {/* RHCNZ = Rural Health Coalition NZ, our NZ radiology partner
-            (ARG / Bay / Pacific). Hidden on AU beta — AU has its own
-            private radiology directory that isn't wired yet. */}
         {isNZ() && (
         <div className="form-group">
-          <label>Send to RHCNZ (recommended)</label>
+          <label>Referral rail</label>
+          {/* Three equal-weight choices. No "recommended" label — the right
+              rail is a clinical + funding decision made per patient. */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3, 1fr)',gap:6,marginBottom:10}}>
+            {[
+              { id: 'rhcnz', title: 'Private (RHCNZ)', sub: 'Partner clinics · ACC/patient-paid' },
+              { id: 'erms',  title: 'Public (ERMS)',   sub: 'DHB radiology · HNZ-funded' },
+              { id: 'other', title: 'Other facility',  sub: 'Search any NZ radiology' },
+            ].map(opt => {
+              const active = rail === opt.id
+              return (
+                <button key={opt.id} type="button" onClick={() => setRail(opt.id)}
+                  style={{
+                    textAlign:'left', padding:'.625rem .75rem', borderRadius:10, cursor:'pointer',
+                    background: active ? '#0B6E76' : 'white',
+                    color: active ? 'white' : '#0D2B45',
+                    border: active ? '1.5px solid #0B6E76' : '1.5px solid #E2E8F0',
+                    fontFamily:'inherit',
+                  }}>
+                  <div style={{fontWeight:700, fontSize:'.8125rem'}}>{opt.title}</div>
+                  <div style={{fontSize:'.6875rem', opacity: active ? .85 : .65, marginTop:2}}>{opt.sub}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        )}
+
+        {/* RHCNZ private rail — region dropdown + confirmed send-to message. */}
+        {isNZ() && rail === 'rhcnz' && (
+        <div className="form-group">
+          <label>RHCNZ region</label>
           <select value={rhcnzRegionId} onChange={e => {
             const next = e.target.value
             setRhcnzRegionId(next); setRegionTouchedByUser(true); setRhcnzAutoReason(null)
-            // Provider override persists to the consultation so the chart
-            // reflects the current preferred region (was: only patient's
-            // triage pick was stored, provider's override was ephemeral).
             if (consult?.id && next !== consult.preferred_imaging_region_id) {
               updateConsultation(consult.id, { preferred_imaging_region_id: next || null })
                 .catch(err => console.warn('[XrayModal] persist imaging region failed:', err.message))
             }
           }}>
-            <option value="">— Other facility (free-text below) —</option>
+            <option value="">— Pick a region —</option>
             {RHCNZ_REGIONS.map(r => (
               <option key={r.id} value={r.id}>{r.brand} — {r.region}</option>
             ))}
@@ -279,18 +316,39 @@ export function XrayModal({ open, onClose, consult, onDone }) {
               📧 Referral will be sent (urgent) to <strong>{RHCNZ_REGIONS.find(r => r.id === rhcnzRegionId)?.email}</strong>. RHCNZ will contact the patient to book.
             </div>
           )}
-          {/* ERMS escape hatch for PUBLIC-side imaging referrals (DHB radiology,
-              funded services covered by Pegasus's ERMS network). RHCNZ above is
-              the private rail. We can't automate ERMS submission (requires
-              HealthLink EDI, task #177), so this just prefills the clipboard +
-              opens the ERMS Online tool in a new window. Provider pastes NHI
-              into the NHI Lookup search, pastes clinical text into the referral
-              narrative, submits manually under their own ERMS login (keeps
-              attribution clean). */}
-          <div style={{marginTop:8}}>
-            <button type="button"
-              onClick={async () => {
-                const text = buildErmsReferralText({ consult, xr, extra })
+        </div>
+        )}
+
+        {/* ERMS public rail. We can't automate ERMS submission (requires
+            HealthLink EDI, task #177 pending), so this prefills clipboard +
+            opens ERMS Online in a new window. Provider pastes NHI into NHI
+            Lookup, pastes clinical text into referral narrative, submits
+            manually under their own ERMS login (keeps audit attribution
+            clean per-clinician). */}
+        {isNZ() && rail === 'erms' && (
+        <div className="form-group">
+          <label>ERMS (public hospital / DHB radiology)</label>
+          <button type="button"
+            onClick={() => {
+              // CRITICAL ORDER: window.open must run synchronously inside
+              // the click handler, BEFORE any await. Chrome/Safari gate
+              // popups on a direct user-gesture stack frame; a prior
+              // `await navigator.clipboard.writeText()` breaks the gesture
+              // chain and the popup gets silently blocked (Patrick hit
+              // this 2026-11-03).
+              const text = buildErmsReferralText({ consult, xr, extra })
+              const win = window.open('https://app.erms.health.nz/', 'erms', 'width=1280,height=900')
+              if (consult?.id) {
+                try {
+                  sessionStorage.setItem('tere-erms-pending', JSON.stringify({
+                    consultId: consult.id,
+                    patientName: `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'this patient',
+                    openedAt: Date.now(),
+                  }))
+                  window.dispatchEvent(new CustomEvent('tere-erms-pending-changed'))
+                } catch {}
+              }
+              ;(async () => {
                 try {
                   await navigator.clipboard.writeText(text)
                   setErmsCopied(true)
@@ -298,38 +356,35 @@ export function XrayModal({ open, onClose, consult, onDone }) {
                 } catch (e) {
                   console.warn('[XrayModal] clipboard copy failed:', e?.message)
                 }
-                // Pin a sticky breadcrumb on the chart so the provider
-                // doesn't forget to come back + Complete Encounter after
-                // keying the referral into the ERMS popup. Cleared when
-                // Complete fires in ClinicianPatient. Patrick 2026-11-03:
-                // without this, ERMS popup risks stealing focus and the
-                // consult sits in started-but-never-completed state.
-                if (consult?.id) {
-                  try {
-                    sessionStorage.setItem('tere-erms-pending', JSON.stringify({
-                      consultId: consult.id,
-                      patientName: `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'this patient',
-                      openedAt: Date.now(),
-                    }))
-                    window.dispatchEvent(new CustomEvent('tere-erms-pending-changed'))
-                  } catch {}
-                }
-                window.open('https://app.erms.health.nz/', 'erms', 'width=1280,height=900')
-              }}
-              style={{background:'none',border:'1px dashed #CBD5E1',color:'#475569',borderRadius:8,padding:'.5rem .75rem',fontSize:'.75rem',cursor:'pointer',fontFamily:'inherit'}}
-            >
-              🏥 Public hospital / DHB radiology? Open in ERMS →
-            </button>
-            {ermsCopied && (
-              <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'.5rem .75rem',marginTop:6,fontSize:'.75rem',color:'#1E40AF',lineHeight:1.5}}>
-                ERMS opened in a new window. Referral text copied to clipboard — paste the NHI into the NHI Lookup search, then paste the full block into the referral narrative. Submits under your own ERMS login.
-              </div>
-            )}
+              })()
+              if (!win) {
+                alert('Your browser blocked the ERMS popup. Please allow popups for terehealth.co.nz and try again, or open https://app.erms.health.nz/ in a new tab yourself.')
+              }
+            }}
+            style={{
+              width:'100%', background:'#0B6E76', color:'white', border:'none',
+              borderRadius:10, padding:'.75rem 1rem', fontSize:'.9375rem',
+              fontWeight:700, cursor:'pointer', fontFamily:'inherit',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+            }}
+          >
+            🏥 Open ERMS + copy referral to clipboard →
+          </button>
+          {ermsCopied && (
+            <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'.5rem .75rem',marginTop:8,fontSize:'.75rem',color:'#1E40AF',lineHeight:1.5}}>
+              ERMS opened in a new window. Referral text copied to clipboard. Paste the NHI into the NHI Lookup search, then paste the full block into the referral narrative. Submits under your own ERMS login.
+            </div>
+          )}
+          <div style={{fontSize:'.7rem',color:'var(--muted)',marginTop:6,fontStyle:'italic'}}>
+            After submitting in ERMS, come back to this chart and click Complete Encounter. We can't automate the ERMS send yet (pending HealthLink EDI).
           </div>
         </div>
         )}
 
-        {!isRhcnz && (
+        {/* Other facility — HPI search fallback for anywhere not covered by
+            RHCNZ or ERMS (e.g. specific private radiologist outside our
+            partner network). */}
+        {isNZ() && rail === 'other' && (
           <>
             <div className="form-group">
               <label>Radiology facility</label>
@@ -354,7 +409,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         <div className="form-group">
           <button type="button" onClick={() => setShowExtra(v => !v)}
             style={{background:'none',border:'none',padding:0,color:'var(--teal)',fontWeight:600,cursor:'pointer',fontFamily:'inherit',fontSize:'.8125rem'}}>
-            {showExtra ? '▾' : '▸'} Additional patient / referral details {isRhcnz ? '(RHCNZ recommended)' : '(optional)'}
+            {showExtra ? '▾' : '▸'} Additional patient / referral details {rail === 'rhcnz' ? '(RHCNZ recommended)' : '(optional)'}
           </button>
         </div>
         {showExtra && (
