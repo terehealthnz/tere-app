@@ -72,6 +72,119 @@ function JourneyTimeline({ consult }) {
 
 // inputType: 'textarea' (default) | 'text' | 'date'. Date renders a native
 // <input type="date"> and formats the saved ISO yyyy-MM-dd on display.
+// PharmacyPickerField — mirrors the search picker from ClinicianPatient so
+// the admin can set a patient's preferred pharmacy from the Medsafe register
+// (not just free-text). Writes patient.pharmacy_name + patient.pharmacy_id
+// together so downstream delivery (fax/email) resolves against pharmacy_contacts.
+function PharmacyPickerField({ patient, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [list, setList] = useState(null)
+  const [query, setQuery] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!editing || list !== null) return
+    ;(async () => {
+      try {
+        const [registerRes, { fetchEmailablePharmacyIds }] = await Promise.all([
+          fetch('/pharmacies.json'),
+          import('../../lib/supabase'),
+        ])
+        const raw = registerRes.ok ? await registerRes.json() : []
+        if (!Array.isArray(raw)) { setList([]); return }
+        const emailable = await fetchEmailablePharmacyIds()
+        setList(emailable && emailable.size > 0 ? raw.filter(p => emailable.has(p.id)) : raw)
+      } catch { setList([]) }
+    })()
+  }, [editing, list])
+
+  const filtered = (() => {
+    if (!list) return []
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) return []
+    const nameHits = [], otherHits = []
+    for (const p of list) {
+      const name    = (p.premises_name || '').toLowerCase()
+      const address = (p.address       || '').toLowerCase()
+      const town    = (p.town          || '').toLowerCase()
+      const region  = (p.region        || '').toLowerCase()
+      if (name.includes(q)) nameHits.push(p)
+      else if (address.includes(q) || town.includes(q) || region.includes(q)) otherHits.push(p)
+      if (nameHits.length + otherHits.length >= 40) break
+    }
+    return [...nameHits, ...otherHits].slice(0, 8)
+  })()
+
+  async function pick(p) {
+    setSaving(true)
+    try {
+      await onSave({ pharmacy_name: p.premises_name || '', pharmacy_id: p.id || null })
+      setEditing(false)
+      setQuery('')
+    } finally { setSaving(false) }
+  }
+
+  async function clear() {
+    setSaving(true)
+    try {
+      await onSave({ pharmacy_name: null, pharmacy_id: null })
+      setEditing(false)
+      setQuery('')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '.25rem' }}>
+        <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>Pharmacy</div>
+        <button onClick={() => { setEditing(!editing); setQuery('') }}
+          style={{ background: 'none', border: 'none', color: TEAL, fontSize: '.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: FF }}>
+          {editing ? 'Cancel' : (patient.pharmacy_name ? 'Change' : 'Set')}
+        </button>
+      </div>
+      {!editing ? (
+        <div style={{ fontSize: '.9375rem', color: patient.pharmacy_name ? NAVY : '#9CA3AF', fontStyle: patient.pharmacy_name ? 'normal' : 'italic' }}>
+          {patient.pharmacy_name || '—'}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search name, suburb, or postcode…"
+            disabled={saving}
+            style={{ width: '100%', padding: '.5rem .625rem', border: '1.5px solid #D1D5DB', borderRadius: 7, fontFamily: FF, fontSize: '.875rem', boxSizing: 'border-box' }}
+          />
+          {list === null && query.length >= 2 && (
+            <div style={{ fontSize: '.75rem', color: '#6B7280' }}>Loading pharmacies…</div>
+          )}
+          {filtered.length > 0 && (
+            <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+              {filtered.map(p => (
+                <button key={p.id} type="button" onClick={() => pick(p)} disabled={saving}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '.5rem .75rem', background: 'white', border: 'none', borderBottom: '1px solid #F1F5F9', cursor: saving ? 'wait' : 'pointer', fontFamily: FF, fontSize: '.8125rem', color: NAVY }}>
+                  <div style={{ fontWeight: 600 }}>{p.premises_name}</div>
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{[p.town, p.region].filter(Boolean).join(', ')}</div>
+                </button>
+              ))}
+            </div>
+          )}
+          {list && query.length >= 2 && filtered.length === 0 && (
+            <div style={{ fontSize: '.75rem', color: '#6B7280' }}>No matches — try a different search.</div>
+          )}
+          {patient.pharmacy_name && (
+            <button type="button" onClick={clear} disabled={saving}
+              style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#DC2626', fontSize: '.75rem', fontWeight: 600, cursor: saving ? 'wait' : 'pointer', fontFamily: FF, padding: 0 }}>
+              Clear pharmacy
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EditableField({ label, value, onSave, inputType = 'textarea' }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft]     = useState(value || '')
@@ -154,6 +267,11 @@ function PatientProfile({ patientId, onClose, onMerge }) {
   async function save(field, value) {
     await updatePatient(patientId, { [field]: value })
     setPatient(p => ({ ...p, [field]: value }))
+  }
+
+  async function savePatch(patch) {
+    await updatePatient(patientId, patch)
+    setPatient(p => ({ ...p, ...patch }))
   }
 
   async function doMerge() {
@@ -256,7 +374,7 @@ function PatientProfile({ patientId, onClose, onMerge }) {
             <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Healthcare</div>
             <EditableField label="GP"       value={patient.gp_name}     onSave={v => save('gp_name', v)} />
             <EditableField label="GP clinic" value={patient.gp_clinic}  onSave={v => save('gp_clinic', v)} />
-            <EditableField label="Pharmacy" value={patient.pharmacy_name} onSave={v => save('pharmacy_name', v)} />
+            <PharmacyPickerField patient={patient} onSave={savePatch} />
           </div>
 
           <div style={{ background: '#FEF2F2', borderRadius: 12, border: '1px solid #FECACA', padding: '1.25rem', marginBottom: '1rem' }}>
