@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
-const BRAND = { navy: '#0D2B45', teal: '#0B6E76', tealLight: '#D4EEF0', bg: '#F0F2F5' }
+const BRAND = {
+  navy: '#0D2B45',
+  teal: '#0B6E76',
+  tealLight: '#D4EEF0',
+  bg: '#F0F2F5',
+  // Soft cream used across hero + alt sections. Replaces the dark navy
+  // gradient hero per the Nov 2026 concept review — warmer, more welcoming
+  // for rural patients, better contrast for the orange CTA.
+  cream: '#F7F1E8',
+  creamDeep: '#EEE4D1',
+  accent: '#C98B2A',
+}
 
 // Always use a relative URL. An earlier iteration routed prod traffic to
 // https://tere.co.nz/start (the short vanity domain), which 308-redirects
@@ -21,98 +32,164 @@ function Nav() {
   return (
     <nav style={{
       position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
-      background: scrolled ? 'rgba(13,43,69,0.97)' : 'transparent',
-      backdropFilter: scrolled ? 'blur(8px)' : 'none',
-      transition: 'background .25s',
+      background: scrolled ? 'rgba(247,241,232,.95)' : 'transparent',
+      borderBottom: scrolled ? '1px solid rgba(13,43,69,.08)' : 'none',
+      backdropFilter: scrolled ? 'blur(10px)' : 'none',
+      transition: 'background .25s, border-color .25s',
       padding: '.875rem 1.5rem',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
       <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: '.75rem', textDecoration: 'none' }}>
-        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: '#D4EEF0', fontSize: '1.5rem', fontWeight: 600, transition: 'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>Tere Health</span>
+        <span style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontStyle: 'italic', color: BRAND.navy, fontSize: '1.5rem', fontWeight: 600, transition: 'opacity .15s' }} onMouseEnter={e=>e.currentTarget.style.opacity='.8'} onMouseLeave={e=>e.currentTarget.style.opacity='1'}>Tere Health</span>
       </Link>
       <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-        <div className="nav-links-desktop" style={{ display: 'flex', gap: '.75rem', alignItems: 'center' }}>
-          <a href="#pricing" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Pricing</a>
-          <a href="#faq" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>FAQ</a>
-          <Link to="/employers" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>For employers</Link>
-          <Link to="/contact" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Support</Link>
+        <div className="nav-links-desktop" style={{ display: 'flex', gap: '1.125rem', alignItems: 'center' }}>
+          <a href="#how-it-works" style={{ color: BRAND.navy, opacity: .75, textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500 }}>How it works</a>
+          <a href="#pricing" style={{ color: BRAND.navy, opacity: .75, textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500 }}>Pricing</a>
+          <a href="#faq" style={{ color: BRAND.navy, opacity: .75, textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500 }}>FAQ</a>
+          <Link to="/employers" style={{ color: BRAND.navy, opacity: .75, textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500 }}>Employers</Link>
+          <Link to="/contact" style={{ color: BRAND.navy, opacity: .75, textDecoration: 'none', fontSize: '.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 500 }}>Support</Link>
         </div>
         <a href={CONSULT_URL} style={{
-          background: BRAND.teal, color: 'white', textDecoration: 'none',
-          padding: '8px 18px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,
+          background: BRAND.navy, color: 'white', textDecoration: 'none',
+          padding: '9px 20px', borderRadius: 99, fontSize: '.9rem', fontWeight: 700,
           fontFamily: 'Plus Jakarta Sans, sans-serif',
-        }}>Book consultation</a>
+        }}>Book a consult</a>
       </div>
     </nav>
   )
 }
 
+// Decorative "coastal hills" strip — pure CSS, no image dependency. Evokes
+// the NZ landscape framing from Concepts C and F without requiring Patrick
+// to source a licensed photo. Swap for a real landscape image later if
+// marketing commissions one; just replace this component's output.
+function HillsStrip() {
+  return (
+    <div style={{
+      position: 'relative', width: '100%',
+      height: 'clamp(140px, 22vw, 220px)',
+      marginTop: '-1rem', overflow: 'hidden',
+      background: `linear-gradient(180deg, ${BRAND.cream} 0%, ${BRAND.creamDeep} 100%)`,
+    }}>
+      <svg viewBox="0 0 1200 220" preserveAspectRatio="none" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-hidden>
+        <path d="M0,180 C150,120 300,140 450,110 C600,80 750,120 900,100 C1050,80 1150,110 1200,100 L1200,220 L0,220 Z" fill="#8DB4A6" opacity=".55" />
+        <path d="M0,200 C180,160 360,180 540,150 C720,120 900,160 1080,140 C1140,135 1180,145 1200,150 L1200,220 L0,220 Z" fill="#4F8A75" opacity=".7" />
+        <path d="M0,215 C200,195 400,210 600,195 C800,180 1000,205 1200,195 L1200,220 L0,220 Z" fill={BRAND.teal} opacity=".9" />
+      </svg>
+    </div>
+  )
+}
+
+function TrustChip({ icon, title, sub }) {
+  return (
+    <div style={{
+      background: 'white', borderRadius: 14, padding: '1rem 1.1rem',
+      boxShadow: '0 2px 10px rgba(13,43,69,.06)',
+      border: '1px solid rgba(13,43,69,.06)',
+      display: 'flex', flexDirection: 'column', gap: '.1rem',
+      fontFamily: 'Plus Jakarta Sans, sans-serif',
+    }}>
+      <div style={{ fontSize: '1.1rem', marginBottom: '.1rem' }}>{icon}</div>
+      <div style={{ fontWeight: 700, color: BRAND.navy, fontSize: '.9rem' }}>{title}</div>
+      <div style={{ fontSize: '.75rem', color: '#6B7280' }}>{sub}</div>
+    </div>
+  )
+}
+
 function Hero() {
   return (
-    <section style={{
-      background: `linear-gradient(160deg, ${BRAND.navy} 0%, #0a3d52 100%)`,
-      minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'flex-start',
-      padding: '7rem 1.5rem 4rem', textAlign: 'center',
-    }}>
-      <div style={{ maxWidth: 640 }}>
-        <div style={{ display: 'inline-block', background: 'rgba(11,110,118,.3)', border: '1px solid rgba(212,238,240,.2)', borderRadius: 99, padding: '5px 14px', fontSize: '.8rem', color: BRAND.tealLight, letterSpacing: '.06em', textTransform: 'uppercase', fontWeight: 600, marginBottom: '1.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Aotearoa New Zealand
+    <>
+      <section style={{
+        background: BRAND.cream,
+        padding: '7rem 1.5rem 2.5rem', textAlign: 'center',
+      }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: '.5rem',
+            background: 'rgba(11,110,118,.08)', border: '1px solid rgba(11,110,118,.2)',
+            borderRadius: 99, padding: '5px 14px', fontSize: '.75rem',
+            color: BRAND.teal, letterSpacing: '.08em', textTransform: 'uppercase',
+            fontWeight: 700, marginBottom: '1.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+          }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+            Doctors available 8am to 8pm NZT
+          </div>
+          <h1 style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700,
+            color: BRAND.navy, lineHeight: 1.1, margin: '0 0 1.25rem',
+            letterSpacing: '-.01em',
+          }}>
+            Emergency doctors,<br />wherever you call home.
+          </h1>
+          <p style={{
+            fontSize: '1.125rem', color: '#374151', lineHeight: 1.65,
+            margin: '0 auto 1.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+            maxWidth: 560,
+          }}>
+            See an NZ-registered emergency specialist by video or phone, usually within 2 hours. No trip to town, no waiting room, ACC claims handled on the spot.
+          </p>
+          <div style={{ display: 'flex', gap: '.75rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '.75rem' }}>
+            <a href={CONSULT_URL} style={{
+              background: '#F97316', color: 'white', textDecoration: 'none',
+              padding: '1rem 2.25rem', borderRadius: 99, fontSize: '1.125rem', fontWeight: 700,
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              boxShadow: '0 8px 24px rgba(249,115,22,.35)',
+              letterSpacing: '.01em',
+            }}>Start consultation</a>
+            <a href="#how-it-works" style={{
+              background: 'white', color: BRAND.navy, textDecoration: 'none',
+              padding: '1rem 2rem', borderRadius: 99, fontSize: '1rem', fontWeight: 700,
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+              border: `1.5px solid ${BRAND.navy}`,
+            }}>How it works</a>
+          </div>
+          <div style={{
+            fontSize: '.8125rem', color: '#6B7280',
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+            marginTop: '.75rem',
+          }}>
+            Submit after 8pm and you'll be at the top of the morning queue. <span style={{ color: '#B91C1C', fontWeight: 600 }}>For life-threatening emergencies, call 111.</span>
+          </div>
         </div>
-        <h1 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2.5rem, 6vw, 4rem)', fontWeight: 700, color: 'white', lineHeight: 1.15, margin: '0 0 1.25rem' }}>
-          Acute & emergent care.<br />Wherever you are in Aotearoa.
-        </h1>
-        <p style={{ fontSize: '1.1rem', color: 'rgba(255,255,255,.75)', lineHeight: 1.7, margin: '0 0 1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          Video or phone consultations with New Zealand-registered doctors trained in emergency medicine, for acute or emergent health problems that need prompt attention. No travel, no waiting room. ACC claims, prescriptions, and referrals handled on the spot. <span style={{ color: 'rgba(255,255,255,.6)' }}>For life-threatening emergencies, call 111.</span>
-        </p>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '.625rem', background: 'rgba(11,110,118,.25)', border: '1px solid rgba(11,110,118,.5)', borderRadius: 99, padding: '6px 16px', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10B981', display: 'inline-block', flexShrink: 0 }} />
-          <span style={{ color: 'rgba(212,238,240,.85)', fontSize: '.875rem', fontWeight: 600 }}>Queue open 24/7</span>
+      </section>
+
+      <HillsStrip />
+
+      <section style={{ background: BRAND.cream, padding: '2rem 1.5rem 4rem' }}>
+        <div style={{
+          maxWidth: 900, margin: '0 auto',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+          gap: '.75rem',
+        }}>
+          <TrustChip icon="🏥" title="FACEM-led"      sub="Medical director" />
+          <TrustChip icon="🩺" title="MCNZ-registered" sub="Current APCs" />
+          <TrustChip icon="🛡️" title="ACC registered" sub="Claims handled" />
+          <TrustChip icon="⏱️" title="Within 2 hours" sub="8am to 8pm NZT" />
         </div>
-        <div style={{ fontSize: '.8125rem', color: 'rgba(212,238,240,.7)', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontStyle: 'italic' }}>
-          A doctor sees you within 2 hours between 8am and 8pm NZT. Submit outside those hours and you'll be at the top of the morning queue.
-        </div>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href={CONSULT_URL} style={{
-            background: '#F97316', color: 'white', textDecoration: 'none',
-            padding: '1.1rem 2.75rem', borderRadius: 99, fontSize: '1.25rem', fontWeight: 700,
-            fontFamily: 'Plus Jakarta Sans, sans-serif', boxShadow: '0 6px 32px rgba(249,115,22,.55)',
-            letterSpacing: '.01em',
-          }}>Start consultation</a>
-          <a href="#how-it-works" style={{
-            background: 'rgba(255,255,255,.1)', color: 'white', textDecoration: 'none',
-            padding: '.9rem 2rem', borderRadius: 99, fontSize: '1rem', fontWeight: 600,
-            fontFamily: 'Plus Jakarta Sans, sans-serif', border: '1px solid rgba(255,255,255,.2)',
-          }}>How it works</a>
-        </div>
-        <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', marginTop: '3rem', flexWrap: 'wrap' }}>
-          {[['✓', 'FACEM medical director'], ['✓', 'ACC registered'], ['✓', 'Within 2 hours, 8am to 8pm']].map(([tick, text]) => (
-            <div key={text} style={{ display: 'flex', alignItems: 'center', gap: '.375rem', color: 'rgba(255,255,255,.65)', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-              <span style={{ color: BRAND.tealLight, fontWeight: 700 }}>{tick}</span> {text}
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   )
 }
 
 
 function HowItWorks() {
   const steps = [
-    { n: '1', icon: '💬', title: 'Triage chat', desc: 'Our AI health assistant gathers your symptoms and history in minutes.' },
-    { n: '2', icon: '📏', title: 'Vitals check', desc: 'Share a quick photo of any visible issue. Optional guided vitals if needed.' },
-    { n: '3', icon: '👨‍⚕️', title: 'See the doctor', desc: 'A doctor calls you within 2 hours during opening hours. Submit after 8pm and expect a callback from 8am. Video optional.' },
-    { n: '4', icon: '✅', title: 'All sorted', desc: 'Prescriptions to any NZ pharmacy. X-ray or ultrasound arranged anywhere in the country. Referrals and ACC filed.' },
+    { n: '1', icon: '💬', title: 'Chat',   desc: 'Share your symptoms with our triage assistant. A couple of minutes, from the couch.' },
+    { n: '2', icon: '📷', title: 'Show',   desc: 'Snap a photo of any visible issue. Guided vitals if the doctor needs them.' },
+    { n: '3', icon: '📞', title: 'Talk',   desc: 'A doctor calls you. Usually within 2 hours between 8am and 8pm. Video optional.' },
+    { n: '4', icon: '✅', title: 'Sorted', desc: 'Scripts to any NZ pharmacy. X-ray or ultrasound arranged. Referrals and ACC filed.' },
   ]
   return (
     <section id="how-it-works" style={{ background: 'white', padding: '5rem 1.5rem' }}>
       <div style={{ maxWidth: 860, margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-          From triage to sorted in minutes
+          Simple, human, quick
         </h2>
         <p style={{ fontSize: '1rem', color: '#6B7280', marginBottom: '3rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          No phone tag, no waiting on hold. The whole consultation happens on your device.
+          Four easy steps, all on your own device.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem' }}>
           {steps.map(s => (
@@ -136,69 +213,141 @@ function HowItWorks() {
   )
 }
 
+// Dark compliance block sits between HowItWorks and Pricing. Anchors trust
+// in the standards-and-registration story that matters most to NZ rural
+// patients and employer buyers: FACEM medical director, MCNZ APCs, ACC-
+// registered, nationwide coverage. From Concept F review 2026-11-03.
+function Compliance() {
+  const items = [
+    { label: 'FACEM',   sub: 'Medical director' },
+    { label: 'MCNZ',    sub: 'Current APCs' },
+    { label: 'ACC',     sub: 'Registered provider' },
+    { label: 'NZ-wide', sub: 'Any pharmacy, any region' },
+  ]
+  return (
+    <section style={{ background: BRAND.cream, padding: '4rem 1.5rem' }}>
+      <div style={{
+        maxWidth: 1080, margin: '0 auto',
+        background: '#143D33', color: 'white',
+        borderRadius: 20, padding: '2.5rem 2rem',
+        display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 1.3fr', gap: '2rem',
+        alignItems: 'center',
+      }} className="compliance-grid">
+        <div>
+          <h2 style={{
+            fontFamily: 'Cormorant Garamond, Georgia, serif',
+            fontSize: 'clamp(1.5rem, 3vw, 2rem)',
+            margin: '0 0 .75rem', lineHeight: 1.15,
+          }}>
+            Qualified, registered,<br />accountable.
+          </h2>
+          <p style={{
+            fontSize: '.9375rem', color: 'rgba(255,255,255,.75)',
+            lineHeight: 1.6, margin: 0,
+            fontFamily: 'Plus Jakarta Sans, sans-serif',
+          }}>
+            Every consultation is with an MCNZ-registered doctor holding a current practising certificate, under a FACEM medical director.
+          </p>
+        </div>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          gap: '.75rem',
+        }}>
+          {items.map(it => (
+            <div key={it.label} style={{
+              background: 'rgba(255,255,255,.06)',
+              border: '1px solid rgba(255,255,255,.1)',
+              borderRadius: 12, padding: '1rem .9rem',
+              fontFamily: 'Plus Jakarta Sans, sans-serif',
+            }}>
+              <div style={{ fontWeight: 700, color: BRAND.accent, fontSize: '.8125rem', letterSpacing: '.04em' }}>{it.label}</div>
+              <div style={{ fontSize: '.75rem', color: 'rgba(255,255,255,.75)', marginTop: 2 }}>{it.sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <style>{`
+        @media (max-width: 720px) {
+          .compliance-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </section>
+  )
+}
+
 function Pricing() {
-  const plans = [
+  // Three-tier side-by-side card layout (per Concept F review 2026-11-03).
+  // Previous one-card-with-notes layout buried the $25-with-ACC and
+  // $100-visitors prices in body text; now each is a scannable card.
+  // Highlight remains the standard tier (most patients land there).
+  const tiers = [
     {
-      icon: '🚨', title: 'Acute & emergent consultation', subtitle: 'ED specialist within 2 hours',
-      price: 65, accPrice: 25,
-      features: ['MCNZ-registered emergency medicine specialist', 'Talk with your doctor, video optional', 'Prescriptions, referrals & ACC claims', 'Consultation summary emailed'],
+      price: 65, label: 'Acute & emergent consultation',
+      sub: 'Standard patient fee',
+      features: ['Specialist within 2 hours', 'Scripts, referrals, ACC filed', 'Video optional', 'Summary emailed'],
       highlight: true,
+      ctaLabel: 'Book now',
+    },
+    {
+      price: 25, label: 'With ACC cover',
+      sub: 'ACC-eligible injury or accident',
+      features: ['Admin fee only', 'ACC covers consultation if claim accepted', 'Claim lodged during consult', 'Same specialist team'],
+      ctaLabel: 'Book now',
+    },
+    {
+      price: 100, label: 'Visitors & non-residents',
+      sub: 'Flat consultation fee',
+      features: ['No NZ residency required', 'Travellers, work visa holders', 'Same specialist team', 'Payment at time of consult'],
+      ctaLabel: 'Book now',
     },
   ]
   return (
     <section id="pricing" style={{ background: BRAND.bg, padding: '5rem 1.5rem' }}>
-      <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', textAlign: 'center' }}>
         <h2 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', fontSize: 'clamp(2rem, 4vw, 2.75rem)', color: BRAND.navy, marginBottom: '.75rem' }}>
-          One clear price
+          Clear pricing
         </h2>
-        <p style={{ fontSize: '1rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-          ACC-eligible injury? NZ$25 administrative fee. ACC covers the consultation, if your claim is accepted.
+        <p style={{ fontSize: '.9375rem', color: '#6B7280', marginBottom: '2.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+          Prices in NZD. Pay by card after your consultation.
         </p>
-        <p style={{ fontSize: '.8125rem', color: '#6B7280', marginBottom: '1rem', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.02em' }}>
-          Prices in NZD · Visitors and non-residents pay a flat NZ$100 consultation fee.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.25rem' }}>
-          {plans.map(p => (
-            <div key={p.title} style={{
-              background: 'white', borderRadius: 16, padding: '2rem 1.5rem',
-              border: p.highlight ? `2px solid ${BRAND.teal}` : '1px solid #E2E8F0',
-              boxShadow: p.highlight ? '0 8px 32px rgba(11,110,118,.12)' : 'none',
-              position: 'relative',
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+          {tiers.map(t => (
+            <div key={t.label} style={{
+              background: t.highlight ? BRAND.navy : 'white',
+              color: t.highlight ? 'white' : BRAND.navy,
+              borderRadius: 16, padding: '1.75rem 1.5rem',
+              border: t.highlight ? 'none' : '1px solid #E2E8F0',
+              boxShadow: t.highlight ? '0 10px 36px rgba(13,43,69,.18)' : '0 2px 10px rgba(13,43,69,.04)',
+              position: 'relative', textAlign: 'left',
+              display: 'flex', flexDirection: 'column',
             }}>
-              {p.highlight && (
-                <div style={{ position: 'absolute', top: -13, left: '50%', transform: 'translateX(-50%)', background: BRAND.teal, color: 'white', fontSize: '.75rem', fontWeight: 700, padding: '3px 12px', borderRadius: 99, whiteSpace: 'nowrap', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  Most popular
+              {t.highlight && (
+                <div style={{ position: 'absolute', top: -11, left: '50%', transform: 'translateX(-50%)', background: BRAND.accent, color: 'white', fontSize: '.7rem', fontWeight: 700, padding: '4px 12px', borderRadius: 99, whiteSpace: 'nowrap', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '.05em', textTransform: 'uppercase' }}>
+                  Most patients
                 </div>
               )}
-              <div style={{ fontSize: '2rem', marginBottom: '.75rem' }}>{p.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: '1.15rem', color: BRAND.navy, marginBottom: '.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.title}</div>
-              <div style={{ fontSize: '.875rem', color: '#6B7280', marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.subtitle}</div>
-              <div style={{ marginBottom: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '.5rem' }}>
-                  <span style={{ fontSize: '2.25rem', fontWeight: 800, color: BRAND.navy, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZ${p.price}</span>
-                  <span style={{ fontSize: '.8125rem', color: '#6B7280', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>standard</span>
-                </div>
-                {p.accPrice === 0 ? (
-                  <div style={{ marginTop: '.25rem', fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Free with ACC cover</div>
-                ) : p.accPrice ? (
-                  <div style={{ marginTop: '.25rem', fontSize: '.875rem', color: BRAND.teal, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Just NZ${p.accPrice} with ACC cover</div>
-                ) : null}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '.25rem', marginBottom: '.25rem' }}>
+                <span style={{ fontSize: '2.5rem', fontWeight: 800, fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '-.02em' }}>${t.price}</span>
+                <span style={{ fontSize: '.8125rem', opacity: .65, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NZD</span>
               </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', textAlign: 'left' }}>
-                {p.features.map(f => (
-                  <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', fontSize: '.875rem', color: '#374151', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span style={{ color: BRAND.teal, fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
+              <div style={{ fontWeight: 700, fontSize: '.9375rem', marginBottom: '.125rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{t.label}</div>
+              <div style={{ fontSize: '.8125rem', opacity: .75, marginBottom: '1.25rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{t.sub}</div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.5rem', flex: 1 }}>
+                {t.features.map(f => (
+                  <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '.5rem', fontSize: '.8125rem', marginBottom: '.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: .9 }}>
+                    <span style={{ color: t.highlight ? BRAND.tealLight : BRAND.teal, fontWeight: 700, flexShrink: 0 }}>✓</span> {f}
                   </li>
                 ))}
               </ul>
               <a href={CONSULT_URL} style={{
                 display: 'block', textAlign: 'center', textDecoration: 'none',
-                background: p.highlight ? BRAND.teal : 'white',
-                color: p.highlight ? 'white' : BRAND.teal,
-                border: `2px solid ${BRAND.teal}`,
+                background: t.highlight ? '#F97316' : BRAND.navy,
+                color: 'white',
                 padding: '.75rem', borderRadius: 99, fontWeight: 700, fontSize: '.9375rem',
                 fontFamily: 'Plus Jakarta Sans, sans-serif',
-              }}>Book now</a>
+                marginTop: 'auto',
+              }}>{t.ctaLabel}</a>
             </div>
           ))}
         </div>
@@ -393,6 +542,7 @@ export default function Landing() {
       <main>
         <Hero />
         <HowItWorks />
+        <Compliance />
         <Pricing />
         <ForEmployers />
         <About />
