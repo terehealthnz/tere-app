@@ -998,15 +998,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
     }
 
     try {
-      await updateConsultation(id, {
+      // Only write transcript if the client-scribe actually captured one.
+      // When scribe_agent_enabled is on, the Fly agent races to write the
+      // real transcript at room disconnect. Sending transcript:null here
+      // overwrites it with NULL and loses the agent's work (seen 2026-11-02:
+      // agent wrote 499 chars at T+0, this patch nuked it at T+3s).
+      const patch = {
         notes_draft: { actions, callNotes },
-        transcript: finalTranscript || null,
         consultation_duration_seconds: durationSec,
-        // Clear note_generated_at so ProviderNotes re-runs AI generation on the fresh
-        // transcript. Otherwise line 248 in ProviderNotes.jsx sees stale note_generated_at
-        // from a previous call, restores the (empty) draft, and skips runGenerate entirely.
         note_generated_at: null,
-      })
+      }
+      if (finalTranscript) patch.transcript = finalTranscript
+      await updateConsultation(id, patch)
     } catch {}
     // Only navigate to notes when the PROVIDER intentionally clicked End Call
     // AND the patient actually joined. Everything else (patient dropped mid-

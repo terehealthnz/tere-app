@@ -52,41 +52,67 @@ export default defineAgent({
 
     const segments = []
     const streamsByTrackSid = new Map()
+    const sttEventCounts = new Map()
+
+    console.error(`[diag] agent entry: consultId=${consultId} room=${ctx.room?.name} remoteParticipants=${ctx.room?.remoteParticipants?.size ?? '?'}`)
+
+    ctx.room.on(RoomEvent.ParticipantConnected, (p) => {
+      console.error(`[diag] ParticipantConnected: identity=${p.identity} audioTracks=${p.audioTrackPublications?.size ?? 0}`)
+    })
 
     ctx.room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+      console.error(`[diag] TrackSubscribed: participant=${participant.identity} kind=${track.kind} sid=${publication.sid}`)
       if (track.kind !== TrackKind.KIND_AUDIO) return
 
       const sttStream = stt.stream()
       streamsByTrackSid.set(publication.sid, sttStream)
+      sttEventCounts.set(publication.sid, { interim: 0, final: 0, finalWithText: 0, other: 0 })
 
       const audioStream = new AudioStream(track, 16000, 1)
       sttStream.updateInputStream(audioStream)
+      console.error(`[diag] STT stream wired for sid=${publication.sid} identity=${participant.identity}`)
 
       ;(async () => {
         try {
           for await (const ev of sttStream) {
+            const counts = sttEventCounts.get(publication.sid)
             if (ev.type === SpeechEventType.FINAL_TRANSCRIPT) {
+              counts.final++
               const text = ev.alternatives?.[0]?.text?.trim()
               if (text) {
+                counts.finalWithText++
                 segments.push({
                   participantIdentity: participant.identity,
                   text,
                   at: Date.now(),
                 })
+                console.error(`[diag] FINAL text sid=${publication.sid}: ${text.slice(0, 60)}`)
               }
+            } else if (ev.type === SpeechEventType.INTERIM_TRANSCRIPT) {
+              counts.interim++
+            } else {
+              counts.other++
             }
           }
+          console.error(`[diag] STT stream closed normally sid=${publication.sid}`)
         } catch (e) {
           log.error?.({ err: e, trackSid: publication.sid }, 'STT stream errored')
+          console.error(`[diag] STT stream errored sid=${publication.sid}: ${e?.message || e}`)
         }
       })()
     })
 
     ctx.room.on(RoomEvent.TrackUnsubscribed, (_track, publication) => {
+      console.error(`[diag] TrackUnsubscribed sid=${publication.sid}`)
       const sttStream = streamsByTrackSid.get(publication.sid)
       if (sttStream) {
         streamsByTrackSid.delete(publication.sid)
-        sttStream.close().catch((e) => log.error?.({ err: e }, 'failed to close STT stream on unsubscribe'))
+        try {
+          const p = sttStream.close()
+          if (p && typeof p.catch === 'function') p.catch((e) => log.error?.({ err: e }, 'failed to close STT stream on unsubscribe'))
+        } catch (e) {
+          log.error?.({ err: e }, 'close() threw on unsubscribe')
+        }
       }
     })
 
@@ -148,6 +174,10 @@ export default defineAgent({
         },
         'scribe agent shutdown summary',
       )
+      for (const [sid, counts] of sttEventCounts.entries()) {
+        console.error(`[diag] final event counts sid=${sid}: ${JSON.stringify(counts)}`)
+      }
+      console.error(`[diag] shutdown: subscribedTracks=${streamsByTrackSid.size + sttEventCounts.size - streamsByTrackSid.size} totalStreams=${sttEventCounts.size} segments=${segments.length}`)
     })
   },
 })
@@ -156,5 +186,11 @@ cli.runApp(
   new ServerOptions({
     agent: fileURLToPath(import.meta.url),
     agentName: 'tere-scribe',
+    // Keep 2 prewarmed job runner subprocesses hot so a dispatched job doesn't
+    // have to wait ~20-30s for a cold fork+require. On shared-cpu-2x/1GB a cold
+    // runner init was timing out at the default 10s on the first call after
+    // deploy, so the agent entered rooms AFTER the provider hung up.
+    numIdleProcesses: 2,
+    initializeProcessTimeout: 30000,
   }),
 )

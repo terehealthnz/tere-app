@@ -392,11 +392,9 @@ export default function ConsultView() {
     const durationSec = consult.started_at
       ? Math.round((Date.now() - new Date(consult.started_at)) / 1000) : null
     try {
-      await updateConsultation(id, {
-        notes_draft: { actions },
-        transcript: liveTranscript || null,
-        consultation_duration_seconds: durationSec,
-      })
+      const patch = { notes_draft: { actions }, consultation_duration_seconds: durationSec }
+      if (liveTranscript) patch.transcript = liveTranscript
+      await updateConsultation(id, patch)
     } catch {}
     navigate(`/clinician/notes/${id}`, { state: { actions, transcript: liveTranscript || '' } })
   }
