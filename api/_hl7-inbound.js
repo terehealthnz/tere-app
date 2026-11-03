@@ -275,6 +275,41 @@ function parseHl7Datetime(s) {
   return isNaN(test.getTime()) ? null : naive
 }
 
+// Parse an HL7 TS into milliseconds-since-epoch, respecting the timezone
+// offset if the sender supplied one (NZDT is +1300, NZST +1200, etc.).
+// Used ONLY by the MSH-7 future-clock check so we don't mistake a NZDT
+// wall-clock sent from Pacific Radiology (14 hours ahead of UTC) as a
+// future timestamp. All other callers of parseHl7Datetime continue to
+// use the naive-wallclock-for-display semantics unchanged.
+//
+// Bug repro + fix 2026-11-03 (MO case 1075663): Pacific Radiology sends
+// MSH-7 as e.g. "20261030102900+1300". The regex /\D/g in parseHl7Datetime
+// strips the "+" along with the digits sneaking into the offset, and the
+// future-clock check then appended 'Z' — treating 10:29 NZDT as 10:29 UTC
+// made every real-world radiology message look 13 hours future-dated and
+// get rejected with MSA|AR|...|Message timestamp too far in future (MSH-7).
+function parseHl7DatetimeMs(s) {
+  if (!s) return null
+  const str = String(s).trim()
+  // Capture a trailing timezone like +1300 or -0500 BEFORE stripping to
+  // digits. HL7 TS format: YYYYMMDDHHMMSS[.SSSS][+/-HHMM].
+  const tzMatch = str.match(/([+-])(\d{2})(\d{2})$/)
+  const digits = str.replace(/\D/g, '').slice(0, 14)
+  if (digits.length < 8) return null
+  const yr = digits.slice(0, 4)
+  const mo = digits.slice(4, 6)
+  const dy = digits.slice(6, 8)
+  const hr = digits.slice(8, 10) || '00'
+  const mi = digits.slice(10, 12) || '00'
+  const se = digits.slice(12, 14) || '00'
+  const offset = tzMatch
+    ? `${tzMatch[1]}${tzMatch[2]}:${tzMatch[3]}`
+    : 'Z' // Unqualified HL7 TS: treat as UTC for the window check.
+  const iso = `${yr}-${mo}-${dy}T${hr}:${mi}:${se}${offset}`
+  const ms = new Date(iso).getTime()
+  return isNaN(ms) ? null : ms
+}
+
 function parseHl7Date(s) {
   if (!s) return null
   const clean = String(s).replace(/\D/g, '').slice(0, 8)
@@ -877,13 +912,11 @@ export default async function handler(req, res) {
   // Future-clock check retained because it catches genuine sender clock skew
   // (surface a data-quality problem early) and forged forward-dated messages
   // that some downstream systems mishandle.
-  const mshDatetimeIso = parseHl7Datetime(field(msh, 7))
-  if (mshDatetimeIso) {
-    // parseHl7Datetime returns a naive wall-clock string (no timezone). Treat
-    // as UTC for the window check — HL7 unqualified datetimes are sender-
-    // local, and we don't know the sender's TZ, so UTC is the neutral
-    // reference. 15-min window swallows most sender clock skew comfortably.
-    const mshMs = new Date(mshDatetimeIso + 'Z').getTime()
+  const mshMs = parseHl7DatetimeMs(field(msh, 7))
+  if (mshMs != null) {
+    // parseHl7DatetimeMs respects the sender's timezone offset when present
+    // (NZDT +1300, NZST +1200, etc.) and falls back to UTC for unqualified
+    // timestamps. 15-min window swallows normal sender clock skew.
     const nowMs = Date.now()
     const ageMs = nowMs - mshMs
     // Past-date reject intentionally removed — see block comment above.
