@@ -42,8 +42,39 @@ export function calcPaedDose(drug, weightKg) {
 export { PrescribeModal } from './ConsultModals'
 
 
+// Build the plain-text block a provider will paste into ERMS Online's
+// referral narrative. ERMS auto-populates patient demographics once the
+// provider pastes the NHI into the search field (NHI Lookup Tool), so we
+// only need to carry the clinical content + a couple of context lines.
+function buildErmsReferralText({ consult, xr, extra }) {
+  const lines = []
+  const patientName = `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim()
+  if (patientName) lines.push(`Patient: ${patientName}`)
+  if (consult?.patient_nhi) lines.push(`NHI: ${consult.patient_nhi}`)
+  if (consult?.patient_dob) lines.push(`DOB: ${consult.patient_dob}`)
+  if (consult?.patient_phone) lines.push(`Phone: ${consult.patient_phone}`)
+  if (extra?.address || consult?.patient_address) lines.push(`Address: ${extra?.address || consult?.patient_address}`)
+  lines.push('')
+  lines.push(`Investigation requested: ${xr.investigation || 'imaging'}${xr.bodyPart ? ' — ' + xr.bodyPart : ''}`)
+  if (xr.urgency) lines.push(`Urgency: ${xr.urgency}`)
+  lines.push('')
+  if (xr.indication) {
+    lines.push('Clinical indication:')
+    lines.push(xr.indication)
+    lines.push('')
+  }
+  if (xr.history) {
+    lines.push('Relevant history:')
+    lines.push(xr.history)
+    lines.push('')
+  }
+  lines.push(`Referred via Tere Health consultation (${new Date().toLocaleDateString('en-NZ')}).`)
+  return lines.join('\n')
+}
+
 export function XrayModal({ open, onClose, consult, onDone }) {
   const [xr, setXr] = useState({ investigation:'X-ray', bodyPart:'', indication:'', urgency:'Urgent (within 24 hours)', history:'' })
+  const [ermsCopied, setErmsCopied] = useState(false)
   const [facility, setFacility] = useState({ name:'', hpiId:'', email:'', phone:'', address:'' })
   const [rhcnzRegionId, setRhcnzRegionId] = useState('')
   const [rhcnzAutoReason, setRhcnzAutoReason] = useState(null) // "postcode 8011" / "nearest clinic (2.3 km)" / null
@@ -248,6 +279,37 @@ export function XrayModal({ open, onClose, consult, onDone }) {
               📧 Referral will be sent (urgent) to <strong>{RHCNZ_REGIONS.find(r => r.id === rhcnzRegionId)?.email}</strong>. RHCNZ will contact the patient to book.
             </div>
           )}
+          {/* ERMS escape hatch for PUBLIC-side imaging referrals (DHB radiology,
+              funded services covered by Pegasus's ERMS network). RHCNZ above is
+              the private rail. We can't automate ERMS submission (requires
+              HealthLink EDI, task #177), so this just prefills the clipboard +
+              opens the ERMS Online tool in a new window. Provider pastes NHI
+              into the NHI Lookup search, pastes clinical text into the referral
+              narrative, submits manually under their own ERMS login (keeps
+              attribution clean). */}
+          <div style={{marginTop:8}}>
+            <button type="button"
+              onClick={async () => {
+                const text = buildErmsReferralText({ consult, xr, extra })
+                try {
+                  await navigator.clipboard.writeText(text)
+                  setErmsCopied(true)
+                  setTimeout(() => setErmsCopied(false), 8000)
+                } catch (e) {
+                  console.warn('[XrayModal] clipboard copy failed:', e?.message)
+                }
+                window.open('https://app.erms.health.nz/', 'erms', 'width=1280,height=900')
+              }}
+              style={{background:'none',border:'1px dashed #CBD5E1',color:'#475569',borderRadius:8,padding:'.5rem .75rem',fontSize:'.75rem',cursor:'pointer',fontFamily:'inherit'}}
+            >
+              🏥 Public hospital / DHB radiology? Open in ERMS →
+            </button>
+            {ermsCopied && (
+              <div style={{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,padding:'.5rem .75rem',marginTop:6,fontSize:'.75rem',color:'#1E40AF',lineHeight:1.5}}>
+                ERMS opened in a new window. Referral text copied to clipboard — paste the NHI into the NHI Lookup search, then paste the full block into the referral narrative. Submits under your own ERMS login.
+              </div>
+            )}
+          </div>
         </div>
         )}
 
