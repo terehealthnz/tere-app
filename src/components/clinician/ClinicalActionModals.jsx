@@ -298,6 +298,22 @@ export function XrayModal({ open, onClose, consult, onDone }) {
                 } catch (e) {
                   console.warn('[XrayModal] clipboard copy failed:', e?.message)
                 }
+                // Pin a sticky breadcrumb on the chart so the provider
+                // doesn't forget to come back + Complete Encounter after
+                // keying the referral into the ERMS popup. Cleared when
+                // Complete fires in ClinicianPatient. Patrick 2026-11-03:
+                // without this, ERMS popup risks stealing focus and the
+                // consult sits in started-but-never-completed state.
+                if (consult?.id) {
+                  try {
+                    sessionStorage.setItem('tere-erms-pending', JSON.stringify({
+                      consultId: consult.id,
+                      patientName: `${consult.patient_first_name || ''} ${consult.patient_last_name || ''}`.trim() || 'this patient',
+                      openedAt: Date.now(),
+                    }))
+                    window.dispatchEvent(new CustomEvent('tere-erms-pending-changed'))
+                  } catch {}
+                }
                 window.open('https://app.erms.health.nz/', 'erms', 'width=1280,height=900')
               }}
               style={{background:'none',border:'1px dashed #CBD5E1',color:'#475569',borderRadius:8,padding:'.5rem .75rem',fontSize:'.75rem',cursor:'pointer',fontFamily:'inherit'}}

@@ -324,6 +324,42 @@ export default function ClinicianPatient() {
   // Complete Encounter (from the static bar OR from the post-call overlay
   // inside the call popup). Setting to null unmounts and returns focus.
   const [activeNotes, setActiveNotes] = useState(null)
+  // ERMS pending breadcrumb — set by XrayModal when the provider clicks
+  // "Open in ERMS", cleared by Complete Encounter. Survives XrayModal close
+  // via sessionStorage so the chart surface knows to show the banner.
+  const [ermsPending, setErmsPending] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('tere-erms-pending') || 'null') } catch { return null }
+  })
+  useEffect(() => {
+    const onChange = () => {
+      try { setErmsPending(JSON.parse(sessionStorage.getItem('tere-erms-pending') || 'null')) }
+      catch { setErmsPending(null) }
+    }
+    window.addEventListener('tere-erms-pending-changed', onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener('tere-erms-pending-changed', onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+  // When the provider tabs back from the ERMS popup, scroll the Complete
+  // Encounter action bar into view so they can't miss it.
+  useEffect(() => {
+    if (!ermsPending || ermsPending.consultId !== id) return
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const bar = document.querySelector('[data-tere-encounter-actions]')
+      if (bar && typeof bar.scrollIntoView === 'function') {
+        bar.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [ermsPending, id])
+  function clearErmsPending() {
+    try { sessionStorage.removeItem('tere-erms-pending') } catch {}
+    setErmsPending(null)
+  }
   // Admin-only: send this patient back into the provider queue with a reason.
   // Fires SendBackToQueueModal, which handles reopen vs waiver + notification.
   const [sendBackOpen, setSendBackOpen] = useState(false)
@@ -606,6 +642,27 @@ export default function ClinicianPatient() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#F7F5F0', fontFamily: FF }}>
+      {/* ERMS referral in progress breadcrumb. Appears when the provider has
+          clicked "Open in ERMS" in the XrayModal and the popup is still
+          doing its thing. Serves as a reminder that this consult is open
+          and billing isn't captured until Complete Encounter is clicked. */}
+      {ermsPending && ermsPending.consultId === id && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 55,
+          background: '#FEF3C7', borderBottom: '1px solid #F59E0B',
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          fontSize: '.8125rem', color: '#78350F', fontFamily: FF,
+        }}>
+          <span style={{ fontSize: '1rem' }}>🏥</span>
+          <strong>ERMS referral in progress for {ermsPending.patientName}.</strong>
+          <span>Come back and click <strong>✓ Complete Encounter</strong> below to close the consult.</span>
+          <button type="button" onClick={clearErmsPending}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#78350F', textDecoration: 'underline', fontSize: '.75rem', cursor: 'pointer', fontFamily: FF }}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {/* Screen Wake Lock indicator. 'active' = silent (no chrome, just the
           dot in the corner). 'unsupported' or 'failed' = amber hint so the
           provider knows to add the app to Home Screen for persistent wake. */}
@@ -658,6 +715,7 @@ export default function ClinicianPatient() {
               // actions the call surface accumulated. Everything stays on
               // the patient page — no navigation.
               if (result?.complete) {
+                clearErmsPending()
                 setActiveNotes({ actions: result.actions || [], transcript: result.transcript || '', callNotes: result.callNotes || '' })
               }
             }}
@@ -2137,6 +2195,7 @@ export default function ClinicianPatient() {
               {callError} <button onClick={() => setCallError(null)} style={{ background:'none', border:'none', color:'#991B1B', fontWeight:700, cursor:'pointer', marginLeft:8 }}>Dismiss</button>
             </div>
           )}
+          <div data-tere-encounter-actions>
           <EncounterActionBar
             consultationId={id}
             consult={consult}
@@ -2225,6 +2284,7 @@ export default function ClinicianPatient() {
                 }).catch(() => {})
                 setActiveCall(null)
               }
+              clearErmsPending()
               setActiveNotes({ actions: [], transcript: '', callNotes: '' })
             }}
             onNoAnswer={async (res) => {
@@ -2241,6 +2301,7 @@ export default function ClinicianPatient() {
               }
             }}
           />
+          </div>
           <button onClick={async () => { await unlock(); navigate('/provider') }} style={{ background: 'white', border: '1.5px solid #D1D5DB', color: '#6B7280', borderRadius: 10, padding: '.6rem', fontWeight: 600, fontSize: '.85rem', cursor: 'pointer', fontFamily: FF }}>
             ← Back to queue
           </button>
