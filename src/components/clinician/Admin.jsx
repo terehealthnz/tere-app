@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi, listPromoCodes, createPromoCode, updatePromoCode, revokePromoCode, getPromoCodeRedemptions, issuePromoToPatient } from '../../lib/supabase'
+import { getWaitlist, markWaitlistNotified, providerDisplayName, updateConsultation, updateProvider, getAccPendingConsultations, getPendingPrescriptions, createEmployer, updateEmployer, addEmployerEmployees, getEmployers, getEmployerEmployeeCounts, getEmployerEmployees, deleteEmployerEmployee, updateEmployerEmployee, getRecentConsultations, getPaymentPendingConsultations, getRecallPendingConsultations, getCompleteSince, getCapturedSince, getFlaggedNotes, getConsultsByEmployer, getProviderPeriodConsults, getConsultDiagnostic, sendConsultCheckin, findPatientByNhi, listPromoCodes, createPromoCode, updatePromoCode, revokePromoCode, getPromoCodeRedemptions, issuePromoToPatient, getPatients } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 const AdminGpConfig = lazy(() => import('../../pages/clinician/AdminGpConfig'))
 import AdminPayroll   from '../../pages/clinician/AdminPayroll'
@@ -6927,6 +6927,137 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
 // modals. All I/O goes through /api/promo-codes under the service-role key;
 // the public /payment page uses the same endpoint with action=check for the
 // pre-login preview. See supabase/2026-10-29_promo_codes.sql for the schema.
+// Search-as-you-type patient picker used by the Issue-to-patient promo form.
+// Debounces /api/patients?search=… (300 ms, min 2 chars) so audit rows don't
+// explode on every keystroke. Keeps a free-text email fallback for patients
+// who aren't in the directory yet (e.g. someone who paid but never completed
+// triage, or an edge-case where admin wants to comp a non-registered person).
+function PatientPickerField({ valueEmail, valueFirstName, onPick, onChangeEmail, onChangeFirstName }) {
+  const [query, setQuery] = React.useState('')
+  const [results, setResults] = React.useState([])
+  const [open, setOpen] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [picked, setPicked] = React.useState(null)  // { first_name, last_name, email, nhi, last_consultation_at }
+  const boxRef = React.useRef(null)
+
+  React.useEffect(() => {
+    if (!query || query.trim().length < 2) { setResults([]); return }
+    let cancel = false
+    setLoading(true)
+    const t = setTimeout(async () => {
+      try {
+        const { patients = [] } = await getPatients({ search: query.trim(), limit: 8 })
+        if (!cancel) setResults(patients)
+      } catch (e) {
+        if (!cancel) setResults([])
+      }
+      if (!cancel) setLoading(false)
+    }, 300)
+    return () => { cancel = true; clearTimeout(t) }
+  }, [query])
+
+  React.useEffect(() => {
+    function onDocClick(e) { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [])
+
+  function choose(p) {
+    setPicked(p)
+    setQuery('')
+    setResults([])
+    setOpen(false)
+    onPick({ first_name: p.first_name, last_name: p.last_name, email: p.email })
+  }
+  function clearPick() {
+    setPicked(null)
+    onChangeEmail('')
+    onChangeFirstName('')
+  }
+
+  const fmtLast = (iso) => {
+    if (!iso) return 'no consults'
+    const d = new Date(iso)
+    return `last visit ${d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  }
+
+  return (
+    <div ref={boxRef} style={{ position: 'relative' }}>
+      <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569', display: 'block' }}>
+        Patient
+      </label>
+      {picked ? (
+        <div style={{ marginTop: 4, padding: '8px 10px', borderRadius: 6, border: '1px solid #BAE6E9', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: '.875rem', fontWeight: 700, color: '#0D2B45' }}>
+              {picked.first_name} {picked.last_name}
+            </div>
+            <div style={{ fontSize: '.75rem', color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {picked.email || '(no email)'}{picked.nhi ? ` · NHI ${picked.nhi}` : ''} · {fmtLast(picked.last_consultation_at)}
+            </div>
+          </div>
+          <button type="button" onClick={clearPick}
+            style={{ background: 'white', border: '1px solid #CBD5E1', color: '#475569', padding: '4px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600 }}>
+            Change
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            type="text"
+            value={query}
+            onChange={e => { setQuery(e.target.value); setOpen(true) }}
+            onFocus={() => setOpen(true)}
+            placeholder="Search by name, email, NHI or phone…"
+            style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }}
+          />
+          {open && query.trim().length >= 2 && (
+            <div style={{ position: 'absolute', zIndex: 20, left: 0, right: 0, marginTop: 2, background: 'white', border: '1px solid #CBD5E1', borderRadius: 6, maxHeight: 260, overflowY: 'auto', boxShadow: '0 4px 12px rgba(15,23,42,.08)' }}>
+              {loading && <div style={{ padding: '10px 12px', fontSize: '.8125rem', color: '#9CA3AF' }}>Searching…</div>}
+              {!loading && results.length === 0 && (
+                <div style={{ padding: '10px 12px', fontSize: '.8125rem', color: '#9CA3AF' }}>
+                  No matches. You can still enter an email manually below.
+                </div>
+              )}
+              {results.map(p => (
+                <button key={p.id} type="button" onClick={() => choose(p)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'white', border: 'none', borderBottom: '1px solid #F1F5F9', padding: '8px 12px', cursor: 'pointer' }}
+                  onMouseOver={e => e.currentTarget.style.background = '#F0F9FA'}
+                  onMouseOut={e => e.currentTarget.style.background = 'white'}>
+                  <div style={{ fontSize: '.875rem', fontWeight: 700, color: '#0D2B45' }}>
+                    {p.first_name} {p.last_name}
+                  </div>
+                  <div style={{ fontSize: '.75rem', color: '#64748B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {p.email || '(no email)'}{p.nhi ? ` · NHI ${p.nhi}` : ''} · {fmtLast(p.last_consultation_at)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Manual-entry fallback: always visible so admin can override or enter
+          a patient who isn't in the directory yet. Email is what server uses
+          as the lockdown key, so this is the source of truth. */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginTop: '.5rem' }}>
+        <label style={{ fontSize: '.6875rem', fontWeight: 600, color: '#94A3B8' }}>
+          Email (sent to)
+          <input type="email" value={valueEmail} onChange={e => onChangeEmail(e.target.value)}
+            placeholder="alex.rankin93@gmail.com"
+            style={{ width: '100%', marginTop: 2, padding: '5px 8px', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: '.8125rem' }} />
+        </label>
+        <label style={{ fontSize: '.6875rem', fontWeight: 600, color: '#94A3B8' }}>
+          First name (greeting + code)
+          <input value={valueFirstName} onChange={e => onChangeFirstName(e.target.value)}
+            placeholder="Alex"
+            style={{ width: '100%', marginTop: 2, padding: '5px 8px', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: '.8125rem' }} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 function PromoCodesPanel() {
   const [codes, setCodes] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -7251,19 +7382,20 @@ function PromoCodesPanel() {
         <div style={{ background: '#F0F9FA', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #BAE6E9' }}>
           <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.25rem' }}>Issue single-use code to patient</div>
           <div style={{ fontSize: '.75rem', color: '#64748B', marginBottom: '.75rem' }}>Generates FIRSTNAME+PCT (e.g. ALEX50), locks to this email only, max 1 use. Sends an email with the code.</div>
+          <div style={{ marginBottom: '.75rem' }}>
+            <PatientPickerField
+              valueEmail={issueDraft.patient_email}
+              valueFirstName={issueDraft.patient_first_name}
+              onPick={(p) => setIssueDraft(d => ({
+                ...d,
+                patient_email: p.email || d.patient_email,
+                patient_first_name: p.first_name || d.patient_first_name,
+              }))}
+              onChangeEmail={(v) => setIssueDraft(d => ({ ...d, patient_email: v }))}
+              onChangeFirstName={(v) => setIssueDraft(d => ({ ...d, patient_first_name: v }))}
+            />
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem', marginBottom: '.75rem' }}>
-            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
-              Patient email
-              <input type="email" value={issueDraft.patient_email} onChange={e => setIssueDraft(d => ({ ...d, patient_email: e.target.value }))}
-                placeholder="alex.rankin93@gmail.com"
-                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
-            </label>
-            <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
-              First name
-              <input value={issueDraft.patient_first_name} onChange={e => setIssueDraft(d => ({ ...d, patient_first_name: e.target.value }))}
-                placeholder="Alex"
-                style={{ width: '100%', marginTop: 4, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: '.875rem' }} />
-            </label>
             <label style={{ fontSize: '.75rem', fontWeight: 700, color: '#475569' }}>
               Discount %
               <input type="number" min="1" max="100" value={issueDraft.discount_percent} onChange={e => setIssueDraft(d => ({ ...d, discount_percent: e.target.value }))}
