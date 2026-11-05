@@ -2107,3 +2107,119 @@ export async function buildMedCertPdf(data) {
   })
 }
 
+// ARC monthly facility report.
+//
+// Shape: one PDF per facility per month. Per-consult row shows resident id,
+// date, type (eval / ACC), disposition, $ amount - NO clinical content
+// (the deck promise to facilities was that we report counts + dispositions,
+// never notes or diagnoses). Totals at the bottom. Served over SES to the
+// facility's named clinical + backup contacts.
+//
+// Input shape:
+//   {
+//     facilityName, periodLabel ('2026-11'),
+//     generatedAt (ISO),
+//     rows: [{
+//       facility_resident_id, consult_date, consult_type ('eval' | 'acc'),
+//       disposition, amount_cents,
+//     }, ...],
+//     totals: { count, acc_count, eval_count, total_cents }
+//   }
+export function buildArcMonthlyReportPdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const H = doc.page.height
+    const LEFT = 50
+    const RIGHT = W - 50
+    const dollars = (cents) => (Number.isFinite(cents) ? `$${(cents / 100).toFixed(2)}` : '-')
+    const fmtDate = (d) => {
+      if (!d) return '-'
+      try { return new Date(d).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'short', year: 'numeric' }) } catch { return String(d) }
+    }
+    const dispLabel = (d) => {
+      switch (d) {
+        case 'managed_in_place':      return 'Managed in place'
+        case 'referred_gp':           return 'Referred to GP'
+        case 'transferred_ed':        return 'Transferred to ED'
+        case 'called_111':            return '111 called'
+        case 'arranged_followup':     return 'Follow-up arranged'
+        case 'acp_comfort_in_place':  return 'ACP: comfort in place'
+        default: return d || '-'
+      }
+    }
+
+    // Header
+    doc.rect(0, 0, W, 80).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(20).text('Monthly consult report', LEFT, 22)
+    doc.font('Helvetica').fontSize(10).text(`Period: ${data.periodLabel || '-'}`, LEFT, 48)
+    doc.font('Helvetica').fontSize(9).text(`Generated: ${fmtDate(data.generatedAt)}`, LEFT, 62)
+
+    // Facility name banner
+    let y = 100
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(13).text(data.facilityName || 'Facility', LEFT, y)
+    y += 20
+
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(9).text(
+      'Per-resident consult detail for the period above. This report carries no clinical information - counts, dispositions, and billable totals only.',
+      LEFT, y, { width: RIGHT - LEFT }
+    )
+    y += 32
+
+    // Table header
+    const colX = { resident: LEFT, date: LEFT + 90, type: LEFT + 180, disp: LEFT + 240, amt: LEFT + 420 }
+    doc.fillColor('#1A2A33').font('Helvetica-Bold').fontSize(9)
+    doc.text('Resident ID', colX.resident, y)
+    doc.text('Date',        colX.date, y)
+    doc.text('Type',        colX.type, y)
+    doc.text('Disposition', colX.disp, y)
+    doc.text('Amount (NZD)', colX.amt, y, { width: RIGHT - colX.amt, align: 'right' })
+    y += 12
+    doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#E5E7EB').lineWidth(0.5).stroke()
+    y += 8
+
+    const rows = Array.isArray(data.rows) ? data.rows : []
+    if (rows.length === 0) {
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(10).text('No completed consults in this period.', LEFT, y)
+      y += 20
+    } else {
+      doc.font('Helvetica').fontSize(9).fillColor('#1A2A33')
+      for (const r of rows) {
+        if (y > H - 100) { doc.addPage(); y = 50 }
+        doc.text(r.facility_resident_id || '-', colX.resident, y, { width: 85 })
+        doc.text(fmtDate(r.consult_date),       colX.date, y)
+        doc.text((r.consult_type || '').toUpperCase() || '-', colX.type, y, { width: 55 })
+        doc.text(dispLabel(r.disposition),     colX.disp, y, { width: 175 })
+        doc.text(dollars(r.amount_cents),      colX.amt,  y, { width: RIGHT - colX.amt, align: 'right' })
+        y += 16
+      }
+    }
+
+    y += 10
+    doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#0B6E76').lineWidth(1).stroke()
+    y += 10
+
+    // Totals
+    const totals = data.totals || {}
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
+    doc.text(`Total consults: ${totals.count || 0}`, LEFT, y)
+    doc.text(`Eval: ${totals.eval_count || 0}`, LEFT + 180, y)
+    doc.text(`ACC: ${totals.acc_count || 0}`, LEFT + 280, y)
+    doc.text(`Total: ${dollars(totals.total_cents || 0)}`, colX.amt, y, { width: RIGHT - colX.amt, align: 'right' })
+    y += 24
+
+    // Footer boilerplate
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(8).text(
+      'Tere Health Ltd · terehealth.co.nz · HPI-O G11238-E · Report is a facility-level billing summary. No clinical detail is included. Direct queries to the clinical contact or accounts@terehealth.co.nz.',
+      LEFT, H - 60, { width: RIGHT - LEFT, align: 'center' }
+    )
+
+    doc.end()
+  })
+}
+

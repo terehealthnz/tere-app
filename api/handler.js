@@ -29,6 +29,10 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'get-queue', 'appointments',
   // Employer directory — writes affect who can get a free consult, so admin-gate
   'employers', 'employer-employees',
+  // ARC monthly facility report (admin manual path). Cron path validates
+  // CRON_SECRET inside the endpoint, so cron calls still work; admin-manual
+  // POSTs go through this gate so req.auth is populated for the role check.
+  'arc-monthly-report',
   // Validation subsystem (research data)
   //   validation-subjects — GET/POST are anon (patient self-enrolls); guarded inline
   //   validation-readings — GET/POST are anon; PATCH (provider corrections) guarded inline
@@ -429,6 +433,9 @@ const ROUTES = {
   'employers':                 () => import('./_employers.js'),
   'employer-employees':        () => import('./_employer-employees.js'),
   'employer-lookup':           () => import('./_employer-lookup.js'),
+  'arc-monthly-report':        () => import('./_arc-monthly-report.js'),
+  'cron-arc-monthly-report':   () => import('./_cron-arc-monthly-report.js'),
+  'ses-bounce-webhook':        () => import('./_ses-bounce-webhook.js'),
   'audit-log':                 () => import('./_audit-log.js'),
   'radiology-referrals':       () => import('./_radiology-referrals.js'),
   'radiology-reports':         () => import('./_radiology-reports.js'),
