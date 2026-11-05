@@ -6952,7 +6952,7 @@ function PatientPickerField({ valueEmail, valueFirstName, onPick, onChangeEmail,
         const tokens = query.trim().toLowerCase().split(/\s+/).filter(t => t.length >= 2)
         if (tokens.length === 0) { setResults([]); setLoading(false); return }
         const pivot = tokens.reduce((a, b) => a.length >= b.length ? a : b)
-        const { patients = [] } = await getPatients({ search: pivot, limit: 40 })
+        const { data: patients = [] } = await getPatients({ search: pivot, limit: 40 })
         const matched = patients.filter(p => {
           const hay = `${p.first_name || ''} ${p.last_name || ''} ${p.email || ''} ${p.nhi || ''} ${p.phone || ''}`.toLowerCase()
           return tokens.every(t => hay.includes(t))
