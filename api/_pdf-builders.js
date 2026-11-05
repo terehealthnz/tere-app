@@ -2107,3 +2107,179 @@ export async function buildMedCertPdf(data) {
   })
 }
 
+// Aged residential care (ARC) monthly utilisation report.
+//
+// Emailed to each ARC facility on day 7 of the month, covering the
+// previous calendar month in Pacific/Auckland time. Replaces what the
+// ARC deck originally pitched as an admin graph; the facility-facing
+// report is the renewal driver (utilisation + spend by resident).
+//
+// Deliberately contains NO clinical content. Only resident identifier
+// (facility_resident_id if present, else patient initials), consult
+// date, type (Evaluation / ACC), disposition if present, and $ amount.
+// Chief complaint, notes, diagnosis stay inside Tere Health per HDC
+// Right 1(c) / HIPC Rule 11. If a facility wants clinical detail
+// Patrick sends a separate signed copy via secure channel.
+//
+// data shape:
+//   facility: { id, company_name, clinical_contact_name, ... }
+//   period:   { label: 'October 2026', startIso, endIso }
+//   consults: [{ id, completed_at, is_acc, fee_tier, payment_amount,
+//                facility_resident_id, patient_first_name,
+//                patient_last_name, disposition }]
+export function buildArcMonthlyReportPdf({ facility, period, consults, totals }) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4', bufferPages: true })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const H = doc.page.height
+    const LEFT = 50
+    const RIGHT = W - 50
+    const CONTENT_W = RIGHT - LEFT
+
+    const nzDate = (d) => {
+      if (!d) return '-'
+      try {
+        return new Date(d).toLocaleDateString('en-NZ', {
+          timeZone: 'Pacific/Auckland',
+          day: '2-digit', month: 'short', year: 'numeric',
+        })
+      } catch { return String(d) }
+    }
+    const dollars = (cents) => (Number.isFinite(cents) ? `$${(cents / 100).toFixed(2)}` : '-')
+    const pageBreakIf = (y, needed) => (y + needed > H - 80 ? (doc.addPage(), 50) : y)
+
+    // Header strip - teal brand with facility name + period
+    doc.rect(0, 0, W, 90).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 24)
+    doc.font('Helvetica').fontSize(10).text('Monthly utilisation report - Aged Residential Care', LEFT, 54)
+    doc.fontSize(9).text('terehealth.co.nz  ·  HPI-O G11238-E  ·  NZBN 9429053723413', LEFT, 70)
+    try {
+      const logo = tereLogoBuffer()
+      if (logo) doc.image(logo, RIGHT - 60, 18, { fit: [50, 50], align: 'right' })
+    } catch {}
+
+    // Facility + period callout
+    let y = 110
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(16)
+      .text(facility?.company_name || 'Facility', LEFT, y, { width: CONTENT_W })
+    y += 24
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(12)
+      .text(`Reporting period: ${period?.label || ''}`, LEFT, y)
+    y += 18
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(9)
+      .text(`Report generated ${nzDate(new Date())}`, LEFT, y)
+    y += 24
+
+    // Summary strip - 3 large numbers
+    const n = consults?.length || 0
+    const totalCents = totals?.totalCents ?? 0
+    const accCount = consults?.filter(c => c.__isAcc).length || 0
+    const evalCount = n - accCount
+
+    doc.rect(LEFT, y, CONTENT_W, 60).fill('#F0F9FA')
+    const col = CONTENT_W / 3
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(22)
+      .text(String(n), LEFT, y + 10, { width: col, align: 'center' })
+    doc.fontSize(22)
+      .text(String(evalCount), LEFT + col, y + 10, { width: col, align: 'center' })
+    doc.fontSize(22)
+      .text(dollars(totalCents), LEFT + 2 * col, y + 10, { width: col, align: 'center' })
+    doc.fillColor('#6B7280').font('Helvetica').fontSize(9)
+      .text('CONSULTS', LEFT, y + 40, { width: col, align: 'center' })
+      .text(`EVALUATIONS (${accCount} ACC)`, LEFT + col, y + 40, { width: col, align: 'center' })
+      .text('TOTAL (NO GST)', LEFT + 2 * col, y + 40, { width: col, align: 'center' })
+    y += 78
+
+    // Empty state
+    if (n === 0) {
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(11)
+        .text(`No consults were completed for ${facility?.company_name || 'this facility'} during ${period?.label || 'the reporting period'}.`,
+          LEFT, y, { width: CONTENT_W, align: 'center' })
+      y += 40
+    } else {
+      // Table header
+      doc.rect(LEFT, y, CONTENT_W, 22).fill('#0D2B45')
+      doc.fillColor('white').font('Helvetica-Bold').fontSize(9)
+        .text('RESIDENT',        LEFT + 8,  y + 7)
+        .text('DATE',            LEFT + 180, y + 7)
+        .text('TYPE',            LEFT + 260, y + 7)
+        .text('DISPOSITION',     LEFT + 330, y + 7)
+        .text('AMOUNT',          RIGHT - 70, y + 7, { width: 62, align: 'right' })
+      y += 26
+
+      // Rows
+      doc.font('Helvetica').fontSize(9).fillColor('#1A2A33')
+      for (const c of consults) {
+        y = pageBreakIf(y, 22)
+        // Re-draw table header after page break
+        if (y === 50) {
+          doc.rect(LEFT, y, CONTENT_W, 22).fill('#0D2B45')
+          doc.fillColor('white').font('Helvetica-Bold').fontSize(9)
+            .text('RESIDENT',        LEFT + 8,  y + 7)
+            .text('DATE',            LEFT + 180, y + 7)
+            .text('TYPE',            LEFT + 260, y + 7)
+            .text('DISPOSITION',     LEFT + 330, y + 7)
+            .text('AMOUNT',          RIGHT - 70, y + 7, { width: 62, align: 'right' })
+          y += 26
+          doc.font('Helvetica').fontSize(9).fillColor('#1A2A33')
+        }
+        doc.text(c.__residentLabel || '-', LEFT + 8,  y, { width: 170 })
+        doc.text(nzDate(c.completed_at),   LEFT + 180, y, { width: 75 })
+        doc.text(c.__typeLabel,            LEFT + 260, y, { width: 65 })
+        doc.text(c.__dispositionLabel,     LEFT + 330, y, { width: 150 })
+        doc.text(dollars(c.__amountCents), RIGHT - 70, y, { width: 62, align: 'right' })
+        y += 16
+        doc.moveTo(LEFT, y).lineTo(RIGHT, y).strokeColor('#F1F5F9').lineWidth(0.5).stroke()
+        y += 4
+      }
+
+      // Totals strip
+      y = pageBreakIf(y, 60)
+      y += 6
+      doc.rect(LEFT, y, CONTENT_W, 40).fill('#F0F9FA').stroke('#0B6E76')
+      doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10)
+        .text(`${n} consult${n === 1 ? '' : 's'} total`, LEFT + 12, y + 14)
+      doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(14)
+        .text(`Total: ${dollars(totalCents)} NZD`, RIGHT - 220, y + 10, { width: 210, align: 'right' })
+      y += 50
+
+      // GST exemption note. Tere Health Ltd is not GST-registered;
+      // medical services are also GST-exempt under s21 GSTA 1985. Same
+      // wording as the ACC invoice builder for consistency.
+      doc.fillColor('#6B7280').font('Helvetica-Oblique').fontSize(8.5).text(
+        'Medical services provided by a registered medical practitioner. Exempt from GST under s21 of the Goods and Services Tax Act 1985. Tere Health Limited is not GST-registered; no GST applies to amounts in this report.',
+        LEFT, y + 4, { width: CONTENT_W }
+      )
+      y += 36
+    }
+
+    // Context block - who these consults were, what the fee structure is.
+    // Kept deliberately short so the recipient can see the whole report
+    // in a single glance.
+    y = pageBreakIf(y, 70)
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(10).text('About this report', LEFT, y)
+    y += 14
+    doc.fillColor('#374151').font('Helvetica').fontSize(9).text(
+      'Tere Health bills ARC facilities at NZ public rates: $65 per evaluation consult and $25 per ACC-eligible consult (patient contribution). ' +
+      'This report covers only consults that were completed (clinician notes finalised) during the reporting period. ' +
+      'No clinical detail is included in this facility-facing report; please contact hello@terehealth.co.nz if you need a signed clinical summary for a specific resident. ' +
+      'Questions about an item on this report, or to request the equivalent report for any earlier month: reply to this email or contact hello@terehealth.co.nz.',
+      LEFT, y, { width: CONTENT_W, lineGap: 1.5 }
+    )
+    y += 72
+
+    // Footer
+    doc.fillColor('#9CA3AF').font('Helvetica').fontSize(7.5).text(
+      'Tere Health Limited  ·  terehealth.co.nz  ·  hello@terehealth.co.nz  ·  NZBN 9429053723413',
+      LEFT, H - 32, { width: CONTENT_W, align: 'center' }
+    )
+
+    doc.end()
+  })
+}
+
