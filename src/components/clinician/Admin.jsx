@@ -6946,8 +6946,18 @@ function PatientPickerField({ valueEmail, valueFirstName, onPick, onChangeEmail,
     setLoading(true)
     const t = setTimeout(async () => {
       try {
-        const { patients = [] } = await getPatients({ search: query.trim(), limit: 8 })
-        if (!cancel) setResults(patients)
+        // Server-side ilike is single-column OR, so "alexandra rankin" never
+        // matches a row where first_name is just "Alexandra". Send the longest
+        // token (most selective) and re-filter client-side against all tokens.
+        const tokens = query.trim().toLowerCase().split(/\s+/).filter(t => t.length >= 2)
+        if (tokens.length === 0) { setResults([]); setLoading(false); return }
+        const pivot = tokens.reduce((a, b) => a.length >= b.length ? a : b)
+        const { patients = [] } = await getPatients({ search: pivot, limit: 40 })
+        const matched = patients.filter(p => {
+          const hay = `${p.first_name || ''} ${p.last_name || ''} ${p.email || ''} ${p.nhi || ''} ${p.phone || ''}`.toLowerCase()
+          return tokens.every(t => hay.includes(t))
+        }).slice(0, 8)
+        if (!cancel) setResults(matched)
       } catch (e) {
         if (!cancel) setResults([])
       }
@@ -7504,8 +7514,17 @@ function PromoCodesPanel() {
           No promo codes yet. Run supabase/2026-10-29_promo_codes.sql first, then create one above.
         </div>
       ) : (
-        <div style={{ borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem' }}>
+        <div style={{ borderRadius: 8, border: '1px solid #E2E8F0', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.875rem', tableLayout: 'fixed', minWidth: 900 }}>
+            <colgroup>
+              <col style={{ width: '22%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '26%' }} />
+            </colgroup>
             <thead>
               <tr style={{ background: '#F8FAFC', color: '#64748B' }}>
                 <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 700 }}>Code</th>
@@ -7520,9 +7539,14 @@ function PromoCodesPanel() {
             <tbody>
               {codes.map(row => (
                 <tr key={row.id} style={{ borderTop: '1px solid #F3F4F6', background: row.active ? 'white' : '#FFF5F5' }}>
-                  <td style={{ padding: '10px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700, color: '#0D2B45' }}>
+                  <td style={{ padding: '10px 12px', fontFamily: 'ui-monospace, Menlo, monospace', fontWeight: 700, color: '#0D2B45', verticalAlign: 'top' }}>
                     {row.code}
-                    {row.description && <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', color: '#9CA3AF', fontWeight: 400, marginTop: 2 }}>{row.description}</div>}
+                    {row.description && (
+                      <div title={row.description}
+                        style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.75rem', color: '#9CA3AF', fontWeight: 400, marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {row.description}
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: '10px 12px', color: '#374151' }}>{formatDiscount(row)}</td>
                   <td style={{ padding: '10px 12px', color: '#6B7280', fontSize: '.8125rem' }}>
