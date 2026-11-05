@@ -29,18 +29,82 @@ function admin() {
 
 // Columns admin can PATCH on an employer row. `slug` and `usage_cap_month`
 // were added 2026-09-19 to support the /work/[slug] URL access flow. See
-// supabase/2026-09-19_employer_slug_url_access.sql for the schema.
+// supabase/2026-09-19_employer_slug_url_access.sql for the schema. ARC
+// fields added 2026-11-05: org_type discriminator + named clinical/backup
+// contacts (monthly report delivery) + billing contact (invoice delivery)
+// + facility_pharmacy_id (default Rx routing to the contracted
+// blister-pack dispensary).
 const UPDATE_ALLOWLIST = new Set([
   'company_name', 'is_active', 'contact_name', 'contact_email', 'contact_phone',
   'notes', 'monthly_rate_per_employee', 'contract_start',
   'slug', 'usage_cap_month',
+  'org_type',
+  'billing_email', 'billing_contact_name',
+  'clinical_contact_name', 'clinical_contact_email',
+  'backup_contact_name', 'backup_contact_email',
+  'delivery_status', 'delivery_status_detail',
+  'facility_pharmacy_id',
 ])
 
 const CREATE_ALLOWLIST = new Set([
   'company_name', 'is_active', 'contact_name', 'contact_email', 'contact_phone',
   'notes', 'monthly_rate_per_employee', 'contract_start',
   'slug', 'usage_cap_month',
+  'org_type',
+  'billing_email', 'billing_contact_name',
+  'clinical_contact_name', 'clinical_contact_email',
+  'backup_contact_name', 'backup_contact_email',
+  'facility_pharmacy_id',
 ])
+
+// Named-contact validation for ARC facilities. A silently-bounced monthly
+// report is a report you think they got. Shared-inbox addresses (info@,
+// admin@, accounts@) are the class that most often churn without anyone
+// noticing. Reject at save time rather than letting the bounce fire later.
+// Intentionally does NOT apply to employer-type rows — those often legitimately
+// use shared inboxes and the billing model there doesn't rely on a delivered
+// monthly report.
+const GENERIC_MAILBOX_PREFIXES = new Set([
+  'info', 'admin', 'accounts', 'enquiries', 'contact', 'hello', 'reception',
+  'office', 'noreply', 'no-reply', 'support', 'helpdesk', 'billing',
+  'mail', 'postmaster', 'sales', 'team',
+])
+function isGenericMailbox(email) {
+  if (!email || typeof email !== 'string') return false
+  const local = email.toLowerCase().trim().split('@')[0] || ''
+  return GENERIC_MAILBOX_PREFIXES.has(local)
+}
+// Trivial email format gate — a full RFC parser is overkill; we just want
+// to catch typos before they hit SES.
+function looksLikeEmail(v) {
+  return typeof v === 'string' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim())
+}
+// ARC facilities require: both clinical_contact_* and backup_contact_* set,
+// both emails pass format, neither a generic mailbox, each has a named
+// human in the *_contact_name field (first + last, or at least two tokens).
+// Returns an error string if invalid, null if OK.
+function validateArcContacts(payload) {
+  const req = ['clinical_contact_name', 'clinical_contact_email', 'backup_contact_name', 'backup_contact_email']
+  for (const k of req) {
+    if (!payload[k] || !String(payload[k]).trim()) {
+      return `${k.replace(/_/g, ' ')} required for aged residential care`
+    }
+  }
+  for (const k of ['clinical_contact_email', 'backup_contact_email']) {
+    if (!looksLikeEmail(payload[k])) return `${k.replace(/_/g, ' ')} is not a valid email`
+    if (isGenericMailbox(payload[k])) return `${k.replace(/_/g, ' ')} must be a named person's address, not a shared inbox (info@, admin@, accounts@ etc.). Bounced monthly reports from shared inboxes are a privacy risk.`
+  }
+  for (const k of ['clinical_contact_name', 'backup_contact_name']) {
+    const tokens = String(payload[k]).trim().split(/\s+/).filter(Boolean)
+    if (tokens.length < 2) return `${k.replace(/_/g, ' ')} needs a full name (first + last)`
+  }
+  // Clinical and backup must be different humans — otherwise there's no backup.
+  if (String(payload.clinical_contact_email).toLowerCase().trim()
+      === String(payload.backup_contact_email).toLowerCase().trim()) {
+    return 'Clinical contact and backup contact must be different people'
+  }
+  return null
+}
 
 // Slugify a company name for /work/[slug] URL access. Companies pay for the
 // branded URL (/work/cloudybay, /work/thornhill) so the slug is derived from
@@ -136,6 +200,13 @@ export default async function handler(req, res) {
     }
     payload.is_active = payload.is_active !== false  // default true
 
+    // ARC validation. If this is an aged_care facility, named contacts are
+    // mandatory and must not be shared mailboxes (see validateArcContacts).
+    if (payload.org_type === 'aged_care') {
+      const err = validateArcContacts(payload)
+      if (err) return res.status(400).json({ error: err })
+    }
+
     // generateSlug: opt-in slug generation for the /work/[slug] URL access
     // flow. Admin passes generateSlug=true on create if this employer should
     // support URL access (as opposed to the legacy email-allowlist flow).
@@ -169,6 +240,20 @@ export default async function handler(req, res) {
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
+    }
+    // ARC validation on PATCH. We re-validate when any ARC-contact column
+    // is touched OR when org_type is being changed to aged_care. Fetch the
+    // current row first to fill in the untouched contact fields so the
+    // validator sees the merged state, not just the partial patch.
+    const arcContactFields = ['clinical_contact_name','clinical_contact_email','backup_contact_name','backup_contact_email','org_type']
+    const touchingArc = arcContactFields.some(k => k in patch)
+    if (touchingArc) {
+      const { data: current } = await supabase.from('employers').select('org_type, clinical_contact_name, clinical_contact_email, backup_contact_name, backup_contact_email').eq('id', id).maybeSingle()
+      const merged = { ...(current || {}), ...patch }
+      if (merged.org_type === 'aged_care') {
+        const err = validateArcContacts(merged)
+        if (err) return res.status(400).json({ error: err })
+      }
     }
     patch.updated_at = new Date().toISOString()
     const { data, error } = await supabase.from('employers').update(patch).eq('id', id).select().maybeSingle()
