@@ -129,6 +129,11 @@ export default function NotesCompletion() {
   const [planItems, setPlanItems]       = useState([]) // [{id, text, locked, type}]
   const [returnPrecautions, setReturnP] = useState('')
   const [outcome, setOutcome]           = useState('')
+  // ARC consult disposition (wave 7). Required = can't close the chart
+  // without picking one. Captures the renewal metric per the ARC deck -
+  // "how many ended in transfer anyway" is the number that closes the
+  // next facility contract.
+  const [disposition, setDisposition]   = useState('')
 
   // Work capacity
   const [workCapacity, setWorkCapacity] = useState('')
@@ -256,6 +261,7 @@ export default function NotesCompletion() {
     if (d.planItems !== undefined)   setPlanItems(d.planItems)
     if (d.returnPrecautions !== undefined) setReturnP(d.returnPrecautions)
     if (d.outcome !== undefined)     setOutcome(d.outcome || data?.outcome || '')
+    if (d.disposition !== undefined) setDisposition(d.disposition || data?.disposition || '')
     if (d.workCapacity !== undefined) setWorkCapacity(d.workCapacity)
     if (d.wcFrom !== undefined)      setWcFrom(d.wcFrom)
     if (d.wcTo !== undefined)        setWcTo(d.wcTo)
@@ -266,6 +272,7 @@ export default function NotesCompletion() {
     if (d.accBodyPart !== undefined) setAccBody(d.accBodyPart)
     if (!d.workCapacity && data?.work_capacity) setWorkCapacity(data.work_capacity)
     if (!d.outcome && data?.outcome) setOutcome(data.outcome)
+    if (!d.disposition && data?.disposition) setDisposition(data.disposition)
     if (d._sources)     setSources(d._sources)
     if (d._confidence)  setConfidence(d._confidence)
     if (d._redFlags)    setRedFlags(d._redFlags)
@@ -517,7 +524,7 @@ export default function NotesCompletion() {
         s1, medHistory, medications, allergies,
         social: { tobacco, alcohol, occupation },
         generalAppearance, visibleFindings,
-        mdm, planItems, returnPrecautions, outcome,
+        mdm, planItems, returnPrecautions, outcome, disposition,
         workCapacity, wcFrom, wcTo, wcLimitations, wcReview,
         accReadCode, accMechanism, accBodyPart,
         actions: actionsRef.current,
@@ -576,6 +583,7 @@ export default function NotesCompletion() {
           return_to_work_date:     workCapacity !== 'fit' && wcTo ? wcTo : null,
           billing_code:            durationSec >= 1800 ? 'CS2T' : 'CS1T',
           outcome:                 outcome || null,
+          disposition:             disposition || null,
           status:                  'complete',
           completed_at:            consult?.completed_at || now,
           consultation_duration_seconds: durationSec,
@@ -647,8 +655,12 @@ export default function NotesCompletion() {
   const providerName = sessionStorage.getItem('providerDisplayName') || 'Treating clinician'
 
   const criticalFlags = redFlags?.flags?.filter(f => f.severity === 'critical') || []
+  // ARC consults: require a disposition pick before close. Renewal metric
+  // per the deck. Enforced here + at the Finalise button; server trusts.
+  const isArcConsult = consult?.employer_org_type === 'aged_care'
   const canFinalise = !isFinalised && s1.trim().length > 0 && !!workCapacity && attested &&
-    (criticalFlags.length === 0 || flagsAcknowledged)
+    (criticalFlags.length === 0 || flagsAcknowledged) &&
+    (!isArcConsult || !!disposition)
 
   const progress = [
     !!s1.trim(),
@@ -1050,6 +1062,31 @@ export default function NotesCompletion() {
                   ['watchful_waiting','Watchful waiting']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </div>
+
+            {/* ARC disposition - required when consult came from an aged
+                residential care facility. Values match the DB CHECK on
+                consultations.disposition. Captures the renewal metric that
+                closes the next facility contract. */}
+            {isArcConsult && (
+              <div>
+                <label style={{ fontSize:'.7rem', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'#6B7280', display:'block', marginBottom:6 }}>
+                  Rest home disposition <span style={{ color:'#DC2626' }}>*</span>
+                </label>
+                <select value={disposition} onChange={e => setDisposition(e.target.value)} disabled={disabled}
+                  style={{ width:'100%', padding:'10px 12px', border:`1.5px solid ${disposition?'#0B6E76':'#DC2626'}`, borderRadius:8, fontFamily:FF, fontSize:'.9rem', color:disposition?'#1A2A33':'#9CA3AF', background:disabled?'#F8FAFC':'white', outline:'none' }}>
+                  <option value="">Select disposition…</option>
+                  <option value="managed_in_place">Managed in place</option>
+                  <option value="referred_gp">Referred to GP</option>
+                  <option value="transferred_ed">Transferred to ED</option>
+                  <option value="called_111">111 called</option>
+                  <option value="arranged_followup">Follow-up arranged</option>
+                  <option value="acp_comfort_in_place">ACP: comfort cares in place (NFR)</option>
+                </select>
+                <div style={{ fontSize:'.7rem', color:'#6B7280', marginTop:4 }}>
+                  Required for rest home consults. Drives the monthly facility report + renewal metric.
+                </div>
+              </div>
+            )}
           </div>
         </SectionCard>
 
@@ -1145,6 +1182,7 @@ export default function NotesCompletion() {
               {/* Validation hints */}
               {!s1.trim() && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Section 1 (Presenting History) cannot be empty</div>}
               {!workCapacity && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Work capacity must be selected</div>}
+              {isArcConsult && !disposition && <div style={{ fontSize:'.8rem', color:'#DC2626', background:'#FEF2F2', borderRadius:8, padding:'8px 12px' }}>Rest home disposition must be selected</div>}
 
               {attested && (
                 <button onClick={finalise} disabled={!canFinalise || finalising}

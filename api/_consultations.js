@@ -225,7 +225,45 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ consultation: redactClinical(data) })
+      // Enrich with the employer's org_type + ACP contact fields so the
+      // provider chart can render the ACP banner (wave 9) and surface the
+      // EPOA contact without a second round-trip. Only performed when the
+      // consult carries an employer_id. Does NOT leak commercial terms -
+      // we keep the selection narrow to clinical + delivery metadata.
+      let enriched = { ...data }
+      if (data.employer_id) {
+        const { data: empRow } = await supabase
+          .from('employers')
+          .select('org_type, company_name, facility_pharmacy_id, delivery_status, clinical_contact_name, clinical_contact_email')
+          .eq('id', data.employer_id)
+          .maybeSingle()
+        if (empRow) {
+          enriched.employer_org_type       = empRow.org_type || 'employer'
+          enriched.employer_company_name   = empRow.company_name || null
+          enriched.facility_pharmacy_id    = empRow.facility_pharmacy_id || null
+          enriched.facility_delivery_status= empRow.delivery_status || 'ok'
+          enriched.facility_clinical_contact_name  = empRow.clinical_contact_name || null
+          enriched.facility_clinical_contact_email = empRow.clinical_contact_email || null
+        }
+        // When the employer is ARC, also fetch the matched resident row so
+        // the chart can render the full ACP banner (resus / transfer /
+        // acp_summary) plus EPOA details. Matched on name + DOB, same
+        // criteria as roster-match on create, so the record is the one
+        // the consult was actually keyed to.
+        if (enriched.employer_org_type === 'aged_care') {
+          const { data: residentRow } = await supabase
+            .from('employer_employees')
+            .select('facility_resident_id, room_number, resus_status, transfer_to_hospital, acp_summary, epoa_type, epoa_activated, epoa_capacity_cert_date, epoa_name, epoa_phone, epoa_email')
+            .eq('employer_id', data.employer_id)
+            .is('deleted_at', null)
+            .ilike('first_name', String(data.patient_first_name || '').trim())
+            .ilike('last_name',  String(data.patient_last_name  || '').trim())
+            .eq('dob', String(data.patient_dob || '').slice(0, 10))
+            .maybeSingle()
+          if (residentRow) enriched.resident = residentRow
+        }
+      }
+      return res.status(200).json({ consultation: redactClinical(enriched) })
     }
 
     if (patientId) {
