@@ -15,10 +15,13 @@
 //     AND completed_at BETWEEN month-start and month-end in NZDT
 //   - Builds PDF via _pdf-builders.buildArcMonthlyReportPdf
 //   - Sends via SES / Resend (same email-client used everywhere else)
-//     TO:  clinical_contact_email
-//     CC:  backup_contact_email
-//     (billing_email intentionally NOT on the utilisation report - it
-//     goes with the invoice in a later wave)
+//     TO:  clinical_contact_email, else contact_email, else billing_email
+//     CC:  backup_contact_email if set
+//     If none of those fields is set, the facility is skipped and an
+//     'arc_report_skipped' audit row is written with reason='no_recipient_email'.
+//     Patrick's call: a rest home that only filled in contact_email on the
+//     standard employer form should still get its report - no named-contact
+//     gate.
 //   - Writes audit_logs row event_type='arc_report_sent'
 //   - Updates employers.last_monthly_report_sent_at (if the column exists;
 //     best-effort - the column is not in the MVP migration)
@@ -207,6 +210,7 @@ export async function generateAndSendArcReport({
     .from('employers')
     .select(`
       id, company_name, is_active, org_type,
+      contact_email, billing_email,
       clinical_contact_name, clinical_contact_email,
       backup_contact_name, backup_contact_email,
       delivery_status, delivery_status_detail
@@ -220,8 +224,42 @@ export async function generateAndSendArcReport({
   if (facility.delivery_status && facility.delivery_status !== 'ok') {
     return { ok: false, reason: 'delivery_status_blocked', detail: facility.delivery_status }
   }
-  if (!facility.clinical_contact_email) {
-    return { ok: false, reason: 'no_clinical_contact_email' }
+
+  // Recipient resolution: prefer the named clinical contact if the admin
+  // filled one in, otherwise fall back to the generic contact_email (same
+  // field used on the employer form), then billing_email as a last resort.
+  // If none are set, skip + log an audit row so Patrick can see why.
+  const primaryRecipient = (
+    (facility.clinical_contact_email && String(facility.clinical_contact_email).trim()) ||
+    (facility.contact_email          && String(facility.contact_email).trim()) ||
+    (facility.billing_email          && String(facility.billing_email).trim()) ||
+    ''
+  ).trim()
+  if (!primaryRecipient) {
+    try {
+      await writeAuditEvent({ headers: {} }, actor ? { provider: { id: actor.id, email: actor.email, is_admin: true } } : null, {
+        event_type:    'arc_report_skipped',
+        resource_type: 'employers',
+        resource_id:   facility.id,
+        metadata: {
+          facility_id:   facility.id,
+          facility_name: facility.company_name,
+          period:        bounds.label,
+          period_slug:   period,
+          trigger,
+          reason:        'no_recipient_email',
+        },
+      })
+    } catch (e) {
+      console.warn('[arc-monthly-report] skip-audit write failed:', e?.message || e)
+    }
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'no_recipient_email',
+      facility_id: facility.id,
+      period: bounds.label,
+    }
   }
 
   // Fetch completed consults for the period. completed_at is the finalise
@@ -285,8 +323,10 @@ export async function generateAndSendArcReport({
   const pdfSha256 = crypto.createHash('sha256').update(pdfBuf).digest('hex')
 
   // Send via the shared email client.
-  const to = [facility.clinical_contact_email]
-  const cc = facility.backup_contact_email ? [facility.backup_contact_email] : undefined
+  const to = [primaryRecipient]
+  const cc = (facility.backup_contact_email && String(facility.backup_contact_email).trim())
+    ? [String(facility.backup_contact_email).trim()]
+    : undefined
 
   const subject = `Tere Health - ${facility.company_name} - monthly report (${bounds.label})`
   const greeting = facility.clinical_contact_name
@@ -375,7 +415,7 @@ export async function generateAndSendArcReport({
         ses_message_id: sendRes.id || null,
         provider:       sendRes.provider || null,
         pdf_sha256:     pdfSha256,
-        shared_inbox_recipient: isSharedInbox(facility.clinical_contact_email),
+        shared_inbox_recipient: isSharedInbox(primaryRecipient),
       },
     })
   } catch (e) {
