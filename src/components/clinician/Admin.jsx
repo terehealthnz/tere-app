@@ -6307,15 +6307,40 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   )
 }
 
+// ARC-aware org form. Wave 5 adds a type picker (employer vs aged residential
+// care) so one admin panel covers both. ARC uses org_type='aged_care' + a
+// distinct contact + pharmacy model; employer keeps the old flat-rate shape.
+const BLANK_NEW_EMPLOYER = { company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' }
+const BLANK_NEW_ARC = {
+  company_name: '',
+  clinical_contact_name: '',
+  clinical_contact_email: '',
+  backup_contact_name: '',
+  backup_contact_email: '',
+  billing_contact_name: '',
+  billing_email: '',
+  facility_pharmacy_id: null,
+  facility_pharmacy_name: '',
+  generateSlug: true,
+  contract_start: '',
+}
+
 function EmployersPanel() {
   const [employers, setEmployers] = React.useState([])
   const [loading, setLoading] = React.useState(true)
-  const [showAdd, setShowAdd] = React.useState(false)
-  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
+  // Two-step add: first pick type (employer | arc), then show the right form.
+  // addPhase: null | 'pick' | 'employer' | 'arc'
+  const [addPhase, setAddPhase] = React.useState(null)
+  const [newEmp, setNewEmp] = React.useState(BLANK_NEW_EMPLOYER)
+  const [newArc, setNewArc] = React.useState(BLANK_NEW_ARC)
   const [saving, setSaving] = React.useState(false)
+  const [addError, setAddError] = React.useState('')
   const [uploadingFor, setUploadingFor] = React.useState(null)
+  const [uploadResult, setUploadResult] = React.useState(null)  // { employerId, inserted, updated, soft_deleted, errors }
+  const [sendingReportFor, setSendingReportFor] = React.useState(null)
+  const [reportFlash, setReportFlash] = React.useState(null)    // { employerId, text, ok }
   const [employeeCounts, setEmployeeCounts] = React.useState({})
-  const [editEmp, setEditEmp] = React.useState(null)  // { id, company_name, ... } while modal open
+  const [editEmp, setEditEmp] = React.useState(null)  // { id, company_name, ..., org_type } while modal open
   const [editSaving, setEditSaving] = React.useState(false)
   const [editError, setEditError] = React.useState('')
 
@@ -6332,9 +6357,16 @@ function EmployersPanel() {
     setLoading(false)
   }
 
+  function closeAdd() {
+    setAddPhase(null)
+    setNewEmp(BLANK_NEW_EMPLOYER)
+    setNewArc(BLANK_NEW_ARC)
+    setAddError('')
+  }
+
   async function addEmployer() {
     if (!newEmp.company_name.trim()) return
-    setSaving(true)
+    setSaving(true); setAddError('')
     try {
       await createEmployer({
         company_name: newEmp.company_name.trim(),
@@ -6344,11 +6376,55 @@ function EmployersPanel() {
         usage_cap_month: newEmp.usage_cap_month ? parseInt(newEmp.usage_cap_month, 10) : null,
         is_active: true,
         generateSlug: newEmp.generateSlug,
+        org_type: 'employer',
       })
-      setNewEmp({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
-      setShowAdd(false)
+      closeAdd()
       await load()
-    } catch(e) { console.error(e) }
+    } catch(e) { setAddError(e?.message || 'Save failed') }
+    setSaving(false)
+  }
+
+  async function addArcFacility() {
+    const name = newArc.company_name.trim()
+    if (!name) return
+    // Named-contact rules enforced server-side (api/_employers.js
+    // validateArcContacts) but we front-load the obvious errors here so
+    // the admin isn't bounced through a round-trip for info@/admin@ typos.
+    const emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || '').trim())
+    const GENERIC = new Set(['info','admin','accounts','enquiries','contact','hello','reception','office','noreply','no-reply','support','helpdesk','billing','mail','postmaster','sales','team'])
+    const isGeneric = e => GENERIC.has(String(e || '').trim().toLowerCase().split('@')[0] || '')
+    if (!newArc.clinical_contact_name.trim() || !newArc.backup_contact_name.trim()) {
+      setAddError('Clinical contact and backup contact names required (named human, not a shared mailbox).'); return
+    }
+    if (!emailOk(newArc.clinical_contact_email) || !emailOk(newArc.backup_contact_email)) {
+      setAddError('Clinical and backup contact emails must both be valid email addresses.'); return
+    }
+    if (isGeneric(newArc.clinical_contact_email) || isGeneric(newArc.backup_contact_email)) {
+      setAddError('Monthly reports cannot go to shared inboxes (info@, admin@, accounts@, etc.). Use a named person.'); return
+    }
+    if (String(newArc.clinical_contact_email).trim().toLowerCase()
+        === String(newArc.backup_contact_email).trim().toLowerCase()) {
+      setAddError('Clinical contact and backup contact must be different people.'); return
+    }
+    setSaving(true); setAddError('')
+    try {
+      await createEmployer({
+        company_name: name,
+        org_type: 'aged_care',
+        is_active: true,
+        generateSlug: newArc.generateSlug,
+        contract_start: newArc.contract_start || null,
+        clinical_contact_name:  newArc.clinical_contact_name.trim(),
+        clinical_contact_email: newArc.clinical_contact_email.trim(),
+        backup_contact_name:    newArc.backup_contact_name.trim(),
+        backup_contact_email:   newArc.backup_contact_email.trim(),
+        billing_contact_name:   newArc.billing_contact_name.trim() || null,
+        billing_email:          newArc.billing_email.trim() || null,
+        facility_pharmacy_id:   newArc.facility_pharmacy_id || null,
+      })
+      closeAdd()
+      await load()
+    } catch(e) { setAddError(e?.message || 'Save failed') }
     setSaving(false)
   }
 
@@ -6361,8 +6437,13 @@ function EmployersPanel() {
 
   function openEdit(emp) {
     setEditError('')
+    // Store the full edit shape — both employer + ARC fields present. The
+    // modal renders conditionally on editEmp.org_type so we don't lose
+    // untouched values on save (we only send the fields the current form
+    // branch exposes).
     setEditEmp({
       id: emp.id,
+      org_type: emp.org_type || 'employer',
       company_name: emp.company_name || '',
       contact_name: emp.contact_name || '',
       contact_email: emp.contact_email || '',
@@ -6372,6 +6453,14 @@ function EmployersPanel() {
       slug: emp.slug || '',
       usage_cap_month: emp.usage_cap_month ?? '',
       notes: emp.notes || '',
+      // ARC additions
+      clinical_contact_name:  emp.clinical_contact_name || '',
+      clinical_contact_email: emp.clinical_contact_email || '',
+      backup_contact_name:    emp.backup_contact_name || '',
+      backup_contact_email:   emp.backup_contact_email || '',
+      billing_contact_name:   emp.billing_contact_name || '',
+      billing_email:          emp.billing_email || '',
+      facility_pharmacy_id:   emp.facility_pharmacy_id || null,
     })
   }
 
@@ -6379,7 +6468,20 @@ function EmployersPanel() {
     if (!editEmp || !editEmp.company_name.trim()) { setEditError('Company name is required'); return }
     setEditSaving(true)
     setEditError('')
-    const patch = {
+    const isArc = editEmp.org_type === 'aged_care'
+    const patch = isArc ? {
+      company_name: editEmp.company_name.trim(),
+      slug: editEmp.slug.trim().toLowerCase() || null,
+      contract_start: editEmp.contract_start || null,
+      notes: editEmp.notes.trim() || null,
+      clinical_contact_name:  editEmp.clinical_contact_name.trim() || null,
+      clinical_contact_email: editEmp.clinical_contact_email.trim() || null,
+      backup_contact_name:    editEmp.backup_contact_name.trim() || null,
+      backup_contact_email:   editEmp.backup_contact_email.trim() || null,
+      billing_contact_name:   editEmp.billing_contact_name.trim() || null,
+      billing_email:          editEmp.billing_email.trim() || null,
+      facility_pharmacy_id:   editEmp.facility_pharmacy_id || null,
+    } : {
       company_name: editEmp.company_name.trim(),
       contact_name: editEmp.contact_name.trim() || null,
       contact_email: editEmp.contact_email.trim() || null,
@@ -6400,6 +6502,31 @@ function EmployersPanel() {
     setEditSaving(false)
   }
 
+  // Clear the bounced-delivery banner once the admin has fixed the contact.
+  // Writes delivery_status back to 'ok' so the next monthly cron re-fires.
+  async function clearDeliveryStatus(emp) {
+    try {
+      await updateEmployer(emp.id, { delivery_status: 'ok', delivery_status_detail: null })
+      setEmployers(es => es.map(e => e.id === emp.id ? { ...e, delivery_status: 'ok', delivery_status_detail: null } : e))
+    } catch (e) { alert(e?.message || 'Failed to clear delivery status') }
+  }
+
+  // "Send report now" — manual admin trigger for the ARC monthly report
+  // pipeline (wave 8). Lands the same PDF on the same contacts as the
+  // scheduled cron, flagged trigger=admin_manual in the audit log.
+  async function sendArcReportNow(emp) {
+    setSendingReportFor(emp.id); setReportFlash(null)
+    try {
+      const r = await apiFetch(`/api/arc-monthly-report?employer_id=${encodeURIComponent(emp.id)}&trigger=admin_manual`, { method: 'POST' })
+      const body = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(body?.error || `HTTP ${r.status}`)
+      setReportFlash({ employerId: emp.id, text: body?.message || 'Monthly report sent.', ok: true })
+    } catch (e) {
+      setReportFlash({ employerId: emp.id, text: e?.message || 'Report send failed', ok: false })
+    }
+    setSendingReportFor(null)
+  }
+
   function parseCsv(text) {
     const lines = text.trim().split('\n').filter(Boolean)
     if (lines.length < 2) return []
@@ -6412,28 +6539,95 @@ function EmployersPanel() {
     }).filter(r => r.first_name || r.firstname)
   }
 
-  async function uploadCsv(file, employerId) {
-    setUploadingFor(employerId)
+  // Normalise CSV booleans. Accepts 1/0/true/false/yes/no (case-insensitive).
+  // Blank → null so the DB column stays NULL rather than being forced to a
+  // default — ACP fields are tri-state (set explicitly, deliberately NULL,
+  // vs never populated).
+  function csvBool(v) {
+    if (v == null || v === '') return null
+    const s = String(v).trim().toLowerCase()
+    if (['true', '1', 'yes', 'y', 't'].includes(s)) return true
+    if (['false', '0', 'no', 'n', 'f'].includes(s)) return false
+    return null
+  }
+
+  async function uploadCsv(file, employer) {
+    setUploadingFor(employer.id); setUploadResult(null)
+    const isArc = employer.org_type === 'aged_care'
     try {
       const text = await file.text()
       const rows = parseCsv(text)
-      if (!rows.length) { alert('No valid rows found. CSV needs first_name + last_name at minimum. Optional: dob, email, phone, address, nhi, employee_id'); setUploadingFor(null); return }
-      const inserts = rows.map(r => ({
-        employer_id: employerId,
-        first_name: r.first_name || r.firstname || '',
-        last_name: r.last_name || r.lastname || r.surname || '',
-        dob: r.dob || r.birthdate || r.date_of_birth || null,
-        email: r.email || null,
-        phone: r.phone || r.mobile || r.phone_number || null,
-        address: r.address || null,
-        nhi: r.nhi ? String(r.nhi).toUpperCase().replace(/\s+/g, '') : null,
-        employee_id: r.employee_id || r.staff_id || null,
-      })).filter(r => r.first_name && r.last_name)
-      await addEmployerEmployees(inserts)
-      setEmployeeCounts(c => ({ ...c, [employerId]: (c[employerId] || 0) + inserts.length }))
-      alert(`✓ ${inserts.length} employees imported`)
-    } catch(e) { console.error(e); alert('Upload failed') }
+      if (!rows.length) {
+        const cols = isArc
+          ? 'facility_resident_id, first_name, last_name, dob, nhi, room_number, resus_status, transfer_to_hospital, acp_summary, epoa_type, epoa_activated, epoa_capacity_cert_date, epoa_name, epoa_phone, epoa_email'
+          : 'first_name, last_name, dob, email, phone, address, nhi, employee_id'
+        alert(`No valid rows found. CSV header: ${cols}`)
+        setUploadingFor(null); return
+      }
+      const inserts = rows.map(r => {
+        const base = {
+          employer_id: employer.id,
+          first_name: r.first_name || r.firstname || '',
+          last_name: r.last_name || r.lastname || r.surname || '',
+          dob: r.dob || r.birthdate || r.date_of_birth || null,
+          email: r.email || null,
+          phone: r.phone || r.mobile || r.phone_number || null,
+          address: r.address || null,
+          nhi: r.nhi ? String(r.nhi).toUpperCase().replace(/\s+/g, '') : null,
+          employee_id: r.employee_id || r.staff_id || null,
+        }
+        if (!isArc) return base
+        return {
+          ...base,
+          facility_resident_id:    r.facility_resident_id || r.resident_id || null,
+          room_number:             r.room_number || r.room || null,
+          resus_status:            r.resus_status || null,
+          transfer_to_hospital:    csvBool(r.transfer_to_hospital),
+          acp_summary:             r.acp_summary || null,
+          epoa_type:               r.epoa_type || null,
+          epoa_activated:          csvBool(r.epoa_activated),
+          epoa_capacity_cert_date: r.epoa_capacity_cert_date || null,
+          epoa_name:               r.epoa_name || null,
+          epoa_phone:              r.epoa_phone || null,
+          epoa_email:              r.epoa_email || null,
+        }
+      }).filter(r => r.first_name && r.last_name)
+
+      const result = await addEmployerEmployees(inserts)
+      // ARC branch returns a breakdown ({inserted, updated, soft_deleted});
+      // employer branch returns inserted only. Show both uniformly.
+      setUploadResult({ employerId: employer.id, ...result })
+      // Refresh counts from source of truth — active count may have shifted
+      // in either direction (ARC merge soft-deletes missing rows).
+      try {
+        const map = await getEmployerEmployeeCounts()
+        setEmployeeCounts(map || {})
+      } catch {}
+    } catch(e) { console.error(e); alert(e?.message || 'Upload failed') }
     setUploadingFor(null)
+  }
+
+  // Download a CSV template matching the server-side columns for this org
+  // type. ARC includes the ACP/EPOA/resus columns; employer stays the
+  // existing minimal set. Template is pre-populated with ONE example row
+  // so admins see what valid values look like (resus_status values, etc.).
+  function downloadCsvTemplate(employer) {
+    const isArc = employer.org_type === 'aged_care'
+    const header = isArc
+      ? ['facility_resident_id','first_name','last_name','dob','nhi','room_number','resus_status','transfer_to_hospital','acp_summary','epoa_type','epoa_activated','epoa_capacity_cert_date','epoa_name','epoa_phone','epoa_email']
+      : ['first_name','last_name','dob','email','phone','address','nhi','employee_id']
+    const example = isArc
+      ? ['R001','Peggy','Jones','1935-07-22','ABC1234','12','nfr','false','Comfort cares in place per discussion 2026-01-14. Family aware.','personal_care_welfare','true','2025-08-02','Margaret Jones','+64211234567','mjones@example.com']
+      : ['Alex','Nguyen','1988-05-02','alex@example.com','+64211234567','12 Smith St, Blenheim','ABC1234','E001']
+    const csv = header.join(',') + '\n' + example.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const base = (employer.company_name || 'template').replace(/\s+/g,'_')
+    a.href = url
+    a.download = isArc ? `${base}_ARC_roster_template.csv` : `${base}_employee_template.csv`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function downloadReport(emp) {
@@ -6461,43 +6655,93 @@ function EmployersPanel() {
     <div style={card}>
       {editEmp && (
         <div onClick={() => !editSaving && setEditEmp(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '2rem' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: 'min(560px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 12, padding: '1.5rem', width: 'min(600px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '1rem' }}>
-              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>Edit employer</div>
+              <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0D2B45' }}>
+                Edit {editEmp.org_type === 'aged_care' ? 'aged residential care facility' : 'employer'}
+              </div>
               <button onClick={() => !editSaving && setEditEmp(null)} style={{ background: 'none', border: 'none', fontSize: '1.25rem', cursor: 'pointer', color: '#9CA3AF' }}>×</button>
             </div>
             <div style={{ display: 'grid', gap: '.625rem' }}>
               <div>
-                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Company name *</label>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>
+                  {editEmp.org_type === 'aged_care' ? 'Facility name *' : 'Company name *'}
+                </label>
                 <input style={inp} value={editEmp.company_name} onChange={e => setEditEmp(x => ({ ...x, company_name: e.target.value }))} />
               </div>
+
+              {editEmp.org_type === 'aged_care' ? (
+                <>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Clinical contact name *</label>
+                      <input style={inp} value={editEmp.clinical_contact_name} onChange={e => setEditEmp(x => ({ ...x, clinical_contact_name: e.target.value }))} placeholder="First Last" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Clinical contact email *</label>
+                      <input style={inp} type="email" value={editEmp.clinical_contact_email} onChange={e => setEditEmp(x => ({ ...x, clinical_contact_email: e.target.value }))} placeholder="named.person@facility.co.nz" />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Backup contact name *</label>
+                      <input style={inp} value={editEmp.backup_contact_name} onChange={e => setEditEmp(x => ({ ...x, backup_contact_name: e.target.value }))} placeholder="First Last" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Backup contact email *</label>
+                      <input style={inp} type="email" value={editEmp.backup_contact_email} onChange={e => setEditEmp(x => ({ ...x, backup_contact_email: e.target.value }))} placeholder="different.person@facility.co.nz" />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280', background: '#FEFCE8', border: '1px solid #FDE68A', padding: '.4rem .6rem', borderRadius: 6 }}>
+                    Both emails must be real named humans. Shared mailboxes (info@, admin@, accounts@) are rejected - a bounced monthly report that no one reads is a privacy risk.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Billing contact name</label>
+                      <input style={inp} value={editEmp.billing_contact_name} onChange={e => setEditEmp(x => ({ ...x, billing_contact_name: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Billing email</label>
+                      <input style={inp} type="email" value={editEmp.billing_email} onChange={e => setEditEmp(x => ({ ...x, billing_email: e.target.value }))} placeholder="accounts@..." />
+                    </div>
+                  </div>
+                  <ArcPharmacyPicker
+                    value={{ id: editEmp.facility_pharmacy_id, name: '' }}
+                    onChange={(p) => setEditEmp(x => ({ ...x, facility_pharmacy_id: p?.id || null }))}
+                  />
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact name</label>
+                    <input style={inp} value={editEmp.contact_name} onChange={e => setEditEmp(x => ({ ...x, contact_name: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact email</label>
+                      <input style={inp} type="email" value={editEmp.contact_email} onChange={e => setEditEmp(x => ({ ...x, contact_email: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact phone</label>
+                      <input style={inp} value={editEmp.contact_phone} onChange={e => setEditEmp(x => ({ ...x, contact_phone: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly rate per employee ($)</label>
+                      <input style={inp} value={editEmp.monthly_rate_per_employee} onChange={e => setEditEmp(x => ({ ...x, monthly_rate_per_employee: e.target.value }))} placeholder="e.g. 15.00" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly usage cap (consults)</label>
+                      <input style={inp} type="number" value={editEmp.usage_cap_month} onChange={e => setEditEmp(x => ({ ...x, usage_cap_month: e.target.value }))} placeholder="e.g. 20 - leave blank for no cap" />
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div>
-                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact name</label>
-                <input style={inp} value={editEmp.contact_name} onChange={e => setEditEmp(x => ({ ...x, contact_name: e.target.value }))} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
-                <div>
-                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact email</label>
-                  <input style={inp} type="email" value={editEmp.contact_email} onChange={e => setEditEmp(x => ({ ...x, contact_email: e.target.value }))} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contact phone</label>
-                  <input style={inp} value={editEmp.contact_phone} onChange={e => setEditEmp(x => ({ ...x, contact_phone: e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug (terehealth.co.nz/work/<b>SLUG</b>) — 8‑32 lowercase alphanumeric</label>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug (terehealth.co.nz/work/<b>SLUG</b>) - 8-32 lowercase alphanumeric</label>
                 <input style={inp} value={editEmp.slug} onChange={e => setEditEmp(x => ({ ...x, slug: e.target.value }))} placeholder="e.g. marinefarmingassociation" />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
-                <div>
-                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly rate per employee ($)</label>
-                  <input style={inp} value={editEmp.monthly_rate_per_employee} onChange={e => setEditEmp(x => ({ ...x, monthly_rate_per_employee: e.target.value }))} placeholder="e.g. 15.00" />
-                </div>
-                <div>
-                  <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly usage cap (consults)</label>
-                  <input style={inp} type="number" value={editEmp.usage_cap_month} onChange={e => setEditEmp(x => ({ ...x, usage_cap_month: e.target.value }))} placeholder="e.g. 20 · leave blank for no cap" />
-                </div>
               </div>
               <div>
                 <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contract start</label>
@@ -6510,7 +6754,7 @@ function EmployersPanel() {
               {editError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6 }}>{editError}</div>}
               <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end', marginTop: '.5rem' }}>
                 <button onClick={() => setEditEmp(null)} disabled={editSaving} style={{ background: 'white', color: '#374151', border: '1px solid #D1D5DB', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600 }}>Cancel</button>
-                <button onClick={saveEdit} disabled={editSaving || !editEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, opacity: editSaving ? 0.6 : 1 }}>{editSaving ? 'Saving…' : 'Save'}</button>
+                <button onClick={saveEdit} disabled={editSaving || !editEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, opacity: editSaving ? 0.6 : 1 }}>{editSaving ? 'Saving...' : 'Save'}</button>
               </div>
             </div>
           </div>
@@ -6518,18 +6762,34 @@ function EmployersPanel() {
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '.75rem' }}>
         <div>
-          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Employer accounts</div>
-          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Companies whose employees get consultations at no cost</div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#0D2B45', marginBottom: '.25rem' }}>Organisations</div>
+          <div style={{ fontSize: '.875rem', color: '#6B7280' }}>Employers (flat-rate workforce) and aged residential care facilities (per-consult monthly billing)</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <button onClick={load} style={{ background: '#F0F9FA', border: 'none', color: '#0B6E76', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>↻</button>
-          <button onClick={() => setShowAdd(s => !s)} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
-            {showAdd ? 'Cancel' : '+ Add employer'}
+          <button onClick={() => addPhase ? closeAdd() : setAddPhase('pick')} style={{ background: '#0B6E76', border: 'none', color: 'white', padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontSize: '.8125rem', fontWeight: 600 }}>
+            {addPhase ? 'Cancel' : '+ New organisation'}
           </button>
         </div>
       </div>
 
-      {showAdd && (
+      {addPhase === 'pick' && (
+        <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>What are you adding?</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.75rem' }}>
+            <button onClick={() => setAddPhase('employer')} style={{ textAlign: 'left', background: 'white', border: '1.5px solid #E2E8F0', padding: '1rem', borderRadius: 8, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              <div style={{ fontSize: '.9375rem', fontWeight: 700, color: '#0D2B45', marginBottom: 4 }}>Employer</div>
+              <div style={{ fontSize: '.75rem', color: '#6B7280', lineHeight: 1.5 }}>Workplace pays a flat monthly rate per worker. Workers hit /work/[slug] for employer-paid consults.</div>
+            </button>
+            <button onClick={() => setAddPhase('arc')} style={{ textAlign: 'left', background: 'white', border: '1.5px solid #E2E8F0', padding: '1rem', borderRadius: 8, cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+              <div style={{ fontSize: '.9375rem', fontWeight: 700, color: '#0D2B45', marginBottom: 4 }}>Aged residential care</div>
+              <div style={{ fontSize: '.75rem', color: '#6B7280', lineHeight: 1.5 }}>Rest home. Per-consult billing at public rates ($65 / $25 ACC), invoiced monthly. Captures ACP + EPOA per resident.</div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {addPhase === 'employer' && (
         <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>
           <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>New employer</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.5rem' }}>
@@ -6540,11 +6800,43 @@ function EmployersPanel() {
             <input style={inp} type="number" min="0" placeholder="Monthly consult cap (optional)" value={newEmp.usage_cap_month} onChange={e => setNewEmp(n => ({ ...n, usage_cap_month: e.target.value }))} />
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: '.8125rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <input type="checkbox" checked={newEmp.generateSlug} onChange={e => setNewEmp(n => ({ ...n, generateSlug: e.target.checked }))} />
-              Generate /work/[company-name] URL (branded — roster still required)
+              Generate /work/[company-name] URL (branded - roster still required)
             </label>
           </div>
+          {addError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6, marginBottom: '.5rem' }}>{addError}</div>}
           <button onClick={addEmployer} disabled={saving || !newEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            {saving ? 'Saving…' : 'Add employer'}
+            {saving ? 'Saving...' : 'Add employer'}
+          </button>
+        </div>
+      )}
+
+      {addPhase === 'arc' && (
+        <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.25rem' }}>New aged residential care facility</div>
+          <div style={{ fontSize: '.75rem', color: '#6B7280', marginBottom: '.75rem' }}>Monthly report goes to the clinical contact (cc backup). Both must be named humans - shared mailboxes rejected.</div>
+          <div style={{ display: 'grid', gap: '.5rem', marginBottom: '.5rem' }}>
+            <input style={inp} placeholder="Facility name * (e.g. Springlands Lifestyle Village)" value={newArc.company_name} onChange={e => setNewArc(n => ({ ...n, company_name: e.target.value }))} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
+              <input style={inp} placeholder="Clinical contact name * (First Last)" value={newArc.clinical_contact_name} onChange={e => setNewArc(n => ({ ...n, clinical_contact_name: e.target.value }))} />
+              <input style={inp} type="email" placeholder="Clinical contact email *" value={newArc.clinical_contact_email} onChange={e => setNewArc(n => ({ ...n, clinical_contact_email: e.target.value }))} />
+              <input style={inp} placeholder="Backup contact name * (different person)" value={newArc.backup_contact_name} onChange={e => setNewArc(n => ({ ...n, backup_contact_name: e.target.value }))} />
+              <input style={inp} type="email" placeholder="Backup contact email *" value={newArc.backup_contact_email} onChange={e => setNewArc(n => ({ ...n, backup_contact_email: e.target.value }))} />
+              <input style={inp} placeholder="Billing contact name" value={newArc.billing_contact_name} onChange={e => setNewArc(n => ({ ...n, billing_contact_name: e.target.value }))} />
+              <input style={inp} type="email" placeholder="Billing email (accounts@...)" value={newArc.billing_email} onChange={e => setNewArc(n => ({ ...n, billing_email: e.target.value }))} />
+              <input style={inp} type="date" placeholder="Contract start" value={newArc.contract_start} onChange={e => setNewArc(n => ({ ...n, contract_start: e.target.value }))} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: '.8125rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                <input type="checkbox" checked={newArc.generateSlug} onChange={e => setNewArc(n => ({ ...n, generateSlug: e.target.checked }))} />
+                Generate /work/[name] URL for residents / family
+              </label>
+            </div>
+            <ArcPharmacyPicker
+              value={{ id: newArc.facility_pharmacy_id, name: newArc.facility_pharmacy_name }}
+              onChange={(p) => setNewArc(n => ({ ...n, facility_pharmacy_id: p?.id || null, facility_pharmacy_name: p?.premises_name || '' }))}
+            />
+          </div>
+          {addError && <div style={{ color: '#DC2626', fontSize: '.8125rem', padding: '.5rem .75rem', background: '#FEF2F2', borderRadius: 6, marginBottom: '.5rem' }}>{addError}</div>}
+          <button onClick={addArcFacility} disabled={saving || !newArc.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+            {saving ? 'Saving...' : 'Add facility'}
           </button>
         </div>
       )}
@@ -6557,22 +6849,53 @@ function EmployersPanel() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          {employers.map(emp => (
+          {employers.map(emp => {
+            const isArc = emp.org_type === 'aged_care'
+            const bounced = emp.delivery_status === 'bounced'
+            return (
             <div key={emp.id} style={{ background: emp.is_active ? '#F8FAFC' : '#FFF5F5', borderRadius: 8, padding: '1rem 1.25rem', border: `1px solid ${emp.is_active ? '#E2E8F0' : '#FECACA'}` }}>
+              {bounced && (
+                <div style={{ background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 6, padding: '.6rem .8rem', marginBottom: '.6rem', display: 'flex', alignItems: 'flex-start', gap: '.6rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <div style={{ fontSize: '.75rem', fontWeight: 800, color: '#991B1B', letterSpacing: '.03em' }}>DELIVERY FAILED</div>
+                    <div style={{ fontSize: '.8125rem', color: '#7F1D1D', marginTop: 2 }}>
+                      Last monthly report to <strong>{emp.clinical_contact_email || '(contact)'}</strong> bounced. Update the contact to resume sends.
+                      {emp.delivery_status_detail && <div style={{ fontSize: '.6875rem', marginTop: 4, opacity: .8 }}>{emp.delivery_status_detail}</div>}
+                    </div>
+                  </div>
+                  <button onClick={() => clearDeliveryStatus(emp)} style={{ background: '#991B1B', color: 'white', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    Mark resolved
+                  </button>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.25rem', flexWrap: 'wrap' }}>
                     <span style={{ fontWeight: 700, fontSize: '.9375rem', color: '#0D2B45' }}>{emp.company_name}</span>
+                    {isArc && (
+                      <span style={{ background: '#DBEAFE', color: '#1E3A8A', fontSize: '.6875rem', fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}>
+                        ARC
+                      </span>
+                    )}
                     <span style={{ background: emp.is_active ? '#D1FAE5' : '#FEE2E2', color: emp.is_active ? '#065F46' : '#991B1B', fontSize: '.6875rem', fontWeight: 700, padding: '1px 7px', borderRadius: 99 }}>
                       {emp.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                   <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>
-                    {emp.contact_email && <span>{emp.contact_email} · </span>}
-                    {emp.monthly_rate_per_employee && <span>${emp.monthly_rate_per_employee}/employee/month · </span>}
-                    <span style={{ fontWeight: 600, color: '#0B6E76' }}>{employeeCounts[emp.id] || 0} employees</span>
+                    {isArc ? (
+                      <>
+                        {emp.clinical_contact_name && <span>Clinical: {emp.clinical_contact_name} &lt;{emp.clinical_contact_email}&gt; · </span>}
+                        <span style={{ fontWeight: 600, color: '#0B6E76' }}>{employeeCounts[emp.id] || 0} residents</span>
+                      </>
+                    ) : (
+                      <>
+                        {emp.contact_email && <span>{emp.contact_email} · </span>}
+                        {emp.monthly_rate_per_employee && <span>${emp.monthly_rate_per_employee}/employee/month · </span>}
+                        <span style={{ fontWeight: 600, color: '#0B6E76' }}>{employeeCounts[emp.id] || 0} employees</span>
+                        {emp.usage_cap_month && <span> · Cap {emp.usage_cap_month}/mo</span>}
+                      </>
+                    )}
                     {emp.contract_start && <span> · Since {new Date(emp.contract_start).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
-                    {emp.usage_cap_month && <span> · Cap {emp.usage_cap_month}/mo</span>}
                   </div>
                   {emp.slug && (
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', padding: '6px 10px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
@@ -6586,13 +6909,26 @@ function EmployersPanel() {
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: '.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <label style={{ background: '#EFF6FF', color: '#2563EB', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
-                    {uploadingFor === emp.id ? 'Importing…' : '↑ Upload CSV'}
-                    <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) uploadCsv(e.target.files[0], emp.id); e.target.value = '' }} disabled={uploadingFor === emp.id} />
-                  </label>
-                  <button onClick={() => downloadReport(emp)} style={{ background: '#F0FDF4', color: '#059669', border: '1px solid #BBF7D0', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
-                    ↓ Month report
+                  <button onClick={() => downloadCsvTemplate(emp)} style={{ background: '#F8FAFC', color: '#475569', border: '1px solid #E2E8F0', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                    ↓ CSV template
                   </button>
+                  <label style={{ background: '#EFF6FF', color: '#2563EB', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                    {uploadingFor === emp.id ? 'Importing...' : (isArc ? '↑ Upload roster CSV' : '↑ Upload CSV')}
+                    <input type="file" accept=".csv" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) uploadCsv(e.target.files[0], emp); e.target.value = '' }} disabled={uploadingFor === emp.id} />
+                  </label>
+                  {isArc ? (
+                    <button
+                      onClick={() => sendArcReportNow(emp)}
+                      disabled={sendingReportFor === emp.id || bounced}
+                      title={bounced ? 'Clear the delivery failure first' : 'Trigger the monthly report pipeline now'}
+                      style={{ background: bounced ? '#F3F4F6' : '#FEF3C7', color: bounced ? '#9CA3AF' : '#92400E', border: `1px solid ${bounced ? '#E5E7EB' : '#FCD34D'}`, padding: '5px 10px', borderRadius: 6, cursor: bounced ? 'not-allowed' : 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                      {sendingReportFor === emp.id ? 'Sending...' : '→ Send report now'}
+                    </button>
+                  ) : (
+                    <button onClick={() => downloadReport(emp)} style={{ background: '#F0FDF4', color: '#059669', border: '1px solid #BBF7D0', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
+                      ↓ Month report
+                    </button>
+                  )}
                   <button onClick={() => openEdit(emp)} style={{ background: '#EFF6FF', color: '#1D4ED8', border: '1px solid #BFDBFE', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
                     ✎ Edit
                   </button>
@@ -6601,18 +6937,103 @@ function EmployersPanel() {
                   </button>
                 </div>
               </div>
+              {uploadResult?.employerId === emp.id && (
+                <div style={{ marginTop: '.5rem', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 6, padding: '.5rem .75rem', fontSize: '.75rem', color: '#0C4A6E' }}>
+                  <strong>Import complete.</strong>{' '}
+                  {uploadResult.inserted} added, {uploadResult.updated} updated, {uploadResult.soft_deleted} removed from active roster.
+                  {uploadResult.errors?.length > 0 && (
+                    <div style={{ marginTop: 4, color: '#991B1B' }}>
+                      {uploadResult.errors.length} row(s) rejected: {uploadResult.errors.slice(0, 3).map(e => e.error).join('; ')}{uploadResult.errors.length > 3 ? '…' : ''}
+                    </div>
+                  )}
+                </div>
+              )}
+              {reportFlash?.employerId === emp.id && (
+                <div style={{ marginTop: '.5rem', background: reportFlash.ok ? '#F0FDF4' : '#FEF2F2', border: `1px solid ${reportFlash.ok ? '#BBF7D0' : '#FECACA'}`, borderRadius: 6, padding: '.5rem .75rem', fontSize: '.75rem', color: reportFlash.ok ? '#065F46' : '#991B1B' }}>
+                  {reportFlash.text}
+                </div>
+              )}
               <EmployerRoster
                 employer={emp}
                 currentCount={employeeCounts[emp.id] || 0}
                 onCountChange={(delta) => setEmployeeCounts(c => ({ ...c, [emp.id]: Math.max(0, (c[emp.id] || 0) + delta) }))}
               />
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
       <div style={{ marginTop: '1rem', padding: '.75rem', background: '#F8FAFC', borderRadius: 6, fontSize: '.8125rem', color: '#6B7280' }}>
-        CSV format: <code style={{ fontFamily: 'monospace' }}>first_name,last_name,dob,address,phone,email,nhi,employee_id</code> — header row required. Only first_name and last_name are required; everything else is optional and pre-fills the worker's booking form.
+        Employer CSV: <code style={{ fontFamily: 'monospace' }}>first_name,last_name,dob,address,phone,email,nhi,employee_id</code>. ARC CSV: <code style={{ fontFamily: 'monospace' }}>facility_resident_id,first_name,last_name,dob,nhi,room_number,resus_status,transfer_to_hospital,acp_summary,epoa_type,epoa_activated,epoa_capacity_cert_date,epoa_name,epoa_phone,epoa_email</code>. Use the per-row "CSV template" button to download a pre-filled example.
       </div>
+    </div>
+  )
+}
+
+// Pharmacy picker for the ARC facility form. Searches the Medsafe register
+// (public/pharmacies.json) by name / town / suburb and emits the picked
+// pharmacy row to onChange. Mirrors the picker in AdminPatients.jsx; kept
+// inline here to avoid cross-component imports.
+function ArcPharmacyPicker({ value, onChange }) {
+  const [list, setList] = React.useState(null)
+  const [query, setQuery] = React.useState('')
+  const [pickedName, setPickedName] = React.useState(value?.name || '')
+  const [editing, setEditing] = React.useState(false)
+
+  React.useEffect(() => {
+    if (list !== null) return
+    (async () => {
+      try {
+        const r = await fetch('/pharmacies.json')
+        const raw = r.ok ? await r.json() : []
+        setList(Array.isArray(raw) ? raw : [])
+      } catch { setList([]) }
+    })()
+  }, [list])
+
+  const filtered = (() => {
+    if (!list) return []
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) return []
+    const hits = []
+    for (const p of list) {
+      const name = (p.premises_name || '').toLowerCase()
+      const town = (p.town || '').toLowerCase()
+      const address = (p.address || '').toLowerCase()
+      if (name.includes(q) || town.includes(q) || address.includes(q)) hits.push(p)
+      if (hits.length >= 8) break
+    }
+    return hits
+  })()
+
+  const inpSm = { border: '1.5px solid #E2E8F0', borderRadius: 6, padding: '7px 10px', fontSize: '.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', outline: 'none', width: '100%', boxSizing: 'border-box' }
+
+  return (
+    <div>
+      <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Contracted pharmacy (optional) - default Rx routing</label>
+      {!editing && value?.id ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F0F9FA', border: '1px solid #BAE6FD', borderRadius: 6, padding: '6px 10px' }}>
+          <span style={{ fontSize: '.8125rem', color: '#0D2B45' }}>{pickedName || value.name || 'Pharmacy set'}</span>
+          <button onClick={() => { setEditing(true); setQuery('') }} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#2563EB', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>Change</button>
+          <button onClick={() => { setPickedName(''); onChange?.(null) }} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>Clear</button>
+        </div>
+      ) : (
+        <div>
+          <input style={inpSm} placeholder="Search pharmacy name, town, or suburb..." value={query} onChange={e => setQuery(e.target.value)} />
+          {filtered.length > 0 && (
+            <div style={{ border: '1px solid #E2E8F0', borderRadius: 6, marginTop: 4, maxHeight: 180, overflowY: 'auto' }}>
+              {filtered.map(p => (
+                <button key={p.id} type="button"
+                  onClick={() => { onChange?.(p); setPickedName(p.premises_name || ''); setQuery(''); setEditing(false) }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'white', border: 'none', borderBottom: '1px solid #F1F5F9', padding: '6px 10px', fontSize: '.8125rem', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}>
+                  <div style={{ fontWeight: 600, color: '#0D2B45' }}>{p.premises_name}</div>
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>{[p.town, p.region].filter(Boolean).join(', ')}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -6703,7 +7124,7 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
     if (!first || !last) return
     setSaving(true); setErr(null)
     try {
-      const inserted = await addEmployerEmployees([{
+      const result = await addEmployerEmployees([{
         employer_id: employer.id,
         first_name:  first,
         last_name:   last,
@@ -6711,9 +7132,11 @@ function EmployerRoster({ employer, currentCount, onCountChange }) {
         email:       draft.email.trim() || null,
         phone:       draft.phone.trim() || null,
       }])
-      setRows(rs => [...(inserted || []), ...(rs || [])]
+      // Updated return shape (wave 4): { employees, inserted, updated, ... }
+      const insertedRows = result?.employees || []
+      setRows(rs => [...insertedRows, ...(rs || [])]
         .sort((a, b) => String(a.last_name || '').localeCompare(String(b.last_name || ''))))
-      onCountChange?.(+(inserted?.length || 1))
+      onCountChange?.(+(insertedRows.length || 1))
       setDraft({ first_name:'', last_name:'', dob:'', email:'', phone:'' })
     } catch (e) {
       setErr(e.message || 'Failed to add employee')

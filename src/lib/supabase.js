@@ -742,6 +742,10 @@ export async function updateEmployer(id, patch) {
   }
 }
 
+// Returns { employees, inserted, updated, soft_deleted, errors } for both
+// employer (plain-insert) and ARC (merge) branches. Legacy callers that only
+// reference `.employees` on the result still work — new ARC flow consumes
+// the breakdown counts to show "N added, N updated, N removed".
 export async function addEmployerEmployees(rows) {
   const res = await apiFetch('/api/employer-employees', { method: 'POST', body: JSON.stringify(rows) })
   if (!res.ok) {
@@ -749,7 +753,13 @@ export async function addEmployerEmployees(rows) {
     throw new Error(err.error || `addEmployerEmployees HTTP ${res.status}`)
   }
   const body = await res.json()
-  return body.employees || []
+  return {
+    employees: body.employees || [],
+    inserted: body.inserted || 0,
+    updated: body.updated || 0,
+    soft_deleted: body.soft_deleted || 0,
+    errors: body.errors || [],
+  }
 }
 
 export async function getEmployerEmployeeCounts() {

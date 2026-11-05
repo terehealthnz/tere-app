@@ -47,7 +47,7 @@ export default async function handler(req, res) {
   const supabase = admin()
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active, usage_cap_month, require_employee_match')
+    .select('id, company_name, is_active, usage_cap_month, require_employee_match, org_type')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -101,10 +101,13 @@ export default async function handler(req, res) {
     if (!firstName || !lastName || !dob) {
       return res.status(400).json({ error: 'firstName, lastName, dob required' })
     }
+    // Exclude soft-deleted rows — a resident who's been removed from the
+    // active roster shouldn't satisfy the /work/[slug]/intake gate.
     const { data: rosterRow, error: rosterErr } = await supabase
       .from('employer_employees')
-      .select('id, phone, email, address, nhi')
+      .select('id, phone, email, address, nhi, facility_resident_id, room_number, resus_status, transfer_to_hospital, acp_summary, epoa_type, epoa_activated, epoa_capacity_cert_date, epoa_name, epoa_phone, epoa_email')
       .eq('employer_id', String(data.id))
+      .is('deleted_at', null)
       .ilike('first_name', firstName)
       .ilike('last_name',  lastName)
       .eq('dob', dob)
@@ -121,12 +124,18 @@ export default async function handler(req, res) {
     // These are advisory: the worker sees them as editable defaults and can
     // overwrite anything that's wrong on the HR file. NHI is only advisory
     // too — /api/nhi-lookup still runs downstream to verify against HNZ.
+    // ARC rows carry ACP / EPOA / resus-status details that the
+    // /work/[slug]/intake flow surfaces (Wave 6): ACP banner + EPOA
+    // override gate. Non-ARC rows get none of those fields echoed back so
+    // we don't leak extra metadata to the employer intake flow.
+    const arc = data.org_type === 'aged_care'
     return res.status(200).json({
       matched: true,
       employer: {
         id: data.id,
         company_name: data.company_name,
         require_employee_match: !!data.require_employee_match,
+        org_type: data.org_type || 'employer',
       },
       prefill: {
         phone:   rosterRow.phone   || '',
@@ -134,6 +143,21 @@ export default async function handler(req, res) {
         address: rosterRow.address || '',
         nhi:     rosterRow.nhi     || '',
       },
+      ...(arc ? {
+        resident: {
+          facility_resident_id:    rosterRow.facility_resident_id || null,
+          room_number:             rosterRow.room_number || null,
+          resus_status:            rosterRow.resus_status || null,
+          transfer_to_hospital:    rosterRow.transfer_to_hospital,
+          acp_summary:             rosterRow.acp_summary || null,
+          epoa_type:               rosterRow.epoa_type || null,
+          epoa_activated:          !!rosterRow.epoa_activated,
+          epoa_capacity_cert_date: rosterRow.epoa_capacity_cert_date || null,
+          epoa_name:               rosterRow.epoa_name || null,
+          epoa_phone:              rosterRow.epoa_phone || null,
+          epoa_email:              rosterRow.epoa_email || null,
+        },
+      } : {}),
     })
   }
 
@@ -142,6 +166,7 @@ export default async function handler(req, res) {
       id: data.id,
       company_name: data.company_name,
       require_employee_match: !!data.require_employee_match,
+      org_type: data.org_type || 'employer',
     },
   })
 }
