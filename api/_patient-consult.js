@@ -84,11 +84,15 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
   if (!claimedEmployerId) return null
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active')
+    .select('id, company_name, is_active, org_type')
     .eq('id', String(claimedEmployerId))
     .maybeSingle()
   if (error || !data || !data.is_active) return null
-  return { employer_id: data.id, employer_name: data.company_name }
+  return {
+    employer_id: data.id,
+    employer_name: data.company_name,
+    org_type: data.org_type || 'employer',
+  }
 }
 
 // Only these status values may be set from the patient side. Provider-side
@@ -240,7 +244,23 @@ export default async function handler(req, res) {
       patch.employer_id    = verified.employer_id
       patch.employer_name  = verified.employer_name
       patch.employer_paid  = true
-      patch.payment_amount = 0
+      // Employer: flat $0 at point of care (facility carries workforce
+      // contract). ARC: public rates still apply ($65 / $25 ACC) but the
+      // facility is invoiced monthly, not the patient - so employer_paid=
+      // true still skips Windcave but payment_amount reflects what the
+      // monthly report will bill. Reads is_acc off the existing row so
+      // the switch between $65 and $25 is authoritative.
+      if (verified.org_type === 'aged_care') {
+        const { data: existingRow } = await supabase
+          .from('consultations')
+          .select('is_acc, acc_eligible')
+          .eq('id', id)
+          .maybeSingle()
+        const isAcc = existingRow?.is_acc === true || existingRow?.acc_eligible === 'yes'
+        patch.payment_amount = isAcc ? 2500 : 6500
+      } else {
+        patch.payment_amount = 0
+      }
     }
     // If unverified we simply don't set employer fields — the patient
     // continues on the standard-payment path.

@@ -85,7 +85,7 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
   if (!claimedEmployerId) return null
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active, require_employee_match, site_address, site_phone, contact_phone')
+    .select('id, company_name, is_active, require_employee_match, site_address, site_phone, contact_phone, org_type')
     .eq('id', String(claimedEmployerId))
     .maybeSingle()
   if (error || !data || !data.is_active) return null
@@ -98,6 +98,7 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
     // ACC45 needs a phone number for the employer; better an admin number
     // than a blank field on the claim.
     site_phone: data.site_phone || data.contact_phone || null,
+    org_type: data.org_type || 'employer',
   }
 }
 
@@ -107,10 +108,13 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
 // { matched: false } on miss.
 async function matchEmployerRoster(supabase, employerId, firstName, lastName, dob) {
   if (!employerId || !firstName || !lastName || !dob) return { matched: false }
+  // Exclude soft-deleted ARC residents - a removed resident cannot start
+  // another consult under their old facility identity.
   const { data, error } = await supabase
     .from('employer_employees')
-    .select('id')
+    .select('id, epoa_type, epoa_activated, resus_status')
     .eq('employer_id', String(employerId))
+    .is('deleted_at', null)
     .ilike('first_name', String(firstName).trim())
     .ilike('last_name',  String(lastName).trim())
     .eq('dob', String(dob).slice(0, 10))
@@ -119,7 +123,13 @@ async function matchEmployerRoster(supabase, employerId, firstName, lastName, do
     console.error('[create-consultation] roster match failed:', error)
     return { matched: false }
   }
-  return data ? { matched: true, employee_id: data.id } : { matched: false }
+  return data ? {
+    matched: true,
+    employee_id: data.id,
+    epoa_type: data.epoa_type,
+    epoa_activated: !!data.epoa_activated,
+    resus_status: data.resus_status,
+  } : { matched: false }
 }
 
 // Columns explicitly rejected at create time even if the client sends them.
@@ -199,6 +209,35 @@ export default async function handler(req, res) {
       payload.employer_id   = verified.employer_id
       payload.employer_name = verified.employer_name
       payload.employer_paid = true
+
+      // ARC-specific server-side validation. Even if the client set
+      // consent_source='epoa_personal_care', server MUST verify that this
+      // resident actually has a personal_care_welfare EPOA AND it's been
+      // activated (certified mentally incapable). Otherwise the attorney
+      // cannot legally consent to treatment. Default back to 'resident'
+      // consent if the override isn't legally supported.
+      if (verified.org_type === 'aged_care') {
+        if (payload.consent_source === 'epoa_personal_care') {
+          const canEpoaConsent = rosterMatch.epoa_type === 'personal_care_welfare'
+            && rosterMatch.epoa_activated === true
+          if (!canEpoaConsent) {
+            console.warn('[create-consultation] EPOA override rejected - resident epoa_type=', rosterMatch.epoa_type, 'activated=', rosterMatch.epoa_activated)
+            return res.status(400).json({
+              error: 'EPOA override requires a Personal Care & Welfare EPOA that has been activated (mental incapacity certified). Use resident consent instead, or update the resident record.',
+              code: 'EPOA_OVERRIDE_INVALID',
+            })
+          }
+          // Constraint consultations_consent_override_requires_reason requires
+          // a non-empty reason. Fail fast with a clean error rather than a
+          // Postgres 500.
+          if (!payload.consent_override_reason || !String(payload.consent_override_reason).trim()) {
+            return res.status(400).json({
+              error: 'EPOA override requires a reason.',
+              code: 'EPOA_OVERRIDE_NO_REASON',
+            })
+          }
+        }
+      }
 
       // Auto-populate ACC45 employer fields from the verified employer row.
       // Only sets fields that are still null on the payload — never

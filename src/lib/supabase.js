@@ -203,6 +203,17 @@ export async function createConsultation(data) {
     // else (triage, vitals, provider UI) is identical to the acute flow
     // until GP-specific features (enrolment, GMS, recall) land.
     ...(gpConsultFlagged() ? { consult_mode: 'gp' } : {}),
+    // ARC flow (wave 6). Captured by the /work/[slug]/intake branch when the
+    // employer is org_type='aged_care'. Server re-validates: consent override
+    // requires EPOA personal_care_welfare + activated; facility_vitals is
+    // stored separately from the WAND-camera vitals jsonb so Class IIa
+    // accuracy claims don't get contaminated with HCA-typed values.
+    ...(data.callingOnBehalfName  ? { calling_on_behalf_name:  data.callingOnBehalfName }  : {}),
+    ...(data.callingOnBehalfRole  ? { calling_on_behalf_role:  data.callingOnBehalfRole }  : {}),
+    ...(data.consentSource        ? { consent_source:          data.consentSource }        : {}),
+    ...(data.consentOverrideReason? { consent_override_reason: data.consentOverrideReason }: {}),
+    ...(data.facilityVitals       ? { facility_vitals:         data.facilityVitals }       : {}),
+    ...(data.vitalsSource         ? { vitals_source:           data.vitalsSource }         : {}),
   }
 
   const res = await apiFetch('/api/create-consultation', {
@@ -742,10 +753,6 @@ export async function updateEmployer(id, patch) {
   }
 }
 
-// Returns { employees, inserted, updated, soft_deleted, errors } for both
-// employer (plain-insert) and ARC (merge) branches. Legacy callers that only
-// reference `.employees` on the result still work — new ARC flow consumes
-// the breakdown counts to show "N added, N updated, N removed".
 export async function addEmployerEmployees(rows) {
   const res = await apiFetch('/api/employer-employees', { method: 'POST', body: JSON.stringify(rows) })
   if (!res.ok) {
@@ -753,13 +760,7 @@ export async function addEmployerEmployees(rows) {
     throw new Error(err.error || `addEmployerEmployees HTTP ${res.status}`)
   }
   const body = await res.json()
-  return {
-    employees: body.employees || [],
-    inserted: body.inserted || 0,
-    updated: body.updated || 0,
-    soft_deleted: body.soft_deleted || 0,
-    errors: body.errors || [],
-  }
+  return body.employees || []
 }
 
 export async function getEmployerEmployeeCounts() {

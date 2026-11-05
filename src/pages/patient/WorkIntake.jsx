@@ -42,6 +42,28 @@ export default function WorkIntake() {
   const [employer, setEmployer] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
 
+  // ARC branch (wave 6). When the employer is org_type='aged_care' we add
+  // a "calling on behalf" prompt, a facility-vitals tab, and a
+  // consent-source gate with EPOA override. All ignored for employer flows.
+  // Default callingOnBehalf=true because the common ARC pattern is a nurse
+  // holding the phone for a resident with dementia or communication issues;
+  // competent residents can override to "No, I am the resident".
+  const [isArc, setIsArc] = useState(false)
+  const [resident, setResident] = useState(null)  // populated from roster hit on arc branch
+  const [callingOnBehalf, setCallingOnBehalf] = useState(true)
+  const [onBehalfName, setOnBehalfName] = useState('')
+  const [onBehalfRole, setOnBehalfRole] = useState('rn')
+  // consent_source: 'resident' (self-attest) | 'epoa_personal_care' (override).
+  // Override requires matching EPOA type + activation + reason.
+  const [consentSource, setConsentSource] = useState('resident')
+  const [showEpoaOverride, setShowEpoaOverride] = useState(false)
+  const [epoaOverrideReason, setEpoaOverrideReason] = useState('')
+  // Facility-equipment vitals (optional tab, ARC only). Separate column
+  // from WAND-camera vitals so Class IIa accuracy stats don't get
+  // contaminated with HCA-typed values.
+  const [facilityVitals, setFacilityVitals] = useState({ sbp: '', dbp: '', hr: '', rr: '', spo2: '', temp: '', bgl: '', measured_by: '' })
+  const [useFacilityVitals, setUseFacilityVitals] = useState(false)
+
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [dob, setDob] = useState('')
@@ -154,6 +176,10 @@ export default function WorkIntake() {
         const body = await r.json()
         if (!body.matched) { setPrefillState('nomatch'); return }
         setPrefillState('matched')
+        // ARC branch - capture the ACP / EPOA fields the lookup now returns
+        // so EPOA override + resus badge can gate consent client-side.
+        // Server re-validates on create-consultation as the authority.
+        if (body.resident) setResident(body.resident)
         // Only fill empty fields — never clobber what the worker has typed.
         // prefillDone gate makes changing DOB after a match not re-fire fills.
         if (!prefillDone && body.prefill) {
@@ -189,6 +215,7 @@ export default function WorkIntake() {
         if (!r.ok) { setPhase('error'); setErrorMsg(t.linkNotActive); return }
         const body = await r.json()
         setEmployer(body.employer)
+        setIsArc(body.employer?.org_type === 'aged_care')
         setPhase('ready')
       } catch {
         if (!cancelled) { setPhase('error'); setErrorMsg(t.couldNotVerify) }
@@ -209,10 +236,23 @@ export default function WorkIntake() {
   const accFieldsValid = !isWorkInjury || (
     !!injuryDate && injuryDescription.trim().length >= 5 && bodyPart.trim().length >= 2 && accConsent
   )
+  // ARC-specific gates: if calling-on-behalf, we need a name + role.
+  // If using an EPOA override, we need a reason AND the resident must
+  // actually carry a personal_care_welfare EPOA that's been activated
+  // (server re-validates on create-consultation as the authority).
+  const arcFieldsValid = !isArc || (
+    (!callingOnBehalf || (onBehalfName.trim().length >= 2 && !!onBehalfRole))
+    && (consentSource !== 'epoa_personal_care' || (
+      epoaOverrideReason.trim().length >= 5
+      && resident?.epoa_type === 'personal_care_welfare'
+      && resident?.epoa_activated === true
+    ))
+    && (!useFacilityVitals || !!facilityVitals.measured_by.trim())
+  )
   // Biometrics: BiometricsForm applies the plausibility checks that match
   // the DB CHECK constraints on consultations.patient_height_cm /
   // patient_weight_kg; `bio.valid` is true when sex+height+weight all pass.
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid && bio.valid
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid && bio.valid && arcFieldsValid
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
@@ -349,7 +389,37 @@ export default function WorkIntake() {
 
         // Fee tier — employer covers the worker, no charge. ProviderNotes reads
         // consultation_type and prices $0 for employee tier.
-        consultationType: 'employee',
+        // ARC facilities bill at public rates $65/$25 (invoiced monthly) so
+        // the consult still flows through the standard pricing path -
+        // employer_paid=true just skips the Windcave gate.
+        consultationType: isArc ? 'standard' : 'employee',
+
+        // ARC ((wave 6)) - "calling on behalf" + consent provenance + facility
+        // vitals. All ignored for employer flows. Server re-validates EPOA
+        // override eligibility against the resident's epoa_type + epoa_activated.
+        ...(isArc ? {
+          callingOnBehalfName: callingOnBehalf ? onBehalfName.trim() : null,
+          callingOnBehalfRole: callingOnBehalf ? onBehalfRole : null,
+          consentSource,
+          consentOverrideReason: consentSource === 'epoa_personal_care' ? epoaOverrideReason.trim() : null,
+          // If facility typed vitals in we stash them here and let the
+          // vitals-source default remain 'facility_entered' until the
+          // post-intake vitals screen decides which bucket to tag. If BOTH
+          // paths run (manual + rPPG), the vitals page flips vitals_source
+          // to 'mixed' on save.
+          facilityVitals: useFacilityVitals ? {
+            sbp: facilityVitals.sbp || null,
+            dbp: facilityVitals.dbp || null,
+            hr:  facilityVitals.hr  || null,
+            rr:  facilityVitals.rr  || null,
+            spo2:facilityVitals.spo2|| null,
+            temp:facilityVitals.temp|| null,
+            bgl: facilityVitals.bgl || null,
+            measured_by: facilityVitals.measured_by || null,
+            measured_at: new Date().toISOString(),
+          } : null,
+          vitalsSource: useFacilityVitals ? 'facility_entered' : null,
+        } : {}),
 
         // Consent — HDC Right 7 (informed consent)
         recordingConsent: consent,
@@ -501,6 +571,101 @@ export default function WorkIntake() {
 
             <label style={label}>{t.nhiLabel}</label>
             <input style={inp} type="text" value={nhi} onChange={e => setNhi(e.target.value.toUpperCase())} onFocus={e => e.target.select()} placeholder="ABC1234" maxLength={7} autoComplete="off" />
+
+            {/* ─── ARC branch: calling-on-behalf prompt + ACP banner + consent gate + facility vitals ─── */}
+            {isArc && (
+              <div style={{ background: 'rgba(11,110,118,.18)', border: '1px solid rgba(127,196,200,.3)', borderRadius: 10, padding: '.9rem 1rem', marginBottom: '1rem', marginTop: '.75rem' }}>
+                <div style={{ fontSize: '.75rem', color: 'rgba(212,238,240,.75)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 8 }}>
+                  Rest home consult
+                </div>
+
+                {/* Resus / ACP banner. Renders only once the roster has matched
+                    so we know whose ACP we're reading. Red for NFR + comfort-in-
+                    place; amber for unknown; green for for_resus + transfer OK. */}
+                {prefillState === 'matched' && resident && (resident.resus_status || resident.acp_summary) && (
+                  <div style={{
+                    background: resident.resus_status === 'nfr' ? 'rgba(220,38,38,.18)' : resident.resus_status === 'for_resus' ? 'rgba(16,185,129,.18)' : 'rgba(234,179,8,.18)',
+                    border: `1px solid ${resident.resus_status === 'nfr' ? 'rgba(248,113,113,.45)' : resident.resus_status === 'for_resus' ? 'rgba(52,211,153,.45)' : 'rgba(234,179,8,.5)'}`,
+                    borderRadius: 8, padding: '.6rem .75rem', marginBottom: '.75rem', color: 'white', fontSize: '.8125rem',
+                  }}>
+                    <div style={{ fontWeight: 800, letterSpacing: '.03em', marginBottom: 4, fontSize: '.75rem' }}>
+                      ACP on file
+                      {resident.resus_status === 'nfr' ? ' - NFR' : resident.resus_status === 'for_resus' ? ' - FOR RESUS' : ' - resus status unknown'}
+                      {resident.transfer_to_hospital === false ? ' - Comfort in place' : resident.transfer_to_hospital === true ? ' - Transfer OK' : ''}
+                    </div>
+                    {resident.acp_summary && (
+                      <div style={{ opacity: .9, lineHeight: 1.45 }}>{resident.acp_summary}</div>
+                    )}
+                  </div>
+                )}
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: '.75rem', cursor: 'pointer', color: 'rgba(255,255,255,.9)', fontSize: '.875rem', lineHeight: 1.5 }}>
+                  <input type="checkbox" checked={callingOnBehalf} onChange={e => setCallingOnBehalf(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
+                  <span>I am calling on behalf of the resident. <span style={{ color: 'rgba(255,255,255,.55)', fontWeight: 400 }}>(Untick if the resident is placing this call themselves.)</span></span>
+                </label>
+
+                {callingOnBehalf && (
+                  <>
+                    <label style={label}>Your name</label>
+                    <input style={inp} value={onBehalfName} onChange={e => setOnBehalfName(e.target.value)} placeholder="e.g. Jane Smith" />
+                    <label style={label}>Your role</label>
+                    <select style={{ ...inp, cursor: 'pointer' }} value={onBehalfRole} onChange={e => setOnBehalfRole(e.target.value)}>
+                      <option value="rn"     style={{ color: '#0D2B45', background: 'white' }}>Registered Nurse (RN)</option>
+                      <option value="hca"    style={{ color: '#0D2B45', background: 'white' }}>Healthcare Assistant (HCA)</option>
+                      <option value="family" style={{ color: '#0D2B45', background: 'white' }}>Family member</option>
+                      <option value="other"  style={{ color: '#0D2B45', background: 'white' }}>Other</option>
+                    </select>
+                  </>
+                )}
+
+                {/* Consent source. Default: resident self-consents (competent
+                    adult presumption, HDC Right 7). EPOA override only valid
+                    for personal_care_welfare EPOA + activated status - server
+                    re-checks and refuses if either is missing. */}
+                <label style={label}>Consent source</label>
+                <select style={{ ...inp, cursor: 'pointer' }} value={consentSource} onChange={e => setConsentSource(e.target.value)}>
+                  <option value="resident"           style={{ color: '#0D2B45', background: 'white' }}>Resident consents (default)</option>
+                  <option value="epoa_personal_care" style={{ color: '#0D2B45', background: 'white' }}>EPOA Personal Care &amp; Welfare (override)</option>
+                  <option value="emergency_implied"  style={{ color: '#0D2B45', background: 'white' }}>Emergency - implied consent</option>
+                </select>
+                {consentSource === 'epoa_personal_care' && (
+                  <div style={{ background: 'rgba(234,179,8,.15)', border: '1px solid rgba(234,179,8,.35)', borderRadius: 8, padding: '.75rem .85rem', marginTop: '.5rem' }}>
+                    <div style={{ color: 'rgba(255,255,255,.85)', fontSize: '.75rem', lineHeight: 1.6, marginBottom: 6 }}>
+                      An EPOA Personal Care &amp; Welfare attorney can only consent once the resident has been certified mentally incapable (s98(4) PPPR Act). The chart record will show this consent override.
+                    </div>
+                    {resident && (
+                      <div style={{ fontSize: '.6875rem', color: resident.epoa_type === 'personal_care_welfare' && resident.epoa_activated ? '#86EFAC' : '#FCA5A5', marginBottom: 6 }}>
+                        Resident record: EPOA type = <strong>{resident.epoa_type || 'none'}</strong>, activated = <strong>{resident.epoa_activated ? 'yes' : 'no'}</strong>
+                        {!(resident.epoa_type === 'personal_care_welfare' && resident.epoa_activated) && ' - override will be rejected on submit.'}
+                      </div>
+                    )}
+                    <label style={label}>Reason for override</label>
+                    <textarea style={{ ...inp, minHeight: 60, resize: 'vertical' }} value={epoaOverrideReason} onChange={e => setEpoaOverrideReason(e.target.value)} placeholder="e.g. Resident has advanced dementia, unable to communicate. EPOA Mr B Jones (son) has been contacted and agrees to consult." />
+                  </div>
+                )}
+
+                {/* Facility vitals - optional. Values typed in from in-house
+                    equipment (manual BP, finger probe, thermometer). Kept
+                    separate from WAND-camera vitals so Class IIa accuracy
+                    stats stay clean. Provider sees both on the chart. */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: '.75rem', marginBottom: '.5rem', cursor: 'pointer', color: 'rgba(255,255,255,.9)', fontSize: '.875rem', lineHeight: 1.5 }}>
+                  <input type="checkbox" checked={useFacilityVitals} onChange={e => setUseFacilityVitals(e.target.checked)} style={{ marginTop: 3, flexShrink: 0, cursor: 'pointer', accentColor: TEAL, transform: 'scale(1.1)' }} />
+                  <span>Enter vitals from facility equipment <span style={{ color: 'rgba(255,255,255,.55)', fontWeight: 400 }}>(manual BP cuff, SpO2 probe, thermometer). Optional - the camera-based scan still runs after submit.</span></span>
+                </label>
+                {useFacilityVitals && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '.5rem', background: 'rgba(0,0,0,.15)', padding: '.75rem', borderRadius: 8 }}>
+                    <div><label style={label}>SBP (mmHg)</label><input style={inp} inputMode="numeric" value={facilityVitals.sbp} onChange={e => setFacilityVitals(v => ({ ...v, sbp: e.target.value }))} placeholder="e.g. 128" /></div>
+                    <div><label style={label}>DBP (mmHg)</label><input style={inp} inputMode="numeric" value={facilityVitals.dbp} onChange={e => setFacilityVitals(v => ({ ...v, dbp: e.target.value }))} placeholder="e.g. 78" /></div>
+                    <div><label style={label}>HR (bpm)</label><input style={inp} inputMode="numeric" value={facilityVitals.hr} onChange={e => setFacilityVitals(v => ({ ...v, hr: e.target.value }))} placeholder="e.g. 72" /></div>
+                    <div><label style={label}>RR (/min)</label><input style={inp} inputMode="numeric" value={facilityVitals.rr} onChange={e => setFacilityVitals(v => ({ ...v, rr: e.target.value }))} placeholder="e.g. 16" /></div>
+                    <div><label style={label}>SpO2 (%)</label><input style={inp} inputMode="numeric" value={facilityVitals.spo2} onChange={e => setFacilityVitals(v => ({ ...v, spo2: e.target.value }))} placeholder="e.g. 97" /></div>
+                    <div><label style={label}>Temp (&deg;C)</label><input style={inp} inputMode="decimal" value={facilityVitals.temp} onChange={e => setFacilityVitals(v => ({ ...v, temp: e.target.value }))} placeholder="e.g. 36.8" /></div>
+                    <div><label style={label}>BGL (mmol/L)</label><input style={inp} inputMode="decimal" value={facilityVitals.bgl} onChange={e => setFacilityVitals(v => ({ ...v, bgl: e.target.value }))} placeholder="optional" /></div>
+                    <div style={{ gridColumn: '1 / -1' }}><label style={label}>Measured by *</label><input style={inp} value={facilityVitals.measured_by} onChange={e => setFacilityVitals(v => ({ ...v, measured_by: e.target.value }))} placeholder="e.g. Jane Smith RN" /></div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* GP for continuity of care — optional. Lets the provider send
                 the visit summary to the worker's regular GP so the ongoing
