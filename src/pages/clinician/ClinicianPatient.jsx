@@ -3,6 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { formatDob, calculateAge } from '../../lib/dob'
 import { getPatientConsultations, updatePatient, createPatient, getConsultation, updateConsultation, getPatient, getPatientPrescriptions, getPatientDocuments, uploadPatientDocument, deletePatientDocument, patientAllergensApi, patientMedicationsApi, patientConditionsApi, providerTasksApi, resendPrescription } from '../../lib/supabase'
+import { useFeatureFlag } from '../../lib/featureFlags'
 import EncounterActionBar from '../../components/clinician/EncounterActionBar'
 import PatientPresenceGateModal from '../../components/clinician/PatientPresenceGateModal'
 import { getPatientPresence } from '../../lib/patientPresence'
@@ -63,6 +64,169 @@ function PracticeCallWidget({ patientName, startedAt, onEnd }) {
         style={{ marginTop: 4, background: '#DC2626', color: 'white', border: 'none', borderRadius: 10, padding: '0.5rem 0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: '.8125rem', cursor: 'pointer' }}>
         End call → go to notes
       </button>
+    </div>
+  )
+}
+
+// ARC ACP banner (wave 9). Renders at the top of the chart whenever the
+// consult carries employer_org_type='aged_care'. Red / amber / green tint by
+// resus_status. Click toggles the full ACP detail + EPOA contact block
+// which otherwise stays collapsed to keep the chart dense. If no ACP data
+// is on file for the resident, renders a grey "No ACP on file - confirm
+// with facility before escalating" prompt instead of hiding entirely -
+// the absence of an ACP is itself a safety-relevant signal.
+//
+// If `resident` is entirely missing (e.g. patient entered details that
+// didn't quite match the facility roster), the banner still renders in a
+// neutral grey so the provider KNOWS this is an ARC consult but has no
+// ACP colour to act on - they can phone the facility to confirm wishes.
+function ArcAcpBanner({ consult, resident, onAcpOverride }) {
+  const [open, setOpen] = React.useState(false)
+  // arc_acp_divert_override - dev-flagged third option on NFR residents.
+  // Patrick keeps this OFF until Rachel signs off on the clinical pathway;
+  // when enabled, the banner surfaces a button that lets the provider set
+  // disposition=acp_comfort_in_place without going through the Finalise
+  // dropdown (saves a click in the "obvious NFR" case).
+  const divertOverrideEnabled = useFeatureFlag('arc_acp_divert_override')
+  const isNfr = resident?.resus_status === 'nfr'
+  const [overriding, setOverriding] = React.useState(false)
+  async function handleOverride() {
+    if (!onAcpOverride || overriding) return
+    setOverriding(true)
+    try { await onAcpOverride() } catch (e) { alert(e?.message || 'Could not apply ACP disposition') }
+    setOverriding(false)
+  }
+  const facilityName = consult?.employer_company_name || 'Facility'
+  // No resident match at all - lighter banner so the provider still sees
+  // this is an ARC consult even though the triage name/DOB didn't match
+  // the facility roster. Handled separately from the "has resident row
+  // but no ACP fields filled in" case below.
+  if (!resident) {
+    return (
+      <div style={{ background: '#F3F4F6', border: '2px solid #D1D5DB', borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem' }}>
+        <div style={{ fontSize: '.625rem', fontWeight: 800, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 4 }}>
+          Aged residential care
+        </div>
+        <div style={{ fontSize: '.8125rem', color: '#374151', lineHeight: 1.5 }}>
+          This consult is from <strong>{facilityName}</strong>. No matching resident row found - ACP status unknown. Phone the facility to confirm resus / transfer wishes before escalating.
+        </div>
+      </div>
+    )
+  }
+  const hasAcp = !!(resident?.resus_status || resident?.acp_summary || resident?.transfer_to_hospital != null)
+  const tint = !hasAcp ? { bg: '#F3F4F6', border: '#D1D5DB', fg: '#374151', label: '#6B7280' }
+    : resident.resus_status === 'nfr'      ? { bg: '#FEE2E2', border: '#FCA5A5', fg: '#7F1D1D', label: '#991B1B' }
+    : resident.resus_status === 'for_resus'? { bg: '#DCFCE7', border: '#86EFAC', fg: '#166534', label: '#15803D' }
+    :                                        { bg: '#FEF3C7', border: '#FCD34D', fg: '#78350F', label: '#92400E' }
+
+  const resusLabel = resident?.resus_status === 'nfr' ? 'NFR'
+    : resident?.resus_status === 'for_resus' ? 'FOR RESUS'
+    : resident?.resus_status === 'unknown' ? 'UNKNOWN'
+    : hasAcp ? 'UNSPECIFIED' : 'NO ACP ON FILE'
+
+  const transferLabel = resident?.transfer_to_hospital === false ? 'Comfort in place'
+    : resident?.transfer_to_hospital === true ? 'Transfer OK'
+    : null
+
+  const consentLabel = consult?.consent_source === 'epoa_personal_care' ? 'EPOA (Personal Care & Welfare)'
+    : consult?.consent_source === 'next_of_kin_only' ? 'Next of kin'
+    : consult?.consent_source === 'emergency_implied' ? 'Emergency - implied'
+    : 'Resident'
+
+  return (
+    <div style={{ background: tint.bg, border: `2px solid ${tint.border}`, borderRadius: 10, padding: '.75rem 1rem', marginBottom: '.75rem' }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'left' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '.625rem', fontWeight: 800, color: tint.label, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Aged residential care
+          </span>
+          <span style={{ fontSize: '.6875rem', color: tint.fg, opacity: .8 }}>{facilityName}</span>
+          <span style={{ marginLeft: 'auto', fontSize: '.6875rem', color: tint.label, fontWeight: 700 }}>{open ? '▾ Hide' : '▸ Expand'}</span>
+        </div>
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', fontSize: '.875rem', fontWeight: 700, color: tint.fg }}>
+          <span>RESUS: {resusLabel}</span>
+          {transferLabel && <span>· TRANSFER: {transferLabel}</span>}
+          {resident?.room_number && <span>· Room {resident.room_number}</span>}
+          <span>· CONSENT: {consentLabel}</span>
+        </div>
+        {resident?.epoa_type === 'property_only' && (
+          /* Property-only EPOA chip. Clinically important because a
+             property EPOA has NO authority to consent to treatment -
+             the provider must not accept the EPOA as the decision
+             maker here. Chip stays in the compact row so it's visible
+             without expanding. */
+          <div style={{ marginTop: 6, display: 'inline-block', background: '#FEF3C7', color: '#78350F', border: '1px solid #FCD34D', borderRadius: 6, padding: '3px 8px', fontSize: '.6875rem', fontWeight: 700 }}>
+            Property EPOA - cannot consent to treatment
+          </div>
+        )}
+        {!open && hasAcp && resident?.acp_summary && (
+          <div style={{ marginTop: 6, fontSize: '.8125rem', color: tint.fg, opacity: .85, lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            ACP: {resident.acp_summary}
+          </div>
+        )}
+      </button>
+      {open && (
+        <div style={{ marginTop: 10, borderTop: `1px solid ${tint.border}`, paddingTop: 10, fontSize: '.8125rem', color: tint.fg, lineHeight: 1.55 }}>
+          {resident?.acp_summary && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: '.6875rem', fontWeight: 700, opacity: .7, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>ACP summary</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{resident.acp_summary}</div>
+            </div>
+          )}
+          {resident && (resident.epoa_name || resident.epoa_phone || resident.epoa_email) && (
+            <div style={{ background: 'rgba(255,255,255,.4)', borderRadius: 6, padding: '8px 10px', marginBottom: 8 }}>
+              <div style={{ fontSize: '.6875rem', fontWeight: 700, opacity: .7, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>
+                EPOA contact
+                {resident.epoa_type && <span style={{ marginLeft: 6, fontWeight: 600, opacity: .8 }}>({String(resident.epoa_type).replace(/_/g, ' ')}{resident.epoa_activated ? ' - activated' : ' - not activated'})</span>}
+              </div>
+              <div>{resident.epoa_name || '(name not on file)'}</div>
+              {resident.epoa_phone && <div><a href={`tel:${resident.epoa_phone}`} style={{ color: tint.fg, textDecoration: 'underline' }}>{resident.epoa_phone}</a></div>}
+              {resident.epoa_email && <div><a href={`mailto:${resident.epoa_email}`} style={{ color: tint.fg, textDecoration: 'underline' }}>{resident.epoa_email}</a></div>}
+            </div>
+          )}
+          {consult?.calling_on_behalf_name && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: '.6875rem', fontWeight: 700, opacity: .7, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Call relayed by</div>
+              <div>{consult.calling_on_behalf_name}{consult.calling_on_behalf_role ? ` - ${String(consult.calling_on_behalf_role).toUpperCase()}` : ''}</div>
+            </div>
+          )}
+          {consult?.consent_source === 'epoa_personal_care' && consult?.consent_override_reason && (
+            <div style={{ background: 'rgba(255,255,255,.4)', borderRadius: 6, padding: '8px 10px' }}>
+              <div style={{ fontSize: '.6875rem', fontWeight: 700, opacity: .7, textTransform: 'uppercase', letterSpacing: '.04em', marginBottom: 3 }}>Consent override reason (EPOA)</div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{consult.consent_override_reason}</div>
+            </div>
+          )}
+          {!hasAcp && (
+            <div style={{ fontSize: '.75rem', opacity: .8 }}>
+              No advance care plan on file for this resident. Confirm resus / transfer wishes with the facility clinical lead before escalating to 111 / ED - the resident may have a verbal ACP that hasn't been entered into the Tere roster yet.
+            </div>
+          )}
+          {/* arc_acp_divert_override flag: one-click "continue under ACP"
+              shortcut for the NFR comfort-in-place path. Only visible when
+              the resident is NFR AND the flag is enabled - Patrick keeps
+              it OFF until Rachel signs off on the clinical pathway. */}
+          {divertOverrideEnabled && isNfr && consult?.disposition !== 'acp_comfort_in_place' && (
+            <button
+              type="button"
+              onClick={handleOverride}
+              disabled={overriding}
+              style={{
+                marginTop: 10, background: '#7F1D1D', color: 'white', border: 'none',
+                padding: '10px 14px', borderRadius: 8, cursor: overriding ? 'wait' : 'pointer',
+                fontSize: '.8125rem', fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                width: '100%', opacity: overriding ? .7 : 1,
+              }}>
+              {overriding ? 'Applying...' : 'Continue under ACP: comfort in place (NFR)'}
+            </button>
+          )}
+          {consult?.disposition === 'acp_comfort_in_place' && (
+            <div style={{ marginTop: 10, background: 'rgba(255,255,255,.4)', border: `1px solid ${tint.border}`, borderRadius: 6, padding: '8px 10px', fontSize: '.75rem', fontWeight: 700, color: tint.fg }}>
+              Disposition set: ACP comfort in place
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -1015,6 +1179,21 @@ export default function ClinicianPatient() {
               </div>
             </div>
           </div>
+
+          {/* ARC facility banner - top of chart, above chief complaint.
+              Renders resus status + transfer wishes + ACP summary so the
+              provider sees the clinical safety carve-out BEFORE they open
+              the triage narrative. Click to expand EPOA contact. */}
+          {consult.employer_org_type === 'aged_care' && (
+            <ArcAcpBanner
+              consult={consult}
+              resident={consult.resident}
+              onAcpOverride={async () => {
+                await updateConsultation(id, { disposition: 'acp_comfort_in_place' })
+                try { const fresh = await getConsultation(id); if (fresh) setConsult(fresh) } catch {}
+              }}
+            />
+          )}
 
           {/* Chief complaint */}
           <div style={{ background: '#F8FAFC', borderRadius: 10, padding: '1rem', borderLeft: `3px solid ${TEAL}` }}>
