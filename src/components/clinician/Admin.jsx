@@ -6311,7 +6311,7 @@ function EmployersPanel() {
   const [employers, setEmployers] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [showAdd, setShowAdd] = React.useState(false)
-  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
+  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '', org_type: 'employer', clinical_contact_name: '', clinical_contact_email: '', backup_contact_name: '', backup_contact_email: '', billing_email: '' })
   const [saving, setSaving] = React.useState(false)
   const [uploadingFor, setUploadingFor] = React.useState(null)
   const [employeeCounts, setEmployeeCounts] = React.useState({})
@@ -6344,8 +6344,14 @@ function EmployersPanel() {
         usage_cap_month: newEmp.usage_cap_month ? parseInt(newEmp.usage_cap_month, 10) : null,
         is_active: true,
         generateSlug: newEmp.generateSlug,
+        org_type: newEmp.org_type || 'employer',
+        clinical_contact_name: newEmp.clinical_contact_name.trim() || null,
+        clinical_contact_email: newEmp.clinical_contact_email.trim() || null,
+        backup_contact_name: newEmp.backup_contact_name.trim() || null,
+        backup_contact_email: newEmp.backup_contact_email.trim() || null,
+        billing_email: newEmp.billing_email.trim() || null,
       })
-      setNewEmp({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '' })
+      setNewEmp({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '', org_type: 'employer', clinical_contact_name: '', clinical_contact_email: '', backup_contact_name: '', backup_contact_email: '', billing_email: '' })
       setShowAdd(false)
       await load()
     } catch(e) { console.error(e) }
@@ -6531,20 +6537,44 @@ function EmployersPanel() {
 
       {showAdd && (
         <div style={{ background: '#F8FAFC', borderRadius: 8, padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid #E2E8F0' }}>
-          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>New employer</div>
+          <div style={{ fontWeight: 700, fontSize: '.9rem', color: '#0D2B45', marginBottom: '.75rem' }}>New organisation</div>
+          <div style={{ marginBottom: '.75rem' }}>
+            <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 4, fontWeight: 600 }}>Organisation type</label>
+            <select style={{ ...inp, width: '100%' }} value={newEmp.org_type} onChange={e => setNewEmp(n => ({ ...n, org_type: e.target.value }))}>
+              <option value="employer">Employer (B2B flat-rate consults for staff)</option>
+              <option value="aged_care">Aged residential care / Rest home ($65 eval / $25 ACC, monthly invoice)</option>
+            </select>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.5rem' }}>
-            <input style={inp} placeholder="Company name *" value={newEmp.company_name} onChange={e => setNewEmp(n => ({ ...n, company_name: e.target.value }))} />
+            <input style={inp} placeholder={newEmp.org_type === 'aged_care' ? 'Facility name *' : 'Company name *'} value={newEmp.company_name} onChange={e => setNewEmp(n => ({ ...n, company_name: e.target.value }))} />
             <input style={inp} placeholder="Contact email" value={newEmp.contact_email} onChange={e => setNewEmp(n => ({ ...n, contact_email: e.target.value }))} />
-            <input style={inp} placeholder="Monthly rate per employee ($)" value={newEmp.monthly_rate_per_employee} onChange={e => setNewEmp(n => ({ ...n, monthly_rate_per_employee: e.target.value }))} />
-            <input style={inp} type="date" placeholder="Contract start" value={newEmp.contract_start} onChange={e => setNewEmp(n => ({ ...n, contract_start: e.target.value }))} />
-            <input style={inp} type="number" min="0" placeholder="Monthly consult cap (optional)" value={newEmp.usage_cap_month} onChange={e => setNewEmp(n => ({ ...n, usage_cap_month: e.target.value }))} />
+            {newEmp.org_type !== 'aged_care' && (
+              <>
+                <input style={inp} placeholder="Monthly rate per employee ($)" value={newEmp.monthly_rate_per_employee} onChange={e => setNewEmp(n => ({ ...n, monthly_rate_per_employee: e.target.value }))} />
+                <input style={inp} type="date" placeholder="Contract start" value={newEmp.contract_start} onChange={e => setNewEmp(n => ({ ...n, contract_start: e.target.value }))} />
+                <input style={inp} type="number" min="0" placeholder="Monthly consult cap (optional)" value={newEmp.usage_cap_month} onChange={e => setNewEmp(n => ({ ...n, usage_cap_month: e.target.value }))} />
+              </>
+            )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', fontSize: '.8125rem', color: '#374151', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
               <input type="checkbox" checked={newEmp.generateSlug} onChange={e => setNewEmp(n => ({ ...n, generateSlug: e.target.checked }))} />
-              Generate /work/[company-name] URL (branded — roster still required)
+              Generate /work/[slug] URL (roster still required)
             </label>
           </div>
+          {newEmp.org_type === 'aged_care' && (
+            <div style={{ background: 'white', border: '1px solid #BAE6E9', borderRadius: 6, padding: '.75rem 1rem', marginBottom: '.75rem' }}>
+              <div style={{ fontSize: '.75rem', fontWeight: 700, color: '#0B6E76', marginBottom: '.5rem', textTransform: 'uppercase', letterSpacing: '.03em' }}>Monthly report recipients</div>
+              <div style={{ fontSize: '.75rem', color: '#64748B', marginBottom: '.5rem' }}>Named humans only — not info@ / accounts@ (silently-bounced report = report you think they got). Report sent on day 7 each month to clinical + CC backup.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem' }}>
+                <input style={inp} placeholder="Clinical contact name *" value={newEmp.clinical_contact_name} onChange={e => setNewEmp(n => ({ ...n, clinical_contact_name: e.target.value }))} />
+                <input style={inp} type="email" placeholder="Clinical contact email *" value={newEmp.clinical_contact_email} onChange={e => setNewEmp(n => ({ ...n, clinical_contact_email: e.target.value }))} />
+                <input style={inp} placeholder="Backup contact name *" value={newEmp.backup_contact_name} onChange={e => setNewEmp(n => ({ ...n, backup_contact_name: e.target.value }))} />
+                <input style={inp} type="email" placeholder="Backup contact email *" value={newEmp.backup_contact_email} onChange={e => setNewEmp(n => ({ ...n, backup_contact_email: e.target.value }))} />
+                <input style={{ ...inp, gridColumn: '1 / span 2' }} type="email" placeholder="Billing / accounts email (invoice only — can be shared inbox)" value={newEmp.billing_email} onChange={e => setNewEmp(n => ({ ...n, billing_email: e.target.value }))} />
+              </div>
+            </div>
+          )}
           <button onClick={addEmployer} disabled={saving || !newEmp.company_name.trim()} style={{ background: '#0B6E76', color: 'white', border: 'none', padding: '7px 16px', borderRadius: 6, cursor: 'pointer', fontSize: '.875rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            {saving ? 'Saving…' : 'Add employer'}
+            {saving ? 'Saving…' : newEmp.org_type === 'aged_care' ? 'Add rest home' : 'Add employer'}
           </button>
         </div>
       )}

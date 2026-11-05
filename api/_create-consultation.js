@@ -85,7 +85,7 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
   if (!claimedEmployerId) return null
   const { data, error } = await supabase
     .from('employers')
-    .select('id, company_name, is_active, require_employee_match, site_address, site_phone, contact_phone')
+    .select('id, company_name, is_active, require_employee_match, site_address, site_phone, contact_phone, org_type')
     .eq('id', String(claimedEmployerId))
     .maybeSingle()
   if (error || !data || !data.is_active) return null
@@ -98,6 +98,9 @@ async function verifyEmployerBenefit(supabase, claimedEmployerId) {
     // ACC45 needs a phone number for the employer; better an admin number
     // than a blank field on the claim.
     site_phone: data.site_phone || data.contact_phone || null,
+    // 'employer' (default, legacy flat-rate) or 'aged_care' (per-consult
+    // public rates, monthly invoice). See supabase/2026-11-05_aged_care_org_type.sql.
+    org_type: data.org_type || 'employer',
   }
 }
 
@@ -199,6 +202,15 @@ export default async function handler(req, res) {
       payload.employer_id   = verified.employer_id
       payload.employer_name = verified.employer_name
       payload.employer_paid = true
+
+      // ARC facilities bill per-consult at public rates ($65 eval / $25 ACC)
+      // rather than the employer flat rate. fee_tier='resident' routes
+      // pricing through the public NZ rate table while employer_paid=true
+      // still skips the Windcave card-on-booking gate. The facility gets
+      // a monthly invoice via the arc-monthly-report cron.
+      if (verified.org_type === 'aged_care') {
+        payload.fee_tier = 'resident'
+      }
 
       // Auto-populate ACC45 employer fields from the verified employer row.
       // Only sets fields that are still null on the payload — never
