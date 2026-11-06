@@ -267,10 +267,33 @@ import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
 import { getPatientConsult, subscribeToConsultationEnded } from '../../lib/supabase'
 import { getLangMeta, t } from '../../lib/i18n'
+import { fireFunnelEvent } from '../../lib/funnelClient'
 import CallSubtitles from '../clinical/CallSubtitles'
 import ChimeCallSubtitles from '../clinical/ChimeCallSubtitles'
 import ChimeCall from '../call/ChimeCall'
 import { useChimeSdk } from '../../lib/chime'
+
+// Fire the /call funnel beacon once per consult, and only once the server
+// has actually stamped started_at on the consultation. Replaces the old
+// pageview-on-mount beacon which counted stale-link clicks + back-button
+// hits + bots as "In call" in the admin funnel even when no consult had
+// reached in_progress. Debounce via sessionStorage so repeated status
+// polls don't spam the beacon endpoint; sessionStorage.clear() on
+// logout / finish naturally wipes the guard for the next session.
+function fireCallBeaconOnce(consultationId, consult) {
+  if (!consultationId || !consult) return
+  if (!consult.started_at) return
+  try {
+    const key = `tere_call_beacon_fired_${consultationId}`
+    if (sessionStorage.getItem(key) === '1') return
+    sessionStorage.setItem(key, '1')
+  } catch { /* no sessionStorage → still fire, better slight dupe than silence */ }
+  fireFunnelEvent('pageview', {
+    path: '/call',
+    consultationId,
+    meta: { gated: 'started_at' },
+  })
+}
 
 export default function PatientCall() {
   const navigate = useNavigate()
@@ -377,6 +400,11 @@ export default function PatientCall() {
         // Mirror server-side chime_meeting_id into state so ChimeCall's
         // providerReady prop flips true the moment the provider clicks Call.
         setChimeMeetingId(c.chime_meeting_id || null)
+        // Admin-funnel /call beacon: gated on server-stamped started_at so
+        // stale-link clicks / back-button / bots don't inflate "In call".
+        // Guarded per consultationId via sessionStorage to debounce the 3s
+        // poll loop.
+        fireCallBeaconOnce(consultationId, c)
         if (c.status === 'no_show') {
           setGate('no_show')
           return

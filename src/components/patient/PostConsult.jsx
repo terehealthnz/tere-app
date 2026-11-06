@@ -1,7 +1,30 @@
 import React, { useEffect, useState } from 'react'
 import { getPatientConsult } from '../../lib/supabase'
+import { fireFunnelEvent } from '../../lib/funnelClient'
 import InsuranceReceiptUpsell from './InsuranceReceiptUpsell'
 import { ACC_PATIENT_CONTRIBUTION_CENTS } from '../../lib/consultationType'
+
+// Fire the /done funnel beacon once per consult, and only once the server
+// has actually stamped completed_at (or flipped status to complete). The
+// old pageview-on-mount beacon counted every stale /done navigation (back
+// button after bailing early, bot crawls, deep-linked refresh) as a
+// completed consult. Guarded via sessionStorage so refreshing /done
+// doesn't double-fire.
+function fireDoneBeaconOnce(consultationId, consult) {
+  if (!consultationId || !consult) return
+  const isComplete = consult.status === 'complete' || consult.status === 'completed' || !!consult.completed_at
+  if (!isComplete) return
+  try {
+    const key = `tere_done_beacon_fired_${consultationId}`
+    if (sessionStorage.getItem(key) === '1') return
+    sessionStorage.setItem(key, '1')
+  } catch { /* no sessionStorage → still fire, better slight dupe than silence */ }
+  fireFunnelEvent('pageview', {
+    path: '/done',
+    consultationId,
+    meta: { gated: 'completed_at' },
+  })
+}
 
 export default function PostConsult() {
   const [consult, setConsult] = useState(null)
@@ -11,15 +34,38 @@ export default function PostConsult() {
   useEffect(() => {
     if (!consultationId) { setLoading(false); return }
     let cancelled = false
-    getPatientConsult(consultationId)
-      .then(c => { if (!cancelled) { setConsult(c || null); setLoading(false) } })
-      .catch(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
+    let pollTimer = null
+    function load() {
+      return getPatientConsult(consultationId)
+        .then(c => {
+          if (cancelled) return
+          setConsult(c || null)
+          setLoading(false)
+          // Gated admin-funnel /done beacon: only fires if the consult is
+          // actually finalised. See fireDoneBeaconOnce comment above.
+          fireDoneBeaconOnce(consultationId, c)
+          // Patient often lands on /done while the provider is still writing
+          // notes. Keep refreshing every 10s until finalised so the billing
+          // block appears + the funnel beacon fires when the provider signs
+          // off. Stops once complete (one-shot beacon too, guarded by
+          // sessionStorage).
+          const isComplete = c && (c.status === 'complete' || c.status === 'completed' || !!c.completed_at)
+          if (!isComplete && !cancelled) pollTimer = setTimeout(load, 10000)
+        })
+        .catch(() => { if (!cancelled) setLoading(false) })
+    }
+    load()
+    return () => { cancelled = true; if (pollTimer) clearTimeout(pollTimer) }
   }, [consultationId])
 
   function refreshConsult() {
     if (!consultationId) return
-    getPatientConsult(consultationId).then(c => setConsult(c || null)).catch(() => {})
+    getPatientConsult(consultationId).then(c => {
+      setConsult(c || null)
+      // If the provider finalised while the patient was sitting on /done
+      // waiting for billing to appear, this is the moment to beacon.
+      fireDoneBeaconOnce(consultationId, c)
+    }).catch(() => {})
   }
 
   // Billing derivation. Only meaningful once the provider has finalised —

@@ -130,9 +130,15 @@ export default async function handler(req, res) {
     }
   }
 
-  // Ordered funnel drop-off. For /call and /done the pageview beacon never
-  // fires (modal / state-change, not a route), so the session-based count
-  // underreports. We'll overlay DB-derived counts for those steps below.
+  // Ordered funnel drop-off. For /call and /done the beacon now fires only
+  // when the server has stamped started_at / completed_at (see
+  // PatientCall.jsx + PostConsult.jsx; the old pageview-on-mount was
+  // counting stale-link clicks + bots as "In call"). The DB overlay below
+  // stays as defense-in-depth: if the beacon ever regresses (sendBeacon
+  // dropped on tab close, client error swallowed), the DB count still
+  // reflects reality. Math.max means beacon count wins when > DB (e.g.
+  // anonymised sessions without a consult_id stamp) and DB wins when > beacon
+  // (e.g. beacon-blocking browser extension). Not primary signal.
   const dropOff = []
   for (let i = 0; i < FUNNEL_ORDER.length - 1; i++) {
     const from = FUNNEL_ORDER[i]
@@ -164,10 +170,12 @@ export default async function handler(req, res) {
     .map(([path, rec]) => ({ path, count: rec.count, unique_sessions: rec.sessions.size }))
     .sort((a, b) => b.count - a.count)
 
-  // /call and /done are modals / state changes, not real routes — the patient
-  // never navigates there so no pageview beacon fires. Fall back to the DB
-  // ground truth: consult.status transitions prove they reached those steps.
-  // Query is cheap (indexed on status + created_at) and runs once per request.
+  // DB ground truth for /call + /done. Beacons for those steps are gated on
+  // server-stamped started_at / completed_at now (see comment above), so the
+  // beacon and DB counts should agree closely in normal traffic. This query
+  // is kept as the belt to the beacon's braces: covers beacons swallowed by
+  // sendBeacon-on-close, ad-blockers, or client crashes mid-call. Cheap
+  // (indexed on status + created_at), runs once per request.
   let inCallCount = 0, doneCount = 0
   try {
     let cq = supabase.from('consultations')

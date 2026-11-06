@@ -26,15 +26,31 @@ function getSessionId() {
 // Route prefixes we care about tracking — everything else (clinician,
 // admin, careers, corporate, legal) is ignored to keep the telemetry
 // table clean and focused on the patient funnel.
+//
+// /call and /done are deliberately EXCLUDED. A pageview-on-mount beacon
+// for those routes counts stale-link clicks, back-button hits, and bots
+// as "In call" / "Done" in the admin funnel even when no consult reached
+// started_at / completed_at. Those two steps now fire explicit beacons
+// from PatientCall.jsx (on provider join / started_at) and
+// PostConsult.jsx (on completed_at) so the funnel reflects reality.
 const TRACK_PREFIXES = [
   '/', '/start', '/consent', '/triage', '/consultation-type',
-  '/payment', '/payment-return', '/waiting', '/call', '/vitals',
-  '/done', '/message-sent', '/triage-review', '/notice-of-privacy-practices',
+  '/payment', '/payment-return', '/waiting', '/vitals',
+  '/message-sent', '/triage-review', '/notice-of-privacy-practices',
   '/waitlisted', '/work',
 ]
 
+// Paths explicitly blocked from pageview-on-mount even if they share a
+// prefix with something in TRACK_PREFIXES. Belt-and-braces: these fire
+// their own gated beacons from the page components.
+const BLOCK_PATHS = new Set(['/call', '/done'])
+
 function shouldTrack(path) {
   if (!path) return false
+  // Exact-match block first. Any /call* or /done* subpath we also skip
+  // (no current /call/foo subroute, but be defensive).
+  if (BLOCK_PATHS.has(path)) return false
+  if (path.startsWith('/call/') || path.startsWith('/done/')) return false
   return TRACK_PREFIXES.some(p => path === p || path.startsWith(`${p}/`))
 }
 

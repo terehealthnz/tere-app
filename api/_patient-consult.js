@@ -105,6 +105,11 @@ const PATIENT_STATUS_ALLOWED = new Set([
 // (notes, diagnosis, transcript, billing internals, ACC internals).
 const PATIENT_VIEW_COLUMNS = [
   'id', 'created_at', 'updated_at',
+  // started_at / completed_at drive the gated funnel beacons on the
+  // patient side (PatientCall fires /call only after started_at is
+  // stamped by /api/initiate-call; PostConsult fires /done only after
+  // completed_at is stamped by the provider's finalise). No PHI.
+  'started_at', 'completed_at',
   'patient_first_name', 'patient_last_name',
   'status', 'consultation_type', 'consultation_subtype',
   'provider_display_name',
