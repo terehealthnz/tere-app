@@ -225,6 +225,67 @@ export default async function handler(req, res) {
         }
       }
 
+      // ARC enrichment: if this consult belongs to an aged_care facility,
+      // attach employer_org_type + employer_company_name + resident row so
+      // the ClinicianPatient ACP banner (red/amber/green ACP status at top
+      // of chart) can render without a second round-trip. Non-ARC consults
+      // pay the cost of one `employers` SELECT and no roster SELECT — the
+      // employers fetch is keyed on employer_id which is indexed and only
+      // runs when employer_id is non-null.
+      //
+      // Resident match: prefer the stable facility_resident_id if captured
+      // on the consult at roster-match time; fall back to case-insensitive
+      // name + exact DOB scoped by employer_id (same matching logic as
+      // _create-consultation.js:matchEmployerRoster so a consult that was
+      // name+DOB-matched at intake surfaces the same row here).
+      if (data.employer_id) {
+        try {
+          const { data: emp } = await supabase
+            .from('employers')
+            .select('org_type, company_name')
+            .eq('id', data.employer_id)
+            .maybeSingle()
+          if (emp) {
+            data.employer_org_type     = emp.org_type || null
+            data.employer_company_name = emp.company_name || data.employer_name || null
+          }
+          if (emp?.org_type === 'aged_care') {
+            let resident = null
+            // 1. Stable ID path (preferred) — soft-delete-aware so a
+            //    re-admitted resident on a new row doesn't shadow the
+            //    deleted one that this consult actually ran against.
+            if (data.facility_resident_id) {
+              const { data: r } = await supabase
+                .from('employer_employees')
+                .select('id, resus_status, transfer_to_hospital, acp_summary, epoa_name, epoa_phone, epoa_email, epoa_type, epoa_activated, room_number, facility_resident_id')
+                .eq('employer_id', data.employer_id)
+                .eq('facility_resident_id', data.facility_resident_id)
+                .is('deleted_at', null)
+                .maybeSingle()
+              resident = r || null
+            }
+            // 2. Name + DOB fallback — same matcher as create-consultation.
+            if (!resident && data.patient_first_name && data.patient_last_name && data.patient_dob) {
+              const { data: r } = await supabase
+                .from('employer_employees')
+                .select('id, resus_status, transfer_to_hospital, acp_summary, epoa_name, epoa_phone, epoa_email, epoa_type, epoa_activated, room_number, facility_resident_id')
+                .eq('employer_id', data.employer_id)
+                .ilike('first_name', String(data.patient_first_name).trim())
+                .ilike('last_name',  String(data.patient_last_name).trim())
+                .eq('dob', String(data.patient_dob).slice(0, 10))
+                .is('deleted_at', null)
+                .maybeSingle()
+              resident = r || null
+            }
+            data.resident = resident
+          }
+        } catch (e) {
+          // Non-fatal — the banner handles missing resident gracefully by
+          // rendering a neutral "phone the facility to confirm ACP" prompt.
+          console.warn('[consultations] ARC enrichment failed:', e?.message || e)
+        }
+      }
+
       return res.status(200).json({ consultation: redactClinical(data) })
     }
 
