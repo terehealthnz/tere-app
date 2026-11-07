@@ -3,7 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { getConsultation, getChatMessages, subscribeToChatMessages, sendChatMessage, updateConsultation } from '../../lib/supabase'
 import { apiFetch } from '../../lib/api'
 import { ACC_PATIENT_CONTRIBUTION_CENTS } from '../../lib/consultationType'
-import { PrescribeModal, XrayModal, MedCertModal } from '../../components/clinician/ClinicalActionModals'
+import { PrescribeModal, XrayModal, MedCertModal, LabsModal } from '../../components/clinician/ClinicalActionModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
 import ConfirmAccModal from '../../components/clinician/ConfirmAccModal'
 import AccIcd10Picker from '../../components/clinician/AccIcd10Picker'
@@ -428,7 +428,7 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
   // Clinical note
   const [noteText,      setNoteText]      = useState('')
   const [noteConfirmed, setNoteConfirmed] = useState(false)
-  const [modals,        setModals]        = useState({ rx: false, xr: false, medcert: false })
+  const [modals,        setModals]        = useState({ rx: false, xr: false, medcert: false, labs: false })
   const [medCertSent,   setMedCertSent]   = useState(false)
   // NHI deceased check — mirrors ClinicianPatient + ConsultView. Blocks Rx + XR
   // when HNZ reports patient deceased. Populated by POST /api/nhi-refresh on load.
@@ -1746,6 +1746,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
                   style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: nhiCheck?.deceased ? '#F3F4F6' : 'white', color: nhiCheck?.deceased ? '#9CA3AF' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                   🩻 Imaging
                 </button>
+                <button onClick={() => setModals(m => ({ ...m, labs:true }))}
+                  disabled={!!nhiCheck?.deceased}
+                  title={nhiCheck?.deceased ? 'Patient recorded as deceased on NHI — lab orders disabled' : ''}
+                  style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: nhiCheck?.deceased ? '#F3F4F6' : 'white', color: nhiCheck?.deceased ? '#9CA3AF' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor: nhiCheck?.deceased ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  🧪 Labs
+                </button>
                 <button onClick={() => setModals(m => ({ ...m, medcert:true }))}
                   style={{ flex:1, minHeight:44, borderRadius:10, border:'1.5px solid #E2E8F0', background: medCertSent ? '#D1FAE5' : 'white', color: medCertSent ? '#065F46' : NAVY, fontFamily:FF, fontSize:'.875rem', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
                   {medCertSent ? '✓ Med cert sent' : '📄 Med cert'}
@@ -1755,18 +1761,28 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
           </div>
           {actionsRef.current.length > 0 && (
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {actionsRef.current.map((a, i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background: a.type==='prescription' ? '#EFF9F9' : '#F5F3FF', borderRadius:8, padding:'8px 12px', fontSize:'.8125rem' }}>
-                  <span style={{ fontWeight:700, color: a.type==='prescription' ? TEAL : '#7C3AED' }}>
-                    {a.type === 'prescription' ? 'Rx' : a.investigation || 'Xr'}
-                  </span>
-                  <span style={{ color:'#374151', flex:1 }}>
-                    {a.type === 'prescription'
-                      ? `${a.drug}${a.directions ? ` — ${a.directions}` : ''}${a.pending ? ' (pending approval)' : ''}`
-                      : `${a.bodyPart}${a.urgency ? ` — ${a.urgency}` : ''}${a.pending ? ' (pending approval)' : ''}`}
-                  </span>
-                </div>
-              ))}
+              {actionsRef.current.map((a, i) => {
+                const chipBg = a.type === 'prescription' ? '#EFF9F9'
+                             : a.type === 'lab'          ? '#F0F9FF'
+                                                         : '#F5F3FF'
+                const chipFg = a.type === 'prescription' ? TEAL
+                             : a.type === 'lab'          ? '#0369A1'
+                                                         : '#7C3AED'
+                const chipLabel = a.type === 'prescription' ? 'Rx'
+                                : a.type === 'lab'          ? 'Lab'
+                                                            : (a.investigation || 'Xr')
+                const summary = a.type === 'prescription'
+                  ? `${a.drug}${a.directions ? ` — ${a.directions}` : ''}${a.pending ? ' (pending approval)' : ''}`
+                  : a.type === 'lab'
+                    ? `${(a.tests || []).join(', ')}${a.freetext ? ` + ${a.freetext}` : ''}`
+                    : `${a.bodyPart}${a.urgency ? ` — ${a.urgency}` : ''}${a.pending ? ' (pending approval)' : ''}`
+                return (
+                  <div key={i} style={{ display:'flex', alignItems:'center', gap:8, background: chipBg, borderRadius:8, padding:'8px 12px', fontSize:'.8125rem' }}>
+                    <span style={{ fontWeight:700, color: chipFg }}>{chipLabel}</span>
+                    <span style={{ color:'#374151', flex:1 }}>{summary}</span>
+                  </div>
+                )
+              })}
             </div>
           )}
           {!isFinalised && !isAlreadyResponded && actionsRef.current.length === 0 && (
@@ -2557,6 +2573,12 @@ export default function ProviderNotes({ popupMode = false, onEnd, consultationId
         onClose={() => setModals(m => ({ ...m, xr:false }))}
         consult={consult}
         onDone={action => { addAction(action); setModals(m => ({ ...m, xr:false })) }}
+      />
+      <LabsModal
+        open={modals.labs && !nhiCheck?.deceased}
+        onClose={() => setModals(m => ({ ...m, labs:false }))}
+        consult={consult}
+        onDone={action => { addAction(action); setModals(m => ({ ...m, labs:false })) }}
       />
       <MedCertModal
         open={modals.medcert}

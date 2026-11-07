@@ -40,6 +40,7 @@ export function calcPaedDose(drug, weightKg) {
 // has structured fields, NZF autocomplete, ADULT_DRUG_PRESETS, ⭐ favourites,
 // and now the allergen check + Medsafe picker that used to live here.
 export { PrescribeModal } from './ConsultModals'
+export { LabsModal } from './ConsultModals'
 
 
 // Build the plain-text block a provider will paste into ERMS Online's

@@ -444,6 +444,161 @@ export async function buildReferralPdf(data) {
   })
 }
 
+export async function buildLabRequisitionPdf(data) {
+  const sigBuf = await fetchSignatureBuffer(data.signatureUrl)
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W       = doc.page.width
+    const LEFT    = 50
+    const RIGHT   = W - 50
+    const LABEL_W = 160
+
+    doc.rect(0, 0, W, 70).fill('#0B6E76')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 20)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz · Tere Health Limited · HPI-O G11238-E', LEFT, 46)
+    const logo = tereLogoBuffer()
+    if (logo) {
+      try { doc.image(logo, RIGHT - 60, 10, { fit: [50, 50], align: 'right' }) } catch {}
+    } else {
+      doc.font('Helvetica-Bold').fontSize(14).text('Pathology Request', RIGHT - 160, 30, { width: 160, align: 'right' })
+    }
+
+    let y = 90
+
+    const sectionBar = (label) => {
+      doc.rect(LEFT, y, RIGHT - LEFT, 18).fill('#0B6E76')
+      doc.fillColor('white').font('Helvetica-Bold').fontSize(10).text(label, LEFT + 8, y + 4)
+      y += 22
+    }
+
+    const row = (label, value, opts = {}) => {
+      const v = (value == null || value === '') ? '—' : String(value)
+      const valueW = RIGHT - LEFT - LABEL_W - 8
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#333').text(label, LEFT, y, { width: LABEL_W })
+      const labH = doc.heightOfString(label, { width: LABEL_W })
+      const color = opts.color || '#1A2A33'
+      doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(color)
+        .text(v, LEFT + LABEL_W + 8, y, { width: valueW })
+      const valH = doc.heightOfString(v, { width: valueW })
+      y += Math.max(14, Math.max(labH, valH) + 4)
+    }
+
+    // ── Section 1: Request details ──────────────────────────────────
+    sectionBar('REQUEST DETAILS')
+    row('Request ID', data.orderId)
+    row('Date Issued', new Date().toLocaleString('en-NZ', {
+      timeZone: 'Pacific/Auckland',
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }))
+    const urgencyLabel = String(data.urgency || 'routine').toLowerCase() === 'urgent' ? 'Urgent' : 'Routine'
+    const urgencyColor = urgencyLabel === 'Urgent' ? '#DC2626' : '#059669'
+    row('Urgency', urgencyLabel, { bold: true, color: urgencyColor })
+    y += 6
+
+    // ── Section 2: Patient details ──────────────────────────────────
+    sectionBar('PATIENT DETAILS')
+    const [firstName, ...restNames] = String(data.patientName || '').trim().split(/\s+/)
+    const lastName = restNames.pop() || ''
+    row('Surname', lastName)
+    row('First name(s)', [firstName, ...restNames].join(' '))
+    row('Date of Birth', data.patientDob)
+    row('NHI Number', data.patientNhi)
+    if (data.patientGender) row('Gender', data.patientGender)
+    row('Phone', data.patientPhone)
+    row('Address', data.patientAddress)
+    y += 6
+
+    // ── Section 3: Billing ──────────────────────────────────────────
+    sectionBar('BILLING')
+    const billing = String(data.billingType || '').toLowerCase()
+    const tick = (on) => on ? '[X]' : '[  ]'
+    row('Public (HNZ-funded)', tick(billing === 'public'), { bold: true, color: billing === 'public' ? '#065F46' : '#1A2A33' })
+    row('ACC',                 tick(billing === 'acc'),    { bold: true, color: billing === 'acc'    ? '#065F46' : '#1A2A33' })
+    row('Private',             tick(billing === 'private'),{ bold: true, color: billing === 'private'? '#065F46' : '#1A2A33' })
+    if (billing === 'acc' && data.accClaimNumber) row('ACC claim number', data.accClaimNumber)
+    y += 6
+
+    // ── Section 4: Tests requested ──────────────────────────────────
+    if (y > doc.page.height - 200) { doc.addPage(); y = 50 }
+    sectionBar('TESTS REQUESTED')
+    const testsArr = Array.isArray(data.tests) ? data.tests : []
+    const testsW = RIGHT - LEFT - 20
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+    testsArr.forEach(t => {
+      doc.text(`• ${t}`, LEFT + 8, y, { width: testsW })
+      y += doc.heightOfString(`• ${t}`, { width: testsW }) + 2
+    })
+    if (data.testsFreetext) {
+      y += 2
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#333').text('Other:', LEFT + 8, y, { width: 50 })
+      doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+        .text(String(data.testsFreetext), LEFT + 60, y, { width: RIGHT - LEFT - 60 })
+      y += Math.max(14, doc.heightOfString(String(data.testsFreetext), { width: RIGHT - LEFT - 60 }) + 4)
+    }
+    y += 6
+
+    // ── Section 5: Clinical information ─────────────────────────────
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50 }
+    sectionBar('CLINICAL INFORMATION')
+    const clinW = RIGHT - LEFT - 16
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text(String(data.clinicalInfo || '—'), LEFT + 8, y, { width: clinW })
+    y += doc.heightOfString(String(data.clinicalInfo || '—'), { width: clinW }) + 10
+
+    // ── Section 6: Referring clinician & result routing ─────────────
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50 }
+    sectionBar('REFERRING CLINICIAN & RESULT ROUTING')
+    row('Referrer Name', data.providerName)
+    row('Referrer NZMC', data.providerMcnz || data.providerCpn)
+    row('HPI-CPN', data.providerCpn)
+    row('Practice Name', 'Tere Health Limited')
+    // This line is the primary routing instruction for Awanui's request-
+    // entry team. Without it, the ORU report defaults back to the patient's
+    // registered GP (or nowhere) and we never see the result.
+    row('Copy results to', 'Tere Health (HPI-O G11238-E) via Medical-Objects', { bold: true, color: '#0B6E76' })
+
+    const sigY = Math.min(Math.max(y + 40, doc.page.height - 150), doc.page.height - 110)
+
+    const identifierBits = [data.providerName || 'Referring clinician']
+    if (data.providerMcnz) identifierBits.push(`MCNZ ${data.providerMcnz}`)
+    const identifierLine = identifierBits.join(' · ')
+
+    if (data.signatureText) {
+      doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+        .text(String(data.signatureText), LEFT + 4, sigY - 26)
+    } else if (sigBuf) {
+      try { doc.image(sigBuf, LEFT, sigY - 40, { fit: [170, 40] }) } catch {}
+    } else {
+      doc.fillColor('#0B6E76').font('Helvetica-Oblique').fontSize(10)
+        .text('Signed electronically', LEFT + 4, sigY - 16, { width: 166, lineBreak: false })
+    }
+
+    doc.moveTo(LEFT, sigY).lineTo(LEFT + 170, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8.5)
+      .text(identifierLine, LEFT, sigY + 4, { width: 240, lineBreak: false, ellipsis: true })
+    doc.fillColor('#999').font('Helvetica').fontSize(8)
+      .text('Referring clinician', LEFT, sigY + 15, { width: 240 })
+
+    doc.moveTo(300, sigY).lineTo(RIGHT, sigY).strokeColor('#999').lineWidth(0.5).stroke()
+    doc.fillColor('#999').font('Helvetica').fontSize(9).text('Date', 300, sigY + 4)
+    doc.font('Helvetica').fontSize(9).fillColor('#333').text(
+      new Date().toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland' }), 305, sigY - 12
+    )
+
+    doc.fillColor('#AAA').font('Helvetica').fontSize(8)
+      .text('Electronically issued by Tere Health Limited · For clinical use only',
+            LEFT, sigY + 28,
+            { align: 'center', width: RIGHT - LEFT, lineBreak: false })
+
+    doc.end()
+  })
+}
+
 export function buildPayslipPdf(data) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })

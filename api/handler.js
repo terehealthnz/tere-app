@@ -59,7 +59,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // consults. Idempotent (check_in_sent_at), refuses sandbox + test-mode.
   'consult-checkin',
   'resend-prescription',
-  'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf',
+  'generate-notes', 'generate-med-cert', 'generate-prescription-pdf', 'generate-referral-pdf', 'generate-lab-pdf',
   'generate-supervision-plan',
   'drug-interactions', 'dismiss-patient',
   'create-room',
@@ -67,7 +67,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   'send-waiting-link',
   'consult-heartbeat',
   // Provider admin surfaces (task C migrations)
-  'audit-log', 'radiology-referrals', 'radiology-reports', 'clinic-schedule',
+  'audit-log', 'radiology-referrals', 'radiology-reports', 'lab-orders', 'clinic-schedule',
   'supervision',
   // Imaging result peer-review (retrospective QI)
   'imaging-reviews', 'imaging-review',
@@ -281,6 +281,7 @@ const ROUTES = {
   'generate-notes':            () => import('./_generate-notes.js'),
   'generate-prescription-pdf': () => import('./_generate-prescription-pdf.js'),
   'generate-referral-pdf':     () => import('./_generate-referral-pdf.js'),
+  'generate-lab-pdf':          () => import('./_generate-lab-pdf.js'),
   'generate-supervision-plan': () => import('./_generate-supervision-plan.js'),
   'generate-insurance-receipt':() => import('./_generate-insurance-receipt.js'),
   'redirect-prescription':     () => import('./_redirect-prescription.js'),
@@ -431,6 +432,7 @@ const ROUTES = {
   'employer-lookup':           () => import('./_employer-lookup.js'),
   'audit-log':                 () => import('./_audit-log.js'),
   'radiology-referrals':       () => import('./_radiology-referrals.js'),
+  'lab-orders':                () => import('./_lab-orders.js'),
   'radiology-reports':         () => import('./_radiology-reports.js'),
   'telnyx-inbound-fax':        () => import('./_telnyx-inbound-fax.js'),
   'imaging-reviews':           () => import('./_imaging-reviews.js'),

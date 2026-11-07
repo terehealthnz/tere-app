@@ -441,6 +441,7 @@ export default function ClinicianPatient() {
   const [imaging, setImaging]     = useState([])
   const [hl7Reports, setHl7Reports] = useState([])
   const [radReferrals, setRadReferrals] = useState([])
+  const [labOrders, setLabOrders] = useState([])
   const [pastRx, setPastRx]       = useState([])
   const [documents, setDocuments] = useState([])
   const [allergens, setAllergens]     = useState([])
@@ -662,6 +663,16 @@ export default function ClinicianPatient() {
           setMedications(Array.isArray(meds) ? meds : [])
           setConditions(Array.isArray(conds) ? conds : [])
           setHl7Reports(Array.isArray(hl7Res?.messages) ? hl7Res.messages : [])
+          // Lab orders ordered via /api/generate-lab-pdf. Keyed on patient_id
+          // (not NHI) because the table carries the FK.
+          if (data.patient_id) {
+            apiFetch(`/api/lab-orders?patient_id=${encodeURIComponent(data.patient_id)}&filter=active`)
+              .then(r => r.json())
+              .then(d => setLabOrders(Array.isArray(d?.orders) ? d.orders : []))
+              .catch(() => setLabOrders([]))
+          } else {
+            setLabOrders([])
+          }
           // Radiology referrals ordered by any Tere provider for this patient.
           // Filtered by NHI on the server since radiology_referrals doesn't
           // have a patient_id FK yet (it uses NHI + name + DOB for matching).
@@ -2085,6 +2096,39 @@ export default function ClinicianPatient() {
           )
         })()}
 
+        {/* Outbound lab orders pending — Tere-issued pathology requests that
+            haven't yet been resulted. Order↔result join is manual-only for
+            v1 because Awanui echoes no order ID back on the ORU. */}
+        {labOrders.length > 0 && (
+          <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem' }}>
+                🧪 Lab orders pending ({labOrders.length})
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
+              {labOrders.map(o => (
+                <div key={o.id} style={{ background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0', padding: '.875rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '.8125rem', fontWeight: 700, color: NAVY, marginBottom: 2 }}>
+                      {(o.tests || []).join(', ')}{o.tests_freetext ? ` + ${o.tests_freetext}` : ''}
+                    </div>
+                    <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>
+                      Ordered {new Date(o.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      {' · '}
+                      {o.billing_type === 'public' ? 'Public' : o.billing_type === 'acc' ? 'ACC' : 'Private'}
+                      {o.provider_name ? ` · ${o.provider_name}` : ''}
+                    </div>
+                  </div>
+                  <span style={{ background: '#FEF3C7', color: '#78350F', fontSize: '.625rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                    PENDING
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* HL7 reports on file — inbound messages filed to this patient's chart.
             Filed automatically at receive time when PID-3 NHI matches an existing
             patient (see api/_hl7-inbound.js), or manually by a provider from the
@@ -2119,6 +2163,11 @@ export default function ClinicianPatient() {
                         {auto ? 'Auto-filed (NHI match)' : 'Filed by provider'}
                       </div>
                     </div>
+                    {m.reviewed_at && (
+                      <span style={{ background: '#DCFCE7', color: '#065F46', fontSize: '.625rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99 }}>
+                        REVIEWED
+                      </span>
+                    )}
                     <span style={{ color: '#9CA3AF', fontSize: '.8125rem' }}>→</span>
                   </button>
                 )

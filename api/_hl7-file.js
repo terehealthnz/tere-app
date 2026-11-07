@@ -24,11 +24,11 @@ function admin() {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { messageId, patientId, unfile } = req.body || {}
+  const { messageId, patientId, unfile, action } = req.body || {}
   if (!messageId || typeof messageId !== 'string') {
     return res.status(400).json({ error: 'messageId required' })
   }
-  if (!unfile && (!patientId || typeof patientId !== 'string')) {
+  if (!action && !unfile && (!patientId || typeof patientId !== 'string')) {
     return res.status(400).json({ error: 'patientId required when unfile is not set' })
   }
 
@@ -39,6 +39,28 @@ export default async function handler(req, res) {
   const { practice } = resolveDataMode(req.auth?.provider, req)
 
   const supabase = admin()
+
+  if (action === 'hl7_mark_reviewed') {
+    const reviewedAt = new Date().toISOString()
+    const { error: updErr } = await supabase
+      .from('inbound_hl7_messages')
+      .update({
+        reviewed_by_provider_id: providerId,
+        reviewed_at: reviewedAt,
+      })
+      .eq('id', messageId)
+      .eq('is_practice', practice)
+    if (updErr) { console.error('[hl7-file] reviewed updErr failed:', updErr); return res.status(500).json({ error: 'Server error' }) }
+
+    await supabase.from('audit_log').insert({
+      actor_provider_id: providerId,
+      action: 'hl7_mark_reviewed',
+      entity_type: 'inbound_hl7_messages',
+      entity_id: messageId,
+      metadata: {},
+    })
+    return res.status(200).json({ ok: true, reviewed_at: reviewedAt })
+  }
 
   // Fetch the message to confirm it exists + capture pre-state for audit.
   const { data: msg, error: msgErr } = await supabase

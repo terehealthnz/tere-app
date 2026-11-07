@@ -196,6 +196,23 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
     finally     { setBusy(false) }
   }
 
+  async function markReviewed() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await apiFetch('/api/hl7-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'hl7_mark_reviewed', messageId: id }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'Mark reviewed failed')
+      setMsg(m => ({ ...m, reviewed_at: j.reviewed_at || new Date().toISOString(), reviewed_by_provider_id: 'self' }))
+      onChanged?.()
+    } catch (e) { setError(String(e.message || e)) }
+    finally     { setBusy(false) }
+  }
+
   if (error) {
     return (
       <div style={{ padding: '1rem', color: '#991B1B' }}>{error}
@@ -252,6 +269,19 @@ function MessageView({ id, onClose, onChanged, embedded = false }) {
           {msg.filed_to_patient_id && (
             <button onClick={unfile} disabled={busy} style={{ ...backBtn, color: '#991B1B', borderColor: '#FCA5A5' }}>
               {busy ? '…' : 'Unfile'}
+            </button>
+          )}
+          {msg.reviewed_at ? (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              background: '#DCFCE7', color: '#065F46', padding: '6px 12px', borderRadius: 8,
+              fontSize: '.8rem', fontWeight: 700,
+            }}>
+              ✓ Reviewed {new Date(msg.reviewed_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          ) : (
+            <button onClick={markReviewed} disabled={busy} style={{ ...backBtn, background: '#DCFCE7', color: '#065F46', borderColor: '#86EFAC' }}>
+              {busy ? '…' : 'Mark reviewed'}
             </button>
           )}
           <button onClick={archive} disabled={busy} style={backBtn}>

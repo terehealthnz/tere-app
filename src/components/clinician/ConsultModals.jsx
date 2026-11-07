@@ -1475,6 +1475,179 @@ export function XrayModal({ open, onClose, consult, onDone }) {
   )
 }
 
+// ── Labs modal ────────────────────────────────────────────────────────────────
+// Orders pathology by emailing a PDF requisition to the patient. Patient
+// walks the PDF into any Awanui (or Pathlab, or hospital) collection centre.
+// Results come back as HL7 ORU via Medical-Objects + auto-file to the chart
+// (see api/_hl7-inbound.js). Order↔result linking is manual for v1 because
+// Awanui doesn't echo our order ID (we send PDFs, not ORMs).
+
+const LAB_PANEL_CHIPS = [
+  'FBC (full blood count)',
+  'U&E (urea & electrolytes)',
+  'Creatinine / eGFR',
+  'LFTs (liver function)',
+  'Lipids',
+  'HbA1c',
+  'TSH / thyroid',
+  'CRP',
+  'Iron studies',
+  'Ferritin',
+  'Vitamin D',
+  'B12 / folate',
+  'Urine dipstick',
+  'Urine MC&S',
+  'Urine ACR',
+  'Beta-hCG',
+]
+
+export function LabsModal({ open, onClose, consult, onDone }) {
+  const [selected, setSelected] = useState([])
+  const [freetext, setFreetext] = useState('')
+  const [clinicalInfo, setClinicalInfo] = useState('')
+  const [billing, setBilling] = useState('public')
+  const [accNum, setAccNum] = useState(consult?.acc_claim_number || '')
+  const [urgency, setUrgency] = useState('routine')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+
+  const patientName = `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim()
+  const patientEmail = consult?.patient_email
+
+  function toggle(test) {
+    setSelected(s => s.includes(test) ? s.filter(x => x !== test) : [...s, test])
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (selected.length === 0 && !freetext.trim()) {
+      setResult({ ok: false, error: 'Select at least one test or enter a custom test.' })
+      return
+    }
+    setSending(true)
+    setResult(null)
+    try {
+      const res = await apiFetch('/api/generate-lab-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          consultationId: consult?.id,
+          providerId: sessionStorage.getItem('providerId'),
+          providerName: sessionStorage.getItem('providerDisplayName'),
+          providerCpn: sessionStorage.getItem('providerCpn'),
+          providerMcnz: sessionStorage.getItem('providerMcnz'),
+          patientId: consult?.patient_id,
+          patientName,
+          patientNhi: consult?.patient_nhi,
+          patientDob: consult?.patient_dob,
+          patientEmail,
+          patientPhone: consult?.patient_phone,
+          patientAddress: consult?.patient_address,
+          tests: selected,
+          testsFreetext: freetext.trim() || null,
+          clinicalInfo: clinicalInfo.trim(),
+          billingType: billing,
+          accClaimNumber: billing === 'acc' ? accNum : null,
+          urgency,
+        }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setResult({ ok: true, warnings: data.deliveryErrors, simulated: data.simulated })
+        onDone?.({ type: 'lab', tests: selected, freetext, timestamp: new Date().toISOString() })
+        setTimeout(() => { setResult(null); onClose() }, 2000)
+      } else {
+        setResult({ ok: false, error: data.error })
+      }
+    } catch (e) {
+      setResult({ ok: false, error: e.message })
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title="🧪 Order Labs">
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label>Common panels <span style={{color:'var(--muted)',fontWeight:400}}>(tap to select)</span></label>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:4 }}>
+            {LAB_PANEL_CHIPS.map(t => {
+              const on = selected.includes(t)
+              return (
+                <button key={t} type="button" onClick={() => toggle(t)}
+                  style={{
+                    padding:'6px 10px', borderRadius:99, border:`1.5px solid ${on ? '#0B6E76' : '#E2E8F0'}`,
+                    background: on ? '#0B6E76' : 'white', color: on ? 'white' : '#1A2A33',
+                    fontSize:'.75rem', fontWeight:600, cursor:'pointer',
+                  }}>
+                  {on ? '✓ ' : ''}{t}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="form-group">
+          <label>Other tests <span style={{color:'var(--muted)',fontWeight:400}}>(free text, optional)</span></label>
+          <input value={freetext} onChange={e => setFreetext(e.target.value)} placeholder="e.g. Coeliac screen, ANA, Mg" />
+        </div>
+        <div className="form-group">
+          <label>Clinical information / question <span style={{color:'#DC2626'}}>*</span></label>
+          <textarea value={clinicalInfo} onChange={e => setClinicalInfo(e.target.value)} required rows={3}
+            placeholder="e.g. Fatigue + weight loss. R/O anaemia and hypothyroidism." />
+        </div>
+        <div className="form-group">
+          <label>Billing</label>
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+            {[
+              { v:'public',  l:'Public (HNZ-funded)' },
+              { v:'acc',     l:'ACC' },
+              { v:'private', l:'Private' },
+            ].map(o => (
+              <label key={o.v} style={{ display:'flex', alignItems:'center', gap:6, fontSize:'.8125rem', cursor:'pointer' }}>
+                <input type="radio" name="lab-billing" value={o.v} checked={billing === o.v} onChange={() => setBilling(o.v)} />
+                {o.l}
+              </label>
+            ))}
+          </div>
+        </div>
+        {billing === 'acc' && (
+          <div className="form-group">
+            <label>ACC claim number</label>
+            <input value={accNum} onChange={e => setAccNum(e.target.value)} placeholder="e.g. ABC1234567" />
+          </div>
+        )}
+        <div className="form-group">
+          <label>Urgency</label>
+          <select value={urgency} onChange={e => setUrgency(e.target.value)}>
+            <option value="routine">Routine</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        {!patientEmail && (
+          <div className="alert alert-danger" style={{fontSize:'.8125rem'}}>
+            ⚠️ No patient email on file. Add one before sending or the patient won't receive the PDF.
+          </div>
+        )}
+        {result && (
+          <div className={`alert ${result.ok ? 'alert-success' : 'alert-danger'}`} style={{marginBottom:'1rem'}}>
+            {result.ok
+              ? (result.simulated ? '✓ Practice mode — no email sent' : `✓ Order sent to ${patientEmail || 'patient'}`)
+              : `Error: ${result.error}`}
+            {result.warnings?.length > 0 && <div style={{fontSize:'.75rem',marginTop:4}}>⚠ {result.warnings.join('; ')}</div>}
+          </div>
+        )}
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={sending}>Cancel</button>
+          <button type="submit" className="btn btn-primary" style={{flex:1}} disabled={sending || !patientEmail}>
+            {sending ? 'Sending…' : 'Send to patient'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
 // ── Clinical notes modal ──────────────────────────────────────────────────────
 // Generates SOAP notes from triage + message exchange, lets provider edit,
 // then returns the final text to be included in the consultation response.
