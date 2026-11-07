@@ -21,7 +21,6 @@ import { PrescribeModal } from '../../components/clinician/ConsultModals'
 import ConvertToAccModal from '../../components/clinician/ConvertToAccModal'
 import AccConfirmModal from '../../components/clinician/AccConfirmModal'
 import { isNZ } from '../../lib/region'
-import { RHCNZ_REGIONS } from '../../lib/rhcnzRegions'
 import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
 // Lazy-load ProviderConsult only when a call actually starts — keeps
 // LiveKit + tereScribe out of the ClinicianPatient initial bundle. Mounted
@@ -247,19 +246,13 @@ function InfoRow({ label, value, placeholder }) {
   )
 }
 
-// Pharmacy + imaging region shown at a glance on the chart. Both are
-// inline-editable — pharmacy so the provider can change the patient's
-// default without waiting until the prescribe modal (e.g. patient tells
-// them mid-consult "I actually use X pharmacy now"), imaging so they can
-// override before issuing an X-ray/US referral. Pharmacy picker lazy-loads
-// the same pharmacies.json + emailable filter used everywhere else so we
-// only ever send scripts to pharmacies with a dispensary email on file.
-function PreferencesCard({ consult, onImagingChange, onPharmacyChange }) {
-  const [saving, setSaving] = useState(false)
-  const [localRegion, setLocalRegion] = useState(consult?.preferred_imaging_region_id || '')
-  useEffect(() => { setLocalRegion(consult?.preferred_imaging_region_id || '') }, [consult?.preferred_imaging_region_id])
-
-  const currentRegion = RHCNZ_REGIONS.find(r => r.id === localRegion)
+// Pharmacy preference shown at a glance on the chart. Inline-editable so
+// the provider can change the patient's default without waiting until the
+// prescribe modal (e.g. patient tells them mid-consult "I actually use X
+// pharmacy now"). Picker lazy-loads the same pharmacies.json + emailable
+// filter used everywhere else so we only ever send scripts to pharmacies
+// with a dispensary email on file.
+function PreferencesCard({ consult, onPharmacyChange }) {
   const pharmacyLabel = consult?.pharmacy || null
 
   const [showPickPharmacy, setShowPickPharmacy] = useState(false)
@@ -312,17 +305,10 @@ function PreferencesCard({ consult, onImagingChange, onPharmacyChange }) {
     } finally { setSavingPharmacy(false) }
   }
 
-  async function handleRegionChange(e) {
-    const next = e.target.value
-    setLocalRegion(next)
-    setSaving(true)
-    try { await onImagingChange(next) } finally { setSaving(false) }
-  }
-
   return (
     <div style={{ background: 'white', borderRadius: 16, border: '1px solid #E2E8F0', padding: '1.25rem', marginBottom: '.875rem' }}>
       <div style={{ fontWeight: 700, color: NAVY, fontSize: '.9375rem', marginBottom: '1rem' }}>Patient preferences</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+      <div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>Preferred pharmacy</div>
@@ -377,20 +363,6 @@ function PreferencesCard({ consult, onImagingChange, onPharmacyChange }) {
           )}
         </div>
 
-        {/* Imaging region — editable inline. */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ fontSize: '.625rem', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '.04em' }}>Preferred imaging region</div>
-          <select value={localRegion} onChange={handleRegionChange} disabled={saving}
-            style={{ padding: '.5rem .625rem', border: '1px solid #E2E8F0', borderRadius: 8, background: 'white', color: NAVY, fontFamily: FF, fontSize: '.875rem', cursor: saving ? 'wait' : 'pointer' }}>
-            <option value="">— Not set (patient can pick during triage) —</option>
-            {RHCNZ_REGIONS.map(r => (
-              <option key={r.id} value={r.id}>{r.region}</option>
-            ))}
-          </select>
-          <div style={{ fontSize: '.6875rem', color: '#6B7280' }}>
-            {currentRegion ? `Current: ${currentRegion.region}` : 'X-ray / US referrals will use this region.'}
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -1476,20 +1448,12 @@ export default function ClinicianPatient() {
           </div>
         </div>
 
-        {/* Preferences — pharmacy + imaging region. Both patient-set at
-            triage. Provider sees them at a glance and can override imaging
-            inline (dropdown). Pharmacy stays display-only here — patient
-            can change from the waiting-room card, or provider changes it
-            from the prescribe modal (per-prescription). */}
+        {/* Preferences — pharmacy only. Patient-set at triage; provider can
+            change from here or from the prescribe modal (per-prescription).
+            Imaging region picker was removed 2026-11-06 - XrayModal now
+            resolves transport from billing path + patient address. */}
         <PreferencesCard
           consult={consult}
-          onImagingChange={async (newRegion) => {
-            try {
-              await updateConsultation(id, { preferred_imaging_region_id: newRegion || null })
-              const fresh = await getConsultation(id)
-              if (fresh) setConsult(fresh)
-            } catch (e) { console.warn('[preferences] imaging save failed:', e.message) }
-          }}
           onPharmacyChange={async (patch) => {
             try {
               await updateConsultation(id, patch)

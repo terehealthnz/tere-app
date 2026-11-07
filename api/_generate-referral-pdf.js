@@ -3,6 +3,7 @@ import { sendEmail , hasEmailProvider} from './_email-client.js'
 import crypto from 'node:crypto'
 import { buildReferralPdf } from './_pdf-builders.js'
 import { RHCNZ_REGIONS, TERE_MO_SHORTCODE } from '../src/lib/rhcnzRegions.js'
+import { ermsRegionById } from '../src/lib/ermsRegions.js'
 import { writeAuditEvent } from './_audit-write.js'
 
 function supabaseAdmin() {
@@ -71,6 +72,7 @@ export default async function handler(req, res) {
     investigation, bodyPart, clinicalIndication, urgency, history, accClaimNumber,
     facilityName, facilityHpiId, facilityEmail, facilityPhone, facilityAddress,
     rhcnzRegionId,
+    transport, ermsRegionId, ermsPath,
     needsApproval, draftedByName,
   } = req.body || {}
 
@@ -95,13 +97,23 @@ export default async function handler(req, res) {
     }
   }
 
+  const isErmsTransport = transport === 'erms'
+  const ermsRegion = isErmsTransport ? ermsRegionById(ermsRegionId) : null
+
   // RHCNZ region overrides facility name/email — server-side lookup so client
-  // can't send a referral to an arbitrary address.
-  const rhcnzRegion = rhcnzRegionId ? rhcnzRegionServerSide(rhcnzRegionId) : null
-  const finalFacilityName  = rhcnzRegion ? `${rhcnzRegion.brand} — ${rhcnzRegion.region}` : facilityName
-  const finalFacilityEmail = rhcnzRegion ? rhcnzRegion.email                              : facilityEmail
-  const finalUrgency       = rhcnzRegion ? 'Urgent'                                       : urgency
+  // can't send a referral to an arbitrary address. Skipped entirely when
+  // transport is ERMS: the referral is provider-uploaded, not emailed.
+  const rhcnzRegion = (!isErmsTransport && rhcnzRegionId) ? rhcnzRegionServerSide(rhcnzRegionId) : null
+  const finalFacilityName  = isErmsTransport
+    ? (ermsRegion ? `ERMS - ${ermsRegion.label}` : 'ERMS (Pegasus)')
+    : (rhcnzRegion ? `${rhcnzRegion.brand} - ${rhcnzRegion.region}` : facilityName)
+  const finalFacilityEmail = isErmsTransport ? null
+    : (rhcnzRegion ? rhcnzRegion.email : facilityEmail)
+  const finalUrgency       = (isErmsTransport || rhcnzRegion) ? 'Urgent' : urgency
   const referrerMoShortcode = TERE_MO_SHORTCODE
+  const ermsPathLabel = ermsPath === 'dhb' ? 'DHB (publicly funded)'
+                       : ermsPath === 'acc' ? 'ACC'
+                       : ermsPath === 'private' ? 'Private' : null
 
   const commonRow = {
     consultation_id: consultationId || null,
@@ -130,6 +142,9 @@ export default async function handler(req, res) {
     referrer_mo_shortcode: referrerMoShortcode,
     patient_preferred_name: patientPreferredName || null,
     patient_address: patientAddress || null,
+    transport: isErmsTransport ? 'erms' : (rhcnzRegion ? 'rhcnz' : (transport === 'rhcnz' ? 'rhcnz' : null)),
+    erms_region_id: isErmsTransport ? (ermsRegion?.id || null) : null,
+    erms_path: isErmsTransport ? (ermsPath || null) : null,
   }
 
   // ── Pending approval path ────────────────────────────────────────────
@@ -190,8 +205,11 @@ export default async function handler(req, res) {
     patientPhoneHome, patientPhoneMobile,
     cscNumber, otherFundingPathway, dateOfInjury, copyToDoctor,
     investigation, bodyPart, clinicalIndication, urgency: finalUrgency, history, accClaimNumber,
-    facilityName: finalFacilityName, facilityAddress, facilityPhone,
+    facilityName: finalFacilityName, facilityEmail: finalFacilityEmail, facilityAddress, facilityPhone,
     referrerMoShortcode,
+    transport: isErmsTransport ? 'erms' : 'rhcnz',
+    ermsRegionLabel: ermsRegion?.label || null,
+    ermsPathLabel,
     signatureUrl,
   }
 
@@ -205,10 +223,13 @@ export default async function handler(req, res) {
 
   const pdfBase64 = pdfBuffer.toString('base64')
   const deliveryErrors = []
-  const subjectPrefix = rhcnzRegion ? 'URGENT — Tere Health eReferral' : 'Radiology Referral — Tere Health'
-  const emailSubject  = `${subjectPrefix} — ${patientName} (${finalUrgency || 'Routine'})`
+  const subjectPrefix = rhcnzRegion ? 'URGENT - Tere Health eReferral' : 'Radiology Referral - Tere Health'
+  const emailSubject  = `${subjectPrefix} - ${patientName} (${finalUrgency || 'Routine'})`
 
-  if (finalFacilityEmail && hasEmailProvider()) {
+  // ERMS transport: provider manually uploads the PDF to app.erms.health.nz.
+  // Do NOT auto-email any facility - that would double-send if the provider
+  // subsequently uploads.
+  if (!isErmsTransport && finalFacilityEmail && hasEmailProvider()) {
     try {
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
@@ -228,24 +249,35 @@ export default async function handler(req, res) {
 
   if (patientEmail && hasEmailProvider()) {
     try {
+      const patientHtml = isErmsTransport
+        ? `<p>Hi ${patientName},</p><p>Your clinician has issued an imaging referral for <strong>${investigation}${bodyPart ? ' - ' + bodyPart : ''}</strong>. They will submit it for you via ERMS. The hospital/clinic will contact you to book.</p><p>Urgency: ${finalUrgency || 'Routine'}</p><p>Tere Health Team</p>`
+        : `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' - ' + bodyPart : ''}</strong> has been sent to <strong>${finalFacilityName || 'the imaging centre'}</strong>.</p>${rhcnzRegion ? `<p>${rhcnzRegion.brand} (${rhcnzRegion.region}) will contact you to book the appointment.</p>` : ''}<p>Urgency: ${finalUrgency || 'Routine'}</p><p>Tere Health Team</p>`
       await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: patientEmail,
         subject: `Your imaging referral from Tere Health`,
-        html: `<p>Hi ${patientName},</p><p>Your referral for <strong>${investigation}${bodyPart ? ' — ' + bodyPart : ''}</strong> has been sent to <strong>${finalFacilityName || 'the imaging centre'}</strong>.</p>${rhcnzRegion ? `<p>${rhcnzRegion.brand} (${rhcnzRegion.region}) will contact you to book the appointment.</p>` : ''}<p>Urgency: ${finalUrgency || 'Routine'}</p><p>Tere Health Team</p>`,
+        html: patientHtml,
         attachments: [{ filename: 'referral.pdf', content: pdfBase64 }],
       })
     } catch (e) { console.error('[generate-referral-pdf] patient email failed:', e); deliveryErrors.push('Patient email failed') }
   }
 
+  // ERMS referrals are provider-uploaded, so there is no facility email to
+  // fail. Treat as 'sent' unless the patient-email leg errored (which is
+  // tracked but non-blocking).
+  const facilityDeliveryFailed = deliveryErrors.some(e => /facility/i.test(e))
+  const finalDeliveryStatus = isErmsTransport
+    ? 'sent'
+    : (facilityDeliveryFailed ? 'error' : 'sent')
+
   try {
     await supabase.from('radiology_referrals').insert({
-      id: referralId,   // preserves PDF ↔ DB ↔ email match (pre-generated above)
+      id: referralId,
       ...commonRow,
       referral_status: 'sent',
       approval_status: 'not_required',
-      delivery_status: deliveryErrors.length ? 'error' : 'sent',
+      delivery_status: finalDeliveryStatus,
       delivery_error: deliveryErrors.join('; ') || null,
     })
   } catch (e) { console.error('[generate-referral-pdf] DB save failed:', e); deliveryErrors.push('DB save failed') }
@@ -261,7 +293,10 @@ export default async function handler(req, res) {
       urgency:         commonRow?.urgency || null,
       facility_name:   commonRow?.facility_name || null,
       rhcnz_region_id: commonRow?.rhcnz_region_id || null,
-      delivery_status: deliveryErrors.length ? 'error' : 'sent',
+      transport:       commonRow?.transport || null,
+      erms_region_id:  commonRow?.erms_region_id || null,
+      erms_path:       commonRow?.erms_path || null,
+      delivery_status: finalDeliveryStatus,
       delivery_errors: deliveryErrors.length ? deliveryErrors : undefined,
     },
   })

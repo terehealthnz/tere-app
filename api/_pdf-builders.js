@@ -380,6 +380,22 @@ export async function buildReferralPdf(data) {
     // circulation of a private business address.
     row('Practice Dispatch', data.referrerMoShortcode || 'G11238-E')
     if (data.copyToDoctor) row('Additional Report To', data.copyToDoctor)
+    y += 6
+
+    // ── Section 6: Submission (how this referral is delivered) ──────
+    if (y > doc.page.height - 180) { doc.addPage(); y = 50 }
+    sectionBar('SUBMISSION')
+    if (data.transport === 'erms') {
+      row('Transport', 'ERMS (upload at app.erms.health.nz)', { bold: true })
+      if (data.ermsRegionLabel) row('ERMS region', data.ermsRegionLabel)
+      if (data.ermsPathLabel)   row('ERMS pathway', data.ermsPathLabel)
+      row('Routing note', 'Clinician to upload this PDF via ERMS portal. Hospital/clinic will contact patient to book.')
+    } else {
+      row('Transport', 'RHCNZ (auto-emailed)', { bold: true })
+      if (data.facilityName)  row('Recipient', data.facilityName)
+      if (data.facilityEmail) row('Email', data.facilityEmail)
+      row('Routing note', 'RHCNZ will contact the patient to book.')
+    }
 
     if (data.approvedByName) {
       y += 8

@@ -270,21 +270,7 @@ const STEPS = [
     type:'chip_multi', chipOptions:COMMON_ALLERGIES, chipPlaceholderKey:'chip_search_allergies', chipNoneLabelKey:'chip_none_allergies' },
   { id:'acc_description', message:"That sounds like it could be an ACC claim — can you describe exactly how it happened? What were you doing and where?", field:'acc_injury_description', validate:v=>v.trim().length>0, error:"Please describe how it happened (a few words is fine — e.g. 'fall off ladder').", next:'acc_date' },
   { id:'acc_date', message:"When did it happen? (e.g. today, yesterday, 3 days ago)", field:'acc_injury_date_raw', validate:v=>v.trim().length>1, next:'acc_employer' },
-  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next:'imaging_clinic' },
-  // ACC-branch imaging pick — patient chooses which regional imaging service
-  // to send referrals to if X-ray / ultrasound is ordered. Region-level
-  // (matches RHCNZ_REGIONS ids). Optional — patient can skip if unsure.
-  { id:'imaging_clinic', message:"If you need an X-ray or ultrasound, which region would you like it done in? The regional imaging service will call you to book the clinic.", field:'preferred_imaging_region_id', type:'choices', choices: [
-    { value:'arg',        label:'Auckland / Northland' },
-    { value:'bay',        label:'Bay of Plenty' },
-    { value:'pr-waikato', label:'Waikato' },
-    { value:'pr-wgtn',    label:'Wellington / Manawatū' },
-    { value:'pr-nelson',  label:'Nelson / Tasman' },
-    { value:'mmi',        label:'Marlborough (Blenheim)' },
-    { value:'pr-cbg',     label:'Canterbury (Christchurch)' },
-    { value:'pr-otago',   label:'Otago / Southland' },
-    { value:'',           label:"Not sure — my doctor can pick" },
-  ], validate:()=>true, next: NEXT_AFTER_ALLERGIES },
+  { id:'acc_employer', message:"Who's your employer?", field:'employer', validate:()=>true, next: NEXT_AFTER_ALLERGIES },
   // HNZ NHI IG §4.3.2 General-2 — explicit ToU acceptance before we query
   // the National Health Index. If declined, we skip the NHI lookup entirely
   // (the consult still proceeds). Acceptance is stored as consent_type
@@ -739,7 +725,7 @@ export default function AITriage() {
       // skip re-asking those three and jump to the admin block (or ACC description).
       if (newData._historyReviewed) {
         setData(newData)
-        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'imaging_clinic', newData)
+        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
         return
       }
     }
@@ -754,7 +740,7 @@ export default function AITriage() {
         advanceToStep('complaint', newData)
         return
       }
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : 'imaging_clinic', newData)
+      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
       return
     }
 
@@ -775,13 +761,12 @@ export default function AITriage() {
       return
     }
 
-    // After acc_employer, continue to imaging_clinic. Non-ACC visits also
-    // pass through imaging_clinic straight after allergies — providers may
-    // still order X-ray / ultrasound on non-injury visits, and the region
-    // pick feeds RHCNZ referral routing when they do.
+    // After acc_employer, hop straight to the admin block. Imaging-region
+    // picking was removed from patient triage 2026-11-06 - provider picks
+    // billing path in XrayModal and the server resolves ERMS vs RHCNZ.
     if (step.id === 'acc_employer') {
       setData(newData)
-      advanceToStep('imaging_clinic', newData)
+      advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
       return
     }
 
@@ -1154,7 +1139,6 @@ export default function AITriage() {
         complaint: data.chief_complaint,
         pharmacy: data.pharmacy||'',
         pharmacyId: sessionStorage.getItem('pending_pharmacy_id') || null,
-        preferredImagingRegionId: data.preferred_imaging_region_id || null,
         accEligible: data.is_acc_raw==='yes'?'yes':'no',
         employer: data.employer,
         injuryDetails: data.acc_injury_description||'',

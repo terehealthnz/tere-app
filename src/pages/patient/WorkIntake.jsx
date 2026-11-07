@@ -74,11 +74,6 @@ export default function WorkIntake() {
   // US tourists can flip to imperial. We just mirror its output into
   // form state and treat bioValid as a submit gate.
   const [bio, setBio] = useState({ patient_sex: null, patient_height_cm: null, patient_weight_kg: null, valid: false })
-  // Region-level RHCNZ id (mmi / pr-cbg / arg / ...). Required — same 8
-  // options as AITriage's imaging_clinic step, plus an explicit "not sure"
-  // value so the worker has to actively acknowledge the choice. Empty
-  // string means "not yet picked" and blocks submit.
-  const [imagingRegion, setImagingRegion] = useState('')
   // Pharmacy pick from the Medsafe register (same source as AITriage's
   // pharmacy_picker step). Required — provider needs a delivery target for
   // any prescription. Object { id, premises_name, town } once picked.
@@ -212,7 +207,7 @@ export default function WorkIntake() {
   // Biometrics: BiometricsForm applies the plausibility checks that match
   // the DB CHECK constraints on consultations.patient_height_cm /
   // patient_weight_kg; `bio.valid` is true when sex+height+weight all pass.
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!imagingRegion && !!selectedPharmacy && consent && accFieldsValid && bio.valid
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!selectedPharmacy && consent && accFieldsValid && bio.valid
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
@@ -343,7 +338,6 @@ export default function WorkIntake() {
         gpName:    gpName.trim()  || null,
         gpEmail:   gpEmail.trim() || null,
         complaint: chief.trim(),
-        preferredImagingRegionId: imagingRegion === 'not_sure' ? null : (imagingRegion || null),
         pharmacyId: selectedPharmacy?.id || null,
         patientLanguage: sessionStorage.getItem('patient_language') || 'en',
 
@@ -550,30 +544,6 @@ export default function WorkIntake() {
                 </label>
               </div>
             )}
-
-            {/* Required imaging region — mirrors AITriage's imaging_clinic
-                step so the provider isn't left guessing from address on
-                work-injury X-ray/US referrals. First option is a disabled
-                placeholder so the field reads as "not yet picked" rather
-                than a pre-filled answer; "Not sure" is a real value the
-                worker has to actively choose. */}
-            <label style={label}>If you need an X-ray or ultrasound, which region?</label>
-            <select style={{ ...inp, cursor: 'pointer' }} value={imagingRegion} onChange={e => setImagingRegion(e.target.value)}>
-              {/* Option colour forced to dark navy on white — the parent
-                  select style is color:white for the navy card, but the
-                  OS-rendered dropdown list uses a white background, so
-                  white-on-white made the choices invisible. */}
-              <option value="" disabled style={{ color:'#0D2B45', background:'white' }}>Select a region…</option>
-              <option value="arg" style={{ color:'#0D2B45', background:'white' }}>Auckland / Northland</option>
-              <option value="bay" style={{ color:'#0D2B45', background:'white' }}>Bay of Plenty</option>
-              <option value="pr-waikato" style={{ color:'#0D2B45', background:'white' }}>Waikato</option>
-              <option value="pr-wgtn" style={{ color:'#0D2B45', background:'white' }}>Wellington / Manawatū</option>
-              <option value="pr-nelson" style={{ color:'#0D2B45', background:'white' }}>Nelson / Tasman</option>
-              <option value="mmi" style={{ color:'#0D2B45', background:'white' }}>Marlborough (Blenheim)</option>
-              <option value="pr-cbg" style={{ color:'#0D2B45', background:'white' }}>Canterbury (Christchurch)</option>
-              <option value="pr-otago" style={{ color:'#0D2B45', background:'white' }}>Otago / Southland</option>
-              <option value="not_sure" style={{ color:'#0D2B45', background:'white' }}>Not sure — my doctor can pick</option>
-            </select>
 
             {/* Required pharmacy — worker must pick one from the Medsafe
                 register so the provider has a delivery target for any
