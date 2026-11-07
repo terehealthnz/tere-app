@@ -45,15 +45,15 @@ export { LabsModal } from './ConsultModals'
 
 export function XrayModal({ open, onClose, consult, onDone }) {
   const [xr, setXr] = useState({ investigation:'X-ray', bodyPart:'', indication:'', urgency:'Urgent (within 24 hours)', history:'' })
-  // Billing-path drives transport resolution. Default ACC if the consult is
-  // flagged ACC, else DHB (Public).
-  const [billingPath, setBillingPath] = useState(
-    (consult?.is_acc || consult?.acc_eligible === 'yes') ? 'acc' : 'dhb'
-  )
+  // Funding — provider picks Public or Private. ACC is an attribute of the
+  // Private rail (same destinations; just billed differently), so we don't
+  // surface it as a third option. Default Public; provider can switch to
+  // Private if the patient wants a private clinic specifically.
+  const [funding, setFunding] = useState('public')
   // Resolved transport: { kind: 'erms'|'rhcnz', ermsRegion, path, reason }
   const [transport, setTransport] = useState({ kind: 'rhcnz', ermsRegion: null, path: 'dhb', reason: '' })
   // Per-referral override: provider explicitly swaps an ERMS transport to
-  // RHCNZ. Resets when billingPath or address changes.
+  // RHCNZ. Resets when funding or address changes.
   const [overrideToRhcnz, setOverrideToRhcnz] = useState(false)
   const [rhcnzRegionId, setRhcnzRegionId] = useState('')
   const [rhcnzAutoReason, setRhcnzAutoReason] = useState(null)
@@ -116,20 +116,25 @@ export function XrayModal({ open, onClose, consult, onDone }) {
     }
   }, [extra.address, consult?.patient_lat, consult?.patient_lng, consult?.preferred_imaging_region_id, pharmacyAddress, regionTouchedByUser])
 
-  // Resolve transport (erms vs rhcnz) from patient address + billing path.
-  // Re-runs on any address/billing change; also clears the override so an
+  const accNum = consult?.acc_claim_number || ''
+  // Map provider's Public/Private choice to the ERMS pathway value. ACC is a
+  // payment attribute on the Private rail, not a separate provider choice —
+  // if there's an ACC claim, we route Private through the ACC template; else
+  // through the Private template. DHB template is only for Public.
+  const ermsPathComputed = funding === 'public' ? 'dhb' : (accNum ? 'acc' : 'private')
+  // Resolve transport (erms vs rhcnz) from patient address + computed path.
+  // Re-runs on any address/funding change; also clears the override so an
   // old override doesn't bleed into a new patient/path.
   useEffect(() => {
     const resolved = resolveImagingTransport({
       patientAddress: extra.address || consult?.patient_address || '',
-      billingPath,
+      billingPath: ermsPathComputed,
     })
     setTransport(resolved)
     setOverrideToRhcnz(false)
-  }, [billingPath, extra.address, consult?.patient_address])
+  }, [ermsPathComputed, extra.address, consult?.patient_address])
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
-  const accNum = consult?.acc_claim_number || ''
   const canRefer = sessionStorage.getItem('providerCanRefer') !== 'false'
   const requiresSupervision = sessionStorage.getItem('providerRequiresSupervision') === 'true'
   const effectiveTransportKind = overrideToRhcnz ? 'rhcnz' : transport.kind
@@ -172,7 +177,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
           rhcnzRegionId: effectiveTransportKind === 'rhcnz' ? (rhcnzRegionId || null) : null,
           transport: effectiveTransportKind,
           ermsRegionId: effectiveTransportKind === 'erms' ? (transport.ermsRegion?.id || null) : null,
-          ermsPath: effectiveTransportKind === 'erms' ? billingPath : null,
+          ermsPath: effectiveTransportKind === 'erms' ? ermsPathComputed : null,
           facilityName: null,
           facilityHpiId: null,
           facilityEmail: null,
@@ -193,7 +198,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
             pdfBase64: data.pdfBase64,
             regionLabel: transport.ermsRegion?.label,
             investigation: xr.investigation,
-            path: billingPath,
+            path: ermsPathComputed,
             patientName: `${consult?.patient_first_name || ''} ${consult?.patient_last_name || ''}`.trim(),
           } : null,
         })
@@ -259,18 +264,17 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         {isNZ() && (
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: '.75rem', fontWeight: 700, color: '#374151', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '.05em' }}>
-            Billing path
+            Funding
           </label>
           <div style={{ display: 'flex', gap: 8 }}>
             {[
-              { v: 'dhb',     label: 'Public (HNZ-funded)',  subtitle: 'Free to patient' },
-              { v: 'acc',     label: 'ACC',                  subtitle: 'ACC claim pays'   },
-              { v: 'private', label: 'Private',              subtitle: 'Patient pays'     },
+              { v: 'public',  label: 'Public',  subtitle: 'Free to patient (HNZ or ACC-funded)' },
+              { v: 'private', label: 'Private', subtitle: accNum ? 'ACC claim pays' : 'Patient pays' },
             ].map(opt => (
-              <button key={opt.v} type="button" onClick={() => setBillingPath(opt.v)}
+              <button key={opt.v} type="button" onClick={() => setFunding(opt.v)}
                 style={{
-                  flex: 1, border: billingPath === opt.v ? '2px solid #0B6E76' : '1.5px solid #E2E8F0',
-                  background: billingPath === opt.v ? '#EFF9F9' : 'white',
+                  flex: 1, border: funding === opt.v ? '2px solid #0B6E76' : '1.5px solid #E2E8F0',
+                  background: funding === opt.v ? '#EFF9F9' : 'white',
                   borderRadius: 10, padding: '.625rem .75rem', cursor: 'pointer',
                   textAlign: 'left', fontFamily: 'Plus Jakarta Sans, sans-serif',
                 }}>
@@ -288,7 +292,7 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         {isNZ() && effectiveTransportKind === 'erms' && transport.ermsRegion && (
           <div style={{background:'#F0FDFA',border:'1px solid #99F6E4',borderRadius:8,padding:'.625rem .75rem',marginBottom:12,fontSize:'.8125rem',color:'#0F766E',lineHeight:1.5}}>
             <div style={{fontWeight:700, marginBottom:4}}>Send via ERMS portal.</div>
-            Download the generated PDF, then at <code>app.erms.health.nz</code> {'->'} Create Referral {'->'} <strong>{transport.ermsRegion.label}</strong> {'->'} <strong>{xr.investigation}</strong> {'->'} <strong>{billingPath === 'dhb' ? 'DHB' : billingPath === 'acc' ? 'ACC' : 'Private'}</strong>. Upload the Tere PDF as supporting info.
+            Copy NHI, open <code>app.erms.health.nz</code>, Create Referral {'->'} <strong>{transport.ermsRegion.label}</strong> {'->'} <strong>{xr.investigation}</strong> {'->'} <strong>{ermsPathComputed === 'dhb' ? 'DHB' : ermsPathComputed === 'acc' ? 'ACC' : 'Private'}</strong>.
             <div style={{marginTop:6}}>
               <button type="button" onClick={() => setOverrideToRhcnz(true)}
                 style={{background:'none',border:'none',padding:0,color:'#0B6E76',fontWeight:600,cursor:'pointer',fontSize:'.75rem',textDecoration:'underline',fontFamily:'inherit'}}>
