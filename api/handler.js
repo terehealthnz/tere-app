@@ -98,6 +98,7 @@ const AUTH_REQUIRED_ROUTES = new Set([
   // side (/api/public-testimonials) stays anon. /api/feedback (patient
   // submit from the thank-you email) is also anon, token-gated inline.
   'admin-testimonials',
+  'admin-arc-outreach-ni',
   // Admin surface for GP scheduled booking: per-provider queue toggles,
   // slot generation, funder config. /api/gp-slots, /api/gp-book, and
   // /api/gp-booking-lookup are anon, flag-gated inline.
@@ -460,6 +461,7 @@ const ROUTES = {
   'cron-arc-monthly-report':   () => import('./_cron-arc-monthly-report.js'),
   'feedback':                  () => import('./_feedback.js'),
   'admin-testimonials':        () => import('./_admin-testimonials.js'),
+  'admin-arc-outreach-ni':     () => import('./_admin-arc-outreach-ni.js'),
   'public-testimonials':       () => import('./_public-testimonials.js'),
   'gp-slots':                  () => import('./_gp-slots.js'),
   'gp-book':                   () => import('./_gp-book.js'),
