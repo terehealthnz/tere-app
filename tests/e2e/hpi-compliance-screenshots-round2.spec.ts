@@ -46,7 +46,10 @@ test.use({
 const PRACTITIONER_CPNS: Record<string, string[]> = {
   'Get-1_dormant_redirect':        ['98ZZNY', '90ZZJF'],
   'Get-2':                          ['91ZZWJ', '90ZZLC'],
-  'Get-3_given_name_only':          ['91ZZVR', '93ZZWU'],
+  // Keep 91ZZWJ (the one originally captured) + add Noel's new asks:
+  //   91ZZVR — given name only (kept as family name)
+  //   93ZZWU — official + usual names
+  'Get-3_name_variants':             ['91ZZWJ', '91ZZVR', '93ZZWU'],
   'Get-4_multi_registration':       ['95ZZEJ', '95ZZQE', '98ZZQJ', '95ZZDR', '95ZZDE'],
   'Get-5_scope_of_practice':        ['90ZZJF', '98ZZNM', '98ZZNY'],
   'Get-6':                          ['90ZZLP'],
