@@ -46,8 +46,18 @@ function siteOrigin(req) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational, testPassword, promo_code } = req.body || {}
+  const { consultationId, accEligible, consultationType, couponDiscount, sessionType, isInternational, testPassword, promo_code, billingCountry } = req.body || {}
   if (!consultationId) return res.status(400).json({ error: 'consultationId required' })
+  // ISO-2 billing country selected on the Payment billing picker. Server
+  // persists it on the consultation row so Rebecca-Au-style pricing bugs
+  // (patient_billing_country NULL, charged NZ rate, actually US) can be
+  // audited after the fact. We don't re-derive isInternational from this
+  // here — the client's isInternational boolean remains authoritative for
+  // the amount calc so the patient's confirm-button number matches what
+  // they get charged. The server-side cross-check happens on FPRN.
+  const billingCountryClean = typeof billingCountry === 'string'
+    ? billingCountry.trim().toUpperCase().slice(0, 4)
+    : null
 
   // Session type: 'auth' (hold, then explicit complete/capture later — default)
   // or 'purchase' (immediate capture). Windcave cert requires we exercise both.
@@ -260,6 +270,7 @@ export default async function handler(req, res) {
     // guards can distinguish "how much can we capture" from "how much
     // are we quoted / owed". See db/migrations/2026-09-29_payment_authorised_amount.sql.
     payment_authorised_amount_cents: authCents,
+    ...(billingCountryClean ? { patient_billing_country: billingCountryClean } : {}),
     ...(isTestMode ? { payment_test_mode: true } : {}),
     ...(promoAppliedId ? { promo_code_id: promoAppliedId, promo_discount_cents: promoAppliedDiscountCents } : {}),
   }).eq('id', consultationId)

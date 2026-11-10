@@ -22,21 +22,24 @@ const COUPON_DISCOUNT = 10
 // Billing-country dropdown. NZ = local rate. Anything else = international
 // rate. Compact list covering top NZ visitor origins + a fallback. We don't
 // display a full ISO country list because the price rule is binary
-// (NZ vs. non-NZ); more granularity here just adds friction.
+// (NZ vs. non-NZ); more granularity here just adds friction. Blank default
+// + mandatory pick — address auto-detect kept biting on ambiguous cases
+// (Rebecca Au 2026-11-10: US address silently bucketed as NZ → charged $65).
 const BILLING_COUNTRIES = [
-  { code: 'NZ', name: 'New Zealand' },
-  { code: 'AU', name: 'Australia' },
-  { code: 'US', name: 'United States' },
-  { code: 'GB', name: 'United Kingdom' },
-  { code: 'CA', name: 'Canada' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'FR', name: 'France' },
-  { code: 'NL', name: 'Netherlands' },
-  { code: 'CN', name: 'China' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'KR', name: 'South Korea' },
-  { code: 'IN', name: 'India' },
-  { code: 'SG', name: 'Singapore' },
+  { code: '',      name: 'Select your country…' },
+  { code: 'NZ',    name: 'New Zealand' },
+  { code: 'AU',    name: 'Australia' },
+  { code: 'US',    name: 'United States' },
+  { code: 'GB',    name: 'United Kingdom' },
+  { code: 'CA',    name: 'Canada' },
+  { code: 'DE',    name: 'Germany' },
+  { code: 'FR',    name: 'France' },
+  { code: 'NL',    name: 'Netherlands' },
+  { code: 'CN',    name: 'China' },
+  { code: 'JP',    name: 'Japan' },
+  { code: 'KR',    name: 'South Korea' },
+  { code: 'IN',    name: 'India' },
+  { code: 'SG',    name: 'Singapore' },
   { code: 'OTHER', name: 'Other' },
 ]
 
@@ -77,17 +80,25 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const [promoError, setPromoError] = useState(null)
   const [promo, setPromo] = useState(null)  // { code, discount_type, discount_value, discount_applied_cents, final_amount_cents } | null
 
-  // Billing country — auto-detected from patient's triage address. Persisted
-  // to sessionStorage so back/forward keeps the choice. NZ default when
-  // triage address is ambiguous or clearly NZ. If the choice is already in
-  // sessionStorage (e.g., user came back after a decline), skip the modal.
+  // Billing country — explicit pick only, no address auto-detect default.
+  // The old auto-detect defaulted ambiguous addresses to NZ, which charged a
+  // US patient (Rebecca Au, 2026-11-10) the $65 NZ rate instead of $100
+  // international. Blank default forces the picker; address detection only
+  // supplies a pre-filled hint, which the user still has to confirm.
   const [billingCountry, setBillingCountry] = useState(() => {
     const stored = sessionStorage.getItem('billing_country')
     if (stored) return stored
+    return ''
+  })
+  // Non-binding hint. If the triage address clearly reads non-NZ ("USA",
+  // state abbrev, 5-digit ZIP, etc) we surface a small suggestion under the
+  // dropdown so the patient can one-tap it. They still have to pick.
+  const [countryHint] = useState(() => {
     const address = sessionStorage.getItem('patient_address') || ''
     const detected = detectNzAddress(address)
     if (detected.nz === false) return 'OTHER'
-    return 'NZ'
+    if (detected.nz === true) return 'NZ'
+    return null
   })
   // Password-gated test mode. Ops path: enter shared password → server
   // validates PAYMENT_TEST_PASSWORD env var and drops amount to NZ$0.10 so
@@ -98,7 +109,12 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   const [testPassword, setTestPassword] = useState('')
   const [testUnlocked, setTestUnlocked] = useState(false)
   const [testError, setTestError] = useState(null)
-  const isInternational = billingCountry !== 'NZ'
+  // Blank country is the "not picked yet" state — don't price as international
+  // until the patient has made an explicit choice (we gate the Continue button
+  // below). When blank, bias toward the NZ rate for the preview so the big
+  // button doesn't read "$100" before the patient has even seen the dropdown.
+  const hasBillingCountry = !!billingCountry
+  const isInternational = hasBillingCountry && billingCountry !== 'NZ'
   const priceSet = BASE_PRICES[consultationType] || BASE_PRICES.video
   const normalAmount = isInternational
     ? priceSet.international
@@ -155,6 +171,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
         body: JSON.stringify({
           consultationId, accEligible, consultationType,
           isInternational: intl,
+          ...(billingCountry ? { billingCountry } : {}),
           ...(testUnlocked && testPassword ? { testPassword } : {}),
           ...(promo && !testUnlocked ? { promo_code: promo.code } : {}),
         }),
@@ -180,6 +197,7 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
   }
 
   function confirmBilling() {
+    if (!billingCountry) return
     sessionStorage.setItem('billing_country', billingCountry)
     startSession(billingCountry !== 'NZ')
   }
@@ -244,12 +262,27 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
           Billing country
         </label>
         <select value={billingCountry} onChange={e => setBillingCountry(e.target.value)}
-          style={{ width:'100%', padding:'.65rem .7rem', fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', color:'#1A2A33', background:'white', border:'1.5px solid #E2E8F0', borderRadius:8, cursor:'pointer', marginBottom:'.75rem' }}>
+          style={{ width:'100%', padding:'.65rem .7rem', fontSize:'.9375rem', fontFamily:'Plus Jakarta Sans, sans-serif', color: billingCountry ? '#1A2A33' : '#9CA3AF', background:'white', border:`1.5px solid ${billingCountry ? '#E2E8F0' : '#FCA5A5'}`, borderRadius:8, cursor:'pointer', marginBottom:'.5rem' }}>
           {BILLING_COUNTRIES.map(c => (
-            <option key={c.code} value={c.code}>{c.name}</option>
+            <option key={c.code || 'blank'} value={c.code} disabled={c.code === ''}>{c.name}</option>
           ))}
         </select>
-        {isInternational ? (
+        {!billingCountry && countryHint && (
+          <div style={{ fontSize:'.75rem', color:'#6B7280', marginBottom:'.6rem' }}>
+            From your address this looks like{' '}
+            <button type="button" onClick={() => setBillingCountry(countryHint)}
+              style={{ background:'none', border:'none', padding:0, color:'#0B6E76', fontWeight:600, textDecoration:'underline', cursor:'pointer', fontSize:'.75rem', fontFamily:'inherit' }}>
+              {countryHint === 'NZ' ? 'New Zealand' : 'outside New Zealand'}
+            </button>
+            . Please confirm.
+          </div>
+        )}
+        {!billingCountry && !countryHint && (
+          <div style={{ fontSize:'.75rem', color:'#B91C1C', marginBottom:'.6rem' }}>
+            Please pick where you are paying from to see your price.
+          </div>
+        )}
+        {billingCountry && isInternational ? (
           <div style={{ fontSize:'.8125rem', color:'#6B7280', lineHeight:1.55, marginBottom:'.75rem' }}>
             International visitor rate: <strong>NZ${priceSet.international}</strong>. Includes an itemised receipt suitable for travel-insurance claims.
             {accEligible === 'yes' && (
@@ -258,12 +291,12 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
               </div>
             )}
           </div>
-        ) : (
+        ) : billingCountry ? (
           <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'.75rem' }}>
             New Zealand resident rate: <strong>NZ${accEligible === 'yes' ? priceSet.acc : priceSet.private}</strong>
             {accEligible === 'yes' ? ' — ACC covers the consultation itself.' : '.'}
           </div>
-        )}
+        ) : null}
         {/* Promo code input. Preview only — server re-validates on charge. */}
         {!testUnlocked && (
           <div style={{ marginBottom:'.75rem', padding:'.65rem .75rem', background: promo ? '#F0FDF4' : '#F8FAFC', border: `1px solid ${promo ? '#BBF7D0' : '#E2E8F0'}`, borderRadius: 8 }}>
@@ -337,9 +370,12 @@ function WindcavePayment({ consultationId, accEligible, consultationType }) {
             Admin
           </button>
         )}
-        <button type="button" onClick={confirmBilling} className="btn btn-primary btn-full"
-          style={{marginTop:'.5rem', ...(testUnlocked ? { background:'#B45309', borderColor:'#B45309' } : {})}}>
-          {testUnlocked ? `Continue — NZ$0.10 (TEST)` : `Continue — NZ$${amount}`}
+        <button type="button" onClick={confirmBilling} disabled={!hasBillingCountry && !testUnlocked}
+          className="btn btn-primary btn-full"
+          style={{marginTop:'.5rem', ...(testUnlocked ? { background:'#B45309', borderColor:'#B45309' } : {}), ...((!hasBillingCountry && !testUnlocked) ? { opacity: 0.5, cursor: 'not-allowed' } : {})}}>
+          {testUnlocked
+            ? `Continue — NZ$0.10 (TEST)`
+            : (hasBillingCountry ? `Continue — NZ$${amount}` : 'Select your country to continue')}
         </button>
       </div>
     </div>

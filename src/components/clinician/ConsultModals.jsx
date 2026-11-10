@@ -5,28 +5,61 @@ import { calculateAge } from '../../lib/dob'
 import HpiSearch from '../HpiSearch'
 
 // ── NZF lookup ────────────────────────────────────────────────────────────────
-// 450 monographs extracted from NZF release 171 (September 2026). The JSON is
-// 835KB and parsing it on cold modal mount stalled mobile Safari for ~60s on
-// 2026-10-31. Loaded lazily now: static import removed, PrescribeModal fires
-// the import on mount via useEffect, and the Map is memoised at module scope
-// so the first open pays the cost and every open afterwards is instant.
-let NZF_FORMULARY = null
+// Split into two bundles so the autocomplete + preparations picker is cheap
+// to load, and the heavy dosing/indications monograph text only arrives when
+// a drug is actually selected.
+//
+//   nzf-names.json    (~216 KB, 1106 entries): name + preparations
+//     - autocomplete <datalist>, strength/form picker
+//     - loaded on first modal mount
+//   nzf-details.json  (~443 KB, 450 entries):  indications + dose
+//     - "NZF dosing reference" info card
+//     - loaded lazily the first time a drug is selected
+//
+// Was one 835 KB file loaded on mount — stalled mobile Safari for ~60s on
+// 2026-10-31 (old comment preserved in split_nzf.mjs). Split landed
+// 2026-11-09 after a live US patient slow-prescribe incident.
+let NZF_NAMES = null
 let NZF_INDEX = null
-let _nzfPromise = null
-function loadNzfOnce() {
-  if (NZF_FORMULARY) return Promise.resolve(NZF_FORMULARY)
-  if (_nzfPromise) return _nzfPromise
-  _nzfPromise = import('../../lib/nzf-formulary.json').then(m => {
-    NZF_FORMULARY = m.default
-    NZF_INDEX = new Map(NZF_FORMULARY.map(e => [e.name, e]))
-    return NZF_FORMULARY
+let NZF_DETAILS = null
+let _nzfNamesPromise = null
+let _nzfDetailsPromise = null
+
+function loadNzfNamesOnce() {
+  if (NZF_NAMES) return Promise.resolve(NZF_NAMES)
+  if (_nzfNamesPromise) return _nzfNamesPromise
+  _nzfNamesPromise = import('../../lib/nzf-names.json').then(m => {
+    NZF_NAMES = m.default
+    NZF_INDEX = new Map(NZF_NAMES.map(e => [e.name, e]))
+    return NZF_NAMES
   })
-  return _nzfPromise
+  return _nzfNamesPromise
 }
+
+function loadNzfDetailsOnce() {
+  if (NZF_DETAILS) return Promise.resolve(NZF_DETAILS)
+  if (_nzfDetailsPromise) return _nzfDetailsPromise
+  _nzfDetailsPromise = import('../../lib/nzf-details.json').then(m => {
+    NZF_DETAILS = m.default
+    return NZF_DETAILS
+  })
+  return _nzfDetailsPromise
+}
+
+// Legacy alias retained so any existing call site still works. The new
+// code path uses loadNzfNamesOnce on mount and loadNzfDetailsOnce when
+// a drug is selected.
+const loadNzfOnce = loadNzfNamesOnce
+
+// Returns a merged view: name + preparations always, indications + dose
+// present once details have loaded for that drug.
 function findNzfEntry(medicationText) {
   if (!medicationText || !NZF_INDEX) return null
   const key = medicationText.toLowerCase().trim().split(/\s+/)[0]  // "Ibuprofen 400mg" → "ibuprofen"
-  return NZF_INDEX.get(key) || null
+  const base = NZF_INDEX.get(key)
+  if (!base) return null
+  const detail = NZF_DETAILS ? NZF_DETAILS[key] : null
+  return detail ? { ...base, ...detail } : base
 }
 
 // ── Shared modal shell ────────────────────────────────────────────────────────
@@ -245,14 +278,19 @@ function impliedQuantity(rx) {
 }
 
 export function PrescribeModal({ open, onClose, consult, onDone, prefill, represcribeTaskId = null }) {
-  // Trigger the lazy NZF import on mount so the datalist + dose block are
-  // populated by the time the provider starts typing. nzfTick forces a
-  // re-render when the import resolves (NZF_INDEX becomes non-null).
+  // Lazy NZF load — two-stage to keep first-paint cheap.
+  //   Stage 1 (on mount): names bundle (216 KB) → populates the datalist
+  //     so the provider can start typing immediately.
+  //   Stage 2 (on first char typed): details bundle (443 KB) → indications
+  //     + dose block. Deferred until we know the provider is actually
+  //     about to prescribe, so patients whose consult never reaches Rx
+  //     never pay for the extra 443 KB of warm-cache transfer.
+  // nzfTick forces a re-render whenever either bundle resolves.
   const [nzfTick, setNzfTick] = useState(0)
   useEffect(() => {
     if (NZF_INDEX) return
     let cancelled = false
-    loadNzfOnce().then(() => { if (!cancelled) setNzfTick(t => t + 1) }).catch(() => {})
+    loadNzfNamesOnce().then(() => { if (!cancelled) setNzfTick(t => t + 1) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -261,6 +299,17 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
     dose: '', frequency: '', duration: '',
     notes: '', qty: '', repeats: 0,
   })
+
+  // Kick the details bundle the moment the provider starts typing a
+  // medication (or a prefill payload arrives). Idempotent — safe to run
+  // on every medication-change render.
+  useEffect(() => {
+    if (!rx.medication) return
+    if (NZF_DETAILS) return
+    let cancelled = false
+    loadNzfDetailsOnce().then(() => { if (!cancelled) setNzfTick(t => t + 1) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [rx.medication])
   // DoseSpot-style batch drafting: provider fills the form → "Add to list"
   // parks the composed prescription into `drafts` and clears the form so
   // the next drug can be entered. "Send all N" fires generate-prescription-pdf

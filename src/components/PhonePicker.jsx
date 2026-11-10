@@ -53,6 +53,12 @@ const COUNTRIES = [
 // Sentinel value used by the "Other country…" option so the picker
 // knows to swap the dropdown for the free-text dial-code input.
 const OTHER_SENTINEL = '__other__'
+// Sentinel for the blank "please pick" option. We used to default to
+// +64 when no value was supplied, which quietly stamped +64 on a US
+// number if the patient skipped the dropdown (Rebecca Au, 2026-11-10).
+// Now the picker starts blank and the parent step's own Continue gate
+// blocks forward motion until an explicit country is picked.
+const BLANK_SENTINEL = '__pick__'
 
 // Strip everything except digits, then drop a single leading 0
 // (common NZ mobile format the patient may type by habit).
@@ -70,12 +76,13 @@ function cleanDial(raw) {
 }
 
 // Split an existing E.164 back into (dial, local) so the picker
-// re-hydrates correctly on step navigation. If we can't identify
-// the dial code, fall back to NZ + whole string.
+// re-hydrates correctly on step navigation. If the caller hands us
+// no value at all we return a BLANK dial so the picker forces an
+// explicit country choice (no silent +64 default).
 function splitE164(value) {
-  if (!value || typeof value !== 'string') return { dial: '+64', local: '' }
+  if (!value || typeof value !== 'string') return { dial: '', local: '' }
   const v = value.trim()
-  if (!v.startsWith('+')) return { dial: '+64', local: normaliseLocal(v) }
+  if (!v.startsWith('+')) return { dial: '', local: normaliseLocal(v) }
   // Try longest match against known dial codes (so +679 wins over +67…).
   const dials = [...new Set(COUNTRIES.map(c => c.dial))].sort((a, b) => b.length - a.length)
   for (const d of dials) {
@@ -85,7 +92,7 @@ function splitE164(value) {
   // code, leave the remainder as the local number. Signals "Other".
   const m = v.match(/^\+(\d{1,4})(.*)$/)
   if (m) return { dial: `+${m[1]}`, local: m[2].replace(/[^\d]/g, ''), other: true }
-  return { dial: '+64', local: v.replace(/[^\d]/g, '') }
+  return { dial: '', local: v.replace(/[^\d]/g, '') }
 }
 
 export default function PhonePicker({ value, onChange }) {
@@ -103,7 +110,9 @@ export default function PhonePicker({ value, onChange }) {
   // no indication which field is missing on iOS, so we highlight the
   // empty required field in amber and show an inline hint below.
   const [touched, setTouched] = React.useState(false)
+  const [dialTouched, setDialTouched] = React.useState(false)
   const localMissing = touched && !normaliseLocal(local)
+  const dialMissing = dialTouched && !dial && !otherMode
 
   // Emit E.164 upstream whenever either half changes. Empty local
   // emits '' so the step's own validate() gate keeps working.
@@ -112,7 +121,7 @@ export default function PhonePicker({ value, onChange }) {
     onChange(clean && d ? `${d}${clean}` : '')
   }
 
-  const selectStyle = { width: 110, flexShrink: 0, padding: '.6rem .5rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white' }
+  const selectStyle = { width: 110, flexShrink: 0, padding: '.6rem .5rem', border: `1.5px solid ${dialMissing ? '#F59E0B' : 'var(--border)'}`, borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white', color: dial ? 'inherit' : '#9CA3AF' }
   const otherDialStyle = { width: 84, flexShrink: 0, padding: '.6rem .5rem', border: '1.5px solid var(--border)', borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '.95rem', background: 'white', textAlign: 'center' }
   const inputStyle  = { flex: 1, width: '100%', padding: '.6rem .75rem', border: `1.5px solid ${localMissing ? '#F59E0B' : 'var(--border)'}`, borderRadius: 8, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1rem', minWidth: 0, letterSpacing: '.02em' }
 
@@ -155,9 +164,15 @@ export default function PhonePicker({ value, onChange }) {
       ) : (
         <>
           <select
-            value={dial}
+            value={dial || BLANK_SENTINEL}
             onChange={e => {
               const d = e.target.value
+              setDialTouched(true)
+              if (d === BLANK_SENTINEL) {
+                setDial('')
+                emit('', local)
+                return
+              }
               if (d === OTHER_SENTINEL) {
                 // Clear dial so patient explicitly types their own
                 // code — safer than defaulting to +64 and having them
@@ -173,6 +188,7 @@ export default function PhonePicker({ value, onChange }) {
             style={selectStyle}
             aria-label="Country dial code"
           >
+            <option value={BLANK_SENTINEL} disabled>Country…</option>
             {COUNTRIES.map(c => (
               <option key={c.code} value={c.dial}>{c.flag} {c.dial} {c.name}</option>
             ))}
@@ -184,15 +200,21 @@ export default function PhonePicker({ value, onChange }) {
             autoComplete="tel-national"
             value={local}
             onChange={e => { const l = e.target.value; setLocal(l); emit(dial, l) }}
-            onBlur={() => setTouched(true)}
-            placeholder={dial === '+64' ? '21 234 5678' : 'Phone number'}
-            style={inputStyle}
+            onBlur={() => { setTouched(true); setDialTouched(true) }}
+            placeholder={dial === '+64' ? '21 234 5678' : (dial ? 'Phone number' : 'Pick a country first')}
+            disabled={!dial}
+            style={{ ...inputStyle, ...(dial ? {} : { background: '#F3F4F6', cursor: 'not-allowed' }) }}
             aria-label="Phone number"
           />
         </>
       )}
     </div>
-    {localMissing && (
+    {dialMissing && (
+      <div style={{ marginTop: 6, fontSize: '.8rem', color: '#92400E', fontWeight: 600 }}>
+        Please pick your country to continue.
+      </div>
+    )}
+    {!dialMissing && localMissing && (
       <div style={{ marginTop: 6, fontSize: '.8rem', color: '#92400E', fontWeight: 600 }}>
         Please enter a phone number to continue.
       </div>
