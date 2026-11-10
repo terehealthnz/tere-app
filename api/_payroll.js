@@ -260,16 +260,51 @@ export default async function handler(req, res) {
       const { period_start, period_end } = req.body
       if (!period_start || !period_end) return res.status(400).json({ error: 'Missing period' })
       const summaries = await buildSummaries(supabase, period_start, period_end)
-      const upserts = summaries.map(s => ({
-        period_start: s.period_start, period_end: s.period_end, provider_id: s.provider_id,
-        consultation_count: s.consultation_count,
-        total_amount:       s.total_amount,
-        // Freeze GST uplift at calculate time. If the provider changes GST
-        // status later, this period reflects the state when it was run.
-        gst_amount:         s.gst_amount,
-        // Preserve existing status if already approved/paid
-        ...(s.status === 'draft' ? {} : { status: s.status }),
-      }))
+
+      // Pull provider GST + BCTI-consent state so we can assign a BCTI number
+      // to GST-registered + consented providers at calculate time (not at
+      // confirm_paid). One BCTI per provider per fortnight, number stays with
+      // the row for its lifetime. If the row already has a bcti_number from
+      // a previous calculate, reuse it (idempotent recalc).
+      const providerIds = summaries.map(s => s.provider_id).filter(Boolean)
+      const [{ data: provs }, { data: existingRows }] = await Promise.all([
+        supabase.from('providers').select('id,gst_registered,gst_bcti_consent_at').in('id', providerIds),
+        supabase.from('payroll_periods').select('provider_id,bcti_number').eq('period_start', period_start).eq('period_end', period_end),
+      ])
+      const provMap    = Object.fromEntries((provs || []).map(p => [p.id, p]))
+      const existingBc = Object.fromEntries((existingRows || []).map(r => [r.provider_id, r.bcti_number]))
+
+      // For any new BCTI assignments this calc needs a fresh number; grab
+      // the current highest and increment per-row below.
+      const { data: topBc } = await supabase.from('payroll_periods')
+        .select('bcti_number').not('bcti_number', 'is', null)
+        .order('bcti_number', { ascending: false }).limit(1)
+      let seqN = topBc?.[0]?.bcti_number ? parseInt(String(topBc[0].bcti_number).split('-').pop(), 10) : 0
+      const yr = new Date().getFullYear()
+
+      const upserts = summaries.map(s => {
+        const p = provMap[s.provider_id]
+        const gstEligible = !!p?.gst_registered && !!p?.gst_bcti_consent_at
+        // Keep existing BCTI number if already issued; otherwise mint one
+        // for GST+consented providers. Non-GST providers stay bcti_number
+        // null (they get a Remittance Advice, no IRD doc needed).
+        let bctiNumber = existingBc[s.provider_id] || null
+        if (!bctiNumber && gstEligible) {
+          seqN += 1
+          bctiNumber = `BCTI-${yr}-${String(seqN).padStart(5, '0')}`
+        }
+        return {
+          period_start: s.period_start, period_end: s.period_end, provider_id: s.provider_id,
+          consultation_count: s.consultation_count,
+          total_amount:       s.total_amount,
+          // Freeze GST uplift at calculate time — if the provider toggles GST
+          // later, this period reflects the state when it was calculated.
+          gst_amount:         s.gst_amount,
+          bcti_number:        bctiNumber,
+          // Preserve existing status if already approved/paid
+          ...(s.status === 'draft' ? {} : { status: s.status }),
+        }
+      })
       const { error } = await supabase.from('payroll_periods')
         .upsert(upserts, { onConflict: 'provider_id,period_start' })
       if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
@@ -329,38 +364,22 @@ export default async function handler(req, res) {
         })
       }
 
-      // Pull provider GST state to decide BCTI vs Remittance Advice numbering
-      const { data: prov } = await supabase.from('providers')
-        .select('gst_registered,gst_bcti_consent_at').eq('id', row.provider_id).single()
-
-      // Only GST-registered providers who have given BCTI consent get a
-      // sequential BCTI number. Non-GST providers get a remittance-only
-      // payment record (no IRD document needed).
-      let bctiNumber = null
-      if (prov?.gst_registered && prov?.gst_bcti_consent_at) {
-        // nextval() isn't exposed as a default supabase-js RPC — fall back to
-        // reading the last BCTI number and incrementing. Good enough for our
-        // scale (< tens of thousands/year) and avoids needing a stored proc.
-        const { data: raw } = await supabase.from('payroll_periods')
-          .select('bcti_number').not('bcti_number', 'is', null)
-          .order('bcti_number', { ascending: false }).limit(1)
-        const prevN = raw?.[0]?.bcti_number ? parseInt(String(raw[0].bcti_number).split('-').pop(), 10) : 0
-        const seqN = (Number.isFinite(prevN) ? prevN : 0) + 1
-        const yr = new Date().getFullYear()
-        bctiNumber = `BCTI-${yr}-${String(seqN).padStart(5, '0')}`
-      }
-
+      // BCTI number is assigned at calculate time (not here) so there's one
+      // PDF per provider per fortnight and admin can preview the exact
+      // BCTI before transferring. Confirm Paid just records the transfer +
+      // flips status; if a transfer is later voided, the BCTI is cancelled
+      // with an IRD credit note referencing the original number (standard
+      // IRD process, not our concern at this layer).
       const update = {
         status:              'paid',
         paid_at:             new Date().toISOString(),
         actual_paid_amount:  actual,
         confirmed_paid_at:   new Date().toISOString(),
         confirmed_paid_by:   auth.provider?.id || null,
-        bcti_number:         bctiNumber,
       }
       const { error } = await supabase.from('payroll_periods').update(update).eq('id', period_id).eq('status', 'approved')
       if (error) { console.error('[payroll] confirm_paid failed:', error); return res.status(500).json({ error: 'Server error' }) }
-      return res.status(200).json({ ok: true, bcti_number: bctiNumber })
+      return res.status(200).json({ ok: true, bcti_number: row.bcti_number })
     }
 
     if (action === 'mark_all_paid') {
@@ -392,7 +411,7 @@ export default async function handler(req, res) {
           .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false).eq('is_practice', false)
           .gte('created_at', ps + 'T00:00:00.000Z').lte('created_at', pe + 'T23:59:59.999Z')
           .order('created_at'),
-        supabase.from('payroll_periods').select('gst_amount').eq('provider_id', pid).eq('period_start', ps).eq('period_end', pe).maybeSingle(),
+        supabase.from('payroll_periods').select('gst_amount,bcti_number').eq('provider_id', pid).eq('period_start', ps).eq('period_end', pe).maybeSingle(),
       ])
 
       const rows  = consultations || []
@@ -415,11 +434,13 @@ export default async function handler(req, res) {
         gst_amount:     gstAmount,
         gst_number:     prov?.gst_number || null,
         total_payable:  totalPayable,
+        bcti_number:    savedRow?.bcti_number || null,
       })
 
+      const isBcti = !!savedRow?.bcti_number
       return res.status(200).json({
         pdf: pdfBuffer.toString('base64'),
-        filename: `payslip-${(prov?.last_name || 'provider').toLowerCase()}-${ps}.pdf`,
+        filename: `${isBcti ? 'bcti' : 'payslip'}-${(prov?.last_name || 'provider').toLowerCase()}-${ps}.pdf`,
       })
     }
 

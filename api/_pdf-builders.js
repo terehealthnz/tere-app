@@ -625,21 +625,15 @@ export function buildPayslipPdf(data) {
 
     const W = doc.page.width
 
-    // Three document states, independent axes:
-    //   gst  — whether GST applies (gst_amount > 0, provider is GST-registered)
-    //   bcti — whether this is an officially-issued BCTI (bcti_number present,
-    //          assigned only by confirm_paid). A GST-registered preview
-    //          payslip still needs to show the GST breakdown, it just can't
-    //          claim BCTI status until confirm_paid.
-    //
-    //   gst=T bcti=T → BUYER-CREATED TAX INVOICE  + GST lines + IRD footer
-    //   gst=T bcti=F → PAYROLL PREVIEW (GST ×15%) + GST lines, no IRD footer
-    //   gst=F bcti=F → REMITTANCE ADVICE          + no GST, simple
+    // One PDF per provider per fortnight. BCTI number is assigned at
+    // Calculate time (not after payment) so the same PDF can be previewed
+    // by admin pre-transfer, downloaded post-transfer, emailed when
+    // confirmed — all identical content. Two formats only:
+    //   GST-registered + BCTI-consented → BUYER-CREATED TAX INVOICE (bcti_number present)
+    //   non-GST or no consent            → REMITTANCE ADVICE
     const isBcti = !!data.bcti_number
     const hasGst = Number(data.gst_amount || 0) > 0
-    const docTitle = isBcti ? 'BUYER-CREATED TAX INVOICE'
-                    : hasGst ? 'PAYROLL PREVIEW (GST applicable)'
-                    :          'REMITTANCE ADVICE'
+    const docTitle = isBcti ? 'BUYER-CREATED TAX INVOICE' : 'REMITTANCE ADVICE'
 
     // Header — Tere Health Ltd identifiers. GST 148-897-530 is required on
     // the BCTI so IRD can match input credits in audit; NZBN stays for
@@ -758,10 +752,7 @@ export function buildPayslipPdf(data) {
     doc.moveTo(50, y).lineTo(W - 50, y).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
     y += 10
 
-    const footerTitle = isBcti ? 'Buyer-Created Tax Invoice — IRD-compliant'
-                        : hasGst ? 'Preview — not yet issued'
-                        :          'Contractor services'
-    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text(footerTitle, 50, y)
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text(isBcti ? 'Buyer-Created Tax Invoice — IRD-compliant' : 'Contractor services', 50, y)
     y += 12
     if (isBcti) {
       doc.font('Helvetica').fontSize(7.5).fillColor('#777')
@@ -769,12 +760,6 @@ export function buildPayslipPdf(data) {
       y += 36
       doc.text('The Contractor is responsible for their own GST return (declaring the GST amount shown above as output tax) and for their own income tax, ACC levies and other statutory obligations. Tere Health does not deduct PAYE.', 50, y, { width: W - 100 })
       y += 24
-    } else if (hasGst) {
-      doc.font('Helvetica').fontSize(7.5).fillColor('#777')
-        .text('This is a draft payroll preview for a GST-registered contractor, showing the GST breakdown that will appear on the Buyer-Created Tax Invoice once payment is confirmed. The official BCTI (with sequential IRD-compliant number) is issued by Tere Health Limited after admin confirms the bank transfer amount — it will carry the same totals shown above.', 50, y, { width: W - 100 })
-      y += 36
-      doc.text('The Contractor is responsible for their own GST return and income tax. Tere Health does not deduct PAYE.', 50, y, { width: W - 100 })
-      y += 20
     } else {
       doc.font('Helvetica').fontSize(7.5).fillColor('#777')
         .text('This is a record of contractor earnings at flat per-consultation rates. As a contractor you are not entitled to statutory holiday pay under the Holidays Act 2003; the per-consult rate reflects this.', 50, y, { width: W - 100 })
