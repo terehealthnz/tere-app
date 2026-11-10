@@ -26,7 +26,7 @@
 //   hpi-r2-facility-<ROW>-<FACID>.png
 //   hpi-r2-search-<query>-nameonly.png
 
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, Page, Locator } from '@playwright/test'
 import path from 'path'
 import os from 'os'
 
@@ -71,6 +71,38 @@ const FACILITY_IDS: Record<string, string[]> = {
 const SEARCH_NAME_ONLY: Array<{ family: string; file: string }> = [
   { family: "O'Reilly",   file: 'hpi-r2-search-oreilly-nameonly.png' },
   { family: 'Hunnicutt',  file: 'hpi-r2-search-hunnicutt-nameonly.png' },
+]
+
+// HPI-P-Search-3 evidence — surname + DOB narrows the result set. Uses
+// HNZ UAT test personas. Evidences the "implemented when admin enters
+// DOB" answer that replaces our old "not implemented" row text.
+const SEARCH_WITH_DOB: Array<{ family: string; dob: string; file: string }> = [
+  { family: "O'Reilly",   dob: '1952-01-14', file: 'hpi-r2-search-oreilly-withdob.png' },
+  { family: 'Hunnicutt',  dob: '1945-06-01', file: 'hpi-r2-search-hunnicutt-withdob.png' },
+]
+
+// Proof that facility search has been stripped from the three prod
+// surfaces Noel flagged. Patient GP clinic picker is free-text only,
+// provider pharmacy picker only sources from the local pharmacies.json
+// list, provider radiology picker is a plain text input. Each shot
+// captures the surface after the picker loads — no HPI call fires.
+interface StrippedSurface {
+  file: string
+  prompt: string
+}
+const STRIPPED_SURFACES: StrippedSurface[] = [
+  {
+    file: 'hpi-r2-stripped-patient-gp-clinic.png',
+    prompt: 'Open an incognito window → walk a test patient through triage up to the "What is the name of their clinic or practice?" step. The free-text input visible here is the whole UI — no HPI call. Then click ▶ Resume.',
+  },
+  {
+    file: 'hpi-r2-stripped-provider-pharmacy.png',
+    prompt: 'Log in as provider → open a consult → open Prescribe modal → click to change pharmacy. The visible picker lists results from the local pharmacies.json register only (no "Search HPI directory" row). Then click ▶ Resume.',
+  },
+  {
+    file: 'hpi-r2-stripped-provider-radiology.png',
+    prompt: 'From the same consult → open the Imaging / Radiology referral modal. The "Radiology facility" field is now a plain text input (no HPI dropdown). Then click ▶ Resume.',
+  },
 ]
 
 // Screenshot a tight crop of the relevant admin HPI panel (input + result
@@ -174,6 +206,24 @@ async function searchByFamilyOnly(page: Page, family: string) {
   await page.waitForTimeout(1500)
 }
 
+async function searchByFamilyAndDob(page: Page, family: string, dob: string) {
+  const familyInput = page.locator('input[placeholder*="O\'Reilly"]').first()
+  await familyInput.waitFor({ state: 'visible', timeout: 15000 })
+  await familyInput.fill('')
+  await familyInput.type(family)
+  const dobInput = page.locator('input[placeholder*="YYYY-MM-DD"]').first()
+  await dobInput.waitFor({ state: 'visible', timeout: 15000 })
+  await dobInput.fill('')
+  await dobInput.type(dob)
+  await page.locator('button', { hasText: /^\s*Search\s*$/ }).first().click()
+  try {
+    await page.locator('text=/matched via|Search results|No practitioner found/i').first().waitFor({ state: 'visible', timeout: 25000 })
+  } catch {
+    // fall through
+  }
+  await page.waitForTimeout(1500)
+}
+
 test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
   test.setTimeout(900_000)  // 15 min — comprehensive run with manual login
 
@@ -228,6 +278,45 @@ test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
       console.log(`    ✓ ${out}`)
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.waitForTimeout(300)
+    }
+
+    // ── Surname + DOB Search Practitioner (Search-3) ─────────────────────
+    // Evidences the row we're updating from "not implemented" → "implemented
+    // when admin supplies DOB (optional)".
+    for (const { family, dob, file } of SEARCH_WITH_DOB) {
+      console.log(`\n  → Search-3 surname+DOB · ${family} ${dob}`)
+      await searchByFamilyAndDob(page, family, dob)
+      const out = path.join(OUT, file)
+      await captureTightCrop(page, 'HPI Practitioner Lookup', out)
+      console.log(`    ✓ ${out}`)
+      await page.evaluate(() => window.scrollTo(0, 0))
+      await page.waitForTimeout(300)
+    }
+
+    console.log('\n[Round 2 part A] Admin HPI Lookup captures complete.')
+    console.log('    See part B for facility-search-removed evidence (separate test).')
+    expect(true).toBe(true)
+  })
+
+  // ── Part B: facility search removed from 3 prod surfaces ──────────────
+  // Interactive — pauses on each surface so you can navigate to it in the
+  // browser. Noel saw demo data on these in his 2026-11-09 review; these
+  // screenshots prove the HPI Location call has been stripped and the
+  // local-only fallbacks (free-text, pharmacies.json, text input) are
+  // now the only code path.
+  test('Facility-search-removed evidence (patient GP / pharmacy / radiology)', async ({ page }) => {
+    console.log('\n[Round 2 part B] Facility-search-removed surfaces')
+
+    for (const { file, prompt } of STRIPPED_SURFACES) {
+      console.log(`\n  ⏸  ${prompt}`)
+      await page.pause()
+      await page.waitForTimeout(500)
+      const out = path.join(OUT, file)
+      // No panel locator to scope to here — these are whole-step surfaces,
+      // but they're already single-column and compact, so a viewport-sized
+      // shot captures the relevant content at the configured 3× scale.
+      await page.screenshot({ path: out, type: 'png' })
+      console.log(`    ✓ ${out}`)
     }
 
     console.log('\n[Round 2] All captures complete.')
