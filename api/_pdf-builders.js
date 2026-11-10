@@ -717,8 +717,16 @@ export function buildPayslipPdf(data) {
         .text('Fee', W - 100, y + 5, { width: 46, align: 'right' })
       y += 18
 
+      // Admin-override detection — if any consult in this period was force-
+      // included via payroll_override_at, we flag those rows with "*" and
+      // print a footnote after the breakdown table so an IRD auditor can
+      // trace the override back to the admin record in consultations.
+      const overrideRows = (data.consultations || []).filter(c => c.payroll_override_at && !c.notes_finalised_at && !c.encounter_completed_at)
+      const hasOverrides = overrideRows.length > 0
+
       let shade = false
       for (const c of data.consultations) {
+        const isOverride = c.payroll_override_at && !c.notes_finalised_at && !c.encounter_completed_at
         if (y > doc.page.height - 120) {
           doc.addPage()
           y = 50
@@ -730,10 +738,10 @@ export function buildPayslipPdf(data) {
         const typeKey = c.consultation_type || 'video'
         const type = typeKey.charAt(0).toUpperCase() + typeKey.slice(1)
         doc.fillColor('#374151').font('Helvetica').fontSize(8)
-          .text(dateStr, 58, y + 4)
+          .text(dateStr + (isOverride ? ' *' : ''), 58, y + 4)
           .text(type, 150, y + 4)
           .text(initials, 230, y + 4)
-          .text(`$${rate.toFixed(2)}`, W - 100, y + 4, { width: 46, align: 'right' })
+          .text(`$${rate.toFixed(2)}${isOverride ? ' *' : ''}`, W - 100, y + 4, { width: 46, align: 'right' })
         y += 16
       }
 
@@ -743,6 +751,23 @@ export function buildPayslipPdf(data) {
         .text(`Total: ${data.consultation_count} consultations`, 58, y + 5)
         .text(`$${Number(data.total_amount).toFixed(2)}`, W - 100, y + 5, { width: 46, align: 'right' })
       y += 30
+
+      // Override footnote — asterisk legend + one line per overridden row
+      // naming the consult ID + reason, so an IRD auditor can match the
+      // starred line back to the consultations.payroll_override_* record.
+      if (hasOverrides) {
+        doc.fillColor('#92400E').font('Helvetica-Bold').fontSize(7.5).text('* Included by admin override (no provider notes sign-off on file)', 50, y, { width: W - 100 })
+        y += 11
+        for (const o of overrideRows) {
+          const dt = new Date(o.created_at).toLocaleDateString('en-NZ', { day: '2-digit', month: 'short' })
+          doc.fillColor('#78350F').font('Helvetica').fontSize(7).text(
+            `• ${dt} · Consult ${(o.id || '').slice(0, 8)} — reason: ${o.payroll_override_reason || '(no reason recorded)'}`,
+            54, y, { width: W - 108 }
+          )
+          y += 10
+        }
+        y += 8
+      }
     }
 
     // Disclaimers

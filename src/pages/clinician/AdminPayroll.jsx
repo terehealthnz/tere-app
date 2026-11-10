@@ -78,11 +78,24 @@ function StatusChip({ status, paidAt }) {
 
 function ReviewModal({ summary, period_start, period_end, onClose }) {
   const [consults, setConsults] = useState(null)
+  const [overrideTarget, setOverrideTarget] = useState(null)
 
-  useEffect(() => {
-    apiFetch(`/api/payroll?type=consultations&provider_id=${summary.provider_id}&period_start=${period_start}&period_end=${period_end}`)
-      .then(r => r.json()).then(d => setConsults(d.consultations || [])).catch(() => setConsults([]))
-  }, [summary.provider_id, period_start, period_end])
+  async function reload() {
+    const r = await apiFetch(`/api/payroll?type=consultations&provider_id=${summary.provider_id}&period_start=${period_start}&period_end=${period_end}`)
+    const d = await r.json()
+    setConsults(d.consultations || [])
+  }
+
+  useEffect(() => { reload().catch(() => setConsults([])) }, [summary.provider_id, period_start, period_end])
+
+  function onOverrideRequest(c) { setOverrideTarget(c) }
+  async function onClearOverride(c) {
+    if (!confirm(`Remove the admin override on this consult?\n\nReason recorded: "${c.override?.reason}"\n\nIf you remove it, the consult will be excluded from payable again until the provider signs the notes.`)) return
+    const r = await apiFetch('/api/payroll', { method:'POST', body: JSON.stringify({ action:'clear_override', consultation_id: c.id }) })
+    const d = await r.json()
+    if (!r.ok) return alert(`Clear override failed: ${d.error || 'unknown'}`)
+    await reload()
+  }
 
   const typeIcon = { video:'📹', phone:'📞', message:'💬' }
 
@@ -114,9 +127,13 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
               </thead>
               <tbody>
                 {consults.map((c, i) => {
-                  const excluded = c.payable === false
+                  const excluded      = c.payable === false
+                  const adminOverride = !!c.override
+                  // Amber = payable by admin override; red = excluded (not signed);
+                  // default alternating zebra for signed-normal consults.
+                  const bg = excluded ? '#FEF2F2' : (adminOverride ? '#FFFBEB' : (i%2 ? 'white' : '#FAFAFA'))
                   return (
-                    <tr key={c.id} style={{ borderBottom:'1px solid #F3F4F6', background: excluded ? '#FEF2F2' : (i%2 ? 'white' : '#FAFAFA'), opacity: excluded ? 0.75 : 1 }}>
+                    <tr key={c.id} style={{ borderBottom:'1px solid #F3F4F6', background: bg, opacity: excluded ? 0.75 : 1 }}>
                       <td style={{ padding:'.625rem 1rem', color:'#374151', whiteSpace:'nowrap', verticalAlign:'top' }}>
                         {new Date(c.created_at).toLocaleDateString('en-NZ', { day:'2-digit', month:'short' })}
                         <div style={{ fontSize:'.6875rem', color:'#9CA3AF', fontFamily:'ui-monospace, Menlo, monospace', marginTop:2 }}>{c.short_id || c.id?.slice(0,8)}</div>
@@ -124,9 +141,6 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
                       <td style={{ padding:'.625rem .5rem', verticalAlign:'top' }}>{typeIcon[c.consultation_type] || '📹'}</td>
                       <td style={{ padding:'.625rem .5rem', color:'#374151', verticalAlign:'top' }}>
                         <div>{c.patient_first_name?.charAt(0)}{c.patient_last_name?.charAt(0)}.</div>
-                        {/* Audit signals: duration + notes + patient presence.
-                            Shows admin "provider actually saw this patient" rather than just
-                            "there's a DB row". */}
                         <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:4, lineHeight:1.4 }}>
                           {c.patient_joined
                             ? <span style={{ color:'#059669' }} title="LiveKit heartbeat confirmed patient joined the call">✓ patient joined</span>
@@ -136,10 +150,27 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
                         <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:2, lineHeight:1.4 }}>
                           {c.notes_signed_at
                             ? <><span style={{ color:'#059669' }}>✓ notes signed</span>{c.notes_word_count > 0 && ` · ${c.notes_word_count} words`}</>
-                            : <span style={{ color:'#DC2626', fontWeight:700 }} title="Excluded from payable total — provider must sign the notes before this consult pays">✗ notes not signed — excluded</span>}
+                            : excluded
+                              ? <span style={{ color:'#DC2626', fontWeight:700 }} title="Excluded from payable total — provider must sign the notes before this consult pays">✗ notes not signed — excluded</span>
+                              : <span style={{ color:'#B45309', fontWeight:700 }} title={`Admin override: ${c.override?.reason || ''}`}>⚠ included by admin override</span>}
                         </div>
+                        {excluded && (
+                          <button
+                            onClick={() => onOverrideRequest(c)}
+                            style={{ marginTop:6, fontSize:'.6875rem', background:'#FEF3C7', border:'1px solid #FDE68A', color:'#92400E', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontWeight:600, fontFamily:FF }}>
+                            Include anyway…
+                          </button>
+                        )}
+                        {adminOverride && (
+                          <div style={{ marginTop:4, fontSize:'.65rem', color:'#92400E', lineHeight:1.4 }}>
+                            Reason: <i>{c.override.reason}</i>
+                            {' · '}<button onClick={() => onClearOverride(c)} style={{ background:'none', border:'none', color:'#B45309', textDecoration:'underline', cursor:'pointer', padding:0, fontSize:'.65rem', fontFamily:FF }}>remove</button>
+                          </div>
+                        )}
                       </td>
-                      <td style={{ padding:'.625rem 1rem', textAlign:'right', color: excluded ? '#9CA3AF' : TEAL, fontWeight:600, verticalAlign:'top', textDecoration: excluded ? 'line-through' : 'none' }}>${Number(summary.base_rate ?? 20).toFixed(2)}</td>
+                      <td style={{ padding:'.625rem 1rem', textAlign:'right', color: excluded ? '#9CA3AF' : (adminOverride ? '#B45309' : TEAL), fontWeight:600, verticalAlign:'top', textDecoration: excluded ? 'line-through' : 'none' }}>
+                        ${Number(summary.base_rate ?? 20).toFixed(2)}{adminOverride && '*'}
+                      </td>
                     </tr>
                   )
                 })}
@@ -155,6 +186,81 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
         </div>
         <div style={{ padding:'.875rem 1rem', borderTop:'1px solid #E2E8F0', background:'#F9FAFB', fontFamily:FF, fontSize:'.75rem', color:'#9CA3AF', lineHeight:1.6 }}>
           Per-provider rate: ${Number(summary.base_rate ?? 20).toFixed(2)} per consultation · Contractor — no holiday pay, no PAYE
+        </div>
+      </div>
+      {overrideTarget && (
+        <OverrideReasonModal
+          consult={overrideTarget}
+          onClose={() => setOverrideTarget(null)}
+          onDone={async () => { setOverrideTarget(null); await reload() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Override reason modal ─────────────────────────────────────────────────────
+// Admin clicks "Include anyway" on an excluded consult → captures reason,
+// writes to consultations.payroll_override_reason + _by + _at. Row then counts
+// as payable on next Recalculate. Audit trail is the row itself — IRD can
+// trace any overridden BCTI line back to this record.
+function OverrideReasonModal({ consult, onClose, onDone }) {
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit() {
+    setError(''); setBusy(true)
+    try {
+      const r = await apiFetch('/api/payroll', { method:'POST', body: JSON.stringify({
+        action: 'override_payable', consultation_id: consult.id, reason,
+      })})
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Override failed')
+      onDone()
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.6)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'white', borderRadius:12, padding:'1.5rem', maxWidth:460, width:'100%', boxShadow:'0 20px 40px rgba(0,0,0,.25)' }}>
+        <div style={{ fontSize:'1.05rem', fontWeight:700, color:NAVY, marginBottom:'.4rem' }}>Include consult in payable</div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem', lineHeight:1.5 }}>
+          This consult has no signed notes but you want to pay for it anyway. Capture a reason — it goes on the record (and will appear as a footnote on the BCTI/payslip PDF) so IRD can trace the override if ever asked.
+        </div>
+        <div style={{ background:'#FEF3C7', border:'1px solid #FDE68A', borderRadius:8, padding:'.6rem .8rem', marginBottom:'1rem', fontSize:'.75rem', color:'#78350F', fontFamily:'ui-monospace, Menlo, monospace' }}>
+          Consult {consult.short_id || consult.id?.slice(0,8)} · {new Date(consult.created_at).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' })} · {consult.patient_first_name?.charAt(0)}{consult.patient_last_name?.charAt(0)}.
+        </div>
+
+        <label style={{ display:'block', fontSize:'.8125rem', color:'#4B5563', marginBottom:'1rem' }}>
+          <div style={{ marginBottom:'.3rem', fontWeight:600 }}>Reason for override <span style={{ color:'#DC2626' }}>*</span></div>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. Pre-migration consult — provider verified work via chart review on {date}. Notes authored outside the platform."
+            rows={4}
+            autoFocus
+            style={{ width:'100%', padding:'.6rem .75rem', border:'1px solid #D1D5DB', borderRadius:8, fontSize:'.875rem', fontFamily:FF, resize:'vertical' }}
+          />
+          <div style={{ fontSize:'.6875rem', color: reason.trim().length < 10 ? '#DC2626' : '#9CA3AF', marginTop:4 }}>
+            {reason.trim().length}/10 characters minimum
+          </div>
+        </label>
+
+        {error && (
+          <div style={{ background:'#FEE2E2', border:'1px solid #FCA5A5', borderRadius:8, padding:'.6rem .75rem', color:'#991B1B', fontSize:'.8125rem', marginBottom:'1rem' }}>{error}</div>
+        )}
+
+        <div style={{ display:'flex', gap:'.6rem', justifyContent:'flex-end' }}>
+          <button onClick={onClose} disabled={busy}
+            style={{ background:'#F3F4F6', border:'none', borderRadius:8, padding:'.6rem 1rem', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer', color:'#4B5563' }}>
+            Cancel
+          </button>
+          <button onClick={submit} disabled={busy || reason.trim().length < 10}
+            style={{ background:'#B45309', border:'none', borderRadius:8, padding:'.6rem 1.2rem', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:'pointer', color:'white', opacity:(busy||reason.trim().length<10)?0.5:1 }}>
+            {busy ? 'Saving…' : 'Include in payable'}
+          </button>
         </div>
       </div>
     </div>

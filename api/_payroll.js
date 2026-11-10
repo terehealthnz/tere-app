@@ -51,11 +51,12 @@ function getPastFortnights(count = 13) {
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
     supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number').eq('is_active', true).order('first_name'),
-    // Pull notes_finalised_at + encounter_completed_at alongside provider_id
-    // so we can gate payable count on actual sign-off. "Completed" alone is
-    // not enough — a provider could hit Complete Encounter without writing
-    // notes; we shouldn't pay for that.
-    supabase.from('consultations').select('provider_id,notes_finalised_at,encounter_completed_at').eq('status', 'complete').not('provider_id', 'is', null)
+    // Pull notes_finalised_at + encounter_completed_at + payroll_override_at
+    // alongside provider_id so we can gate payable count on actual sign-off
+    // (or an explicit admin override). "Completed" alone is not enough — a
+    // provider could hit Complete Encounter without writing notes; we
+    // shouldn't pay for that unless admin force-includes with a reason.
+    supabase.from('consultations').select('provider_id,notes_finalised_at,encounter_completed_at,payroll_override_at').eq('status', 'complete').not('provider_id', 'is', null)
       .eq('payment_test_mode', false)
       .eq('is_practice', false)
       .gte('created_at', period_start + 'T00:00:00.000Z')
@@ -63,13 +64,14 @@ async function buildSummaries(supabase, period_start, period_end) {
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
   ])
 
-  // Notes-signed gate — count only consults where either notes_finalised_at
-  // OR encounter_completed_at is populated. Consults with status='complete'
-  // but neither stamp are excluded from payable (surfaced in review modal
-  // with red "✗ notes not signed" so admin knows why the count differs).
+  // Notes-signed gate — count consults where either notes_finalised_at
+  // OR encounter_completed_at is populated, OR an explicit admin override
+  // was recorded (payroll_override_at). Consults with none of the three are
+  // excluded from payable (surfaced in review modal with red "✗ notes not
+  // signed — excluded" so admin knows why the count differs).
   const countMap = {}
   for (const c of consultations || []) {
-    const signed = !!(c.notes_finalised_at || c.encounter_completed_at)
+    const signed = !!(c.notes_finalised_at || c.encounter_completed_at || c.payroll_override_at)
     if (!signed) continue
     countMap[c.provider_id] = (countMap[c.provider_id] || 0) + 1
   }
@@ -246,7 +248,7 @@ export default async function handler(req, res) {
       if (!provider_id || !period_start || !period_end) return res.status(400).json({ error: 'Missing params' })
       if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const { data } = await supabase.from('consultations')
-        .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,patient_joined_at,started_at,last_attempt_at,encounter_completed_at,completed_at,notes_finalised_at,clinical_notes')
+        .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,patient_joined_at,started_at,last_attempt_at,encounter_completed_at,completed_at,notes_finalised_at,clinical_notes,payroll_override_at,payroll_override_by,payroll_override_reason')
         .eq('status', 'complete').eq('provider_id', provider_id).eq('payment_test_mode', false).eq('is_practice', false)
         .gte('created_at', period_start + 'T00:00:00.000Z').lte('created_at', period_end + 'T23:59:59.999Z')
         .order('created_at')
@@ -271,6 +273,7 @@ export default async function handler(req, res) {
           if (typeof v === 'string' && v.trim()) wordCount += v.trim().split(/\s+/).length
         }
         const notesSignedAt = c.notes_finalised_at || c.encounter_completed_at || null
+        const isOverride    = !!c.payroll_override_at && !notesSignedAt
         return {
           id: c.id,
           created_at: c.created_at,
@@ -285,8 +288,17 @@ export default async function handler(req, res) {
           short_id:             (c.id || '').slice(0, 8),
           // Gate — review modal uses this to show excluded consults struck
           // through with "$0 — notes not signed". buildSummaries applies
-          // the same rule for the payable total.
-          payable:              !!notesSignedAt,
+          // the same rule for the payable total. payroll_override_at from
+          // admin counts as "effectively signed" for payable purposes.
+          payable:              !!(notesSignedAt || c.payroll_override_at),
+          // Override metadata — if set, the row renders amber + "⚠ included
+          // by admin override" + reason, and the BCTI PDF carries an
+          // asterisk footnote so IRD can trace to this record.
+          override:             isOverride ? {
+            at:     c.payroll_override_at,
+            by:     c.payroll_override_by,
+            reason: c.payroll_override_reason,
+          } : null,
         }
       })
       return res.status(200).json({ consultations: enriched })
@@ -301,7 +313,7 @@ export default async function handler(req, res) {
 
     // Every mutating POST here is admin-only EXCEPT payslip which non-admin
     // providers can self-request for their own periods (checked below).
-    if (['calculate','approve','approve_all','mark_paid','mark_all_paid','confirm_paid','send_email'].includes(action)) {
+    if (['calculate','approve','approve_all','mark_paid','mark_all_paid','confirm_paid','send_email','override_payable','clear_override'].includes(action)) {
       if (!isAdminLike) return res.status(403).json({ error: 'Admin role required' })
     }
 
@@ -373,6 +385,42 @@ export default async function handler(req, res) {
       const { error } = await supabase.from('payroll_periods').update({ status: 'approved' })
         .eq('period_start', period_start).eq('period_end', period_end).eq('status', 'draft')
       if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true })
+    }
+
+    // override_payable — admin force-includes a status=complete consult in
+    // payroll despite no notes_finalised_at or encounter_completed_at stamp.
+    // Must capture a reason (≥10 chars) for IRD audit trail. Writes to the
+    // consultation row, not the payroll_period row, so the override survives
+    // Recalculate and follows the consult forward. On next Recalculate the
+    // row flips payable; admin still needs to Recalculate to refresh totals.
+    if (action === 'override_payable') {
+      if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
+      const { consultation_id, reason } = req.body
+      if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
+      const trimmed = String(reason || '').trim()
+      if (trimmed.length < 10) return res.status(400).json({ error: 'reason required (min 10 chars) — captured for IRD audit trail' })
+      const { error } = await supabase.from('consultations').update({
+        payroll_override_reason: trimmed,
+        payroll_override_by:     auth.provider.id,
+        payroll_override_at:     new Date().toISOString(),
+      }).eq('id', consultation_id)
+      if (error) { console.error('[payroll] override_payable failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true })
+    }
+
+    // clear_override — reverse the override (e.g. admin realised it was a
+    // mistake, or the provider has since signed the notes). Admin-only.
+    if (action === 'clear_override') {
+      if (!auth.provider?.is_admin) return res.status(403).json({ error: 'Admin only' })
+      const { consultation_id } = req.body
+      if (!consultation_id) return res.status(400).json({ error: 'consultation_id required' })
+      const { error } = await supabase.from('consultations').update({
+        payroll_override_reason: null,
+        payroll_override_by:     null,
+        payroll_override_at:     null,
+      }).eq('id', consultation_id)
+      if (error) { console.error('[payroll] clear_override failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
     }
 
@@ -456,7 +504,7 @@ export default async function handler(req, res) {
       const [{ data: prov }, { data: consultations }, { data: savedRow }] = await Promise.all([
         supabase.from('providers').select('first_name,last_name,credential,email,base_rate,gst_registered,gst_number').eq('id', pid).single(),
         supabase.from('consultations')
-          .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
+          .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,notes_finalised_at,encounter_completed_at,payroll_override_at,payroll_override_reason')
           .eq('status', 'complete').eq('provider_id', pid).eq('payment_test_mode', false).eq('is_practice', false)
           .gte('created_at', ps + 'T00:00:00.000Z').lte('created_at', pe + 'T23:59:59.999Z')
           .order('created_at'),
