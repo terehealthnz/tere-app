@@ -490,7 +490,7 @@ export default async function handler(req, res) {
         ${periodRow.actual_paid_amount != null ? `<tr><td colspan="2" style="padding-top:12px;font-size:13px;color:#065F46"><strong>Paid ${paidDateStr}</strong> — ${paidAmtStr} transferred to your bank account on file.</td></tr>` : ''}
       </table>
     </div>
-    <p style="font-size:13px;color:#6B7280;margin:0 0 20px">Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>
+    <p style="font-size:13px;color:#6B7280;margin:0 0 20px">Questions? <a href="mailto:hello@terehealth.co.nz" style="color:#0B6E76">hello@terehealth.co.nz</a></p>
     <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:14px 16px;font-size:12px;color:#78350F;line-height:1.6">
       ${disclaimer}
     </div>
@@ -529,7 +529,7 @@ export default async function handler(req, res) {
 
       const r = await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
-        replyTo: 'terehealthnz@gmail.com',
+        replyTo: 'hello@terehealth.co.nz',
         to: [s.provider_email],
         subject: `${docLabel} — Tere Health ${periodStr}`,
         html,
