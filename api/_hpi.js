@@ -190,38 +190,77 @@ function shapePractitioner(p) {
   const family = name?.family || ''
   const given  = Array.isArray(name?.given) ? name.given.join(' ') : (name?.given || '')
 
-  // All HPI identifiers with type distinction, not just CPN
+  // All HPI identifiers with type distinction, not just CPN. Noel flagged
+  // dormant-CPN redirects (2026-11-09): the requested CPN (e.g. 98ZZNY) may
+  // appear in identifier[] with use='old' while the returned record is the
+  // live one (99ZZRT). We expose that distinction so the UI can banner.
   const identifiers = (p.identifier || []).map(i => ({
     system:  i.system || '',
     value:   i.value || '',
+    use:     i.use || '',
     type:    i.type?.text || i.type?.coding?.[0]?.display || i.type?.coding?.[0]?.code || null,
     isCpn:   /HPI|Common Person Number/i.test(i.type?.text || '') ||
              /^https?:\/\/standards\.digital\.health\.nz\/ns\/hpi-person-id/i.test(i.system || ''),
   }))
-  const cpn = identifiers.find(x => x.isCpn) || null
-
-  // HPI-P-Get-8: registration status. `active` gives active/inactive; HPI
-  // may also emit a status extension or a business practitionerRole.
-  const registrationStatus = p.active === false ? 'inactive' : 'active'
+  const cpn = identifiers.find(x => x.isCpn && x.use !== 'old') || identifiers.find(x => x.isCpn) || null
 
   // HPI-P-Get-7 + HPI-P-Get-9: conditions of practice + qualification scope.
   // Each qualification carries a code (scope) + period (validity) + optional
-  // extension for practice-condition (limitations imposed by MCNZ/NCNZ).
-  const qualifications = (p.qualification || []).map(q => ({
-    code:      q.code?.text || q.code?.coding?.[0]?.display || q.code?.coding?.[0]?.code || null,
-    system:    q.code?.coding?.[0]?.system || null,
-    issuer:    q.issuer?.display || q.issuer?.reference || null,
-    periodStart: q.period?.start || null,
-    periodEnd:   q.period?.end || null,
-    conditionsOfPractice: (q.extension || [])
-      .filter(e => /condition-of-practice|practice-condition|scope-of-practice/i.test(e.url || ''))
-      .map(e => e.valueString || e.valueCodeableConcept?.text || e.valueCodeableConcept?.coding?.[0]?.display)
-      .filter(Boolean),
-  }))
+  // extension for practice-condition (limitations imposed by MCNZ/NCNZ) and
+  // a registration-status-code extension (HNZ IG-specific) that is the
+  // authoritative current/inactive marker.
+  const qualifications = (p.qualification || []).map(q => {
+    const statusExt = (q.extension || [])
+      .find(e => /registration-status-code|registration-status/i.test(e.url || ''))
+    const statusCode = statusExt?.valueCode
+                    || statusExt?.valueString
+                    || statusExt?.valueCoding?.code
+                    || statusExt?.valueCodeableConcept?.coding?.[0]?.code
+                    || null
+    return {
+      code:      q.code?.text || q.code?.coding?.[0]?.display || q.code?.coding?.[0]?.code || null,
+      system:    q.code?.coding?.[0]?.system || null,
+      issuer:    q.issuer?.display || q.issuer?.reference || null,
+      periodStart: q.period?.start || null,
+      periodEnd:   q.period?.end || null,
+      registrationStatusCode: statusCode,
+      conditionsOfPractice: (q.extension || [])
+        .filter(e => /condition-of-practice|practice-condition|scope-of-practice/i.test(e.url || ''))
+        .map(e => e.valueString || e.valueCodeableConcept?.text || e.valueCodeableConcept?.coding?.[0]?.display)
+        .filter(Boolean),
+    }
+  })
 
-  // HPI-P-Get-11: confidentiality flag. Two possible surfaces per HNZ IG:
-  // meta.security (Value Set 'Confidentiality' with codes V/R/N/L/M/U) OR
-  // an extension on the Practitioner resource. We surface both.
+  // HPI-P-Get-8: registration status. Authoritative source is the
+  // qualification[].registration-status-code extension (per Noel 2026-11-09:
+  // HPI does NOT return Practitioner.active). Fallback to p.active only if
+  // no qualification carries a status code.
+  const statusCodes = qualifications.map(q => q.registrationStatusCode).filter(Boolean)
+  const hasActiveQual = statusCodes.some(s => /current|active/i.test(String(s)))
+  const hasAnyQualStatus = statusCodes.length > 0
+  const registrationStatus = hasAnyQualStatus
+    ? (hasActiveQual ? 'active' : 'inactive')
+    : (p.active === false ? 'inactive' : 'active')
+  // registrationStatusSource lets the UI explain what it's rendering and
+  // sidesteps the fabricated "ACTIVE" badge Noel flagged.
+  const registrationStatusSource = hasAnyQualStatus ? 'qualification' : 'practitioner.active'
+
+  // HPI-P-Get-10: expired APC. Any qualification with periodEnd in the past
+  // means the current practising certificate has lapsed, regardless of what
+  // registration-status-code says. UI surfaces this as a separate warning.
+  const now = Date.now()
+  const expiredQualifications = qualifications.filter(q => {
+    if (!q.periodEnd) return false
+    const t = Date.parse(q.periodEnd)
+    return Number.isFinite(t) && t < now
+  })
+  const hasExpiredApc = expiredQualifications.length > 0
+
+  // HPI-P-Get-11: confidentiality flag. Per Noel 2026-11-09 the "Confidentiality
+  // flag set" banner should ONLY fire on code R (redacted record with name
+  // withheld). Ordinary records return L or M and should NOT trigger the
+  // banner. Previously we flagged anything non-N → false-positive on every
+  // practitioner.
   const confidentialityCodes = (p.meta?.security || [])
     .map(s => s.code || s.display)
     .filter(Boolean)
@@ -229,7 +268,7 @@ function shapePractitioner(p) {
     .find(e => /confidentiality|hpi-confidentiality/i.test(e.url || ''))
   const confidentiality = confidentialityCodes.length ? confidentialityCodes.join(',')
                         : confidentialityExt?.valueCode || confidentialityExt?.valueString || null
-  const isConfidential = !!confidentiality && !/^N|Normal/i.test(String(confidentiality))
+  const isConfidential = !!confidentiality && /(^|,)\s*R\b|Restricted/i.test(String(confidentiality))
 
   // HPI-P-Get-12: date of death. HNZ uses the practitioner-death-date
   // extension (HL7NZ profile). Also check standard FHIR deceasedDateTime.
@@ -238,19 +277,27 @@ function shapePractitioner(p) {
   const dateOfDeath = deathExt?.valueDate || deathExt?.valueDateTime ||
                       p.deceasedDateTime || null
 
+  // Old identifiers — any identifier with use='old' is a dormant HPI-CPN
+  // that HPI forwarded to a live record. UI can banner "the requested CPN
+  // is dormant" once the handler attaches the originally requested value.
+  const oldIdentifiers = identifiers.filter(x => x.isCpn && x.use === 'old').map(x => x.value)
+
   return {
     id:      p.id,
-    active:  p.active !== false,
-    registrationStatus,                           // HPI-P-Get-8
+    registrationStatus,                           // HPI-P-Get-8 (derived)
+    registrationStatusSource,                     // 'qualification' | 'practitioner.active'
     family, given,
     fullName: `${given} ${family}`.trim(),
     cpn:      cpn?.value || p.id || null,
     identifiers,                                   // full list (HPI-P-Search-4 evidence)
+    oldIdentifiers,                                // HPI-P-Get-1 dormant-CPN redirect evidence
     qualifications,                                // HPI-P-Get-7 + HPI-P-Get-9
     scope:    qualifications.map(q => q.code).filter(Boolean),  // backwards-compat
     conditionsOfPractice: qualifications.flatMap(q => q.conditionsOfPractice),
     confidentiality,                               // HPI-P-Get-11 (raw code)
-    isConfidential,                                // HPI-P-Get-11 (bool for banner)
+    isConfidential,                                // HPI-P-Get-11 (R-only banner)
+    expiredQualifications,                         // HPI-P-Get-10 (periodEnd < now)
+    hasExpiredApc,                                 // HPI-P-Get-10 (bool for banner)
     dateOfDeath,                                   // HPI-P-Get-12
     isDeceased: !!dateOfDeath,
   }
@@ -262,48 +309,71 @@ function shapeLocation(l) {
   // compliance scenarios (HPI-L-Get-1..5): status (active/inactive/dormant),
   // multi-line addresses, telecom[] with per-entry rank, type codings,
   // confidentiality + dormant flags from meta.security / extensions.
-  const addresses = (l.address || []).map(a => ({
-    use:        a.use || '',
-    type:       a.type || '',
-    text:       a.text || '',
-    lines:      Array.isArray(a.line) ? a.line.filter(Boolean) : [],
-    city:       a.city || '',
-    district:   a.district || '',
-    state:      a.state || '',
-    postalCode: a.postalCode || '',
-    country:    a.country || '',
+  //
+  // IMPORTANT: FHIR Location.address is cardinality 0..1 (a single object,
+  // not an array). We previously treated it as array and called .map,
+  // which threw when HNZ returned a singular object → every Get Facility
+  // call surfaced as "HPI proxy error" to Noel on 2026-11-09. Normalise
+  // to an array first so both shapes render.
+  const addressSource = Array.isArray(l.address) ? l.address
+                      : (l.address ? [l.address] : [])
+  const addresses = addressSource.map(a => ({
+    use:        a?.use || '',
+    type:       a?.type || '',
+    text:       a?.text || '',
+    lines:      Array.isArray(a?.line) ? a.line.filter(Boolean) : (a?.line ? [a.line] : []),
+    city:       a?.city || '',
+    district:   a?.district || '',
+    state:      a?.state || '',
+    postalCode: a?.postalCode || '',
+    country:    a?.country || '',
   }))
   const telecom = (l.telecom || []).map(t => ({
-    system: t.system || '',
-    value:  t.value || '',
-    use:    t.use || '',
-    rank:   (typeof t.rank === 'number') ? t.rank : null,
+    system: t?.system || '',
+    value:  t?.value || '',
+    use:    t?.use || '',
+    rank:   (typeof t?.rank === 'number') ? t.rank : null,
   }))
-  // Confidentiality extracted from meta.security (same approach as practitioner).
+  // Confidentiality: per Noel 2026-11-09, only code R triggers the banner.
   const confCode =
-    (l.meta?.security || []).find(s => (s.system || '').includes('Confidentiality'))?.code ||
-    (l.extension || []).find(e => (e.url || '').includes('confidentiality'))?.valueCode ||
-    (l.extension || []).find(e => (e.url || '').includes('confidentiality'))?.valueCoding?.code ||
+    (l.meta?.security || []).find(s => (s?.system || '').includes('Confidentiality'))?.code ||
+    (l.extension || []).find(e => (e?.url || '').includes('confidentiality'))?.valueCode ||
+    (l.extension || []).find(e => (e?.url || '').includes('confidentiality'))?.valueCoding?.code ||
     null
-  // HPI uses an inactive status for dormant locations; some records carry an
-  // explicit dormant flag via extension too.
-  const dormantExt = (l.extension || []).find(e => (e.url || '').toLowerCase().includes('dormant'))
+  // Dormant detection:
+  //   1. l.status === 'inactive' (HNZ usual pattern)
+  //   2. dormant extension on the Location resource
+  //   3. identifier with use='old' (HPI forwards dormant IDs to a live record;
+  //      the requested ID appears in identifier[] with use='old' while the
+  //      returned record is the live one).
+  const dormantExt = (l.extension || []).find(e => (e?.url || '').toLowerCase().includes('dormant'))
+  const allIdentifiers = (l.identifier || []).map(i => ({
+    system: i?.system || '',
+    value:  i?.value || '',
+    use:    i?.use || '',
+  }))
+  const oldIdentifiers = allIdentifiers.filter(i => i.use === 'old').map(i => i.value)
+  // Live HPI-FAC-ID is the first non-old identifier, else l.id.
+  const liveIdentifier = allIdentifiers.find(i => i.use !== 'old')?.value || l.id || null
+
   return {
     id:              l.id,
     name:            l.name || '',
     status:          l.status || '',
     active:          l.status === 'active',
-    type:            ((l.type || []).flatMap(t => (t.coding || []).map(c => c.code || c.display || '')).filter(Boolean))[0] || '',
-    typeDisplay:     ((l.type || []).flatMap(t => (t.coding || []).map(c => c.display || c.code || '')).filter(Boolean))[0] || '',
+    type:            ((l.type || []).flatMap(t => (t?.coding || []).map(c => c?.code || c?.display || '')).filter(Boolean))[0] || '',
+    typeDisplay:     ((l.type || []).flatMap(t => (t?.coding || []).map(c => c?.display || c?.code || '')).filter(Boolean))[0] || '',
     addresses,
     // Flattened single-line address kept for existing Get Facility shape
     // consumers (compliance panel). Previously also served the removed
     // search_facility proxy action.
     address:         addresses.map(a => a.lines.concat([a.city, a.postalCode].filter(Boolean)).join(', ')).join(' | '),
     telecom,
-    hpi:             (l.identifier || [])[0]?.value || l.id || null,
+    hpi:             liveIdentifier,
+    identifiers:     allIdentifiers,
+    oldIdentifiers,                              // HPI-L-Get-1 dormant redirect evidence
     confidentiality: confCode || 'N',
-    isConfidential:  !!confCode && confCode !== 'N',
+    isConfidential:  !!confCode && /(^|,)\s*R\b|Restricted/i.test(String(confCode)),
     isDormant:       !!dormantExt || l.status === 'inactive',
   }
 }
@@ -406,7 +476,21 @@ export default async function handler(req, res) {
       await auditHpi(auth, req, 'get_practitioner', 'Practitioner', cpn, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })
-      return res.status(200).json({ practitioner: shapePractitioner(r.body), raw: r.body })
+      const shaped = shapePractitioner(r.body)
+      // Dormant-CPN redirect (HPI-P-Get-1): if the requested CPN is in
+      // oldIdentifiers OR differs from the returned record's live id, HPI
+      // forwarded the request to a live record and the UI must say so.
+      const reqUpper = cpn.toUpperCase()
+      const liveUpper = String(shaped?.cpn || shaped?.id || '').toUpperCase()
+      const oldUpper = (shaped?.oldIdentifiers || []).map(s => String(s).toUpperCase())
+      const requestedIsDormant = !!shaped && reqUpper !== liveUpper
+      return res.status(200).json({
+        practitioner: shaped,
+        raw: r.body,
+        requested: cpn,
+        requestedIsDormant,
+        requestedMatchedAsOld: oldUpper.includes(reqUpper),
+      })
     }
 
     if (action === 'search_practitioner') {
@@ -665,7 +749,22 @@ export default async function handler(req, res) {
       await auditHpi(auth, req, 'get_facility', 'Location', hpi, r)
       if (r.status === 404) return res.status(404).json({ error: 'Not found', body: r.body })
       if (!r.ok)            return res.status(r.status).json({ error: 'HPI error', body: r.body })
-      return res.status(200).json({ facility: shapeLocation(r.body), raw: r.body })
+      const shaped = shapeLocation(r.body)
+      // Dormant-facility redirect (HPI-L-Get-1): HPI returns 200 with the live
+      // facility (FZZ999-B) when FZZ997-J is queried, and lists FZZ997-J in
+      // identifier[] with use='old'. The UI must show the live facility and
+      // say the requested ID is dormant.
+      const reqUpper = hpi.toUpperCase()
+      const liveUpper = String(shaped?.hpi || shaped?.id || '').toUpperCase()
+      const oldUpper = (shaped?.oldIdentifiers || []).map(s => String(s).toUpperCase())
+      const requestedIsDormant = !!shaped && reqUpper !== liveUpper
+      return res.status(200).json({
+        facility: shaped,
+        raw: r.body,
+        requested: hpi,
+        requestedIsDormant,
+        requestedMatchedAsOld: oldUpper.includes(reqUpper),
+      })
     }
 
     return res.status(400).json({ error: 'Invalid action' })

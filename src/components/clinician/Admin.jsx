@@ -744,10 +744,14 @@ function AdminHpiLookupPanel() {
   const [facilityNotFound, setFacilityNotFound] = React.useState(false)
   const [facilityStatus, setFacilityStatus] = React.useState(0)
   const [showFacilityRaw, setShowFacilityRaw] = React.useState(false)
+  // Round-2 (Noel 2026-11-09): capture the requested-vs-returned CPN / HPI-FAC
+  // delta so the UI can render a "requested ID is dormant" banner.
+  const [practitionerMeta, setPractitionerMeta] = React.useState(null)
+  const [facilityMeta, setFacilityMeta]         = React.useState(null)
 
   async function lookup() {
     if (!cpn.trim()) return
-    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null)
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null); setPractitionerMeta(null)
     try {
       const r = await apiFetch(`/api/hpi?action=get_practitioner&cpn=${encodeURIComponent(cpn.trim())}`)
       if (r.status === 404) { setError(`No practitioner found for CPN ${cpn.trim()}`); return }
@@ -755,6 +759,7 @@ function AdminHpiLookupPanel() {
       if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
       setPractitioner(j.practitioner)
       setRawJson(j.raw || j.practitioner)
+      setPractitionerMeta({ requested: j.requested, requestedIsDormant: j.requestedIsDormant, requestedMatchedAsOld: j.requestedMatchedAsOld })
     } catch (e) { setError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
@@ -784,7 +789,7 @@ function AdminHpiLookupPanel() {
   // practitioners without crashing.
   async function runPractitionerScenario(scenarioCpn) {
     setCpn(scenarioCpn)
-    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null); setSearchDiag(null)
+    setBusy(true); setError(''); setPractitioner(null); setSearchResults(null); setRawJson(null); setSearchDiag(null); setPractitionerMeta(null)
     try {
       const r = await apiFetch(`/api/hpi?action=get_practitioner&cpn=${encodeURIComponent(scenarioCpn)}`)
       if (r.status === 404) { setError(`No practitioner found for CPN ${scenarioCpn}`); return }
@@ -792,6 +797,7 @@ function AdminHpiLookupPanel() {
       if (!r.ok) { setError(j?.error || `HTTP ${r.status}`); return }
       setPractitioner(j.practitioner)
       setRawJson(j.raw || j.practitioner)
+      setPractitionerMeta({ requested: j.requested, requestedIsDormant: j.requestedIsDormant, requestedMatchedAsOld: j.requestedMatchedAsOld })
     } catch (e) { setError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
@@ -804,7 +810,7 @@ function AdminHpiLookupPanel() {
     const q = String(idOverride ?? facilityId).trim()
     if (!q) return
     setFacilityId(q)
-    setBusy(true); setFacilityError(''); setFacility(null); setFacilityRaw(null); setFacilityNotFound(false); setFacilityStatus(0)
+    setBusy(true); setFacilityError(''); setFacility(null); setFacilityRaw(null); setFacilityNotFound(false); setFacilityStatus(0); setFacilityMeta(null)
     try {
       const r = await apiFetch(`/api/hpi?action=get_facility&hpi=${encodeURIComponent(q)}`)
       setFacilityStatus(r.status)
@@ -817,6 +823,7 @@ function AdminHpiLookupPanel() {
       if (!r.ok) { setFacilityError(j?.error || `HTTP ${r.status}`); return }
       setFacility(j.facility)
       setFacilityRaw(j.raw || j.facility)
+      setFacilityMeta({ requested: j.requested, requestedIsDormant: j.requestedIsDormant, requestedMatchedAsOld: j.requestedMatchedAsOld })
     } catch (e) { setFacilityError(e.message || 'Network error') }
     finally { setBusy(false) }
   }
@@ -865,7 +872,7 @@ function AdminHpiLookupPanel() {
             </div>
           </div>
           <div>
-            <div style={label}>By surname + date of birth <span style={{ fontWeight:400, textTransform:'none', color:'#9CA3AF' }}>(HPI requires both)</span></div>
+            <div style={label}>By surname (date of birth optional)</div>
             <div style={{ display:'flex', gap:8 }}>
               <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. O'Reilly" style={{ ...inputStyle, flex:2 }} onKeyDown={e => e.key === 'Enter' && search()} />
               <input value={dob} onChange={e => setDob(e.target.value)} placeholder="YYYY-MM-DD" style={{ ...inputStyle, flex:1.4 }} onKeyDown={e => e.key === 'Enter' && search()} type="text" />
@@ -930,7 +937,7 @@ function AdminHpiLookupPanel() {
         )}
       </div>
 
-      {practitioner && <PractitionerCard p={practitioner} rawJson={rawJson} showRaw={showRaw} setShowRaw={setShowRaw} />}
+      {practitioner && <PractitionerCard p={practitioner} rawJson={rawJson} showRaw={showRaw} setShowRaw={setShowRaw} meta={practitionerMeta} />}
 
       {searchResults && (
         <div style={panelStyle}>
@@ -1023,7 +1030,7 @@ function AdminHpiLookupPanel() {
         )}
       </div>
 
-      {facility && <FacilityCard f={facility} rawJson={facilityRaw} showRaw={showFacilityRaw} setShowRaw={setShowFacilityRaw} queriedId={facilityId} />}
+      {facility && <FacilityCard f={facility} rawJson={facilityRaw} showRaw={showFacilityRaw} setShowRaw={setShowFacilityRaw} queriedId={facilityId} meta={facilityMeta} />}
 
       {facilityNotFound && facilityRaw && (
         <div style={panelStyle}>
@@ -1042,7 +1049,7 @@ function AdminHpiLookupPanel() {
   )
 }
 
-function FacilityCard({ f, rawJson, showRaw, setShowRaw, queriedId }) {
+function FacilityCard({ f, rawJson, showRaw, setShowRaw, queriedId, meta }) {
   const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
   const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
   const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
@@ -1058,14 +1065,28 @@ function FacilityCard({ f, rawJson, showRaw, setShowRaw, queriedId }) {
     return ra - rb
   })
   const hasRank = (f.telecom || []).some(t => t.rank != null)
+  const requestedIsDormant = !!meta?.requestedIsDormant && meta.requested
   return (
     <>
+      {requestedIsDormant && (
+        <div style={{ padding:'.875rem 1rem', background:'#B45309', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>↪</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Requested facility ID is dormant — showing live facility</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>
+              You searched <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{meta.requested}</code>.
+              HPI returned the live facility <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{f.hpi || f.id}</code>.
+              The old ID is retained for identifier history only. (HPI-L-Get-1)
+            </div>
+          </div>
+        </div>
+      )}
       {f.isConfidential && (
         <div style={{ padding:'.875rem 1rem', background:'#B91C1C', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ fontSize:'1.25rem' }}>🔒</div>
           <div>
-            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Confidentiality flag set</div>
-            <div style={{ fontSize:'.8125rem', opacity:.9 }}>Location confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{f.confidentiality}</code>. Restrict display per HPI policy.</div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Restricted facility (confidentiality R)</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>Location confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{f.confidentiality}</code>. Banner fires only on code R.</div>
           </div>
         </div>
       )}
@@ -1165,7 +1186,7 @@ function FacilityCard({ f, rawJson, showRaw, setShowRaw, queriedId }) {
   )
 }
 
-function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
+function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
   const panel = { background:'white', borderRadius:12, padding:'1.25rem', border:'1px solid #E2E8F0', marginBottom:'1rem' }
   const label = { fontSize:'.6875rem', fontWeight:700, color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', marginBottom:'.25rem' }
   const value = { fontSize:'.9375rem', color:'#0D2B45', fontWeight:600 }
@@ -1175,8 +1196,22 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
       <div style={value}>{v || <span style={{ color:'#9CA3AF', fontWeight:400 }}>—</span>}</div>
     </div>
   )
+  const requestedIsDormant = !!meta?.requestedIsDormant && meta.requested
   return (
     <>
+      {requestedIsDormant && (
+        <div style={{ padding:'.875rem 1rem', background:'#B45309', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ fontSize:'1.25rem' }}>↪</div>
+          <div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Requested CPN is dormant — showing live record</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>
+              You searched <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{meta.requested}</code>.
+              HPI forwarded that to the live record <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{p.cpn || p.id}</code>.
+              The old CPN is retained for identifier history only. (HPI-P-Get-1)
+            </div>
+          </div>
+        </div>
+      )}
       {p.isDeceased && (
         <div style={{ padding:'.875rem 1rem', background:'#1F2937', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ fontSize:'1.25rem' }}>⚠</div>
@@ -1190,15 +1225,31 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
         <div style={{ padding:'.875rem 1rem', background:'#B91C1C', color:'white', borderRadius:12, marginBottom:'1rem', display:'flex', alignItems:'center', gap:12 }}>
           <div style={{ fontSize:'1.25rem' }}>🔒</div>
           <div>
-            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Confidentiality flag set</div>
-            <div style={{ fontSize:'.8125rem', opacity:.9 }}>HPI Confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{p.confidentiality}</code>. Do not disclose to unauthorised parties. (HPI-P-Get-11)</div>
+            <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Restricted record (confidentiality R)</div>
+            <div style={{ fontSize:'.8125rem', opacity:.9 }}>HPI Confidentiality code: <code style={{ background:'rgba(255,255,255,.15)', padding:'1px 6px', borderRadius:4 }}>{p.confidentiality}</code>. Name is withheld by HPI; do not disclose. Banner fires only on code R. (HPI-P-Get-11)</div>
           </div>
         </div>
       )}
       {!p.isDeceased && p.registrationStatus === 'inactive' && (
         <div style={{ padding:'.875rem 1rem', background:'#F59E0B', color:'#1F2937', borderRadius:12, marginBottom:'1rem' }}>
           <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Registration status: INACTIVE</div>
-          <div style={{ fontSize:'.8125rem' }}>Practitioner is not currently registered — do not roster for clinical work. (HPI-P-Get-8)</div>
+          <div style={{ fontSize:'.8125rem' }}>
+            Practitioner is not currently registered — do not roster for clinical work. Derived from{' '}
+            {p.registrationStatusSource === 'qualification'
+              ? <code>qualification[].extension.registration-status-code</code>
+              : <code>Practitioner.active (fallback)</code>}. (HPI-P-Get-8)
+          </div>
+        </div>
+      )}
+      {p.hasExpiredApc && (
+        <div style={{ padding:'.875rem 1rem', background:'#991B1B', color:'white', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Annual Practising Certificate expired</div>
+          <div style={{ fontSize:'.8125rem', opacity:.9 }}>
+            {p.expiredQualifications?.length === 1
+              ? <>Qualification "{p.expiredQualifications[0].code || 'unnamed scope'}" ended {p.expiredQualifications[0].periodEnd}. Do not roster for clinical work until the practitioner has renewed their APC.</>
+              : <>{p.expiredQualifications?.length || 0} qualifications have ended — see list below. Do not roster for clinical work until the practitioner has renewed their APC.</>}
+            {' '}(HPI-P-Get-10)
+          </div>
         </div>
       )}
 
@@ -1212,8 +1263,8 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw }) {
             padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap',
             background: p.registrationStatus === 'active' ? '#DCFCE7' : '#FEE2E2',
             color:      p.registrationStatus === 'active' ? '#166534' : '#7F1D1D',
-          }}>
-            {p.registrationStatus === 'active' ? '✓ ACTIVE' : '✗ INACTIVE'}
+          }} title={`Derived from ${p.registrationStatusSource || 'qualification'}`}>
+            {p.registrationStatus === 'active' ? '✓ CURRENT' : '✗ INACTIVE'}
           </div>
         </div>
 
