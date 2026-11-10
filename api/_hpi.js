@@ -290,12 +290,40 @@ function shapePractitioner(p) {
                         : confidentialityExt?.valueCode || confidentialityExt?.valueString || null
   const isConfidential = !!confidentiality && /(^|,)\s*R\b|Restricted/i.test(String(confidentiality))
 
-  // HPI-P-Get-12: date of death. HNZ uses the practitioner-death-date
-  // extension (HL7NZ profile). Also check standard FHIR deceasedDateTime.
-  const deathExt = (p.extension || [])
-    .find(e => /death-date|date-of-death|deceased/i.test(e.url || ''))
-  const dateOfDeath = deathExt?.valueDate || deathExt?.valueDateTime ||
-                      p.deceasedDateTime || null
+  // HPI-P-Get-12: date of death. HNZ HPI doesn't document a single canonical
+  // location for this signal, so we cast a wide net and OR the results:
+  //   (a) any extension (top-level or nested) whose URL mentions
+  //       death/deceased/life-status/record-status — extract any date/code value
+  //   (b) any valueCode/valueString across top-level extensions,
+  //       qualification.extension[], meta.tag[], meta.security[] that
+  //       matches deceased/dead/died (HPI persona registration-status-code
+  //       may encode deceased here instead of a dedicated death-date field)
+  //   (c) standard FHIR deceasedBoolean / deceasedDateTime (Patient-profile
+  //       convention, included in case HPI extends Practitioner with them)
+  function walkExtensions(exts) {
+    const flat = []
+    for (const e of (exts || [])) {
+      if (!e) continue
+      flat.push(e)
+      if (Array.isArray(e.extension) && e.extension.length) flat.push(...walkExtensions(e.extension))
+    }
+    return flat
+  }
+  const allExts  = walkExtensions(p.extension)
+  const deathExt = allExts.find(e => /death|deceased|life-?status|record-status/i.test(e.url || ''))
+  const extractDate = (e) => e?.valueDate || e?.valueDateTime || e?.valueString || null
+
+  const allCodeSignals = [
+    ...allExts.map(e => e?.valueCode || e?.valueString).filter(Boolean),
+    ...allExts.flatMap(e => (e?.valueCodeableConcept?.coding || []).map(c => c.code || c.display)).filter(Boolean),
+    ...((p.qualification || []).flatMap(q => walkExtensions(q.extension).map(e => e?.valueCode).filter(Boolean))),
+    ...((p.meta?.tag       || []).map(t => t?.code || t?.display).filter(Boolean)),
+    ...((p.meta?.security  || []).map(s => s?.code || s?.display).filter(Boolean)),
+  ]
+  const anyDeceasedSignal = allCodeSignals.some(v => /deceased|^dead$|died/i.test(String(v || '')))
+
+  const dateOfDeath = extractDate(deathExt) || p.deceasedDateTime || null
+  const isDeceased  = !!dateOfDeath || anyDeceasedSignal || p.deceasedBoolean === true
 
   // Old identifiers — any identifier with use='old' is a dormant HPI-CPN
   // that HPI forwarded to a live record. UI can banner "the requested CPN
@@ -319,7 +347,7 @@ function shapePractitioner(p) {
     expiredQualifications,                         // HPI-P-Get-10 (periodEnd < now)
     hasExpiredApc,                                 // HPI-P-Get-10 (bool for banner)
     dateOfDeath,                                   // HPI-P-Get-12
-    isDeceased: !!dateOfDeath,
+    isDeceased,                                    // HPI-P-Get-12 (dateOfDeath OR any deceased code signal OR p.deceasedBoolean)
   }
 }
 
