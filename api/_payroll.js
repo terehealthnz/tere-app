@@ -458,7 +458,7 @@ export default async function handler(req, res) {
       // confirmed the bank transfer amount. Prevents an email claiming
       // payment when the transfer either never happened or was wrong.
       const { data: periodRow } = await supabase.from('payroll_periods')
-        .select('confirmed_paid_at,bcti_number')
+        .select('confirmed_paid_at,bcti_number,actual_paid_amount')
         .eq('provider_id', provider_id).eq('period_start', period_start).eq('period_end', period_end).maybeSingle()
       if (!periodRow?.confirmed_paid_at) {
         return res.status(400).json({ error: 'Confirm bank transfer amount first (confirm_paid action) before emailing the BCTI.' })
@@ -467,6 +467,12 @@ export default async function handler(req, res) {
       const firstName = (s.provider_name || '').split(' ')[0]
       const fmtDate = d => new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
       const periodStr = `${fmtDate(period_start)} – ${fmtDate(period_end)}`
+      const paidDateStr  = fmtDate(periodRow.confirmed_paid_at)
+      const paidAmtStr   = `$${Number(periodRow.actual_paid_amount ?? s.total_payable ?? s.total_amount).toFixed(2)}`
+      const isBctiEmail  = !!periodRow.bcti_number
+      const disclaimer   = isBctiEmail
+        ? `This is a <strong>Buyer-Created Tax Invoice (BCTI)</strong> issued by Tere Health Limited (GST 148-897-530) on your behalf under the GST Act 1985 s24(2) — per your consent on your Tere Health profile. Declare the GST shown above as output tax in your own GST return as normal. Tere Health does not deduct PAYE; you remain responsible for income tax and ACC levies.`
+        : `This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.`
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;color:#1A2A33;max-width:580px;margin:0 auto;background:#fff">
@@ -475,17 +481,18 @@ export default async function handler(req, res) {
   </div>
   <div style="padding:24px 28px">
     <p style="font-size:15px;margin:0 0 16px">Kia ora ${firstName},</p>
-    <p style="font-size:15px;color:#374151;margin:0 0 24px">Your Tere Health earnings for <strong>${periodStr}</strong> are ready.</p>
+    <p style="font-size:15px;color:#374151;margin:0 0 24px">Your Tere Health earnings for <strong>${periodStr}</strong> have been paid. The ${isBctiEmail ? 'Buyer-Created Tax Invoice' : 'Remittance Advice'} is attached for your records.</p>
     <div style="background:#F0F9FA;border:1px solid #D4EEF0;border-radius:12px;padding:20px 24px;margin-bottom:24px">
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <tr><td style="color:#6B7280;padding:4px 0">${s.consultation_count} consultations × $${Number(s.base_rate).toFixed(2)}</td><td style="text-align:right;color:#374151">$${s.total_amount.toFixed(2)}</td></tr>
         ${s.gst_amount > 0 ? `<tr><td style="color:#6B7280;padding:4px 0">GST 15%${s.gst_number ? ` (${s.gst_number})` : ''}</td><td style="text-align:right;color:#374151">$${Number(s.gst_amount).toFixed(2)}</td></tr>` : ''}
         <tr style="border-top:1px solid #D4EEF0"><td style="font-weight:700;color:#0D2B45;padding-top:12px">Total payable</td><td style="text-align:right;font-weight:800;color:#0B6E76;font-size:20px;padding-top:12px">$${Number(s.total_payable ?? s.total_amount).toFixed(2)}</td></tr>
+        ${periodRow.actual_paid_amount != null ? `<tr><td colspan="2" style="padding-top:12px;font-size:13px;color:#065F46"><strong>Paid ${paidDateStr}</strong> — ${paidAmtStr} transferred to your bank account on file.</td></tr>` : ''}
       </table>
     </div>
-    <p style="font-size:14px;color:#6B7280;margin:0 0 20px">Payment will be processed within 2 working days. Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>
+    <p style="font-size:13px;color:#6B7280;margin:0 0 20px">Questions? <a href="mailto:terehealthnz@gmail.com" style="color:#0B6E76">terehealthnz@gmail.com</a></p>
     <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:14px 16px;font-size:12px;color:#78350F;line-height:1.6">
-      This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.
+      ${disclaimer}
     </div>
   </div>
   <div style="background:#F8FAFC;padding:16px 28px;border-top:1px solid #E2E8F0;font-size:11px;color:#9CA3AF">
