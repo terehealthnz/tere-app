@@ -215,16 +215,22 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
             </div>
           </div>
           <div style={{ textAlign:'right', flexShrink:0 }}>
-            <div style={{ fontWeight:800, color:TEAL, fontSize:'1.25rem' }}>${summary.total_amount.toFixed(2)}</div>
-            <div style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>contract total</div>
+            <div style={{ fontWeight:800, color:TEAL, fontSize:'1.25rem' }}>${Number(summary.total_payable ?? summary.total_amount).toFixed(2)}</div>
+            <div style={{ fontSize:'.6875rem', color:'#9CA3AF' }}>{summary.gst_amount > 0 ? 'payable (GST incl)' : 'contract total'}</div>
           </div>
         </div>
 
-        {/* Breakdown */}
+        {/* Breakdown — surfaces the GST line for GST-registered contractors
+            so admin can see base + GST + payable at a glance and the Confirm
+            Paid modal isn't the first place the breakdown shows up. */}
         {summary.consultation_count > 0 && (
-          <div style={{ background:'#F9FAFB', borderRadius:8, padding:'.75rem 1rem', marginBottom:'1rem', display:'grid', gridTemplateColumns:'1fr 1fr', gap:'.25rem', fontSize:'.8125rem' }}>
+          <div style={{ background:'#F9FAFB', borderRadius:8, padding:'.75rem 1rem', marginBottom:'1rem', display:'grid', gridTemplateColumns: summary.gst_amount > 0 ? '1fr 1fr 1fr 1fr' : '1fr 1fr', gap:'.25rem', fontSize:'.8125rem' }}>
             <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Consultations</div><div style={{ fontWeight:600, color:NAVY }}>{summary.consultation_count}</div></div>
-            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Total</div><div style={{ fontWeight:700, color:TEAL }}>${summary.total_amount.toFixed(2)}</div></div>
+            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Base fees</div><div style={{ fontWeight:600, color:NAVY }}>${Number(summary.total_amount).toFixed(2)}</div></div>
+            {summary.gst_amount > 0 && (
+              <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>GST 15%{summary.gst_number ? ` · ${summary.gst_number}` : ''}</div><div style={{ fontWeight:600, color:NAVY }}>${Number(summary.gst_amount).toFixed(2)}</div></div>
+            )}
+            <div><div style={{ color:'#9CA3AF', fontSize:'.6875rem' }}>Payable</div><div style={{ fontWeight:700, color:TEAL }}>${Number(summary.total_payable ?? summary.total_amount).toFixed(2)}</div></div>
           </div>
         )}
 
