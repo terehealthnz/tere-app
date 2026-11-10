@@ -1301,11 +1301,15 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
           {p.qualifications?.length ? (
             <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
               {p.qualifications.map((q, i) => {
-                const pillBg = q.isCurrentlyValid ? '#DCFCE7' : q.isExpired ? '#FEF3C7' : '#FEE2E2'
-                const pillFg = q.isCurrentlyValid ? '#166534' : q.isExpired ? '#92400E' : '#7F1D1D'
+                const pillBg = q.isCurrentlyValid ? '#DCFCE7'
+                             : q.isExpired         ? '#FEF3C7'
+                             : (!q.registrationStatusCode ? '#E5E7EB' : '#FEE2E2')
+                const pillFg = q.isCurrentlyValid ? '#166534'
+                             : q.isExpired         ? '#92400E'
+                             : (!q.registrationStatusCode ? '#374151' : '#7F1D1D')
                 const pillLabel = q.isCurrentlyValid ? '✓ CURRENT'
                                 : q.isExpired         ? '⚠ EXPIRED'
-                                : (q.registrationStatusCode ? `✗ ${String(q.registrationStatusCode).toUpperCase()}` : '✗ INACTIVE')
+                                : (q.registrationStatusCode ? `✗ ${String(q.registrationStatusCode).toUpperCase()}` : '? NO STATUS CODE')
                 return (
                   <div key={i} style={{ padding:'.625rem .875rem', borderBottom: i < p.qualifications.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 ? '#FAFBFC' : 'white' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
@@ -1320,7 +1324,7 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
                       {q.periodStart && <>From {q.periodStart} </>}
                       {q.periodEnd && <>to {q.periodEnd}</>}
                       {!q.periodStart && !q.periodEnd && 'No period recorded'}
-                      {q.registrationStatusCode && <> · status-code: <code>{q.registrationStatusCode}</code></>}
+                      {' · '}status-code: <code>{q.registrationStatusCode || '(none)'}</code>
                     </div>
                     {q.conditionsOfPractice?.length > 0 && (
                       <div style={{ marginTop:'.375rem', padding:'.5rem .75rem', background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:6 }}>
