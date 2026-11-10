@@ -109,44 +109,67 @@ const STRIPPED_SURFACES: StrippedSurface[] = [
 // card). Falls back to full page if the panel can't be located. The panel
 // wrapper is identified by scoping from the heading text to its nearest
 // enclosing block. All PNG, 3× native resolution.
-async function captureTightCrop(page: Page, panelHeading: string, out: string) {
-  // Make sure any in-flight API call + font paint have settled before we
-  // take the picture — avoids spinner artefacts and FOIT.
+// Screenshot a clip that spans the panel heading + input + result card.
+// The result card (PractitionerCard / FacilityCard) is a SIBLING of the
+// input panel in the DOM, not a child — so we have to union two bounding
+// boxes: top anchor = heading, bottom anchor = the result card.
+// `resultAnchor` is a text that only appears INSIDE the card
+// (e.g. 'HPI Practitioner resource', 'HPI Location resource',
+// 'matched via', or an error banner string).
+async function captureTightCrop(page: Page, panelHeading: string, resultAnchor: string, out: string) {
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
   await page.evaluate(() => (document as any).fonts?.ready).catch(() => {})
 
-  // Find the heading first (visible result-block always sits beneath it).
   const headingLoc = page.locator(`text=${panelHeading}`).first()
-  // The practitioner / facility card + its banners live as siblings of
-  // the panel heading inside a padded white container. Walk up to that.
-  const panel: Locator = headingLoc.locator(
-    'xpath=ancestor::div[contains(@style, "padding")][1]'
+  const resultText = page.locator(`text=${resultAnchor}`).first()
+  const resultCard: Locator = resultText.locator(
+    'xpath=ancestor::div[contains(@style, "border-radius") or contains(@style, "padding")][1]'
   )
+
   try {
-    await panel.waitFor({ state: 'visible', timeout: 10000 })
-    await panel.scrollIntoViewIfNeeded()
+    await headingLoc.waitFor({ state: 'visible', timeout: 10000 })
+    await headingLoc.scrollIntoViewIfNeeded()
     await page.waitForTimeout(250)
-    const box = await panel.boundingBox()
-    if (box && box.width > 200 && box.height > 100) {
-      // Pad so any dormant/confidentiality/expired banners above the panel
-      // stay visible, and the bottom edge doesn't crop the raw-JSON link.
-      const PAD_TOP = 60
-      const PAD_BOTTOM = 20
-      const PAD_X = 8
-      await page.screenshot({
-        path: out,
-        type: 'png',
-        clip: {
-          x: Math.max(0, box.x - PAD_X),
-          y: Math.max(0, box.y - PAD_TOP),
-          width:  Math.min(1600, box.width + PAD_X * 2),
-          height: Math.min(3000, box.height + PAD_TOP + PAD_BOTTOM),
-        },
-      })
-      return
+    const headBox = await headingLoc.boundingBox()
+    if (!headBox) throw new Error('heading box missing')
+
+    // Default bottom = 1200 px below heading (captures panel + input area)
+    let bottomY = headBox.y + 1200
+    try {
+      await resultCard.waitFor({ state: 'visible', timeout: 5000 })
+      await resultCard.scrollIntoViewIfNeeded()
+      await page.waitForTimeout(200)
+      const headBox2 = await headingLoc.boundingBox()
+      const cardBox  = await resultCard.boundingBox()
+      if (headBox2 && cardBox) {
+        headBox.x = headBox2.x
+        headBox.y = headBox2.y
+        headBox.width = headBox2.width
+        headBox.height = headBox2.height
+        bottomY = cardBox.y + cardBox.height
+      }
+    } catch {
+      // No result card visible — fall through with default bottom.
     }
+
+    const PAD_TOP = 80       // room for banners above the card
+    const PAD_BOTTOM = 32
+    const PAD_X = 12
+    const clipY = Math.max(0, headBox.y - PAD_TOP)
+    const clipHeight = Math.min(3400, Math.max(300, (bottomY - headBox.y) + PAD_TOP + PAD_BOTTOM))
+    await page.screenshot({
+      path: out,
+      type: 'png',
+      clip: {
+        x: Math.max(0, headBox.x - PAD_X),
+        y: clipY,
+        width:  Math.min(1600, headBox.width + PAD_X * 2 + 1200),
+        height: clipHeight,
+      },
+    })
+    return
   } catch {
-    // fall through to full-page
+    // Final fallback — full-page so nothing is lost.
   }
   await page.screenshot({ path: out, fullPage: true, type: 'png' })
 }
@@ -248,7 +271,10 @@ test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
         // Tight crop: the practitioner panel contains both the search
         // input and the result card, which is exactly what Noel wants to
         // verify the row evidence against.
-        await captureTightCrop(page, 'HPI Practitioner Lookup', out)
+        // Practitioner card renders the heading 'HPI Practitioner resource'
+        // on success; the 'No practitioner found' error surfaces when the
+        // CPN doesn't resolve. Either text anchors the bottom of the clip.
+        await captureTightCrop(page, 'HPI Practitioner Lookup', 'HPI Practitioner resource', out)
         console.log(`    ✓ ${out}`)
         await page.evaluate(() => window.scrollTo(0, 0))
         await page.waitForTimeout(300)
@@ -262,7 +288,10 @@ test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
         await lookupFacility(page, hpi)
         const safe = hpi.replace(/[^A-Z0-9]/gi, '')
         const out = path.join(OUT, `hpi-r2-facility-${row}-${safe}.png`)
-        await captureTightCrop(page, 'HPI Facility Lookup', out)
+        // Facility card renders 'HPI Location resource' on success; a
+        // dormant lookup surfaces 'Dormant facility' or the dormant
+        // redirect banner. Either anchors the bottom of the clip.
+        await captureTightCrop(page, 'HPI Facility Lookup', 'HPI Location resource', out)
         console.log(`    ✓ ${out}`)
         await page.evaluate(() => window.scrollTo(0, 0))
         await page.waitForTimeout(300)
@@ -274,7 +303,9 @@ test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
       console.log(`\n  → Search-4 name-only · ${family}`)
       await searchByFamilyOnly(page, family)
       const out = path.join(OUT, file)
-      await captureTightCrop(page, 'HPI Practitioner Lookup', out)
+      // Search panel surfaces either a results list ('matched via' pill
+      // on success) or 'No practitioner found' — both anchor the clip.
+      await captureTightCrop(page, 'HPI Practitioner Lookup', 'matched via', out)
       console.log(`    ✓ ${out}`)
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.waitForTimeout(300)
@@ -287,7 +318,7 @@ test.describe('IN-3502 round 2 — admin HPI Lookup screenshots', () => {
       console.log(`\n  → Search-3 surname+DOB · ${family} ${dob}`)
       await searchByFamilyAndDob(page, family, dob)
       const out = path.join(OUT, file)
-      await captureTightCrop(page, 'HPI Practitioner Lookup', out)
+      await captureTightCrop(page, 'HPI Practitioner Lookup', 'matched via', out)
       console.log(`    ✓ ${out}`)
       await page.evaluate(() => window.scrollTo(0, 0))
       await page.waitForTimeout(300)
