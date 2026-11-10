@@ -311,7 +311,19 @@ function shapePractitioner(p) {
   }
   const allExts  = walkExtensions(p.extension)
   const deathExt = allExts.find(e => /death|deceased|life-?status|record-status/i.test(e.url || ''))
-  const extractDate = (e) => e?.valueDate || e?.valueDateTime || e?.valueString || null
+  // HPI returns death-date as a complex extension — a nested sub-extension
+  // named 'date' carries the actual valueDateTime, the outer has no value.
+  // Fall back to walking children if the outer carries no primitive value.
+  const extractDate = (e) => {
+    if (!e) return null
+    const direct = e.valueDate || e.valueDateTime || e.valueString
+    if (direct) return direct
+    for (const sub of walkExtensions(e.extension || [])) {
+      const v = sub.valueDate || sub.valueDateTime || sub.valueString
+      if (v) return v
+    }
+    return null
+  }
 
   const allCodeSignals = [
     ...allExts.map(e => e?.valueCode || e?.valueString).filter(Boolean),
