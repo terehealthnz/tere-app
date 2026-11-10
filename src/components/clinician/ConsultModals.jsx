@@ -3,64 +3,13 @@ import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
 import { calculateAge } from '../../lib/dob'
 import HpiSearch from '../HpiSearch'
+import {
+  loadNzfNamesOnce, loadNzfDetailsOnce, findNzfEntry,
+  NZF_INDEX, NZF_DETAILS,
+} from '../../lib/nzfLoader'
 
-// ── NZF lookup ────────────────────────────────────────────────────────────────
-// Split into two bundles so the autocomplete + preparations picker is cheap
-// to load, and the heavy dosing/indications monograph text only arrives when
-// a drug is actually selected.
-//
-//   nzf-names.json    (~216 KB, 1106 entries): name + preparations
-//     - autocomplete <datalist>, strength/form picker
-//     - loaded on first modal mount
-//   nzf-details.json  (~443 KB, 450 entries):  indications + dose
-//     - "NZF dosing reference" info card
-//     - loaded lazily the first time a drug is selected
-//
-// Was one 835 KB file loaded on mount — stalled mobile Safari for ~60s on
-// 2026-10-31 (old comment preserved in split_nzf.mjs). Split landed
-// 2026-11-09 after a live US patient slow-prescribe incident.
-let NZF_NAMES = null
-let NZF_INDEX = null
-let NZF_DETAILS = null
-let _nzfNamesPromise = null
-let _nzfDetailsPromise = null
-
-function loadNzfNamesOnce() {
-  if (NZF_NAMES) return Promise.resolve(NZF_NAMES)
-  if (_nzfNamesPromise) return _nzfNamesPromise
-  _nzfNamesPromise = import('../../lib/nzf-names.json').then(m => {
-    NZF_NAMES = m.default
-    NZF_INDEX = new Map(NZF_NAMES.map(e => [e.name, e]))
-    return NZF_NAMES
-  })
-  return _nzfNamesPromise
-}
-
-function loadNzfDetailsOnce() {
-  if (NZF_DETAILS) return Promise.resolve(NZF_DETAILS)
-  if (_nzfDetailsPromise) return _nzfDetailsPromise
-  _nzfDetailsPromise = import('../../lib/nzf-details.json').then(m => {
-    NZF_DETAILS = m.default
-    return NZF_DETAILS
-  })
-  return _nzfDetailsPromise
-}
-
-// Legacy alias retained so any existing call site still works. The new
-// code path uses loadNzfNamesOnce on mount and loadNzfDetailsOnce when
-// a drug is selected.
+// Legacy alias retained so any in-file call site still works.
 const loadNzfOnce = loadNzfNamesOnce
-
-// Returns a merged view: name + preparations always, indications + dose
-// present once details have loaded for that drug.
-function findNzfEntry(medicationText) {
-  if (!medicationText || !NZF_INDEX) return null
-  const key = medicationText.toLowerCase().trim().split(/\s+/)[0]  // "Ibuprofen 400mg" → "ibuprofen"
-  const base = NZF_INDEX.get(key)
-  if (!base) return null
-  const detail = NZF_DETAILS ? NZF_DETAILS[key] : null
-  return detail ? { ...base, ...detail } : base
-}
 
 // ── Shared modal shell ────────────────────────────────────────────────────────
 

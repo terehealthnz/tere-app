@@ -17,6 +17,7 @@ import ChatPanel from '../../components/ChatPanel'
 import { getRrDisplay } from '../../lib/rrDisplay'
 import { useConsultHeartbeat } from '../../lib/useConsultHeartbeat'
 import { useFeatureFlag } from '../../lib/featureFlags'
+import { loadNzfNamesOnce, loadNzfDetailsOnce } from '../../lib/nzfLoader'
 
 const FF   = 'Plus Jakarta Sans, sans-serif'
 const TEAL = '#0B6E76'
@@ -332,6 +333,18 @@ export default function ProviderConsult({ popupMode = false, onEnd, onCapture, c
   // releasing an active consult during a long phone-call phase where
   // scribe/notes writes may not fire for extended periods.
   useConsultHeartbeat(id, true)
+
+  // Pre-warm the NZF formulary bundles the moment the provider enters a
+  // call. By the time they open PrescribeModal mid-consult both the names
+  // bundle (autocomplete) and the details bundle (dosing monograph) are
+  // already warm, so the modal's first paint is instant instead of
+  // triggering a 660 KB dynamic import under live-call network load.
+  // PrescribeModal keeps its own first-keystroke fallback for paths that
+  // skip the call (re-issue, countersign).
+  useEffect(() => {
+    loadNzfNamesOnce().catch(() => {})
+    loadNzfDetailsOnce().catch(() => {})
+  }, [])
 
   const finishSession = useCallback((destination = '/provider') => {
     if (popupMode) {
