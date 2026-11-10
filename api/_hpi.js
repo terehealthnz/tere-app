@@ -296,8 +296,9 @@ function shapeLocation(l) {
     type:            ((l.type || []).flatMap(t => (t.coding || []).map(c => c.code || c.display || '')).filter(Boolean))[0] || '',
     typeDisplay:     ((l.type || []).flatMap(t => (t.coding || []).map(c => c.display || c.code || '')).filter(Boolean))[0] || '',
     addresses,
-    // Flattened single-line address for backward compatibility with the
-    // existing search_facility caller.
+    // Flattened single-line address kept for existing Get Facility shape
+    // consumers (compliance panel). Previously also served the removed
+    // search_facility proxy action.
     address:         addresses.map(a => a.lines.concat([a.city, a.postalCode].filter(Boolean)).join(', ')).join(' | '),
     telecom,
     hpi:             (l.identifier || [])[0]?.value || l.id || null,
@@ -331,7 +332,8 @@ export default async function handler(req, res) {
 
   // Per-provider rate limit (task #388) — only enforced for actions that
   // actually hit the HNZ HPI API. Diagnostic / config actions don't count.
-  const REAL_ACTIONS = new Set(['get_practitioner', 'search_practitioner', 'get_facility', 'search_facility'])
+  // search_facility removed 2026-11-09 — not in our approved HPI scopes.
+  const REAL_ACTIONS = new Set(['get_practitioner', 'search_practitioner', 'get_facility'])
   if (REAL_ACTIONS.has(action)) {
     const r = checkHpiRate(auth.provider.id)
     if (r.block) {
@@ -353,7 +355,7 @@ export default async function handler(req, res) {
   // stay available if HPI_DIAG_ENABLED=true is set in Vercel, otherwise
   // return 404 so probes can't enumerate our env or exercise the OAuth
   // grant. Production actions (get_practitioner / search_practitioner /
-  // get_facility / search_facility) always run.
+  // get_facility) always run.
   const DIAG_ACTIONS = new Set(['ping', 'token_probe', 'compliance_pack'])
   if (DIAG_ACTIONS.has(action) && process.env.HPI_DIAG_ENABLED !== 'true') {
     return res.status(404).json({ error: 'Not found' })
@@ -652,17 +654,9 @@ export default async function handler(req, res) {
       })
     }
 
-    // search_facility: find a valid Location by name so we can supply a real
-    // ID to the get_facility scenario. FHIR searches Location by name.
-    if (action === 'search_facility') {
-      const name = String(req.query.name || '').trim()
-      if (!name) return res.status(400).json({ error: 'name required' })
-      const rawS = req.query.scope
-      const scopeOverride = rawS === 'none' ? '' : (rawS != null ? String(rawS) : undefined)
-      const userId = String(req.query.userid || adminUserId)
-      const r = await fhirGet('Location', { name }, scopeOverride, userId)
-      return res.status(r.ok ? 200 : r.status).json({ status: r.status, body_excerpt: JSON.stringify(r.body).slice(0, 3000) })
-    }
+    // search_facility removed 2026-11-09 — Location search is not in our
+    // approved HPI scopes (Noel Babu feedback on IN-3502). Admin UI falls
+    // back to Get Facility with a hand-supplied HPI-FAC-ID.
 
     if (action === 'get_facility') {
       const hpi = String(req.query.hpi || '').trim()

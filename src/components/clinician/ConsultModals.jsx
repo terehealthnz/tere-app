@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { apiFetch } from '../../lib/api'
 import { updateConsultation } from '../../lib/supabase'
 import { calculateAge } from '../../lib/dob'
-import HpiSearch from '../HpiSearch'
 import {
   loadNzfNamesOnce, loadNzfDetailsOnce, findNzfEntry,
   NZF_INDEX, NZF_DETAILS,
@@ -1211,10 +1210,6 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
                   </div>
                 )}
               </div>
-              <div style={{fontSize:'.7rem',color:'var(--muted)',marginTop:4}}>Or use HPI directory lookup:</div>
-              <HpiSearch type="pharmacy" value={pharmacy.name}
-                onSelect={r => setPharmacy({ name:r.name, hpiId:r.hpiId, email:r.email || '', phone:r.phone, address:r.address, medsafeId:'' })}
-                placeholder="Search HPI directory…" />
               {pharmacy.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{pharmacy.address}</div>}
             </>
           )}
@@ -1446,7 +1441,10 @@ export function XrayModal({ open, onClose, consult, onDone }) {
         </div>
         <div className="form-group">
           <label>Radiology facility</label>
-          <HpiSearch type="radiology" value={facility.name} onSelect={r => setFacility({ name:r.name, hpiId:r.hpiId, email:r.email, phone:r.phone, address:r.address })} placeholder="Search radiology providers…" />
+          <input type="text" value={facility.name}
+            onChange={e => setFacility(f => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Pacific Radiology Nelson"
+            style={{ width:'100%', padding:'.5rem .6rem', border:'1.5px solid var(--border)', borderRadius:6, fontFamily:'Plus Jakarta Sans, sans-serif', fontSize:'.875rem', boxSizing:'border-box' }} />
           {facility.address && <div style={{fontSize:'.75rem',color:'var(--muted)',marginTop:'3px'}}>{facility.address}</div>}
         </div>
         {!facility.email && facility.name && (

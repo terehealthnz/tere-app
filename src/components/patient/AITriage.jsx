@@ -1372,11 +1372,9 @@ export default function AITriage() {
 
   // ── GP clinic picker — debounced HPI Location search (type=gp_clinic)
   // Fallback when the Practitioner search didn't find the patient's GP
-  // by name. Fires POST /api/hpi-search { type: 'gp_clinic' } which
-  // maps server-side to GET /Location?name={q}&type=GP&status=active.
+  // Free-text GP clinic picker. HPI Location search was removed 2026-11-09
+  // after Noel Babu flagged it as out-of-scope on IN-3502 round 2.
   const [gpClinicQuery, setGpClinicQuery] = useState('')
-  const [gpClinicResults, setGpClinicResults] = useState([])
-  const [gpClinicLoading, setGpClinicLoading] = useState(false)
 
   const [pharmacyIndex, setPharmacyIndex] = useState(null)
   // Geolocation-based nearest-3 shortcut. Client-side only — user's coords
@@ -1560,42 +1558,15 @@ export default function AITriage() {
     setGpResults([])
   }
 
-  // Debounced HPI Location search for the GP clinic picker.
-  useEffect(() => {
-    const q = gpClinicQuery.trim()
-    if (q.length < 2) { setGpClinicResults([]); return }
-    let cancelled = false
-    const t = setTimeout(async () => {
-      setGpClinicLoading(true)
-      try {
-        const res = await apiFetch('/api/hpi-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: q, type: 'gp_clinic',
-            patientNhi: data?.patient_nhi || null,
-            consultationId: data?.consultation_id || null,
-          }),
-        })
-        const { results } = await res.json()
-        if (!cancelled) setGpClinicResults(Array.isArray(results) ? results.slice(0, 6) : [])
-      } catch {
-        if (!cancelled) setGpClinicResults([])
-      } finally {
-        if (!cancelled) setGpClinicLoading(false)
-      }
-    }, 350)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [gpClinicQuery])
+  // HPI Location search for the GP clinic picker was removed 2026-11-09.
+  // Location search is not in our approved HPI scopes (IN-3502 round 2
+  // feedback from Noel Babu). The picker is now free-text only — the
+  // patient types their GP clinic name and presses Continue.
+  // Autocomplete may return once a separate facility-search access
+  // request is approved.
 
-  function selectGpClinic(clinic) {
-    // Route the label through the standard step handler so the flow
-    // advances normally (gp_clinic → tobacco).
-    const label = clinic?.name || ''
-    handleSendValue(label)
-    setGpClinicQuery('')
-    setGpClinicResults([])
-  }
+  // selectGpClinic removed with the HPI Location dropdown — patient now
+  // free-text enters the clinic name directly.
 
   // Task #432 — location capture prompt shown ONLY when browser geo failed
   // silently. Amber-toned + short. On submit, patches the escalation row.
@@ -1979,32 +1950,18 @@ export default function AITriage() {
               <input
                 value={gpClinicQuery}
                 onChange={e => setGpClinicQuery(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery(''); setGpClinicResults([]) } }}
+                onKeyDown={e => { if (e.key === 'Enter' && gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery('') } }}
                 placeholder="Clinic name (e.g. Springlands Medical)"
                 autoFocus
                 style={{flex:1,padding:'.6rem .75rem',border:'1.5px solid var(--border)',borderRadius:8,fontFamily:'Plus Jakarta Sans, sans-serif',fontSize:'.9rem',outline:'none'}}
               />
               <button
-                onClick={() => { if (gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery(''); setGpClinicResults([]) } }}
+                onClick={() => { if (gpClinicQuery.trim()) { handleSendValue(gpClinicQuery.trim()); setGpClinicQuery('') } }}
                 disabled={!gpClinicQuery.trim()}
                 style={{background:'var(--teal)',color:'white',border:'none',borderRadius:8,padding:'8px 14px',fontWeight:700,cursor:'pointer',fontSize:'.85rem',opacity:gpClinicQuery.trim()?1:.5}}>
-                {gpClinicLoading ? '…' : t('btn_send', lang)}
+                {t('btn_send', lang)}
               </button>
             </div>
-            {gpClinicResults.length > 0 && (
-              <div style={{position:'absolute',bottom:'100%',left:0,right:48,background:'white',border:'1.5px solid var(--border)',borderRadius:8,marginBottom:2,zIndex:10,maxHeight:'40vh',overflowY:'auto',WebkitOverflowScrolling:'touch',boxShadow:'0 -4px 12px rgba(0,0,0,.1)'}}>
-                {gpClinicResults.map((c, idx) => (
-                  <button key={c.hpiId || idx} onClick={() => selectGpClinic(c)}
-                    style={{display:'block',width:'100%',textAlign:'left',padding:'9px 12px',background:'none',border:'none',fontFamily:'Plus Jakarta Sans, sans-serif',cursor:'pointer',borderBottom:idx<gpClinicResults.length-1?'1px solid #F3F4F6':'none'}}
-                    onMouseEnter={e=>e.currentTarget.style.background='#F0F9FA'} onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                    <div style={{fontSize:'.875rem',fontWeight:600,color:'#111827'}}>{c.name}</div>
-                    {c.address && (
-                      <div style={{fontSize:'.75rem',color:'#6B7280',marginTop:1}}>{c.address}</div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}

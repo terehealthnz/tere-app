@@ -159,8 +159,8 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerColor', p.color || '#0B6E76')
       if (p.prescriber_number) sessionStorage.setItem('prescriberNumber', p.prescriber_number)
       if (p.cpn) sessionStorage.setItem('providerCpn', p.cpn)
-      // HPI-CPN + HPI number needed by HpiSearch to forward per-user userid
-      // on HPI FHIR API calls (task #440, IN-3502 Security 3 traceability).
+      // HPI-CPN + HPI number forwarded as userid on HPI FHIR API calls
+      // (task #440, IN-3502 Security 3 traceability).
       if (p.hpi_number) sessionStorage.setItem('providerHpiNumber', p.hpi_number)
       // MCNZ supervision — supervised RMOs see the supervisor contact panel
       // and the prescribing modal warns on categories listed in the RMO's

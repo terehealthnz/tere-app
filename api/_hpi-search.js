@@ -1,10 +1,13 @@
-// node-fetch not needed — using built-in fetch
+// HPI search proxy — scoped to Search Practitioner (the only HPI search
+// scope approved in IN-3502 round 1).
 //
-// HPI client bootstrap — reads all endpoints + credentials from the same env
-// vars api/_hpi.js uses (HPI_TOKEN_URL, HPI_BASE_URL, HPI_CLIENT_ID,
-// HPI_CLIENT_SECRET, HPI_SCOPES). Previously these were hardcoded to
-// production hosts with a wrong path, which meant every request failed auth
-// against our UAT credentials and the code silently served mock data.
+// Previously this file also exposed Location-search variants for pharmacy,
+// GP clinic and radiology facility pickers. Those called a scope (facility
+// search) that was never approved. Noel Babu's 2026-11-09 IN-3502 review
+// flagged them and asked that they not call HPI in production until a
+// separate access request is raised. Removed here. Callers are now backed
+// by local directories (public/pharmacies.json for pharmacies) or free-text
+// entry (GP clinic, radiology facility). See HPI IN-3502 round 2 notes.
 
 const HPI_TOKEN_URL = process.env.HPI_TOKEN_URL
 const HPI_BASE_URL  = process.env.HPI_BASE_URL
@@ -12,14 +15,6 @@ const HPI_CLIENT_ID = process.env.HPI_CLIENT_ID
 const HPI_SECRET    = process.env.HPI_CLIENT_SECRET
 const HPI_SCOPES    = process.env.HPI_SCOPES || ''
 
-// HNZ HPI FHIR API requires this header set on every request (per
-// hpi-ig.hip.digital.health.nz/general.html + onboarding email):
-//   Authorization:    Bearer {token}
-//   x-api-key:        {HPI_CLIENT_ID}   ← mandatory; rejection without this
-//                                          is silent (comes back as 401/403)
-//   userid:           {string}          ← end-user identifier
-//   User-Agent:       {string}          ← identifies our app
-//   X-Correlation-Id: {uuid}            ← recommended for HNZ traceability
 function hpiHeaders(token, userId) {
   const corrId = (globalThis.crypto?.randomUUID?.() ||
                   String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10))
@@ -61,36 +56,10 @@ async function getHpiToken() {
   return cachedToken
 }
 
-function parseFhirLocation(resource) {
-  const name = resource.name || ''
-  const telecom = resource.telecom || []
-  const address = resource.address || {}
-
-  const phone = telecom.find(t => t.system === 'phone')?.value || ''
-  const email = telecom.find(t => t.system === 'email')?.value || ''
-  const fax = telecom.find(t => t.system === 'fax')?.value || ''
-
-  const addressParts = [
-    ...(address.line || []),
-    address.city,
-    address.postalCode,
-  ].filter(Boolean)
-
-  const hpiId = resource.identifier?.find(i =>
-    i.system?.includes('hpi') || i.system?.includes('health-provider-index')
-  )?.value || resource.id || ''
-
-  return { name, hpiId, address: addressParts.join(', '), phone, email, fax }
-}
-
-const MOCK_PHARMACIES = [
-  { name: 'Havelock Pharmacy', hpiId: 'FAC0000101', address: '47 Main Road, Havelock 7100', phone: '03 574 2321', email: 'rx@havelockpharmacy.co.nz', fax: '' },
-  { name: 'Blenheim Pharmacy Plus', hpiId: 'FAC0000102', address: '12 Market Street, Blenheim 7201', phone: '03 578 4400', email: 'dispensary@blenheimpharmacyplus.co.nz', fax: '' },
-  { name: 'Picton Pharmacy', hpiId: 'FAC0000103', address: '10 High Street, Picton 7220', phone: '03 573 6300', email: 'pictonrx@gmail.com', fax: '' },
-  { name: 'Nelson City Pharmacy', hpiId: 'FAC0000104', address: '265 Trafalgar Street, Nelson 7010', phone: '03 548 2424', email: 'dispensary@nelsoncitypharmacy.co.nz', fax: '' },
-  { name: 'Unichem Blenheim', hpiId: 'FAC0000105', address: '120 High Street, Blenheim 7201', phone: '03 578 3200', email: 'blenheim@unichem.co.nz', fax: '' },
-]
-
+// Mock GP practitioner fallback used only when the Practitioner-search HPI
+// call itself fails (network/auth). Keeps the triage flow moving — patient
+// can still name their GP. The result is clearly flagged `mock: true` on
+// the response so the UI can surface "local list" messaging.
 const MOCK_GPS = [
   { name: 'Dr Sarah Mitchell',  clinic: 'Havelock Medical Centre',    email: 'reception@havelockmedical.co.nz',    hpiId: 'G00012345' },
   { name: 'Dr James Chen',      clinic: 'Blenheim Family Health',      email: 'reception@blenheimfh.co.nz',         hpiId: 'G00012346' },
@@ -103,17 +72,6 @@ const MOCK_GPS = [
   { name: 'Dr Peter Herling',   clinic: 'Tere Health',                 email: 'terehealthnz@gmail.com',            hpiId: 'G00012353' },
 ]
 
-const MOCK_RADIOLOGY = [
-  { name: 'Marlborough Medical Imaging', hpiId: 'FAC0001001', address: '25 Alma Road, Blenheim 7201', phone: '03 579 8050', email: 'bookings@mmimaging.co.nz', fax: '03 579 8051' },
-  { name: 'Pacific Radiology Nelson', hpiId: 'FAC0001002', address: '98 Waimea Road, Nelson 7010', phone: '03 546 9100', email: 'nelson@pacificradiology.co.nz', fax: '03 546 9101' },
-  { name: 'Medray Marlborough', hpiId: 'FAC0001003', address: '5 Scott Street, Blenheim 7201', phone: '03 577 7733', email: 'bookings@medray.co.nz', fax: '' },
-  { name: 'Nelson Hospital Radiology', hpiId: 'FAC0001004', address: 'Tipahi Street, Nelson 7010', phone: '03 546 1800', email: 'radiology@nmdhb.govt.nz', fax: '03 546 1801' },
-]
-
-// Derive a caller-specific userid for HNZ traceability (task #440, IN-3502).
-// Patient-facing callers send { patientNhi } or { consultationId }; provider
-// callers send { providerCpn } or { providerId }. Historical hard-coded strings
-// ('tere-triage' etc.) are the fallback if the caller supplies nothing.
 function callerUserId(body) {
   if (body?.providerCpn)     return `cpn:${String(body.providerCpn).trim().toUpperCase()}`
   if (body?.providerHpi)     return `hpi:${String(body.providerHpi).trim().toUpperCase()}`
@@ -121,93 +79,53 @@ function callerUserId(body) {
   if (body?.patientNhi)      return `nhi:${String(body.patientNhi).trim().toUpperCase()}`
   if (body?.patientId)       return `patient:${String(body.patientId).slice(0, 8)}`
   if (body?.consultationId)  return `consult:${String(body.consultationId).slice(0, 8)}`
-  return null  // → hpiHeaders will use its own historical fallback
+  return null
 }
 
 export default async function handler(req, res) {
   const { query, type } = req.body || {}
   if (!query || query.length < 2) return res.json({ results: [] })
-  const callerId = callerUserId(req.body)
 
-  // GP practitioner search — uses HPI sandbox Practitioner endpoint
-  if (type === 'gp') {
-    const q = query.toLowerCase().replace(/^dr\.?\s*/i, '')
-    const mockResults = MOCK_GPS.filter(g =>
-      g.name.toLowerCase().replace(/^dr\.?\s*/i, '').includes(q) ||
-      g.clinic.toLowerCase().includes(q)
-    ).slice(0, 4)
-
-    const token = await getHpiToken()
-    if (!token) return res.json({ results: mockResults, mock: true })
-
-    try {
-      if (!HPI_BASE_URL) return res.json({ results: mockResults, mock: true })
-      const base = HPI_BASE_URL.replace(/\/+$/, '')
-      const url = `${base}/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
-      const hpiRes = await globalThis.fetch(url, { headers: hpiHeaders(token, callerId || 'tere-triage') })
-      if (!hpiRes.ok) return res.json({ results: mockResults, mock: true })
-
-      const bundle = await hpiRes.json()
-      const hpiResults = (bundle.entry || []).map(e => {
-        const r = e.resource
-        const nameObj = r.name?.[0] || {}
-        const displayName = [
-          nameObj.prefix?.[0],
-          ...(nameObj.given || []),
-          nameObj.family,
-        ].filter(Boolean).join(' ')
-        const email = r.telecom?.find(t => t.system === 'email')?.value || ''
-        return { name: displayName, clinic: '', email, hpiId: r.id || '' }
-      }).filter(r => r.name)
-
-      return res.json({ results: hpiResults.length ? hpiResults : mockResults, mock: !hpiResults.length })
-    } catch {
-      return res.json({ results: mockResults, mock: true })
-    }
+  // Only Search Practitioner (`type: 'gp'`) is in scope. Location-search
+  // callers (pharmacy, gp_clinic, radiology) used to live here — removed
+  // 2026-11-09 per IN-3502 scope review. Returning an empty result rather
+  // than a 404 so any stale client doesn't blow up mid-triage.
+  if (type !== 'gp') {
+    return res.json({ results: [], scope_error: 'facility_search_not_approved' })
   }
 
-  const locationType = type === 'radiology' ? 'RADDX'
-                     : type === 'gp_clinic' ? 'GP'
-                     : 'PHARM'
-  const mockData = type === 'radiology' ? MOCK_RADIOLOGY
-                 : type === 'gp_clinic' ? []
-                 : MOCK_PHARMACIES
+  const callerId = callerUserId(req.body)
+  const q = query.toLowerCase().replace(/^dr\.?\s*/i, '')
+  const mockResults = MOCK_GPS.filter(g =>
+    g.name.toLowerCase().replace(/^dr\.?\s*/i, '').includes(q) ||
+    g.clinic.toLowerCase().includes(q)
+  ).slice(0, 4)
 
   const token = await getHpiToken()
-
-  if (!token) {
-    // Mock fallback
-    const q = query.toLowerCase()
-    const results = mockData.filter(r => r.name.toLowerCase().includes(q)).slice(0, 6)
-    return res.json({ results, mock: true })
-  }
-
-  if (!HPI_BASE_URL) {
-    const q = query.toLowerCase()
-    return res.json({ results: mockData.filter(r => r.name.toLowerCase().includes(q)).slice(0, 6), mock: true })
-  }
+  if (!token) return res.json({ results: mockResults, mock: true })
 
   try {
+    if (!HPI_BASE_URL) return res.json({ results: mockResults, mock: true })
     const base = HPI_BASE_URL.replace(/\/+$/, '')
-    const url = `${base}/Location?name=${encodeURIComponent(query)}&type=${locationType}&_count=8&status=active`
-    const hpiRes = await globalThis.fetch(url, {
-      headers: hpiHeaders(token, callerId ||
-        (type === 'radiology' ? 'tere-referral'
-        : type === 'gp_clinic' ? 'tere-triage'
-        : 'tere-prescribe')
-      ),
-    })
-
-    if (!hpiRes.ok) {
-      const q = query.toLowerCase()
-      return res.json({ results: mockData.filter(r => r.name.toLowerCase().includes(q)).slice(0, 6), mock: true })
-    }
+    const url = `${base}/Practitioner?name=${encodeURIComponent(query)}&active=true&_count=5`
+    const hpiRes = await globalThis.fetch(url, { headers: hpiHeaders(token, callerId || 'tere-triage') })
+    if (!hpiRes.ok) return res.json({ results: mockResults, mock: true })
 
     const bundle = await hpiRes.json()
-    const results = (bundle.entry || []).map(e => parseFhirLocation(e.resource))
-    return res.json({ results })
-  } catch (e) {
-    const q = query.toLowerCase()
-    return res.json({ results: mockData.filter(r => r.name.toLowerCase().includes(q)).slice(0, 6), mock: true })
+    const hpiResults = (bundle.entry || []).map(e => {
+      const r = e.resource
+      const nameObj = r.name?.[0] || {}
+      const displayName = [
+        nameObj.prefix?.[0],
+        ...(nameObj.given || []),
+        nameObj.family,
+      ].filter(Boolean).join(' ')
+      const email = r.telecom?.find(t => t.system === 'email')?.value || ''
+      return { name: displayName, clinic: '', email, hpiId: r.id || '' }
+    }).filter(r => r.name)
+
+    return res.json({ results: hpiResults.length ? hpiResults : mockResults, mock: !hpiResults.length })
+  } catch {
+    return res.json({ results: mockResults, mock: true })
   }
 }
