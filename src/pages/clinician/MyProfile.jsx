@@ -98,8 +98,7 @@ const SECTIONS = [
       { key: 'tax_code',    label: 'Tax code',       placeholder: 'M, ME, S…' },
       { key: 'ird_number',  label: 'IRD number',     placeholder: '123-456-789' },
       { key: 'bank_account',label: 'Bank account',   placeholder: '01-0123-4567890-00' },
-      { key: 'gst_registered', label: 'GST registered?', type: 'checkbox' },
-      { key: 'gst_number',  label: 'GST number',     placeholder: '123-456-789' },
+      { key: 'gst_registered', type: 'gst_bcti' },
     ],
   },
   {
@@ -126,7 +125,7 @@ export default function MyProfile() {
     if (!providerId) { navigate('/clinician'); return }
     ;(async () => {
       try {
-        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,provider_type,mobile_phone,sms_on_call'
+        const cols = 'id,first_name,last_name,email,credential,specialty,mcnz_registration_number,prescriber_number,cpn,acc_provider_number,scope_of_practice,pgy_level,signature_url,tax_code,ird_number,bank_account,gst_registered,gst_number,gst_bcti_consent_at,gst_bcti_consent_version,provider_type,mobile_phone,sms_on_call'
         const r = await apiFetch(`/api/providers?id=${providerId}&columns=${encodeURIComponent(cols)}`)
         if (!r.ok) throw new Error(`Load failed (${r.status})`)
         const j = await r.json()
@@ -138,6 +137,13 @@ export default function MyProfile() {
         // Booleans preserve their type so checkbox inputs work.
         const seeded = {}
         for (const s of SECTIONS) for (const f of s.fields) {
+          if (f.type === 'gst_bcti') {
+            // gst_bcti is a composite: gst_registered checkbox + gst_number input +
+            // read-only consent timestamp. Seed both scalar fields explicitly.
+            seeded.gst_registered = !!row.gst_registered
+            seeded.gst_number     = row.gst_number || ''
+            continue
+          }
           seeded[f.key] = f.type === 'checkbox' ? !!row[f.key] : (row[f.key] || '')
         }
         setForm(seeded)
@@ -212,6 +218,48 @@ export default function MyProfile() {
                 // Fields that depend on a checkbox above them (e.g. gst_number
                 // only makes sense when gst_registered is true).
                 if (f.key === 'gst_number' && !form.gst_registered) return null
+                // GST + BCTI consent — custom multi-line block. The checkbox tick
+                // is also written acceptance of the BCTI arrangement under IRD
+                // GST Act s24(2). The backend (_providers.js) stamps
+                // gst_bcti_consent_at when gst_registered flips to true.
+                if (f.type === 'gst_bcti') {
+                  return (
+                    <div key={f.key} style={{ gridColumn: '1 / -1', background: '#FAFBFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '1rem' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={!!form.gst_registered}
+                          onChange={e => setForm({ ...form, gst_registered: e.target.checked })}
+                          style={{ width: 16, height: 16, cursor: 'pointer', marginTop: 2 }}
+                        />
+                        <span style={{ fontSize: '.8125rem', color: '#111827', lineHeight: 1.5 }}>
+                          <b>I am GST registered.</b>
+                          {' '}By ticking this, I agree that Tere Health Ltd will issue me Buyer-Created Tax Invoices (BCTIs) for services I provide to Tere Health, and I will not issue separate tax invoices for the same services. I can revoke this agreement at any time by un-ticking this box or by notifying Tere Health in writing.
+                        </span>
+                      </label>
+                      {form.gst_registered && (
+                        <div style={{ marginTop: '.75rem', display: 'flex', flexDirection: 'column', gap: 4, fontSize: '.8125rem', color: '#4B5563' }}>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <span>GST number <span style={{ color: '#DC2626' }}>*</span></span>
+                            <input
+                              type="text"
+                              value={form.gst_number || ''}
+                              onChange={e => setForm({ ...form, gst_number: e.target.value })}
+                              placeholder="123-456-789"
+                              style={{ padding: '.5rem .65rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.875rem', fontFamily: FF }}
+                            />
+                          </label>
+                          {me.gst_bcti_consent_at && (
+                            <div style={{ marginTop: '.4rem', fontSize: '.7rem', color: '#6B7280' }}>
+                              BCTI agreement accepted {new Date(me.gst_bcti_consent_at).toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                              {me.gst_bcti_consent_version ? ` (${me.gst_bcti_consent_version})` : ''}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                }
                 if (f.type === 'checkbox') {
                   return (
                     <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.8125rem', color: '#4B5563', cursor: 'pointer' }}>

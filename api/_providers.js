@@ -540,6 +540,28 @@ export default async function handler(req, res) {
       patch[field] = n
     }
 
+    // BCTI consent stamping — the gst_registered tick in MyProfile IS the
+    // written agreement under GST Act s24(2) that Tere may issue Buyer-Created
+    // Tax Invoices on the contractor's behalf. When gst_registered flips to
+    // true, stamp the consent timestamp + version + caller IP. When it flips
+    // to false, clear the stamp so a later re-tick re-captures.
+    const BCTI_CONSENT_VERSION = 'v1-2026-11-10'
+    if ('gst_registered' in patch) {
+      const { data: beforeGst } = await supabase
+        .from('providers').select('gst_registered').eq('id', id).maybeSingle()
+      const wasRegistered = !!beforeGst?.gst_registered
+      const nowRegistered = !!patch.gst_registered
+      if (nowRegistered && !wasRegistered) {
+        patch.gst_bcti_consent_at      = new Date().toISOString()
+        patch.gst_bcti_consent_version = BCTI_CONSENT_VERSION
+        patch.gst_bcti_consent_ip      = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').toString().split(',')[0].trim() || null
+      } else if (!nowRegistered && wasRegistered) {
+        patch.gst_bcti_consent_at      = null
+        patch.gst_bcti_consent_version = null
+        patch.gst_bcti_consent_ip      = null
+      }
+    }
+
     patch.updated_at = new Date().toISOString()
 
     // Snapshot the pre-update MCNZ number so we can tell if this PATCH is

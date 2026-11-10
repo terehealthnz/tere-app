@@ -625,47 +625,77 @@ export function buildPayslipPdf(data) {
 
     const W = doc.page.width
 
-    // Header
-    doc.rect(0, 0, W, 70).fill('#0D2B45')
-    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 16)
-    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 42)
-    doc.fontSize(9).fillColor('rgba(212,238,240,0.7)').text('Not GST-registered (medical services exempt s21 GSTA 1985)  ·  terehealthnz@gmail.com', 50, 56)
+    // BCTI vs Remittance Advice branching. bcti_number is assigned by
+    // _payroll.js confirm_paid only when the provider is GST-registered AND
+    // has given BCTI consent. Non-GST providers get a Remittance Advice
+    // (plain payment record, no IRD tax-invoice obligations).
+    const isBcti = !!data.bcti_number
+    const docTitle = isBcti ? 'BUYER-CREATED TAX INVOICE' : 'REMITTANCE ADVICE'
 
-    // Title
+    // Header — Tere Health Ltd identifiers. GST 148-897-530 is required on
+    // the BCTI so IRD can match input credits in audit; NZBN stays for
+    // entity verification.
+    doc.rect(0, 0, W, 72).fill('#0D2B45')
+    doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health Limited', 50, 14)
+    doc.font('Helvetica').fontSize(10).text('terehealth.co.nz', 50, 40)
+    doc.fontSize(9).fillColor('rgba(212,238,240,0.75)').text(`GST 148-897-530  ·  NZBN 9429053723413  ·  terehealthnz@gmail.com`, 50, 54)
+
+    // Title + BCTI number
     const fmtDate = d => new Date(d + 'T12:00:00Z').toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })
-    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text('EARNINGS STATEMENT', 50, 90)
-    doc.moveTo(50, 112).lineTo(W - 50, 112).strokeColor('#0B6E76').lineWidth(1.5).stroke()
+    doc.fillColor('#0B6E76').font('Helvetica-Bold').fontSize(18).text(docTitle, 50, 92)
+    if (isBcti) {
+      doc.fillColor('#6B7280').font('Helvetica').fontSize(10).text(data.bcti_number, W - 200, 97, { width: 150, align: 'right' })
+    }
+    doc.moveTo(50, 116).lineTo(W - 50, 116).strokeColor('#0B6E76').lineWidth(1.5).stroke()
 
-    // Provider & period details
+    // Supplier (contractor) + Buyer (Tere) blocks — BCTI must identify both
+    // parties and both GST numbers so IRD can match the supply + input credit.
     const provName = [data.provider?.first_name, data.provider?.last_name, data.provider?.credential].filter(Boolean).join(' ') || 'Provider'
-    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text('Contractor', 50, 124)
-    doc.font('Helvetica').fontSize(11).fillColor('#1A2A33').text(provName, 50, 138)
-    if (data.provider?.email) doc.fontSize(9).fillColor('#6B7280').text(data.provider.email, 50, 152)
+    doc.fillColor('#333').font('Helvetica-Bold').fontSize(10).text(isBcti ? 'Supplier (Contractor)' : 'Payee', 50, 128)
+    doc.font('Helvetica').fontSize(11).fillColor('#1A2A33').text(provName, 50, 142)
+    if (data.provider?.email) doc.fontSize(9).fillColor('#6B7280').text(data.provider.email, 50, 156)
+    if (isBcti && data.gst_number) doc.fontSize(9).fillColor('#6B7280').text(`GST ${data.gst_number}`, 50, 168)
 
-    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Pay Period', 320, 124)
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text(isBcti ? 'Buyer' : 'From', 220, 128)
+    doc.font('Helvetica').fontSize(11).fillColor('#1A2A33').text('Tere Health Limited', 220, 142)
+    doc.fontSize(9).fillColor('#6B7280').text('GST 148-897-530', 220, 156)
+    doc.fontSize(9).fillColor('#6B7280').text('NZBN 9429053723413', 220, 168)
+
+    doc.font('Helvetica-Bold').fontSize(10).fillColor('#333').text('Pay Period', 400, 128)
     doc.font('Helvetica').fontSize(11).fillColor('#1A2A33')
-      .text(`${fmtDate(data.period_start)}`, 320, 138)
-      .text(`to ${fmtDate(data.period_end)}`, 320, 152)
-    doc.fontSize(9).fillColor('#6B7280').text(`Issued: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 320, 166)
+      .text(`${fmtDate(data.period_start)}`, 400, 142)
+      .text(`to ${fmtDate(data.period_end)}`, 400, 156)
+    doc.fontSize(9).fillColor('#6B7280').text(`Issued: ${new Date().toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })}`, 400, 170)
 
-    doc.moveTo(50, 186).lineTo(W - 50, 186).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
+    doc.moveTo(50, 192).lineTo(W - 50, 192).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
 
-    // Earnings summary box — flat per-consult rate per provider.
+    // Earnings summary box — now with GST line breakdown for BCTI
     const rate = Number(data.base_rate ?? 25)
+    const gst  = Number(data.gst_amount || 0)
+    const totalEx    = Number(data.total_amount || 0)
+    const totalIncl  = parseFloat((totalEx + gst).toFixed(2))
 
-    let y = 200
-    doc.rect(50, y, W - 100, 90).fill('#F0F9FA').stroke('#D4EEF0')
-    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text('Earnings Summary', 66, y + 12)
+    let y = 204
+    const boxH = isBcti && gst > 0 ? 116 : 90
+    doc.rect(50, y, W - 100, boxH).fill('#F0F9FA').stroke('#D4EEF0')
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(11).text(isBcti ? 'Tax Summary' : 'Earnings Summary', 66, y + 12)
 
     const row = (label, value, bold = false, yOff = 0) => {
       doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).fillColor(bold ? '#0D2B45' : '#374151')
         .text(label, 66, y + yOff)
         .text(value, W - 160, y + yOff, { width: 110, align: 'right' })
     }
-    row(`${data.consultation_count} consultations × $${rate.toFixed(2)}`, `$${Number(data.total_amount).toFixed(2)}`, false, 34)
-    doc.moveTo(66, y + 54).lineTo(W - 66, y + 54).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
-    row('Total', `$${Number(data.total_amount).toFixed(2)}`, true, 62)
-    y += 106
+    row(`${data.consultation_count} consultations × $${rate.toFixed(2)}`, `$${totalEx.toFixed(2)}`, false, 34)
+    if (isBcti && gst > 0) {
+      row('GST @ 15%', `$${gst.toFixed(2)}`, false, 54)
+      doc.moveTo(66, y + 76).lineTo(W - 66, y + 76).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+      row('Total (GST inclusive)', `$${totalIncl.toFixed(2)}`, true, 86)
+      y += boxH + 16
+    } else {
+      doc.moveTo(66, y + 54).lineTo(W - 66, y + 54).strokeColor('#B0D4D8').lineWidth(0.5).stroke()
+      row('Total', `$${totalEx.toFixed(2)}`, true, 62)
+      y += boxH + 16
+    }
 
     // Per-consultation breakdown table
     if ((data.consultations || []).length > 0) {
@@ -716,13 +746,21 @@ export function buildPayslipPdf(data) {
     doc.moveTo(50, y).lineTo(W - 50, y).strokeColor('#E2E8F0').lineWidth(0.5).stroke()
     y += 10
 
-    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text('Contractor services', 50, y)
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(8).text(isBcti ? 'Buyer-Created Tax Invoice — IRD-compliant' : 'Contractor services', 50, y)
     y += 12
-    doc.font('Helvetica').fontSize(7.5).fillColor('#777')
-      .text('This is a record of contractor earnings at flat per-consultation rates. As a contractor you are not entitled to statutory holiday pay under the Holidays Act 2003; the per-consult rate reflects this.', 50, y, { width: W - 100 })
-    y += 14
-    doc.text('This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.', 50, y, { width: W - 100 })
-    y += 28
+    if (isBcti) {
+      doc.font('Helvetica').fontSize(7.5).fillColor('#777')
+        .text('This document is a Buyer-Created Tax Invoice issued by Tere Health Limited (Buyer) on behalf of the Contractor (Supplier) under the Goods and Services Tax Act 1985 s24(2). The Supplier has agreed in writing (via the GST + BCTI consent toggle in their Tere Health profile) that the Buyer will issue these invoices and the Supplier will not issue separate tax invoices for the same supply. Either party may revoke this arrangement in writing.', 50, y, { width: W - 100 })
+      y += 36
+      doc.text('The Contractor is responsible for their own GST return (declaring the GST amount shown above as output tax) and for their own income tax, ACC levies and other statutory obligations. Tere Health does not deduct PAYE.', 50, y, { width: W - 100 })
+      y += 24
+    } else {
+      doc.font('Helvetica').fontSize(7.5).fillColor('#777')
+        .text('This is a record of contractor earnings at flat per-consultation rates. As a contractor you are not entitled to statutory holiday pay under the Holidays Act 2003; the per-consult rate reflects this.', 50, y, { width: W - 100 })
+      y += 14
+      doc.text('This payment is for contractor services. As a contractor you are responsible for your own tax obligations. Tere Health Limited does not deduct PAYE. Please consult a tax adviser regarding your obligations.', 50, y, { width: W - 100 })
+      y += 28
+    }
 
     doc.fillColor('#AAA').fontSize(7.5)
       .text('Tere Health Limited  ·  terehealth.co.nz', 50, y, { align: 'center', width: W - 100 })

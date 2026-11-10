@@ -195,6 +195,7 @@ function RateEditor({ summary, onSaved }) {
 
 function ProviderCard({ summary, period_start, period_end, onAction, onRateChanged, actionLoading }) {
   const [showReview, setShowReview] = useState(false)
+  const [showConfirmPaid, setShowConfirmPaid] = useState(false)
   const isLoading = k => actionLoading === `${summary.provider_id}:${k}`
 
   return (
@@ -246,9 +247,9 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
             </button>
           )}
           {summary.status === 'approved' && summary.id && (
-            <button onClick={() => onAction('mark_paid', summary)} disabled={isLoading('mark_paid')}
-              style={{ background:'#D1FAE5', border:'none', borderRadius:8, padding:'8px 14px', fontFamily:FF, fontWeight:600, fontSize:'.8125rem', cursor:'pointer', color:'#065F46', opacity:isLoading('mark_paid')?0.6:1 }}>
-              {isLoading('mark_paid') ? '…' : 'Mark paid'}
+            <button onClick={() => setShowConfirmPaid(true)}
+              style={{ background:'#D1FAE5', border:'none', borderRadius:8, padding:'8px 14px', fontFamily:FF, fontWeight:600, fontSize:'.8125rem', cursor:'pointer', color:'#065F46' }}>
+              ✓ Confirm paid + send
             </button>
           )}
           {summary.consultation_count > 0 && (
@@ -268,7 +269,119 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
       {showReview && (
         <ReviewModal summary={summary} period_start={period_start} period_end={period_end} onClose={() => setShowReview(false)} />
       )}
+      {showConfirmPaid && (
+        <ConfirmPaidModal
+          summary={summary}
+          period_start={period_start} period_end={period_end}
+          onClose={() => setShowConfirmPaid(false)}
+          onDone={() => { setShowConfirmPaid(false); onAction('_refresh', summary) }}
+        />
+      )}
     </>
+  )
+}
+
+// ── Confirm Paid modal ────────────────────────────────────────────────────────
+// The double-check between "what admin thinks they transferred" and "what
+// payroll calculated as payable". One typo in the bank portal (e.g. $2.50 vs
+// $25.00, or swapping two providers' amounts) would otherwise sail through.
+// Admin types the exact figure that left Tere's account → server validates
+// match to within 1c → if match, flips status → paid + assigns BCTI number
+// (for GST-registered + consented providers) → fires the email with the
+// BCTI/Remittance PDF attached in the same action.
+function ConfirmPaidModal({ summary, period_start, period_end, onClose, onDone }) {
+  const [actual, setActual] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const expected = Number(summary.total_payable ?? summary.total_amount ?? 0)
+
+  async function confirmAndSend() {
+    setError(''); setBusy(true)
+    try {
+      const n = Number(String(actual).replace(/[^0-9.-]/g, ''))
+      if (!Number.isFinite(n)) throw new Error('Enter a valid dollar amount')
+      // 1) confirm_paid — server double-checks against calculated payable
+      const r1 = await apiFetch('/api/payroll', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'confirm_paid', period_id: summary.id, actual_paid_amount: n }),
+      })
+      const j1 = await r1.json()
+      if (!r1.ok) {
+        if (j1.expected != null && j1.actual != null) {
+          throw new Error(`Mismatch: payroll calculated $${Number(j1.expected).toFixed(2)}, you typed $${Number(j1.actual).toFixed(2)} (diff $${Number(j1.diff).toFixed(2)}). Fix the transfer or the amount typed above.`)
+        }
+        throw new Error(j1.error || 'Confirm failed')
+      }
+      // 2) send_email — now gated server-side on confirmed_paid_at, carries BCTI/Remittance PDF
+      if (summary.provider_email) {
+        const r2 = await apiFetch('/api/payroll', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'send_email', provider_id: summary.provider_id, period_start, period_end }),
+        })
+        const j2 = await r2.json()
+        if (!r2.ok) throw new Error(`Payment confirmed but email failed: ${j2.error || 'unknown'}`)
+      }
+      onDone()
+    } catch (e) { setError(e.message) }
+    finally { setBusy(false) }
+  }
+
+  return (
+    <div onClick={onClose}
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem' }}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ background:'white', borderRadius:12, padding:'1.5rem', maxWidth:460, width:'100%', boxShadow:'0 20px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ fontSize:'1.05rem', fontWeight:700, color:NAVY, marginBottom:'.4rem' }}>Confirm bank transfer</div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
+          You've just completed the transfer to <b>{summary.provider_name}</b>. Type the exact amount that left Tere's account — this gets double-checked against the calculated payable before the invoice email is sent.
+        </div>
+
+        <div style={{ background:'#F0F9FA', border:'1px solid #D4EEF0', borderRadius:10, padding:'.9rem 1rem', marginBottom:'1rem', fontSize:'.8125rem' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'.25rem', color:'#6B7280' }}>
+            <span>{summary.consultation_count} consultations × ${Number(summary.base_rate).toFixed(2)}</span>
+            <span>${Number(summary.total_amount).toFixed(2)}</span>
+          </div>
+          {summary.gst_amount > 0 && (
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'.25rem', color:'#6B7280' }}>
+              <span>GST @ 15%{summary.gst_number ? ` (${summary.gst_number})` : ''}</span>
+              <span>${Number(summary.gst_amount).toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{ display:'flex', justifyContent:'space-between', borderTop:'1px solid #B0D4D8', paddingTop:'.4rem', marginTop:'.4rem', fontWeight:700, color:NAVY }}>
+            <span>Expected payable</span>
+            <span>${expected.toFixed(2)}</span>
+          </div>
+        </div>
+
+        <label style={{ display:'block', fontSize:'.8125rem', color:'#4B5563', marginBottom:'1rem' }}>
+          <div style={{ marginBottom:'.3rem', fontWeight:600 }}>Amount transferred (NZD)</div>
+          <input
+            type="text" inputMode="decimal" autoFocus
+            value={actual}
+            onChange={e => setActual(e.target.value)}
+            placeholder={`e.g. ${expected.toFixed(2)}`}
+            style={{ width:'100%', padding:'.6rem .75rem', border:'1px solid #D1D5DB', borderRadius:8, fontSize:'1rem', fontFamily:FF }}
+          />
+        </label>
+
+        {error && (
+          <div style={{ background:'#FEE2E2', border:'1px solid #FCA5A5', borderRadius:8, padding:'.6rem .75rem', color:'#991B1B', fontSize:'.8125rem', marginBottom:'1rem', lineHeight:1.4 }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ display:'flex', gap:'.6rem', justifyContent:'flex-end' }}>
+          <button onClick={onClose} disabled={busy}
+            style={{ background:'#F3F4F6', border:'none', borderRadius:8, padding:'.6rem 1rem', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer', color:'#4B5563' }}>
+            Cancel
+          </button>
+          <button onClick={confirmAndSend} disabled={busy || !actual}
+            style={{ background:TEAL, border:'none', borderRadius:8, padding:'.6rem 1.2rem', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:'pointer', color:'white', opacity:(busy||!actual)?0.5:1 }}>
+            {busy ? 'Working…' : (summary.provider_email ? 'Confirm + send invoice' : 'Confirm paid')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -358,6 +471,12 @@ export default function AdminPayroll({ embedded = false }) {
         })
         const d = await r.json()
         d.ok ? showToast(`Email sent to ${summary.provider_name.split(' ')[0]}`) : showToast(d.error || 'Email failed', false)
+      } else if (type === '_refresh') {
+        // Pseudo-action fired by ConfirmPaidModal after a successful
+        // confirm-paid + email. Reloads the period summaries so the status
+        // chip flips to "paid" and the amount-paid stamp appears.
+        showToast(`Payment confirmed + invoice sent to ${summary.provider_name.split(' ')[0]}`)
+        await load()
       }
     } catch { showToast('Action failed', false) }
     finally { setActionLoading(null) }

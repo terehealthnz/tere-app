@@ -252,7 +252,7 @@ export default async function handler(req, res) {
 
     // Every mutating POST here is admin-only EXCEPT payslip which non-admin
     // providers can self-request for their own periods (checked below).
-    if (['calculate','approve','approve_all','mark_paid','mark_all_paid','send_email'].includes(action)) {
+    if (['calculate','approve','approve_all','mark_paid','mark_all_paid','confirm_paid','send_email'].includes(action)) {
       if (!isAdminLike) return res.status(403).json({ error: 'Admin role required' })
     }
 
@@ -299,6 +299,68 @@ export default async function handler(req, res) {
         .eq('id', period_id).eq('status', 'approved')
       if (error) { console.error('[payroll] error failed:', error); return res.status(500).json({ error: 'Server error' }) }
       return res.status(200).json({ ok: true })
+    }
+
+    // confirm_paid — admin has just completed the bank transfer and types the
+    // actual amount that left Tere's account. We refuse unless it matches the
+    // calculated payable within 1c (fat-finger guard — e.g. $2.50 vs $25.00,
+    // or payer swapped two providers). On match we stamp confirmed_paid_at,
+    // record who confirmed, assign a sequential BCTI number for GST-registered
+    // providers, and flip status → paid. send_email then checks for
+    // confirmed_paid_at and will not fire without it.
+    if (action === 'confirm_paid') {
+      const { period_id, actual_paid_amount } = req.body
+      if (!period_id) return res.status(400).json({ error: 'period_id required' })
+      if (actual_paid_amount == null || !Number.isFinite(Number(actual_paid_amount))) {
+        return res.status(400).json({ error: 'actual_paid_amount required (NZD number)' })
+      }
+      const actual = Number(actual_paid_amount)
+
+      const { data: row, error: readErr } = await supabase.from('payroll_periods').select('*').eq('id', period_id).single()
+      if (readErr || !row) return res.status(404).json({ error: 'Period not found' })
+      if (row.status === 'paid') return res.status(400).json({ error: 'Already marked paid' })
+      if (row.status !== 'approved') return res.status(400).json({ error: `Cannot confirm from status "${row.status}" — approve first` })
+
+      const expected = parseFloat((Number(row.total_amount) + Number(row.gst_amount || 0)).toFixed(2))
+      if (Math.abs(actual - expected) > 0.01) {
+        return res.status(400).json({
+          error: 'Mismatch between amount transferred and calculated payable',
+          expected, actual, diff: parseFloat((actual - expected).toFixed(2)),
+        })
+      }
+
+      // Pull provider GST state to decide BCTI vs Remittance Advice numbering
+      const { data: prov } = await supabase.from('providers')
+        .select('gst_registered,gst_bcti_consent_at').eq('id', row.provider_id).single()
+
+      // Only GST-registered providers who have given BCTI consent get a
+      // sequential BCTI number. Non-GST providers get a remittance-only
+      // payment record (no IRD document needed).
+      let bctiNumber = null
+      if (prov?.gst_registered && prov?.gst_bcti_consent_at) {
+        // nextval() isn't exposed as a default supabase-js RPC — fall back to
+        // reading the last BCTI number and incrementing. Good enough for our
+        // scale (< tens of thousands/year) and avoids needing a stored proc.
+        const { data: raw } = await supabase.from('payroll_periods')
+          .select('bcti_number').not('bcti_number', 'is', null)
+          .order('bcti_number', { ascending: false }).limit(1)
+        const prevN = raw?.[0]?.bcti_number ? parseInt(String(raw[0].bcti_number).split('-').pop(), 10) : 0
+        const seqN = (Number.isFinite(prevN) ? prevN : 0) + 1
+        const yr = new Date().getFullYear()
+        bctiNumber = `BCTI-${yr}-${String(seqN).padStart(5, '0')}`
+      }
+
+      const update = {
+        status:              'paid',
+        paid_at:             new Date().toISOString(),
+        actual_paid_amount:  actual,
+        confirmed_paid_at:   new Date().toISOString(),
+        confirmed_paid_by:   auth.provider?.id || null,
+        bcti_number:         bctiNumber,
+      }
+      const { error } = await supabase.from('payroll_periods').update(update).eq('id', period_id).eq('status', 'approved')
+      if (error) { console.error('[payroll] confirm_paid failed:', error); return res.status(500).json({ error: 'Server error' }) }
+      return res.status(200).json({ ok: true, bcti_number: bctiNumber })
     }
 
     if (action === 'mark_all_paid') {
@@ -371,6 +433,16 @@ export default async function handler(req, res) {
       if (!s) return res.status(404).json({ error: 'Provider not found' })
       if (!s.provider_email) return res.status(400).json({ error: 'Provider has no email on file' })
 
+      // Gate — refuse to send the BCTI/remittance email unless admin has
+      // confirmed the bank transfer amount. Prevents an email claiming
+      // payment when the transfer either never happened or was wrong.
+      const { data: periodRow } = await supabase.from('payroll_periods')
+        .select('confirmed_paid_at,bcti_number')
+        .eq('provider_id', provider_id).eq('period_start', period_start).eq('period_end', period_end).maybeSingle()
+      if (!periodRow?.confirmed_paid_at) {
+        return res.status(400).json({ error: 'Confirm bank transfer amount first (confirm_paid action) before emailing the BCTI.' })
+      }
+
       const firstName = (s.provider_name || '').split(' ')[0]
       const fmtDate = d => new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' })
       const periodStr = `${fmtDate(period_start)} – ${fmtDate(period_end)}`
@@ -400,15 +472,47 @@ export default async function handler(req, res) {
   </div>
 </body></html>`
 
+      // Attach the PDF — BCTI for GST-registered providers (periodRow.bcti_number
+      // is assigned by confirm_paid), Remittance Advice for non-GST. Either
+      // way the email carries an IRD-appropriate document.
+      const { buildPayslipPdf } = await import('./_pdf-builders.js')
+      const { data: consultRows } = await supabase.from('consultations')
+        .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
+        .eq('status', 'complete').eq('provider_id', provider_id).eq('payment_test_mode', false).eq('is_practice', false)
+        .gte('created_at', period_start + 'T00:00:00.000Z').lte('created_at', period_end + 'T23:59:59.999Z')
+        .order('created_at')
+      const { data: prov } = await supabase.from('providers')
+        .select('first_name,last_name,credential,email,base_rate,gst_registered,gst_number,ird_number,bank_account')
+        .eq('id', provider_id).single()
+      const pdfBuffer = await buildPayslipPdf({
+        provider: prov, period_start, period_end,
+        consultations: consultRows || [],
+        consultation_count: s.consultation_count, base_rate: s.base_rate,
+        total_amount:   s.total_amount,
+        gst_amount:     s.gst_amount,
+        gst_number:     s.gst_number,
+        total_payable:  s.total_payable,
+        bcti_number:    periodRow.bcti_number,
+      })
+
+      const isBcti = !!periodRow.bcti_number
+      const docLabel = isBcti ? 'Buyer-Created Tax Invoice' : 'Remittance Advice'
+      const filename = `${isBcti ? 'bcti' : 'remittance'}-${(s.provider_name || 'provider').toLowerCase().replace(/\s+/g,'-')}-${period_start}.pdf`
+
       const r = await sendEmail({
         from: 'Tere Health <hello@terehealth.co.nz>',
         replyTo: 'terehealthnz@gmail.com',
         to: [s.provider_email],
-        subject: `Your Tere Health earnings — ${periodStr}`,
+        subject: `${docLabel} — Tere Health ${periodStr}`,
         html,
+        attachments: [{ filename, content: pdfBuffer, contentType: 'application/pdf' }],
       })
       if (!r.ok) return res.status(500).json({ error: 'Email send failed' })
-      return res.status(200).json({ ok: true })
+
+      await supabase.from('payroll_periods').update({ bcti_sent_to: s.provider_email })
+        .eq('provider_id', provider_id).eq('period_start', period_start).eq('period_end', period_end)
+
+      return res.status(200).json({ ok: true, document: docLabel, bcti_number: periodRow.bcti_number })
     }
 
     return res.status(400).json({ error: 'Invalid action' })
