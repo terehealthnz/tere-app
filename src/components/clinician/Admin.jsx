@@ -1235,9 +1235,15 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
           <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Registration status: INACTIVE</div>
           <div style={{ fontSize:'.8125rem' }}>
             Practitioner is not currently registered — do not roster for clinical work. Derived from{' '}
-            {p.registrationStatusSource === 'qualification'
-              ? <code>qualification[].extension.registration-status-code</code>
-              : <code>Practitioner.active (fallback)</code>}. (HPI-P-Get-8)
+            <code>{p.registrationStatusSource || 'qualification'}</code>. (HPI-P-Get-8)
+          </div>
+        </div>
+      )}
+      {!p.isDeceased && p.registrationStatus === 'expired' && (
+        <div style={{ padding:'.875rem 1rem', background:'#F59E0B', color:'#1F2937', borderRadius:12, marginBottom:'1rem' }}>
+          <div style={{ fontSize:'.9375rem', fontWeight:800 }}>Registration status: EXPIRED</div>
+          <div style={{ fontSize:'.8125rem' }}>
+            Qualification status-code is "active" but every qualification's period has ended — practitioner is not currently practising on any registered scope. Combining <code>registration-status-code</code> with <code>period.end</code> prevents the stale "ACTIVE" badge Noel flagged on 91ZZWJ (ended 2022-08-31) and 99ZZRT (nursing ended 2022-09-20). (HPI-P-Get-8 + HPI-P-Get-10)
           </div>
         </div>
       )}
@@ -1261,10 +1267,16 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
           </div>
           <div style={{
             padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap',
-            background: p.registrationStatus === 'active' ? '#DCFCE7' : '#FEE2E2',
-            color:      p.registrationStatus === 'active' ? '#166534' : '#7F1D1D',
+            background: p.registrationStatus === 'active' ? '#DCFCE7'
+                      : p.registrationStatus === 'expired' ? '#FEF3C7'
+                      : '#FEE2E2',
+            color:      p.registrationStatus === 'active' ? '#166534'
+                      : p.registrationStatus === 'expired' ? '#92400E'
+                      : '#7F1D1D',
           }} title={`Derived from ${p.registrationStatusSource || 'qualification'}`}>
-            {p.registrationStatus === 'active' ? '✓ CURRENT' : '✗ INACTIVE'}
+            {p.registrationStatus === 'active'  ? '✓ CURRENT'
+             : p.registrationStatus === 'expired' ? '⚠ EXPIRED'
+             : '✗ INACTIVE'}
           </div>
         </div>
 
@@ -1285,25 +1297,39 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
           </div>
           {p.qualifications?.length ? (
             <div style={{ border:'1px solid #E2E8F0', borderRadius:8, overflow:'hidden' }}>
-              {p.qualifications.map((q, i) => (
-                <div key={i} style={{ padding:'.625rem .875rem', borderBottom: i < p.qualifications.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 ? '#FAFBFC' : 'white' }}>
-                  <div style={{ fontWeight:700, fontSize:'.875rem', color:'#0D2B45' }}>{q.code || '(unnamed scope)'}</div>
-                  <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
-                    {q.issuer && <>Issuer: {q.issuer} · </>}
-                    {q.periodStart && <>From {q.periodStart} </>}
-                    {q.periodEnd && <>to {q.periodEnd}</>}
-                    {!q.periodStart && !q.periodEnd && 'No period recorded'}
-                  </div>
-                  {q.conditionsOfPractice?.length > 0 && (
-                    <div style={{ marginTop:'.375rem', padding:'.5rem .75rem', background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:6 }}>
-                      <div style={{ fontSize:'.6875rem', fontWeight:800, color:'#92400E', marginBottom:2 }}>CONDITIONS OF PRACTICE (HPI-P-Get-7)</div>
-                      <ul style={{ margin:0, paddingLeft:'1.25rem', fontSize:'.8125rem', color:'#78350F' }}>
-                        {q.conditionsOfPractice.map((c, j) => <li key={j}>{c}</li>)}
-                      </ul>
+              {p.qualifications.map((q, i) => {
+                const pillBg = q.isCurrentlyValid ? '#DCFCE7' : q.isExpired ? '#FEF3C7' : '#FEE2E2'
+                const pillFg = q.isCurrentlyValid ? '#166534' : q.isExpired ? '#92400E' : '#7F1D1D'
+                const pillLabel = q.isCurrentlyValid ? '✓ CURRENT'
+                                : q.isExpired         ? '⚠ EXPIRED'
+                                : (q.registrationStatusCode ? `✗ ${String(q.registrationStatusCode).toUpperCase()}` : '✗ INACTIVE')
+                return (
+                  <div key={i} style={{ padding:'.625rem .875rem', borderBottom: i < p.qualifications.length - 1 ? '1px solid #F3F4F6' : 'none', background: i % 2 ? '#FAFBFC' : 'white' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+                      <div style={{ fontWeight:700, fontSize:'.875rem', color:'#0D2B45', flex:1 }}>{q.code || '(unnamed scope)'}</div>
+                      <span title={`registration-status-code = ${q.registrationStatusCode || '—'}, period end = ${q.periodEnd || '—'}`}
+                        style={{ padding:'2px 8px', borderRadius:99, fontSize:'.6875rem', fontWeight:800, whiteSpace:'nowrap', background:pillBg, color:pillFg }}>
+                        {pillLabel}
+                      </span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    <div style={{ fontSize:'.75rem', color:'#6B7280', marginTop:2 }}>
+                      {q.issuer && <>Issuer: {q.issuer} · </>}
+                      {q.periodStart && <>From {q.periodStart} </>}
+                      {q.periodEnd && <>to {q.periodEnd}</>}
+                      {!q.periodStart && !q.periodEnd && 'No period recorded'}
+                      {q.registrationStatusCode && <> · status-code: <code>{q.registrationStatusCode}</code></>}
+                    </div>
+                    {q.conditionsOfPractice?.length > 0 && (
+                      <div style={{ marginTop:'.375rem', padding:'.5rem .75rem', background:'#FFFBEB', border:'1px solid #FCD34D', borderRadius:6 }}>
+                        <div style={{ fontSize:'.6875rem', fontWeight:800, color:'#92400E', marginBottom:2 }}>CONDITIONS OF PRACTICE (HPI-P-Get-7)</div>
+                        <ul style={{ margin:0, paddingLeft:'1.25rem', fontSize:'.8125rem', color:'#78350F' }}>
+                          {q.conditionsOfPractice.map((c, j) => <li key={j}>{c}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <div style={{ fontSize:'.8125rem', color:'#9CA3AF', padding:'.5rem 0' }}>No qualifications recorded on this Practitioner resource.</div>

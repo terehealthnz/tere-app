@@ -209,6 +209,9 @@ function shapePractitioner(p) {
   // extension for practice-condition (limitations imposed by MCNZ/NCNZ) and
   // a registration-status-code extension (HNZ IG-specific) that is the
   // authoritative current/inactive marker.
+  // Compute per-qualification derived state up-front so the overall
+  // registrationStatus and the per-row "EXPIRED/CURRENT" tags stay in sync.
+  const now = Date.now()
   const qualifications = (p.qualification || []).map(q => {
     const statusExt = (q.extension || [])
       .find(e => /registration-status-code|registration-status/i.test(e.url || ''))
@@ -217,13 +220,25 @@ function shapePractitioner(p) {
                     || statusExt?.valueCoding?.code
                     || statusExt?.valueCodeableConcept?.coding?.[0]?.code
                     || null
+    const periodEnd = q.period?.end || null
+    const periodEndMs = periodEnd ? Date.parse(periodEnd) : null
+    const isExpired = Number.isFinite(periodEndMs) && periodEndMs < now
+    // A qualification is "currently valid" only when the status code says
+    // active/current AND the period hasn't ended. HNZ test data sometimes
+    // leaves status='active' on expired qualifications — Noel flagged
+    // 91ZZWJ (ended 2022-08-31) and 99ZZRT (ended 2022-09-20) both shown as
+    // ACTIVE with no warning. Combining both signals avoids that.
+    const statusIsActive = !!statusCode && /current|active/i.test(String(statusCode))
+    const isCurrentlyValid = statusIsActive && !isExpired
     return {
       code:      q.code?.text || q.code?.coding?.[0]?.display || q.code?.coding?.[0]?.code || null,
       system:    q.code?.coding?.[0]?.system || null,
       issuer:    q.issuer?.display || q.issuer?.reference || null,
       periodStart: q.period?.start || null,
-      periodEnd:   q.period?.end || null,
+      periodEnd,
       registrationStatusCode: statusCode,
+      isExpired,
+      isCurrentlyValid,
       conditionsOfPractice: (q.extension || [])
         .filter(e => /condition-of-practice|practice-condition|scope-of-practice/i.test(e.url || ''))
         .map(e => e.valueString || e.valueCodeableConcept?.text || e.valueCodeableConcept?.coding?.[0]?.display)
@@ -231,29 +246,28 @@ function shapePractitioner(p) {
     }
   })
 
-  // HPI-P-Get-8: registration status. Authoritative source is the
-  // qualification[].registration-status-code extension (per Noel 2026-11-09:
-  // HPI does NOT return Practitioner.active). Fallback to p.active only if
-  // no qualification carries a status code.
+  // HPI-P-Get-8 + HPI-P-Get-10: overall registration status requires BOTH
+  // a current-status qualification extension AND a period that hasn't
+  // ended. Previously we only checked the extension, which meant 91ZZWJ
+  // (ended 2022-08-31) and 99ZZRT (ended 2022-09-20) displayed as ACTIVE
+  // with no warning — exactly the case Noel called out 2026-11-09.
   const statusCodes = qualifications.map(q => q.registrationStatusCode).filter(Boolean)
-  const hasActiveQual = statusCodes.some(s => /current|active/i.test(String(s)))
   const hasAnyQualStatus = statusCodes.length > 0
+  const anyCurrentlyValid = qualifications.some(q => q.isCurrentlyValid)
+  const anyStatusActive   = qualifications.some(q => /current|active/i.test(String(q.registrationStatusCode || '')))
   const registrationStatus = hasAnyQualStatus
-    ? (hasActiveQual ? 'active' : 'inactive')
+    ? (anyCurrentlyValid ? 'active' : (anyStatusActive ? 'expired' : 'inactive'))
     : (p.active === false ? 'inactive' : 'active')
   // registrationStatusSource lets the UI explain what it's rendering and
   // sidesteps the fabricated "ACTIVE" badge Noel flagged.
-  const registrationStatusSource = hasAnyQualStatus ? 'qualification' : 'practitioner.active'
+  const registrationStatusSource = hasAnyQualStatus
+    ? 'qualification (status code + period)'
+    : 'practitioner.active'
 
-  // HPI-P-Get-10: expired APC. Any qualification with periodEnd in the past
-  // means the current practising certificate has lapsed, regardless of what
-  // registration-status-code says. UI surfaces this as a separate warning.
-  const now = Date.now()
-  const expiredQualifications = qualifications.filter(q => {
-    if (!q.periodEnd) return false
-    const t = Date.parse(q.periodEnd)
-    return Number.isFinite(t) && t < now
-  })
+  // HPI-P-Get-10: expired-only list (period.end in the past) — used for
+  // the dedicated APC-expired banner so the specific qualification +
+  // end date can be named.
+  const expiredQualifications = qualifications.filter(q => q.isExpired)
   const hasExpiredApc = expiredQualifications.length > 0
 
   // HPI-P-Get-11: confidentiality flag. Per Noel 2026-11-09 the "Confidentiality
