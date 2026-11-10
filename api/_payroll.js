@@ -236,11 +236,45 @@ export default async function handler(req, res) {
       if (!provider_id || !period_start || !period_end) return res.status(400).json({ error: 'Missing params' })
       if (!canSeeProvider(auth, provider_id)) return res.status(403).json({ error: 'Forbidden' })
       const { data } = await supabase.from('consultations')
-        .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible')
+        .select('id,created_at,patient_first_name,patient_last_name,consultation_type,acc_eligible,patient_joined_at,started_at,last_attempt_at,encounter_completed_at,completed_at,notes_finalised_at,clinical_notes')
         .eq('status', 'complete').eq('provider_id', provider_id).eq('payment_test_mode', false).eq('is_practice', false)
         .gte('created_at', period_start + 'T00:00:00.000Z').lte('created_at', period_end + 'T23:59:59.999Z')
         .order('created_at')
-      return res.status(200).json({ consultations: data || [] })
+      // Derive audit signals per consult so the review modal can show
+      // provider-saw-patient evidence without schema changes. Keep clinical
+      // notes OUT of the response (summary metrics only — admin opens the
+      // full chart if they need to read the notes).
+      const enriched = (data || []).map(c => {
+        const startT = c.last_attempt_at || c.started_at || c.patient_joined_at || null
+        const endT   = c.encounter_completed_at || c.completed_at || null
+        let durationMin = null
+        if (startT && endT) {
+          const diffMs = new Date(endT).getTime() - new Date(startT).getTime()
+          if (diffMs > 0 && diffMs < 6 * 60 * 60 * 1000) durationMin = Math.round(diffMs / 60000)
+        }
+        // SOAP word count from clinical_notes { S, O, A, P } — guards against
+        // non-object / missing / null fields.
+        let wordCount = 0
+        const notes = c.clinical_notes || {}
+        for (const k of ['S','O','A','P','subjective','objective','assessment','plan']) {
+          const v = notes?.[k]
+          if (typeof v === 'string' && v.trim()) wordCount += v.trim().split(/\s+/).length
+        }
+        return {
+          id: c.id,
+          created_at: c.created_at,
+          patient_first_name: c.patient_first_name,
+          patient_last_name: c.patient_last_name,
+          consultation_type: c.consultation_type,
+          acc_eligible: c.acc_eligible,
+          duration_min:         durationMin,
+          patient_joined:       !!c.patient_joined_at,
+          notes_signed_at:      c.notes_finalised_at || c.encounter_completed_at || null,
+          notes_word_count:     wordCount,
+          short_id:             (c.id || '').slice(0, 8),
+        }
+      })
+      return res.status(200).json({ consultations: enriched })
     }
 
     return res.status(400).json({ error: 'Invalid type' })
