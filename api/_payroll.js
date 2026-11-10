@@ -51,7 +51,11 @@ function getPastFortnights(count = 13) {
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
     supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number').eq('is_active', true).order('first_name'),
-    supabase.from('consultations').select('provider_id').eq('status', 'complete').not('provider_id', 'is', null)
+    // Pull notes_finalised_at + encounter_completed_at alongside provider_id
+    // so we can gate payable count on actual sign-off. "Completed" alone is
+    // not enough — a provider could hit Complete Encounter without writing
+    // notes; we shouldn't pay for that.
+    supabase.from('consultations').select('provider_id,notes_finalised_at,encounter_completed_at').eq('status', 'complete').not('provider_id', 'is', null)
       .eq('payment_test_mode', false)
       .eq('is_practice', false)
       .gte('created_at', period_start + 'T00:00:00.000Z')
@@ -59,8 +63,14 @@ async function buildSummaries(supabase, period_start, period_end) {
     supabase.from('payroll_periods').select('*').eq('period_start', period_start).eq('period_end', period_end),
   ])
 
+  // Notes-signed gate — count only consults where either notes_finalised_at
+  // OR encounter_completed_at is populated. Consults with status='complete'
+  // but neither stamp are excluded from payable (surfaced in review modal
+  // with red "✗ notes not signed" so admin knows why the count differs).
   const countMap = {}
   for (const c of consultations || []) {
+    const signed = !!(c.notes_finalised_at || c.encounter_completed_at)
+    if (!signed) continue
     countMap[c.provider_id] = (countMap[c.provider_id] || 0) + 1
   }
   const savedMap = {}
@@ -260,6 +270,7 @@ export default async function handler(req, res) {
           const v = notes?.[k]
           if (typeof v === 'string' && v.trim()) wordCount += v.trim().split(/\s+/).length
         }
+        const notesSignedAt = c.notes_finalised_at || c.encounter_completed_at || null
         return {
           id: c.id,
           created_at: c.created_at,
@@ -269,9 +280,13 @@ export default async function handler(req, res) {
           acc_eligible: c.acc_eligible,
           duration_min:         durationMin,
           patient_joined:       !!c.patient_joined_at,
-          notes_signed_at:      c.notes_finalised_at || c.encounter_completed_at || null,
+          notes_signed_at:      notesSignedAt,
           notes_word_count:     wordCount,
           short_id:             (c.id || '').slice(0, 8),
+          // Gate — review modal uses this to show excluded consults struck
+          // through with "$0 — notes not signed". buildSummaries applies
+          // the same rule for the payable total.
+          payable:              !!notesSignedAt,
         }
       })
       return res.status(200).json({ consultations: enriched })

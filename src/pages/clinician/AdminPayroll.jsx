@@ -113,33 +113,36 @@ function ReviewModal({ summary, period_start, period_end, onClose }) {
                 </tr>
               </thead>
               <tbody>
-                {consults.map((c, i) => (
-                  <tr key={c.id} style={{ borderBottom:'1px solid #F3F4F6', background:i%2?'white':'#FAFAFA' }}>
-                    <td style={{ padding:'.625rem 1rem', color:'#374151', whiteSpace:'nowrap', verticalAlign:'top' }}>
-                      {new Date(c.created_at).toLocaleDateString('en-NZ', { day:'2-digit', month:'short' })}
-                      <div style={{ fontSize:'.6875rem', color:'#9CA3AF', fontFamily:'ui-monospace, Menlo, monospace', marginTop:2 }}>{c.short_id || c.id?.slice(0,8)}</div>
-                    </td>
-                    <td style={{ padding:'.625rem .5rem', verticalAlign:'top' }}>{typeIcon[c.consultation_type] || '📹'}</td>
-                    <td style={{ padding:'.625rem .5rem', color:'#374151', verticalAlign:'top' }}>
-                      <div>{c.patient_first_name?.charAt(0)}{c.patient_last_name?.charAt(0)}.</div>
-                      {/* Audit signals: duration + notes + patient presence.
-                          Shows admin "provider actually saw this patient" rather than just
-                          "there's a DB row". */}
-                      <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:4, lineHeight:1.4 }}>
-                        {c.patient_joined
-                          ? <span style={{ color:'#059669' }} title="LiveKit heartbeat confirmed patient joined the call">✓ patient joined</span>
-                          : <span style={{ color:'#DC2626' }} title="No patient_joined_at stamp from LiveKit — may be a ghost consult">✗ no patient presence</span>}
-                        {c.duration_min != null && <> · {c.duration_min} min</>}
-                      </div>
-                      <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:2, lineHeight:1.4 }}>
-                        {c.notes_signed_at
-                          ? <><span style={{ color:'#059669' }}>✓ notes signed</span>{c.notes_word_count > 0 && ` · ${c.notes_word_count} words`}</>
-                          : <span style={{ color:'#DC2626' }}>✗ notes not signed</span>}
-                      </div>
-                    </td>
-                    <td style={{ padding:'.625rem 1rem', textAlign:'right', color:TEAL, fontWeight:600, verticalAlign:'top' }}>${Number(summary.base_rate ?? 20).toFixed(2)}</td>
-                  </tr>
-                ))}
+                {consults.map((c, i) => {
+                  const excluded = c.payable === false
+                  return (
+                    <tr key={c.id} style={{ borderBottom:'1px solid #F3F4F6', background: excluded ? '#FEF2F2' : (i%2 ? 'white' : '#FAFAFA'), opacity: excluded ? 0.75 : 1 }}>
+                      <td style={{ padding:'.625rem 1rem', color:'#374151', whiteSpace:'nowrap', verticalAlign:'top' }}>
+                        {new Date(c.created_at).toLocaleDateString('en-NZ', { day:'2-digit', month:'short' })}
+                        <div style={{ fontSize:'.6875rem', color:'#9CA3AF', fontFamily:'ui-monospace, Menlo, monospace', marginTop:2 }}>{c.short_id || c.id?.slice(0,8)}</div>
+                      </td>
+                      <td style={{ padding:'.625rem .5rem', verticalAlign:'top' }}>{typeIcon[c.consultation_type] || '📹'}</td>
+                      <td style={{ padding:'.625rem .5rem', color:'#374151', verticalAlign:'top' }}>
+                        <div>{c.patient_first_name?.charAt(0)}{c.patient_last_name?.charAt(0)}.</div>
+                        {/* Audit signals: duration + notes + patient presence.
+                            Shows admin "provider actually saw this patient" rather than just
+                            "there's a DB row". */}
+                        <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:4, lineHeight:1.4 }}>
+                          {c.patient_joined
+                            ? <span style={{ color:'#059669' }} title="LiveKit heartbeat confirmed patient joined the call">✓ patient joined</span>
+                            : <span style={{ color:'#DC2626' }} title="No patient_joined_at stamp from LiveKit — may be a ghost consult">✗ no patient presence</span>}
+                          {c.duration_min != null && <> · {c.duration_min} min</>}
+                        </div>
+                        <div style={{ fontSize:'.6875rem', color:'#6B7280', marginTop:2, lineHeight:1.4 }}>
+                          {c.notes_signed_at
+                            ? <><span style={{ color:'#059669' }}>✓ notes signed</span>{c.notes_word_count > 0 && ` · ${c.notes_word_count} words`}</>
+                            : <span style={{ color:'#DC2626', fontWeight:700 }} title="Excluded from payable total — provider must sign the notes before this consult pays">✗ notes not signed — excluded</span>}
+                        </div>
+                      </td>
+                      <td style={{ padding:'.625rem 1rem', textAlign:'right', color: excluded ? '#9CA3AF' : TEAL, fontWeight:600, verticalAlign:'top', textDecoration: excluded ? 'line-through' : 'none' }}>${Number(summary.base_rate ?? 20).toFixed(2)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr style={{ background:'#F0F9FA', borderTop:'2px solid #D4EEF0' }}>
