@@ -246,23 +246,29 @@ function shapePractitioner(p) {
     }
   })
 
-  // HPI-P-Get-8 + HPI-P-Get-10: overall registration status requires BOTH
-  // a current-status qualification extension AND a period that hasn't
-  // ended. Previously we only checked the extension, which meant 91ZZWJ
-  // (ended 2022-08-31) and 99ZZRT (ended 2022-09-20) displayed as ACTIVE
-  // with no warning — exactly the case Noel called out 2026-11-09.
-  const statusCodes = qualifications.map(q => q.registrationStatusCode).filter(Boolean)
-  const hasAnyQualStatus = statusCodes.length > 0
+  // HPI-P-Get-8 + HPI-P-Get-10: overall registration status derived
+  // purely from qualifications[], ignoring the fabricated Practitioner.active
+  // Noel flagged ("HPI doesn't return Practitioner.active"). Rules:
+  //   - Any qualification currently valid (status=active AND period not
+  //     ended)                                        → 'active'
+  //   - At least one qualification exists, and every one is expired
+  //     (period.end in the past), regardless of status-code              → 'expired'
+  //   - Qualifications exist but none active / none expired (e.g. only
+  //     inactive status-codes)                                           → 'inactive'
+  //   - No qualifications at all                                         → 'unknown'
+  //     (shouldn't happen in practice; shown as INACTIVE to be safe)
   const anyCurrentlyValid = qualifications.some(q => q.isCurrentlyValid)
-  const anyStatusActive   = qualifications.some(q => /current|active/i.test(String(q.registrationStatusCode || '')))
-  const registrationStatus = hasAnyQualStatus
-    ? (anyCurrentlyValid ? 'active' : (anyStatusActive ? 'expired' : 'inactive'))
-    : (p.active === false ? 'inactive' : 'active')
-  // registrationStatusSource lets the UI explain what it's rendering and
-  // sidesteps the fabricated "ACTIVE" badge Noel flagged.
-  const registrationStatusSource = hasAnyQualStatus
-    ? 'qualification (status code + period)'
-    : 'practitioner.active'
+  const everyQualExpired  = qualifications.length > 0 && qualifications.every(q => q.isExpired)
+  const registrationStatus = anyCurrentlyValid ? 'active'
+                           : (everyQualExpired  ? 'expired'
+                           : (qualifications.length === 0 ? 'unknown' : 'inactive'))
+  // registrationStatusSource names the derivation so the UI can explain
+  // what it's rendering + sidestep the fabricated "ACTIVE" badge entirely.
+  const registrationStatusSource = qualifications.length === 0
+    ? 'no qualification data'
+    : (anyCurrentlyValid ? 'qualification.registration-status-code + period'
+    : (everyQualExpired  ? 'qualification.period.end (all in past)'
+    : 'qualification.registration-status-code (none active)'))
 
   // HPI-P-Get-10: expired-only list (period.end in the past) — used for
   // the dedicated APC-expired banner so the specific qualification +

@@ -1269,13 +1269,16 @@ function PractitionerCard({ p, rawJson, showRaw, setShowRaw, meta }) {
             padding:'4px 12px', borderRadius:99, fontSize:'.75rem', fontWeight:800, whiteSpace:'nowrap',
             background: p.registrationStatus === 'active' ? '#DCFCE7'
                       : p.registrationStatus === 'expired' ? '#FEF3C7'
+                      : p.registrationStatus === 'unknown' ? '#E5E7EB'
                       : '#FEE2E2',
             color:      p.registrationStatus === 'active' ? '#166534'
                       : p.registrationStatus === 'expired' ? '#92400E'
+                      : p.registrationStatus === 'unknown' ? '#374151'
                       : '#7F1D1D',
           }} title={`Derived from ${p.registrationStatusSource || 'qualification'}`}>
             {p.registrationStatus === 'active'  ? '✓ CURRENT'
              : p.registrationStatus === 'expired' ? '⚠ EXPIRED'
+             : p.registrationStatus === 'unknown' ? '? NO QUALIFICATION DATA'
              : '✗ INACTIVE'}
           </div>
         </div>
