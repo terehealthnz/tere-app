@@ -50,7 +50,7 @@ export async function requireProvider(req) {
     if (session) {
       const { data: provider, error: pErr } = await supabase
         .from('providers')
-        .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled')
+        .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled, is_pho_coordinator, pho_contract_id')
         .eq('id', session.providerId)
         .maybeSingle()
       if (pErr) { console.error('[auth] provider lookup (cookie) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
@@ -73,7 +73,7 @@ export async function requireProvider(req) {
     const email = userRes.user.email.toLowerCase()
     const { data: provider, error: pErr } = await supabase
       .from('providers')
-      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled')
+      .select('id, email, first_name, last_name, is_active, is_admin, is_provider, is_supervisor, is_billing_admin, patient_access_from, practice_only, mfa_enabled, is_pho_coordinator, pho_contract_id')
       .ilike('email', email)
       .maybeSingle()
     if (pErr) { console.error('[auth] provider lookup (jwt) failed:', pErr.message); const e = new Error('Provider lookup failed'); e.status = 500; throw e }
@@ -96,6 +96,21 @@ export async function guardProvider(req, res) {
     return await requireProvider(req)
   } catch (e) {
     res.status(e.status || 401).json({ error: e.message })
+    return null
+  }
+}
+
+/**
+ * Soft version — resolves auth if present, returns null if missing/invalid,
+ * does NOT write a response. For endpoints that mix public + authed actions
+ * (e.g. /api/pho-rural where "list practices" is anon but "create shift" is
+ * provider-only). The handler is responsible for 401-ing only the authed
+ * branches.
+ */
+export async function guardProviderOptional(req, _res) {
+  try {
+    return await requireProvider(req)
+  } catch {
     return null
   }
 }

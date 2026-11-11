@@ -351,6 +351,7 @@ const ROUTES = {
   'patient-correction-request': () => import('./_patient-correction-request.js'),
   'patient-portal':             () => import('./_patient-portal.js'),
   'payroll':                   () => import('./_payroll.js'),
+  'pho-rural':                 () => import('./_pho-rural.js'),
   'sms':                       () => import('./_sms.js'),
   'appointments':              () => import('./_appointments.js'),
   'audit':                     () => import('./_audit.js'),
