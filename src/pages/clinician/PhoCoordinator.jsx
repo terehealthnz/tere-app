@@ -37,6 +37,7 @@ export default function PhoCoordinator() {
   const [practices, setPractices] = useState([])
   const [tab, setTab] = useState('schedule')  // schedule | search
   const [horizonDays, setHorizonDays] = useState(7)
+  const [bookOpen, setBookOpen] = useState(false)
 
   const loadSchedule = useCallback(async () => {
     try {
@@ -82,17 +83,23 @@ export default function PhoCoordinator() {
 
         {tab === 'schedule' && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', gap: '.5rem', flexWrap: 'wrap' }}>
               <div style={{ fontSize: '.875rem', color: '#6B7280' }}>
                 {schedule.length} appointment{schedule.length === 1 ? '' : 's'} across {practices.length} practice{practices.length === 1 ? '' : 's'}
               </div>
-              <select value={horizonDays} onChange={e => setHorizonDays(Number(e.target.value))}
-                style={{ padding: '.4rem .55rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF, background: 'white' }}>
-                <option value={1}>Today</option>
-                <option value={7}>Next 7 days</option>
-                <option value={14}>Next 14 days</option>
-                <option value={28}>Next 28 days</option>
-              </select>
+              <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
+                <select value={horizonDays} onChange={e => setHorizonDays(Number(e.target.value))}
+                  style={{ padding: '.4rem .55rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF, background: 'white' }}>
+                  <option value={1}>Today</option>
+                  <option value={7}>Next 7 days</option>
+                  <option value={14}>Next 14 days</option>
+                  <option value={28}>Next 28 days</option>
+                </select>
+                <button onClick={() => setBookOpen(true)}
+                  style={{ background: TEAL, color: 'white', border: 'none', borderRadius: 6, padding: '.45rem .85rem', fontFamily: FF, fontWeight: 700, fontSize: '.8125rem', cursor: 'pointer' }}>
+                  + New appointment
+                </button>
+              </div>
             </div>
 
             {byDay.size === 0 && (
@@ -114,6 +121,126 @@ export default function PhoCoordinator() {
 
         {tab === 'search' && <PatientSearch practices={practices} />}
       </div>
+
+      {bookOpen && (
+        <BookOnBehalfModal practices={practices} onClose={() => setBookOpen(false)} onBooked={() => { setBookOpen(false); loadSchedule() }} />
+      )}
+    </div>
+  )
+}
+
+function BookOnBehalfModal({ practices, onClose, onBooked }) {
+  const [practiceSlug, setPracticeSlug] = useState(practices[0]?.slug || '')
+  const [slots, setSlots] = useState(null)
+  const [slotStart, setSlotStart] = useState('')
+  const [form, setForm] = useState({
+    first: '', last: '', dob: '', nhi: '', phone: '', email: '',
+    reason: '', language: 'en',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!practiceSlug) { setSlots([]); return }
+    setSlots(null)
+    apiFetch(`/api/pho-rural?action=available_slots&practice_slug=${encodeURIComponent(practiceSlug)}`)
+      .then(r => r.json()).then(j => setSlots(j.slots || [])).catch(() => setSlots([]))
+  }, [practiceSlug])
+
+  async function submit() {
+    setError('')
+    if (!form.first || !form.last) return setError('Patient name required')
+    if (!form.phone)               return setError('Phone required for SMS reminder')
+    if (!slotStart)                return setError('Pick a slot')
+    setBusy(true)
+    try {
+      const r = await apiFetch('/api/pho-rural?action=book', {
+        method: 'POST', body: JSON.stringify({
+          practice_slug: practiceSlug,
+          slot_start: slotStart,
+          patient_first_name: form.first, patient_last_name: form.last,
+          patient_dob: form.dob || null, patient_nhi: form.nhi || null,
+          patient_phone: form.phone, patient_email: form.email || null,
+          reason: form.reason || null, language: form.language,
+        })
+      })
+      const j = await r.json()
+      if (!r.ok) { setError(j.error || 'Booking failed'); setBusy(false); return }
+      onBooked()
+    } catch (e) { setError(e.message); setBusy(false) }
+  }
+
+  const slotsByDay = new Map()
+  for (const s of (slots || [])) {
+    const k = new Date(s).toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit' })
+    if (!slotsByDay.has(k)) slotsByDay.set(k, [])
+    slotsByDay.get(k).push(s)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(13,43,69,.45)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 200, padding: '1rem', overflowY: 'auto' }}>
+      <div style={{ background: 'white', borderRadius: 12, padding: '1.25rem', maxWidth: 560, width: '100%', fontFamily: FF, marginTop: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <div style={{ fontSize: '1.0625rem', fontWeight: 700, color: NAVY }}>New appointment</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#6B7280', cursor: 'pointer', padding: 0 }}>×</button>
+        </div>
+
+        <label style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 600 }}>Practice</label>
+        <select value={practiceSlug} onChange={e => { setPracticeSlug(e.target.value); setSlotStart('') }}
+          style={{ width: '100%', padding: '.55rem .75rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.9375rem', fontFamily: FF, background: 'white', marginBottom: '.75rem' }}>
+          {practices.map(p => <option key={p.id} value={p.slug}>{p.name}</option>)}
+        </select>
+
+        <label style={{ fontSize: '.75rem', color: '#6B7280', fontWeight: 600 }}>Available slot</label>
+        <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 6, padding: '.5rem', marginBottom: '.75rem', background: '#F9FAFB' }}>
+          {slots === null ? <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>Loading…</div>
+            : slots.length === 0 ? <div style={{ fontSize: '.8125rem', color: '#6B7280' }}>No slots in next 28 days. Ask the GP to roster a shift.</div>
+            : Array.from(slotsByDay.entries()).map(([day, items]) => (
+              <div key={day} style={{ marginBottom: '.5rem' }}>
+                <div style={{ fontSize: '.6875rem', fontWeight: 700, color: NAVY, marginBottom: 2 }}>{new Date(items[0]).toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {items.map(s => (
+                    <button key={s} onClick={() => setSlotStart(s)}
+                      style={{ background: slotStart === s ? TEAL : 'white', color: slotStart === s ? 'white' : NAVY, border: `1px solid ${slotStart === s ? TEAL : '#E2E8F0'}`, borderRadius: 4, padding: '2px 8px', fontFamily: FF, fontSize: '.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {new Date(s).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' })}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.5rem', marginBottom: '.5rem' }}>
+          <Field label="First name" value={form.first} onChange={v => setForm(f => ({ ...f, first: v }))} />
+          <Field label="Last name"  value={form.last}  onChange={v => setForm(f => ({ ...f, last: v }))} />
+          <Field label="DOB" value={form.dob} onChange={v => setForm(f => ({ ...f, dob: v }))} placeholder="YYYY-MM-DD" />
+          <Field label="NHI (optional)" value={form.nhi} onChange={v => setForm(f => ({ ...f, nhi: v.toUpperCase() }))} />
+          <Field label="Phone" value={form.phone} onChange={v => setForm(f => ({ ...f, phone: v }))} />
+          <Field label="Email (optional)" value={form.email} onChange={v => setForm(f => ({ ...f, email: v }))} />
+        </div>
+
+        <Field label="Reason for visit (optional)" value={form.reason} onChange={v => setForm(f => ({ ...f, reason: v }))} />
+
+        {error && <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '.5rem .75rem', borderRadius: 6, fontSize: '.8125rem', marginTop: '.75rem' }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: '.5rem', marginTop: '1rem' }}>
+          <button onClick={onClose} style={{ flex: 1, background: '#F3F4F6', color: '#4B5563', border: 'none', borderRadius: 8, padding: '.65rem', fontFamily: FF, fontWeight: 600, fontSize: '.9375rem', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={submit} disabled={busy || !slotStart} style={{ flex: 1, background: busy ? '#94A3B8' : TEAL, color: 'white', border: 'none', borderRadius: 8, padding: '.65rem', fontFamily: FF, fontWeight: 700, fontSize: '.9375rem', cursor: busy ? 'default' : 'pointer' }}>
+            {busy ? 'Booking…' : 'Confirm booking'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value, onChange, placeholder }) {
+  return (
+    <div>
+      <label style={{ fontSize: '.6875rem', color: '#6B7280', fontWeight: 600 }}>{label}</label>
+      <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        style={{ width: '100%', padding: '.45rem .55rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '.8125rem', fontFamily: FF, marginTop: 2 }} />
     </div>
   )
 }

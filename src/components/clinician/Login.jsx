@@ -19,7 +19,11 @@ function getSaved() {
   } catch { return null }
 }
 
-function defaultDest(isAdmin) {
+function defaultDest(isAdmin, isPhoCoordinator) {
+  // PHO coordinators have no clinical view — route them to their
+  // dashboard. An admin flag wins (admin panel) because an admin who
+  // is also a coord typically wants the admin surface post-login.
+  if (!isAdmin && isPhoCoordinator) return '/clinician/pho-coordinator'
   const isPWA    = window.matchMedia('(display-mode: standalone)').matches
   const isMobile = window.innerWidth < 768
   if (isPWA || isMobile) return isAdmin ? '/admin' : '/provider'
@@ -145,6 +149,11 @@ export default function ClinicianLogin() {
       sessionStorage.setItem('providerCanAcc', String(p.can_acc ?? true))
       sessionStorage.setItem('providerCanWorkAcute', String(p.can_work_acute ?? true))
       sessionStorage.setItem('providerCanWorkGp', String(p.can_work_gp ?? false))
+      // PHO coordinator role — non-clinical user scoped to one PHO.
+      // Login redirects them to /clinician/pho-coordinator; the server
+      // enforces pho_contract_id scoping on every coord action.
+      sessionStorage.setItem('providerIsPhoCoordinator', String(p.is_pho_coordinator ?? false))
+      if (p.pho_contract_id) sessionStorage.setItem('providerPhoContractId', p.pho_contract_id)
       // Single-toggle supervision gate (2026-09-20). When true, prescriptions
       // and radiology referrals draft for countersign by supervisor_id
       // instead of dispatching directly. See _generate-prescription-pdf.js
@@ -198,7 +207,7 @@ export default function ClinicianLogin() {
           return
         }
         const params = new URLSearchParams(location.search)
-        navigate(safeRedirect(params.get('redirect')) || defaultDest(p.is_admin))
+        navigate(safeRedirect(params.get('redirect')) || defaultDest(p.is_admin, p.is_pho_coordinator))
       }
     } catch {
       setError('Connection error. Please try again.')
@@ -239,7 +248,8 @@ export default function ClinicianLogin() {
   if (showSavePrompt) {
     const params = new URLSearchParams(location.search)
     const isAdmin = sessionStorage.getItem('providerIsAdmin') === 'true'
-    const dest = safeRedirect(params.get('redirect')) || defaultDest(isAdmin)
+    const isPhoCoordinator = sessionStorage.getItem('providerIsPhoCoordinator') === 'true'
+    const dest = safeRedirect(params.get('redirect')) || defaultDest(isAdmin, isPhoCoordinator)
     return (
       <div className="page" style={{background:'var(--navy)',minHeight:'100dvh',alignItems:'center',justifyContent:'center',display:'flex'}}>
         <div style={{width:'100%',maxWidth:360,padding:'1.5rem',textAlign:'center'}}>

@@ -36,15 +36,12 @@ export default function MyRuralQueue() {
 
   const load = useCallback(async () => {
     try {
-      // Reuse the same /api/consultations filter — but constrained to
-      // assigned_provider_id = me AND scheduled_for within next 12h.
-      // Server-side filter: GET /api/consultations?provider_id=me&booking_type=scheduled&scheduled_from=now&scheduled_to=+12h
       const from = new Date().toISOString()
       const to   = new Date(Date.now() + 12 * 3600 * 1000).toISOString()
-      const r = await apiFetch(`/api/consultations?scope=rural_queue&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+      const r = await apiFetch(`/api/pho-rural?action=my_scheduled&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
       if (r.status === 401) { navigate('/clinician'); return }
       const j = await r.json()
-      setConsults(j.consultations || j.data || [])
+      setConsults(j.consultations || [])
     } catch (e) { setError(e.message); setConsults([]) }
   }, [navigate])
 

@@ -141,6 +141,7 @@ const MyRuralQueue        = lazy(() => import('./pages/clinician/MyRuralQueue'))
 const PhoCoordinator      = lazy(() => import('./pages/clinician/PhoCoordinator'))
 const GpCoverLanding      = lazy(() => import('./pages/public/GpCoverLanding'))
 const GpCoverBook         = lazy(() => import('./pages/public/GpCoverBook'))
+const GpCoverJoin         = lazy(() => import('./pages/public/GpCoverJoin'))
 const AdminStateLicenses  = lazy(() => import('./pages/clinician/AdminStateLicenses'))
 const ProviderInbox       = lazy(() => import('./pages/clinician/ProviderInbox'))
 const Employers           = lazy(() => import('./pages/Employers'))
@@ -356,6 +357,7 @@ export default function App() {
         <Route path="/clinician/pho-coordinator" element={<PhoCoordinator />} />
         <Route path="/gp/:slug"               element={<GpCoverLanding />} />
         <Route path="/gp/:slug/book"          element={<GpCoverBook />} />
+        <Route path="/gp/:slug/join"          element={<GpCoverJoin />} />
         <Route path="/clinician/change-password" element={<ChangePassword />} />
         <Route path="/clinician/mfa-required"    element={<MfaRequired />} />
         <Route path="/clinician/compliance-required" element={<ComplianceRequired />} />

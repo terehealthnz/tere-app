@@ -71,6 +71,7 @@
     { "path": "/api/cron-break-glass-revoke",   "schedule": "*/5 * * * *" },
     { "path": "/api/cron-release-abandoned-consults", "schedule": "*/5 * * * *" },
     { "path": "/api/cron-notify-on-call-sweep", "schedule": "*/2 * * * *" },
+    { "path": "/api/cron-pho-reminders",        "schedule": "*/5 * * * *" },
     { "path": "/api/cron-compliance-expiry",    "schedule": "30 20 * * *" },
     { "path": "/api/cron-results-reconciliation","schedule": "45 20 * * *" },
     { "path": "/api/cron-clinical-anomalies",   "schedule": "0 21 * * *" },

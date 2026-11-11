@@ -401,6 +401,7 @@ const ROUTES = {
   'cron-break-glass-revoke':   () => import('./_cron-break-glass-revoke.js'),
   'cron-release-abandoned-consults': () => import('./_cron-release-abandoned-consults.js'),
   'cron-notify-on-call-sweep': () => import('./_cron-notify-on-call-sweep.js'),
+  'cron-pho-reminders':        () => import('./_cron-pho-reminders.js'),
   'notify-on-call-trigger':    () => import('./_notify-on-call-trigger.js'),
   'consult-heartbeat':         () => import('./_consult-heartbeat.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),

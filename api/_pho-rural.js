@@ -148,6 +148,16 @@ export default async function handler(req, res) {
         .select('id,name,pho_contract_id').eq('slug', practice_slug).eq('active', true).maybeSingle()
       if (!practice) return res.status(404).json({ error: 'Practice not found' })
 
+      // If an authed PHO coord is doing the booking, enforce scope — a
+      // coord for PHO A cannot book at a practice under PHO B. `auth` is
+      // optional here — anonymous public bookings skip this check.
+      const booker = auth?.provider
+      if (booker && booker.is_pho_coordinator && !booker.is_admin) {
+        if (practice.pho_contract_id !== booker.pho_contract_id) {
+          return res.status(403).json({ error: 'Practice is not in your PHO.' })
+        }
+      }
+
       const slotIso = new Date(slot_start).toISOString()
       const slotMs  = new Date(slotIso).getTime()
       if (!Number.isFinite(slotMs) || slotMs <= Date.now()) {
@@ -234,6 +244,44 @@ export default async function handler(req, res) {
     // ── AUTHED paths below — require provider session ─────────────────────
     if (!auth?.provider) return res.status(401).json({ error: 'Login required' })
     const me = auth.provider
+
+    // ── PUBLIC: look up a scheduled consult so the patient can join ───────
+    // Used by /gp/[slug]/join — the SMS link lands here with ?c=<consult_id>.
+    // Validates: consult is rural scheduled, is in the join window
+    // (-15 min before through +60 min after scheduled_for), and status
+    // allows join. Returns minimal fields; no PHI dump.
+    if (method === 'GET' && action === 'join_lookup') {
+      const id = req.query.c
+      if (!id) return res.status(400).json({ error: 'c required' })
+      const { data } = await supabase.from('consultations')
+        .select('id,scheduled_for,status,booking_type,rural_practice_id,rural_practices(name,slug)')
+        .eq('id', id).maybeSingle()
+      if (!data || data.booking_type !== 'scheduled') return res.status(404).json({ error: 'Not found' })
+      if (!['scheduled', 'waiting', 'in_progress'].includes(data.status)) {
+        return res.status(410).json({ error: 'This appointment is closed.' })
+      }
+      const mins = Math.round((new Date(data.scheduled_for).getTime() - Date.now()) / 60000)
+      if (mins > 15)    return res.status(425).json({ error: `Your appointment starts in ${mins} minutes. Please come back ~15 minutes before.`, minutes_until: mins })
+      if (mins < -60)   return res.status(410).json({ error: 'This appointment window has passed. Contact the practice.' })
+      return res.status(200).json({ consultation: data })
+    }
+
+    // ── PROVIDER: my scheduled consults in a time window (rural queue page) ─
+    // Returns scheduled consultations assigned to the caller for the given
+    // from/to range. Powers MyRuralQueue — GP opens at start of shift, sees
+    // their day. Also surfaces rural_practices so the UI can print the
+    // practice name alongside the appointment time.
+    if (method === 'GET' && action === 'my_scheduled') {
+      const from = req.query.from || new Date().toISOString()
+      const to   = req.query.to   || new Date(Date.now() + 12 * 3600 * 1000).toISOString()
+      const { data } = await supabase.from('consultations')
+        .select('id,scheduled_for,status,chief_complaint,patient_first_name,patient_last_name,patient_phone,rural_practice_id,rural_practices(name,slug)')
+        .eq('assigned_provider_id', me.id)
+        .eq('booking_type', 'scheduled')
+        .gte('scheduled_for', from).lte('scheduled_for', to)
+        .order('scheduled_for')
+      return res.status(200).json({ consultations: data || [] })
+    }
 
     // ── PROVIDER: list my shifts (next 4 weeks + any past uncancelled) ────
     if (method === 'GET' && action === 'my_shifts') {
