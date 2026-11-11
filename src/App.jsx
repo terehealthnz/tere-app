@@ -137,6 +137,8 @@ const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
 const MyProfile           = lazy(() => import('./pages/clinician/MyProfile'))
 const MyRuralShifts       = lazy(() => import('./pages/clinician/MyRuralShifts'))
+const GpCoverLanding      = lazy(() => import('./pages/public/GpCoverLanding'))
+const GpCoverBook         = lazy(() => import('./pages/public/GpCoverBook'))
 const AdminStateLicenses  = lazy(() => import('./pages/clinician/AdminStateLicenses'))
 const ProviderInbox       = lazy(() => import('./pages/clinician/ProviderInbox'))
 const Employers           = lazy(() => import('./pages/Employers'))
@@ -348,6 +350,8 @@ export default function App() {
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
         <Route path="/clinician/profile"      element={<MyProfile />} />
         <Route path="/clinician/rural-shifts" element={<MyRuralShifts />} />
+        <Route path="/gp/:slug"               element={<GpCoverLanding />} />
+        <Route path="/gp/:slug/book"          element={<GpCoverBook />} />
         <Route path="/clinician/change-password" element={<ChangePassword />} />
         <Route path="/clinician/mfa-required"    element={<MfaRequired />} />
         <Route path="/clinician/compliance-required" element={<ComplianceRequired />} />
