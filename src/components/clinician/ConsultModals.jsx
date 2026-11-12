@@ -4,7 +4,7 @@ import { updateConsultation } from '../../lib/supabase'
 import { calculateAge } from '../../lib/dob'
 import {
   loadNzfNamesOnce, loadNzfDetailsOnce, findNzfEntry,
-  NZF_INDEX, NZF_DETAILS,
+  NZF_NAMES, NZF_INDEX, NZF_DETAILS,
 } from '../../lib/nzfLoader'
 
 // Legacy alias retained so any in-file call site still works.
@@ -958,7 +958,7 @@ export function PrescribeModal({ open, onClose, consult, onDone, prefill, repres
                 just appear as name suggestions — provider fills the rest,
                 using the NZF reference panel below for dosing guidance. */}
             {Object.keys(ADULT_DRUG_PRESETS).map(name => <option key={`p-${name}`} value={name}>{name} — auto-fills dose</option>)}
-            {(NZF_FORMULARY || []).filter(e => !ADULT_DRUG_PRESETS[e.name]).map(e => (
+            {(NZF_NAMES || []).filter(e => !ADULT_DRUG_PRESETS[e.name]).map(e => (
               <option key={`n-${e.name}`} value={e.name} />
             ))}
           </datalist>
