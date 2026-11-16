@@ -20,7 +20,14 @@ export default async function handler(req, res) {
     billingType, accClaimNumber, urgency,
   } = req.body || {}
 
-  if (!patientName || !Array.isArray(tests) || tests.length === 0 || !clinicalInfo) {
+  // At least one test must be ordered, but EITHER a chip from the preset
+  // list OR a free-text entry (or both) is valid. Patrick blocked 2026-11-15
+  // trying to send ova/parasites + C. diff stool PCR, which aren't in the
+  // chip list — client allowed freetext-only but server was gating on
+  // `tests.length === 0`.
+  const hasChip = Array.isArray(tests) && tests.length > 0
+  const hasFreetext = typeof testsFreetext === 'string' && testsFreetext.trim().length > 0
+  if (!patientName || !clinicalInfo || (!hasChip && !hasFreetext)) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
   if (!billingType || !['public', 'acc', 'private'].includes(billingType)) {
