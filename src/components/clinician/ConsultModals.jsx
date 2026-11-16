@@ -1495,6 +1495,26 @@ const LAB_PANEL_CHIPS = [
   'Urine MC&S',
   'Urine ACR',
   'Beta-hCG',
+  // Stool work-up (added 2026-11-16 after Patrick hit freetext-only block
+  // ordering ova/parasites + C. diff stool PCR).
+  'Stool MC&S',
+  'Stool ova, cysts & parasites',
+  'Faecal C. difficile PCR',
+  'Giardia / Cryptosporidium PCR',
+  'Faecal calprotectin',
+  'Faecal occult blood',
+  // STI panel
+  'STI screen (chlamydia / gonorrhoea NAAT)',
+  'HIV antigen/antibody',
+  'Syphilis serology',
+  'Hepatitis B serology',
+  'Hepatitis C serology',
+  // Gastro / infection common extras
+  'H. pylori stool antigen',
+  'Coeliac screen (tTG-IgA + total IgA)',
+  'EBV serology',
+  'CMV serology',
+  'ASO titre',
 ]
 
 export function LabsModal({ open, onClose, consult, onDone }) {
