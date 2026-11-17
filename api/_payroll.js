@@ -111,6 +111,14 @@ async function buildSummaries(supabase, period_start, period_end) {
       status:             saved?.status || 'draft',
       paid_at:            saved?.paid_at || null,
       notes:              saved?.notes || null,
+      // Added 2026-11-17 to power the "Pay provider →" modal (admin
+      // copies bank details into Westpac, sees BCTI number as reference).
+      // bank_account is plaintext (providers.bank_account), surfaced only
+      // to admin via guardProvider on this endpoint — no new PHI exposure.
+      bank_account:       p.bank_account || null,
+      bcti_number:        saved?.bcti_number || null,
+      confirmed_paid_at:  saved?.confirmed_paid_at || null,
+      bcti_sent_to:       saved?.bcti_sent_to || null,
     }
   })
 }

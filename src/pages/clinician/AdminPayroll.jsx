@@ -378,8 +378,8 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
           )}
           {summary.status === 'approved' && summary.id && (
             <button onClick={() => setShowConfirmPaid(true)}
-              style={{ background:'#D1FAE5', border:'none', borderRadius:8, padding:'8px 14px', fontFamily:FF, fontWeight:600, fontSize:'.8125rem', cursor:'pointer', color:'#065F46' }}>
-              ✓ Confirm paid + send
+              style={{ background:'#D1FAE5', border:'none', borderRadius:8, padding:'8px 14px', fontFamily:FF, fontWeight:700, fontSize:'.8125rem', cursor:'pointer', color:'#065F46' }}>
+              Pay provider →
             </button>
           )}
           {summary.consultation_count > 0 && (
@@ -400,7 +400,7 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
         <ReviewModal summary={summary} period_start={period_start} period_end={period_end} onClose={() => setShowReview(false)} />
       )}
       {showConfirmPaid && (
-        <ConfirmPaidModal
+        <PayProviderModal
           summary={summary}
           period_start={period_start} period_end={period_end}
           onClose={() => setShowConfirmPaid(false)}
@@ -411,87 +411,127 @@ function ProviderCard({ summary, period_start, period_end, onAction, onRateChang
   )
 }
 
-// ── Confirm Paid modal ────────────────────────────────────────────────────────
-// The double-check between "what admin thinks they transferred" and "what
-// payroll calculated as payable". One typo in the bank portal (e.g. $2.50 vs
-// $25.00, or swapping two providers' amounts) would otherwise sail through.
-// Admin types the exact figure that left Tere's account → server validates
-// match to within 1c → if match, flips status → paid + assigns BCTI number
-// (for GST-registered + consented providers) → fires the email with the
-// BCTI/Remittance PDF attached in the same action.
-function ConfirmPaidModal({ summary, period_start, period_end, onClose, onDone }) {
-  const [actual, setActual] = useState('')
+// ── Pay provider modal ────────────────────────────────────────────────────────
+// 3-step pay flow (redesigned 2026-11-17 after Patrick hit Ian-BCTI-never-
+// sent). Admin flow is now:
+//   1. Click "Pay provider →" (from an approved row)
+//   2. Modal shows bank account, amount, reference with copy buttons.
+//      Admin switches to their bank app, pastes the details, completes
+//      the transfer.
+//   3. Admin ticks "I've completed this transfer" → clicks "Mark paid +
+//      send BCTI" → fires confirm_paid (passes the authorized amount as
+//      actual_paid_amount so the server's mismatch check is a no-op) +
+//      send_email in one shot. Row flips to paid. BCTI email fires.
+//
+// Replaced the old ConfirmPaidModal which demanded admin re-type the
+// dollar amount. Retype was defensive (catches Westpac finger-fumbles)
+// but confused admins into closing the modal without actually clicking
+// through (Ian's "sent BCTI" that never sent on 2026-11-15). The
+// checkbox is a lighter affirmative confirmation with the same intent.
+function PayProviderModal({ summary, period_start, period_end, onClose, onDone }) {
+  const [confirmed, setConfirmed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const expected = Number(summary.total_payable ?? summary.total_amount ?? 0)
+  const [copiedKey, setCopiedKey] = useState(null)
+  const amount = Number(summary.total_payable ?? summary.total_amount ?? 0)
+  const amountStr = amount.toFixed(2)
+  // Bank transfer reference — use BCTI number for GST-registered providers
+  // (makes reconciliation trivial on the IRD side), surname fallback for
+  // non-GST. Keep under 12 chars where possible for Westpac/ASB/BNZ's
+  // reference field cap.
+  const surname = (summary.provider_name || '').split(' ').filter(w => w && w.toUpperCase() !== w).pop() || summary.provider_name || 'Tere'
+  const reference = summary.bcti_number
+    ? String(summary.bcti_number).replace(/^BCTI-\d{4}-0*/, 'BCTI')
+    : surname.toUpperCase().slice(0, 12)
+
+  function copy(key, value) {
+    try {
+      navigator.clipboard.writeText(String(value))
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(prev => prev === key ? null : prev), 1500)
+    } catch {}
+  }
 
   async function confirmAndSend() {
     setError(''); setBusy(true)
     try {
-      const n = Number(String(actual).replace(/[^0-9.-]/g, ''))
-      if (!Number.isFinite(n)) throw new Error('Enter a valid dollar amount')
-      // 1) confirm_paid — server double-checks against calculated payable
+      // 1) confirm_paid — pass the authorized amount directly (server's
+      // fat-finger check passes trivially because we never asked admin
+      // to retype). This still flips status → paid and records
+      // confirmed_paid_at + actual_paid_amount for audit.
       const r1 = await apiFetch('/api/payroll', {
         method: 'POST',
-        body: JSON.stringify({ action: 'confirm_paid', period_id: summary.id, actual_paid_amount: n }),
+        body: JSON.stringify({ action: 'confirm_paid', period_id: summary.id, actual_paid_amount: amount }),
       })
       const j1 = await r1.json()
-      if (!r1.ok) {
-        if (j1.expected != null && j1.actual != null) {
-          throw new Error(`Mismatch: payroll calculated $${Number(j1.expected).toFixed(2)}, you typed $${Number(j1.actual).toFixed(2)} (diff $${Number(j1.diff).toFixed(2)}). Fix the transfer or the amount typed above.`)
-        }
-        throw new Error(j1.error || 'Confirm failed')
-      }
-      // 2) send_email — now gated server-side on confirmed_paid_at, carries BCTI/Remittance PDF
+      if (!r1.ok) throw new Error(j1.error || 'Confirm failed')
+      // 2) send_email — gated server-side on confirmed_paid_at, attaches
+      // the BCTI/Remittance PDF.
       if (summary.provider_email) {
         const r2 = await apiFetch('/api/payroll', {
           method: 'POST',
           body: JSON.stringify({ action: 'send_email', provider_id: summary.provider_id, period_start, period_end }),
         })
         const j2 = await r2.json()
-        if (!r2.ok) throw new Error(`Payment confirmed but email failed: ${j2.error || 'unknown'}`)
+        if (!r2.ok) throw new Error(`Payment confirmed but BCTI email failed: ${j2.error || 'unknown'}. Click the orange "Email" button to retry.`)
+      } else {
+        throw new Error('Provider has no email on file — payment recorded but BCTI not sent. Add provider email and retry.')
       }
       onDone()
-    } catch (e) { setError(e.message) }
-    finally { setBusy(false) }
+    } catch (e) { setError(e.message); setBusy(false) }
   }
+
+  const CopyBtn = ({ k, v }) => (
+    <button onClick={() => copy(k, v)}
+      style={{ background: copiedKey === k ? '#D1FAE5' : '#F3F4F6', border:'1px solid #E5E7EB', borderRadius:6, padding:'4px 10px', fontFamily:FF, fontSize:'.75rem', fontWeight:700, cursor:'pointer', color: copiedKey === k ? '#065F46' : '#374151', whiteSpace:'nowrap' }}>
+      {copiedKey === k ? '✓ Copied' : 'Copy'}
+    </button>
+  )
+
+  const DetailRow = ({ label, value, k, mono }) => (
+    <div style={{ background:'white', border:'1px solid #E5E7EB', borderRadius:10, padding:'.85rem 1rem', marginBottom:'.5rem', display:'flex', alignItems:'center', gap:'.75rem' }}>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:'.6875rem', color:'#6B7280', textTransform:'uppercase', letterSpacing:'.04em', fontWeight:700, marginBottom:3 }}>{label}</div>
+        <div style={{ fontSize: mono ? '1.0625rem' : '.9375rem', fontWeight:700, color:NAVY, fontFamily: mono ? 'ui-monospace,SFMono-Regular,Menlo,monospace' : FF, overflowWrap:'anywhere' }}>
+          {value || <span style={{ color:'#DC2626', fontWeight:600 }}>Missing — add to provider profile</span>}
+        </div>
+      </div>
+      {value && <CopyBtn k={k} v={value} />}
+    </div>
+  )
 
   return (
     <div onClick={onClose}
-      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'1rem' }}>
+      style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'1rem', overflowY:'auto' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ background:'white', borderRadius:12, padding:'1.5rem', maxWidth:460, width:'100%', boxShadow:'0 20px 40px rgba(0,0,0,0.2)' }}>
-        <div style={{ fontSize:'1.05rem', fontWeight:700, color:NAVY, marginBottom:'.4rem' }}>Confirm bank transfer</div>
-        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1rem' }}>
-          You've just completed the transfer to <b>{summary.provider_name}</b>. Type the exact amount that left Tere's account — this gets double-checked against the calculated payable before the invoice email is sent.
+        style={{ background:'#F7F5F0', borderRadius:12, padding:'1.5rem', maxWidth:500, width:'100%', boxShadow:'0 20px 40px rgba(0,0,0,0.2)', marginTop:'2rem' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'.4rem' }}>
+          <div style={{ fontSize:'1.0625rem', fontWeight:700, color:NAVY }}>Pay {summary.provider_name}</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', fontSize:'1.4rem', color:'#6B7280', cursor:'pointer', padding:0, lineHeight:1 }}>×</button>
+        </div>
+        <div style={{ fontSize:'.8125rem', color:'#6B7280', marginBottom:'1.25rem', lineHeight:1.5 }}>
+          Switch to your bank, paste these details, and complete the transfer. When done, tick the box below and we'll send the {summary.bcti_number ? 'BCTI' : 'remittance advice'} to {summary.provider_email || 'the provider'}.
         </div>
 
-        <div style={{ background:'#F0F9FA', border:'1px solid #D4EEF0', borderRadius:10, padding:'.9rem 1rem', marginBottom:'1rem', fontSize:'.8125rem' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'.25rem', color:'#6B7280' }}>
-            <span>{summary.consultation_count} consultations × ${Number(summary.base_rate).toFixed(2)}</span>
-            <span>${Number(summary.total_amount).toFixed(2)}</span>
-          </div>
-          {summary.gst_amount > 0 && (
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'.25rem', color:'#6B7280' }}>
-              <span>GST @ 15%{summary.gst_number ? ` (${summary.gst_number})` : ''}</span>
-              <span>${Number(summary.gst_amount).toFixed(2)}</span>
-            </div>
-          )}
-          <div style={{ display:'flex', justifyContent:'space-between', borderTop:'1px solid #B0D4D8', paddingTop:'.4rem', marginTop:'.4rem', fontWeight:700, color:NAVY }}>
-            <span>Expected payable</span>
-            <span>${expected.toFixed(2)}</span>
-          </div>
-        </div>
+        <DetailRow label="Account number" value={summary.bank_account} k="acct" mono />
+        <DetailRow label="Amount (NZD)" value={`$${amountStr}`} k="amt" mono />
+        <DetailRow label="Reference" value={reference} k="ref" mono />
 
-        <label style={{ display:'block', fontSize:'.8125rem', color:'#4B5563', marginBottom:'1rem' }}>
-          <div style={{ marginBottom:'.3rem', fontWeight:600 }}>Amount transferred (NZD)</div>
-          <input
-            type="text" inputMode="decimal" autoFocus
-            value={actual}
-            onChange={e => setActual(e.target.value)}
-            placeholder={`e.g. ${expected.toFixed(2)}`}
-            style={{ width:'100%', padding:'.6rem .75rem', border:'1px solid #D1D5DB', borderRadius:8, fontSize:'1rem', fontFamily:FF }}
-          />
+        {summary.bcti_number && (
+          <div style={{ fontSize:'.75rem', color:'#6B7280', margin:'.75rem .25rem 1rem', fontStyle:'italic' }}>
+            BCTI number <b style={{ color:NAVY, fontStyle:'normal' }}>{summary.bcti_number}</b> is pre-assigned and will appear on the PDF sent to {summary.provider_name}.
+          </div>
+        )}
+
+        <label style={{ display:'flex', alignItems:'flex-start', gap:'.6rem', background:'white', border:'1.5px solid #D4EEF0', borderRadius:10, padding:'.85rem 1rem', marginBottom:'1rem', cursor:'pointer', fontSize:'.875rem', color:NAVY, fontWeight:600 }}>
+          <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)}
+            style={{ marginTop:3, width:18, height:18, accentColor:TEAL, cursor:'pointer' }} />
+          <span>
+            I've completed this transfer in my bank app
+            <span style={{ display:'block', fontSize:'.75rem', color:'#6B7280', fontWeight:400, marginTop:3 }}>
+              Ticking this sends {summary.provider_name} the {summary.bcti_number ? 'BCTI' : 'remittance advice'} PDF by email. Only tick after the transfer has actually left Tere's account.
+            </span>
+          </span>
         </label>
 
         {error && (
@@ -502,12 +542,12 @@ function ConfirmPaidModal({ summary, period_start, period_end, onClose, onDone }
 
         <div style={{ display:'flex', gap:'.6rem', justifyContent:'flex-end' }}>
           <button onClick={onClose} disabled={busy}
-            style={{ background:'#F3F4F6', border:'none', borderRadius:8, padding:'.6rem 1rem', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer', color:'#4B5563' }}>
+            style={{ background:'#F3F4F6', border:'none', borderRadius:8, padding:'.65rem 1rem', fontFamily:FF, fontWeight:600, fontSize:'.875rem', cursor:'pointer', color:'#4B5563' }}>
             Cancel
           </button>
-          <button onClick={confirmAndSend} disabled={busy || !actual}
-            style={{ background:TEAL, border:'none', borderRadius:8, padding:'.6rem 1.2rem', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor:'pointer', color:'white', opacity:(busy||!actual)?0.5:1 }}>
-            {busy ? 'Working…' : (summary.provider_email ? 'Confirm + send invoice' : 'Confirm paid')}
+          <button onClick={confirmAndSend} disabled={busy || !confirmed || !summary.bank_account}
+            style={{ background: (busy || !confirmed || !summary.bank_account) ? '#94A3B8' : TEAL, border:'none', borderRadius:8, padding:'.65rem 1.2rem', fontFamily:FF, fontWeight:700, fontSize:'.875rem', cursor: (busy || !confirmed || !summary.bank_account) ? 'default' : 'pointer', color:'white' }}>
+            {busy ? 'Sending…' : `✓ Mark paid + send ${summary.bcti_number ? 'BCTI' : 'remittance'}`}
           </button>
         </div>
       </div>
