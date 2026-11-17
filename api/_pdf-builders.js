@@ -573,10 +573,17 @@ export async function buildLabRequisitionPdf(data) {
     row('Referrer NZMC', data.providerMcnz || data.providerCpn)
     row('HPI-CPN', data.providerCpn)
     row('Practice Name', 'Tere Health Limited')
-    // This line is the primary routing instruction for Awanui's request-
-    // entry team. Without it, the ORU report defaults back to the patient's
-    // registered GP (or nowhere) and we never see the result.
-    row('Copy results to', 'Tere Health (HPI-O G11238-E) via Medical-Objects', { bold: true, color: '#0B6E76' })
+    // Routing instructions for Awanui's request-entry team. Without these,
+    // the ORU report defaults to the patient's registered GP (or nowhere)
+    // and we never see the result. 2026-11-17: dual-labelled HPI-FAC + HPI-O
+    // per Tim Moriarty at Awanui — their dev team typically keys result
+    // delivery off HPI-FAC, while Tony at Medical-Objects asked for MSH-6
+    // populated with HPI-O. Include both clearly so whichever path their
+    // integration takes, the destination is unambiguous.
+    row('Copy results to', 'Tere Health Limited via Medical-Objects', { bold: true, color: '#0B6E76' })
+    row('HPI-FAC', 'F3V856-K', { bold: true, color: '#0B6E76' })
+    row('HPI-O', 'G11238-E', { bold: true, color: '#0B6E76' })
+    row('MSH-6', 'G11238-E (HPI-O)', { color: '#6B7280' })
 
     const sigY = Math.min(Math.max(y + 40, doc.page.height - 150), doc.page.height - 110)
 
