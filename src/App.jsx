@@ -134,6 +134,7 @@ const ProviderEarnings    = lazy(() => import('./pages/clinician/ProviderEarning
 const ProviderTestCall    = lazy(() => import('./pages/clinician/ProviderTestCall'))
 const AdminApp            = lazy(() => import('./pages/clinician/AdminApp'))
 const AdminPayroll        = lazy(() => import('./pages/clinician/AdminPayroll'))
+const AdminPSO            = lazy(() => import('./pages/clinician/AdminPSO'))
 const ProviderStateLicenses = lazy(() => import('./pages/clinician/ProviderStateLicenses'))
 const MyProfile           = lazy(() => import('./pages/clinician/MyProfile'))
 const MyRuralShifts       = lazy(() => import('./pages/clinician/MyRuralShifts'))
@@ -353,6 +354,7 @@ export default function App() {
         <Route path="/clinician/dashboard"    element={<Dashboard />} />
         <Route path="/clinician/profile"      element={<MyProfile />} />
         <Route path="/clinician/rural-shifts" element={<MyRuralShifts />} />
+        <Route path="/clinician/pso"          element={<AdminPSO />} />
         <Route path="/clinician/rural-queue"  element={<MyRuralQueue />} />
         <Route path="/clinician/pho-coordinator" element={<PhoCoordinator />} />
         <Route path="/gp/:slug"               element={<GpCoverLanding />} />

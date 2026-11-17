@@ -402,6 +402,7 @@ const ROUTES = {
   'cron-release-abandoned-consults': () => import('./_cron-release-abandoned-consults.js'),
   'cron-notify-on-call-sweep': () => import('./_cron-notify-on-call-sweep.js'),
   'cron-pho-reminders':        () => import('./_cron-pho-reminders.js'),
+  'pso':                       () => import('./_pso.js'),
   'notify-on-call-trigger':    () => import('./_notify-on-call-trigger.js'),
   'consult-heartbeat':         () => import('./_consult-heartbeat.js'),
   'cron-compliance-expiry':    () => import('./_cron-compliance-expiry.js'),

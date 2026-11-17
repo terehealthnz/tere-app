@@ -2530,3 +2530,219 @@ export function buildArcMonthlyReportPdf({ facility, period, consults, totals })
   })
 }
 
+
+// ── Practitioner's Supply Order (PSO) ────────────────────────────────────
+// Issued by Tere Health in its Medical Director capacity for third-party
+// organisations (schools, outdoor-ed, aged care, remote worksites). Lets
+// the organisation's nominated pharmacy dispense bulk emergency medicines
+// to the org without naming individual patients.
+//
+// NZ regulatory basis: Medicines Act 1981 + Medicines Regulations 1984.
+// MCNZ is the only prescriber credential rendered on this document; do NOT
+// add foreign specialty credentials (ABEM etc.) per Patrick 2026-11-17 —
+// NZ pharmacists key off MCNZ and foreign-board labels read as noise.
+
+function psoHeader(doc, LEFT, RIGHT, W, titleRight) {
+  doc.rect(0, 0, W, 72).fill('#0B6E76')
+  doc.fillColor('white').font('Helvetica-Bold').fontSize(22).text('Tere Health', LEFT, 20)
+  doc.font('Helvetica').fontSize(10).text(`terehealth.co.nz · Tere Health Limited · HPI-O G11238-E`, LEFT, 48)
+  doc.font('Helvetica-Bold').fontSize(13).text(titleRight, RIGHT - 260, 32, { width: 260, align: 'right' })
+}
+
+function psoBar(doc, LEFT, RIGHT, label, y) {
+  doc.rect(LEFT, y, RIGHT - LEFT, 20).fill('#0B6E76')
+  doc.fillColor('white').font('Helvetica-Bold').fontSize(10).text(label, LEFT + 10, y + 5)
+  return y + 26
+}
+
+function psoRow(doc, LEFT, RIGHT, labelText, valueText, y, opts = {}) {
+  const LW = 150
+  doc.font('Helvetica-Bold').fontSize(9).fillColor('#333').text(labelText, LEFT, y, { width: LW })
+  const vw = RIGHT - LEFT - LW - 10
+  doc.font(opts.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(10).fillColor(opts.color || '#1A2A33')
+    .text(String(valueText ?? '—'), LEFT + LW + 10, y, { width: vw })
+  const vh = doc.heightOfString(String(valueText ?? '—'), { width: vw })
+  return y + Math.max(14, vh + 4)
+}
+
+export async function buildPsoPdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const LEFT = 50
+    const RIGHT = W - 50
+
+    psoHeader(doc, LEFT, RIGHT, W, 'PRACTITIONER\'S SUPPLY ORDER')
+
+    let y = 92
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(13).text('Practitioner\'s Supply Order', LEFT, y)
+    y += 20
+    doc.font('Helvetica').fontSize(9).fillColor('#555')
+      .text('Issued under the Medicines Act 1981 and Medicines Regulations 1984. This order authorises the dispensing of the medicines listed below to the named organisation.',
+            LEFT, y, { width: RIGHT - LEFT })
+    y += 36
+
+    y = psoBar(doc, LEFT, RIGHT, 'ORDER DETAILS', y)
+    y = psoRow(doc, LEFT, RIGHT, 'Order number', data.psoNumber, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Date of issue', data.issueDate, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Valid until', data.validUntil, y)
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'PRESCRIBING PRACTITIONER', y)
+    y = psoRow(doc, LEFT, RIGHT, 'Name', data.prescriberName, y, { bold: true })
+    y = psoRow(doc, LEFT, RIGHT, 'MCNZ registration', data.prescriberMcnz, y, { bold: true })
+    if (data.prescriberCpn) y = psoRow(doc, LEFT, RIGHT, 'HPI-CPN', data.prescriberCpn, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Practice', 'Tere Health Limited, 41 Adams Lane, Springlands, Blenheim 7201, New Zealand', y)
+    if (data.mdRoleDescription) y = psoRow(doc, LEFT, RIGHT, 'Role', data.mdRoleDescription, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Contact', data.prescriberEmail || 'patrick@terehealth.co.nz', y)
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'SUPPLY TO (ORGANISATION)', y)
+    y = psoRow(doc, LEFT, RIGHT, 'Organisation', data.orgName, y, { bold: true })
+    if (data.orgBase) y = psoRow(doc, LEFT, RIGHT, 'Base location', data.orgBase, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Receiving contact', `${data.contactName || '—'}${data.contactEmail ? ' · ' + data.contactEmail : ''}`, y)
+    if (data.storageLocation) y = psoRow(doc, LEFT, RIGHT, 'Storage location', data.storageLocation, y)
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'DISPENSING PHARMACY', y)
+    y = psoRow(doc, LEFT, RIGHT, 'Pharmacy', data.pharmacyName, y, { bold: true })
+    if (data.pharmacyAddress) y = psoRow(doc, LEFT, RIGHT, 'Address', data.pharmacyAddress, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Email', data.pharmacyEmail, y)
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'MEDICINES ORDERED', y)
+    doc.font('Helvetica-Bold').fontSize(9).fillColor('#333')
+    doc.text('Medicine', LEFT + 8, y, { width: 170 })
+    doc.text('Strength', LEFT + 180, y, { width: 90 })
+    doc.text('Form', LEFT + 274, y, { width: 130 })
+    doc.text('Quantity', LEFT + 408, y, { width: 90 })
+    y += 14
+    doc.moveTo(LEFT, y - 2).lineTo(RIGHT, y - 2).strokeColor('#D4EEF0').lineWidth(0.8).stroke()
+    doc.font('Helvetica').fontSize(10).fillColor('#0D2B45')
+    for (const it of (data.items || [])) {
+      const rowTop = y
+      doc.text(it.name || '—', LEFT + 8, y, { width: 170 })
+      doc.text(it.strength || '—', LEFT + 180, y, { width: 90 })
+      doc.text(it.form || '—', LEFT + 274, y, { width: 130 })
+      doc.font('Helvetica-Bold').text(it.quantity || '—', LEFT + 408, y, { width: 90 })
+      doc.font('Helvetica')
+      y = Math.max(rowTop + 14, y + 4)
+    }
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'PURPOSE OF SUPPLY', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(data.purpose || '—', LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+    y += doc.heightOfString(data.purpose || '—', { width: RIGHT - LEFT - 16 }) + 14
+
+    const sigY = Math.min(Math.max(y + 24, doc.page.height - 140), doc.page.height - 100)
+    doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+      .text(String(data.prescriberName || '').replace(/^Dr /, ''), LEFT + 4, sigY - 26)
+    doc.moveTo(LEFT, sigY).lineTo(LEFT + 200, sigY).strokeColor('#666').lineWidth(0.6).stroke()
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(9)
+      .text(`${data.prescriberName} · MCNZ ${data.prescriberMcnz}`, LEFT, sigY + 4, { width: 260 })
+    doc.fillColor('#999').font('Helvetica').fontSize(8).text('Prescribing practitioner', LEFT, sigY + 16, { width: 260 })
+
+    doc.moveTo(320, sigY).lineTo(RIGHT, sigY).strokeColor('#666').lineWidth(0.6).stroke()
+    doc.fillColor('#333').font('Helvetica').fontSize(9).text(String(data.issueDate), 325, sigY - 14)
+    doc.fillColor('#999').font('Helvetica').fontSize(8).text('Date of issue', 320, sigY + 4)
+
+    doc.fillColor('#AAA').font('Helvetica').fontSize(7.5)
+      .text(`Electronically signed and issued by Tere Health Limited · HPI-O G11238-E${data.prescriberCpn ? ` · HPI-CPN ${data.prescriberCpn}` : ''} · MCNZ ${data.prescriberMcnz} · For clinical use only`,
+            LEFT, sigY + 30, { align: 'center', width: RIGHT - LEFT })
+
+    doc.end()
+  })
+}
+
+export async function buildStandingOrderPdf(data) {
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' })
+    const chunks = []
+    doc.on('data', c => chunks.push(c))
+    doc.on('end', () => resolve(Buffer.concat(chunks)))
+    doc.on('error', reject)
+
+    const W = doc.page.width
+    const LEFT = 50
+    const RIGHT = W - 50
+
+    psoHeader(doc, LEFT, RIGHT, W, 'STANDING ORDER')
+
+    let y = 92
+    doc.fillColor('#0D2B45').font('Helvetica-Bold').fontSize(13).text(data.title || 'Standing Order', LEFT, y)
+    y += 20
+    doc.font('Helvetica').fontSize(9).fillColor('#555')
+      .text('Issued under the Medicines (Standing Order) Regulations 2002. Authorises named trained personnel at the recipient organisation to administer the medicine listed below under the clinical criteria defined in this document, without a prescription for each individual recipient.',
+            LEFT, y, { width: RIGHT - LEFT })
+    y += 48
+
+    y = psoBar(doc, LEFT, RIGHT, 'STANDING ORDER DETAILS', y)
+    y = psoRow(doc, LEFT, RIGHT, 'Reference', data.soNumber, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Issue date', data.issueDate, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Review date', data.reviewDate, y)
+    y = psoRow(doc, LEFT, RIGHT, 'Issuing practitioner', `${data.prescriberName} (MCNZ ${data.prescriberMcnz})`, y, { bold: true })
+    y = psoRow(doc, LEFT, RIGHT, 'Organisation', data.orgName, y)
+    if (data.linkedPsoNumber) y = psoRow(doc, LEFT, RIGHT, 'Supply source', `Practitioner Supply Order ${data.linkedPsoNumber} (dispensed by ${data.pharmacyName || 'nominated pharmacy'})`, y)
+    y += 6
+
+    y = psoBar(doc, LEFT, RIGHT, 'AUTHORISED ADMINISTRATORS', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text(data.administrators || `Personnel at ${data.orgName} who have completed the organisation's first-aid / emergency-response competency training within the previous 24 months. A register of authorised administrators must be maintained by ${data.orgName} and made available to the issuing practitioner on request.`,
+            LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+    y += doc.heightOfString('placeholder', { width: RIGHT - LEFT - 16 }) * 3 + 12
+
+    y = psoBar(doc, LEFT, RIGHT, 'CLINICAL INDICATION', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(data.indication || '—', LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+    y += doc.heightOfString(data.indication || '—', { width: RIGHT - LEFT - 16 }) + 14
+
+    y = psoBar(doc, LEFT, RIGHT, 'INCLUSION CRITERIA (ALL MUST BE MET)', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+    for (const line of (data.inclusion || [])) {
+      doc.text(`•  ${line}`, LEFT + 12, y, { width: RIGHT - LEFT - 24 })
+      y += 16
+    }
+    y += 4
+
+    y = psoBar(doc, LEFT, RIGHT, 'EXCLUSION CRITERIA (CALL 111 IMMEDIATELY)', y)
+    for (const line of (data.exclusion || [])) {
+      doc.text(`•  ${line}`, LEFT + 12, y, { width: RIGHT - LEFT - 24 })
+      y += 16
+    }
+    y += 4
+
+    if (y > doc.page.height - 280) { doc.addPage(); y = 60 }
+
+    y = psoBar(doc, LEFT, RIGHT, 'DOSE AND ADMINISTRATION', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(data.dose || '—', LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+    y += doc.heightOfString(data.dose || '—', { width: RIGHT - LEFT - 16 }) + 14
+
+    y = psoBar(doc, LEFT, RIGHT, 'DOCUMENTATION REQUIREMENTS', y)
+    doc.font('Helvetica').fontSize(10).fillColor('#1A2A33')
+      .text(data.documentation || 'Record every administration: recipient name, date and time, clinical presentation, dose administered, response, and administrator name. Submit records to the issuing practitioner on request. Any 111 escalation must be reported within 24 hours.',
+            LEFT + 8, y, { width: RIGHT - LEFT - 16 })
+    y += doc.heightOfString(data.documentation || 'placeholder', { width: RIGHT - LEFT - 16 }) + 14
+
+    const sigY = Math.min(Math.max(y + 20, doc.page.height - 120), doc.page.height - 90)
+    doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+      .text(String(data.prescriberName || '').replace(/^Dr /, ''), LEFT + 4, sigY - 26)
+    doc.moveTo(LEFT, sigY).lineTo(LEFT + 200, sigY).strokeColor('#666').lineWidth(0.6).stroke()
+    doc.fillColor('#555').font('Helvetica-Bold').fontSize(9)
+      .text(`${data.prescriberName} · MCNZ ${data.prescriberMcnz}`, LEFT, sigY + 4, { width: 260 })
+    doc.fillColor('#999').font('Helvetica').fontSize(8).text('Issuing practitioner', LEFT, sigY + 16, { width: 260 })
+
+    doc.moveTo(320, sigY).lineTo(RIGHT, sigY).strokeColor('#666').lineWidth(0.6).stroke()
+    doc.fillColor('#333').font('Helvetica').fontSize(9).text(String(data.issueDate), 325, sigY - 14)
+    doc.fillColor('#999').font('Helvetica').fontSize(8).text('Date of issue', 320, sigY + 4)
+
+    doc.fillColor('#AAA').font('Helvetica').fontSize(7.5)
+      .text(`Issued by Tere Health Limited · HPI-O G11238-E${data.prescriberCpn ? ` · HPI-CPN ${data.prescriberCpn}` : ''} · Review annually or on change of training protocol`,
+            LEFT, sigY + 30, { align: 'center', width: RIGHT - LEFT })
+
+    doc.end()
+  })
+}
