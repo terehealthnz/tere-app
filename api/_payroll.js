@@ -50,7 +50,7 @@ function getPastFortnights(count = 13) {
 
 async function buildSummaries(supabase, period_start, period_end) {
   const [{ data: providers }, { data: consultations }, { data: payrollRows }] = await Promise.all([
-    supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number').eq('is_active', true).order('first_name'),
+    supabase.from('providers').select('id,first_name,last_name,credential,color,email,base_rate,gst_registered,gst_number,bank_account').eq('is_active', true).order('first_name'),
     // Pull notes_finalised_at + encounter_completed_at + payroll_override_at
     // alongside provider_id so we can gate payable count on actual sign-off
     // (or an explicit admin override). "Completed" alone is not enough — a
