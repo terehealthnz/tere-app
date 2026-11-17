@@ -2566,6 +2566,7 @@ function psoRow(doc, LEFT, RIGHT, labelText, valueText, y, opts = {}) {
 }
 
 export async function buildPsoPdf(data) {
+  const sigBuf = await fetchSignatureBuffer(data.signatureUrl)
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 50, size: 'A4' })
     const chunks = []
@@ -2626,12 +2627,27 @@ export async function buildPsoPdf(data) {
     doc.font('Helvetica').fontSize(10).fillColor('#0D2B45')
     for (const it of (data.items || [])) {
       const rowTop = y
-      doc.text(it.name || '—', LEFT + 8, y, { width: 170 })
-      doc.text(it.strength || '—', LEFT + 180, y, { width: 90 })
-      doc.text(it.form || '—', LEFT + 274, y, { width: 130 })
-      doc.font('Helvetica-Bold').text(it.quantity || '—', LEFT + 408, y, { width: 90 })
+      const name = it.name || '—'
+      const strength = it.strength || '—'
+      const form = it.form || '—'
+      const qty = it.quantity || '—'
+      doc.text(name, LEFT + 8, y, { width: 170 })
+      doc.text(strength, LEFT + 180, y, { width: 90 })
+      doc.text(form, LEFT + 274, y, { width: 130 })
+      doc.font('Helvetica-Bold').text(qty, LEFT + 408, y, { width: 90 })
       doc.font('Helvetica')
-      y = Math.max(rowTop + 14, y + 4)
+      // doc.text with absolute x/y does NOT update doc.y, so measure each
+      // column and advance y by the tallest. Without this long medicine
+      // names ("Spacer device (Volumatic or equivalent)") wrap behind
+      // the next row — Patrick hit this on the first OB PSO 2026-11-17.
+      const rowHeight = Math.max(
+        doc.heightOfString(name, { width: 170 }),
+        doc.heightOfString(strength, { width: 90 }),
+        doc.heightOfString(form, { width: 130 }),
+        doc.heightOfString(qty, { width: 90 }),
+        14,
+      )
+      y = rowTop + rowHeight + 4
     }
     y += 6
 
@@ -2639,9 +2655,25 @@ export async function buildPsoPdf(data) {
     doc.font('Helvetica').fontSize(10).fillColor('#1A2A33').text(data.purpose || '—', LEFT + 8, y, { width: RIGHT - LEFT - 16 })
     y += doc.heightOfString(data.purpose || '—', { width: RIGHT - LEFT - 16 }) + 14
 
-    const sigY = Math.min(Math.max(y + 24, doc.page.height - 140), doc.page.height - 100)
-    doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
-      .text(String(data.prescriberName || '').replace(/^Dr /, ''), LEFT + 4, sigY - 26)
+    // Signature block needs ~140pt of vertical space. If the purpose
+    // paragraph pushed us past that, start a fresh page — otherwise the
+    // signature image + lines overlay the end of the purpose text.
+    if (y > doc.page.height - 160) {
+      doc.addPage()
+      y = 60
+    }
+    const sigY = Math.max(y + 48, doc.page.height - 140)
+    // Prefer the real signature image loaded from providers.signature_url;
+    // fall back to italic rendered name only if no image on file.
+    if (sigBuf) {
+      try { doc.image(sigBuf, LEFT, sigY - 42, { fit: [180, 40] }) } catch {
+        doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+          .text(String(data.prescriberName || '').replace(/^Dr /, ''), LEFT + 4, sigY - 26)
+      }
+    } else {
+      doc.fillColor('#1A2A33').font('Helvetica-Oblique').fontSize(18)
+        .text(String(data.prescriberName || '').replace(/^Dr /, ''), LEFT + 4, sigY - 26)
+    }
     doc.moveTo(LEFT, sigY).lineTo(LEFT + 200, sigY).strokeColor('#666').lineWidth(0.6).stroke()
     doc.fillColor('#555').font('Helvetica-Bold').fontSize(9)
       .text(`${data.prescriberName} · MCNZ ${data.prescriberMcnz}`, LEFT, sigY + 4, { width: 260 })

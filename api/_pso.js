@@ -49,7 +49,7 @@ async function nextSeqNumber(supabase, kind) {
 
 async function fetchPrescriber(supabase, providerId) {
   const { data } = await supabase.from('providers')
-    .select('id, first_name, last_name, credential, email, cpn, mcnz_registration_number, prescriber_number, hpi_number')
+    .select('id, first_name, last_name, credential, email, cpn, mcnz_registration_number, prescriber_number, hpi_number, signature_url')
     .eq('id', providerId).maybeSingle()
   if (!data) return null
   const name = `Dr ${[data.first_name, data.last_name].filter(Boolean).join(' ')}${data.credential ? ', ' + data.credential : ''}`
@@ -61,6 +61,7 @@ async function fetchPrescriber(supabase, providerId) {
     cpn:  data.cpn || null,
     hpi:  data.hpi_number || null,
     email: data.email || 'patrick@terehealth.co.nz',
+    signatureUrl: data.signature_url || null,
   }
 }
 
@@ -130,6 +131,7 @@ export default async function handler(req, res) {
         prescriberMcnz: prescriber.mcnz,
         prescriberCpn: prescriber.cpn,
         prescriberEmail: prescriber.email,
+        signatureUrl: prescriber.signatureUrl,
         mdRoleDescription: md_role_description || `Medical Director of record for ${org.name}`,
         orgName: org.name,
         orgBase: org.base_location,
