@@ -30,20 +30,19 @@ function fmtDate(d) {
 
 async function nextSeqNumber(supabase, kind) {
   // PSO-YYYY-NNNNN / SO-YYYY-NNNNN, sequential per calendar year.
+  // Supabase JS query builder is a thenable, not a real promise, so
+  // `.catch` doesn't exist — wrap in try/catch, not chained .catch().
   const year = new Date().getFullYear()
-  const seq = kind === 'pso' ? 'pso_number_seq' : 'so_number_seq'
   const prefix = kind === 'pso' ? 'PSO' : 'SO'
-  const { data, error } = await supabase.rpc('nextval', { seqname: seq }).catch(() => ({ data: null, error: null }))
-  // Fallback if RPC not available — use a direct SQL via from()
-  let n = data
-  if (!n) {
-    // SELECT nextval('<seq>') via raw query is not exposed; count existing rows this year as a weak fallback
-    const table = kind === 'pso' ? 'psos' : 'standing_orders'
-    const col   = kind === 'pso' ? 'pso_number' : 'so_number'
-    const { count } = await supabase.from(table).select('id', { count: 'exact', head: true })
-      .like(col, `${prefix}-${year}-%`)
-    n = (count || 0) + 1
-  }
+  const table = kind === 'pso' ? 'psos' : 'standing_orders'
+  const col   = kind === 'pso' ? 'pso_number' : 'so_number'
+  // The sequences exist in the migration but there's no SECURITY DEFINER
+  // function wrapping nextval(), so supabase-js can't call it directly
+  // (RPC only exposes DB functions, not raw SQL). Count existing rows
+  // this year as a drop-in replacement — fine at current volume (<<1k/yr).
+  const { count } = await supabase.from(table).select('id', { count: 'exact', head: true })
+    .like(col, `${prefix}-${year}-%`)
+  const n = (count || 0) + 1
   return `${prefix}-${year}-${String(n).padStart(5, '0')}`
 }
 
