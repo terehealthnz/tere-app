@@ -201,10 +201,12 @@ export default function WaitingRoom() {
     prescriptionPharmacy: 'Prescription pharmacy',
     pharmacyExplain: 'If your doctor issues a prescription, it will be sent here. Please check the pharmacy is open when you need it.',
     changePharmacy: 'Change pharmacy',
-    shareDoc: 'Share a document',
+    shareDoc: 'Send a photo of your concern',
     docsSent: '({n} sent)',
-    docExplain: 'Send your doctor a photo, lab result, or letter (PDF or image, up to 10MB). Only your treating clinician sees it.',
-    docTitlePh: 'Title (e.g. Rash photo, Blood test result)',
+    docExplain: 'Rash, wound, or anything you want the doctor to see? Snap a photo with your phone. Only your treating clinician sees it.',
+    docTitlePh: 'Short description (optional)',
+    docDefaultTitle: 'Photo of my concern',
+    takePhotoBtn: '📷 Take or choose a photo',
     sending: 'Sending…',
     sendToDoctor: 'Send to doctor',
     sentToDoctor: 'Sent to your doctor',
@@ -738,66 +740,93 @@ export default function WaitingRoom() {
           </div>
         )}
 
-        {/* Patient upload widget — patient can attach documents (photos of a
-            rash, lab results emailed to them, referral letters, etc.) that
-            surface in the provider chart under "📥 Patient uploads". Scoped
-            to this consultationId via /api/patient-upload. */}
+        {/* Patient upload widget — now prominent. On 2026-11-21 Rachel had
+            an Outward Bound patient who "couldn't figure out how to load a
+            picture"; previous card was a muted grey block labelled "Share a
+            document" and buried below the pharmacy card, so first-timers
+            scrolled past it. Teal accent to match brand primary action, one-
+            tap camera via capture="environment", title pre-filled so the
+            patient only has to pick a file + tap Send. */}
         <div style={{
-          background: 'rgba(255,255,255,.06)',
-          border: '1px solid rgba(255,255,255,.1)',
+          background: 'rgba(11,110,118,.18)',
+          border: '1.5px solid rgba(79,209,217,.4)',
           borderRadius: 14,
-          padding: '1rem 1.25rem',
+          padding: '1.1rem 1.25rem',
           width: '100%',
           maxWidth: 360,
           marginBottom: '2rem',
           textAlign: 'left',
           animation: 'fadeUp .5s .68s both',
+          boxShadow: '0 4px 16px rgba(11,110,118,.18)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '.75rem' }}>
-            <span style={{ fontSize: '1.5rem', flexShrink: 0 }}>📎</span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.75rem', marginBottom: '.75rem' }}>
+            <span style={{ fontSize: '1.75rem', flexShrink: 0, lineHeight: 1 }}>📷</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ color: 'rgba(212,238,240,.55)', fontSize: '.75rem', letterSpacing: '.04em', textTransform: 'uppercase', marginBottom: '.25rem' }}>
+              <div style={{ color: '#4FD1D9', fontSize: '.9375rem', fontWeight: 800, lineHeight: 1.25, marginBottom: '.3rem' }}>
                 {t.shareDoc}{uploadedCount > 0 ? ` ${t.docsSent.replace('{n}', String(uploadedCount))}` : ''}
               </div>
-              <div style={{ color: 'rgba(255,255,255,.5)', fontSize: '.75rem', lineHeight: 1.6 }}>
+              <div style={{ color: 'rgba(255,255,255,.7)', fontSize: '.8125rem', lineHeight: 1.5 }}>
                 {t.docExplain}
               </div>
             </div>
           </div>
+          {/* Big tap target that opens the native camera on mobile. Label
+              wraps the hidden <input type=file capture=environment> so the
+              browser opens camera roll + camera in one picker — on iOS that
+              surfaces "Photo Library / Take Photo or Video / Choose File". */}
+          <label style={{
+            display: 'block',
+            width: '100%',
+            boxSizing: 'border-box',
+            background: uploadFile ? 'rgba(11,110,118,.3)' : '#0B6E76',
+            border: uploadFile ? '1px dashed rgba(79,209,217,.5)' : 'none',
+            color: 'white',
+            padding: '.75rem 1rem',
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: '.9375rem',
+            textAlign: 'center',
+            cursor: 'pointer',
+            marginBottom: '.6rem',
+            fontFamily: 'inherit',
+          }}>
+            {uploadFile ? `✓ ${uploadFile.name}` : t.takePhotoBtn}
+            <input
+              type="file"
+              onChange={e => setUploadFile(e.target.files?.[0] || null)}
+              accept="image/*,.pdf,.heic"
+              capture="environment"
+              style={{ display: 'none' }}
+            />
+          </label>
           <input
             type="text"
             value={uploadTitle}
             onChange={e => setUploadTitle(e.target.value)}
             placeholder={t.docTitlePh}
-            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.15)', color: 'white', padding: '.6rem .75rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.875rem', marginBottom: '.5rem' }}
-          />
-          <input
-            type="file"
-            onChange={e => setUploadFile(e.target.files?.[0] || null)}
-            accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,.doc,.docx,.txt"
-            style={{ width: '100%', color: 'rgba(255,255,255,.7)', fontSize: '.75rem', marginBottom: '.5rem' }}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.15)', color: 'white', padding: '.55rem .75rem', borderRadius: 8, fontFamily: 'inherit', fontSize: '.8125rem', marginBottom: '.6rem' }}
           />
           <button
-            disabled={uploading || !uploadFile || !uploadTitle.trim()}
+            disabled={uploading || !uploadFile}
             onClick={async () => {
               setUploading(true); setUploadMsg(null)
               try {
-                await patientUploadDocument({ consultationId, title: uploadTitle.trim(), file: uploadFile })
+                // Title is optional now — fall back to the default so the
+                // backend's required-title check still passes.
+                const title = uploadTitle.trim() || t.docDefaultTitle
+                await patientUploadDocument({ consultationId, title, file: uploadFile })
                 setUploadTitle(''); setUploadFile(null)
                 setUploadedCount(n => n + 1)
                 setUploadMsg({ kind: 'ok', text: t.sentToDoctor })
-                // File input value doesn't clear via setState; reset with a null hack
-                const fi = document.querySelector('input[type="file"]')
-                if (fi) fi.value = ''
               } catch (e) {
                 setUploadMsg({ kind: 'err', text: e.message })
               } finally { setUploading(false) }
             }}
-            style={{ width: '100%', background: (uploading || !uploadFile || !uploadTitle.trim()) ? 'rgba(255,255,255,.08)' : '#0B6E76', border: 'none', color: 'white', padding: '.6rem 1rem', borderRadius: 8, fontFamily: 'inherit', fontWeight: 700, fontSize: '.875rem', cursor: (uploading || !uploadFile || !uploadTitle.trim()) ? 'not-allowed' : 'pointer' }}>
+            style={{ width: '100%', background: (uploading || !uploadFile) ? 'rgba(255,255,255,.08)' : '#4FD1D9', border: 'none', color: (uploading || !uploadFile) ? 'rgba(255,255,255,.4)' : '#0D1117', padding: '.7rem 1rem', borderRadius: 10, fontFamily: 'inherit', fontWeight: 800, fontSize: '.9375rem', cursor: (uploading || !uploadFile) ? 'not-allowed' : 'pointer' }}>
             {uploading ? t.sending : t.sendToDoctor}
           </button>
           {uploadMsg && (
-            <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: uploadMsg.kind === 'ok' ? '#4FD1D9' : '#FCA5A5' }}>
+            <div style={{ marginTop: '.6rem', fontSize: '.8125rem', color: uploadMsg.kind === 'ok' ? '#4FD1D9' : '#FCA5A5', fontWeight: 600 }}>
               {uploadMsg.text}
             </div>
           )}

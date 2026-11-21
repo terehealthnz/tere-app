@@ -15,16 +15,20 @@
 // Both are maintained server-side; the client reads them straight off the
 // consultation row (already in the queue API response payload, no new fetch).
 //
-// Status rules (STALE_THRESHOLD_SEC = 60):
-//   in_waiting_room_at IS NULL                       -> 'never_joined'
-//   last_seen_at within 60s of now                   -> 'in_waiting_room'
-//   last_seen_at older than 60s                      -> 'joined_but_stale'
+// Status rules (STALE_THRESHOLD_SEC = 120):
+//   in_waiting_room_at IS NULL                        -> 'never_joined'
+//   last_seen_at within 120s of now                   -> 'in_waiting_room'
+//   last_seen_at older than 120s                      -> 'joined_but_stale'
 //
-// 60s is deliberate - iOS WebKit can suspend background tabs for 20-40s, and a
-// momentary cell drop on a rural patient will blow a tighter window. Anything
-// under 60s produces false-stale flaps on real patients.
+// 120s is deliberate. iOS WebKit backgrounds tabs for 20-40s, a momentary
+// cell drop on a rural patient blows a tighter window, and the provider view
+// reads a cached consult row that can itself be 30-60s old at click time.
+// Bumped from 60s on 2026-11-21 after Patrick hit the false-stale case
+// (Justin was in the waiting room; the gate said he wasn't). The provider
+// click handler now also re-fetches the consult before deciding — the wider
+// threshold is belt-and-braces headroom on top of that.
 
-export const STALE_THRESHOLD_SEC = 60
+export const STALE_THRESHOLD_SEC = 120
 
 /**
  * Derive the presence status of a patient from a consultation row.

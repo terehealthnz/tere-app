@@ -265,7 +265,68 @@ function PatientLeaveButton({ consultationId }) {
 
 import ChatPanel from '../ChatPanel'
 import { apiFetch } from '../../lib/api'
-import { getPatientConsult, subscribeToConsultationEnded } from '../../lib/supabase'
+import { getPatientConsult, subscribeToConsultationEnded, patientUploadDocument } from '../../lib/supabase'
+
+// Fire-and-forget diagnostic event. When the patient hits any call-failure
+// path we log it to audit_logs via /api/patient-call-event so we can audit
+// why video is failing in the field instead of guessing. Never blocks UI.
+async function logCallEvent(consultationId, event, detail) {
+  try {
+    await apiFetch('/api/patient-call-event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        consultationId,
+        event,
+        detail: detail ? String(detail).slice(0, 500) : null,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+      }),
+    })
+  } catch { /* telemetry failure never blocks the patient */ }
+}
+
+// Inline "Send a photo instead" fallback widget. Shown on the permission-
+// denial screen so a patient who can't get video working still has an in-app
+// path to the clinician. Same /api/patient-upload endpoint as WaitingRoom —
+// scoped to this consultation, lands under "📥 Patient uploads" in the chart.
+function InlinePhotoFallback({ consultationId }) {
+  const [file, setFile] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg]  = useState(null)
+  async function send() {
+    if (!file) return
+    setBusy(true); setMsg(null)
+    try {
+      await patientUploadDocument({ consultationId, title: 'Photo of my concern', file })
+      // Log the fallback event too — tells us how often patients work around
+      // broken video with a photo (and gives us a signal to improve the
+      // permission UX further if the rate is high).
+      logCallEvent(consultationId, 'patient_upload_fallback', file.type || 'unknown')
+      setFile(null); setMsg({ kind: 'ok', text: 'Photo sent to your clinician.' })
+    } catch (e) {
+      setMsg({ kind: 'err', text: e.message })
+    } finally { setBusy(false) }
+  }
+  return (
+    <div style={{ marginTop: '1.5rem', background: 'rgba(11,110,118,.18)', border: '1.5px solid rgba(79,209,217,.4)', borderRadius: 12, padding: '1rem 1.1rem', textAlign: 'left', maxWidth: 440, marginLeft: 'auto', marginRight: 'auto' }}>
+      <div style={{ color: '#4FD1D9', fontSize: '.9375rem', fontWeight: 800, marginBottom: '.4rem' }}>📷 Or send a photo instead</div>
+      <div style={{ color: 'rgba(255,255,255,.7)', fontSize: '.8125rem', marginBottom: '.75rem', lineHeight: 1.5 }}>
+        If video isn't working, snap a photo of your concern and your doctor will reply.
+      </div>
+      <label style={{ display: 'block', background: file ? 'rgba(11,110,118,.3)' : '#0B6E76', color: 'white', padding: '.65rem 1rem', borderRadius: 10, fontWeight: 700, fontSize: '.875rem', textAlign: 'center', cursor: 'pointer', marginBottom: '.5rem', border: file ? '1px dashed rgba(79,209,217,.5)' : 'none' }}>
+        {file ? `✓ ${file.name}` : '📷 Take or choose a photo'}
+        <input type="file" accept="image/*,.pdf,.heic" capture="environment" onChange={e => setFile(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+      </label>
+      <button onClick={send} disabled={busy || !file}
+        style={{ width: '100%', background: (busy || !file) ? 'rgba(255,255,255,.08)' : '#4FD1D9', color: (busy || !file) ? 'rgba(255,255,255,.4)' : '#0D1117', border: 'none', padding: '.65rem 1rem', borderRadius: 10, fontWeight: 800, fontSize: '.875rem', cursor: (busy || !file) ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+        {busy ? 'Sending…' : 'Send to doctor'}
+      </button>
+      {msg && (
+        <div style={{ marginTop: '.5rem', fontSize: '.75rem', color: msg.kind === 'ok' ? '#4FD1D9' : '#FCA5A5', fontWeight: 600 }}>{msg.text}</div>
+      )}
+    </div>
+  )
+}
 import { getLangMeta, t } from '../../lib/i18n'
 import { fireFunnelEvent } from '../../lib/funnelClient'
 import CallSubtitles from '../clinical/CallSubtitles'
@@ -682,11 +743,16 @@ export default function PatientCall() {
         setPermission('granted')
       } catch (e) {
         setPermission('denied')
-        setPermissionError(e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError'
+        const isDeny = e?.name === 'NotAllowedError' || e?.name === 'PermissionDeniedError'
+        setPermissionError(isDeny
           ? 'Your browser blocked camera or microphone access. Click the camera icon in the address bar → set to "Allow" → click Try again.'
           : e?.name === 'NotFoundError'
             ? 'No camera or microphone found on this device. Try a different device, or the clinician will call your phone.'
             : `Could not access camera/microphone: ${e?.message || e?.name || 'unknown error'}`)
+        // Log the failure so we can audit real-world failure modes rather
+        // than guess. isDeny → permission_denied, everything else is
+        // permission_error (device-missing / stream-rejected / other).
+        logCallEvent(consultationId, isDeny ? 'permission_denied' : 'permission_error', `${e?.name || 'unknown'}: ${e?.message || ''}`)
       }
     }
     return (
@@ -718,6 +784,10 @@ export default function PatientCall() {
               Still stuck? Your clinician will call your phone as a backup.
             </div>
           )}
+          {/* In-app fallback: patient can send a photo even if they can't
+              get video working. Shown on both initial and denied states —
+              the photo is often the useful thing anyway (rash, wound, bite). */}
+          <InlinePhotoFallback consultationId={consultationId} />
         </div>
       </div>
     )

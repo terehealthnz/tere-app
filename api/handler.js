@@ -303,6 +303,7 @@ const ROUTES = {
   'record-forward':            () => import('./_record-forward.js'),
   'patient-documents':         () => import('./_patient-documents.js'),
   'patient-upload':            () => import('./_patient-upload.js'),
+  'patient-call-event':        () => import('./_patient-call-event.js'),
   'patient-allergens':         () => import('./_patient-allergens.js'),
   'patient-medications':       () => import('./_patient-medications.js'),
   'patient-conditions':        () => import('./_patient-conditions.js'),

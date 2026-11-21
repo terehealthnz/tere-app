@@ -2414,8 +2414,23 @@ export default function ClinicianPatient() {
               // SMS link / phone fallback / cancel. Phone channel bypasses
               // the gate because SIP dials the phone directly, no browser
               // tab required. See src/lib/patientPresence.js for the rules.
+              //
+              // Re-fetch the consult row first (2026-11-21 fix): the cached
+              // `consult` state came from the queue payload at chart-open
+              // and can be 30-60+ seconds old by the time the provider
+              // clicks Video. Justin was marked offline while actually in
+              // the room because of that stale read. A single refetch here
+              // + the widened 120s threshold in patientPresence.js close
+              // the gap. On network error we fall back to the cached row.
               if (channel !== 'phone' && !consult?.is_practice) {
-                const presence = getPatientPresence(consult)
+                let liveConsult = consult
+                try {
+                  const fresh = await getConsultation(id)
+                  if (fresh) liveConsult = fresh
+                } catch (e) {
+                  console.warn('[ClinicianPatient] presence refetch failed, using cached row:', e?.message)
+                }
+                const presence = getPatientPresence(liveConsult)
                 if (presence.status !== 'in_waiting_room') {
                   setShowPresenceGate(true)
                   return
