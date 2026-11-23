@@ -87,6 +87,16 @@ export default function WorkLanding() {
         }
         if (!r.ok) { setPhase('invalid'); return }
         const body = await r.json()
+        // ARC facilities use the password-gated /arc/[slug] entry. If the
+        // nurse lands on /work/[slug] for an aged_care org and hasn't been
+        // through the password gate in this browser session, bounce them
+        // back to /arc/[slug] so they go through the password first.
+        if (body.employer?.org_type === 'aged_care') {
+          let sess = null
+          try { sess = JSON.parse(sessionStorage.getItem('tere_arc_session') || 'null') } catch {}
+          const valid = sess && sess.slug === slug && sess.expires_at > Date.now()
+          if (!valid) { navigate(`/arc/${slug}`, { replace: true }); return }
+        }
         setEmployer(body.employer)
         setPhase('ready')
       } catch {

@@ -127,6 +127,7 @@ export default async function handler(req, res) {
         id: data.id,
         company_name: data.company_name,
         require_employee_match: !!data.require_employee_match,
+        org_type: data.org_type || 'employer',
       },
       prefill: {
         phone:   rosterRow.phone   || '',

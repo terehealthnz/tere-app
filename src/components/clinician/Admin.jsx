@@ -6391,11 +6391,19 @@ function ApplicantDetail({ id, onClose, onChanged }) {
   )
 }
 
-function EmployersPanel() {
+function EmployersPanel({ orgTypeFilter } = {}) {
+  // orgTypeFilter: 'employer' | 'aged_care' | undefined (show all).
+  // Added 2026-11-23 to split the single admin panel into separate
+  // Employers vs ARC/Rest homes tabs so slugs route to /work/ vs /arc/
+  // without confusing the admin handing URLs to facility managers.
   const [employers, setEmployers] = React.useState([])
   const [loading, setLoading] = React.useState(true)
   const [showAdd, setShowAdd] = React.useState(false)
-  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '', org_type: 'employer' })
+  // Pre-select the right org_type for the "Add new" form based on which
+  // tab the admin is on, so they can't accidentally add an employer to
+  // the ARC list or vice versa.
+  const defaultNewOrgType = orgTypeFilter === 'aged_care' ? 'aged_care' : 'employer'
+  const [newEmp, setNewEmp] = React.useState({ company_name: '', contact_email: '', monthly_rate_per_employee: '', contract_start: '', generateSlug: true, usage_cap_month: '', org_type: defaultNewOrgType })
   const [saving, setSaving] = React.useState(false)
   const [uploadingFor, setUploadingFor] = React.useState(null)
   const [employeeCounts, setEmployeeCounts] = React.useState({})
@@ -6571,7 +6579,7 @@ function EmployersPanel() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug (terehealth.co.nz/work/<b>SLUG</b>) — 8‑32 lowercase alphanumeric</label>
+                <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug ({editEmp.org_type === 'aged_care' ? 'terehealth.co.nz/arc/' : 'terehealth.co.nz/work/'}<b>SLUG</b>) — 8‑32 lowercase alphanumeric</label>
                 <input style={inp} value={editEmp.slug} onChange={e => setEditEmp(x => ({ ...x, slug: e.target.value }))} placeholder="e.g. marinefarmingassociation" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
@@ -6653,7 +6661,7 @@ function EmployersPanel() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '.75rem' }}>
-          {employers.map(emp => (
+          {(orgTypeFilter ? employers.filter(e => (e.org_type || 'employer') === orgTypeFilter) : employers).map(emp => (
             <div key={emp.id} style={{ background: emp.is_active ? '#F8FAFC' : '#FFF5F5', borderRadius: 8, padding: '1rem 1.25rem', border: `1px solid ${emp.is_active ? '#E2E8F0' : '#FECACA'}` }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
@@ -6670,16 +6678,27 @@ function EmployersPanel() {
                     {emp.contract_start && <span> · Since {new Date(emp.contract_start).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })}</span>}
                     {emp.usage_cap_month && <span> · Cap {emp.usage_cap_month}/mo</span>}
                   </div>
-                  {emp.slug && (
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', padding: '6px 10px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
-                      <span style={{ fontSize: '.75rem', color: '#065F46', fontWeight: 700 }}>URL</span>
-                      <code style={{ fontFamily: 'monospace', fontSize: '.8125rem', color: '#065F46' }}>terehealth.co.nz/work/{emp.slug}</code>
-                      <button onClick={() => { navigator.clipboard?.writeText(`https://terehealth.co.nz/work/${emp.slug}`); }}
-                        style={{ marginLeft: 'auto', background: '#059669', color: 'white', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                        Copy link
-                      </button>
-                    </div>
-                  )}
+                  {emp.slug && (() => {
+                    // ARC facilities use the password-gated /arc/[slug] entry
+                    // point (nurse enters shared facility password → redirects
+                    // to intake). Legacy employer flow uses /work/[slug] (slug
+                    // alone is the auth). Admin must hand out the right URL.
+                    const isArc = emp.org_type === 'aged_care'
+                    const path = isArc ? 'arc' : 'work'
+                    return (
+                      <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, background: '#F0FDF4', padding: '6px 10px', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+                        <span style={{ fontSize: '.75rem', color: '#065F46', fontWeight: 700 }}>URL</span>
+                        <code style={{ fontFamily: 'monospace', fontSize: '.8125rem', color: '#065F46' }}>terehealth.co.nz/{path}/{emp.slug}</code>
+                        {isArc && (
+                          <span style={{ fontSize: '.6875rem', color: '#065F46', fontWeight: 700, background: '#D1FAE5', padding: '2px 6px', borderRadius: 4 }}>PASSWORD-GATED</span>
+                        )}
+                        <button onClick={() => { navigator.clipboard?.writeText(`https://terehealth.co.nz/${path}/${emp.slug}`); }}
+                          style={{ marginLeft: 'auto', background: '#059669', color: 'white', border: 'none', padding: '3px 10px', borderRadius: 4, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                          Copy link
+                        </button>
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div style={{ display: 'flex', gap: '.375rem', flexWrap: 'wrap', alignItems: 'center' }}>
                   <label style={{ background: '#EFF6FF', color: '#2563EB', border: 'none', padding: '5px 10px', borderRadius: 6, cursor: 'pointer', fontSize: '.75rem', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}>
@@ -8882,6 +8901,7 @@ function AdminBody() {
             { id:'nhi',          label:'🩺 NHI Lookup' },
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
+            { id:'arc',          label:'🏥 ARC / Rest homes' },
             { id:'promo_codes',  label:'🏷️ Promo codes' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
             { id:'testimonials', label:`⭐ Testimonials${pendingCounts.testimonials ? ` (${pendingCounts.testimonials})` : ''}` },
@@ -8958,7 +8978,8 @@ function AdminBody() {
             case 'hpi':        return <AdminHpiLookupPanel />
             case 'nhi':        return <AdminNhiLookupPanel />
             case 'acc':        return <><ReclassificationsPanel /><AccClaimsSection /></>
-            case 'employers':  return <EmployersPanel />
+            case 'employers':  return <EmployersPanel orgTypeFilter="employer" />
+            case 'arc':        return <EmployersPanel orgTypeFilter="aged_care" />
             case 'promo_codes': return <PromoCodesPanel />
             case 'support':      return <SupportPanel />
             case 'testimonials': return <TestimonialsPanel />
