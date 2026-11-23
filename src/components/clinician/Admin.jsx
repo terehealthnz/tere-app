@@ -8929,6 +8929,7 @@ function AdminBody() {
             { id:'acc',          label:'⚡ ACC' },
             { id:'employers',    label:'🏢 Employers' },
             { id:'arc',          label:'🏥 ARC / Rest homes' },
+            { id:'pso',          label:'💊 PSOs & Standing Orders' },
             { id:'promo_codes',  label:'🏷️ Promo codes' },
             { id:'support',      label:`🎫 Support${pendingCounts.support ? ` (${pendingCounts.support})` : ''}` },
             { id:'testimonials', label:`⭐ Testimonials${pendingCounts.testimonials ? ` (${pendingCounts.testimonials})` : ''}` },
@@ -8941,7 +8942,15 @@ function AdminBody() {
             <div style={{ width:'100%', maxWidth:360, display:'flex', alignItems:'center', gap:8, background:'#F7F5F0', borderRadius:10, border:'1.5px solid #E2E8F0', position:'sticky', top:'calc(3.5rem + env(safe-area-inset-top, 0px))', zIndex:9, marginBottom:'1.5rem', boxShadow:'0 2px 8px rgba(13,43,69,.08)' }}>
               <select
                 value={adminTab}
-                onChange={e => setAdminTab(e.target.value)}
+                onChange={e => {
+                  // PSO has its own full-page shell (NAVY nav bar + own
+                  // scrolling container); embedding it inside the admin
+                  // tab panel double-renders chrome. Navigate instead so
+                  // it still appears in the dropdown for discoverability
+                  // but renders on its own route.
+                  if (e.target.value === 'pso') { navigate('/clinician/pso'); return }
+                  setAdminTab(e.target.value)
+                }}
                 style={{
                   flex:1, background:'transparent', color:'#0D2B45', border:'none', outline:'none',
                   borderRadius:10, padding:'10px 40px 10px 14px',
