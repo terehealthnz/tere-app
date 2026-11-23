@@ -6465,6 +6465,9 @@ function EmployersPanel({ orgTypeFilter } = {}) {
       slug: emp.slug || '',
       usage_cap_month: emp.usage_cap_month ?? '',
       notes: emp.notes || '',
+      org_type: emp.org_type || 'employer',
+      has_password: !!emp.access_password_hash,
+      access_password: '',  // plaintext stays blank; admin types new value to rotate
     })
   }
 
@@ -6482,6 +6485,12 @@ function EmployersPanel({ orgTypeFilter } = {}) {
       slug: editEmp.slug.trim().toLowerCase() || null,
       usage_cap_month: editEmp.usage_cap_month === '' ? null : parseInt(editEmp.usage_cap_month, 10),
       notes: editEmp.notes.trim() || null,
+    }
+    // ARC password rotation: only include access_password if admin typed a new
+    // value. Server bcrypts it and stores on access_password_hash. Empty
+    // string = "keep the current password", no field sent.
+    if (editEmp.org_type === 'aged_care' && editEmp.access_password && editEmp.access_password.trim()) {
+      patch.access_password = editEmp.access_password.trim()
     }
     try {
       await updateEmployer(editEmp.id, patch)
@@ -6582,6 +6591,24 @@ function EmployersPanel({ orgTypeFilter } = {}) {
                 <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>URL slug ({editEmp.org_type === 'aged_care' ? 'terehealth.co.nz/arc/' : 'terehealth.co.nz/work/'}<b>SLUG</b>) — 8‑32 lowercase alphanumeric</label>
                 <input style={inp} value={editEmp.slug} onChange={e => setEditEmp(x => ({ ...x, slug: e.target.value }))} placeholder="e.g. marinefarmingassociation" />
               </div>
+              {editEmp.org_type === 'aged_care' && (
+                <div style={{ background: '#F0F9FA', border: '1px solid #D4EEF0', borderRadius: 6, padding: '10px 12px' }}>
+                  <label style={{ fontSize: '.75rem', color: '#0B6E76', display: 'block', marginBottom: 4, fontWeight: 700 }}>
+                    🔐 Facility access password {editEmp.has_password ? '· currently set' : '· NOT SET'}
+                  </label>
+                  <input
+                    style={inp}
+                    type="text"
+                    autoComplete="off"
+                    value={editEmp.access_password}
+                    onChange={e => setEditEmp(x => ({ ...x, access_password: e.target.value }))}
+                    placeholder={editEmp.has_password ? 'Leave blank to keep current password' : 'Set initial password (min 4 chars)'}
+                  />
+                  <div style={{ fontSize: '.6875rem', color: '#6B7280', marginTop: 4, lineHeight: 1.4 }}>
+                    Shared password nurses enter at terehealth.co.nz/arc/{editEmp.slug || '[slug]'}. Only the hash is stored; type a new value to rotate. Leaves current password untouched if left blank.
+                  </div>
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '.625rem' }}>
                 <div>
                   <label style={{ fontSize: '.75rem', color: '#6B7280', display: 'block', marginBottom: 2 }}>Monthly rate per employee ($)</label>

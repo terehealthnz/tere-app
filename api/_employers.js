@@ -182,6 +182,26 @@ export default async function handler(req, res) {
     for (const [k, v] of Object.entries(raw)) {
       if (UPDATE_ALLOWLIST.has(k)) patch[k] = v
     }
+
+    // ARC facility password rotation. Admin posts a plaintext access_password
+    // field (NOT in the allowlist, handled separately). We bcrypt it server-
+    // side and store on access_password_hash so the plaintext never touches
+    // the DB. Only aged_care rows can have a password; reject for other
+    // org_type to avoid silent no-ops that admin thinks worked.
+    if (typeof raw.access_password === 'string' && raw.access_password.length > 0) {
+      const bcrypt = (await import('bcryptjs')).default
+      if (raw.access_password.length < 4) {
+        return res.status(400).json({ error: 'Password must be at least 4 characters' })
+      }
+      const { data: existing, error: lookupErr } = await supabase
+        .from('employers').select('org_type').eq('id', id).maybeSingle()
+      if (lookupErr || !existing) return res.status(404).json({ error: 'Employer not found' })
+      if (existing.org_type !== 'aged_care') {
+        return res.status(400).json({ error: 'Password only applies to ARC facilities (aged_care org_type)' })
+      }
+      patch.access_password_hash = bcrypt.hashSync(raw.access_password, 10)
+    }
+
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'No allowed columns in patch' })
     }
