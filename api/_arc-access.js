@@ -91,7 +91,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Facility not configured for password access' })
   }
 
-  const ok = bcrypt.compareSync(password, employer.access_password_hash)
+  // Case-insensitive password check. We store the bcrypt hash of the
+  // lowercased password and lowercase the input before comparing, so
+  // "Enliven", "enliven", "ENLIVEN" all work. Reasoning: nurses using
+  // the tablet at a shift change don't need to remember capitalisation,
+  // and the shared-password model is already low-security (see MOU).
+  const ok = bcrypt.compareSync(String(password).toLowerCase(), employer.access_password_hash)
   if (!ok) {
     const count = recordFailure(ip)
     console.warn(`[arc-access] password failed for slug=${slug} ip=${ip} (${count}/${FAIL_MAX})`)

@@ -199,7 +199,9 @@ export default async function handler(req, res) {
       if (existing.org_type !== 'aged_care') {
         return res.status(400).json({ error: 'Password only applies to ARC facilities (aged_care org_type)' })
       }
-      patch.access_password_hash = bcrypt.hashSync(raw.access_password, 10)
+      // Store the hash of the lowercased password so the arc-access check
+      // (which lowercases input) matches regardless of capitalisation.
+      patch.access_password_hash = bcrypt.hashSync(String(raw.access_password).toLowerCase(), 10)
     }
 
     if (Object.keys(patch).length === 0) {
