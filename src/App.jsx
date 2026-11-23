@@ -114,6 +114,7 @@ const ForwardRecords      = lazy(() => import('./pages/patient/ForwardRecords'))
 const PatientPortal        = lazy(() => import('./pages/patient/PatientPortal'))
 const WorkLanding          = lazy(() => import('./pages/patient/WorkLanding'))
 const WorkIntake           = lazy(() => import('./pages/patient/WorkIntake'))
+const ArcEntry             = lazy(() => import('./pages/patient/ArcEntry'))
 const ClinicianLogin      = lazy(() => import('./components/clinician/Login'))
 const Dashboard           = lazy(() => import('./components/clinician/Dashboard'))
 const ConsultView         = lazy(() => import('./components/clinician/ConsultView'))
@@ -333,6 +334,7 @@ export default function App() {
         <Route path="/portal/forward-records/:token" element={<ForwardRecords />} />
         <Route path="/work/:slug"             element={<WorkLanding />} />
         <Route path="/work/:slug/intake"      element={<WorkIntake />} />
+        <Route path="/arc/:slug"              element={<ArcEntry />} />
         <Route path="/complaints"             element={<Complaints />} />
         <Route path="/watch"                  element={<Watch />} />
         <Route path="/waitlist"               element={<WaitlistRouter />} />
