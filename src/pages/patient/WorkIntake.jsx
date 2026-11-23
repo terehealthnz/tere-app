@@ -207,7 +207,10 @@ export default function WorkIntake() {
   // Biometrics: BiometricsForm applies the plausibility checks that match
   // the DB CHECK constraints on consultations.patient_height_cm /
   // patient_weight_kg; `bio.valid` is true when sex+height+weight all pass.
-  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length >= 5 && (phoneValid || email.trim()) && !!selectedPharmacy && consent && accFieldsValid && bio.valid
+  // Chief complaint: any non-empty value. Previously required >=5 chars which
+  // blocked legitimate clinical shorthand (UTI, SOB, CP) that nurses type on
+  // the ARC flow. Trust the input; the provider sees it anyway.
+  const formValid = firstName.trim() && lastName.trim() && dob && chief.trim().length > 0 && (phoneValid || email.trim()) && !!selectedPharmacy && consent && accFieldsValid && bio.valid
 
   // Lazy-load the Medsafe pharmacy register. Same file + shape as AITriage
   // uses so provider-side lookup is identical whichever intake fed the row.
