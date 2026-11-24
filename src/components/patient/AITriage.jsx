@@ -256,8 +256,13 @@ const STEPS = [
   { id:'phone', message:"What's your mobile number?", field:'patient_phone', type:'phone_picker', validate:v=>/^\+\d{6,15}$/.test(String(v||'').trim()), error:"Please enter a valid mobile number.", next:'email' },
   { id:'email', message:"What's your email? We'll send your consultation summary there.", field:'patient_email', validate:v=>v.includes('@'), error:"Can you double-check that email address?", next:'address' },
   { id:'address', message:"What's your home address? Start typing and pick from the list, or just type it out.", field:'patient_address', type:'address_picker', validate:v=>v.trim().length>4, error:"Can you type your home address?", next:'complaint' },
-  { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'acc_check' },
-  { id:'acc_check', message:"Is your visit related to an accident or injury? ACC may cover your treatment costs.", field:'is_acc_raw', type:'yesno', validate:()=>true, next:'history' },
+  // ACC classification removed from patient triage 2026-11-24 — too much
+  // leverage was in the system (patient ACC question + AI keyword matcher
+  // + $25 locked-in price) to get the final fee capture right. ACC
+  // eligibility is now decided by the provider at Finalise via the Fee
+  // tier picker on NotesCompletion, which is the authoritative source
+  // for both is_acc and payment_amount.
+  { id:'complaint', message:"What's brought you in today? Tell me what's going on — including how long it's been happening.", field:'chief_complaint', validate:v=>v.trim().length>5, error:"Can you tell me a bit more?", next:'history' },
   // Returning-patient shortcut: show what's on file, ask if anything has changed.
   // If nothing on file, this step is skipped and we go straight to complaint (see
   // returning-patient branch in submitAnswer). Message is dynamic — see summarizeOnFile.
@@ -618,25 +623,10 @@ export default function AITriage() {
     if (step.transform) processed = step.transform(processed)
     let newData = { ...currentData, [step.field]: processed }
 
-    // AI-powered ACC assessment — fires non-blocking, pre-selects button on acc_check step
-    if (step.id === 'complaint') {
-      setData(newData)
-      setAccSuggestion(null)
-      clearTimeout(accAssessTimerRef.current)
-      accAssessTimerRef.current = setTimeout(() => setAccSuggestion(null), 2000)
-      apiFetch('/api/assess-acc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ complaint: processed }),
-      }).then(r => r.json())
-        .then(({ isLikelyACC }) => {
-          clearTimeout(accAssessTimerRef.current)
-          setAccSuggestion(isLikelyACC ? 'yes' : 'no')
-        })
-        .catch(() => clearTimeout(accAssessTimerRef.current))
-      advanceToStep('acc_check', newData)
-      return
-    }
+    // ACC AI assessment removed 2026-11-24 — provider sets ACC at Finalise
+    // via Fee tier picker on NotesCompletion. See also the removed
+    // acc_check step above. The /api/assess-acc endpoint is retained for
+    // provider-side "suggest ACC" hints if we add them later.
 
     setData(newData)
 
@@ -718,29 +708,26 @@ export default function AITriage() {
       return
     }
 
-    // Clear AI suggestion once patient has answered the acc_check step
-    if (step.id === 'acc_check') {
-      setAccSuggestion(null)
-      // Returning patient already reviewed history/meds/allergies via updates_check —
-      // skip re-asking those three and jump to the admin block (or ACC description).
-      if (newData._historyReviewed) {
-        setData(newData)
-        advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
-        return
-      }
+    // acc_check step removed 2026-11-24. Returning-patient branch now
+    // jumps straight to NEXT_AFTER_ALLERGIES after the complaint, since
+    // history/meds/allergies were already reviewed via updates_check.
+    if (step.id === 'complaint' && newData._historyReviewed) {
+      setData(newData)
+      advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
+      return
     }
 
-    // Route allergies: normally goes to admin questions (nhi). But if the patient
-    // came in via updates_check yes, we haven't done complaint/acc_check yet, so
-    // loop back to complaint (which will run acc_check then correctly skip
-    // history/meds/allergies via the _historyReviewed guard above).
+    // Route allergies: normally goes to admin questions (nhi). But if the
+    // patient came in via updates_check yes, we loop back to complaint
+    // (which will correctly skip history/meds/allergies via the
+    // _historyReviewed guard above).
     if (step.id === 'allergies') {
       setData(newData)
       if (newData._historyReviewed && !newData.chief_complaint) {
         advanceToStep('complaint', newData)
         return
       }
-      advanceToStep(newData.is_acc_raw === 'yes' ? 'acc_description' : NEXT_AFTER_ALLERGIES(), newData)
+      advanceToStep(NEXT_AFTER_ALLERGIES(), newData)
       return
     }
 

@@ -167,6 +167,14 @@ export default function NotesCompletion() {
   const [dsFollowUp, setDsFollowUp]     = useState('')
   const [dsNotes, setDsNotes]           = useState('')
 
+  // Fee tier picked by the provider. This is the single authoritative
+  // source for payment_amount + is_acc now that the patient-side ACC
+  // question + AI keyword matcher have been removed (2026-11-24, Eilidh
+  // Jones incident). Options: $25 ACC / $65 Standard / $100 Extended /
+  // Waive ($0). Windcave auth was raised to $100 so any of these
+  // captures cleanly. Required before Finalise can fire.
+  const [feeCents, setFeeCents]         = useState(null)   // null | 2500 | 6500 | 10000 | 0
+
   // Note templates (SOAP + discharge). Provider-owned, cross-mode.
   const [noteTemplates, setNoteTemplates]           = useState([])
   const [dischargeTemplates, setDischargeTemplates] = useState([])
@@ -579,8 +587,11 @@ export default function NotesCompletion() {
           status:                  'complete',
           completed_at:            consult?.completed_at || now,
           consultation_duration_seconds: durationSec,
-          payment_amount:          consult?.payment_amount || (consult?.acc_eligible === 'yes' ? 2500 : 6000),
-          is_acc:                  consult?.acc_eligible === 'yes',
+          // Provider-picked fee tier is the authoritative source (2026-11-24).
+          // $25 ACC → is_acc=true for ACC lodgement. All other tiers → is_acc=false.
+          payment_amount:          feeCents,
+          is_acc:                  feeCents === 2500,
+          acc_eligible:            feeCents === 2500 ? 'yes' : 'no',
           // Discharge summary — only persist if the provider filled it in.
           // Works for both ACC and non-ACC consults; ACC path also reads/
           // writes this via AccConsultWidgets, so we don't wipe if empty.
@@ -648,6 +659,7 @@ export default function NotesCompletion() {
 
   const criticalFlags = redFlags?.flags?.filter(f => f.severity === 'critical') || []
   const canFinalise = !isFinalised && s1.trim().length > 0 && !!workCapacity && attested &&
+    feeCents !== null &&
     (criticalFlags.length === 0 || flagsAcknowledged)
 
   const progress = [
@@ -1115,6 +1127,49 @@ export default function NotesCompletion() {
           </SectionCard>
         )}
 
+        {/* ─── Fee tier picker — authoritative source for payment_amount + is_acc ─── */}
+        {!isFinalised && (() => {
+          const FEE_OPTIONS = [
+            { cents: 2500,  label: '$25 ACC',      sub: 'ACC co-pay' },
+            { cents: 6500,  label: '$65 Standard', sub: 'Private consult' },
+            { cents: 10000, label: '$100 Extended',sub: 'Longer / complex' },
+            { cents: 0,     label: 'Waive',        sub: 'No charge' },
+          ]
+          return (
+            <SectionCard num="F" title="Fee for this consult">
+              <div style={{ fontSize:'.8rem', color:'#6B7280', marginBottom:10, lineHeight:1.5 }}>
+                You decide. Whatever you pick here is captured from the patient's $100 hold. $25 also tags the consult as ACC for later lodgement.
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:8 }}>
+                {FEE_OPTIONS.map(opt => {
+                  const selected = feeCents === opt.cents
+                  return (
+                    <button
+                      key={opt.cents}
+                      type="button"
+                      onClick={() => setFeeCents(opt.cents)}
+                      style={{
+                        padding:'12px 14px', borderRadius:10,
+                        border:`2px solid ${selected ? '#0B6E76' : '#E2E8F0'}`,
+                        background: selected ? '#F0F9FA' : 'white',
+                        cursor:'pointer', fontFamily:FF, textAlign:'left',
+                        display:'flex', flexDirection:'column', gap:2,
+                      }}>
+                      <div style={{ fontWeight:800, color:selected?'#0B6E76':'#0D2B45', fontSize:'.95rem' }}>{opt.label}</div>
+                      <div style={{ fontSize:'.72rem', color:'#6B7280' }}>{opt.sub}</div>
+                    </button>
+                  )
+                })}
+              </div>
+              {feeCents === null && (
+                <div style={{ fontSize:'.78rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px', marginTop:10 }}>
+                  Required — pick a fee before you can Finalise.
+                </div>
+              )}
+            </SectionCard>
+          )
+        })()}
+
         {/* ─── Section 6: Attestation ─── */}
         <SectionCard num={6} title="Attestation">
           {isFinalised ? (
@@ -1145,6 +1200,7 @@ export default function NotesCompletion() {
               {/* Validation hints */}
               {!s1.trim() && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Section 1 (Presenting History) cannot be empty</div>}
               {!workCapacity && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Work capacity must be selected</div>}
+              {feeCents === null && <div style={{ fontSize:'.8rem', color:'#D97706', background:'#FFFBEB', borderRadius:8, padding:'8px 12px' }}>Fee tier must be selected (Section F)</div>}
 
               {attested && (
                 <button onClick={finalise} disabled={!canFinalise || finalising}
